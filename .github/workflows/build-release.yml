@@ -46,3 +46,4 @@ jobs:
           upload_url: ${{ steps.create-new-release.outputs.upload_url }}
           asset_path: ./filediver.exe
           asset_name: filediver-win64.exe
+          asset_content_type: application/vnd.microsoft.portable-executable
