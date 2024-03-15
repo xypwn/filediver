@@ -95,7 +95,9 @@ func main() {
 	}
 
 	if _, err := exec.LookPath("ffmpeg"); err != nil {
-		prt.Warnf("FFmpeg not installed. Please install FFmpeg to convert videos to MP4. Without FFmpeg, videos will be saved as BIK.")
+		if _, err := exec.LookPath("./ffmpeg"); err != nil {
+			prt.Warnf("FFmpeg not installed or found locally. Please install FFmpeg, or place ffmpeg.exe in the current folder to convert videos to MP4. Without FFmpeg, videos will be saved as BIK.")
+		}
 	}
 
 	if *gameDir == "" {

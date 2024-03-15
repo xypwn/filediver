@@ -35,6 +35,9 @@ func convertBik(outPath string, in [3]io.ReadSeeker) error {
 	}
 
 	ffmpegPath, err := exec.LookPath("ffmpeg")
+	if err != nil {
+		ffmpegPath, err = exec.LookPath("./ffmpeg")
+	}
 	useFfmpeg := err == nil
 	if useFfmpeg {
 		cmd := exec.Command(ffmpegPath, "-y", "-f", "bink", "-i", "pipe:", outPath+".mp4")
