@@ -7,21 +7,35 @@ permissions:
     packages: write
 
 jobs:
-  releases-matrix:
-    name: Release FileDiver Binary
+  release-linux:
+    name: Release Linux Binary
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        goos: [linux, windows, darwin]
-        goarch: [amd64]
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - uses: wangyoucao577/go-release-action@v1
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
-        goos: ${{ matrix.goos }}
-        goarch: ${{ matrix.goarch }}
-        binary_name: "filediver ${{ matrix.goos }}"
+        goos: linux
+        goarch: amd64
         ldflags: -s -w
-        asset_name: "filediver-${{ matrix.goos }}"
-        overwrite: true
+        binary_name: "filediver"
+        asset_name: "filediver-linux-amd64"
+        extra_files: LICENSE README.md
+
+  release-windows:
+    name: Release Windows Binary
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - run: wget https://github.com/GyanD/codexffmpeg/releases/download/6.1.1/ffmpeg-6.1.1-essentials_build.zip
+    - run: unzip ffmpeg-6.1.1-essentials_build.zip ffmpeg-6.1.1-essentials_build/bin/ffmpeg.exe
+    - run: mv ffmpeg-6.1.1-essentials_build/bin/ffmpeg.exe .
+    - uses: wangyoucao577/go-release-action@v1
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        goos: linux
+        goarch: amd64
+        ldflags: -s -w
+        binary_name: "filediver"
+        asset_name: "filediver-windows-amd64"
+        extra_files: LICENSE README.md ffmpeg.exe
