@@ -33,7 +33,7 @@ jobs:
     - uses: wangyoucao577/go-release-action@v1
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
-        goos: linux
+        goos: windows
         goarch: amd64
         ldflags: -s -w
         binary_name: "filediver"
