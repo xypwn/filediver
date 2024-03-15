@@ -8,7 +8,7 @@ permissions:
 
 jobs:
   releases-matrix:
-    name: Release FileDriver Binary
+    name: Release FileDiver Binary
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -21,7 +21,7 @@ jobs:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         goos: ${{ matrix.goos }}
         goarch: ${{ matrix.goarch }}
-        binary_name: "filedriver ${{ matrix.goos }}"
+        binary_name: "filediver ${{ matrix.goos }}"
         ldflags: -s -w
-        asset_name: "filedriver-${{ matrix.goos }}"
+        asset_name: "filediver-${{ matrix.goos }}"
         overwrite: true
