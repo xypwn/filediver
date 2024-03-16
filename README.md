@@ -6,14 +6,13 @@ An unofficial Helldivers 2 game asset extractor.
 - [Linux (64-bit)](https://github.com/xypwn/filediver/releases/latest/download/filediver-linux-amd64.tar.gz)
 
 ## Usage
-`$` `filediver`
-Simply running the app should automatically detect your installation directory and dump all files into the "extracted" directory in your current folder.
+`$` `filediver` - simply running the app should automatically detect your installation directory and dump all files into the "extracted" directory in your current folder.
 
-`$` `filediver -o "custom_dir"`
-Will extract the files into a directory called "custom_dir".
+`$` `filediver -c "enable:video"` - extract all video files.
 
-`$` `filediver -h`
-To print all options.
+`$` `filediver -o "custom_dir"` - extract the files into a directory called "custom_dir".
+
+`$` `filediver -h` - print a detailed description of all command line options.
 
 ## Features
 ### File Types/Formats
