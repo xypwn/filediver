@@ -192,8 +192,8 @@ extractor config:
 	if err != nil {
 		prt.Fatalf("%v", err)
 	}
-	extrCfgEnabledList := extrCfg["enabled"]
-	extrCfgDisabledList := extrCfg["disabled"]
+	extrCfgEnabledList := extrCfg["enable"]
+	extrCfgDisabledList := extrCfg["disable"]
 	for _, cfg := range []extractor.Config{extrCfgEnabledList, extrCfgDisabledList} {
 		if cfg["audio"] == "true" {
 			cfg["wwise_stream"] = "true"
