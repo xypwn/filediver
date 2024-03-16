@@ -175,7 +175,7 @@ extractor config:
 	})
 	gameDir := parser.String("g", "gamedir", &argparse.Option{Help: "Helldivers 2 game directory"})
 	outDir := parser.String("o", "out", &argparse.Option{Default: "extracted", Help: "Output directory (default: extracted)"})
-	extrCfgStr := parser.String("c", "extractor_config", &argparse.Option{Help: "Configure extractors (see \"extractor config\" section)"})
+	extrCfgStr := parser.String("c", "config", &argparse.Option{Help: "Configure extractors (see \"extractor config\" section)"})
 	extrInclGlob := parser.String("i", "include", &argparse.Option{Help: "Extract only matching files (glob syntax, SEE MATCHING FILES SECTION)"})
 	extrExclGlob := parser.String("x", "exclude", &argparse.Option{Help: "Exclude matching files (glob syntax, can be mixed with --include, SEE MATCHING FILES SECTION)"})
 	//verbose := parser.Flag("v", "verbose", &argparse.Option{Help: "Provide more detailed status output"})
