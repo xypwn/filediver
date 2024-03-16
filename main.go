@@ -19,6 +19,7 @@ import (
 	extr_bik "github.com/xypwn/filediver/extractor/bik"
 	extr_texture "github.com/xypwn/filediver/extractor/texture"
 	extr_wwise "github.com/xypwn/filediver/extractor/wwise"
+	"github.com/xypwn/filediver/steampath"
 	"github.com/xypwn/filediver/stingray"
 )
 
@@ -220,7 +221,7 @@ extractor config:
 	}
 
 	if *gameDir == "" {
-		hd2SteamPath, err := getSteamPath("553850", "Helldivers 2")
+		hd2SteamPath, err := steampath.GetAppPath("553850", "Helldivers 2")
 		if err == nil {
 			prt.Infof("Using game found at: \"%v\"", hd2SteamPath)
 			*gameDir = hd2SteamPath

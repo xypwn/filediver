@@ -1,6 +1,4 @@
-//go:build windows
-
-package main
+package steampath
 
 import (
 	"errors"
@@ -8,20 +6,17 @@ import (
 	"path/filepath"
 
 	"github.com/andygrunwald/vdf"
-	"golang.org/x/sys/windows/registry"
 )
 
-func getSteamPath(appID, dirName string) (string, error) {
-	k, err := registry.OpenKey(registry.CURRENT_USER, `SOFTWARE\Valve\Steam`, registry.QUERY_VALUE)
+// Retrieves the game file path for a Steam game.
+// appID is the numerical steam app ID, and dirName is the name of the
+// directory the game is saved in (e.g. appID="553850", dirName="Helldivers 2").
+func GetAppPath(appID, dirName string) (string, error) {
+	libfoldersPath, err := getLibraryfoldersVDFPath()
 	if err != nil {
 		return "", err
 	}
-	defer k.Close()
-	steamPath, _, err := k.GetStringValue("SteamPath")
-	if err != nil {
-		return "", err
-	}
-	f, err := os.Open(filepath.Join(steamPath, "steamapps", "libraryfolders.vdf"))
+	f, err := os.Open(libfoldersPath)
 	if err != nil {
 		return "", err
 	}
@@ -45,8 +40,7 @@ func getSteamPath(appID, dirName string) (string, error) {
 		if !ok {
 			return "", errParsingLibfolders
 		}
-		_, hasHD2 := apps[appID]
-		if hasHD2 {
+		if _, ok := apps[appID]; ok {
 			path, ok := v["path"].(string)
 			if !ok {
 				return "", errParsingLibfolders
