@@ -10,7 +10,7 @@ Extract the achive into a new folder.
 ## Usage
 While you can simply double-click the executable to run it, using the terminal will grant you some more options.
 
-In your terminal, navigate to the folder contianing the executable and from there, run `filediver -h` to get a list of options.
+In your terminal, navigate to the folder containing the executable. From there, run `filediver -h` to get a list of options.
 
 Here are some example commands:
 
