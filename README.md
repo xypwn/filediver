@@ -16,13 +16,15 @@ Here are some example commands:
 
 `$` `filediver` - simply running the app should automatically detect your installation directory and dump all files into the "extracted" directory in your current folder.
 
+`$` `filediver -h` - print a detailed description of all command line options.
+
+`$` `filediver -o "custom_dir"` - extract the files into a directory called "custom_dir".
+
 `$` `filediver -c "enable:video"` - extract only video files.
 
 `$` `filediver -c "audio:format=ogg"` - extract audio as Ogg (more storage-efficient).
 
-`$` `filediver -o "custom_dir"` - extract the files into a directory called "custom_dir".
-
-`$` `filediver -h` - print a detailed description of all command line options.
+`$` `filediver -c "audio:format=mp3" -i "content/audio/291227525.wwise_stream"` - extract the Super Earth anthem as mp3.
 
 ## Features
 ### File Types/Formats
