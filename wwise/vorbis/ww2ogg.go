@@ -110,7 +110,7 @@ func ww2oggConvertSetup(d *Decoder, writer io.Writer, reader io.Reader) error {
 			return err
 		}
 
-		if err := codebooksAOTUV603.RebuildByID(bw, int(codebookID)); err != nil {
+		if err := codebooksAOTUV603.ConvertByID(bw, int(codebookID)); err != nil {
 			return err
 		}
 	}
@@ -356,6 +356,9 @@ func ww2oggConvertSetup(d *Decoder, writer io.Writer, reader io.Reader) error {
 		}
 
 		mappingReserved, err := copyBits(2)
+		if err != nil {
+			return err
+		}
 		if mappingReserved != 0 {
 			return errors.New("mapping reserved field nonzero")
 		}

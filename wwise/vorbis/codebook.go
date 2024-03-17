@@ -74,7 +74,7 @@ func (cl *codebookLibrary) Codebook(id int) ([]byte, error) {
 	return cl.Data[cl.Offsets[id]:cl.Offsets[id+1]], nil
 }
 
-func (cl *codebookLibrary) RebuildByID(w *bitio.Writer, id int) error {
+func (cl *codebookLibrary) ConvertByID(w *bitio.Writer, id int) error {
 	cb, err := cl.Codebook(id)
 	if err != nil {
 		return err

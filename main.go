@@ -155,7 +155,7 @@ extractor config:
     filediver -c "enable:audio"                 only extract audio
     filediver -c "disable:audio,video"          exclude audio and video
     filediver -c "enable:bik bik:conv=false"    only extract bik files, but don't convert them to mp4
-    filediver -c "audio:format=flac"            convert audio to flac instead of wav
+    filediver -c "audio:format=ogg"             convert audio to ogg instead of wav
   special keys:
     enable:<list>     enable only the specified extractors
     disable:<list>    enable all extractors, except the specified ones
@@ -170,8 +170,8 @@ extractor config:
   options:
     all:
       conv=true|false    if false, file will be copied in its original format (probably can't be opened by most programs), default: true
-    wwise_stream, wwise_bank:
-      format=wav|flac    output format (WAV or uncompressed FLAC)`,
+    audio, wwise_stream, wwise_bank:
+      format=wav|ogg|aac|mp3    output format (anything other than WAV requires FFmpeg)`,
 		DisableDefaultShowHelp: true,
 	})
 	gameDir := parser.String("g", "gamedir", &argparse.Option{Help: "Helldivers 2 game directory"})
@@ -216,7 +216,7 @@ extractor config:
 
 	if _, err := exec.LookPath("ffmpeg"); err != nil {
 		if _, err := exec.LookPath("./ffmpeg"); err != nil {
-			prt.Warnf("FFmpeg not installed or found locally. Please install FFmpeg, or place ffmpeg.exe in the current folder to convert videos to MP4. Without FFmpeg, videos will be saved as BIK.")
+			prt.Warnf("FFmpeg not installed or found locally. Please install FFmpeg, or place ffmpeg.exe in the current folder to convert videos to MP4 and audio to a variety of formats. Without FFmpeg, videos will be saved as BIK and audio will be saved was WAV.")
 		}
 	}
 
