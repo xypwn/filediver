@@ -25,7 +25,7 @@ Here are some example commands:
 ## Features
 ### File Types/Formats
 - **Audio**: Audiokinetic wwise bnk/wem; automatically converted to WAV
-- **Video**: Bink; automatically converted to MP4 (requires [FFmpeg](https://ffmpeg.org/download.html) to be installed)
+- **Video**: Bink; automatically converted to MP4 via FFmpeg (shipped with Windows binary)
 - **Textures**: Direct Draw Surface (.dds)
 
 Planned: models, bones, animations
