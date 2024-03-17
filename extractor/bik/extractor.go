@@ -47,15 +47,15 @@ func Extract(outPath string, ins [stingray.NumDataType]io.ReadSeeker, config ext
 }
 
 func Convert(outPath string, ins [stingray.NumDataType]io.ReadSeeker, config extractor.Config) error {
-	r, _, err := extract(ins, config)
-	if err != nil {
-		return err
-	}
-
 	ffmpegPath, err := exec.LookPath("ffmpeg")
 	if err != nil {
 		ffmpegPath, err = exec.LookPath("./ffmpeg")
 	}
+	if err != nil {
+		return Extract(outPath, ins, config)
+	}
+
+	r, _, err := extract(ins, config)
 	if err != nil {
 		return err
 	}

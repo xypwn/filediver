@@ -1,19 +1,19 @@
 package wwise
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
 	"math"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/go-audio/audio"
 	"github.com/go-audio/wav"
-	"github.com/mewkiz/flac"
-	flac_frame "github.com/mewkiz/flac/frame"
-	flac_meta "github.com/mewkiz/flac/meta"
 
 	"github.com/xypwn/filediver/extractor"
 	"github.com/xypwn/filediver/stingray"
@@ -25,8 +25,51 @@ type format int
 
 const (
 	formatWav format = iota
-	formatFlac
+	formatMp3
+	formatOgg
+	formatAac
 )
+
+type wemPcmF32ByteReader struct {
+	dec    *wwise.Wem
+	endian binary.ByteOrder
+	buf    []byte
+	pos    int
+	bufLen int
+}
+
+func newWemPcmF32ByteReader(dec *wwise.Wem, endian binary.ByteOrder) *wemPcmF32ByteReader {
+	return &wemPcmF32ByteReader{
+		dec:    dec,
+		endian: endian,
+		buf:    make([]byte, dec.BufferSize()*4),
+	}
+}
+
+func (r *wemPcmF32ByteReader) Read(p []byte) (int, error) {
+	for i := range p {
+		for r.pos >= r.bufLen {
+			data, err := r.dec.Decode()
+			if err != nil {
+				if errors.Is(err, io.EOF) {
+					// os.exec only does a lazy (non-recursive) check for EOF
+					return i, io.EOF
+				} else {
+					return i, err
+				}
+			}
+			for i := range data {
+				r.endian.PutUint32(r.buf[4*i:4*(i+1)], math.Float32bits(data[i]))
+			}
+			r.pos = 0
+			r.bufLen = 4 * len(data)
+		}
+
+		p[i] = r.buf[r.pos]
+		r.pos++
+	}
+	return len(p), nil
+}
 
 func pcmFloat32ToIntS16(dst []int, src []float32) {
 	if len(dst) != len(src) {
@@ -45,53 +88,18 @@ func pcmFloat32ToIntS16(dst []int, src []float32) {
 	}
 }
 
-func pcmFloat32ToInt32S16P(dst []int32, src []float32, chanIdx, numChans int) {
-	if len(dst)*numChans != len(src) {
-		panic("dst length multiplied by number of channels must equal src length")
-	}
-
-	for i := 0; i < len(dst); i++ {
-		val := int32(math.Floor(float64(src[chanIdx+i*numChans])*32767 + 0.5))
-		if val > 32767 {
-			val = 32767
-		}
-		if val < -32768 {
-			val = 32768
-		}
-		dst[i] = val
-	}
-}
-
-func getFlacChannels(nchannels int) (flac_frame.Channels, error) {
-	switch nchannels {
-	case 1:
-		return flac_frame.ChannelsMono, nil
-	case 2:
-		return flac_frame.ChannelsLR, nil
-	case 3:
-		return flac_frame.ChannelsLRC, nil
-	case 4:
-		return flac_frame.ChannelsLRLsRs, nil
-	case 5:
-		return flac_frame.ChannelsLRCLsRs, nil
-	case 6:
-		return flac_frame.ChannelsLRCLfeLsRs, nil
-	case 7:
-		return flac_frame.ChannelsLRCLfeCsSlSr, nil
-	case 8:
-		return flac_frame.ChannelsLRCLfeLsRsSlSr, nil
-	default:
-		return 0, fmt.Errorf("unsupported number of channels: %d", nchannels)
-	}
-}
-
-func convertWemStream(out io.WriteSeeker, in io.ReadSeeker, format format) error {
+func convertWemStream(outPath string, in io.ReadSeeker, format format) error {
 	dec, err := wwise.OpenWem(in)
 	if err != nil {
 		return err
 	}
 	switch format {
 	case formatWav:
+		out, err := os.Create(outPath + ".wav")
+		if err != nil {
+			return err
+		}
+		defer out.Close()
 		enc := wav.NewEncoder(out, dec.SampleRate(), 16, dec.Channels(), 1)
 		defer enc.Close()
 		smpBuf := make([]int, dec.BufferSize())
@@ -118,83 +126,65 @@ func convertWemStream(out io.WriteSeeker, in io.ReadSeeker, format format) error
 				return err
 			}
 		}
-	case formatFlac:
-		// As I found out way too deep into using this FLAC library, it only supports uncompressed FLAC.
-		// I still couldn't find a single compressing audio encoder in pure Go. Maybe one day...
-
-		enc, err := flac.NewEncoder(out, &flac_meta.StreamInfo{
-			BlockSizeMin:  16,
-			BlockSizeMax:  65535,
-			SampleRate:    uint32(dec.SampleRate()),
-			NChannels:     uint8(dec.Channels()),
-			BitsPerSample: 16,
-		})
+	default:
+		ffmpegPath, err := exec.LookPath("ffmpeg")
 		if err != nil {
-			return err
+			ffmpegPath, err = exec.LookPath("./ffmpeg")
 		}
-		smpBuf := make([][]int32, dec.Channels())
-		subframes := make([]*flac_frame.Subframe, dec.Channels())
-		for i := range subframes {
-			subframes[i] = &flac_frame.Subframe{}
-			smpBuf[i] = make([]int32, dec.BufferSize()/dec.Channels())
-		}
-		channelLayout, err := getFlacChannels(dec.Channels())
 		if err != nil {
-			return err
+			return convertWemStream(outPath, in, formatWav)
 		}
-
-		for {
-			data, err := dec.Decode()
-			if err != nil {
-				if errors.Is(err, io.EOF) {
-					break
-				} else {
-					return err
-				}
-			}
-			nSamplesPerCh := len(data) / dec.Channels()
-
-			for i := range subframes {
-				pcmFloat32ToInt32S16P(smpBuf[i][:nSamplesPerCh], data, i, dec.Channels())
-				subframes[i].SubHeader = flac_frame.SubHeader{
-					Pred: flac_frame.PredVerbatim,
-				}
-				subframes[i].NSamples = nSamplesPerCh
-				subframes[i].Samples = smpBuf[i][:nSamplesPerCh]
-			}
-
-			if err := enc.WriteFrame(&flac_frame.Frame{
-				Header: flac_frame.Header{
-					HasFixedBlockSize: false,
-					BlockSize:         uint16(nSamplesPerCh),
-					SampleRate:        uint32(dec.SampleRate()),
-					Channels:          channelLayout,
-					BitsPerSample:     16,
-				},
-				Subframes: subframes,
-			}); err != nil {
+		var fmtExt string
+		switch format {
+		case formatMp3:
+			fmtExt = ".mp3"
+		case formatOgg:
+			fmtExt = ".ogg"
+		case formatAac:
+			fmtExt = ".aac"
+		}
+		stderr := bytes.Buffer{}
+		cmd := exec.Command(
+			ffmpegPath, "-y", "-hide_banner", "-loglevel", "error",
+			"-f", "f32le",
+			"-ar", fmt.Sprint(dec.SampleRate()),
+			"-ac", fmt.Sprint(dec.Channels()),
+			"-channel_layout", dec.ChannelLayout().String(),
+			"-i", "pipe:",
+			outPath+fmtExt,
+		)
+		cmd.Stdin = newWemPcmF32ByteReader(dec, binary.LittleEndian)
+		cmd.Stderr = &stderr
+		if err := cmd.Run(); err != nil {
+			if exiterr, ok := err.(*exec.ExitError); ok && exiterr.ExitCode() == 1 {
+				stderrStr := stderr.String()
+				stderrStr = strings.ReplaceAll(stderrStr, "\n", " ")
+				stderrStr = strings.ReplaceAll(stderrStr, "\r", "")
+				return fmt.Errorf("ffmpeg: \"%v\"", stderrStr)
+			} else {
 				return err
 			}
-		}
-		if err := enc.Close(); err != nil {
-			return err
 		}
 	}
 	return nil
 }
 
-func getFormat(config extractor.Config) (format, string, error) {
+func getFormat(config extractor.Config) (format, error) {
 	f, ok := config["format"]
 	if !ok {
-		return formatWav, ".wav", nil
+		return formatWav, nil
 	}
 	switch f {
 	case "wav":
-		return formatWav, ".wav", nil
-	case "flac":
-		return formatFlac, ".flac", nil
+		return formatWav, nil
+	case "mp3":
+		return formatMp3, nil
+	case "ogg":
+		return formatOgg, nil
+	case "aac":
+		return formatAac, nil
 	default:
-		return 0, "", fmt.Errorf("invalid audio output format: \"%v\"", f)
+		return 0, fmt.Errorf("invalid audio output format: \"%v\"", f)
 	}
 }
 
@@ -211,16 +201,11 @@ func ExtractWem(outPath string, ins [stingray.NumDataType]io.ReadSeeker, config 
 }
 
 func ConvertWem(outPath string, ins [stingray.NumDataType]io.ReadSeeker, config extractor.Config) error {
-	format, ext, err := getFormat(config)
+	format, err := getFormat(config)
 	if err != nil {
 		return err
 	}
-	out, err := os.Create(outPath + ext)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-	if err := convertWemStream(out, ins[stingray.DataStream], format); err != nil {
+	if err := convertWemStream(outPath, ins[stingray.DataStream], format); err != nil {
 		return err
 	}
 	return nil
@@ -275,7 +260,7 @@ func ExtractBnk(outPath string, ins [stingray.NumDataType]io.ReadSeeker, config 
 }
 
 func ConvertBnk(outPath string, ins [stingray.NumDataType]io.ReadSeeker, config extractor.Config) error {
-	format, ext, err := getFormat(config)
+	format, err := getFormat(config)
 	if err != nil {
 		return err
 	}
@@ -305,12 +290,8 @@ func ConvertBnk(outPath string, ins [stingray.NumDataType]io.ReadSeeker, config 
 			return err
 		}
 		if err := func() error {
-			out, err := os.Create(filepath.Join(dirPath, fmt.Sprintf("%03d%v", i, ext)))
-			if err != nil {
-				return err
-			}
-			defer out.Close()
-			if err := convertWemStream(out, wemR, format); err != nil {
+			outPath := filepath.Join(dirPath, fmt.Sprintf("%03d", i))
+			if err := convertWemStream(outPath, wemR, format); err != nil {
 				return err
 			}
 			return nil
