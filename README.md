@@ -2,9 +2,11 @@
 
 # FileDiver
 
-![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/xypwn/filediver/.github%2Fworkflows%2Fbuild-release.yml)
-![CodeFactor Grade](https://img.shields.io/codefactor/grade/github/xypwn/filediver)
-![GitHub License](https://img.shields.io/github/license/xypwn/filediver)
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/xypwn/filediver/.github%2Fworkflows%2Fbuild-release.yml?link=https%3A%2F%2Fgithub.com%2Fxypwn%2Ffilediver%2Factions)
+![CodeFactor Grade](https://img.shields.io/codefactor/grade/github/xypwn/filediver?link=https%3A%2F%2Fwww.codefactor.io%2Frepository%2Fgithub%2Fxypwn%2Ffilediver)
+![GitHub License](https://img.shields.io/github/license/xypwn/filediver?link=https%3A%2F%2Fopensource.org%2Flicense%2Fbsd-3-clause)
+
+![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/xypwn/filediver/total?link=https%3A%2F%2Fgithub.com%2Fxypwn%2Ffilediver%2Freleases%2Flatest%2F)
 
 An unofficial Helldivers 2 game asset extractor.
 </div>
