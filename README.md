@@ -2,7 +2,7 @@
 
 # FileDiver
 
-[![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/xypwn/filediver/.github%2Fworkflows%2Fbuild-release.yml)](https://github.com/xypwn/filediver/releases/latest/)
+[![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/xypwn/filediver/.github%2Fworkflows%2Fbuild-release.yml)](https://github.com/xypwn/filediver/actions)
 [![CodeFactor Grade](https://img.shields.io/codefactor/grade/github/xypwn/filediver)](https://www.codefactor.io/repository/github/xypwn/filediver)
 [![GitHub License](https://img.shields.io/github/license/xypwn/filediver)](https://opensource.org/license/bsd-3-clause)
 
