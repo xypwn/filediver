@@ -50,14 +50,17 @@ func Sum64(b []byte) Hash {
 	return Hash{Value: hash}
 }
 
-func (h Hash) ToBigEndian() uint64 {
+// Hellextractor uses Big Endian hashes, but really,
+// that's not correct, since the Stingray engine
+// basically only runs on Little Endian devices
+/*func (h Hash) ToBigEndian() uint64 {
 	var b [8]byte
 	binary.BigEndian.PutUint64(b[:], h.Value)
 	return binary.LittleEndian.Uint64(b[:])
-}
+}*/
 
 func (h Hash) String() string {
-	s := strconv.FormatUint(h.ToBigEndian(), 16)
+	s := strconv.FormatUint(h.Value /*h.ToBigEndian()*/, 16)
 	return strings.Repeat("0", 16-len(s)) + s
 }
 

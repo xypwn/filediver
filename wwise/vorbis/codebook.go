@@ -31,12 +31,11 @@ func bookMaptype1Quantvals(entries uint64, dimensions uint64) uint64 {
 		}
 		if acc <= entries && acc1 > entries {
 			return vals
+		}
+		if acc > entries {
+			vals--
 		} else {
-			if acc > entries {
-				vals--
-			} else {
-				vals++
-			}
+			vals++
 		}
 	}
 }

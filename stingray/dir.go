@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 )
 
 const errPfx = "stingray: "
@@ -59,6 +60,10 @@ func OpenDataDir(dirPath string) (*DataDir, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%v%w", errPfx, err)
 	}
+
+	// Make sure we get the same order on every run.
+	// Not required, but makes each run more predictable.
+	sort.Slice(ents, func(i, j int) bool { return ents[i].Name() < ents[j].Name() })
 
 	dd := &DataDir{
 		Files: make(map[FileID]*File),

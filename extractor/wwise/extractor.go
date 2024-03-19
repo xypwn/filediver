@@ -54,9 +54,8 @@ func (r *wemPcmF32ByteReader) Read(p []byte) (int, error) {
 				if errors.Is(err, io.EOF) {
 					// os.exec only does a lazy (non-recursive) check for EOF
 					return i, io.EOF
-				} else {
-					return i, err
 				}
+				return i, err
 			}
 			for i := range data {
 				r.endian.PutUint32(r.buf[4*i:4*(i+1)], math.Float32bits(data[i]))
@@ -89,6 +88,14 @@ func pcmFloat32ToIntS16(dst []int, src []float32) {
 }
 
 func convertWemStream(outPath string, in io.ReadSeeker, format format) error {
+	ffmpegPath, err := exec.LookPath("ffmpeg")
+	if err != nil {
+		ffmpegPath, err = exec.LookPath("./ffmpeg")
+	}
+	if err != nil {
+		format = formatWav
+	}
+
 	dec, err := wwise.OpenWem(in)
 	if err != nil {
 		return err
@@ -108,9 +115,8 @@ func convertWemStream(outPath string, in io.ReadSeeker, format format) error {
 			if err != nil {
 				if errors.Is(err, io.EOF) {
 					break
-				} else {
-					return err
 				}
+				return err
 			}
 
 			pcmFloat32ToIntS16(smpBuf[:len(data)], data)
@@ -127,13 +133,6 @@ func convertWemStream(outPath string, in io.ReadSeeker, format format) error {
 			}
 		}
 	default:
-		ffmpegPath, err := exec.LookPath("ffmpeg")
-		if err != nil {
-			ffmpegPath, err = exec.LookPath("./ffmpeg")
-		}
-		if err != nil {
-			return convertWemStream(outPath, in, formatWav)
-		}
 		var fmtExt string
 		switch format {
 		case formatMp3:
@@ -161,9 +160,8 @@ func convertWemStream(outPath string, in io.ReadSeeker, format format) error {
 				stderrStr = strings.ReplaceAll(stderrStr, "\n", " ")
 				stderrStr = strings.ReplaceAll(stderrStr, "\r", "")
 				return fmt.Errorf("ffmpeg: \"%v\"", stderrStr)
-			} else {
-				return err
 			}
+			return err
 		}
 	}
 	return nil
