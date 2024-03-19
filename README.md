@@ -1,5 +1,13 @@
+<div align="center">
+
 # FileDiver
+
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/xypwn/filediver/.github%2Fworkflows%2Fbuild-release.yml)
+![CodeFactor Grade](https://img.shields.io/codefactor/grade/github/xypwn/filediver)
+![GitHub License](https://img.shields.io/github/license/xypwn/filediver)
+
 An unofficial Helldivers 2 game asset extractor.
+</div>
 
 ## Download
 - [Windows (64-bit)](https://github.com/xypwn/filediver/releases/latest/download/filediver-windows-amd64.zip)
