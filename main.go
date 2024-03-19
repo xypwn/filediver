@@ -127,6 +127,18 @@ func parseExtractorConfig(s string) (map[string]extractor.Config, error) {
 	if cfg, ok := res["model"]; ok {
 		res["unit"] = cfg
 	}
+	for _, cfg := range []extractor.Config{res["enable"], res["disable"]} {
+		if cfg["audio"] == "true" {
+			cfg["wwise_stream"] = "true"
+			cfg["wwise_bank"] = "true"
+		}
+		if cfg["video"] == "true" {
+			cfg["bik"] = "true"
+		}
+		if cfg["model"] == "true" {
+			cfg["unit"] = "true"
+		}
+	}
 	return res, nil
 }
 
@@ -199,20 +211,8 @@ extractor config:
 	if err != nil {
 		prt.Fatalf("%v", err)
 	}
-	extrCfgEnabledList := extrCfg["enable"]
-	extrCfgDisabledList := extrCfg["disable"]
-	for _, cfg := range []extractor.Config{extrCfgEnabledList, extrCfgDisabledList} {
-		if cfg["audio"] == "true" {
-			cfg["wwise_stream"] = "true"
-			cfg["wwise_bank"] = "true"
-		}
-		if cfg["video"] == "true" {
-			cfg["bik"] = "true"
-		}
-		if cfg["model"] == "true" {
-			cfg["unit"] = "true"
-		}
-	}
+	extrEnabled := extrCfg["enable"]
+	extrDisabled := extrCfg["disable"]
 
 	extrIncl, err := glob.Compile(*extrInclGlob)
 	if err != nil {
@@ -305,12 +305,25 @@ extractor config:
 				shouldIncl = false
 			}
 		}
-		if shouldIncl {
-			matchingFiles[id] = file
+		if !shouldIncl {
+			continue
 		}
+		shouldExtract := true
+		if extrEnabled != nil {
+			shouldExtract = extrEnabled[typ] == "true"
+		}
+		if extrDisabled != nil {
+			if extrDisabled[typ] == "true" {
+				shouldExtract = false
+			}
+		}
+		if !shouldExtract {
+			continue
+		}
+		matchingFiles[id] = file
 	}
-	if *extrInclGlob != "" || *extrExclGlob != "" {
-		prt.Infof("%v/%v game files match glob", len(matchingFiles), len(dataDir.Files))
+	if *extrInclGlob != "" || *extrExclGlob != "" || len(extrEnabled) != 0 || len(extrDisabled) != 0 {
+		prt.Infof("%v/%v game files match", len(matchingFiles), len(dataDir.Files))
 	}
 	prt.Infof("Extracting files...")
 	numFile := 0
@@ -322,25 +335,14 @@ extractor config:
 			truncName = "..." + truncName[len(truncName)-37:]
 		}
 		prt.Statusf("File %v/%v: %v (%v)", numFile+1, len(matchingFiles), truncName, typ)
-		shouldExtract := true
-		if extrCfgEnabledList != nil {
-			shouldExtract = extrCfgEnabledList[typ] == "true"
+		cfg, ok := extrCfg[typ]
+		if !ok {
+			cfg = make(extractor.Config)
 		}
-		if extrCfgDisabledList != nil {
-			if extrCfgDisabledList[typ] == "true" {
-				shouldExtract = false
-			}
-		}
-		if shouldExtract {
-			cfg, ok := extrCfg[typ]
-			if !ok {
-				cfg = make(extractor.Config)
-			}
-			if ok, err := extractStingrayFile(*outDir, file, name, typ, cfg); err != nil {
-				prt.Errorf("%v", err)
-			} else if ok {
-				numExtrFiles++
-			}
+		if ok, err := extractStingrayFile(*outDir, file, name, typ, cfg); err != nil {
+			prt.Errorf("%v", err)
+		} else if ok {
+			numExtrFiles++
 		}
 		numFile++
 	}
