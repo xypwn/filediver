@@ -31,8 +31,9 @@ Here are some example commands:
 - **Audio**: Audiokinetic wwise bnk/wem; automatically converted to WAV
 - **Video**: Bink; automatically converted to MP4 via FFmpeg (shipped with Windows binary)
 - **Textures**: Direct Draw Surface (.dds)
+- **Models (WIP)**: Stingray Unit; automatically converted to GLB (glTF)
 
-Planned: models, bones, animations
+Planned: bones, animations
 
 ## Credits/Links
 This app builds on a lot of work from other people. This includes:
