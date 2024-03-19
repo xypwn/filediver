@@ -11,6 +11,7 @@ require (
 	github.com/hellflame/argparse v1.12.0
 	github.com/jfreymuth/vorbis v1.0.2
 	github.com/jwalton/go-supportscolor v1.2.0
+	github.com/qmuntal/gltf v0.24.3
 	golang.org/x/sys v0.18.0
 )
 

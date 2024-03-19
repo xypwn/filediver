@@ -18,6 +18,7 @@ import (
 	"github.com/xypwn/filediver/extractor"
 	extr_bik "github.com/xypwn/filediver/extractor/bik"
 	extr_texture "github.com/xypwn/filediver/extractor/texture"
+	extr_unit "github.com/xypwn/filediver/extractor/unit"
 	extr_wwise "github.com/xypwn/filediver/extractor/wwise"
 	"github.com/xypwn/filediver/steampath"
 	"github.com/xypwn/filediver/stingray"
@@ -58,6 +59,8 @@ func extractStingrayFile(outDirPath string, file *stingray.File, name, typ strin
 		} else {
 			extr = extr_wwise.ExtractBnk
 		}
+	case "unit":
+		extr = extr_unit.Convert
 	case "texture":
 		extr = extr_texture.Extract
 	default:
@@ -120,6 +123,9 @@ func parseExtractorConfig(s string) (map[string]extractor.Config, error) {
 	}
 	if cfg, ok := res["video"]; ok {
 		res["bik"] = cfg
+	}
+	if cfg, ok := res["model"]; ok {
+		res["unit"] = cfg
 	}
 	return res, nil
 }
@@ -202,6 +208,9 @@ extractor config:
 		}
 		if cfg["video"] == "true" {
 			cfg["bik"] = "true"
+		}
+		if cfg["model"] == "true" {
+			cfg["unit"] = "true"
 		}
 	}
 
