@@ -39,10 +39,10 @@ Here are some example commands:
 
 ## Features
 ### File Types/Formats
-- **Audio**: Audiokinetic wwise bnk/wem; automatically converted to WAV
+- **Audio**: Audiokinetic wwise bnk/wem; automatically converted to WAV; other formats require FFmpeg
 - **Video**: Bink; automatically converted to MP4 via FFmpeg (shipped with Windows binary)
-- **Textures**: Direct Draw Surface (.dds)
-- **Models (WIP)**: Stingray Unit; automatically converted to GLB (glTF)
+- **Textures**: Direct Draw Surface (.dds); automatically converted to PNG via ImageMagick (shipped with Windows binary)
+- **Models (WIP)**: Stingray Unit; automatically converted to GLB (=glTF); can be imported into [Blender](https://www.blender.org/); requires ImageMagick for textures
 
 Planned: bones, animations
 
