@@ -30,6 +30,9 @@ jobs:
     - run: wget https://github.com/GyanD/codexffmpeg/releases/download/6.1.1/ffmpeg-6.1.1-essentials_build.zip
     - run: unzip ffmpeg-6.1.1-essentials_build.zip ffmpeg-6.1.1-essentials_build/bin/ffmpeg.exe
     - run: mv ffmpeg-6.1.1-essentials_build/bin/ffmpeg.exe .
+    - run: wget https://imagemagick.org/archive/binaries/ImageMagick-7.1.1-29-portable-Q16-x64.zip
+    - run: unzip ImageMagick-7.1.1-29-portable-Q16-x64.zip ImageMagick-7.1.1-29-portable-Q16-x64/magick.exe
+    - run: mv ImageMagick-7.1.1-29-portable-Q16-x64/magick.exe .
     - uses: wangyoucao577/go-release-action@v1
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -38,4 +41,4 @@ jobs:
         ldflags: -s -w
         binary_name: "filediver"
         asset_name: "filediver-windows-amd64"
-        extra_files: LICENSE README.md ffmpeg.exe
+        extra_files: LICENSE README.md ffmpeg.exe magick.exe
