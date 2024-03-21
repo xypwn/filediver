@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime/pprof"
 	"strings"
@@ -15,6 +14,7 @@ import (
 	"github.com/gobwas/glob"
 	"github.com/hellflame/argparse"
 
+	"github.com/xypwn/filediver/exec"
 	"github.com/xypwn/filediver/extractor"
 	extr_bik "github.com/xypwn/filediver/extractor/bik"
 	extr_texture "github.com/xypwn/filediver/extractor/texture"
@@ -30,7 +30,7 @@ var knownFilesStr string
 //go:embed types.txt
 var knownTypesStr string
 
-func extractStingrayFile(outDirPath string, file *stingray.File, name, typ string, cfg extractor.Config) (bool, error) {
+func extractStingrayFile(outDirPath string, file *stingray.File, name, typ string, cfg extractor.Config, runner *exec.Runner, getResource extractor.GetResourceFunc) (bool, error) {
 	modeConvert := true
 	if cfg, ok := cfg["conv"]; ok {
 		if cfg != "true" && cfg != "false" {
@@ -62,7 +62,11 @@ func extractStingrayFile(outDirPath string, file *stingray.File, name, typ strin
 	case "unit":
 		extr = extr_unit.Convert
 	case "texture":
-		extr = extr_texture.Extract
+		if modeConvert {
+			extr = extr_texture.Convert
+		} else {
+			extr = extr_texture.Extract
+		}
 	default:
 		return false, nil
 	}
@@ -88,11 +92,26 @@ func extractStingrayFile(outDirPath string, file *stingray.File, name, typ strin
 	if err := os.MkdirAll(filepath.Dir(outPath), os.ModePerm); err != nil {
 		return false, err
 	}
-	if err := extr(outPath, readers, cfg); err != nil {
+	if err := extr(outPath, readers, cfg, runner, getResource); err != nil {
 		return false, fmt.Errorf("extract %v (type %v): %w", name, typ, err)
 	}
 
 	return true, nil
+}
+
+var extractorConfigValidKeys = map[string]struct{}{
+	"enable":       {},
+	"disable":      {},
+	"wwise_stream": {},
+	"wwise_bank":   {},
+	"bik":          {},
+	"texture":      {},
+	"unit":         {},
+}
+var extractorConfigShorthands = map[string][]string{
+	"audio": {"wwise_stream", "wwise_bank"},
+	"video": {"bik"},
+	"model": {"unit"},
 }
 
 func parseExtractorConfig(s string) (map[string]extractor.Config, error) {
@@ -117,26 +136,37 @@ func parseExtractorConfig(s string) (map[string]extractor.Config, error) {
 		}
 		res[k] = cfg
 	}
-	if cfg, ok := res["audio"]; ok {
-		res["wwise_stream"] = cfg
-		res["wwise_bank"] = cfg
-	}
-	if cfg, ok := res["video"]; ok {
-		res["bik"] = cfg
-	}
-	if cfg, ok := res["model"]; ok {
-		res["unit"] = cfg
+
+	// Substitute shorthands and validate keys
+	for k, v := range res {
+		if shs, ok := extractorConfigShorthands[k]; ok {
+			for _, sh := range shs {
+				res[sh] = v
+			}
+			continue
+		}
+		if _, ok := extractorConfigValidKeys[k]; ok {
+			continue
+		}
+		return nil, fmt.Errorf("extractor config: invalid key: \"%v\"", k)
 	}
 	for _, cfg := range []extractor.Config{res["enable"], res["disable"]} {
-		if cfg["audio"] == "true" {
-			cfg["wwise_stream"] = "true"
-			cfg["wwise_bank"] = "true"
-		}
-		if cfg["video"] == "true" {
-			cfg["bik"] = "true"
-		}
-		if cfg["model"] == "true" {
-			cfg["unit"] = "true"
+		for k, v := range cfg {
+			if v != "true" && v != "false" {
+				return nil, fmt.Errorf("extractor config: \"enable/disable:%v=\": expected true or false, but got: \"%v\"", k, v)
+			}
+			if shs, ok := extractorConfigShorthands[k]; ok {
+				for _, sh := range shs {
+					if v == "true" {
+						cfg[sh] = "true"
+					}
+				}
+				continue
+			}
+			if _, ok := extractorConfigValidKeys[k]; ok {
+				continue
+			}
+			return nil, fmt.Errorf("extractor config: invalid key: \"%v\"", k)
 		}
 	}
 	return res, nil
@@ -223,10 +253,12 @@ extractor config:
 		prt.Fatalf("%v", err)
 	}
 
-	if _, err := exec.LookPath("ffmpeg"); err != nil {
-		if _, err := exec.LookPath("./ffmpeg"); err != nil {
-			prt.Warnf("FFmpeg not installed or found locally. Please install FFmpeg, or place ffmpeg.exe in the current folder to convert videos to MP4 and audio to a variety of formats. Without FFmpeg, videos will be saved as BIK and audio will be saved was WAV.")
-		}
+	runner := exec.NewRunner()
+	if ok := runner.Add("ffmpeg", "-y", "-hide_banner", "-loglevel", "error"); !ok {
+		prt.Warnf("FFmpeg not installed or found locally. Please install FFmpeg, or place ffmpeg.exe in the current folder to convert videos to MP4 and audio to a variety of formats. Without FFmpeg, videos will be saved as BIK and audio will be saved was WAV.")
+	}
+	if ok := runner.Add("magick"); !ok {
+		prt.Warnf("ImageMagick not installed or found locally. Please install ImageMagick, or place magick.exe in the current folder to convert textures. Without magick, textures cannot be converted.")
 	}
 
 	if *gameDir == "" {
@@ -275,6 +307,10 @@ extractor config:
 
 	knownFiles := createHashLookup(knownFilesStr)
 	knownTypes := createHashLookup(knownTypesStr)
+
+	// Hashes with known meaning, but not known source string
+	knownTypes[stingray.Hash{Value: 0xeac0b497876adedf}] = "material"
+
 	getFileNameAndType := func(id stingray.FileID) (name string, typ string) {
 		var ok bool
 		name, ok = knownFiles[id.Name]
@@ -339,7 +375,12 @@ extractor config:
 		if !ok {
 			cfg = make(extractor.Config)
 		}
-		if ok, err := extractStingrayFile(*outDir, file, name, typ, cfg); err != nil {
+		if ok, err := extractStingrayFile(*outDir, file, name, typ, cfg, runner, func(name, typ stingray.Hash) *stingray.File {
+			return dataDir.Files[stingray.FileID{
+				Name: name,
+				Type: typ,
+			}]
+		}); err != nil {
 			prt.Errorf("%v", err)
 		} else if ok {
 			numExtrFiles++

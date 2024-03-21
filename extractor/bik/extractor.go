@@ -4,8 +4,8 @@ import (
 	"encoding/binary"
 	"io"
 	"os"
-	"os/exec"
 
+	"github.com/xypwn/filediver/exec"
 	"github.com/xypwn/filediver/extractor"
 	"github.com/xypwn/filediver/stingray"
 )
@@ -29,7 +29,7 @@ func extract(ins [stingray.NumDataType]io.ReadSeeker, _ extractor.Config) (io.Re
 	return io.MultiReader(readers...), hdr, nil
 }
 
-func Extract(outPath string, ins [stingray.NumDataType]io.ReadSeeker, config extractor.Config) error {
+func Extract(outPath string, ins [stingray.NumDataType]io.ReadSeeker, config extractor.Config, runner *exec.Runner, _ extractor.GetResourceFunc) error {
 	r, _, err := extract(ins, config)
 	if err != nil {
 		return err
@@ -46,13 +46,9 @@ func Extract(outPath string, ins [stingray.NumDataType]io.ReadSeeker, config ext
 	return nil
 }
 
-func Convert(outPath string, ins [stingray.NumDataType]io.ReadSeeker, config extractor.Config) error {
-	ffmpegPath, err := exec.LookPath("ffmpeg")
-	if err != nil {
-		ffmpegPath, err = exec.LookPath("./ffmpeg")
-	}
-	if err != nil {
-		return Extract(outPath, ins, config)
+func Convert(outPath string, ins [stingray.NumDataType]io.ReadSeeker, config extractor.Config, runner *exec.Runner, getResource extractor.GetResourceFunc) error {
+	if !runner.Has("ffmpeg") {
+		return Extract(outPath, ins, config, runner, getResource)
 	}
 
 	r, _, err := extract(ins, config)
@@ -60,10 +56,12 @@ func Convert(outPath string, ins [stingray.NumDataType]io.ReadSeeker, config ext
 		return err
 	}
 
-	cmd := exec.Command(ffmpegPath, "-y", "-f", "bink", "-i", "pipe:", outPath+".mp4")
-	cmd.Stdin = r
-	if err := cmd.Run(); err != nil {
-		return err
-	}
-	return nil
+	return runner.Run(
+		"ffmpeg",
+		nil,
+		r,
+		"-f", "bink",
+		"-i", "pipe:",
+		outPath+".mp4",
+	)
 }

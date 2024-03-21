@@ -12,6 +12,7 @@ require (
 	github.com/jfreymuth/vorbis v1.0.2
 	github.com/jwalton/go-supportscolor v1.2.0
 	github.com/qmuntal/gltf v0.24.3
+	github.com/x448/float16 v0.8.4
 	golang.org/x/sys v0.18.0
 )
 

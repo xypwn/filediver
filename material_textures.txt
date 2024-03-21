@@ -1,0 +1,33 @@
+// This is a list of known material texture types.
+// Their respective hashes will be generated automatically.
+albedo
+albedo_color
+base_color
+color_map
+color_map
+diffuse_map
+emissive_map
+gradient_map
+mask
+metallic_map
+normal
+normal_map
+normal_map_01
+normal_map_02
+normal_map_03
+normal_map_04
+normal_map_05
+normal_map_06
+opacity_map
+overlay_texture
+overlay_texture_map
+reflection_map
+roughness_map
+texture_map
+texture_map_01
+texture_map_02
+texture_map_03
+texture_map_04
+texture_map_05
+texture_map_06
+wear

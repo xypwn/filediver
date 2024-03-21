@@ -1,68 +1,74 @@
 package texture
 
 import (
-	"encoding/binary"
-
-	"io"
+	"fmt"
 	"os"
 
+	"io"
+
+	"github.com/xypwn/filediver/exec"
 	"github.com/xypwn/filediver/extractor"
 	"github.com/xypwn/filediver/stingray"
+	"github.com/xypwn/filediver/stingray/unit/texture"
 )
 
-type streamableSection struct {
-	Offset uint32
-	Size   uint32
-	Width  uint16
-	Height uint16
-}
+func extract(outPath string, ins [stingray.NumDataType]io.ReadSeeker, convert func(w io.Writer, r io.Reader) error) error {
+	tex, err := texture.Load(ins[stingray.DataMain])
+	if err != nil {
+		return err
+	}
 
-type header struct {
-	Unk00    [12]byte
-	Sections [15]streamableSection
-}
-
-func extract(ins [stingray.NumDataType]io.ReadSeeker, _ extractor.Config) (io.Reader, string, header, error) {
-	var hdr header
-	if err := binary.Read(ins[stingray.DataMain], binary.LittleEndian, &hdr); err != nil {
-		return nil, "", header{}, err
+	if _, err := ins[stingray.DataMain].Seek(int64(tex.HeaderOffset), io.SeekStart); err != nil {
+		return err
 	}
 	var magicNum [4]byte
 	if _, err := ins[stingray.DataMain].Read(magicNum[:]); err != nil {
-		return nil, "", header{}, err
-	}
-	if _, err := ins[stingray.DataMain].Seek(int64(-len(magicNum)), io.SeekCurrent); err != nil {
-		return nil, "", header{}, err
-	}
-	readers := []io.Reader{ins[stingray.DataMain]}
-	if ins[stingray.DataStream] == nil {
-		readers = append(readers, ins[stingray.DataGPU])
-	} else {
-		readers = append(readers, ins[stingray.DataStream])
-	}
-	return io.MultiReader(readers...), string(magicNum[:]), hdr, nil
-}
-
-func Extract(outPath string, ins [stingray.NumDataType]io.ReadSeeker, config extractor.Config) error {
-	r, magicNum, _, err := extract(ins, config)
-	if err != nil {
 		return err
 	}
 
-	var fileExt string
-	switch magicNum {
+	if _, err := ins[stingray.DataMain].Seek(int64(tex.HeaderOffset), io.SeekStart); err != nil {
+		return err
+	}
+
+	switch string(magicNum[:]) {
 	case "DDS ":
-		fileExt = ".dds"
-	}
-
-	out, err := os.Create(outPath + fileExt)
-	if err != nil {
-		return err
-	}
-
-	if _, err := io.Copy(out, r); err != nil {
-		return err
+		out, err := os.Create(outPath)
+		if err != nil {
+			return err
+		}
+		defer out.Close()
+		readers := []io.Reader{ins[stingray.DataMain]}
+		if ins[stingray.DataStream] != nil {
+			readers = append(readers, ins[stingray.DataStream])
+		}
+		if ins[stingray.DataGPU] != nil {
+			readers = append(readers, ins[stingray.DataGPU])
+		}
+		if err := convert(out, io.MultiReader(readers...)); err != nil {
+			out.Close()
+			if err := os.Remove(outPath); err != nil {
+				return nil
+			}
+			return err
+		}
+	default:
+		return fmt.Errorf("unrecognized texture format (magic number: \"%v\")", magicNum)
 	}
 
 	return nil
+}
+
+func Extract(outPath string, ins [stingray.NumDataType]io.ReadSeeker, config extractor.Config, runner *exec.Runner, _ extractor.GetResourceFunc) error {
+	return extract(outPath+".dds", ins, func(w io.Writer, r io.Reader) error {
+		if _, err := io.Copy(w, r); err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
+func Convert(outPath string, ins [stingray.NumDataType]io.ReadSeeker, config extractor.Config, runner *exec.Runner, _ extractor.GetResourceFunc) error {
+	return extract(outPath+".png", ins, func(w io.Writer, r io.Reader) error {
+		return runner.Run("magick", w, r, "dds:-", "png:-")
+	})
 }

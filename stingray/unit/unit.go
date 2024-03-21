@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/x448/float16"
 	"github.com/xypwn/filediver/stingray"
 )
 
@@ -55,8 +56,10 @@ const (
 	FormatVec3F   MeshLayoutItemFormat = 2
 	FormatVec4F   MeshLayoutItemFormat = 3
 	FormatVec4U8  MeshLayoutItemFormat = 26
-	FormatVec2U16 MeshLayoutItemFormat = 29
-	FormatVec4U16 MeshLayoutItemFormat = 31
+	FormatF16     MeshLayoutItemFormat = 28
+	FormatVec2F16 MeshLayoutItemFormat = 29
+	FormatVec3F16 MeshLayoutItemFormat = 30
+	FormatVec4F16 MeshLayoutItemFormat = 31
 )
 
 func (v MeshLayoutItemFormat) String() string {
@@ -71,10 +74,14 @@ func (v MeshLayoutItemFormat) String() string {
 		return "[4]float32"
 	case FormatVec4U8:
 		return "[4]uint8"
-	case FormatVec2U16:
-		return "[2]uint16"
-	case FormatVec4U16:
-		return "[4]uint16"
+	case FormatF16:
+		return "float16"
+	case FormatVec2F16:
+		return "[2]float16"
+	case FormatVec3F16:
+		return "[3]float16"
+	case FormatVec4F16:
+		return "[4]float16"
 	default:
 		return fmt.Sprint(uint32(v))
 	}
@@ -89,22 +96,22 @@ type MeshLayout struct {
 		Layer  uint32
 		Unk00  [8]byte
 	}
-	NumItems       uint32
-	Unk01          [4]byte
-	MagicNum1      [4]byte
-	Unk02          [12]byte
-	NumPositions   uint32
-	PositionStride uint32
-	Unk03          [16]byte
-	MagicNum2      [4]byte
-	Unk04          [12]byte
-	NumIndices     uint32
-	Unk05          [20]byte
-	PositionOffset uint32
-	PositionsSize  uint32
-	IndexOffset    uint32
-	IndicesSize    uint32
-	Unk06          [16]byte
+	NumItems      uint32
+	Unk01         [4]byte
+	MagicNum1     [4]byte
+	Unk02         [12]byte
+	NumVertices   uint32
+	VertexStride  uint32
+	Unk03         [16]byte
+	MagicNum2     [4]byte
+	Unk04         [12]byte
+	NumIndices    uint32
+	Unk05         [20]byte
+	VertexOffset  uint32
+	PositionsSize uint32
+	IndexOffset   uint32
+	IndicesSize   uint32
+	Unk06         [16]byte
 }
 
 type MeshHeader struct {
@@ -119,18 +126,18 @@ type MeshHeader struct {
 }
 
 type MeshGroup struct {
-	Unk00          [4]byte
-	PositionOffset uint32
-	NumPositions   uint32
-	IndexOffset    uint32
-	NumIndices     uint32
-	Unk01          [4]byte
+	Unk00        [4]byte
+	VertexOffset uint32
+	NumVertices  uint32
+	IndexOffset  uint32
+	NumIndices   uint32
+	Unk01        [4]byte
 }
 
 type MeshInfo struct {
-	Header       MeshHeader
-	MaterialIdxs []uint32
-	Groups       []MeshGroup
+	Header    MeshHeader
+	Materials []stingray.ThinHash
+	Groups    []MeshGroup
 }
 
 type Header struct {
@@ -159,15 +166,148 @@ type Header struct {
 type Mesh struct {
 	Info      MeshInfo
 	Positions [][3]float32
-	UVCoords  [][2]uint16
-	Colors    [][4]uint8
-	Indices   []uint32 // triangles
+	UVCoords  [][2]float32
+	Colors    [][4]float32
+	Indices   []uint32
 }
 
 type Unit struct {
 	JointTransforms        []JointTransform
 	JointTransformMatrices [][4][4]float32
+	Materials              map[stingray.ThinHash]stingray.Hash
 	Meshes                 []Mesh
+}
+
+func loadMesh(gpuR io.ReadSeeker, info MeshInfo, layout MeshLayout) (Mesh, error) {
+	var mesh Mesh
+	mesh.Info = info
+	mesh.Positions = make([][3]float32, 0, layout.NumVertices)
+	mesh.UVCoords = make([][2]float32, 0, layout.NumVertices)
+	mesh.Colors = make([][4]float32, 0, layout.NumVertices)
+	for _, group := range info.Groups {
+		for i := uint32(0); i < group.NumVertices; i++ {
+			offset := layout.VertexOffset +
+				group.VertexOffset*layout.VertexStride +
+				i*layout.VertexStride
+			if _, err := gpuR.Seek(int64(offset), io.SeekStart); err != nil {
+				return Mesh{}, err
+			}
+			for _, item := range layout.Items[:layout.NumItems] {
+				switch item.Type {
+				case ItemPosition:
+					if item.Format != FormatVec3F {
+						return Mesh{}, fmt.Errorf("expected position item to have format [3]float32, but got: %v", item.Format)
+					}
+					var v [3]float32
+					if err := binary.Read(gpuR, binary.LittleEndian, &v); err != nil {
+						return Mesh{}, err
+					}
+					mesh.Positions = append(mesh.Positions, v)
+				case ItemColor:
+					var val [4]float32
+					switch item.Format {
+					case FormatVec4U8:
+						var tmp [4]uint8
+						if err := binary.Read(gpuR, binary.LittleEndian, &tmp); err != nil {
+							return Mesh{}, err
+						}
+						for i := range tmp {
+							val[i] = float32(tmp[i]) / 255
+						}
+					case FormatVec4F16:
+						var tmp [4]uint16
+						if err := binary.Read(gpuR, binary.LittleEndian, &tmp); err != nil {
+							return Mesh{}, err
+						}
+						for i := range tmp {
+							val[i] = float16.Frombits(tmp[i]).Float32()
+						}
+					default:
+						return Mesh{}, fmt.Errorf("expected color item to have format [4]uint8 or [4]float16, but got: %v", item.Format)
+					}
+					mesh.Colors = append(mesh.Colors, val)
+				case 2:
+					if item.Format != FormatVec4F16 {
+						return Mesh{}, fmt.Errorf("expected type 2 item to have format [4]float16, but got: %v", item.Format)
+					}
+					//fmt.Println(item.Format)
+					// TODO
+				case 3:
+					if item.Format != FormatVec4F16 {
+						return Mesh{}, fmt.Errorf("expected type 3 item to have format [4]float16, but got: %v", item.Format)
+					}
+					//fmt.Println(item.Format)
+					// TODO
+				case ItemUVCoords:
+					var val [2]float32
+					switch item.Format {
+					case FormatVec2F16:
+						var tmp [2]uint16
+						if err := binary.Read(gpuR, binary.LittleEndian, &tmp); err != nil {
+							return Mesh{}, err
+						}
+						for i := range tmp {
+							val[i] = float16.Frombits(tmp[i]).Float32()
+						}
+					case FormatVec2F:
+						if err := binary.Read(gpuR, binary.LittleEndian, &val); err != nil {
+							return Mesh{}, err
+						}
+					default:
+						return Mesh{}, fmt.Errorf("expected UV coords item to have format [2]float16 or [2]float32, but got: %v", item.Format)
+					}
+					if item.Layer == 0 {
+						mesh.UVCoords = append(mesh.UVCoords, val)
+					}
+				case 5:
+					if item.Format != 4 {
+						return Mesh{}, fmt.Errorf("expected type 5 item to have format [4]uint8, but got: %v", item.Format)
+					}
+					var v [4]uint8
+					if err := binary.Read(gpuR, binary.LittleEndian, &v); err != nil {
+						return Mesh{}, err
+					}
+					//fmt.Println(v)
+					_ = v
+					// TODO
+				case ItemBoneWeight:
+					// TODO
+				case ItemBoneIdx:
+					// TODO
+				default:
+					return Mesh{}, fmt.Errorf("unknown mesh layout item type: %v", item.Type)
+				}
+			}
+		}
+	}
+	mesh.Indices = make([]uint32, 0, layout.NumIndices)
+	for _, group := range info.Groups {
+		indexStride := layout.IndicesSize / layout.NumIndices
+		offset := layout.IndexOffset +
+			group.IndexOffset*indexStride
+		if _, err := gpuR.Seek(int64(offset), io.SeekStart); err != nil {
+			return Mesh{}, err
+		}
+		for i := uint32(0); i < group.NumIndices; i++ {
+			var val uint32
+			switch indexStride {
+			case 4:
+				if err := binary.Read(gpuR, binary.LittleEndian, &val); err != nil {
+					return Mesh{}, err
+				}
+			case 2:
+				var tmp uint16
+				if err := binary.Read(gpuR, binary.LittleEndian, &tmp); err != nil {
+					return Mesh{}, err
+				}
+				val = uint32(tmp)
+			default:
+				return Mesh{}, fmt.Errorf("unknown index stride: %v", indexStride)
+			}
+			mesh.Indices = append(mesh.Indices, val)
+		}
+	}
+	return mesh, nil
 }
 
 func Load(mainR io.ReadSeeker, gpuR io.ReadSeeker) (*Unit, error) {
@@ -255,9 +395,9 @@ func Load(mainR io.ReadSeeker, gpuR io.ReadSeeker) (*Unit, error) {
 			if _, err := mainR.Seek(int64(offset+hdr.MaterialOffset), io.SeekStart); err != nil {
 				return nil, err
 			}
-			materialIdxs := make([]uint32, hdr.NumMaterials)
-			for j := range materialIdxs {
-				if err := binary.Read(mainR, binary.LittleEndian, &materialIdxs[j]); err != nil {
+			materials := make([]stingray.ThinHash, hdr.NumMaterials)
+			for j := range materials {
+				if err := binary.Read(mainR, binary.LittleEndian, &materials[j]); err != nil {
 					return nil, err
 				}
 			}
@@ -271,10 +411,36 @@ func Load(mainR io.ReadSeeker, gpuR io.ReadSeeker) (*Unit, error) {
 				}
 			}
 			meshInfos = append(meshInfos, MeshInfo{
-				Header:       hdr,
-				MaterialIdxs: materialIdxs,
-				Groups:       groups,
+				Header:    hdr,
+				Materials: materials,
+				Groups:    groups,
 			})
+		}
+	}
+
+	materialMap := make(map[stingray.ThinHash]stingray.Hash)
+	if hdr.MaterialListOffset > 0 {
+		if _, err := mainR.Seek(int64(hdr.MaterialListOffset), io.SeekStart); err != nil {
+			return nil, err
+		}
+		var count uint32
+		if err := binary.Read(mainR, binary.LittleEndian, &count); err != nil {
+			return nil, err
+		}
+		keys := make([]stingray.ThinHash, count)
+		for i := range keys {
+			if err := binary.Read(mainR, binary.LittleEndian, &keys[i]); err != nil {
+				return nil, err
+			}
+		}
+		values := make([]stingray.Hash, count)
+		for i := range values {
+			if err := binary.Read(mainR, binary.LittleEndian, &values[i]); err != nil {
+				return nil, err
+			}
+		}
+		for i := range keys {
+			materialMap[keys[i]] = values[i]
 		}
 	}
 
@@ -290,95 +456,18 @@ func Load(mainR io.ReadSeeker, gpuR io.ReadSeeker) (*Unit, error) {
 		if int(count) != len(meshInfos) {
 			return nil, fmt.Errorf("expected mesh data count (%v) to equal mesh info count (%v)", count, len(meshInfos))
 		}
-		// The following is all in gpu_resources
 		meshes = make([]Mesh, 0, count)
 		for _, info := range meshInfos {
 			if info.Header.LayoutIdx < 0 {
 				continue
 			}
-			var mesh Mesh
 			if int(info.Header.LayoutIdx) >= len(meshLayouts) {
 				return nil, fmt.Errorf("mesh layout index (%v) is out of bounds of mesh layouts (len=%v)", info.Header.LayoutIdx, len(meshLayouts))
 			}
 			layout := meshLayouts[info.Header.LayoutIdx]
-			for _, group := range info.Groups {
-				for i := uint32(0); i < group.NumPositions; i++ {
-					offset := layout.PositionOffset +
-						group.PositionOffset*layout.PositionStride +
-						i*layout.PositionStride
-					if _, err := gpuR.Seek(int64(offset), io.SeekStart); err != nil {
-						return nil, err
-					}
-					for _, item := range layout.Items[:layout.NumItems] {
-						switch item.Type {
-						case ItemPosition:
-							if item.Format != FormatVec3F {
-								return nil, fmt.Errorf("expected position item to have format [3]float32, but got: %v", item.Format)
-							}
-							var v [3]float32
-							if err := binary.Read(gpuR, binary.LittleEndian, &v); err != nil {
-								return nil, err
-							}
-							mesh.Positions = append(mesh.Positions, v)
-						case ItemColor:
-							if item.Format != FormatVec4U8 {
-								return nil, fmt.Errorf("expected color item to have format [4]uint8, but got: %v", item.Format)
-							}
-							var v [4]uint8
-							if err := binary.Read(gpuR, binary.LittleEndian, &v); err != nil {
-								return nil, err
-							}
-							mesh.Colors = append(mesh.Colors, v)
-						case ItemUVCoords:
-							switch item.Format {
-							case FormatVec2U16:
-								var v [2]uint16
-								if err := binary.Read(gpuR, binary.LittleEndian, &v); err != nil {
-									return nil, err
-								}
-								mesh.UVCoords = append(mesh.UVCoords, v)
-							case FormatVec2F:
-								// TODO
-							default:
-								return nil, fmt.Errorf("expected UV coords item to have format [2]uint16 or [2]float32, but got: %v", item.Format)
-							}
-						case 5:
-							// TODO
-						case ItemBoneWeight:
-							// TODO
-						case ItemBoneIdx:
-							// TODO
-						default:
-							return nil, fmt.Errorf("unknown mesh layout item type: %v", item.Type)
-						}
-					}
-				}
-			}
-			for _, group := range info.Groups {
-				indexStride := layout.IndicesSize / layout.NumIndices
-				offset := layout.IndexOffset +
-					group.IndexOffset*indexStride
-				if _, err := gpuR.Seek(int64(offset), io.SeekStart); err != nil {
-					return nil, err
-				}
-				for i := uint32(0); i < group.NumIndices; i++ {
-					var val uint32
-					switch indexStride {
-					case 4:
-						if err := binary.Read(gpuR, binary.LittleEndian, &val); err != nil {
-							return nil, err
-						}
-					case 2:
-						var tmp uint16
-						if err := binary.Read(gpuR, binary.LittleEndian, &tmp); err != nil {
-							return nil, err
-						}
-						val = uint32(tmp)
-					default:
-						return nil, fmt.Errorf("unknown index stride: %v", indexStride)
-					}
-					mesh.Indices = append(mesh.Indices, val)
-				}
+			mesh, err := loadMesh(gpuR, info, layout)
+			if err != nil {
+				return nil, err
 			}
 			meshes = append(meshes, mesh)
 		}
@@ -387,6 +476,7 @@ func Load(mainR io.ReadSeeker, gpuR io.ReadSeeker) (*Unit, error) {
 	return &Unit{
 		JointTransforms:        jointTransforms,
 		JointTransformMatrices: jointTransformMatrices,
+		Materials:              materialMap,
 		Meshes:                 meshes,
 	}, nil
 }

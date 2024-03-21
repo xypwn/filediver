@@ -3,19 +3,9 @@ package stingray
 import (
 	"encoding/binary"
 	"encoding/hex"
-	"strconv"
-	"strings"
 )
 
 type Hash struct{ Value uint64 }
-
-func HashFromString(s string) (Hash, error) {
-	b, err := hex.DecodeString(s)
-	if err != nil {
-		return Hash{}, err
-	}
-	return Hash{Value: binary.BigEndian.Uint64(b)}, nil
-}
 
 // Murmur64a hash
 func Sum64(b []byte) Hash {
@@ -50,18 +40,20 @@ func Sum64(b []byte) Hash {
 	return Hash{Value: hash}
 }
 
-// Hellextractor uses Big Endian hashes, but really,
-// that's not correct, since the Stingray engine
-// basically only runs on Little Endian devices
-/*func (h Hash) ToBigEndian() uint64 {
-	var b [8]byte
-	binary.BigEndian.PutUint64(b[:], h.Value)
-	return binary.LittleEndian.Uint64(b[:])
-}*/
+func (h Hash) Thin() ThinHash {
+	return ThinHash{Value: uint32(h.Value >> 32)}
+}
 
 func (h Hash) String() string {
-	s := strconv.FormatUint(h.Value /*h.ToBigEndian()*/, 16)
-	return strings.Repeat("0", 16-len(s)) + s
+	var b [8]byte
+	binary.LittleEndian.PutUint64(b[:], h.Value)
+	return hex.EncodeToString(b[:])
 }
 
 type ThinHash struct{ Value uint32 }
+
+func (h ThinHash) String() string {
+	var b [4]byte
+	binary.LittleEndian.PutUint32(b[:], h.Value)
+	return hex.EncodeToString(b[:])
+}
