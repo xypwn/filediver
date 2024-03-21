@@ -62,6 +62,9 @@ func extractStingrayFile(outDirPath string, file *stingray.File, name, typ strin
 		}
 	case "unit":
 		extr = extr_unit.Convert
+		if !modeConvert {
+			return false, fmt.Errorf("cannot extract \"unit\" file without conversion")
+		}
 	case "texture":
 		if modeConvert {
 			extr = extr_texture.Convert
@@ -115,6 +118,22 @@ var extractorConfigShorthands = map[string][]string{
 	"model": {"unit"},
 }
 
+func extractorConfigSubstituteShorthandKeys[T any](cfg map[string]T) error {
+	for k, v := range cfg {
+		if shs, ok := extractorConfigShorthands[k]; ok {
+			for _, sh := range shs {
+				cfg[sh] = v
+			}
+			continue
+		}
+		if _, ok := extractorConfigValidKeys[k]; ok {
+			continue
+		}
+		return fmt.Errorf("invalid key: \"%v\"", k)
+	}
+	return nil
+}
+
 func parseExtractorConfig(s string) (map[string]extractor.Config, error) {
 	res := make(map[string]extractor.Config)
 	if s == "" {
@@ -139,35 +158,17 @@ func parseExtractorConfig(s string) (map[string]extractor.Config, error) {
 	}
 
 	// Substitute shorthands and validate keys
-	for k, v := range res {
-		if shs, ok := extractorConfigShorthands[k]; ok {
-			for _, sh := range shs {
-				res[sh] = v
-			}
-			continue
-		}
-		if _, ok := extractorConfigValidKeys[k]; ok {
-			continue
-		}
-		return nil, fmt.Errorf("extractor config: invalid key: \"%v\"", k)
+	if err := extractorConfigSubstituteShorthandKeys(res); err != nil {
+		return nil, fmt.Errorf("extractor config: %w", err)
 	}
 	for _, cfg := range []extractor.Config{res["enable"], res["disable"]} {
 		for k, v := range cfg {
 			if v != "true" && v != "false" {
 				return nil, fmt.Errorf("extractor config: \"enable/disable:%v=\": expected true or false, but got: \"%v\"", k, v)
 			}
-			if shs, ok := extractorConfigShorthands[k]; ok {
-				for _, sh := range shs {
-					if v == "true" {
-						cfg[sh] = "true"
-					}
-				}
-				continue
+			if err := extractorConfigSubstituteShorthandKeys(cfg); err != nil {
+				return nil, fmt.Errorf("extractor config: %w", err)
 			}
-			if _, ok := extractorConfigValidKeys[k]; ok {
-				continue
-			}
-			return nil, fmt.Errorf("extractor config: invalid key: \"%v\"", k)
 		}
 	}
 	return res, nil
