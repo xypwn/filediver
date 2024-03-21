@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	//"github.com/davecgh/go-spew/spew"
+
 	"github.com/gobwas/glob"
 	"github.com/hellflame/argparse"
 
@@ -219,7 +220,7 @@ extractor config:
     all:
       conv=true|false    if false, file will be copied in its original format (probably can't be opened by most programs), default: true
     audio, wwise_stream, wwise_bank:
-      format=wav|ogg|aac|mp3    output format (anything other than WAV requires FFmpeg)`,
+      format=wav|ogg|aac|mp3    output format (anything other than WAV requires FFmpeg), default: ogg`,
 		DisableDefaultShowHelp: true,
 	})
 	gameDir := parser.String("g", "gamedir", &argparse.Option{Help: "Helldivers 2 game directory"})

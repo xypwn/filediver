@@ -156,7 +156,7 @@ func convertWemStream(outPath string, in io.ReadSeeker, format format, runner *e
 func getFormat(config extractor.Config) (format, error) {
 	f, ok := config["format"]
 	if !ok {
-		return formatWav, nil
+		return formatOgg, nil
 	}
 	switch f {
 	case "wav":
