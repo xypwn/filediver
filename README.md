@@ -16,7 +16,17 @@ An unofficial Helldivers 2 game asset extractor.
 - [Windows (64-bit)](https://github.com/xypwn/filediver/releases/latest/download/filediver-windows-amd64.zip)
 - [Linux (64-bit)](https://github.com/xypwn/filediver/releases/latest/download/filediver-linux-amd64.tar.gz)
 
-Extract the achive into a new folder.
+**Extract the achive into a new folder.**
+
+The program is called "filediver.exe" (or just "filediver" on Linux). See [usage](README.md#usage).
+
+<details>
+<summary>What are "ffmpeg.exe" and "magick.exe"?</summary>
+
+"ffmpeg.exe" ([FFmpeg](https://ffmpeg.org/)) and "magick.exe" ([ImageMagick](https://imagemagick.org)) are used for converting certain files. They are downloaded from official sources by the [GitHub workflow](https://github.com/xypwn/filediver/blob/master/.github/workflows/build-release.yml) that generates the .zip archive you can download.
+
+You only need to keep them in the folder if you don't have them installed on your computer.
+</details>
 
 ## Usage
 While you can simply double-click the executable to run it, using the terminal will grant you some more options.
