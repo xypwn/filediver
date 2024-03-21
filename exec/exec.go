@@ -24,9 +24,9 @@ func NewRunner() *Runner {
 }
 
 func (r *Runner) Add(name string, defaultArgs ...string) (found bool) {
-	path, err := exec.LookPath(name)
+	path, err := exec.LookPath("./" + name)
 	if err != nil {
-		if path, err = exec.LookPath("./" + name); err != nil {
+		if path, err = exec.LookPath(name); err != nil {
 			return false
 		}
 	}
