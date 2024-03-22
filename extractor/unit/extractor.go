@@ -123,7 +123,10 @@ func writeTexture(doc *gltf.Document, runner *exec.Runner, getResource extractor
 	if err != nil {
 		return 0, err
 	}
-	doc.Textures = append(doc.Textures, &gltf.Texture{Source: gltf.Index(imgIdx)})
+	doc.Textures = append(doc.Textures, &gltf.Texture{
+		Sampler: gltf.Index(0),
+		Source:  gltf.Index(imgIdx),
+	})
 	return uint32(len(doc.Textures) - 1), nil
 }
 
@@ -144,6 +147,12 @@ func Convert(outPath string, ins [stingray.NumDataType]io.ReadSeeker, config ext
 
 	doc := gltf.NewDocument()
 	doc.Asset.Generator = "https://github.com/xypwn/filediver"
+	doc.Samplers = append(doc.Samplers, &gltf.Sampler{
+		MagFilter: gltf.MagLinear,
+		MinFilter: gltf.MinLinear,
+		WrapS:     gltf.WrapRepeat,
+		WrapT:     gltf.WrapRepeat,
+	})
 
 	// Load materials
 	materialIdxs := make(map[stingray.ThinHash]uint32)
