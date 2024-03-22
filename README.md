@@ -29,35 +29,36 @@ You only need to keep them in the folder if you don't have them installed on you
 </details>
 
 ## Usage
-While you can simply double-click the executable to run it, using the terminal will grant you some more options.
+### Windows
+Navigate to the folder where you unpacked the program into. `SHIFT`+`Right-Click` **in** the folder and select "Open in PowerShell".
 
-In your terminal, navigate to the folder containing the executable. From there, run `filediver -h` to get a list of options.
+In PowerShell/Terminal, run `./filediver -h` to get a list of options.
 
 ### Here are some example commands:
 
 Simply running the app should automatically detect your installation directory and dump all files into the "extracted" directory in your current folder:
 ```sh
-filediver
+./filediver
 ```
 
 Print a detailed description of all command line options:
 ```sh
-filediver -h
+./filediver -h
 ```
 
 Extract the files into a directory called "custom_dir":
 ```sh
-filediver -o "custom_dir"
+./filediver -o "custom_dir"
 ```
 
 Extract only video files:
 ```sh
-filediver -c "enable:video"
+./filediver -c "enable:video"
 ```
 
 Extract the Super Earth anthem as mp3:
 ```sh
-filediver -c "audio:format=mp3" -i "content/audio/291227525.wwise_stream"
+./filediver -c "audio:format=mp3" -i "content/audio/291227525.wwise_stream"
 ```
 
 ## Features
