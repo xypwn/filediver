@@ -18,7 +18,7 @@ An unofficial Helldivers 2 game asset extractor.
 
 **Extract the achive into a new folder.**
 
-The program is called "filediver.exe" (or just "filediver" on Linux). See [usage](README.md#usage).
+The program is called "filediver.exe" (or just "filediver" on Linux). See [usage](#usage).
 
 <details>
 <summary>What are "ffmpeg.exe" and "magick.exe"?</summary>
@@ -33,19 +33,32 @@ While you can simply double-click the executable to run it, using the terminal w
 
 In your terminal, navigate to the folder containing the executable. From there, run `filediver -h` to get a list of options.
 
-Here are some example commands:
+### Here are some example commands:
 
-`$` `filediver` - simply running the app should automatically detect your installation directory and dump all files into the "extracted" directory in your current folder.
+Simply running the app should automatically detect your installation directory and dump all files into the "extracted" directory in your current folder:
+```sh
+filediver
+```
 
-`$` `filediver -h` - print a detailed description of all command line options.
+Print a detailed description of all command line options:
+```sh
+filediver -h
+```
 
-`$` `filediver -o "custom_dir"` - extract the files into a directory called "custom_dir".
+Extract the files into a directory called "custom_dir":
+```sh
+filediver -o "custom_dir"
+```
 
-`$` `filediver -c "enable:video"` - extract only video files.
+Extract only video files:
+```sh
+filediver -c "enable:video"
+```
 
-`$` `filediver -c "audio:format=ogg"` - extract audio as Ogg (more storage-efficient).
-
-`$` `filediver -c "audio:format=mp3" -i "content/audio/291227525.wwise_stream"` - extract the Super Earth anthem as mp3.
+Extract the Super Earth anthem as mp3:
+```sh
+filediver -c "audio:format=mp3" -i "content/audio/291227525.wwise_stream"
+```
 
 ## Features
 ### File Types/Formats
