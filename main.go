@@ -152,7 +152,7 @@ extractor config:
 			fmt.Println(getFileName(id))
 		}
 	} else {
-		prt.Infof("Extracting fies...")
+		prt.Infof("Extracting files...")
 
 		numExtrFiles := 0
 		for i, id := range sortedFileIDs {
