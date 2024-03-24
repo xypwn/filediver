@@ -44,16 +44,24 @@ func (h Hash) Thin() ThinHash {
 	return ThinHash{Value: uint32(h.Value >> 32)}
 }
 
-func (h Hash) String() string {
+func (h Hash) StringEndian(endian binary.ByteOrder) string {
 	var b [8]byte
-	binary.LittleEndian.PutUint64(b[:], h.Value)
+	endian.PutUint64(b[:], h.Value)
 	return hex.EncodeToString(b[:])
+}
+
+func (h Hash) String() string {
+	return h.StringEndian(binary.LittleEndian)
 }
 
 type ThinHash struct{ Value uint32 }
 
-func (h ThinHash) String() string {
+func (h ThinHash) StringEndian(endian binary.ByteOrder) string {
 	var b [4]byte
-	binary.LittleEndian.PutUint32(b[:], h.Value)
+	endian.PutUint32(b[:], h.Value)
 	return hex.EncodeToString(b[:])
+}
+
+func (h ThinHash) String() string {
+	return h.StringEndian(binary.LittleEndian)
 }
