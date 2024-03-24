@@ -20,17 +20,15 @@ import (
 	"github.com/xypwn/filediver/stingray/unit/texture"
 )
 
-var AllFoundTextures = make(map[stingray.ThinHash]struct{})
-
 // Adds back in the truncated Z component of a normal map.
 func reconstructNormalZ(c color.Color) color.Color {
 	iX, iY, _, _ := c.RGBA()
 	x, y := (float64(iX)/32767.5)-1, (float64(iY)/32767.5)-1
 	z := math.Sqrt(-x*x - y*y + 1)
 	return color.RGBA64{
-		R: uint16(math.Min((x+1)*32767.5, 65535)),
-		G: uint16(math.Min((y+1)*32767.5, 65535)),
-		B: uint16(math.Min((z+1)*32767.5, 65535)),
+		R: uint16(math.Max(math.Min((x+1)*32767.5, 65535), 0)),
+		G: uint16(math.Max(math.Min((y+1)*32767.5, 65535), 0)),
+		B: uint16(math.Max(math.Min((z+1)*32767.5, 65535), 0)),
 		A: uint16(65535),
 	}
 }
@@ -170,9 +168,6 @@ func Convert(outPath string, ins [stingray.NumDataType]io.ReadSeeker, config ext
 		}()
 		if err != nil {
 			return err
-		}
-		for k := range mat.Textures {
-			AllFoundTextures[k] = struct{}{}
 		}
 		texIDBaseColor, ok := mat.Textures[stingray.ThinHash{Value: 0xff2c91cc}]
 		if !ok {
