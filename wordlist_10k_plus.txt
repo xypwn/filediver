@@ -1,5 +1,5 @@
 // Word list useful for cracking hashes
-// Usage: go run ./hash_tool -c -d _ -w wordlist_10k_plus.txt
+// Usage: go run ./hash_tool -c -d _ -w wordlist_10k_plus.txt <hash_in_little_endian>
 
 // Custom additions
 0
