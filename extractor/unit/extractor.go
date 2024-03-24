@@ -20,14 +20,13 @@ import (
 	"github.com/xypwn/filediver/stingray/unit/texture"
 )
 
-// Converts a derivative map pixel regular normal map pixel.
-// (https://computergraphics.stackexchange.com/questions/12709/how-do-i-convert-derivative-maps-to-normal-maps)
-func derivativeToNormal(c color.Color) color.Color {
-	iDx, iDy, _, _ := c.RGBA()
-	dx, dy := (float64(iDx)/32767.5)-1, (float64(iDy)/32767.5)-1
-	x, y, z := -dx, -dy, float64(1)
-	mag := math.Sqrt(x*x + y*y + z*z)
-	x, y, z = x/mag, y/mag, z/mag
+var AllFoundTextures = make(map[stingray.ThinHash]struct{})
+
+// Adds back in the truncated Z component of a normal map.
+func reconstructNormalZ(c color.Color) color.Color {
+	iX, iY, _, _ := c.RGBA()
+	x, y := (float64(iX)/32767.5)-1, (float64(iY)/32767.5)-1
+	z := math.Sqrt(-x*x - y*y + 1)
 	return color.RGBA64{
 		R: uint16(math.Min((x+1)*32767.5, 65535)),
 		G: uint16(math.Min((y+1)*32767.5, 65535)),
@@ -172,6 +171,9 @@ func Convert(outPath string, ins [stingray.NumDataType]io.ReadSeeker, config ext
 		if err != nil {
 			return err
 		}
+		for k := range mat.Textures {
+			AllFoundTextures[k] = struct{}{}
+		}
 		texIDBaseColor, ok := mat.Textures[stingray.ThinHash{Value: 0xff2c91cc}]
 		if !ok {
 			continue
@@ -184,11 +186,11 @@ func Convert(outPath string, ins [stingray.NumDataType]io.ReadSeeker, config ext
 		if !ok {
 			continue
 		}
-		texIdxNormal, err := writeTexture(doc, runner, getResource, texIDNormal, derivativeToNormal)
+		texIdxNormal, err := writeTexture(doc, runner, getResource, texIDNormal, reconstructNormalZ)
 		if err != nil {
 			return err
 		}
-		/*texIDEmissive, ok := mat.Textures[stingray.ThinHash{Value: 0xe7bd9019}]
+		/*texIDEmissive, ok := mat.Textures[stingray.Sum64([]byte("subsurface_opacity")).Thin()]
 		if !ok {
 			continue
 		}
