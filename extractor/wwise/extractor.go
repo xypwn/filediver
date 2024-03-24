@@ -127,6 +127,10 @@ func convertWemStream(outPath string, in io.ReadSeeker, format format, runner *e
 			}
 		}
 	default:
+		if format == formatAac && !dec.ChannelLayout().HasName() {
+			// AAC doesn't support custom layouts
+			format = formatOgg
+		}
 		var fmtExt string
 		switch format {
 		case formatMp3:
@@ -143,7 +147,7 @@ func convertWemStream(outPath string, in io.ReadSeeker, format format, runner *e
 			"-f", "f32le",
 			"-ar", fmt.Sprint(dec.SampleRate()),
 			"-ac", fmt.Sprint(dec.Channels()),
-			"-channel_layout", dec.ChannelLayout().String(),
+			"-channel_layout", fmt.Sprintf("0x%x", uint32(dec.ChannelLayout())),
 			"-i", "pipe:",
 			outPath+fmtExt,
 		); err != nil {

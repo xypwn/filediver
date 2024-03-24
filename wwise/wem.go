@@ -232,6 +232,50 @@ const (
 	SpeakerTBR                         // top back left
 )
 
+// Returns ffmpeg-compatible string for a single speaker flag (e.g. "FL").
+func (sp SpeakerFlag) String() string {
+	switch sp {
+	case SpeakerFL:
+		return "FL"
+	case SpeakerFR:
+		return "FR"
+	case SpeakerFC:
+		return "FC"
+	case SpeakerLFE:
+		return "LFE"
+	case SpeakerBL:
+		return "BL"
+	case SpeakerBR:
+		return "BR"
+	case SpeakerFLC:
+		return "FLC"
+	case SpeakerFRC:
+		return "FRC"
+	case SpeakerBC:
+		return "BC"
+	case SpeakerSL:
+		return "SL"
+	case SpeakerSR:
+		return "SR"
+	case SpeakerTC:
+		return "TC"
+	case SpeakerTFL:
+		return "TFL"
+	case SpeakerTFC:
+		return "TFC"
+	case SpeakerTFR:
+		return "TFR"
+	case SpeakerTBL:
+		return "TBL"
+	case SpeakerTBC:
+		return "TBC"
+	case SpeakerTBR:
+		return "TBR"
+	default:
+		panic(fmt.Sprintf("unhandled case: 0b%032b", uint32(sp)))
+	}
+}
+
 type ChannelLayout uint32
 
 const (
@@ -263,9 +307,40 @@ const (
 	Mapping7Point1Top      = ChannelLayout(SpeakerFL | SpeakerFR | SpeakerFC | SpeakerLFE | SpeakerBL | SpeakerBR | SpeakerTFL | SpeakerTFR)
 )
 
-// Returns FFmpeg-compatible name.
-func (cm ChannelLayout) String() string {
-	switch cm {
+// Returns true if the channel layout can be described by a simple name like "7.1" or "stereo".
+// The string can be obtained by calling String().
+func (cl ChannelLayout) HasName() bool {
+	return cl == MappingMono ||
+		cl == MappingStereo ||
+		cl == Mapping2Point1 ||
+		cl == Mapping3Point0 ||
+		cl == Mapping3Point0Back ||
+		cl == Mapping4Point0 ||
+		cl == MappingQuad ||
+		cl == MappingQuadSide ||
+		cl == Mapping3Point1 ||
+		cl == Mapping5Point0 ||
+		cl == Mapping5Point0Side ||
+		cl == Mapping4Point1 ||
+		cl == Mapping5Point1 ||
+		cl == Mapping5Point1Side ||
+		cl == Mapping6Point0 ||
+		cl == Mapping6Point0Front ||
+		cl == MappingHexagonal ||
+		cl == Mapping6Point1 ||
+		cl == Mapping6Point1Back ||
+		cl == Mapping6Point1Front ||
+		cl == Mapping7Point0 ||
+		cl == Mapping7Point0Front ||
+		cl == Mapping7Point1 ||
+		cl == Mapping7Point1Wide ||
+		cl == Mapping7Point1WideSide ||
+		cl == Mapping7Point1Top
+}
+
+// Returns channel layout name, or, if nonstandard, list of speakers separated by "|".
+func (cl ChannelLayout) String() string {
+	switch cl {
 	case MappingMono:
 		return "mono"
 	case MappingStereo:
@@ -319,7 +394,16 @@ func (cm ChannelLayout) String() string {
 	case Mapping7Point1Top:
 		return "7.1(top)"
 	default:
-		panic(fmt.Sprintf("unhandled case: 0x%032b", uint32(cm)))
+		var res string
+		for i := 0; i < 64; i++ {
+			if (cl>>i)&1 != 0 {
+				if len(res) != 0 {
+					res += "|"
+				}
+				res += SpeakerFlag(1 << i).String()
+			}
+		}
+		return res
 	}
 }
 

@@ -77,7 +77,6 @@ var ConfigFormat = ConfigTemplate{
 
 type App struct {
 	*Printer
-	Config  map[string]extractor.Config
 	Hashes  map[stingray.Hash]string
 	gameDir string
 	dataDir *stingray.DataDir
@@ -242,7 +241,7 @@ func (a *App) MatchingFiles(includeGlob, excludeGlob string, cfgTemplate ConfigT
 	return res, nil
 }
 
-func (a *App) ExtractFile(id stingray.FileID, outDir string, runner *exec.Runner) error {
+func (a *App) ExtractFile(id stingray.FileID, outDir string, extrCfg map[string]extractor.Config, runner *exec.Runner) error {
 	name, ok := a.Hashes[id.Name]
 	if !ok {
 		name = id.Name.String()
@@ -257,7 +256,7 @@ func (a *App) ExtractFile(id stingray.FileID, outDir string, runner *exec.Runner
 		return fmt.Errorf("extract %v.%v: file does not found", name, typ)
 	}
 
-	cfg := a.Config[typ]
+	cfg := extrCfg[typ]
 	if cfg == nil {
 		cfg = make(extractor.Config)
 	}

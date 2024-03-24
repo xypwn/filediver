@@ -161,7 +161,7 @@ extractor config:
 				truncName = "..." + truncName[len(truncName)-37:]
 			}
 			prt.Statusf("File %v/%v: %v", i+1, len(files), truncName)
-			if err := a.ExtractFile(id, *outDir, runner); err == nil {
+			if err := a.ExtractFile(id, *outDir, extrCfg, runner); err == nil {
 				numExtrFiles++
 			} else {
 				prt.Errorf("%v", err)

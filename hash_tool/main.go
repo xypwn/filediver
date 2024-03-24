@@ -192,7 +192,7 @@ func main() {
 		}
 
 		if *maxWords != -1 {
-			fmt.Fprintln(os.Stderr, "brute_force_length only available for \"crack\" mode")
+			fmt.Fprintln(os.Stderr, "max_words only available for \"crack\" mode")
 			os.Exit(1)
 		}
 
