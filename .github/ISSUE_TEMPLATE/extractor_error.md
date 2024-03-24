@@ -2,7 +2,7 @@
 name: Extractor error
 about: Report an error when extracting specific files
 title: "[EXTRACTOR ERROR]"
-labels: ''
+labels: bug, extractor
 assignees: ''
 
 ---
