@@ -4,7 +4,6 @@ albedo
 albedo_color
 base_color
 color_map
-color_map
 diffuse_map
 emissive_map
 gradient_map
