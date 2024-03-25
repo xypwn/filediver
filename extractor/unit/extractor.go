@@ -26,9 +26,9 @@ func reconstructNormalZ(c color.Color) color.Color {
 	x, y := (float64(iX)/32767.5)-1, (float64(iY)/32767.5)-1
 	z := math.Sqrt(-x*x - y*y + 1)
 	return color.RGBA64{
-		R: uint16(math.Max(math.Min((x+1)*32767.5, 65535), 0)),
-		G: uint16(math.Max(math.Min((y+1)*32767.5, 65535), 0)),
-		B: uint16(math.Max(math.Min((z+1)*32767.5, 65535), 0)),
+		R: uint16(math.Max(math.Min(math.Round((x+1)*32767.5), 65535), 0)),
+		G: uint16(math.Max(math.Min(math.Round((y+1)*32767.5), 65535), 0)),
+		B: uint16(math.Max(math.Min(math.Round((z+1)*32767.5), 65535), 0)),
 		A: uint16(65535),
 	}
 }
