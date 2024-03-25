@@ -484,8 +484,6 @@ func openWem(r io.ReadSeeker) (*Wem, error) {
 		if err != nil {
 			return nil, fmt.Errorf("wwise_vorbis: %w", err)
 		}
-
-		startOffset += offsets.AudioOffset
 	}
 
 	return &Wem{
