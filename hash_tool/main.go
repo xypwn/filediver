@@ -13,62 +13,64 @@ import (
 	"github.com/xypwn/filediver/stingray"
 )
 
-func hash(s string, thin bool) string {
+func hash(s string, thin bool, bigEndian bool) string {
+	var pfx string
+	var endian binary.ByteOrder
+	if bigEndian {
+		pfx = "0x"
+		endian = binary.BigEndian
+	} else {
+		endian = binary.LittleEndian
+	}
+
 	h := stingray.Sum64([]byte(s))
 	if thin {
-		return h.Thin().String()
+		return pfx + h.Thin().StringEndian(endian)
 	} else {
-		return h.String()
+		return pfx + h.StringEndian(endian)
 	}
 }
 
-// var charset = []byte{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "_"}
-var wordlistChars = []string{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "_"}
+func decodeHash(s string) (hash64 stingray.Hash, hash32 stingray.ThinHash, thin bool, err error) {
+	endian := binary.ByteOrder(binary.LittleEndian)
+	if sBE, ok := strings.CutPrefix(s, "0x"); ok {
+		endian = binary.BigEndian
+		s = sBE
+	}
+	b, err := hex.DecodeString(s)
+	if err != nil {
+		return stingray.Hash{}, stingray.ThinHash{}, false, err
+	}
+	if len(b)*2 != 8 && len(b)*2 != 16 {
+		return stingray.Hash{}, stingray.ThinHash{}, false,
+			fmt.Errorf("expected thin hash to be of hex length 8 (32 bytes a.k.a. thin hash), or hex length 16 (64 bytes a.k.a. normal hash), but got length %v", len(b)*2)
+	}
+	thin = len(b)*2 == 8
+	if thin {
+		hash := stingray.ThinHash{Value: endian.Uint32(b)}
+		return stingray.Hash{}, hash, thin, err
+	} else {
+		hash := stingray.Hash{Value: endian.Uint64(b)}
+		return hash, stingray.ThinHash{}, thin, err
+	}
+}
 
-func crack(hashStrs []string, thin bool, wordlist []string, delim string, maxNumWords int) error {
-	var hashBs [][]byte
+func crack(hashStrs []string, wordlist []string, delim string, maxNumWords int) error {
+	var hashes64 []stingray.Hash
+	var hashStrs64 []string
+	var hashes32 []stingray.ThinHash
+	var hashStrs32 []string
 	for _, s := range hashStrs {
-		b, err := hex.DecodeString(s)
+		h64, h32, thin, err := decodeHash(s)
 		if err != nil {
 			return err
 		}
-		hashBs = append(hashBs, b)
 		if thin {
-			if len(b)*2 != 8 {
-				return fmt.Errorf("expected thin hash to be of hex length 8, but got length %v", len(b)*2)
-			}
+			hashes32 = append(hashes32, h32)
+			hashStrs32 = append(hashStrs32, s)
 		} else {
-			if len(b)*2 != 16 {
-				return fmt.Errorf("expected hash to be of hex length 16, but got length %v", len(b)*2)
-			}
-		}
-	}
-	var findMatch func([]byte) int
-	if thin {
-		var hashes []stingray.ThinHash
-		for _, b := range hashBs {
-			hashes = append(hashes, stingray.ThinHash{Value: binary.LittleEndian.Uint32(b)})
-		}
-		findMatch = func(b []byte) int {
-			for i, h := range hashes {
-				if stingray.Sum64(b).Thin() == h {
-					return i
-				}
-			}
-			return -1
-		}
-	} else {
-		var hashes []stingray.Hash
-		for _, b := range hashBs {
-			hashes = append(hashes, stingray.Hash{Value: binary.LittleEndian.Uint64(b)})
-		}
-		findMatch = func(b []byte) int {
-			for i, h := range hashes {
-				if stingray.Sum64(b) == h {
-					return i
-				}
-			}
-			return -1
+			hashes64 = append(hashes64, h64)
+			hashStrs64 = append(hashStrs64, s)
 		}
 	}
 
@@ -83,12 +85,15 @@ func crack(hashStrs []string, thin bool, wordlist []string, delim string, maxNum
 	var tryCombinations func(i, wordsLeft int)
 	tryCombinations = func(i, wordsLeft int) {
 		if wordsLeft == 0 {
-			if idx := findMatch(buf[:i]); idx != -1 {
-				fmt.Printf(
-					"String found: %v = \"%v\"\n",
-					hex.EncodeToString(hashBs[idx]),
-					string(buf[:i]),
-				)
+			for idx, h := range hashes32 {
+				if stingray.Sum64(buf[:i]).Thin() == h {
+					fmt.Printf("String found: %v = \"%v\"\n", hashStrs32[idx], string(buf[:i]))
+				}
+			}
+			for idx, h := range hashes64 {
+				if stingray.Sum64(buf[:i]) == h {
+					fmt.Printf("String found: %v = \"%v\"\n", hashStrs64[idx], string(buf[:i]))
+				}
 			}
 			return
 		}
@@ -134,14 +139,20 @@ func fileToStrings(path string) ([]string, error) {
 }
 
 func main() {
-	parser := argparse.NewParser("filediver_hash_tool", "Simple tool for calculating and cracking murmur64a hashes.", nil)
-	thin := parser.Flag("t", "thin", &argparse.Option{Help: "Use \"thin\" 32-bit hashes instead of 64-bit"})
-	inputStrs := parser.Strings("", "input", &argparse.Option{Positional: true, Help: "Strings to hash / hashes to crack"})
+	parser := argparse.NewParser("filediver_hash_tool", "Simple tool for calculating and cracking murmur64a hashes.", &argparse.ParserConfig{
+		EpiLog: `Without prefix, input hashes are considered little endian (e.g. ddafccccf2172e9e).
+With "0x" prefix, hashes are considered big endian (e.g. 0x9e2e17f2ccccafdd).
+Hashes may be of length 32-bit (hex length 8, a.k.a. thin hash) or 64-bit (hex length 16, a.k.a. normal hash).
+Different hash lengths and endianesses may be mixed in the input.`,
+	})
+	thin := parser.Flag("t", "thin", &argparse.Option{Help: "Output \"thin\" 32-bit hashes instead of 64-bit"})
+	bigEndian := parser.Flag("b", "big_endian", &argparse.Option{Help: "Output hashes in big endian"})
+	inputStrs := parser.Strings("", "input", &argparse.Option{Positional: true, Help: "Strings to hash / hashes to crack (see epilog)"})
 	inputPath := parser.String("i", "input_file", &argparse.Option{Help: "Path to file containing strings to hash / hashes to crack"})
 	modeCrack := parser.Flag("c", "crack", &argparse.Option{Help: "Attempt to crack a hash using an optional word list and brute-force"})
 	wordlistPath := parser.String("w", "wordlist", &argparse.Option{Help: "Path to word list file"})
 	maxWords := parser.Int("n", "max_words", &argparse.Option{Help: "Maximum number of words to try in a sequence", Default: "-1"})
-	delim := parser.String("d", "delimiter", &argparse.Option{Help: "Delimiter to separate words by (default: none)", Default: ""})
+	delim := parser.String("d", "delimiter", &argparse.Option{Help: "Delimiter to separate words by (default: \"_\")", Default: "_"})
 	if err := parser.Parse(nil); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		if err == argparse.BreakAfterHelpError {
@@ -154,10 +165,21 @@ func main() {
 		os.Exit(1)
 	}
 	if *inputPath != "" {
-		if len(*inputStrs) > 0 {
-			fmt.Fprintln(os.Stderr, "can only use one of input or input_file")
+		if *thin {
+			fmt.Fprintln(os.Stderr, "\"thin\" option only available for \"hash\" mode")
 			os.Exit(1)
 		}
+
+		if *bigEndian {
+			fmt.Fprintln(os.Stderr, "\"big_endian\" option only available for \"hash\" mode")
+			os.Exit(1)
+		}
+
+		if len(*inputStrs) > 0 {
+			fmt.Fprintln(os.Stderr, "can only use one of \"input\" or \"input_file\"")
+			os.Exit(1)
+		}
+
 		var err error
 		*inputStrs, err = fileToStrings(*inputPath)
 		if err != nil {
@@ -166,41 +188,41 @@ func main() {
 		}
 	}
 	if *modeCrack {
-		wordlist := wordlistChars
+		if *wordlistPath == "" {
+			fmt.Fprintln(os.Stderr, "need \"wordlist\" for \"crack\" mode")
+			os.Exit(1)
+		}
 
-		if *wordlistPath != "" {
-			var err error
-			wordlist, err = fileToStrings(*wordlistPath)
-			if err != nil {
-				fmt.Fprintln(os.Stderr, err)
-				os.Exit(1)
-			}
+		wordlist, err := fileToStrings(*wordlistPath)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
 		}
 
 		if *maxWords == -1 {
 			*maxWords = 6
 		}
 
-		if err := crack(*inputStrs, *thin, wordlist, *delim, *maxWords); err != nil {
+		if err := crack(*inputStrs, wordlist, *delim, *maxWords); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
 	} else {
 		if *wordlistPath != "" {
-			fmt.Fprintln(os.Stderr, "wordlist only available for \"crack\" mode")
+			fmt.Fprintln(os.Stderr, "\"wordlist\" option only available for \"crack\" mode")
 			os.Exit(1)
 		}
 
 		if *maxWords != -1 {
-			fmt.Fprintln(os.Stderr, "max_words only available for \"crack\" mode")
+			fmt.Fprintln(os.Stderr, "\"max_words\" option only available for \"crack\" mode")
 			os.Exit(1)
 		}
 
 		if len(*inputStrs) == 1 {
-			fmt.Println(hash((*inputStrs)[0], *thin))
+			fmt.Println(hash((*inputStrs)[0], *thin, *bigEndian))
 		} else {
 			for _, s := range *inputStrs {
-				fmt.Printf("\"%v\" = %v\n", s, hash(s, *thin))
+				fmt.Printf("\"%v\" = %v\n", s, hash(s, *thin, *bigEndian))
 			}
 		}
 	}
