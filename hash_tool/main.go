@@ -149,10 +149,19 @@ func fileToStrings(path string) ([]string, error) {
 
 func main() {
 	parser := argparse.NewParser("filediver_hash_tool", "Simple tool for calculating and cracking murmur64a hashes.", &argparse.ParserConfig{
-		EpiLog: `Without prefix, input hashes are considered little endian (e.g. ddafccccf2172e9e).
+		EpiLog: `**Hash format**
+Without "0x" prefix, input hashes are considered little endian (e.g. ddafccccf2172e9e).
 With "0x" prefix, hashes are considered big endian (e.g. 0x9e2e17f2ccccafdd).
 Hashes may be of length 32-bit (hex length 8, a.k.a. thin hash) or 64-bit (hex length 16, a.k.a. normal hash).
-Different hash lengths and endianesses may be mixed in the input.`,
+Different hash lengths and endianesses may be mixed in the input.
+
+**Word list**
+Given a wordlist, this tool will try all permutations of the given words separated by the delimiter.
+Example: Given the words "hi" and "hello" and the default delimiter "_", the permutations with length 2 will be: "hi_hi", "hi_hello", "hello_hi" and "hello_hello".
+
+**Prefix list**
+A prefix list contains a list of prefixes that will be attempted to be prepended without a separating delimiter. The empty prefix is always included, even if not present in the file. This is useful for directories.
+Example: Given the previous wordlist example's parameters, but with a prefix list containing "some/dir" and "other/dir", the permutations of length 2 include "hi_hi", "some/dir/hi_hi", "other/dir/hi_hi", "hi_hello", "some/dir/hi_hello" etc.`,
 	})
 	thin := parser.Flag("t", "thin", &argparse.Option{Help: "Output \"thin\" 32-bit hashes instead of 64-bit"})
 	bigEndian := parser.Flag("b", "big_endian", &argparse.Option{Help: "Output hashes in big endian"})
@@ -160,7 +169,7 @@ Different hash lengths and endianesses may be mixed in the input.`,
 	inputPath := parser.String("i", "input_file", &argparse.Option{Help: "Path to file containing strings to hash / hashes to crack"})
 	modeCrack := parser.Flag("c", "crack", &argparse.Option{Help: "Attempt to crack a hash using an optional word list and brute-force"})
 	wordlistPath := parser.String("w", "wordlist", &argparse.Option{Help: "Path to word list file"})
-	prefixlistPath := parser.String("p", "prefixlist", &argparse.Option{Help: "Path to prefix list file (e.g. for known directories)"})
+	prefixlistPath := parser.String("p", "prefixlist", &argparse.Option{Help: "Path to prefix list file (e.g. for directories, see epilog)"})
 	maxWords := parser.Int("n", "max_words", &argparse.Option{Help: "Maximum number of words to try in a sequence", Default: "-1"})
 	delim := parser.String("d", "delimiter", &argparse.Option{Help: "Delimiter to separate words by (default: \"_\")", Default: "_"})
 	if err := parser.Parse(nil); err != nil {

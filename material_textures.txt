@@ -25,7 +25,6 @@ metallic_map
 normal
 normal_map
 normal_map_01
-normal_map_01
 normal_map_02
 normal_map_02
 normal_map_03
@@ -44,7 +43,6 @@ reflection_map
 roughness_map
 subsurface_opacity
 texture_map
-texture_map_01
 texture_map_01
 texture_map_02
 texture_map_02
