@@ -55,7 +55,7 @@ func decodeHash(s string) (hash64 stingray.Hash, hash32 stingray.ThinHash, thin 
 	}
 }
 
-func crack(hashStrs []string, wordlist []string, delim string, maxNumWords int) error {
+func crack(hashStrs []string, wordlist []string, prefixlist []string, delim string, maxNumWords int) error {
 	var hashes64 []stingray.Hash
 	var hashStrs64 []string
 	var hashes32 []stingray.ThinHash
@@ -82,8 +82,8 @@ func crack(hashStrs []string, wordlist []string, delim string, maxNumWords int) 
 			buf = newBuf
 		}
 	}
-	var tryCombinations func(i, wordsLeft int)
-	tryCombinations = func(i, wordsLeft int) {
+	var tryCombinations func(i, wordsLeft int, firstWord bool)
+	tryCombinations = func(i, wordsLeft int, firstWord bool) {
 		if wordsLeft == 0 {
 			for idx, h := range hashes32 {
 				if stingray.Sum64(buf[:i]).Thin() == h {
@@ -98,22 +98,31 @@ func crack(hashStrs []string, wordlist []string, delim string, maxNumWords int) 
 			return
 		}
 
-		if i != 0 {
+		if !firstWord {
 			ensureBufLen(i + len(delim))
 			copy(buf[i:], delim)
 			i += len(delim)
+		}
+
+		if i == 0 {
+			for _, prefix := range prefixlist {
+				ensureBufLen(i + len(prefix))
+				copy(buf[i:], prefix)
+
+				tryCombinations(i+len(prefix), wordsLeft, firstWord)
+			}
 		}
 
 		for _, word := range wordlist {
 			ensureBufLen(i + len(word))
 			copy(buf[i:], word)
 
-			tryCombinations(i+len(word), wordsLeft-1)
+			tryCombinations(i+len(word), wordsLeft-1, false)
 		}
 	}
 	for numWords := 1; numWords <= maxNumWords; numWords++ {
 		fmt.Printf("Trying %v words\n", numWords)
-		tryCombinations(0, numWords)
+		tryCombinations(0, numWords, true)
 	}
 
 	return nil
@@ -151,6 +160,7 @@ Different hash lengths and endianesses may be mixed in the input.`,
 	inputPath := parser.String("i", "input_file", &argparse.Option{Help: "Path to file containing strings to hash / hashes to crack"})
 	modeCrack := parser.Flag("c", "crack", &argparse.Option{Help: "Attempt to crack a hash using an optional word list and brute-force"})
 	wordlistPath := parser.String("w", "wordlist", &argparse.Option{Help: "Path to word list file"})
+	prefixlistPath := parser.String("p", "prefixlist", &argparse.Option{Help: "Path to prefix list file (e.g. for known directories)"})
 	maxWords := parser.Int("n", "max_words", &argparse.Option{Help: "Maximum number of words to try in a sequence", Default: "-1"})
 	delim := parser.String("d", "delimiter", &argparse.Option{Help: "Delimiter to separate words by (default: \"_\")", Default: "_"})
 	if err := parser.Parse(nil); err != nil {
@@ -199,11 +209,21 @@ Different hash lengths and endianesses may be mixed in the input.`,
 			os.Exit(1)
 		}
 
+		var prefixlist []string
+		if *prefixlistPath != "" {
+			var err error
+			prefixlist, err = fileToStrings(*prefixlistPath)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(1)
+			}
+		}
+
 		if *maxWords == -1 {
 			*maxWords = 6
 		}
 
-		if err := crack(*inputStrs, wordlist, *delim, *maxWords); err != nil {
+		if err := crack(*inputStrs, wordlist, prefixlist, *delim, *maxWords); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
