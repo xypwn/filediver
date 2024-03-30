@@ -233,13 +233,13 @@ func Decode(r io.Reader, readMipMaps bool) (*DDS, error) {
 		}
 
 		images[i] = &DDSImage{
-			Image:   mipMaps[0],
+			Image:   mipMaps[0].Image,
 			MipMaps: mipMaps,
 		}
 	}
 
 	return &DDS{
-		Image:  images[0],
+		Image:  images[0].Image,
 		Info:   info,
 		Images: images,
 	}, nil

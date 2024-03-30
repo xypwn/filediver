@@ -2,6 +2,7 @@ package unit
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"image"
 	"image/color"
@@ -91,12 +92,12 @@ func writeTexture(doc *gltf.Document, getResource extractor.GetResourceFunc, id 
 	if _, err := fMain.Seek(int64(tex.HeaderOffset), io.SeekStart); err != nil {
 		return 0, err
 	}
-	img, err := dds.Decode(io.MultiReader(fMain, fStream), false)
+	dds, err := dds.Decode(io.MultiReader(fMain, fStream), false)
 	if err != nil {
 		return 0, err
 	}
 	if pixelConv != nil {
-		if img, ok := img.Image.(interface {
+		if img, ok := dds.Image.(interface {
 			image.Image
 			Set(int, int, color.Color)
 		}); ok {
@@ -105,10 +106,12 @@ func writeTexture(doc *gltf.Document, getResource extractor.GetResourceFunc, id 
 					img.Set(x, y, pixelConv(img.At(x, y)))
 				}
 			}
+		} else {
+			return 0, errors.New("DDS image does not support Set()")
 		}
 	}
 	var pngData bytes.Buffer
-	if err := png.Encode(&pngData, img); err != nil {
+	if err := png.Encode(&pngData, dds); err != nil {
 		return 0, err
 	}
 	imgIdx, err := modeler.WriteImage(doc, id.String(), "image/png", &pngData)
