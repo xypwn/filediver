@@ -44,7 +44,7 @@ func readPacket(d *Decoder, r io.ReadSeeker, isSetup bool) (wPacket, []byte, err
 	}
 
 	data := make([]byte, readSize)
-	read, err := r.Read(data)
+	read, err := io.ReadFull(r, data)
 	if err != nil {
 		return wPacket{}, nil, err
 	}

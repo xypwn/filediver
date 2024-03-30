@@ -27,14 +27,14 @@ func NewSectionReadSeeker(r io.ReadSeeker, off int64, n int64) (*SectionReadSeek
 func (r *SectionReadSeeker) Read(p []byte) (n int, err error) {
 	rem := r.base + r.n - r.off
 	if rem < int64(len(p)) {
-		n, err := r.r.Read(p[:rem])
+		n, err := io.ReadFull(r.r, p[:rem])
 		r.off += int64(n)
 		if err != nil {
 			return n, err
 		}
 		return n, io.EOF
 	}
-	n, err = r.r.Read(p)
+	n, err = io.ReadFull(r.r, p)
 	r.off += int64(n)
 	return n, err
 }

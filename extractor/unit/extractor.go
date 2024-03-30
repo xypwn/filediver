@@ -12,6 +12,7 @@ import (
 	"github.com/qmuntal/gltf"
 	"github.com/qmuntal/gltf/modeler"
 
+	"github.com/xypwn/filediver/dds"
 	"github.com/xypwn/filediver/exec"
 	"github.com/xypwn/filediver/extractor"
 	"github.com/xypwn/filediver/stingray"
@@ -67,7 +68,7 @@ func tryToOpaque(c color.Color) color.Color {
 
 // Adds a texture to doc. Returns new texture ID if err != nil.
 // pixelConv optionally converts individual pixel colors.
-func writeTexture(doc *gltf.Document, runner *exec.Runner, getResource extractor.GetResourceFunc, id stingray.Hash, pixelConv func(color.Color) color.Color) (uint32, error) {
+func writeTexture(doc *gltf.Document, getResource extractor.GetResourceFunc, id stingray.Hash, pixelConv func(color.Color) color.Color) (uint32, error) {
 	texRes := getResource(id, stingray.Sum64([]byte("texture")))
 	if texRes == nil || !texRes.Exists(stingray.DataMain) || !texRes.Exists(stingray.DataStream) {
 		return 0, fmt.Errorf("texture resource %v doesn't exist", id)
@@ -90,33 +91,27 @@ func writeTexture(doc *gltf.Document, runner *exec.Runner, getResource extractor
 	if _, err := fMain.Seek(int64(tex.HeaderOffset), io.SeekStart); err != nil {
 		return 0, err
 	}
-	var imgData bytes.Buffer
-	if err := runner.Run("magick", &imgData, io.MultiReader(fMain, fStream), "dds:-", "png:-"); err != nil {
+	img, err := dds.Decode(io.MultiReader(fMain, fStream), false)
+	if err != nil {
 		return 0, err
 	}
 	if pixelConv != nil {
-		img, err := png.Decode(&imgData)
-		if err != nil {
-			return 0, err
-		}
-		if cimg, ok := img.(interface {
+		if img, ok := img.Image.(interface {
 			image.Image
-			Set(x, y int, c color.Color)
+			Set(int, int, color.Color)
 		}); ok {
-			for y := cimg.Bounds().Min.Y; y < cimg.Bounds().Max.Y; y++ {
-				for x := cimg.Bounds().Min.X; x < cimg.Bounds().Max.X; x++ {
-					cimg.Set(x, y, pixelConv(cimg.At(x, y)))
+			for y := img.Bounds().Min.Y; y < img.Bounds().Max.Y; y++ {
+				for x := img.Bounds().Min.X; x < img.Bounds().Max.X; x++ {
+					img.Set(x, y, pixelConv(img.At(x, y)))
 				}
 			}
-		} else {
-			return 0, fmt.Errorf("texture must be mutable when using pixel converter")
-		}
-		imgData.Reset()
-		if err := png.Encode(&imgData, img); err != nil {
-			return 0, err
 		}
 	}
-	imgIdx, err := modeler.WriteImage(doc, id.String(), "image/png", &imgData)
+	var pngData bytes.Buffer
+	if err := png.Encode(&pngData, img); err != nil {
+		return 0, err
+	}
+	imgIdx, err := modeler.WriteImage(doc, id.String(), "image/png", &pngData)
 	if err != nil {
 		return 0, err
 	}
@@ -127,7 +122,7 @@ func writeTexture(doc *gltf.Document, runner *exec.Runner, getResource extractor
 	return uint32(len(doc.Textures) - 1), nil
 }
 
-func Convert(outPath string, ins [stingray.NumDataType]io.ReadSeeker, config extractor.Config, runner *exec.Runner, getResource extractor.GetResourceFunc) error {
+func Convert(outPath string, ins [stingray.NumDataType]io.ReadSeeker, config extractor.Config, _ *exec.Runner, getResource extractor.GetResourceFunc) error {
 	u, err := unit.Load(ins[stingray.DataMain], ins[stingray.DataGPU])
 	if err != nil {
 		return err
@@ -173,7 +168,7 @@ func Convert(outPath string, ins [stingray.NumDataType]io.ReadSeeker, config ext
 		if !ok {
 			continue
 		}
-		texIdxBaseColor, err := writeTexture(doc, runner, getResource, texIDBaseColor, tryToOpaque)
+		texIdxBaseColor, err := writeTexture(doc, getResource, texIDBaseColor, tryToOpaque)
 		if err != nil {
 			return err
 		}
@@ -181,7 +176,7 @@ func Convert(outPath string, ins [stingray.NumDataType]io.ReadSeeker, config ext
 		if !ok {
 			continue
 		}
-		texIdxNormal, err := writeTexture(doc, runner, getResource, texIDNormal, reconstructNormalZ)
+		texIdxNormal, err := writeTexture(doc, getResource, texIDNormal, reconstructNormalZ)
 		if err != nil {
 			return err
 		}

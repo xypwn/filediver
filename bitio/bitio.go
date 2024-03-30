@@ -139,7 +139,7 @@ func (r *Reader) Read(p []byte) (n int, err error) {
 func (r *Reader) ReadBit() (bool, error) {
 	if r.bitBufLen == 0 {
 		var buf [1]byte
-		if _, err := r.Reader.Read(buf[:]); err != nil {
+		if _, err := io.ReadFull(r.Reader, buf[:]); err != nil {
 			return false, err
 		}
 		r.bitBuf = buf[0]

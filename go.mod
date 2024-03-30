@@ -5,7 +5,6 @@ go 1.20
 require (
 	github.com/adrg/xdg v0.4.0
 	github.com/andygrunwald/vdf v1.1.0
-	github.com/davecgh/go-spew v1.1.1
 	github.com/go-audio/audio v1.0.0
 	github.com/go-audio/wav v1.1.0
 	github.com/gobwas/glob v0.2.3
@@ -14,6 +13,7 @@ require (
 	github.com/jwalton/go-supportscolor v1.2.0
 	github.com/qmuntal/gltf v0.24.3
 	github.com/x448/float16 v0.8.4
+	golang.org/x/exp v0.0.0-20240325151524-a685a6edb6d8
 	golang.org/x/sys v0.18.0
 )
 

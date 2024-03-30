@@ -2,10 +2,12 @@ package texture
 
 import (
 	"fmt"
+	"image/png"
 	"os"
 
 	"io"
 
+	"github.com/xypwn/filediver/dds"
 	"github.com/xypwn/filediver/exec"
 	"github.com/xypwn/filediver/extractor"
 	"github.com/xypwn/filediver/stingray"
@@ -22,7 +24,7 @@ func extract(outPath string, ins [stingray.NumDataType]io.ReadSeeker, convert fu
 		return err
 	}
 	var magicNum [4]byte
-	if _, err := ins[stingray.DataMain].Read(magicNum[:]); err != nil {
+	if _, err := io.ReadFull(ins[stingray.DataMain], magicNum[:]); err != nil {
 		return err
 	}
 
@@ -58,7 +60,7 @@ func extract(outPath string, ins [stingray.NumDataType]io.ReadSeeker, convert fu
 	return nil
 }
 
-func Extract(outPath string, ins [stingray.NumDataType]io.ReadSeeker, config extractor.Config, runner *exec.Runner, _ extractor.GetResourceFunc) error {
+func Extract(outPath string, ins [stingray.NumDataType]io.ReadSeeker, config extractor.Config, _ *exec.Runner, _ extractor.GetResourceFunc) error {
 	return extract(outPath+".dds", ins, func(w io.Writer, r io.Reader) error {
 		if _, err := io.Copy(w, r); err != nil {
 			return err
@@ -67,8 +69,12 @@ func Extract(outPath string, ins [stingray.NumDataType]io.ReadSeeker, config ext
 	})
 }
 
-func Convert(outPath string, ins [stingray.NumDataType]io.ReadSeeker, config extractor.Config, runner *exec.Runner, _ extractor.GetResourceFunc) error {
+func Convert(outPath string, ins [stingray.NumDataType]io.ReadSeeker, config extractor.Config, _ *exec.Runner, _ extractor.GetResourceFunc) error {
 	return extract(outPath+".png", ins, func(w io.Writer, r io.Reader) error {
-		return runner.Run("magick", w, r, "dds:-", "png:-")
+		img, err := dds.Decode(r, false)
+		if err != nil {
+			return err
+		}
+		return png.Encode(w, img)
 	})
 }

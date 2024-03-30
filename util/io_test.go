@@ -20,7 +20,7 @@ func TestSectionReadSeeker(t *testing.T) {
 	// Basic read
 	{
 		var buf [5]byte
-		if n, err := r.Read(buf[:]); err != nil {
+		if n, err := io.ReadFull(r, buf[:]); err != nil {
 			t.Error(err)
 		} else if n != 5 {
 			t.Errorf("wrong num bytes read: %v", n)
@@ -31,8 +31,8 @@ func TestSectionReadSeeker(t *testing.T) {
 	// Read beyond set limit
 	{
 		var buf [6]byte
-		if n, err := r.Read(buf[:]); err != io.EOF {
-			t.Errorf("expected io.EOF, but got: %v", err)
+		if n, err := io.ReadFull(r, buf[:]); err != io.ErrUnexpectedEOF {
+			t.Errorf("expected io.ErrUnexpectedEOF, but got: %v", err)
 		} else if n != 5 {
 			t.Errorf("wrong num bytes read: %v", n)
 		} else if string(buf[:n]) != "world" {
@@ -47,7 +47,7 @@ func TestSectionReadSeeker(t *testing.T) {
 			t.Errorf("unexpected pos after seek: %v", n)
 		}
 		var buf [2]byte
-		if n, err := r.Read(buf[:]); err != nil {
+		if n, err := io.ReadFull(r, buf[:]); err != nil {
 			t.Error(err)
 		} else if n != 2 {
 			t.Errorf("wrong num bytes read: %v", n)

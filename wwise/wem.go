@@ -72,7 +72,7 @@ func readWemHeader(r io.ReadSeeker) (*wemHeader, error) {
 	var endian binary.ByteOrder
 	{
 		var magicNum [4]byte
-		if _, err := r.Read(magicNum[:]); err != nil {
+		if _, err := io.ReadFull(r, magicNum[:]); err != nil {
 			return nil, err
 		}
 
