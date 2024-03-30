@@ -39,6 +39,8 @@ func DecodeInfo(r io.Reader) (Info, error) {
 		info.Decompress = DecompressUncompressed
 	} else if hdr.PixelFormat.Flags&PixelFormatFlagFourCC != 0 {
 		switch hdr.PixelFormat.FourCC {
+		case [4]byte{'A', 'T', 'I', '1'}:
+			return Info{}, errors.New("ATI1 compression unsupported")
 		case [4]byte{'A', 'T', 'I', '2'}:
 			info.Alpha = false
 			info.Decompress = Decompress3Dc
@@ -90,6 +92,8 @@ func DecodeInfo(r io.Reader) (Info, error) {
 			case DXGIFormatBC3UNorm:
 				info.Alpha = true
 				info.Decompress = DecompressDXT5
+			case DXGIFormatBC4UNorm:
+				return Info{}, errors.New("ATI1 compression unsupported")
 			case DXGIFormatBC5UNorm:
 				info.Alpha = false
 				info.Decompress = Decompress3Dc
