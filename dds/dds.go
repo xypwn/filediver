@@ -80,7 +80,7 @@ func DecodeInfo(r io.Reader) (Info, error) {
 				info.Alpha = true
 				info.Decompress = DecompressUncompressed
 			case DXGIFormatB8G8R8X8UNorm:
-				// X8 isn't really alpha, but we have to other channel to write it to
+				// X8 isn't really alpha, but we have no other channel to write it to
 				info.Alpha = true
 				info.Decompress = DecompressUncompressed
 			case DXGIFormatBC1UNorm:
