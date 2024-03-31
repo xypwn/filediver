@@ -34451,6 +34451,7 @@ content/audio/obj_destroy_command_bunker
 content/audio/obj_destroy_gunship_spawner
 content/audio/obj_tcs_activate
 content/audio/obj_tcs_deactivate
+content/audio/obj_generic_terminal
 content/audio/project_metadata
 content/effects/textures/clouds/cloud_master_atlas_data_00
 content/effects/textures/clouds/cloud_master_atlas_data_02

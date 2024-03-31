@@ -45,7 +45,7 @@ func readPacket(d *Decoder, r io.ReadSeeker, isSetup bool) (wPacket, []byte, err
 
 	data := make([]byte, readSize)
 	read, err := io.ReadFull(r, data)
-	if err != nil {
+	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) {
 		return wPacket{}, nil, err
 	}
 
