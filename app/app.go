@@ -186,9 +186,15 @@ func (a *App) matchFileID(id stingray.FileID, glb glob.Glob) bool {
 }
 
 func (a *App) MatchingFiles(includeGlob, excludeGlob string, cfgTemplate ConfigTemplate, cfg map[string]extractor.Config) (map[stingray.FileID]*stingray.File, error) {
+	if !strings.Contains(includeGlob, ".") {
+		includeGlob += ".*"
+	}
 	inclGlob, err := glob.Compile(includeGlob)
 	if err != nil {
 		return nil, err
+	}
+	if !strings.Contains(excludeGlob, ".") {
+		excludeGlob += ".*"
 	}
 	exclGlob, err := glob.Compile(excludeGlob)
 	if err != nil {
