@@ -9,5 +9,5 @@ import (
 )
 
 func getLibraryfoldersVDFPath() (string, error) {
-	return filepath.Join(xdg.DataHome, "steamapps", "libraryfolders.vdf"), nil
+	return filepath.Join(xdg.DataHome, "Steam", "steamapps", "libraryfolders.vdf"), nil
 }
