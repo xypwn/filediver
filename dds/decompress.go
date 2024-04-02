@@ -2,9 +2,13 @@ package dds
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
+	"image/color"
 	"io"
+	"math/bits"
 
+	"github.com/x448/float16"
 	"golang.org/x/exp/constraints"
 )
 
@@ -28,106 +32,211 @@ func avgU8(xs ...uint8) uint8 {
 }
 
 func DecompressUncompressed(buf []uint8, r io.Reader, width, height int, info Info) error {
-	if info.Alpha {
-		// Alpha channel exists
+	bitMasks := [4]uint32{info.Header.PixelFormat.RBitMask, info.Header.PixelFormat.GBitMask, info.Header.PixelFormat.BBitMask, info.Header.PixelFormat.ABitMask}
+	var bitMaskTZs [4]int
+	for i := range bitMasks {
+		bitMaskTZs[i] = bits.TrailingZeros32(bitMasks[i])
+	}
+	var bitMaskBits [4]int
+	for i := range bitMasks {
+		bitMaskBits[i] = bits.Len32(bitMasks[i] >> bitMaskTZs[i])
+	}
 
-		rBM, gBM, bBM, aBM := info.Header.PixelFormat.RBitMask, info.Header.PixelFormat.GBitMask, info.Header.PixelFormat.BBitMask, info.Header.PixelFormat.ABitMask
-		var alphaBits uint8
-		if info.Header.PixelFormat.RGBBitCount == 16 {
-			if rBM == 0x7c00 && gBM == 0x03e0 && bBM == 0x001f && aBM == 0x8000 {
-				alphaBits = 1
-			} else if (rBM == 0x00ff && gBM == 0x00ff && bBM == 0x00ff && aBM == 0xff00) ||
-				(rBM == 0x00ff && gBM == 0x0000 && bBM == 0x0000 && aBM == 0xff00) {
-				alphaBits = 8
-			} else if rBM == 0x0f00 && gBM == 0x0f00 && bBM == 0x00f0 && aBM == 0xf000 {
-				alphaBits = 4
-			} else {
-				return fmt.Errorf("unsupported RGBA bit mask: R %08x G %08x B %08x A %08x", rBM, gBM, bBM, aBM)
+	if info.Header.PixelFormat.RGBBitCount%8 != 0 {
+		return fmt.Errorf("invalid RGB bit count: %v (must be multiple of 8)", info.Header.PixelFormat.RGBBitCount)
+	}
+	byteCount := info.Header.PixelFormat.RGBBitCount / 8
+	if byteCount > 32 {
+		return fmt.Errorf("invalid RGB bit count: %v (must be at most 32)", byteCount)
+	}
+
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			var stride int
+			switch info.ColorModel {
+			case color.GrayModel:
+				stride = 1
+			case color.Gray16Model:
+				stride = 2
+			case color.NRGBAModel:
+				stride = 4
+			case color.NRGBA64Model:
+				stride = 8
+			default:
+				return errors.New("uncompressed image: unexpected color model")
 			}
-		}
-		if info.DXT10Header != nil && info.DXT10Header.DXGIFormat == DXGIFormatB5G5R5A1UNorm {
-			alphaBits = 1
-		}
+			idx := stride * (y*width + x)
 
-		for y := 0; y < height; y++ {
-			for x := 0; x < width; x++ {
-				idx := 4 * (y*width + x)
-				if info.Header.PixelFormat.RGBBitCount == 16 ||
-					(info.DXT10Header != nil && info.DXT10Header.DXGIFormat == DXGIFormatB5G5R5A1UNorm) {
-					var data [2]uint8
-					if _, err := io.ReadFull(r, data[:]); err != nil {
-						return err
-					}
-					c := binary.LittleEndian.Uint16(data[:])
-					if alphaBits == 1 {
-						buf[idx+0], buf[idx+1], buf[idx+2], buf[idx+3] = colorA1R5G5B5ToRGBA(c)
-					} else if alphaBits == 8 {
-						gy := uint8(c & 0x00FF)
-						a := uint8((c & 0xFF00) >> 8)
-						buf[idx+0], buf[idx+1], buf[idx+2], buf[idx+3] = gy, gy, gy, a
-					} else if alphaBits == 4 {
-						buf[idx+0], buf[idx+1], buf[idx+2], buf[idx+3] = colorA4R4G4B4ToRGBA(c)
-					} else {
-						return fmt.Errorf("invalid alpha bits: %v", alphaBits)
-					}
-				} else if (info.DXT10Header != nil && info.DXT10Header.DXGIFormat == DXGIFormatR8G8B8A8UNorm) ||
-					rBM == 0x0000_00ff && gBM == 0x0000_ff00 && bBM == 0x00ff_0000 && aBM == 0xff00_0000 {
-					if _, err := io.ReadFull(r, buf[idx:idx+4]); err != nil {
-						return err
-					}
-				} else if (info.DXT10Header != nil && info.DXT10Header.DXGIFormat == DXGIFormatB8G8R8A8UNorm) ||
-					rBM == 0x00ff_0000 && gBM == 0x0000_ff00 && bBM == 0x0000_00ff && aBM == 0xff00_0000 {
-					if _, err := io.ReadFull(r, buf[idx:idx+4]); err != nil {
-						return err
-					}
-					buf[idx+0], buf[idx+2] = buf[idx+2], buf[idx+0] // BGRA to RGBA
-				} else {
-					var dxgi string
-					if info.DXT10Header != nil {
-						dxgi = fmt.Sprintf("dxgi format=%v, ", info.DXT10Header.DXGIFormat)
-					}
-					return fmt.Errorf("unsupported RGBA format: %vbitmask: R %08x G %08x B %08x A %08x", dxgi, rBM, gBM, bBM, aBM)
+			if info.Header.PixelFormat.Flags&PixelFormatFlagAlphaPixels == 0 {
+				if info.ColorModel == color.NRGBAModel {
+					buf[idx+3] = 0xff
+				} else if info.ColorModel == color.NRGBA64Model {
+					binary.BigEndian.PutUint16(buf[idx+6:], 0xffff)
 				}
 			}
-		}
-	} else {
-		// No alpha channel exists
 
-		for y := 0; y < height; y++ {
-			for x := 0; x < width; x++ {
-				idx := 4 * (y*width + x)
-				if info.Header.PixelFormat.RGBBitCount == 8 ||
-					(info.DXT10Header != nil && info.DXT10Header.DXGIFormat == DXGIFormatR8UNorm) {
-					var c uint8
-					if err := binary.Read(r, binary.LittleEndian, &c); err != nil {
-						return err
+			var data [4]uint8
+			if _, err := io.ReadFull(r, data[:byteCount]); err != nil {
+				return err
+			}
+			dataU32 := binary.LittleEndian.Uint32(data[:])
+
+			offs := 0
+			for i := range bitMasks {
+				c := (dataU32 & bitMasks[i]) >> bitMaskTZs[i]
+				if bitMaskBits[i] == 0 {
+				} else if bitMaskBits[i] <= 8 {
+					var v uint8
+					switch bitMaskBits[i] {
+					case 1:
+						v = mapBits1To8(uint16(c))
+					case 2:
+						v = mapBits2To8(uint16(c))
+					case 3:
+						v = mapBits3To8(uint16(c))
+					case 4:
+						v = mapBits4To8(uint16(c))
+					case 5:
+						v = mapBits5To8(uint16(c))
+					case 6:
+						v = mapBits6To8(uint16(c))
+					case 7:
+						v = mapBits7To8(uint16(c))
+					case 8:
+						v = uint8(c)
+					default:
+						return fmt.Errorf("unsupported number of bits: %v", bitMaskBits[i])
 					}
-					buf[idx+0] = c
-					buf[idx+1] = c
-					buf[idx+2] = c
-				} else if info.Header.PixelFormat.RGBBitCount == 16 ||
-					(info.DXT10Header != nil && info.DXT10Header.DXGIFormat == DXGIFormatB5G6R5UNorm) {
-					var c uint16
-					if err := binary.Read(r, binary.LittleEndian, &c); err != nil {
-						return err
+					buf[idx+offs] = v
+					offs += 1
+				} else if bitMaskBits[i] <= 16 {
+					var v uint16
+					switch bitMaskBits[i] {
+					case 16:
+						v = uint16(c)
+					default:
+						return fmt.Errorf("unsupported number of bits: %v", bitMaskBits[i])
 					}
-					buf[idx+0], buf[idx+1], buf[idx+2] = colorR5G6B5ToRGB(c)
-				} else if info.Header.PixelFormat.RGBBitCount == 24 {
-					if _, err := io.ReadFull(r, buf[idx:idx+3]); err != nil {
-						return err
-					}
-					buf[idx+0], buf[idx+2] = buf[idx+2], buf[idx+0] // BGR to RGB
+					binary.BigEndian.PutUint16(buf[idx+offs:], v)
+					offs += 2
 				} else {
-					return fmt.Errorf("unsupported RGB bit count: %v", info.Header.PixelFormat.RGBBitCount)
+					return fmt.Errorf("unsupported number of bits: %v", bitMaskBits[i])
 				}
-				buf[idx+3] = 255
+				if offs > stride {
+					return fmt.Errorf("offset (%v) is larger than stride (%v)", offs, stride)
+				}
 			}
 		}
 	}
 	return nil
 }
 
-func calculateColors(c0 uint16, c1 uint16, ignoreAlpha bool) (r [4]uint8, g [4]uint8, b [4]uint8, a [4]uint8) {
+func DecompressUncompressedDXT10(buf []uint8, r io.Reader, width, height int, info Info) error {
+	if info.DXT10Header == nil {
+		return errors.New("uncompressed DXT 10: expected DXT10 header")
+	}
+	var translatePixel func(idx int) error
+	switch info.DXT10Header.DXGIFormat {
+	case DXGIFormatR32G32B32A32Float:
+		if info.ColorModel != color.NRGBA64Model {
+			return errors.New("expected NRGBA64 model for R32G32B32A32Float")
+		}
+		translatePixel = func(idx int) error {
+			for i := 0; i < 4; i++ {
+				var v float32
+				if err := binary.Read(r, binary.LittleEndian, &v); err != nil {
+					return err
+				}
+				binary.LittleEndian.PutUint16(buf[idx+2*i:], uint16(v*0xffff))
+			}
+			return nil
+		}
+	case DXGIFormatR16G16B16A16Float:
+		if info.ColorModel != color.NRGBA64Model {
+			return errors.New("expected NRGBA64 model for R16G16B16A16Float")
+		}
+		translatePixel = func(idx int) error {
+			for i := 0; i < 4; i++ {
+				var v uint16
+				if err := binary.Read(r, binary.LittleEndian, &v); err != nil {
+					return err
+				}
+				binary.LittleEndian.PutUint16(buf[idx+2*i:], uint16(float16.Frombits(v).Float32()*0xffff))
+			}
+			return nil
+		}
+	case DXGIFormatR32Float:
+		if info.ColorModel != color.Gray16Model {
+			return errors.New("expected Gray16 model for R32Float")
+		}
+		translatePixel = func(idx int) error {
+			var v float32
+			if err := binary.Read(r, binary.LittleEndian, &v); err != nil {
+				return err
+			}
+			binary.LittleEndian.PutUint16(buf[idx:], uint16(v*0xffff))
+			return nil
+		}
+	case DXGIFormatR8G8B8A8UNorm:
+		if info.ColorModel != color.NRGBAModel {
+			return errors.New("expected NRGBA model for R8G8B8A8UNorm")
+		}
+		translatePixel = func(idx int) error {
+			if _, err := io.ReadFull(r, buf[idx:idx+4]); err != nil {
+				return err
+			}
+			return nil
+		}
+	case DXGIFormatR16UNorm:
+		if info.ColorModel != color.Gray16Model {
+			return errors.New("expected Gray16 model model for R16UNorm")
+		}
+		translatePixel = func(idx int) error {
+			var v uint16
+			if err := binary.Read(r, binary.LittleEndian, &v); err != nil {
+				return err
+			}
+			binary.BigEndian.PutUint16(buf[idx:], v)
+			return nil
+		}
+	case DXGIFormatR8UNorm:
+		if info.ColorModel != color.GrayModel {
+			return errors.New("expected Gray model model for R8UNorm")
+		}
+		translatePixel = func(idx int) error {
+			if _, err := io.ReadFull(r, buf[idx:idx+1]); err != nil {
+				return err
+			}
+			return nil
+		}
+	default:
+		return fmt.Errorf("uncompressed image: unsupported DXGI format: %v", info.DXT10Header.DXGIFormat)
+	}
+	var stride int
+	switch info.ColorModel {
+	case color.GrayModel:
+		stride = 1
+	case color.Gray16Model:
+		stride = 2
+	case color.NRGBAModel:
+		stride = 4
+	case color.NRGBA64Model:
+		stride = 8
+	default:
+		return errors.New("uncompressed image: unexpected color model")
+	}
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			idx := stride * (y*width + x)
+			if err := translatePixel(idx); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func calculateDXT5Colors(c0 uint16, c1 uint16, ignoreAlpha bool) (r [4]uint8, g [4]uint8, b [4]uint8, a [4]uint8) {
 	r[0], g[0], b[0] = colorR5G6B5ToRGB(c0)
 	r[1], g[1], b[1] = colorR5G6B5ToRGB(c1)
 
@@ -149,7 +258,11 @@ func calculateColors(c0 uint16, c1 uint16, ignoreAlpha bool) (r [4]uint8, g [4]u
 	return
 }
 
-func DecompressDXT5(buf []uint8, r io.Reader, width, height int, _ Info) error {
+func DecompressDXT5(buf []uint8, r io.Reader, width, height int, info Info) error {
+	if info.ColorModel != color.NRGBAModel {
+		return errors.New("DXT5 compression expects NRGBA color model")
+	}
+
 	for y := 0; y < height; y += 4 {
 		for x := 0; x < width; x += 4 {
 			var data [16]uint8
@@ -162,7 +275,7 @@ func DecompressDXT5(buf []uint8, r io.Reader, width, height int, _ Info) error {
 			c0, c1 := binary.LittleEndian.Uint16(data[8:10]), binary.LittleEndian.Uint16(data[10:12])
 			bits := binary.LittleEndian.Uint32(data[12:16])
 
-			cR, cG, cB, _ := calculateColors(c0, c1, true)
+			cR, cG, cB, _ := calculateDXT5Colors(c0, c1, true)
 
 			for j := 0; j < min(height-y, 4); j++ {
 				for i := 0; i < min(width-x, 4); i++ {
@@ -243,7 +356,11 @@ func get3DcBits(data []uint8, startBit *uint64, numBits uint8) uint8 {
 	return res
 }
 
-func Decompress3DcPlus(buf []uint8, r io.Reader, width, height int, _ Info) error {
+func Decompress3DcPlus(buf []uint8, r io.Reader, width, height int, info Info) error {
+	if info.ColorModel != color.GrayModel {
+		return errors.New("3Dc+ compression expects gray color model")
+	}
+
 	for y := 0; y < height; y += 4 {
 		for x := 0; x < width; x += 4 {
 			var data [8]uint8
@@ -262,11 +379,8 @@ func Decompress3DcPlus(buf []uint8, r io.Reader, width, height int, _ Info) erro
 						continue
 					}
 
-					idx := 4 * ((y+j)*width + (x + i))
-					buf[idx+0] = lum
-					buf[idx+1] = lum
-					buf[idx+2] = lum
-					buf[idx+3] = 255
+					idx := (y+j)*width + (x + i)
+					buf[idx] = lum
 				}
 			}
 		}
@@ -274,7 +388,11 @@ func Decompress3DcPlus(buf []uint8, r io.Reader, width, height int, _ Info) erro
 	return nil
 }
 
-func Decompress3Dc(buf []uint8, r io.Reader, width, height int, _ Info) error {
+func Decompress3Dc(buf []uint8, r io.Reader, width, height int, info Info) error {
+	if info.ColorModel != color.NRGBAModel {
+		return errors.New("3Dc compression expects NRGBA color model")
+	}
+
 	for y := 0; y < height; y += 4 {
 		for x := 0; x < width; x += 4 {
 			var data [16]uint8

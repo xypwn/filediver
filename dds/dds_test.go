@@ -69,6 +69,7 @@ func TestDDSImage(t *testing.T) {
 	testDDSImage(t, "testimg-rgb8.dds", "17a28fb962d0277240418a5f14fb5b14b1c528fcda019d0c9f69de2426886402", false)
 	testDDSImage(t, "testimg-rgba8.dds", "17a28fb962d0277240418a5f14fb5b14b1c528fcda019d0c9f69de2426886402", false)
 	testDDSImage(t, "testimg-r5g6r5.dds", "dda7c4a7d79e36aa746929c88de36311797d6c64ef35e3b604366f7d8ee9dafc", false)
+	testDDSImage(t, "testimg-l8.dds", "b2c503dfcccd074d59dd1fa344053250bec3c84eee8b689617097c8c90e28bbe", false)
 }
 
 func TestDDSMipMaps(t *testing.T) {

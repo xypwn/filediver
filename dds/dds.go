@@ -12,7 +12,6 @@ type Info struct {
 	Header      Header
 	DXT10Header *DXT10Header
 	Decompress  DecompressFunc
-	Alpha       bool
 	ColorModel  color.Model
 	NumMipMaps  int
 	NumImages   int
@@ -26,31 +25,51 @@ func DecodeInfo(r io.Reader) (Info, error) {
 
 	info := Info{
 		Header:     hdr,
-		ColorModel: color.NRGBAModel,
 		NumMipMaps: 1,
 	}
 
 	cubemap := hdr.Caps2&Caps2Cubemap != 0
 	volume := hdr.Caps2&Caps2Volume != 0 && hdr.Depth > 0
 
-	if hdr.PixelFormat.Flags&PixelFormatFlagRGB != 0 ||
-		hdr.PixelFormat.Flags&PixelFormatFlagLuminance != 0 {
-		info.Alpha = hdr.PixelFormat.Flags&PixelFormatFlagAlphaPixels != 0
+	if hdr.PixelFormat.Flags&PixelFormatFlagRGB != 0 {
+		info.ColorModel = color.NRGBAModel
+		info.Decompress = DecompressUncompressed
+	} else if hdr.PixelFormat.Flags&PixelFormatFlagYUV != 0 {
+		if hdr.PixelFormat.Flags&PixelFormatFlagAlphaPixels == 0 {
+			info.ColorModel = color.YCbCrModel
+		} else {
+			info.ColorModel = color.NYCbCrAModel
+		}
+		info.Decompress = DecompressUncompressed
+	} else if hdr.PixelFormat.Flags&PixelFormatFlagLuminance != 0 {
+		if hdr.PixelFormat.Flags&PixelFormatFlagAlphaPixels == 0 {
+			if hdr.PixelFormat.GBitMask == 0 && hdr.PixelFormat.BBitMask == 0 {
+				if hdr.PixelFormat.RGBBitCount > 8 {
+					info.ColorModel = color.Gray16Model
+				} else {
+					info.ColorModel = color.GrayModel
+				}
+			} else {
+				info.ColorModel = color.NRGBAModel
+			}
+		} else {
+			info.ColorModel = color.NRGBAModel
+		}
 		info.Decompress = DecompressUncompressed
 	} else if hdr.PixelFormat.Flags&PixelFormatFlagFourCC != 0 {
 		switch hdr.PixelFormat.FourCC {
 		case [4]byte{'A', 'T', 'I', '1'}:
-			info.Alpha = false
+			info.ColorModel = color.GrayModel
 			info.Decompress = Decompress3DcPlus
 		case [4]byte{'A', 'T', 'I', '2'}:
-			info.Alpha = false
+			info.ColorModel = color.NRGBAModel
 			info.Decompress = Decompress3Dc
 		case [4]byte{'D', 'X', 'T', '1'}:
 			return Info{}, errors.New("DXT1 compression unsupported")
 		case [4]byte{'D', 'X', 'T', '3'}:
 			return Info{}, errors.New("DXT3 compression unsupported")
 		case [4]byte{'D', 'X', 'T', '5'}:
-			info.Alpha = true
+			info.ColorModel = color.NRGBAModel
 			info.Decompress = DecompressDXT5
 		case [4]byte{'D', 'X', '1', '0'}:
 			dx10, err := DecodeDXT10Header(r)
@@ -64,40 +83,34 @@ func DecodeInfo(r io.Reader) (Info, error) {
 			}
 
 			switch dx10.DXGIFormat {
+			case DXGIFormatR32G32B32A32Float,
+				DXGIFormatR32G32B32Float,
+				DXGIFormatR16G16B16A16Float,
+				DXGIFormatR16G16B16A16UNorm,
+				DXGIFormatR32G32Float:
+				info.ColorModel = color.NRGBA64Model
+				info.Decompress = DecompressUncompressedDXT10
+			case DXGIFormatR32Float, DXGIFormatR16UNorm:
+				info.ColorModel = color.Gray16Model
+				info.Decompress = DecompressUncompressedDXT10
 			case DXGIFormatR8UNorm:
-				info.Alpha = false
-				info.Decompress = DecompressUncompressed
-			case DXGIFormatB5G6R5UNorm:
-				info.Alpha = false
-				info.Decompress = DecompressUncompressed
-			case DXGIFormatB5G5R5A1UNorm:
-				info.Alpha = true
-				info.Decompress = DecompressUncompressed
-			case DXGIFormatB8G8R8A8UNorm:
-				info.Alpha = true
-				info.Decompress = DecompressUncompressed
+				info.ColorModel = color.GrayModel
+				info.Decompress = DecompressUncompressedDXT10
 			case DXGIFormatR8G8B8A8UNorm:
-				info.Alpha = true
-				info.Decompress = DecompressUncompressed
-			case DXGIFormatR10G10B10A2UNorm:
-				info.Alpha = true
-				info.Decompress = DecompressUncompressed
-			case DXGIFormatB8G8R8X8UNorm:
-				// X8 isn't really alpha, but we have no other channel to write it to
-				info.Alpha = true
-				info.Decompress = DecompressUncompressed
+				info.ColorModel = color.NRGBAModel
+				info.Decompress = DecompressUncompressedDXT10
 			case DXGIFormatBC1UNorm:
 				return Info{}, errors.New("DXT1 compression unsupported")
 			case DXGIFormatBC2UNorm:
 				return Info{}, errors.New("DXT3 compression unsupported")
 			case DXGIFormatBC3UNorm:
-				info.Alpha = true
+				info.ColorModel = color.NRGBAModel
 				info.Decompress = DecompressDXT5
 			case DXGIFormatBC4UNorm:
-				info.Alpha = false
+				info.ColorModel = color.GrayModel
 				info.Decompress = Decompress3DcPlus
 			case DXGIFormatBC5UNorm:
-				info.Alpha = false
+				info.ColorModel = color.NRGBAModel
 				info.Decompress = Decompress3Dc
 			case DXGIFormatBC7UNorm, DXGIFormatBC7UNormSRGB:
 				return Info{}, errors.New("BC7 compression unsupported")
@@ -201,10 +214,6 @@ func Decode(r io.Reader, readMipMaps bool) (*DDS, error) {
 
 	images := make([]*DDSImage, info.NumImages)
 	for i := 0; i < info.NumImages; i++ {
-		stride := 3
-		if info.Alpha {
-			stride++
-		}
 		width, height := int(info.Header.Width), int(info.Header.Height)
 		mipMaps := make([]*DDSMipMap, 0, mipMapsToRead)
 		for j := 0; j < mipMapsToRead; j++ {
@@ -214,11 +223,24 @@ func Decode(r io.Reader, readMipMaps bool) (*DDS, error) {
 
 			var buf []uint8
 			var img image.Image
-			if info.ColorModel == color.NRGBAModel {
+			switch info.ColorModel {
+			case color.GrayModel:
+				newImg := image.NewGray(image.Rect(0, 0, width, height))
+				buf = newImg.Pix
+				img = newImg
+			case color.Gray16Model:
+				newImg := image.NewGray16(image.Rect(0, 0, width, height))
+				buf = newImg.Pix
+				img = newImg
+			case color.NRGBAModel:
 				newImg := image.NewNRGBA(image.Rect(0, 0, width, height))
 				buf = newImg.Pix
 				img = newImg
-			} else {
+			case color.NRGBA64Model:
+				newImg := image.NewNRGBA64(image.Rect(0, 0, width, height))
+				buf = newImg.Pix
+				img = newImg
+			default:
 				return nil, errors.New("invalid color model passed by info structure")
 			}
 			if err := info.Decompress(buf, r, width, height, info); err != nil {
