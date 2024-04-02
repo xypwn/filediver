@@ -63,6 +63,7 @@ func testDDSImage(t *testing.T, path string, checksumHex string, save bool) {
 }
 
 func TestDDSImage(t *testing.T) {
+	testDDSImage(t, "testimg-bc1.dds", "079b4749d42c07f36bc6daa7bb2f5476beca92f38f4798e4c98e86624a50d931", false)
 	testDDSImage(t, "testimg-bc3.dds", "b8127ddcbddd112914bf0a70c8a7116ec311d3f17e5773177ccc403ff610ca6a", false)
 	testDDSImage(t, "testimg-bc4.dds", "26587032b504ca06724a35e9cb437895ce6e6e491d3a6245089cd396888224c2", false)
 	testDDSImage(t, "testimg-bc5.dds", "449e0bb16584f6174218c10d7401bd79feff5cffe71d7c28b9fea16d5e6e4daa", false)

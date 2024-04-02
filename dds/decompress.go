@@ -9,17 +9,9 @@ import (
 	"math/bits"
 
 	"github.com/x448/float16"
-	"golang.org/x/exp/constraints"
 )
 
 // https://github.com/ImageMagick/ImageMagick/blob/main/coders/dds.c
-
-func min[T constraints.Ordered](a, b T) T {
-	if a < b {
-		return a
-	}
-	return b
-}
 
 type DecompressFunc func(buf []uint8, r io.Reader, width, height int, info Info) error
 
@@ -236,7 +228,7 @@ func DecompressUncompressedDXT10(buf []uint8, r io.Reader, width, height int, in
 	return nil
 }
 
-func calculateDXT5Colors(c0 uint16, c1 uint16, ignoreAlpha bool) (r [4]uint8, g [4]uint8, b [4]uint8, a [4]uint8) {
+func calculateDXTColors(c0 uint16, c1 uint16, ignoreAlpha bool) (r [4]uint8, g [4]uint8, b [4]uint8, a [4]uint8) {
 	r[0], g[0], b[0] = colorR5G6B5ToRGB(c0)
 	r[1], g[1], b[1] = colorR5G6B5ToRGB(c1)
 
@@ -258,6 +250,46 @@ func calculateDXT5Colors(c0 uint16, c1 uint16, ignoreAlpha bool) (r [4]uint8, g 
 	return
 }
 
+func DecompressDXT1(buf []uint8, r io.Reader, width, height int, info Info) error {
+	if info.ColorModel != color.NRGBAModel {
+		return errors.New("DXT1 compression expects NRGBA color model")
+	}
+
+	for y := 0; y < height; y += 4 {
+		for x := 0; x < width; x += 4 {
+			var data [8]uint8
+			if _, err := io.ReadFull(r, data[:]); err != nil {
+				return err
+			}
+
+			c0 := binary.LittleEndian.Uint16(data[:2])
+			c1 := binary.LittleEndian.Uint16(data[2:4])
+			bits := binary.LittleEndian.Uint32(data[4:8])
+
+			cR, cG, cB, cA := calculateDXTColors(c0, c1, false)
+
+			for j := 0; j < 4; j++ {
+				for i := 0; i < 4; i++ {
+					if x+i >= width || y+j >= height {
+						continue
+					}
+					idx := 4 * ((y+j)*width + (x + i))
+
+					code := (bits >> ((j*4 + i) * 2)) & 0x03
+					buf[idx+0] = cR[code]
+					buf[idx+1] = cG[code]
+					buf[idx+2] = cB[code]
+					buf[idx+3] = 255
+					if cA[code] != 0 {
+						return errors.New("expected alpha to be 0 in DXT 1 compressed image")
+					}
+				}
+			}
+		}
+	}
+	return nil
+}
+
 func DecompressDXT5(buf []uint8, r io.Reader, width, height int, info Info) error {
 	if info.ColorModel != color.NRGBAModel {
 		return errors.New("DXT5 compression expects NRGBA color model")
@@ -275,10 +307,10 @@ func DecompressDXT5(buf []uint8, r io.Reader, width, height int, info Info) erro
 			c0, c1 := binary.LittleEndian.Uint16(data[8:10]), binary.LittleEndian.Uint16(data[10:12])
 			bits := binary.LittleEndian.Uint32(data[12:16])
 
-			cR, cG, cB, _ := calculateDXT5Colors(c0, c1, true)
+			cR, cG, cB, _ := calculateDXTColors(c0, c1, true)
 
-			for j := 0; j < min(height-y, 4); j++ {
-				for i := 0; i < min(width-x, 4); i++ {
+			for j := 0; j < 4; j++ {
+				for i := 0; i < 4; i++ {
 					if x+i >= width || y+j >= height {
 						continue
 					}
