@@ -199,10 +199,35 @@ func DecompressDXT5(buf []uint8, r io.Reader, width, height int, _ Info) error {
 	return nil
 }
 
-func getBits(data [16]uint8, startBit *uint64, numBits uint8) uint8 {
+func decode3DcBlock(data []uint8) [8]uint8 {
+	if len(data) < 8 {
+		panic("data must be of length 8 or more")
+	}
+
+	var c [8]uint8
+	c[0], c[1] = data[0], data[1]
+
+	mode := 4
+	if c[0] > c[1] {
+		mode = 6
+	}
+	for i := 0; i < mode; i++ {
+		c[i+2] = uint8(
+			(float64((mode-i))*float64(c[0]) + float64(i+1)*float64(c[1])) /
+				float64(mode+1))
+	}
+	if mode == 4 {
+		c[6] = 0
+		c[7] = 255
+	}
+
+	return c
+}
+
+func get3DcBits(data []uint8, startBit *uint64, numBits uint8) uint8 {
 	index := (*startBit) >> 3
 	base := (*startBit) - (index << 3)
-	if index > 15 {
+	if index >= uint64(len(data)) {
 		return 0
 	}
 	var res uint8
@@ -218,6 +243,37 @@ func getBits(data [16]uint8, startBit *uint64, numBits uint8) uint8 {
 	return res
 }
 
+func Decompress3DcPlus(buf []uint8, r io.Reader, width, height int, _ Info) error {
+	for y := 0; y < height; y += 4 {
+		for x := 0; x < width; x += 4 {
+			var data [8]uint8
+			if _, err := io.ReadFull(r, data[:]); err != nil {
+				return err
+			}
+
+			c := decode3DcBlock(data[:])
+
+			startBit := uint64(16)
+			for j := 0; j < 4; j++ {
+				for i := 0; i < 4; i++ {
+					lum := c[get3DcBits(data[:], &startBit, 3)]
+
+					if x+i >= width || y+j >= height {
+						continue
+					}
+
+					idx := 4 * ((y+j)*width + (x + i))
+					buf[idx+0] = lum
+					buf[idx+1] = lum
+					buf[idx+2] = lum
+					buf[idx+3] = 255
+				}
+			}
+		}
+	}
+	return nil
+}
+
 func Decompress3Dc(buf []uint8, r io.Reader, width, height int, _ Info) error {
 	for y := 0; y < height; y += 4 {
 		for x := 0; x < width; x += 4 {
@@ -226,37 +282,26 @@ func Decompress3Dc(buf []uint8, r io.Reader, width, height int, _ Info) error {
 				return err
 			}
 
-			var cR, cG [8]uint8
-			cR[0], cR[1] = data[0], data[1]
-			cG[0], cG[1] = data[8], data[9]
+			cR := decode3DcBlock(data[:8])
+			cG := decode3DcBlock(data[8:])
 
-			for _, c := range [2][]uint8{cR[:], cG[:]} {
-				mode := 4
-				if c[0] > c[1] {
-					mode = 6
-				}
-				for i := 0; i < mode; i++ {
-					c[i+2] = uint8(
-						(float64((mode-i))*float64(c[0]) + float64(i+1)*float64(c[1])) /
-							float64(mode+1))
-				}
-				if mode == 4 {
-					c[6] = 0
-					c[7] = 255
-				}
-			}
-
-			area := min(height-y, 4) * min(width-x, 4)
 			startBitR := uint64(16)
 			startBitG := uint64(80)
-			for i := 0; i < area; i++ {
-				iX, iY := i%4, i/4
-				idx := 4 * ((y+iY)*width + (x + iX))
+			for j := 0; j < 4; j++ {
+				for i := 0; i < 4; i++ {
+					r := cR[get3DcBits(data[:], &startBitR, 3)]
+					g := cG[get3DcBits(data[:], &startBitG, 3)]
 
-				buf[idx+0] = cR[getBits(data, &startBitR, 3)]
-				buf[idx+1] = cG[getBits(data, &startBitG, 3)]
-				buf[idx+2] = 0
-				buf[idx+3] = 255
+					if x+i >= width || y+j >= height {
+						continue
+					}
+
+					idx := 4 * ((y+j)*width + (x + i))
+					buf[idx+0] = r
+					buf[idx+1] = g
+					buf[idx+2] = 0
+					buf[idx+3] = 255
+				}
 			}
 		}
 	}
