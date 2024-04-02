@@ -83,9 +83,6 @@ extractor config:
 	if ok := runner.Add("ffmpeg", "-y", "-hide_banner", "-loglevel", "error"); !ok {
 		prt.Warnf("FFmpeg not installed or found locally. Please install FFmpeg, or place ffmpeg.exe in the current folder to convert videos to MP4 and audio to a variety of formats. Without FFmpeg, videos will be saved as BIK and audio will be saved was WAV.")
 	}
-	if ok := runner.Add("magick"); !ok {
-		prt.Warnf("ImageMagick not installed or found locally. Please install ImageMagick, or place magick.exe in the current folder to convert textures. Without magick, textures cannot be converted.")
-	}
 
 	a, err := app.New(prt)
 	if err != nil {

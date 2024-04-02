@@ -21,11 +21,11 @@ An unofficial Helldivers 2 game asset extractor.
 The program is called "filediver.exe" (or just "filediver" on Linux). See [usage](#usage).
 
 <details>
-<summary>What are "ffmpeg.exe" and "magick.exe"?</summary>
+<summary>What is "ffmpeg.exe"?</summary>
 
-"ffmpeg.exe" ([FFmpeg](https://ffmpeg.org/)) and "magick.exe" ([ImageMagick](https://imagemagick.org)) are used for converting certain files. They are downloaded from official sources by the [GitHub workflow](https://github.com/xypwn/filediver/blob/master/.github/workflows/build-release.yml) that generates the .zip archive you can download.
+"ffmpeg.exe" ([FFmpeg](https://ffmpeg.org/)) is used for converting video and audio files. It is downloaded from an official source by the [GitHub workflow](https://github.com/xypwn/filediver/blob/master/.github/workflows/build-release.yml) that generates the .zip archive you can download.
 
-You only need to keep them in the folder if you don't have them installed on your computer.
+You only need to keep it in the folder if you don't have it installed on your computer already.
 </details>
 
 ## Usage
@@ -65,7 +65,7 @@ Extract the Super Earth anthem as mp3:
 ### File Types/Formats
 - **Audio**: Audiokinetic wwise bnk/wem; automatically converted to WAV; other formats require FFmpeg
 - **Video**: Bink; automatically converted to MP4 via FFmpeg (shipped with Windows binary)
-- **Textures**: Direct Draw Surface (.dds); automatically converted to PNG via ImageMagick (shipped with Windows binary)
+- **Textures**: Direct Draw Surface (.dds); automatically converted to PNG
 - **Models (WIP)**: Stingray Unit; automatically converted to GLB (=glTF); can be imported into [Blender](https://www.blender.org/); requires ImageMagick for textures
 
 Planned: bones, animations
@@ -77,6 +77,8 @@ This app builds on a lot of work from other people. This includes:
 	- Unhashed resource names/types (.txt files)
 - [vgmstream](https://github.com/vgmstream/vgmstream), [ww2ogg by hcs](https://github.com/hcs64/ww2ogg) and [bnkextr by eXpl0it3r](https://github.com/eXpl0it3r/bnkextr)
 	- Wwise audio formats
+- [ImageMagick](https://imagemagick.org)
+	- DDS texture decoding
 
 Some useful discussion on the topic of HD2 resource extraction: https://reshax.com/topic/507-helldivers-2-model-extraction-help/
 
