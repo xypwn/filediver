@@ -186,19 +186,27 @@ func (a *App) matchFileID(id stingray.FileID, glb glob.Glob) bool {
 }
 
 func (a *App) MatchingFiles(includeGlob, excludeGlob string, cfgTemplate ConfigTemplate, cfg map[string]extractor.Config) (map[stingray.FileID]*stingray.File, error) {
-	if !strings.Contains(includeGlob, ".") {
-		includeGlob += ".*"
+	var inclGlob glob.Glob
+	if includeGlob != "" {
+		if !strings.Contains(includeGlob, ".") {
+			includeGlob += ".*"
+		}
+		var err error
+		inclGlob, err = glob.Compile(includeGlob)
+		if err != nil {
+			return nil, err
+		}
 	}
-	inclGlob, err := glob.Compile(includeGlob)
-	if err != nil {
-		return nil, err
-	}
-	if !strings.Contains(excludeGlob, ".") {
-		excludeGlob += ".*"
-	}
-	exclGlob, err := glob.Compile(excludeGlob)
-	if err != nil {
-		return nil, err
+	var exclGlob glob.Glob
+	if excludeGlob != "" {
+		if !strings.Contains(excludeGlob, ".") {
+			excludeGlob += ".*"
+		}
+		var err error
+		exclGlob, err = glob.Compile(excludeGlob)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	res := make(map[stingray.FileID]*stingray.File)
