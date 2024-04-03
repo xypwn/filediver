@@ -219,6 +219,10 @@ func (a *App) matchFileID(id stingray.FileID, glb glob.Glob) bool {
 	return false
 }
 
+func (a *App) AllFiles() map[stingray.FileID]*stingray.File {
+	return a.dataDir.Files
+}
+
 func (a *App) MatchingFiles(includeGlob, excludeGlob string, cfgTemplate ConfigTemplate, cfg map[string]extractor.Config) (map[stingray.FileID]*stingray.File, error) {
 	var inclGlob glob.Glob
 	if includeGlob != "" {

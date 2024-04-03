@@ -144,6 +144,32 @@ extractor config:
 		return getFileName(sortedFileIDs[i]) < getFileName(sortedFileIDs[j])
 	})
 
+	{
+		names := make(map[stingray.Hash]struct{})
+		types := make(map[stingray.Hash]struct{})
+		for id := range a.AllFiles() {
+			names[id.Name] = struct{}{}
+			types[id.Type] = struct{}{}
+		}
+		numKnownNames := 0
+		numKnownTypes := 0
+		for k := range names {
+			if _, ok := a.Hashes[k]; ok {
+				numKnownNames++
+			}
+		}
+		for k := range types {
+			if _, ok := a.Hashes[k]; ok {
+				numKnownTypes++
+			}
+		}
+		prt.Infof(
+			"Known hashes: names %.2f%%, types %.2f%%",
+			float64(numKnownNames)/float64(len(names))*100,
+			float64(numKnownTypes)/float64(len(types))*100,
+		)
+	}
+
 	if *modeList {
 		for _, id := range sortedFileIDs {
 			fmt.Println(getFileName(id))
