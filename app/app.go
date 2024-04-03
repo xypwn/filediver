@@ -3,6 +3,7 @@ package app
 import (
 	"bufio"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -130,7 +131,45 @@ func (a *App) OpenGameDir() error {
 		return err
 	}
 	a.dataDir = dataDir
+
+	// wwise_dep files let us know the string of many of the wwise_banks
+	for id, file := range dataDir.Files {
+		if id.Type == stingray.Sum64([]byte("wwise_dep")) {
+			if err := a.addHashFromWwiseDep(*file); err != nil {
+				return fmt.Errorf("wwise_dep: %w", err)
+			}
+		}
+	}
+
 	return nil
+}
+
+func (a *App) addHashFromWwiseDep(f stingray.File) error {
+	r, err := f.Open(stingray.DataMain)
+	if err != nil {
+		return err
+	}
+	var magicNum [4]byte
+	if _, err := io.ReadFull(r, magicNum[:]); err != nil {
+		return err
+	}
+	if magicNum != [4]byte{0xd8, '/', 'v', 'x'} {
+		return errors.New("invalid magic number")
+	}
+	var textLen uint32
+	if err := binary.Read(r, binary.LittleEndian, &textLen); err != nil {
+		return err
+	}
+	text := make([]byte, textLen-1)
+	if _, err := io.ReadFull(r, text); err != nil {
+		return err
+	}
+	a.AddHashFromString(string(text))
+	return nil
+}
+
+func (a *App) AddHashFromString(str string) {
+	a.Hashes[stingray.Sum64([]byte(str))] = str
 }
 
 func (a *App) AddHashesFromString(str string) {
@@ -138,7 +177,7 @@ func (a *App) AddHashesFromString(str string) {
 	for sc.Scan() {
 		s := strings.TrimSpace(sc.Text())
 		if s != "" && !strings.HasPrefix(s, "//") {
-			a.Hashes[stingray.Sum64([]byte(s))] = s
+			a.AddHashFromString(s)
 		}
 	}
 }
