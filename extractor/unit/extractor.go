@@ -152,7 +152,7 @@ func Convert(outPath string, ins [stingray.NumDataType]io.ReadSeeker, config ext
 	// Load materials
 	materialIdxs := make(map[stingray.ThinHash]uint32)
 	for id, resID := range u.Materials {
-		matRes := getResource(resID, stingray.Hash{Value: 0xeac0b497876adedf})
+		matRes := getResource(resID, stingray.Sum64([]byte("material")))
 		if matRes == nil || !matRes.Exists(stingray.DataMain) {
 			return fmt.Errorf("referenced material resource %v doesn't exist", resID)
 		}
@@ -167,7 +167,7 @@ func Convert(outPath string, ins [stingray.NumDataType]io.ReadSeeker, config ext
 		if err != nil {
 			return err
 		}
-		texIDBaseColor, ok := mat.Textures[stingray.ThinHash{Value: 0xff2c91cc}]
+		texIDBaseColor, ok := mat.Textures[stingray.Sum64([]byte("albedo_iridescence")).Thin()]
 		if !ok {
 			continue
 		}

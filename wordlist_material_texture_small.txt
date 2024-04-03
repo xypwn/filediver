@@ -36,6 +36,8 @@ baked
 base
 basic
 bg
+blood
+bloodmask
 bottom
 brdf
 brightness
@@ -48,6 +50,7 @@ chroma
 chromatic
 chromaticity
 chrominance
+clearcoat
 coefficient
 color
 colors
@@ -102,6 +105,7 @@ index
 index_of_refraction
 intensity
 ior
+iridescence
 irradiance
 j
 k
