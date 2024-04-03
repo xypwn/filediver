@@ -77,7 +77,6 @@ var ConfigFormat = ConfigTemplate{
 }
 
 type App struct {
-	*Printer
 	Hashes  map[stingray.Hash]string
 	gameDir string
 	dataDir *stingray.DataDir
@@ -85,8 +84,7 @@ type App struct {
 
 func New(printer *Printer) (*App, error) {
 	a := &App{
-		Printer: printer,
-		Hashes:  make(map[stingray.Hash]string),
+		Hashes: make(map[stingray.Hash]string),
 	}
 
 	// HACK: We don't know this hash's source string yet
