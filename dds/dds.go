@@ -114,8 +114,11 @@ func DecodeInfo(r io.Reader) (Info, error) {
 			case DXGIFormatBC5UNorm:
 				info.ColorModel = color.NRGBAModel
 				info.Decompress = Decompress3Dc
-			case DXGIFormatBC7UNorm, DXGIFormatBC7UNormSRGB:
-				return Info{}, errors.New("BC7 compression unsupported")
+			case DXGIFormatBC7UNorm:
+				info.ColorModel = color.NRGBAModel
+				info.Decompress = DecompressBC7
+			case DXGIFormatBC7UNormSRGB:
+				return Info{}, errors.New("BC7 SRGB compression unsupported")
 			default:
 				return Info{}, fmt.Errorf("unsupported DXGI format: %v", dx10.DXGIFormat)
 			}

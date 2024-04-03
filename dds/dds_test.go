@@ -6,7 +6,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"image"
-	"image/png"
+	_ "image/png"
 	"os"
 	"testing"
 
@@ -34,47 +34,84 @@ func testImageChecksum(t *testing.T, img image.Image, expectedSumHexStr string) 
 	}
 }
 
-func testDDSImage(t *testing.T, path string, checksumHex string, save bool) {
-	r, err := os.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+func checkDDSImageEqual(t *testing.T, ddsPath, comparePath string, allowDelta int64) {
+	var ddsImg image.Image
+	var compareImg image.Image
 
-	img, name, err := image.Decode(r)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if name != "dds" {
-		t.Fatalf("expected \"dds\" image, but got \"%v\"", name)
-	}
-
-	if save {
-		w, err := os.Create("out.png")
+	{
+		r, err := os.Open(ddsPath)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := png.Encode(w, img); err != nil {
+		defer r.Close()
+
+		var name string
+		ddsImg, name, err = image.Decode(r)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if name != "dds" {
+			t.Fatalf("expected \"dds\" image, but got \"%v\"", name)
+		}
+	}
+
+	{
+		r, err := os.Open(comparePath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer r.Close()
+
+		compareImg, _, err = image.Decode(r)
+		if err != nil {
 			t.Fatal(err)
 		}
 	}
 
-	testImageChecksum(t, img, checksumHex)
+	if ddsImg.Bounds() != compareImg.Bounds() {
+		t.Fatal("DDS image and compare image must have the same bounds")
+	}
+
+	for y := ddsImg.Bounds().Min.Y; y < ddsImg.Bounds().Max.Y; y++ {
+		for x := ddsImg.Bounds().Min.X; y < ddsImg.Bounds().Max.X; y++ {
+			r0, g0, b0, a0 := ddsImg.At(x, y).RGBA()
+			r1, g1, b1, a1 := compareImg.At(x, y).RGBA()
+			dR, dG, dB, dA := int64(r1)-int64(r0), int64(g1)-int64(g0), int64(b1)-int64(b0), int64(a1)-int64(a0)
+			if dR < 0 {
+				dR = -dR
+			}
+			if dG < 0 {
+				dG = -dG
+			}
+			if dB < 0 {
+				dB = -dB
+			}
+			if dA < 0 {
+				dA = -dA
+			}
+			// Allow slight deviations due to different mappings
+			if dR > allowDelta || dG > allowDelta || dB > allowDelta || dA > allowDelta {
+				t.Fatalf("DDS image and compare image are not equal (x=%v, y=%v: dds: %v, compare: %v)", x, y, [4]uint32{r0, g0, b0, a0}, [4]uint32{r1, g1, b1, a1})
+			}
+		}
+	}
 }
 
 func TestDDSImage(t *testing.T) {
-	testDDSImage(t, "testimg-bc1.dds", "079b4749d42c07f36bc6daa7bb2f5476beca92f38f4798e4c98e86624a50d931", false)
-	testDDSImage(t, "testimg-bc3.dds", "b8127ddcbddd112914bf0a70c8a7116ec311d3f17e5773177ccc403ff610ca6a", false)
-	testDDSImage(t, "testimg-bc4.dds", "26587032b504ca06724a35e9cb437895ce6e6e491d3a6245089cd396888224c2", false)
-	testDDSImage(t, "testimg-bc5.dds", "449e0bb16584f6174218c10d7401bd79feff5cffe71d7c28b9fea16d5e6e4daa", false)
-	testDDSImage(t, "testimg-rgb8.dds", "17a28fb962d0277240418a5f14fb5b14b1c528fcda019d0c9f69de2426886402", false)
-	testDDSImage(t, "testimg-rgba8.dds", "17a28fb962d0277240418a5f14fb5b14b1c528fcda019d0c9f69de2426886402", false)
-	testDDSImage(t, "testimg-r5g6r5.dds", "dda7c4a7d79e36aa746929c88de36311797d6c64ef35e3b604366f7d8ee9dafc", false)
-	testDDSImage(t, "testimg-l8.dds", "b2c503dfcccd074d59dd1fa344053250bec3c84eee8b689617097c8c90e28bbe", false)
+	checkDDSImageEqual(t, "testimgs/dds/testimg-bc1.dds", "testimgs/compare/testimg-bc1.png", 257)
+	checkDDSImageEqual(t, "testimgs/dds/testimg-bc3.dds", "testimgs/compare/testimg-bc3.png", 257)
+	checkDDSImageEqual(t, "testimgs/dds/testimg-bc4.dds", "testimgs/compare/testimg-bc4.png", 257)
+	checkDDSImageEqual(t, "testimgs/dds/testimg-bc5.dds", "testimgs/compare/testimg-bc5.png", 257)
+	checkDDSImageEqual(t, "testimgs/dds/testimg-bc7.dds", "testimgs/compare/testimg-bc7.png", 0)
+	checkDDSImageEqual(t, "testimgs/dds/testimg-rgb8.dds", "testimgs/compare/testimg.png", 0)
+	checkDDSImageEqual(t, "testimgs/dds/testimg-rgba8.dds", "testimgs/compare/testimg.png", 0)
+	checkDDSImageEqual(t, "testimgs/dds/testimg-r5g6r5.dds", "testimgs/compare/testimg-r5g6r5.png", 0)
+	checkDDSImageEqual(t, "testimgs/dds/testimg-l8.dds", "testimgs/compare/testimg-l8.png", 0)
 }
 
 func TestDDSMipMaps(t *testing.T) {
-	r, err := os.Open("testimg-bc3.dds")
+	r, err := os.Open("testimgs/dds/testimg-bc3.dds")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +129,7 @@ func TestDDSMipMaps(t *testing.T) {
 		t.Fatalf("expected 10 mipmap, but got %v", len(dds.Images[0].MipMaps))
 	}
 
-	testImageChecksum(t, dds.Images[0].MipMaps[0], "b8127ddcbddd112914bf0a70c8a7116ec311d3f17e5773177ccc403ff610ca6a")
-	testImageChecksum(t, dds.Images[0].MipMaps[1], "293c4be8a6c13bdedf3b8ff5f81d5fc8fe82c468277737f32e6e6035cd4169a6")
-	testImageChecksum(t, dds.Images[0].MipMaps[2], "1a7ab642e80bf2a3634b5df75b2b0d1ce4c15047626115a3f33c9b7db8a21ae3")
+	testImageChecksum(t, dds.Images[0].MipMaps[0], "17a28fb962d0277240418a5f14fb5b14b1c528fcda019d0c9f69de2426886402")
+	testImageChecksum(t, dds.Images[0].MipMaps[1], "dacf23b70aa1422e232c2d496c6cf845e57f3c9e3132823edb603787e843800c")
+	testImageChecksum(t, dds.Images[0].MipMaps[2], "db0772a48c675b7e1ee58a85c0b7438f8fb3b9b12bd5040fc5cdadb9d44b2324")
 }
