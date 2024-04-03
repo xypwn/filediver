@@ -54,7 +54,7 @@ extractor config:
   examples:
     filediver -c "enable:all"                   extract ALL files, including raw files (i.e. files that can't be converted)
     filediver -c "enable:audio"                 only extract audio
-    filediver -c "enable:bik bik:conv=false"    only extract bik files, but don't convert them to mp4
+    filediver -c "enable:bik bik:format=source" only extract bik files, but don't convert them to mp4
     filediver -c "audio:format=ogg"             convert audio to ogg instead of wav
 ` + app.ExtractorConfigHelpMessage(app.ConfigFormat),
 		DisableDefaultShowHelp: true,
