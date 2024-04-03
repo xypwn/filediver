@@ -464,14 +464,14 @@ func DecompressDXT1(buf []uint8, r io.Reader, width, height int, info Info) erro
 
 	for y := 0; y < height; y += 4 {
 		for x := 0; x < width; x += 4 {
-			var data [8]uint8
-			if _, err := io.ReadFull(r, data[:]); err != nil {
+			var block [8]uint8
+			if _, err := io.ReadFull(r, block[:]); err != nil {
 				return err
 			}
 
-			c0 := binary.LittleEndian.Uint16(data[:2])
-			c1 := binary.LittleEndian.Uint16(data[2:4])
-			bits := binary.LittleEndian.Uint32(data[4:8])
+			c0 := binary.LittleEndian.Uint16(block[:2])
+			c1 := binary.LittleEndian.Uint16(block[2:4])
+			bits := binary.LittleEndian.Uint32(block[4:8])
 
 			cR, cG, cB, cA := calculateDXTColors(c0, c1, false)
 
@@ -504,15 +504,15 @@ func DecompressDXT5(buf []uint8, r io.Reader, width, height int, info Info) erro
 
 	for y := 0; y < height; y += 4 {
 		for x := 0; x < width; x += 4 {
-			var data [16]uint8
-			if _, err := io.ReadFull(r, data[:]); err != nil {
+			var block [16]uint8
+			if _, err := io.ReadFull(r, block[:]); err != nil {
 				return err
 			}
-			a0, a1 := data[0], data[1]
-			alphaBits := uint64(binary.LittleEndian.Uint32(data[2:6]))
-			alphaBits |= uint64(binary.LittleEndian.Uint16(data[6:8])) << 32
-			c0, c1 := binary.LittleEndian.Uint16(data[8:10]), binary.LittleEndian.Uint16(data[10:12])
-			bits := binary.LittleEndian.Uint32(data[12:16])
+			a0, a1 := block[0], block[1]
+			alphaBits := uint64(binary.LittleEndian.Uint32(block[2:6]))
+			alphaBits |= uint64(binary.LittleEndian.Uint16(block[6:8])) << 32
+			c0, c1 := binary.LittleEndian.Uint16(block[8:10]), binary.LittleEndian.Uint16(block[10:12])
+			bits := binary.LittleEndian.Uint32(block[12:16])
 
 			cR, cG, cB, _ := calculateDXTColors(c0, c1, true)
 
@@ -551,13 +551,13 @@ func DecompressDXT5(buf []uint8, r io.Reader, width, height int, info Info) erro
 	return nil
 }
 
-func decode3DcBlock(data []uint8) [8]uint8 {
-	if len(data) < 8 {
-		panic("data must be of length 8 or more")
+func decode3DcBlock(block []uint8) [8]uint8 {
+	if len(block) < 8 {
+		panic("block must be of length 8 or more")
 	}
 
 	var c [8]uint8
-	c[0], c[1] = data[0], data[1]
+	c[0], c[1] = block[0], block[1]
 
 	mode := 4
 	if c[0] > c[1] {
@@ -576,30 +576,30 @@ func decode3DcBlock(data []uint8) [8]uint8 {
 	return c
 }
 
-func getBit(data []uint8, startBit *uint64) bool {
+func getBit(block []uint8, startBit *uint64) bool {
 	index := (*startBit) >> 3
 	base := (*startBit) - (index << 3)
 	(*startBit)++
-	if index >= uint64(len(data)) {
+	if index >= uint64(len(block)) {
 		return false
 	}
-	return (data[index]>>base)&1 != 0
+	return (block[index]>>base)&1 != 0
 }
 
-func getBits(data []uint8, startBit *uint64, numBits uint8) uint8 {
+func getBits(block []uint8, startBit *uint64, numBits uint8) uint8 {
 	index := (*startBit) >> 3
 	base := (*startBit) - (index << 3)
-	if index >= uint64(len(data)) {
+	if index >= uint64(len(block)) {
 		return 0
 	}
 	var res uint8
 	if base+uint64(numBits) > 8 {
 		firstBits := 8 - base
 		nextBits := uint64(numBits) - firstBits
-		res = ((data[index] >> base) |
-			((data[index+1] & ((1 << nextBits) - 1)) << firstBits))
+		res = ((block[index] >> base) |
+			((block[index+1] & ((1 << nextBits) - 1)) << firstBits))
 	} else {
-		res = (data[index] >> base) & ((1 << numBits) - 1)
+		res = (block[index] >> base) & ((1 << numBits) - 1)
 	}
 	*startBit += uint64(numBits)
 	return res
@@ -612,17 +612,17 @@ func Decompress3DcPlus(buf []uint8, r io.Reader, width, height int, info Info) e
 
 	for y := 0; y < height; y += 4 {
 		for x := 0; x < width; x += 4 {
-			var data [8]uint8
-			if _, err := io.ReadFull(r, data[:]); err != nil {
+			var block [8]uint8
+			if _, err := io.ReadFull(r, block[:]); err != nil {
 				return err
 			}
 
-			c := decode3DcBlock(data[:])
+			c := decode3DcBlock(block[:])
 
 			startBit := uint64(16)
 			for j := 0; j < 4; j++ {
 				for i := 0; i < 4; i++ {
-					lum := c[getBits(data[:], &startBit, 3)]
+					lum := c[getBits(block[:], &startBit, 3)]
 
 					if x+i >= width || y+j >= height {
 						continue
@@ -644,20 +644,20 @@ func Decompress3Dc(buf []uint8, r io.Reader, width, height int, info Info) error
 
 	for y := 0; y < height; y += 4 {
 		for x := 0; x < width; x += 4 {
-			var data [16]uint8
-			if _, err := io.ReadFull(r, data[:]); err != nil {
+			var block [16]uint8
+			if _, err := io.ReadFull(r, block[:]); err != nil {
 				return err
 			}
 
-			cR := decode3DcBlock(data[:8])
-			cG := decode3DcBlock(data[8:])
+			cR := decode3DcBlock(block[:8])
+			cG := decode3DcBlock(block[8:])
 
 			startBitR := uint64(16)
 			startBitG := uint64(80)
 			for j := 0; j < 4; j++ {
 				for i := 0; i < 4; i++ {
-					r := cR[getBits(data[:], &startBitR, 3)]
-					g := cG[getBits(data[:], &startBitG, 3)]
+					r := cR[getBits(block[:], &startBitR, 3)]
+					g := cG[getBits(block[:], &startBitG, 3)]
 
 					if x+i >= width || y+j >= height {
 						continue
@@ -675,25 +675,25 @@ func Decompress3Dc(buf []uint8, r io.Reader, width, height int, info Info) error
 	return nil
 }
 
-func readBC7Endpoints(data [16]uint8, mode uint64, startBit *uint64) (r [6]uint8, g [6]uint8, b [6]uint8, a [6]uint8) {
+func readBC7Endpoints(block [16]uint8, mode uint64, startBit *uint64) (r [6]uint8, g [6]uint8, b [6]uint8, a [6]uint8) {
 	numSubsets := bc7ModeInfo[mode].NumSubsets
 	colorBits := bc7ModeInfo[mode].ColorPrecision
 
 	for i := 0; i < int(numSubsets)*2; i++ {
-		r[i] = getBits(data[:], startBit, colorBits)
+		r[i] = getBits(block[:], startBit, colorBits)
 	}
 	for i := 0; i < int(numSubsets)*2; i++ {
-		g[i] = getBits(data[:], startBit, colorBits)
+		g[i] = getBits(block[:], startBit, colorBits)
 	}
 	for i := 0; i < int(numSubsets)*2; i++ {
-		b[i] = getBits(data[:], startBit, colorBits)
+		b[i] = getBits(block[:], startBit, colorBits)
 	}
 
 	alphaBits := bc7ModeInfo[mode].AlphaPrecision
 	hasAlpha := mode >= 4
 	if hasAlpha {
 		for i := 0; i < int(numSubsets)*2; i++ {
-			a[i] = getBits(data[:], startBit, alphaBits)
+			a[i] = getBits(block[:], startBit, alphaBits)
 		}
 	} else {
 		for i := 0; i < int(numSubsets)*2; i++ {
@@ -712,8 +712,8 @@ func readBC7Endpoints(data [16]uint8, mode uint64, startBit *uint64) (r [6]uint8
 		}
 
 		if mode == 1 {
-			pBit0 := getBit(data[:], startBit)
-			pBit1 := getBit(data[:], startBit)
+			pBit0 := getBit(block[:], startBit)
+			pBit1 := getBit(block[:], startBit)
 
 			if pBit0 {
 				r[0] |= 1
@@ -734,7 +734,7 @@ func readBC7Endpoints(data [16]uint8, mode uint64, startBit *uint64) (r [6]uint8
 			}
 		} else {
 			for i := 0; i < int(numSubsets)*2; i++ {
-				pBit := getBit(data[:], startBit)
+				pBit := getBit(block[:], startBit)
 				if pBit {
 					r[i] |= 1
 					g[i] |= 1
@@ -801,13 +801,13 @@ func DecompressBC7(buf []uint8, r io.Reader, width, height int, info Info) error
 
 	for y := 0; y < height; y += 4 {
 		for x := 0; x < width; x += 4 {
-			var data [16]uint8
-			if _, err := io.ReadFull(r, data[:]); err != nil {
+			var block [16]uint8
+			if _, err := io.ReadFull(r, block[:]); err != nil {
 				return err
 			}
 
 			startBit := uint64(0)
-			for startBit <= 8 && !getBit(data[:], &startBit) {
+			for startBit <= 8 && !getBit(block[:], &startBit) {
 			}
 			mode := startBit - 1
 
@@ -819,7 +819,7 @@ func DecompressBC7(buf []uint8, r io.Reader, width, height int, info Info) error
 			partitionID := uint8(0)
 
 			if mode == 0 || mode == 1 || mode == 2 || mode == 3 || mode == 7 {
-				partitionID = getBits(data[:], &startBit, bc7ModeInfo[mode].PartitionBits)
+				partitionID = getBits(block[:], &startBit, bc7ModeInfo[mode].PartitionBits)
 				if partitionID > 63 {
 					return fmt.Errorf("invalid partition ID: %v", partitionID)
 				}
@@ -827,15 +827,15 @@ func DecompressBC7(buf []uint8, r io.Reader, width, height int, info Info) error
 
 			rotation := uint8(0)
 			if mode == 4 || mode == 5 {
-				rotation = getBits(data[:], &startBit, 2)
+				rotation = getBits(block[:], &startBit, 2)
 			}
 
 			selectorBit := false
 			if mode == 4 {
-				selectorBit = getBit(data[:], &startBit)
+				selectorBit = getBit(block[:], &startBit)
 			}
 
-			cR, cG, cB, cA := readBC7Endpoints(data, mode, &startBit)
+			cR, cG, cB, cA := readBC7Endpoints(block, mode, &startBit)
 
 			indexPrec := bc7ModeInfo[mode].IndexPrecision
 			index2Prec := bc7ModeInfo[mode].Index2Precision
@@ -843,11 +843,11 @@ func DecompressBC7(buf []uint8, r io.Reader, width, height int, info Info) error
 			var alphaIndices [16]uint8
 			if mode == 4 && selectorBit {
 				indexPrec = 3
-				if getBit(data[:], &startBit) {
+				if getBit(block[:], &startBit) {
 					alphaIndices[0] = 1
 				}
 				for i := 1; i < 16; i++ {
-					alphaIndices[i] = getBits(data[:], &startBit, 2)
+					alphaIndices[i] = getBits(block[:], &startBit, 2)
 				}
 			}
 
@@ -860,13 +860,13 @@ func DecompressBC7(buf []uint8, r io.Reader, width, height int, info Info) error
 				if isBC7PixelAnchorIndex(subsetIndices[i], numSubsets, i, partitionID) {
 					numBits--
 				}
-				colorIndices[i] = getBits(data[:], &startBit, numBits)
+				colorIndices[i] = getBits(block[:], &startBit, numBits)
 			}
 
 			if mode == 5 || (mode == 4 && !selectorBit) {
-				alphaIndices[0] = getBits(data[:], &startBit, index2Prec-1)
+				alphaIndices[0] = getBits(block[:], &startBit, index2Prec-1)
 				for i := 1; i < 16; i++ {
-					alphaIndices[i] = getBits(data[:], &startBit, index2Prec)
+					alphaIndices[i] = getBits(block[:], &startBit, index2Prec)
 				}
 			}
 
