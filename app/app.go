@@ -87,9 +87,6 @@ func New(printer *Printer) (*App, error) {
 		Hashes: make(map[stingray.Hash]string),
 	}
 
-	// HACK: We don't know this hash's source string yet
-	a.Hashes[stingray.Hash{Value: 0xeac0b497876adedf}] = "material"
-
 	return a, nil
 }
 

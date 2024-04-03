@@ -10,7 +10,7 @@ type Hash struct{ Value uint64 }
 // Murmur64a hash
 func Sum64(b []byte) Hash {
 	var seed uint64 = 0
-	var mix uint64 = 0xC6A4A7935BD1E995
+	var mix uint64 = 0xc6a4a7935bd1e995
 	const shifts = 47
 
 	var hash uint64 = seed ^ (uint64(len(b)) * mix)
@@ -27,11 +27,13 @@ func Sum64(b []byte) Hash {
 		hash *= mix
 	}
 
-	for i := len(b) - 1; i >= 0; i-- {
-		hash ^= uint64(b[i]) << uint64(8*i)
+	if len(b) > 0 {
+		for i := len(b) - 1; i >= 0; i-- {
+			hash ^= uint64(b[i]) << uint64(8*i)
+		}
+		hash *= mix
 	}
 
-	hash *= mix
 	hash ^= hash >> shifts
 
 	hash *= mix
