@@ -13,14 +13,14 @@ import (
 	"github.com/xypwn/filediver/stingray"
 )
 
-func hash(s string, thin bool, bigEndian bool) string {
+func hash(s string, thin bool, littleEndian bool) string {
 	var pfx string
 	var endian binary.ByteOrder
-	if bigEndian {
+	if littleEndian {
+		endian = binary.LittleEndian
+	} else {
 		pfx = "0x"
 		endian = binary.BigEndian
-	} else {
-		endian = binary.LittleEndian
 	}
 
 	h := stingray.Sum64([]byte(s))
@@ -164,7 +164,7 @@ A prefix list contains a list of prefixes that will be attempted to be prepended
 Example: Given the previous wordlist example's parameters, but with a prefix list containing "some/dir" and "other/dir", the permutations of length 2 include "hi_hi", "some/dir/hi_hi", "other/dir/hi_hi", "hi_hello", "some/dir/hi_hello" etc.`,
 	})
 	thin := parser.Flag("t", "thin", &argparse.Option{Help: "Output \"thin\" 32-bit hashes instead of 64-bit"})
-	bigEndian := parser.Flag("b", "big_endian", &argparse.Option{Help: "Output hashes in big endian"})
+	littleEndian := parser.Flag("l", "little_endian", &argparse.Option{Help: "Output hashes in little endian"})
 	inputStrs := parser.Strings("", "input", &argparse.Option{Positional: true, Help: "Strings to hash / hashes to crack (see epilog)"})
 	inputPath := parser.String("i", "input_file", &argparse.Option{Help: "Path to file containing strings to hash / hashes to crack"})
 	modeCrack := parser.Flag("c", "crack", &argparse.Option{Help: "Attempt to crack a hash using an optional word list and brute-force"})
@@ -189,7 +189,7 @@ Example: Given the previous wordlist example's parameters, but with a prefix lis
 			os.Exit(1)
 		}
 
-		if *bigEndian {
+		if *littleEndian {
 			fmt.Fprintln(os.Stderr, "\"big_endian\" option only available for \"hash\" mode")
 			os.Exit(1)
 		}
@@ -248,10 +248,10 @@ Example: Given the previous wordlist example's parameters, but with a prefix lis
 		}
 
 		if len(*inputStrs) == 1 {
-			fmt.Println(hash((*inputStrs)[0], *thin, *bigEndian))
+			fmt.Println(hash((*inputStrs)[0], *thin, *littleEndian))
 		} else {
 			for _, s := range *inputStrs {
-				fmt.Printf("\"%v\" = %v\n", s, hash(s, *thin, *bigEndian))
+				fmt.Printf("\"%v\" = %v\n", s, hash(s, *thin, *littleEndian))
 			}
 		}
 	}

@@ -191,27 +191,38 @@ func (a *App) File(id stingray.FileID) (f *stingray.File, exists bool) {
 	return
 }
 
-func (a *App) matchFileID(id stingray.FileID, glb glob.Glob) bool {
+func (a *App) matchFileID(id stingray.FileID, glb glob.Glob, nameOnly bool) bool {
 	nameVariations := []string{
 		id.Name.StringEndian(binary.LittleEndian),
 		id.Name.StringEndian(binary.BigEndian),
+		"0x" + id.Name.StringEndian(binary.BigEndian),
 	}
 	if name, ok := a.Hashes[id.Name]; ok {
 		nameVariations = append(nameVariations, name)
 	}
 
-	typeVariations := []string{
-		id.Type.StringEndian(binary.LittleEndian),
-		id.Type.StringEndian(binary.BigEndian),
-	}
-	if typ, ok := a.Hashes[id.Type]; ok {
-		typeVariations = append(typeVariations, typ)
+	var typeVariations []string
+	if !nameOnly {
+		typeVariations = []string{
+			id.Type.StringEndian(binary.LittleEndian),
+			id.Type.StringEndian(binary.BigEndian),
+			"0x" + id.Name.StringEndian(binary.BigEndian),
+		}
+		if typ, ok := a.Hashes[id.Type]; ok {
+			typeVariations = append(typeVariations, typ)
+		}
 	}
 
 	for _, name := range nameVariations {
-		for _, typ := range typeVariations {
-			if glb.Match(name + "." + typ) {
+		if nameOnly {
+			if glb.Match(name) {
 				return true
+			}
+		} else {
+			for _, typ := range typeVariations {
+				if glb.Match(name + "." + typ) {
+					return true
+				}
 			}
 		}
 	}
@@ -225,10 +236,8 @@ func (a *App) AllFiles() map[stingray.FileID]*stingray.File {
 
 func (a *App) MatchingFiles(includeGlob, excludeGlob string, cfgTemplate ConfigTemplate, cfg map[string]extractor.Config) (map[stingray.FileID]*stingray.File, error) {
 	var inclGlob glob.Glob
+	inclGlobNameOnly := !strings.Contains(includeGlob, ".")
 	if includeGlob != "" {
-		if !strings.Contains(includeGlob, ".") {
-			includeGlob += ".*"
-		}
 		var err error
 		inclGlob, err = glob.Compile(includeGlob)
 		if err != nil {
@@ -236,10 +245,8 @@ func (a *App) MatchingFiles(includeGlob, excludeGlob string, cfgTemplate ConfigT
 		}
 	}
 	var exclGlob glob.Glob
+	exclGlobNameOnly := !strings.Contains(excludeGlob, ".")
 	if excludeGlob != "" {
-		if !strings.Contains(excludeGlob, ".") {
-			excludeGlob += ".*"
-		}
 		var err error
 		exclGlob, err = glob.Compile(excludeGlob)
 		if err != nil {
@@ -251,10 +258,10 @@ func (a *App) MatchingFiles(includeGlob, excludeGlob string, cfgTemplate ConfigT
 	for id, file := range a.dataDir.Files {
 		shouldIncl := true
 		if includeGlob != "" {
-			shouldIncl = a.matchFileID(id, inclGlob)
+			shouldIncl = a.matchFileID(id, inclGlob, inclGlobNameOnly)
 		}
 		if excludeGlob != "" {
-			if a.matchFileID(id, exclGlob) {
+			if a.matchFileID(id, exclGlob, exclGlobNameOnly) {
 				shouldIncl = false
 			}
 		}

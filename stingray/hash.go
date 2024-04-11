@@ -53,7 +53,7 @@ func (h Hash) StringEndian(endian binary.ByteOrder) string {
 }
 
 func (h Hash) String() string {
-	return h.StringEndian(binary.LittleEndian)
+	return "0x" + h.StringEndian(binary.BigEndian)
 }
 
 type ThinHash struct{ Value uint32 }
@@ -65,5 +65,5 @@ func (h ThinHash) StringEndian(endian binary.ByteOrder) string {
 }
 
 func (h ThinHash) String() string {
-	return h.StringEndian(binary.LittleEndian)
+	return "0x" + h.StringEndian(binary.BigEndian)
 }
