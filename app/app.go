@@ -82,12 +82,12 @@ type App struct {
 	dataDir *stingray.DataDir
 }
 
-func New(printer *Printer) (*App, error) {
+func New() *App {
 	a := &App{
 		Hashes: make(map[stingray.Hash]string),
 	}
 
-	return a, nil
+	return a
 }
 
 func (a *App) SetGameDir(path string) error {

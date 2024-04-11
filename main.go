@@ -84,10 +84,7 @@ extractor config:
 		prt.Warnf("FFmpeg not installed or found locally. Please install FFmpeg, or place ffmpeg.exe in the current folder to convert videos to MP4 and audio to a variety of formats. Without FFmpeg, videos will be saved as BIK and audio will be saved was WAV.")
 	}
 
-	a, err := app.New(prt)
-	if err != nil {
-		prt.Fatalf("%v", err)
-	}
+	a := app.New()
 
 	if *gameDir == "" {
 		if path, err := a.DetectGameDir(); err == nil {

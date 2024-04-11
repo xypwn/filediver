@@ -6,14 +6,16 @@
 // of the texture types may be incorrect.
 albedo
 albedo_color
-albedo_wear
 albedo_iridescence
+albedo_wear
 ao_map
 base_color
+base_data
 base_mask
 base_normal_ao
 color_map
 color_roughness
+composite_array
 diffuse_map
 emissive_color
 emissive_map

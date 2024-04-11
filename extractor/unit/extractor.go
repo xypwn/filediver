@@ -67,6 +67,47 @@ func tryToOpaque(c color.Color) color.Color {
 	return c
 }
 
+type textureType int
+
+const (
+	textureTypeBaseColor textureType = iota
+	textureTypeNormal
+)
+
+func tryWriteTexture(mat *material.Material, texType textureType, doc *gltf.Document, getResource extractor.GetResourceFunc) (uint32, bool, error) {
+	var id stingray.Hash
+	var pixelConv func(color.Color) color.Color
+	switch texType {
+	case textureTypeBaseColor:
+		var ok bool
+		id, ok = mat.Textures[stingray.Sum64([]byte("albedo_iridescence")).Thin()]
+		if ok {
+			pixelConv = tryToOpaque
+			break
+		}
+		id, ok = mat.Textures[stingray.Sum64([]byte("albedo")).Thin()]
+		if ok {
+			break
+		}
+		return 0, false, nil
+	case textureTypeNormal:
+		var ok bool
+		id, ok = mat.Textures[stingray.Sum64([]byte("normal")).Thin()]
+		if ok {
+			pixelConv = reconstructNormalZ
+			break
+		}
+		return 0, false, nil
+	default:
+		panic("unhandled case")
+	}
+	res, err := writeTexture(doc, getResource, id, pixelConv)
+	if err != nil {
+		return 0, false, err
+	}
+	return res, true, nil
+}
+
 // Adds a texture to doc. Returns new texture ID if err != nil.
 // pixelConv optionally converts individual pixel colors.
 func writeTexture(doc *gltf.Document, getResource extractor.GetResourceFunc, id stingray.Hash, pixelConv func(color.Color) color.Color) (uint32, error) {
@@ -167,30 +208,41 @@ func Convert(outPath string, ins [stingray.NumDataType]io.ReadSeeker, config ext
 		if err != nil {
 			return err
 		}
-		texIDBaseColor, ok := mat.Textures[stingray.Sum64([]byte("albedo_iridescence")).Thin()]
-		if !ok {
-			continue
-		}
-		texIdxBaseColor, err := writeTexture(doc, getResource, texIDBaseColor, tryToOpaque)
+
+		/*materialNames := make(map[stingray.ThinHash]string)
+		f, err := os.Open("material_textures.txt")
 		if err != nil {
 			return err
 		}
-		texIDNormal, ok := mat.Textures[stingray.Sum64([]byte("normal")).Thin()]
-		if !ok {
-			continue
+		defer f.Close()
+		sc := bufio.NewScanner(f)
+		for sc.Scan() {
+			s := sc.Text()
+			materialNames[stingray.Sum64([]byte(s)).Thin()] = s
 		}
-		texIdxNormal, err := writeTexture(doc, getResource, texIDNormal, reconstructNormalZ)
-		if err != nil {
-			return err
-		}
-		/*texIDEmissive, ok := mat.Textures[stingray.Sum64([]byte("subsurface_opacity")).Thin()]
-		if !ok {
-			continue
-		}
-		texIdxEmissive, err := writeTexture(texIDEmissive, nil)
-		if err != nil {
-			return err
+		fmt.Println()
+		for k, v := range mat.Textures {
+			name := k.String()
+			if s, ok := materialNames[k]; ok {
+				name = s
+			}
+			fmt.Println(name, v)
 		}*/
+
+		texIdxBaseColor, ok, err := tryWriteTexture(mat, textureTypeBaseColor, doc, getResource)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			continue
+		}
+		texIdxNormal, ok, err := tryWriteTexture(mat, textureTypeNormal, doc, getResource)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			continue
+		}
 		doc.Materials = append(doc.Materials, &gltf.Material{
 			Name: resID.String(),
 			PBRMetallicRoughness: &gltf.PBRMetallicRoughness{
@@ -201,11 +253,6 @@ func Convert(outPath string, ins [stingray.NumDataType]io.ReadSeeker, config ext
 			NormalTexture: &gltf.NormalTexture{
 				Index: gltf.Index(texIdxNormal),
 			},
-			/*EmissiveTexture: &gltf.TextureInfo{
-				Index: texIdxEmissive,
-			},
-			EmissiveFactor: [3]float32{0.5, 0.5, 0.5},*/
-			AlphaMode: gltf.AlphaOpaque,
 		})
 		materialIdxs[id] = uint32(len(doc.Materials) - 1)
 	}
