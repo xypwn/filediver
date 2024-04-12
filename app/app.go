@@ -361,21 +361,23 @@ func (a *App) ExtractFile(id stingray.FileID, outDir string, extrCfg map[string]
 	switch typ {
 	case "bik":
 		if cfg["format"] == "source" {
-			extr = extractor.ExtractFuncRaw(".stingray_bik")
+			extr = extractor.ExtractFuncRaw(".stingray_bik", stingray.DataMain, stingray.DataStream, stingray.DataGPU)
 		} else if cfg["format"] == "bik" {
 			extr = extr_bik.ExtractBik
 		} else {
 			extr = extr_bik.ConvertToMP4
 		}
 	case "wwise_stream":
-		if cfg["format"] == "source" || cfg["format"] == "wem" {
-			extr = extractor.ExtractFuncRaw(".wem")
+		if cfg["format"] == "source" {
+			extr = extractor.ExtractFuncRaw(".stingray_wem", stingray.DataMain, stingray.DataStream, stingray.DataGPU)
+		} else if cfg["format"] == "wem" {
+			extr = extractor.ExtractFuncRaw(".wem", stingray.DataStream)
 		} else {
 			extr = extr_wwise.ConvertWem
 		}
 	case "wwise_bank":
 		if cfg["format"] == "source" {
-			extr = extractor.ExtractFuncRaw(".bnk")
+			extr = extractor.ExtractFuncRaw(".bnk", stingray.DataMain, stingray.DataStream, stingray.DataGPU)
 		} else if cfg["format"] == "bnk" {
 			extr = extr_wwise.ExtractBnk
 		} else {
@@ -383,13 +385,13 @@ func (a *App) ExtractFile(id stingray.FileID, outDir string, extrCfg map[string]
 		}
 	case "unit":
 		if cfg["format"] == "source" {
-			extr = extractor.ExtractFuncRaw(".unit")
+			extr = extractor.ExtractFuncRaw(".unit", stingray.DataMain, stingray.DataStream, stingray.DataGPU)
 		} else {
 			extr = extr_unit.Convert
 		}
 	case "texture":
 		if cfg["format"] == "source" {
-			extr = extractor.ExtractFuncRaw(".texture")
+			extr = extractor.ExtractFuncRaw(".texture", stingray.DataMain, stingray.DataStream, stingray.DataGPU)
 		} else if cfg["format"] == "dds" {
 			extr = extr_texture.ExtractDDS
 		} else {

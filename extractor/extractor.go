@@ -21,9 +21,9 @@ type Context interface {
 
 type ExtractFunc func(ctx Context) error
 
-func ExtractFuncRaw(suffix string) ExtractFunc {
+func ExtractFuncRaw(suffix string, types ...stingray.DataType) ExtractFunc {
 	return func(ctx Context) error {
-		r, err := ctx.File().OpenMulti(stingray.DataMain, stingray.DataStream, stingray.DataGPU)
+		r, err := ctx.File().OpenMulti(types...)
 		if err != nil {
 			return err
 		}
