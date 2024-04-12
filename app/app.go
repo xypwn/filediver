@@ -27,7 +27,7 @@ var ConfigFormat = ConfigTemplate{
 			Category: "audio",
 			Options: map[string]ConfigTemplateOption{
 				"format": {
-					PossibleValues: []string{"ogg", "wav", "aac", "mp3", "source"},
+					PossibleValues: []string{"ogg", "wav", "aac", "mp3", "wem", "source"},
 				},
 			},
 		},
@@ -35,7 +35,7 @@ var ConfigFormat = ConfigTemplate{
 			Category: "audio",
 			Options: map[string]ConfigTemplateOption{
 				"format": {
-					PossibleValues: []string{"ogg", "wav", "aac", "mp3", "source"},
+					PossibleValues: []string{"ogg", "wav", "aac", "mp3", "bnk", "source"},
 				},
 			},
 		},
@@ -43,7 +43,7 @@ var ConfigFormat = ConfigTemplate{
 			Category: "video",
 			Options: map[string]ConfigTemplateOption{
 				"format": {
-					PossibleValues: []string{"mp4", "source"},
+					PossibleValues: []string{"mp4", "bik", "source"},
 				},
 			},
 		},
@@ -51,7 +51,7 @@ var ConfigFormat = ConfigTemplate{
 			Category: "image",
 			Options: map[string]ConfigTemplateOption{
 				"format": {
-					PossibleValues: []string{"png", "source"},
+					PossibleValues: []string{"png", "dds", "source"},
 				},
 			},
 		},
@@ -234,7 +234,7 @@ func (a *App) AllFiles() map[stingray.FileID]*stingray.File {
 	return a.dataDir.Files
 }
 
-func (a *App) MatchingFiles(includeGlob, excludeGlob string, cfgTemplate ConfigTemplate, cfg map[string]extractor.Config) (map[stingray.FileID]*stingray.File, error) {
+func (a *App) MatchingFiles(includeGlob, excludeGlob string, cfgTemplate ConfigTemplate, cfg map[string]map[string]string) (map[stingray.FileID]*stingray.File, error) {
 	var inclGlob glob.Glob
 	inclGlobNameOnly := !strings.Contains(includeGlob, ".")
 	if includeGlob != "" {
@@ -300,7 +300,44 @@ func (a *App) MatchingFiles(includeGlob, excludeGlob string, cfgTemplate ConfigT
 	return res, nil
 }
 
-func (a *App) ExtractFile(id stingray.FileID, outDir string, extrCfg map[string]extractor.Config, runner *exec.Runner) error {
+type extractContext struct {
+	app     *App
+	file    *stingray.File
+	runner  *exec.Runner
+	config  map[string]string
+	outPath string
+}
+
+func newExtractContext(app *App, file *stingray.File, runner *exec.Runner, config map[string]string, outPath string) *extractContext {
+	return &extractContext{
+		app:     app,
+		file:    file,
+		runner:  runner,
+		config:  config,
+		outPath: outPath,
+	}
+}
+
+func (c *extractContext) File() *stingray.File      { return c.file }
+func (c *extractContext) Runner() *exec.Runner      { return c.runner }
+func (c *extractContext) Config() map[string]string { return c.config }
+func (c *extractContext) GetResource(name, typ stingray.Hash) (file *stingray.File, exists bool) {
+	file, exists = c.app.AllFiles()[stingray.FileID{Name: name, Type: typ}]
+	return
+}
+func (c *extractContext) CreateFile(suffix string) (io.WriteCloser, error) {
+	return os.Create(c.outPath + suffix)
+}
+func (c *extractContext) CreateFileDir(dirSuffix, filename string) (io.WriteCloser, error) {
+	dir := c.outPath + dirSuffix
+	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
+		return nil, err
+	}
+	return os.Create(filepath.Join(dir, filename))
+}
+func (c *extractContext) OutPath() (string, error) { return c.outPath, nil }
+
+func (a *App) ExtractFile(id stingray.FileID, outDir string, extrCfg map[string]map[string]string, runner *exec.Runner) error {
 	name, ok := a.Hashes[id.Name]
 	if !ok {
 		name = id.Name.String()
@@ -317,80 +354,62 @@ func (a *App) ExtractFile(id stingray.FileID, outDir string, extrCfg map[string]
 
 	cfg := extrCfg[typ]
 	if cfg == nil {
-		cfg = make(extractor.Config)
+		cfg = make(map[string]string)
 	}
-
-	justExtract := cfg["format"] == "source"
 
 	var extr extractor.ExtractFunc
 	switch typ {
 	case "bik":
-		if justExtract {
-			extr = extr_bik.Extract
+		if cfg["format"] == "source" {
+			extr = extractor.ExtractFuncRaw(".stingray_bik")
+		} else if cfg["format"] == "bik" {
+			extr = extr_bik.ExtractBik
 		} else {
-			extr = extr_bik.Convert
+			extr = extr_bik.ConvertToMP4
 		}
 	case "wwise_stream":
-		if justExtract {
-			extr = extr_wwise.ExtractWem
+		if cfg["format"] == "source" || cfg["format"] == "wem" {
+			extr = extractor.ExtractFuncRaw(".wem")
 		} else {
 			extr = extr_wwise.ConvertWem
 		}
 	case "wwise_bank":
-		if justExtract {
+		if cfg["format"] == "source" {
+			extr = extractor.ExtractFuncRaw(".bnk")
+		} else if cfg["format"] == "bnk" {
 			extr = extr_wwise.ExtractBnk
 		} else {
 			extr = extr_wwise.ConvertBnk
 		}
 	case "unit":
-		if justExtract {
-			extr = extractor.ExtractFuncRaw("unit")
+		if cfg["format"] == "source" {
+			extr = extractor.ExtractFuncRaw(".unit")
 		} else {
 			extr = extr_unit.Convert
 		}
 	case "texture":
-		if justExtract {
-			extr = extr_texture.Extract
+		if cfg["format"] == "source" {
+			extr = extractor.ExtractFuncRaw(".texture")
+		} else if cfg["format"] == "dds" {
+			extr = extr_texture.ExtractDDS
 		} else {
-			extr = extr_texture.Convert
+			extr = extr_texture.ConvertToPNG
 		}
 	default:
 		extr = extractor.ExtractFuncRaw(typ)
 	}
 
-	var readers [3]io.ReadSeeker
-	foundDataTypes := 0
-	for dataType := stingray.DataType(0); dataType < stingray.NumDataType; dataType++ {
-		if !file.Exists(dataType) {
-			continue
-		}
-		r, err := file.Open(dataType)
-		if err != nil {
-			return err
-		}
-		defer r.Close()
-		readers[dataType] = r
-		foundDataTypes++
-	}
-	if foundDataTypes == 0 {
-		return fmt.Errorf("extract %v.%v: no data", name, typ)
-	}
 	outPath := filepath.Join(outDir, name)
 	if err := os.MkdirAll(filepath.Dir(outPath), os.ModePerm); err != nil {
 		return err
 	}
-	if err := extr(
-		outPath,
-		readers,
-		cfg,
+	if err := extr(newExtractContext(
+		a,
+		file,
 		runner,
-		func(name, typ stingray.Hash) *stingray.File {
-			return a.dataDir.Files[stingray.FileID{
-				Name: name,
-				Type: typ,
-			}]
-		},
-	); err != nil {
+		cfg,
+		outPath,
+	)); err != nil {
 		return fmt.Errorf("extract %v.%v: %w", name, typ, err)
 	}
 

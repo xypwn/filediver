@@ -25,6 +25,49 @@ func (f *File) Open(typ DataType) (io.ReadSeekCloser, error) {
 	return f.triad.OpenFile(f.index, typ)
 }
 
+type multiReadCloser struct {
+	io.Reader
+	underlying []io.ReadCloser
+}
+
+func (r *multiReadCloser) Close() error {
+	var firstErr error
+	for _, v := range r.underlying {
+		err := v.Close()
+		if err != nil && firstErr != nil {
+			firstErr = err
+		}
+	}
+	return firstErr
+}
+
+// Returns a MultiReader concatenating the given data stream types.
+// Skips any specified types that don't exist.
+// If you need seeking functionality, use Open().
+// Call Close() on returned reader when done.
+func (f *File) OpenMulti(types ...DataType) (io.ReadCloser, error) {
+	var rdcs []io.ReadCloser
+	var rds []io.Reader
+	for _, dataType := range types {
+		if !f.Exists(dataType) {
+			continue
+		}
+		r, err := f.Open(dataType)
+		if err != nil {
+			for _, rdc := range rdcs {
+				rdc.Close()
+			}
+			return nil, err
+		}
+		rdcs = append(rdcs, r)
+		rds = append(rds, r)
+	}
+	return &multiReadCloser{
+		Reader:     io.MultiReader(rds...),
+		underlying: rdcs,
+	}, nil
+}
+
 // For testing purposes, takes a HUGE amount of time to execute.
 func (a *File) contentEqual(b *File, dt DataType) (bool, error) {
 	fa, err := a.Open(dt)

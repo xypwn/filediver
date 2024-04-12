@@ -2,30 +2,40 @@ package extractor
 
 import (
 	"io"
-	"os"
 
 	"github.com/xypwn/filediver/exec"
 	"github.com/xypwn/filediver/stingray"
 )
 
-type Config map[string]string
+type Context interface {
+	File() *stingray.File
+	Runner() *exec.Runner
+	Config() map[string]string
+	GetResource(name, typ stingray.Hash) (file *stingray.File, exists bool)
+	// Call WriteCloser.Close() when done.
+	CreateFile(suffix string) (io.WriteCloser, error)
+	// Call WriteCloser.Close() when done.
+	CreateFileDir(dirSuffix, filename string) (io.WriteCloser, error)
+	OutPath() (string, error)
+}
 
-type GetResourceFunc func(name, typ stingray.Hash) *stingray.File
-type ExtractFunc func(outPath string, ins [stingray.NumDataType]io.ReadSeeker, config Config, runner *exec.Runner, getResource GetResourceFunc) error
+type ExtractFunc func(ctx Context) error
 
-func ExtractFuncRaw(fileExt string) ExtractFunc {
-	return func(outPath string, ins [stingray.NumDataType]io.ReadSeeker, config Config, runner *exec.Runner, getResource GetResourceFunc) error {
-		f, err := os.Create(outPath + "." + fileExt)
+func ExtractFuncRaw(suffix string) ExtractFunc {
+	return func(ctx Context) error {
+		r, err := ctx.File().OpenMulti(stingray.DataMain, stingray.DataStream, stingray.DataGPU)
 		if err != nil {
 			return err
 		}
-		var readers []io.Reader
-		for _, r := range ins[:] {
-			if r != nil {
-				readers = append(readers, r)
-			}
+		defer r.Close()
+
+		out, err := ctx.CreateFile(suffix)
+		if err != nil {
+			return err
 		}
-		if _, err := io.Copy(f, io.MultiReader(readers...)); err != nil {
+		defer out.Close()
+
+		if _, err := io.Copy(out, r); err != nil {
 			return err
 		}
 		return nil

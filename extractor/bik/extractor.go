@@ -3,65 +3,66 @@ package bik
 import (
 	"encoding/binary"
 	"io"
-	"os"
 
-	"github.com/xypwn/filediver/exec"
 	"github.com/xypwn/filediver/extractor"
 	"github.com/xypwn/filediver/stingray"
 )
 
-type header struct {
-	Unk00 [16]byte
-}
-
-func extract(ins [stingray.NumDataType]io.ReadSeeker, _ extractor.Config) (io.Reader, header, error) {
-	var hdr header
-	if err := binary.Read(ins[stingray.DataMain], binary.LittleEndian, &hdr); err != nil {
-		return nil, header{}, err
-	}
-
-	readers := []io.Reader{ins[stingray.DataMain]}
-	if ins[stingray.DataStream] == nil {
-		readers = append(readers, ins[stingray.DataGPU])
+func extract(ctx extractor.Context, save func(ctx extractor.Context, r io.Reader) error) error {
+	dataTypes := []stingray.DataType{stingray.DataMain}
+	if ctx.File().Exists(stingray.DataStream) {
+		dataTypes = append(dataTypes, stingray.DataStream)
 	} else {
-		readers = append(readers, ins[stingray.DataStream])
+		dataTypes = append(dataTypes, stingray.DataGPU)
 	}
-	return io.MultiReader(readers...), hdr, nil
+
+	r, err := ctx.File().OpenMulti(dataTypes...)
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+
+	var hdr struct {
+		Unk00 [16]byte
+	}
+	if err := binary.Read(r, binary.LittleEndian, &hdr); err != nil {
+		return err
+	}
+
+	return save(ctx, r)
 }
 
-func Extract(outPath string, ins [stingray.NumDataType]io.ReadSeeker, config extractor.Config, runner *exec.Runner, _ extractor.GetResourceFunc) error {
-	r, _, err := extract(ins, config)
-	if err != nil {
-		return err
-	}
-
-	out, err := os.Create(outPath + ".bik")
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-	if _, err := io.Copy(out, r); err != nil {
-		return err
-	}
-	return nil
+func ExtractBik(ctx extractor.Context) error {
+	return extract(ctx, func(ctx extractor.Context, r io.Reader) error {
+		out, err := ctx.CreateFile(".bik")
+		if err != nil {
+			return err
+		}
+		defer out.Close()
+		if _, err := io.Copy(out, r); err != nil {
+			return err
+		}
+		return nil
+	})
 }
 
-func Convert(outPath string, ins [stingray.NumDataType]io.ReadSeeker, config extractor.Config, runner *exec.Runner, getResource extractor.GetResourceFunc) error {
-	if !runner.Has("ffmpeg") {
-		return Extract(outPath, ins, config, runner, getResource)
+func ConvertToMP4(ctx extractor.Context) error {
+	if !ctx.Runner().Has("ffmpeg") {
+		return ExtractBik(ctx)
 	}
 
-	r, _, err := extract(ins, config)
-	if err != nil {
-		return err
-	}
-
-	return runner.Run(
-		"ffmpeg",
-		nil,
-		r,
-		"-f", "bink",
-		"-i", "pipe:",
-		outPath+".mp4",
-	)
+	return extract(ctx, func(ctx extractor.Context, r io.Reader) error {
+		outPath, err := ctx.OutPath()
+		if err != nil {
+			return err
+		}
+		return ctx.Runner().Run(
+			"ffmpeg",
+			nil,
+			r,
+			"-f", "bink",
+			"-i", "pipe:",
+			outPath+".mp4",
+		)
+	})
 }

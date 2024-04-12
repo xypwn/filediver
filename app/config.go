@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-
-	"github.com/xypwn/filediver/extractor"
 )
 
 type ConfigTemplateOption struct {
@@ -23,8 +21,8 @@ type ConfigTemplate struct {
 	Fallback   string
 }
 
-func parseExtractorOptions(optsStr string) (extractor.Config, error) {
-	res := make(extractor.Config)
+func parseExtractorOptions(optsStr string) (map[string]string, error) {
+	res := make(map[string]string)
 	opts := strings.Split(optsStr, ",")
 	for _, opt := range opts {
 		k, v, ok := strings.Cut(opt, "=")
@@ -37,8 +35,8 @@ func parseExtractorOptions(optsStr string) (extractor.Config, error) {
 	return res, nil
 }
 
-func parseExtractorConfig(cfgStr string) (map[string]extractor.Config, error) {
-	res := make(map[string]extractor.Config)
+func parseExtractorConfig(cfgStr string) (map[string]map[string]string, error) {
+	res := make(map[string]map[string]string)
 	if cfgStr == "" {
 		return res, nil
 	}
@@ -61,7 +59,7 @@ func parseExtractorConfig(cfgStr string) (map[string]extractor.Config, error) {
 	return res, nil
 }
 
-func validateExtractorOptions(template ConfigTemplateExtractor, opts extractor.Config) error {
+func validateExtractorOptions(template ConfigTemplateExtractor, opts map[string]string) error {
 	for k, v := range opts {
 		errPfx := fmt.Sprintf("\"%v=%v\": ", k, v)
 		opt, ok := template.Options[k]
@@ -84,7 +82,7 @@ func validateExtractorOptions(template ConfigTemplateExtractor, opts extractor.C
 	return nil
 }
 
-func validateExtractorConfig(template ConfigTemplate, cfg map[string]extractor.Config, shorthands map[string][]string) error {
+func validateExtractorConfig(template ConfigTemplate, cfg map[string]map[string]string, shorthands map[string][]string) error {
 	validExtractorName := func(name string) (isShorthand bool, ok bool) {
 		if _, ok := template.Extractors[name]; ok {
 			return false, true
@@ -227,7 +225,7 @@ func ExtractorConfigHelpMessage(template ConfigTemplate) string {
 	return res.String()
 }
 
-func ParseExtractorConfig(template ConfigTemplate, cfgStr string) (map[string]extractor.Config, error) {
+func ParseExtractorConfig(template ConfigTemplate, cfgStr string) (map[string]map[string]string, error) {
 	res, err := parseExtractorConfig(cfgStr)
 	if err != nil {
 		return nil, fmt.Errorf("extractor config: %w", err)

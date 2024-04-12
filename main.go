@@ -41,21 +41,22 @@ func main() {
 
 	parser := argparse.NewParser("filediver", "An unofficial Helldivers 2 game asset extractor.", &argparse.ParserConfig{
 		EpiLog: `matching files:
-  Syntax is Glob (meaning *, ** etc. are supported)
-  Basic format being matched is: <file_path>.<file_type>
-  where file_type is NOT the extension, but the DATA TYPE (e.g. wwise_stream, texture etc.).
+  Syntax is Glob (meaning * is supported)
+  Basic format being matched is: <file_path>.<file_type> .
+  file_path is the file path, or the file hash and
+  file_type is the data type (see "extractors" section for a list of data types).
   examples:
-    "content/audio/**.wwise_stream"              extract all wwise_stream files in content/audio, or any subfolders
-    "{**.bik,**.wwise_stream,**.wwise_bank}"     extract all video and audio files (though easier with extractor config)
-    "content/audio/us/303183090.wwise_stream"    extract one particular audio file (NOTE that the extension here is NOT the final extracted extension, but rather the data type)
+    filediver -i "content/audio/*.wwise_stream"            extract all wwise_stream files in content/audio, or any subfolders
+    filediver -i "{*.bik,*.wwise_stream,*.wwise_bank}"     extract all video and audio files (though easier with extractor config)
+    filediver -i "content/audio/us/303183090.wwise_stream" extract one particular audio file
 
 extractor config:
   basic format: filediver -c "<key1>:<opt1>=<val1>,<opt2>=<val2> <key2>:<opt1>,<opt2>"
   examples:
-    filediver -c "enable:all"                   extract ALL files, including raw files (i.e. files that can't be converted)
-    filediver -c "enable:audio"                 only extract audio
-    filediver -c "enable:bik bik:format=source" only extract bik files, but don't convert them to mp4
-    filediver -c "audio:format=ogg"             convert audio to ogg instead of wav
+    filediver -c "enable:all"                extract ALL files, including raw files (i.e. files that can't be converted)
+    filediver -c "enable:audio"              only extract audio
+    filediver -c "enable:bik bik:format=bik" only extract bik files, but don't convert them to mp4
+    filediver -c "audio:format=ogg"          convert audio to ogg instead of wav
 ` + app.ExtractorConfigHelpMessage(app.ConfigFormat),
 		DisableDefaultShowHelp: true,
 	})

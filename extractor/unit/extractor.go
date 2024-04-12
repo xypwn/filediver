@@ -7,14 +7,11 @@ import (
 	"image"
 	"image/color"
 	"image/png"
-	"io"
 	"math"
 
 	"github.com/qmuntal/gltf"
 	"github.com/qmuntal/gltf/modeler"
 
-	"github.com/xypwn/filediver/dds"
-	"github.com/xypwn/filediver/exec"
 	"github.com/xypwn/filediver/extractor"
 	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/stingray/unit"
@@ -74,7 +71,7 @@ const (
 	textureTypeNormal
 )
 
-func tryWriteTexture(mat *material.Material, texType textureType, doc *gltf.Document, getResource extractor.GetResourceFunc) (uint32, bool, error) {
+func tryWriteTexture(ctx extractor.Context, mat *material.Material, texType textureType, doc *gltf.Document) (uint32, bool, error) {
 	var id stingray.Hash
 	var pixelConv func(color.Color) color.Color
 	switch texType {
@@ -101,7 +98,7 @@ func tryWriteTexture(mat *material.Material, texType textureType, doc *gltf.Docu
 	default:
 		panic("unhandled case")
 	}
-	res, err := writeTexture(doc, getResource, id, pixelConv)
+	res, err := writeTexture(ctx, doc, id, pixelConv)
 	if err != nil {
 		return 0, false, err
 	}
@@ -110,35 +107,19 @@ func tryWriteTexture(mat *material.Material, texType textureType, doc *gltf.Docu
 
 // Adds a texture to doc. Returns new texture ID if err != nil.
 // pixelConv optionally converts individual pixel colors.
-func writeTexture(doc *gltf.Document, getResource extractor.GetResourceFunc, id stingray.Hash, pixelConv func(color.Color) color.Color) (uint32, error) {
-	texRes := getResource(id, stingray.Sum64([]byte("texture")))
-	if texRes == nil || !texRes.Exists(stingray.DataMain) || !texRes.Exists(stingray.DataStream) {
+func writeTexture(ctx extractor.Context, doc *gltf.Document, id stingray.Hash, pixelConv func(color.Color) color.Color) (uint32, error) {
+	file, exists := ctx.GetResource(id, stingray.Sum64([]byte("texture")))
+	if !exists || !file.Exists(stingray.DataMain) {
 		return 0, fmt.Errorf("texture resource %v doesn't exist", id)
 	}
-	fMain, err := texRes.Open(stingray.DataMain)
-	if err != nil {
-		return 0, err
-	}
-	defer fMain.Close()
-	fStream, err := texRes.Open(stingray.DataStream)
-	if err != nil {
-		return 0, err
-	}
-	defer fStream.Close()
 
-	tex, err := texture.Load(fMain)
+	tex, err := texture.Decode(file, false)
 	if err != nil {
 		return 0, err
 	}
-	if _, err := fMain.Seek(int64(tex.HeaderOffset), io.SeekStart); err != nil {
-		return 0, err
-	}
-	dds, err := dds.Decode(io.MultiReader(fMain, fStream), false)
-	if err != nil {
-		return 0, err
-	}
+
 	if pixelConv != nil {
-		if img, ok := dds.Image.(interface {
+		if img, ok := tex.Image.(interface {
 			image.Image
 			Set(int, int, color.Color)
 		}); ok {
@@ -152,7 +133,7 @@ func writeTexture(doc *gltf.Document, getResource extractor.GetResourceFunc, id 
 		}
 	}
 	var pngData bytes.Buffer
-	if err := png.Encode(&pngData, dds); err != nil {
+	if err := png.Encode(&pngData, tex); err != nil {
 		return 0, err
 	}
 	imgIdx, err := modeler.WriteImage(doc, id.String(), "image/png", &pngData)
@@ -166,8 +147,19 @@ func writeTexture(doc *gltf.Document, getResource extractor.GetResourceFunc, id 
 	return uint32(len(doc.Textures) - 1), nil
 }
 
-func Convert(outPath string, ins [stingray.NumDataType]io.ReadSeeker, config extractor.Config, _ *exec.Runner, getResource extractor.GetResourceFunc) error {
-	u, err := unit.Load(ins[stingray.DataMain], ins[stingray.DataGPU])
+func Convert(ctx extractor.Context) error {
+	fMain, err := ctx.File().Open(stingray.DataMain)
+	if err != nil {
+		return err
+	}
+	defer fMain.Close()
+	fGPU, err := ctx.File().Open(stingray.DataGPU)
+	if err != nil {
+		return err
+	}
+	defer fGPU.Close()
+
+	u, err := unit.Load(fMain, fGPU)
 	if err != nil {
 		return err
 	}
@@ -193,8 +185,8 @@ func Convert(outPath string, ins [stingray.NumDataType]io.ReadSeeker, config ext
 	// Load materials
 	materialIdxs := make(map[stingray.ThinHash]uint32)
 	for id, resID := range u.Materials {
-		matRes := getResource(resID, stingray.Sum64([]byte("material")))
-		if matRes == nil || !matRes.Exists(stingray.DataMain) {
+		matRes, exists := ctx.GetResource(resID, stingray.Sum64([]byte("material")))
+		if !exists || !matRes.Exists(stingray.DataMain) {
 			return fmt.Errorf("referenced material resource %v doesn't exist", resID)
 		}
 		mat, err := func() (*material.Material, error) {
@@ -229,14 +221,40 @@ func Convert(outPath string, ins [stingray.NumDataType]io.ReadSeeker, config ext
 			fmt.Println(name, v)
 		}*/
 
-		texIdxBaseColor, ok, err := tryWriteTexture(mat, textureTypeBaseColor, doc, getResource)
+		/*for k, v := range mat.Textures {
+			texRes, exists := ctx.GetResource(v, stingray.Sum64([]byte("texture")))
+			if !exists || !texRes.Exists(stingray.DataMain) {
+				return fmt.Errorf("texture resource %v doesn't exist", id)
+			}
+
+			tex, err := texture.Decode(texRes, false)
+			if err != nil {
+				return err
+			}
+
+			if err := func() error {
+				out, err := ctx.CreateFileDir(".unit.textures", k.String()+"_"+v.String()+".png")
+				if err != nil {
+					return err
+				}
+				defer out.Close()
+				if err := png.Encode(out, tex); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}*/
+
+		texIdxBaseColor, ok, err := tryWriteTexture(ctx, mat, textureTypeBaseColor, doc)
 		if err != nil {
 			return err
 		}
 		if !ok {
 			continue
 		}
-		texIdxNormal, ok, err := tryWriteTexture(mat, textureTypeNormal, doc, getResource)
+		texIdxNormal, ok, err := tryWriteTexture(ctx, mat, textureTypeNormal, doc)
 		if err != nil {
 			return err
 		}
@@ -290,9 +308,14 @@ func Convert(outPath string, ins [stingray.NumDataType]io.ReadSeeker, config ext
 	}
 
 	doc.Scenes[0].Nodes = append(doc.Scenes[0].Nodes, 0)
-	if err := gltf.SaveBinary(doc, outPath+".glb"); err != nil {
+
+	out, err := ctx.CreateFile(".glb")
+	if err != nil {
 		return err
 	}
-
+	enc := gltf.NewEncoder(out)
+	if err := enc.Encode(doc); err != nil {
+		return err
+	}
 	return nil
 }
