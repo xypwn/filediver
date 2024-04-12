@@ -7,6 +7,7 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"io"
 	"math"
 
 	"github.com/qmuntal/gltf"
@@ -153,11 +154,14 @@ func Convert(ctx extractor.Context) error {
 		return err
 	}
 	defer fMain.Close()
-	fGPU, err := ctx.File().Open(stingray.DataGPU)
-	if err != nil {
-		return err
+	var fGPU io.ReadSeekCloser
+	if ctx.File().Exists(stingray.DataGPU) {
+		fGPU, err = ctx.File().Open(stingray.DataGPU)
+		if err != nil {
+			return err
+		}
+		defer fGPU.Close()
 	}
-	defer fGPU.Close()
 
 	u, err := unit.Load(fMain, fGPU)
 	if err != nil {

@@ -2,6 +2,7 @@ package unit
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 
@@ -465,6 +466,9 @@ func Load(mainR io.ReadSeeker, gpuR io.ReadSeeker) (*Unit, error) {
 				return nil, fmt.Errorf("mesh layout index (%v) is out of bounds of mesh layouts (len=%v)", info.Header.LayoutIdx, len(meshLayouts))
 			}
 			layout := meshLayouts[info.Header.LayoutIdx]
+			if len(info.Groups) > 0 && gpuR == nil {
+				return nil, errors.New("mesh group exists, but GPU resource data is nil")
+			}
 			mesh, err := loadMesh(gpuR, info, layout)
 			if err != nil {
 				return nil, err
