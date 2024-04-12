@@ -12,11 +12,6 @@ import (
 	"path/filepath"
 )
 
-var packetSignature = [8]byte{0x10, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00}
-
-// If this is the signature, the type seems to always be 939a2377a432eee5, the main size 4, stream size 0 and GPU size a few kB to a few MB.
-var packetSignatureAlt = [8]byte{0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00}
-
 type DataType int
 
 const (
@@ -57,25 +52,28 @@ type HeaderData struct {
 }
 
 type TypeData struct {
-	Unk00     uint32
-	Unk01     uint32
-	Name      Hash
-	Count     uint32
-	Unk02     uint32
-	Signature [8]byte // == packetSignature or packetSignatureAlt, purpose unknown
+	Unk00         uint32
+	Unk01         uint32
+	Name          Hash
+	Count         uint32
+	Unk02         uint32
+	MainAlignment uint32
+	GPUAlignment  uint32
 }
 
 type FileData struct {
-	ID           FileID
-	MainOffset   uint64
-	StreamOffset uint64
-	GPUOffset    uint64
-	Unk00        [16]byte
-	MainSize     uint32
-	StreamSize   uint32
-	GPUSize      uint32
-	Signature    [8]byte // == packetSignature or packetSignatureAlt, purpose unknown
-	Index        uint32
+	ID               FileID
+	MainOffset       uint64
+	StreamOffset     uint64
+	GPUOffset        uint64
+	MainBufferOffset uint64
+	GPUBufferOffset  uint64
+	MainSize         uint32
+	StreamSize       uint32
+	GPUSize          uint32
+	MainAlignment    uint32
+	GPUAlignment     uint32
+	Index            uint32
 }
 
 // A triad consists of a main file, a stream file and a GPU resource file.
@@ -114,18 +112,12 @@ func OpenTriad(mainPath string) (*Triad, error) {
 		if err := binary.Read(f, binary.LittleEndian, &types[i]); err != nil {
 			return nil, err
 		}
-		if types[i].Signature != packetSignature && types[i].Signature != packetSignatureAlt {
-			return nil, errors.New("invalid type packet signature")
-		}
 	}
 
 	files := make([]FileData, hdr.NumFiles)
 	for i := 0; i < int(hdr.NumFiles); i++ {
 		if err := binary.Read(f, binary.LittleEndian, &files[i]); err != nil {
 			return nil, err
-		}
-		if files[i].Signature != packetSignature && files[i].Signature != packetSignatureAlt {
-			return nil, errors.New("invalid file packet signature")
 		}
 	}
 
