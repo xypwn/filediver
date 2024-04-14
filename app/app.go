@@ -199,6 +199,7 @@ func (a *App) matchFileID(id stingray.FileID, glb glob.Glob, nameOnly bool) bool
 		id.Name.StringEndian(binary.LittleEndian),
 		id.Name.StringEndian(binary.BigEndian),
 		"0x" + id.Name.StringEndian(binary.BigEndian),
+		"0x" + strings.TrimLeft(id.Name.StringEndian(binary.BigEndian), "0"),
 	}
 	if name, ok := a.Hashes[id.Name]; ok {
 		nameVariations = append(nameVariations, name)
@@ -209,7 +210,8 @@ func (a *App) matchFileID(id stingray.FileID, glb glob.Glob, nameOnly bool) bool
 		typeVariations = []string{
 			id.Type.StringEndian(binary.LittleEndian),
 			id.Type.StringEndian(binary.BigEndian),
-			"0x" + id.Name.StringEndian(binary.BigEndian),
+			"0x" + id.Type.StringEndian(binary.BigEndian),
+			"0x" + strings.TrimLeft(id.Type.StringEndian(binary.BigEndian), "0"),
 		}
 		if typ, ok := a.Hashes[id.Type]; ok {
 			typeVariations = append(typeVariations, typ)
