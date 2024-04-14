@@ -168,15 +168,6 @@ func Convert(ctx extractor.Context) error {
 		return err
 	}
 
-	// Transform coordinates into glTF ones
-	for _, mesh := range u.Meshes {
-		for i := range mesh.Positions {
-			p := mesh.Positions[i]
-			p[0], p[1], p[2] = p[1], p[2], p[0]
-			mesh.Positions[i] = p
-		}
-	}
-
 	doc := gltf.NewDocument()
 	doc.Asset.Generator = "https://github.com/xypwn/filediver"
 	doc.Samplers = append(doc.Samplers, &gltf.Sampler{
@@ -279,11 +270,42 @@ func Convert(ctx extractor.Context) error {
 		materialIdxs[id] = uint32(len(doc.Materials) - 1)
 	}
 
+	// Determine which meshes to convert
+	var meshIndices []uint32
+	switch ctx.Config()["meshes"] {
+	case "all":
+		for i := range u.Meshes {
+			meshIndices = append(meshIndices, uint32(i))
+		}
+	default: // "highest_detail"
+		if len(u.LODGroups) > 0 {
+			entries := u.LODGroups[0].Entries
+			highestDetailIdx := -1
+			for i := range entries {
+				if highestDetailIdx == -1 || entries[i].Detail.Max > entries[highestDetailIdx].Detail.Max {
+					highestDetailIdx = i
+				}
+			}
+			if highestDetailIdx != -1 {
+				meshIndices = entries[highestDetailIdx].Indices
+			}
+		}
+	}
+
 	// Load meshes
-	for _, mesh := range u.Meshes {
+	for _, meshIdx := range meshIndices {
+		mesh := u.Meshes[meshIdx]
 		if len(mesh.UVCoords) == 0 {
 			continue
 		}
+
+		// Transform coordinates into glTF ones
+		for i := range mesh.Positions {
+			p := mesh.Positions[i]
+			p[0], p[1], p[2] = p[1], p[2], p[0]
+			mesh.Positions[i] = p
+		}
+
 		name := fmt.Sprintf("Mesh %v", len(doc.Meshes))
 		var material *uint32
 		if len(mesh.Info.Materials) > 0 {

@@ -10,6 +10,30 @@ import (
 	"github.com/xypwn/filediver/stingray"
 )
 
+type LODEntry struct {
+	Detail struct {
+		Max float32
+		Min float32
+	}
+	Indices []uint32
+}
+
+type LODGroup struct {
+	Header struct {
+		Unk00     uint32
+		UnkHash00 stingray.ThinHash
+		Unk01     uint32
+		Unk02     uint32
+	}
+	Entries []LODEntry
+	Footer  struct {
+		UnkFloats00 [7]float32
+		Unk00       uint32
+		UnkFloat00  float32
+		Unk01       uint32
+	}
+}
+
 type JointTransform struct {
 	Rotation    [3][3]float32
 	Translation [3]float32
@@ -148,7 +172,7 @@ type Header struct {
 	UnkHash00            stingray.Hash
 	StateMachine         stingray.Hash
 	Unk02                [8]byte
-	UnkOffset00          uint32
+	LODGroupListOffset   uint32
 	JointListOffset      uint32
 	UnkOffset01          uint32
 	UnkOffset02          uint32
@@ -173,6 +197,7 @@ type Mesh struct {
 }
 
 type Unit struct {
+	LODGroups              []LODGroup
 	JointTransforms        []JointTransform
 	JointTransformMatrices [][4][4]float32
 	Materials              map[stingray.ThinHash]stingray.Hash
@@ -315,6 +340,72 @@ func Load(mainR io.ReadSeeker, gpuR io.ReadSeeker) (*Unit, error) {
 	var hdr Header
 	if err := binary.Read(mainR, binary.LittleEndian, &hdr); err != nil {
 		return nil, err
+	}
+
+	var lodGroups []LODGroup
+	if hdr.LODGroupListOffset != 0 {
+		if _, err := mainR.Seek(int64(hdr.LODGroupListOffset), io.SeekStart); err != nil {
+			return nil, err
+		}
+		var count uint32
+		if err := binary.Read(mainR, binary.LittleEndian, &count); err != nil {
+			return nil, err
+		}
+		lodGroupOffsets := make([]uint32, count)
+		for i := range lodGroupOffsets {
+			if err := binary.Read(mainR, binary.LittleEndian, &lodGroupOffsets[i]); err != nil {
+				return nil, err
+			}
+		}
+		lodGroups = make([]LODGroup, count)
+		for i, lodGroupOffset := range lodGroupOffsets {
+			if _, err := mainR.Seek(int64(hdr.LODGroupListOffset+lodGroupOffset), io.SeekStart); err != nil {
+				return nil, err
+			}
+			if err := binary.Read(mainR, binary.LittleEndian, &lodGroups[i].Header); err != nil {
+				return nil, err
+			}
+			var count uint32
+			if err := binary.Read(mainR, binary.LittleEndian, &count); err != nil {
+				return nil, err
+			}
+			entryOffsets := make([]uint32, count)
+			for j := range entryOffsets {
+				if err := binary.Read(mainR, binary.LittleEndian, &entryOffsets[j]); err != nil {
+					return nil, err
+				}
+			}
+			var footerOffset uint32
+			if err := binary.Read(mainR, binary.LittleEndian, &footerOffset); err != nil {
+				return nil, err
+			}
+			lodGroups[i].Entries = make([]LODEntry, count)
+			for j, entryOffset := range entryOffsets {
+				if _, err := mainR.Seek(int64(hdr.LODGroupListOffset+lodGroupOffset+entryOffset), io.SeekStart); err != nil {
+					return nil, err
+				}
+				if err := binary.Read(mainR, binary.LittleEndian, &lodGroups[i].Entries[j].Detail); err != nil {
+					return nil, err
+				}
+				var count uint32
+				if err := binary.Read(mainR, binary.LittleEndian, &count); err != nil {
+					return nil, err
+				}
+				data := make([]uint32, count)
+				for k := range data {
+					if err := binary.Read(mainR, binary.LittleEndian, &data[k]); err != nil {
+						return nil, err
+					}
+				}
+				lodGroups[i].Entries[j].Indices = data
+			}
+			if _, err := mainR.Seek(int64(hdr.LODGroupListOffset+lodGroupOffset+footerOffset), io.SeekStart); err != nil {
+				return nil, err
+			}
+			if err := binary.Read(mainR, binary.LittleEndian, &lodGroups[i].Footer); err != nil {
+				return nil, err
+			}
+		}
 	}
 
 	var jointListHdr JointListHeader
@@ -478,6 +569,7 @@ func Load(mainR io.ReadSeeker, gpuR io.ReadSeeker) (*Unit, error) {
 	}
 
 	return &Unit{
+		LODGroups:              lodGroups,
 		JointTransforms:        jointTransforms,
 		JointTransformMatrices: jointTransformMatrices,
 		Materials:              materialMap,

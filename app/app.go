@@ -61,6 +61,9 @@ var ConfigFormat = ConfigTemplate{
 				"format": {
 					PossibleValues: []string{"glb", "source"},
 				},
+				"meshes": {
+					PossibleValues: []string{"highest_detail", "all"},
+				},
 			},
 		},
 		"raw": {

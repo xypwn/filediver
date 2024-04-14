@@ -16,6 +16,10 @@ type File struct {
 	exists [3]bool
 }
 
+func (f *File) ID() FileID {
+	return f.triad.Files[f.index].ID
+}
+
 func (f *File) Exists(typ DataType) bool {
 	return f.exists[typ]
 }
