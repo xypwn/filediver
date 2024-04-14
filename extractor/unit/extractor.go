@@ -294,6 +294,11 @@ func Convert(ctx extractor.Context) error {
 
 	// Load meshes
 	for _, meshIdx := range meshIndices {
+		if int(meshIdx) >= len(u.Meshes) {
+			// TODO: Figure out WTF is going on here
+			continue
+		}
+
 		mesh := u.Meshes[meshIdx]
 		if len(mesh.UVCoords) == 0 {
 			continue
