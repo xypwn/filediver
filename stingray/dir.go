@@ -24,9 +24,37 @@ func (f *File) Exists(typ DataType) bool {
 	return f.exists[typ]
 }
 
+type preallocReader struct {
+	*bytes.Reader
+	b []byte
+}
+
+func newPreallocReader(r io.Reader) (*preallocReader, error) {
+	pr := &preallocReader{}
+	var err error
+	pr.b, err = io.ReadAll(r)
+	if err != nil {
+		return nil, err
+	}
+	pr.Reader = bytes.NewReader(pr.b)
+	return pr, nil
+}
+
+func (r *preallocReader) Close() error {
+	return nil
+}
+
 // Call Close() on returned reader when done.
 func (f *File) Open(typ DataType) (io.ReadSeekCloser, error) {
-	return f.triad.OpenFile(f.index, typ)
+	fileR, err := f.triad.OpenFile(f.index, typ)
+	if err != nil {
+		return nil, err
+	}
+	r, err := newPreallocReader(fileR)
+	if err != nil {
+		return nil, err
+	}
+	return r, nil
 }
 
 type multiReadCloser struct {
