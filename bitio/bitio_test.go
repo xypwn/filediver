@@ -24,6 +24,7 @@ func TestBitio(t *testing.T) {
 	if _, err := w.WriteBitsMany(
 		0b1101100111001, 13,
 		0b00000, 5,
+		0xffffffffffffffff, 64,
 	); err != nil {
 		t.Error(err)
 	}
@@ -52,6 +53,11 @@ func TestBitio(t *testing.T) {
 		t.Error(err)
 	} else if v != 0b00000110 {
 		t.Errorf("unexpected value: %08b", v)
+	}
+	if v, _, err := r.ReadBits(64); err != nil {
+		t.Error(err)
+	} else if v != 0xffffffffffffffff {
+		t.Errorf("unexpected value: %016x", v)
 	}
 	if !r.IsAligned() {
 		t.Error("expected r to be byte-aligned")

@@ -54,7 +54,7 @@ func (w *Writer) WriteBit(b bool) error {
 // Writes nb bits of b in LSb-First order.
 // Returns number of bits successfully written.
 func (w *Writer) WriteBits(b uint64, nb uint8) (n int, err error) {
-	if nb >= 64 {
+	if nb > 64 {
 		panic("attempt to write more than 64 bits of uint64")
 	}
 	for i := uint8(0); i < nb; i++ {
@@ -73,7 +73,7 @@ func (w *Writer) WriteBitsMany(args ...uint64) (n int, err error) {
 	}
 	for i := 0; i < len(args)/2; i++ {
 		nb := args[2*i+1]
-		if nb >= 64 {
+		if nb > 64 {
 			panic("attempt to write more than 64 bits of uint64")
 		}
 		nw, err := w.WriteBits(args[2*i], uint8(nb))
@@ -152,7 +152,7 @@ func (r *Reader) ReadBit() (bool, error) {
 }
 
 func (r *Reader) ReadBits(nb uint8) (val uint64, n int, err error) {
-	if nb >= 64 {
+	if nb > 64 {
 		panic("attempt to read more than 64 bits into uint64")
 	}
 	var res uint64
