@@ -27,18 +27,6 @@ func main() {
 		os.Stderr,
 	)
 
-	if false {
-		f, err := os.Create("cpu.prof")
-		if err != nil {
-			prt.Fatalf("could not create CPU profile: %v", err)
-		}
-		defer f.Close()
-		if err := pprof.StartCPUProfile(f); err != nil {
-			prt.Fatalf("could not start CPU profile: %v", err)
-		}
-		defer pprof.StopCPUProfile()
-	}
-
 	parser := argparse.NewParser("filediver", "An unofficial Helldivers 2 game asset extractor.", &argparse.ParserConfig{
 		EpiLog: `matching files:
   Syntax is Glob (meaning * is supported)
