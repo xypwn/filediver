@@ -82,6 +82,10 @@ This app builds on a lot of work from other people. This includes:
 
 Some useful discussion on the topic of HD2 resource extraction: https://reshax.com/topic/507-helldivers-2-model-extraction-help/
 
+## Hacking
+- Install [Go](https://go.dev/dl/)
+- `go run ./cmd/filediver-cli`
+
 ## License
 Copyright (c) Darwin Schuppan
 

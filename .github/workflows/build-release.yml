@@ -18,6 +18,7 @@ jobs:
         goos: linux
         goarch: amd64
         ldflags: -s -w
+        project_path: "./cmd/filediver-cli"
         binary_name: "filediver"
         asset_name: "filediver-linux-amd64"
         extra_files: LICENSE README.md
@@ -36,6 +37,7 @@ jobs:
         goos: windows
         goarch: amd64
         ldflags: -s -w
+        project_path: "./cmd/filediver-cli"
         binary_name: "filediver"
         asset_name: "filediver-windows-amd64"
         extra_files: LICENSE README.md ffmpeg.exe

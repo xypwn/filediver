@@ -14,11 +14,9 @@ import (
 
 	"github.com/xypwn/filediver/app"
 	"github.com/xypwn/filediver/exec"
+	"github.com/xypwn/filediver/hashes"
 	"github.com/xypwn/filediver/stingray"
 )
-
-//go:embed hashes.txt
-var knownHashesStr string
 
 func main() {
 	prt := app.NewPrinter(
@@ -102,7 +100,7 @@ extractor config:
 	}
 
 	if *knownHashesPath == "" {
-		a.AddHashesFromString(knownHashesStr)
+		a.AddHashesFromString(hashes.Hashes)
 	} else {
 		if err := a.AddHashesFromFile(*knownHashesPath); err != nil {
 			prt.Fatalf("%v", err)
