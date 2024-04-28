@@ -84,6 +84,7 @@ func (r *Runner) Run(name string, stdout io.Writer, stdin io.Reader, args ...str
 	} else {
 		cmd = exec.Command(entry.Path, fullArgs...)
 	}
+	applyOSSpecificCmdOpts(cmd)
 
 	var stderr bytes.Buffer
 	if stdin != nil {
