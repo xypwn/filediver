@@ -20,10 +20,23 @@ type Runner struct {
 	progs map[string]entry
 }
 
+// Call Close() when done.
 func NewRunner() *Runner {
 	return &Runner{
 		progs: make(map[string]entry),
 	}
+}
+
+func (r *Runner) Close() error {
+	var err error
+	for _, p := range r.progs {
+		if p.MemCmd != nil {
+			if e := p.MemCmd.Close(); e != nil && err != nil {
+				err = e
+			}
+		}
+	}
+	return err
 }
 
 func (r *Runner) AddMem(name string, data []byte, defaultArgs ...string) error {
