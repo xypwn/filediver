@@ -102,7 +102,7 @@ func (a *App) SetGameDir(path string) error {
 		path = filepath.Dir(path)
 	}
 	if info, err := os.Stat(filepath.Join(path, "data", "settings.ini")); err != nil || !info.Mode().IsRegular() {
-		return fmt.Errorf("invalid game directory: %v: no valid data directory not found", path)
+		return fmt.Errorf("invalid game directory: %v: valid data directory not found", path)
 	}
 	path, err := filepath.Abs(path)
 	if err != nil {
