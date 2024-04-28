@@ -4,6 +4,7 @@ go 1.20
 
 require (
 	github.com/adrg/xdg v0.4.0
+	github.com/amenzhinsky/go-memexec v0.7.1
 	github.com/andygrunwald/vdf v1.1.0
 	github.com/go-audio/audio v1.0.0
 	github.com/go-audio/wav v1.1.0

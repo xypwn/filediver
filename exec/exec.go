@@ -6,21 +6,36 @@ import (
 	"io"
 	"os/exec"
 	"strings"
+
+	"github.com/amenzhinsky/go-memexec"
 )
 
 type entry struct {
+	MemCmd      *memexec.Exec
 	Path        string
 	DefaultArgs []string
 }
 
 type Runner struct {
-	paths map[string]entry
+	progs map[string]entry
 }
 
 func NewRunner() *Runner {
 	return &Runner{
-		paths: make(map[string]entry),
+		progs: make(map[string]entry),
 	}
+}
+
+func (r *Runner) AddMem(name string, data []byte, defaultArgs ...string) error {
+	cmd, err := memexec.New(data)
+	if err != nil {
+		return err
+	}
+	r.progs[name] = entry{
+		MemCmd:      cmd,
+		DefaultArgs: defaultArgs,
+	}
+	return nil
 }
 
 func (r *Runner) Add(name string, defaultArgs ...string) (found bool) {
@@ -30,7 +45,7 @@ func (r *Runner) Add(name string, defaultArgs ...string) (found bool) {
 			return false
 		}
 	}
-	r.paths[name] = entry{
+	r.progs[name] = entry{
 		Path:        path,
 		DefaultArgs: defaultArgs,
 	}
@@ -38,18 +53,26 @@ func (r *Runner) Add(name string, defaultArgs ...string) (found bool) {
 }
 
 func (r *Runner) Has(name string) bool {
-	_, ok := r.paths[name]
+	_, ok := r.progs[name]
 	return ok
 }
 
 func (r *Runner) Run(name string, stdout io.Writer, stdin io.Reader, args ...string) error {
-	entry, ok := r.paths[name]
+	entry, ok := r.progs[name]
 	if !ok {
 		return fmt.Errorf("exec: command \"%v\" not registered", name)
 	}
 
+	fullArgs := append(entry.DefaultArgs, args...)
+
+	var cmd *exec.Cmd
+	if entry.MemCmd != nil {
+		cmd = entry.MemCmd.Command(fullArgs...)
+	} else {
+		cmd = exec.Command(entry.Path, fullArgs...)
+	}
+
 	var stderr bytes.Buffer
-	cmd := exec.Command(entry.Path, append(entry.DefaultArgs, args...)...)
 	if stdin != nil {
 		cmd.Stdin = stdin
 	}
