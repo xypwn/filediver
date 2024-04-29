@@ -84,28 +84,27 @@ extractor config:
 	}
 	defer runner.Close()
 
-	a := app.New()
-
 	if *gameDir == "" {
-		if path, err := a.DetectGameDir(); err == nil {
-			prt.Infof("Using game found at: \"%v\"", path)
+		var err error
+		*gameDir, err = app.DetectGameDir()
+		if err == nil {
+			prt.Infof("Using game found at: \"%v\"", *gameDir)
 		} else {
 			prt.Errorf("Helldivers 2 Steam installation path not found: %v", err)
 			prt.Fatalf("Unable to detect game install directory. Please specify the game directory manually using the '-g' option.")
 		}
 	} else {
-		if err := a.SetGameDir(*gameDir); err != nil {
-			prt.Fatalf("%v", err)
-		}
 		prt.Infof("Game directory: \"%v\"", *gameDir)
 	}
 
-	if *knownHashesPath == "" {
-		a.AddHashesFromString(hashes.Hashes)
-	} else {
-		if err := a.AddHashesFromFile(*knownHashesPath); err != nil {
+	var knownHashes []string
+	knownHashes = append(knownHashes, app.ParseHashes(hashes.Hashes)...)
+	if *knownHashesPath != "" {
+		b, err := os.ReadFile(*knownHashesPath)
+		if err != nil {
 			prt.Fatalf("%v", err)
 		}
+		knownHashes = append(knownHashes, app.ParseHashes(string(b))...)
 	}
 
 	if !*modeList {
@@ -113,9 +112,11 @@ extractor config:
 	}
 
 	prt.Infof("Reading metadata...")
-	if err := a.OpenGameDir(); err != nil {
+	a, err := app.New(*gameDir, knownHashes)
+	if err != nil {
 		prt.Fatalf("%v", err)
 	}
+
 	files, err := a.MatchingFiles(*extrInclGlob, *extrExclGlob, app.ConfigFormat, extrCfg)
 	if err != nil {
 		prt.Fatalf("%v", err)
@@ -144,7 +145,7 @@ extractor config:
 	{
 		names := make(map[stingray.Hash]struct{})
 		types := make(map[stingray.Hash]struct{})
-		for id := range a.AllFiles() {
+		for id := range a.DataDir.Files {
 			names[id.Name] = struct{}{}
 			types[id.Type] = struct{}{}
 		}

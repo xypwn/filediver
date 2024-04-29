@@ -79,21 +79,35 @@ var ConfigFormat = ConfigTemplate{
 	Fallback: "raw",
 }
 
-type App struct {
-	Hashes  map[stingray.Hash]string
-	gameDir string
-	dataDir *stingray.DataDir
-}
-
-func New() *App {
-	a := &App{
-		Hashes: make(map[stingray.Hash]string),
+func parseWwiseDep(f *stingray.File) (string, error) {
+	r, err := f.Open(stingray.DataMain)
+	if err != nil {
+		return "", err
 	}
-
-	return a
+	var magicNum [4]byte
+	if _, err := io.ReadFull(r, magicNum[:]); err != nil {
+		return "", err
+	}
+	if magicNum != [4]byte{0xd8, '/', 'v', 'x'} {
+		return "", errors.New("invalid magic number")
+	}
+	var textLen uint32
+	if err := binary.Read(r, binary.LittleEndian, &textLen); err != nil {
+		return "", err
+	}
+	text := make([]byte, textLen-1)
+	if _, err := io.ReadFull(r, text); err != nil {
+		return "", err
+	}
+	return string(text), nil
 }
 
-func (a *App) SetGameDir(path string) error {
+// Returns error if steam path couldn't be found.
+func DetectGameDir() (string, error) {
+	return steampath.GetAppPath("553850", "Helldivers 2")
+}
+
+func VerifyGameDir(path string) error {
 	if info, err := os.Stat(path); err != nil || !info.IsDir() {
 		return fmt.Errorf("invalid game directory: %v: not a directory", path)
 	}
@@ -104,94 +118,52 @@ func (a *App) SetGameDir(path string) error {
 	if info, err := os.Stat(filepath.Join(path, "data", "settings.ini")); err != nil || !info.Mode().IsRegular() {
 		return fmt.Errorf("invalid game directory: %v: valid data directory not found", path)
 	}
-	path, err := filepath.Abs(path)
-	if err != nil {
-		return err
-	}
-	a.gameDir = path
 	return nil
 }
 
-func (a *App) DetectGameDir() (string, error) {
-	path, err := steampath.GetAppPath("553850", "Helldivers 2")
-	if err != nil {
-		return "", err
-	}
-	if err := a.SetGameDir(path); err != nil {
-		return "", err
-	}
-	return path, nil
-}
-
-func (a *App) OpenGameDir() error {
-	dataDir, err := stingray.OpenDataDir(filepath.Join(a.gameDir, "data"))
-	if err != nil {
-		return err
-	}
-	a.dataDir = dataDir
-
-	// wwise_dep files let us know the string of many of the wwise_banks
-	for id, file := range dataDir.Files {
-		if id.Type == stingray.Sum64([]byte("wwise_dep")) {
-			if err := a.addHashFromWwiseDep(*file); err != nil {
-				return fmt.Errorf("wwise_dep: %w", err)
-			}
-		}
-	}
-
-	return nil
-}
-
-func (a *App) addHashFromWwiseDep(f stingray.File) error {
-	r, err := f.Open(stingray.DataMain)
-	if err != nil {
-		return err
-	}
-	var magicNum [4]byte
-	if _, err := io.ReadFull(r, magicNum[:]); err != nil {
-		return err
-	}
-	if magicNum != [4]byte{0xd8, '/', 'v', 'x'} {
-		return errors.New("invalid magic number")
-	}
-	var textLen uint32
-	if err := binary.Read(r, binary.LittleEndian, &textLen); err != nil {
-		return err
-	}
-	text := make([]byte, textLen-1)
-	if _, err := io.ReadFull(r, text); err != nil {
-		return err
-	}
-	a.AddHashFromString(string(text))
-	return nil
-}
-
-func (a *App) AddHashFromString(str string) {
-	a.Hashes[stingray.Sum64([]byte(str))] = str
-}
-
-func (a *App) AddHashesFromString(str string) {
+func ParseHashes(str string) []string {
+	var res []string
 	sc := bufio.NewScanner(strings.NewReader(str))
 	for sc.Scan() {
 		s := strings.TrimSpace(sc.Text())
 		if s != "" && !strings.HasPrefix(s, "//") {
-			a.AddHashFromString(s)
+			res = append(res, s)
 		}
 	}
+	return res
 }
 
-func (a *App) AddHashesFromFile(path string) error {
-	b, err := os.ReadFile(path)
+type App struct {
+	Hashes  map[stingray.Hash]string
+	DataDir *stingray.DataDir
+}
+
+// Open game dir and read metadata.
+func New(gameDir string, hashes []string) (*App, error) {
+	dataDir, err := stingray.OpenDataDir(filepath.Join(gameDir, "data"))
 	if err != nil {
-		return err
+		return nil, err
 	}
-	a.AddHashesFromString(string(b))
-	return nil
-}
 
-func (a *App) File(id stingray.FileID) (f *stingray.File, exists bool) {
-	f, exists = a.dataDir.Files[id]
-	return
+	hashesMap := make(map[stingray.Hash]string)
+	for _, h := range hashes {
+		hashesMap[stingray.Sum64([]byte(h))] = h
+	}
+	// wwise_dep files let us know the string of many of the wwise_banks
+	for id, file := range dataDir.Files {
+		if id.Type == stingray.Sum64([]byte("wwise_dep")) {
+			h, err := parseWwiseDep(file)
+			if err != nil {
+				return nil, fmt.Errorf("wwise_dep: %w", err)
+			}
+			hashesMap[stingray.Sum64([]byte(h))] = h
+		}
+	}
+
+	return &App{
+		Hashes:  hashesMap,
+		DataDir: dataDir,
+	}, nil
 }
 
 func (a *App) matchFileID(id stingray.FileID, glb glob.Glob, nameOnly bool) bool {
@@ -235,10 +207,6 @@ func (a *App) matchFileID(id stingray.FileID, glb glob.Glob, nameOnly bool) bool
 	return false
 }
 
-func (a *App) AllFiles() map[stingray.FileID]*stingray.File {
-	return a.dataDir.Files
-}
-
 func (a *App) MatchingFiles(includeGlob, excludeGlob string, cfgTemplate ConfigTemplate, cfg map[string]map[string]string) (map[stingray.FileID]*stingray.File, error) {
 	var inclGlob glob.Glob
 	inclGlobNameOnly := !strings.Contains(includeGlob, ".")
@@ -260,7 +228,7 @@ func (a *App) MatchingFiles(includeGlob, excludeGlob string, cfgTemplate ConfigT
 	}
 
 	res := make(map[stingray.FileID]*stingray.File)
-	for id, file := range a.dataDir.Files {
+	for id, file := range a.DataDir.Files {
 		shouldIncl := true
 		if includeGlob != "" {
 			shouldIncl = a.matchFileID(id, inclGlob, inclGlobNameOnly)
@@ -327,7 +295,7 @@ func (c *extractContext) File() *stingray.File      { return c.file }
 func (c *extractContext) Runner() *exec.Runner      { return c.runner }
 func (c *extractContext) Config() map[string]string { return c.config }
 func (c *extractContext) GetResource(name, typ stingray.Hash) (file *stingray.File, exists bool) {
-	file, exists = c.app.AllFiles()[stingray.FileID{Name: name, Type: typ}]
+	file, exists = c.app.DataDir.Files[stingray.FileID{Name: name, Type: typ}]
 	return
 }
 func (c *extractContext) CreateFile(suffix string) (io.WriteCloser, error) {
@@ -352,7 +320,7 @@ func (a *App) ExtractFile(id stingray.FileID, outDir string, extrCfg map[string]
 		typ = id.Type.String()
 	}
 
-	file, ok := a.dataDir.Files[id]
+	file, ok := a.DataDir.Files[id]
 	if !ok {
 		return fmt.Errorf("extract %v.%v: file does not found", name, typ)
 	}
