@@ -262,6 +262,8 @@ func Convert(ctx extractor.Context) error {
 				BaseColorTexture: &gltf.TextureInfo{
 					Index: texIdxBaseColor,
 				},
+				MetallicFactor:  gltf.Float(0.5),
+				RoughnessFactor: gltf.Float(1),
 			},
 			NormalTexture: &gltf.NormalTexture{
 				Index: gltf.Index(texIdxNormal),
