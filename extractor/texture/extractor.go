@@ -14,7 +14,7 @@ func ExtractDDS(ctx extractor.Context) error {
 	if !ctx.File().Exists(stingray.DataMain) {
 		return errors.New("no main data")
 	}
-	r, err := ctx.File().OpenMulti(stingray.DataMain, stingray.DataStream, stingray.DataGPU)
+	r, err := ctx.File().OpenMulti(ctx.Ctx(), stingray.DataMain, stingray.DataStream, stingray.DataGPU)
 	if err != nil {
 		return err
 	}
@@ -34,7 +34,7 @@ func ExtractDDS(ctx extractor.Context) error {
 }
 
 func ConvertToPNG(ctx extractor.Context) error {
-	tex, err := texture.Decode(ctx.File(), false)
+	tex, err := texture.Decode(ctx.Ctx(), ctx.File(), false)
 	if err != nil {
 		return err
 	}

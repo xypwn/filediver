@@ -114,7 +114,7 @@ func writeTexture(ctx extractor.Context, doc *gltf.Document, id stingray.Hash, p
 		return 0, fmt.Errorf("texture resource %v doesn't exist", id)
 	}
 
-	tex, err := texture.Decode(file, false)
+	tex, err := texture.Decode(ctx.Ctx(), file, false)
 	if err != nil {
 		return 0, err
 	}
@@ -149,14 +149,14 @@ func writeTexture(ctx extractor.Context, doc *gltf.Document, id stingray.Hash, p
 }
 
 func Convert(ctx extractor.Context) error {
-	fMain, err := ctx.File().Open(stingray.DataMain)
+	fMain, err := ctx.File().Open(ctx.Ctx(), stingray.DataMain)
 	if err != nil {
 		return err
 	}
 	defer fMain.Close()
 	var fGPU io.ReadSeekCloser
 	if ctx.File().Exists(stingray.DataGPU) {
-		fGPU, err = ctx.File().Open(stingray.DataGPU)
+		fGPU, err = ctx.File().Open(ctx.Ctx(), stingray.DataGPU)
 		if err != nil {
 			return err
 		}
@@ -185,7 +185,7 @@ func Convert(ctx extractor.Context) error {
 			return fmt.Errorf("referenced material resource %v doesn't exist", resID)
 		}
 		mat, err := func() (*material.Material, error) {
-			f, err := matRes.Open(stingray.DataMain)
+			f, err := matRes.Open(ctx.Ctx(), stingray.DataMain)
 			if err != nil {
 				return nil, err
 			}

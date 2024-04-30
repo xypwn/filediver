@@ -2,6 +2,7 @@ package app
 
 import (
 	"bufio"
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -79,8 +80,8 @@ var ConfigFormat = ConfigTemplate{
 	Fallback: "raw",
 }
 
-func parseWwiseDep(f *stingray.File) (string, error) {
-	r, err := f.Open(stingray.DataMain)
+func parseWwiseDep(ctx context.Context, f *stingray.File) (string, error) {
+	r, err := f.Open(ctx, stingray.DataMain)
 	if err != nil {
 		return "", err
 	}
@@ -139,8 +140,8 @@ type App struct {
 }
 
 // Open game dir and read metadata.
-func New(gameDir string, hashes []string) (*App, error) {
-	dataDir, err := stingray.OpenDataDir(filepath.Join(gameDir, "data"))
+func OpenGameDir(ctx context.Context, gameDir string, hashes []string, onProgress func(curr, total int)) (*App, error) {
+	dataDir, err := stingray.OpenDataDir(ctx, filepath.Join(gameDir, "data"), onProgress)
 	if err != nil {
 		return nil, err
 	}
@@ -152,7 +153,7 @@ func New(gameDir string, hashes []string) (*App, error) {
 	// wwise_dep files let us know the string of many of the wwise_banks
 	for id, file := range dataDir.Files {
 		if id.Type == stingray.Sum64([]byte("wwise_dep")) {
-			h, err := parseWwiseDep(file)
+			h, err := parseWwiseDep(ctx, file)
 			if err != nil {
 				return nil, fmt.Errorf("wwise_dep: %w", err)
 			}
@@ -274,15 +275,18 @@ func (a *App) MatchingFiles(includeGlob, excludeGlob string, cfgTemplate ConfigT
 }
 
 type extractContext struct {
+	ctx     context.Context
 	app     *App
 	file    *stingray.File
 	runner  *exec.Runner
 	config  map[string]string
 	outPath string
+	files   []string
 }
 
-func newExtractContext(app *App, file *stingray.File, runner *exec.Runner, config map[string]string, outPath string) *extractContext {
+func newExtractContext(ctx context.Context, app *App, file *stingray.File, runner *exec.Runner, config map[string]string, outPath string) *extractContext {
 	return &extractContext{
+		ctx:     ctx,
 		app:     app,
 		file:    file,
 		runner:  runner,
@@ -291,6 +295,7 @@ func newExtractContext(app *App, file *stingray.File, runner *exec.Runner, confi
 	}
 }
 
+func (c *extractContext) OutPath() (string, error)  { return c.outPath, nil }
 func (c *extractContext) File() *stingray.File      { return c.file }
 func (c *extractContext) Runner() *exec.Runner      { return c.runner }
 func (c *extractContext) Config() map[string]string { return c.config }
@@ -299,18 +304,27 @@ func (c *extractContext) GetResource(name, typ stingray.Hash) (file *stingray.Fi
 	return
 }
 func (c *extractContext) CreateFile(suffix string) (io.WriteCloser, error) {
-	return os.Create(c.outPath + suffix)
-}
-func (c *extractContext) CreateFileDir(dirSuffix, filename string) (io.WriteCloser, error) {
-	dir := c.outPath + dirSuffix
-	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
+	path, err := c.AllocateFile(suffix)
+	if err != nil {
 		return nil, err
 	}
-	return os.Create(filepath.Join(dir, filename))
+	return os.Create(path)
 }
-func (c *extractContext) OutPath() (string, error) { return c.outPath, nil }
+func (c *extractContext) AllocateFile(suffix string) (string, error) {
+	path := c.outPath + suffix
+	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
+		return "", err
+	}
+	c.files = append(c.files, path)
+	return path, nil
+}
+func (c *extractContext) Ctx() context.Context { return c.ctx }
+func (c *extractContext) Files() []string {
+	return c.files
+}
 
-func (a *App) ExtractFile(id stingray.FileID, outDir string, extrCfg map[string]map[string]string, runner *exec.Runner) error {
+// Returns path to extracted file/directory.
+func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string, extrCfg map[string]map[string]string, runner *exec.Runner) ([]string, error) {
 	name, ok := a.Hashes[id.Name]
 	if !ok {
 		name = id.Name.String()
@@ -322,7 +336,7 @@ func (a *App) ExtractFile(id stingray.FileID, outDir string, extrCfg map[string]
 
 	file, ok := a.DataDir.Files[id]
 	if !ok {
-		return fmt.Errorf("extract %v.%v: file does not found", name, typ)
+		return nil, fmt.Errorf("extract %v.%v: file does not exist", name, typ)
 	}
 
 	cfg := extrCfg[typ]
@@ -376,17 +390,32 @@ func (a *App) ExtractFile(id stingray.FileID, outDir string, extrCfg map[string]
 
 	outPath := filepath.Join(outDir, name)
 	if err := os.MkdirAll(filepath.Dir(outPath), os.ModePerm); err != nil {
-		return err
+		return nil, err
 	}
-	if err := extr(newExtractContext(
+	extrCtx := newExtractContext(
+		ctx,
 		a,
 		file,
 		runner,
 		cfg,
 		outPath,
-	)); err != nil {
-		return fmt.Errorf("extract %v.%v: %w", name, typ, err)
+	)
+	if err := extr(extrCtx); err != nil {
+		{
+			var err error
+			var errPath string
+			for _, path := range extrCtx.Files() {
+				if e := os.Remove(path); e != nil && !errors.Is(e, os.ErrNotExist) && err == nil {
+					err = e
+					errPath = path
+				}
+			}
+			if err != nil {
+				return nil, fmt.Errorf("cleanup %v: %w", errPath, err)
+			}
+		}
+		return nil, fmt.Errorf("extract %v.%v: %w", name, typ, err)
 	}
 
-	return nil
+	return extrCtx.Files(), nil
 }

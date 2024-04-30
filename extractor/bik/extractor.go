@@ -16,7 +16,7 @@ func extract(ctx extractor.Context, save func(ctx extractor.Context, r io.Reader
 		dataTypes = append(dataTypes, stingray.DataGPU)
 	}
 
-	r, err := ctx.File().OpenMulti(dataTypes...)
+	r, err := ctx.File().OpenMulti(ctx.Ctx(), dataTypes...)
 	if err != nil {
 		return err
 	}
@@ -52,7 +52,7 @@ func ConvertToMP4(ctx extractor.Context) error {
 	}
 
 	return extract(ctx, func(ctx extractor.Context, r io.Reader) error {
-		outPath, err := ctx.OutPath()
+		outPath, err := ctx.AllocateFile(".mp4")
 		if err != nil {
 			return err
 		}
@@ -62,7 +62,7 @@ func ConvertToMP4(ctx extractor.Context) error {
 			r,
 			"-f", "bink",
 			"-i", "pipe:",
-			outPath+".mp4",
+			outPath,
 		)
 	})
 }

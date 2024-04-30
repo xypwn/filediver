@@ -1,6 +1,7 @@
 package extractor
 
 import (
+	"context"
 	"io"
 
 	"github.com/xypwn/filediver/exec"
@@ -8,22 +9,22 @@ import (
 )
 
 type Context interface {
+	Ctx() context.Context
 	File() *stingray.File
 	Runner() *exec.Runner
 	Config() map[string]string
 	GetResource(name, typ stingray.Hash) (file *stingray.File, exists bool)
 	// Call WriteCloser.Close() when done.
 	CreateFile(suffix string) (io.WriteCloser, error)
-	// Call WriteCloser.Close() when done.
-	CreateFileDir(dirSuffix, filename string) (io.WriteCloser, error)
-	OutPath() (string, error)
+	// Returns path to file.
+	AllocateFile(suffix string) (string, error)
 }
 
 type ExtractFunc func(ctx Context) error
 
 func ExtractFuncRaw(suffix string, types ...stingray.DataType) ExtractFunc {
 	return func(ctx Context) error {
-		r, err := ctx.File().OpenMulti(types...)
+		r, err := ctx.File().OpenMulti(ctx.Ctx(), types...)
 		if err != nil {
 			return err
 		}

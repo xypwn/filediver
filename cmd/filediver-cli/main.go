@@ -1,11 +1,15 @@
 package main
 
 import (
+	"context"
 	_ "embed"
+	"errors"
 	"fmt"
 	"os"
+	"os/signal"
 	"runtime/pprof"
 	"sort"
+	"syscall"
 
 	//"github.com/davecgh/go-spew/spew"
 
@@ -111,11 +115,28 @@ extractor config:
 		prt.Infof("Output directory: \"%v\"", *outDir)
 	}
 
-	prt.Infof("Reading metadata...")
-	a, err := app.New(*gameDir, knownHashes)
+	ctx, cancel := context.WithCancel(context.Background())
+
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-sigs
+		cancel()
+	}()
+
+	a, err := app.OpenGameDir(ctx, *gameDir, knownHashes, func(curr, total int) {
+		prt.Statusf("Reading metadata %.0f%%", float64(curr)/float64(total)*100)
+	})
 	if err != nil {
-		prt.Fatalf("%v", err)
+		if errors.Is(err, context.Canceled) {
+			prt.NoStatus()
+			prt.Warnf("Metadata read canceled, exiting")
+			return
+		} else {
+			prt.Errorf("%v", err)
+		}
 	}
+	prt.NoStatus()
 
 	files, err := a.MatchingFiles(*extrInclGlob, *extrExclGlob, app.ConfigFormat, extrCfg)
 	if err != nil {
@@ -182,10 +203,16 @@ extractor config:
 				truncName = "..." + truncName[len(truncName)-37:]
 			}
 			prt.Statusf("File %v/%v: %v", i+1, len(files), truncName)
-			if err := a.ExtractFile(id, *outDir, extrCfg, runner); err == nil {
+			if _, err := a.ExtractFile(ctx, id, *outDir, extrCfg, runner); err == nil {
 				numExtrFiles++
 			} else {
-				prt.Errorf("%v", err)
+				if errors.Is(err, context.Canceled) {
+					prt.NoStatus()
+					prt.Warnf("Extraction canceled, exiting cleanly")
+					return
+				} else {
+					prt.Errorf("%v", err)
+				}
 			}
 		}
 

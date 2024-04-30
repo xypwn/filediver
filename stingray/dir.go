@@ -2,10 +2,13 @@ package stingray
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+
+	"github.com/xypwn/filediver/util"
 )
 
 const errPfx = "stingray: "
@@ -45,7 +48,7 @@ func (r *preallocReader) Close() error {
 }
 
 // Call Close() on returned reader when done.
-func (f *File) Open(typ DataType) (io.ReadSeekCloser, error) {
+func (f *File) Open(ctx context.Context, typ DataType) (io.ReadSeekCloser, error) {
 	fileR, err := f.triad.OpenFile(f.index, typ)
 	if err != nil {
 		return nil, err
@@ -54,7 +57,7 @@ func (f *File) Open(typ DataType) (io.ReadSeekCloser, error) {
 	if err != nil {
 		return nil, err
 	}
-	return r, nil
+	return util.NewContextReadSeekCloser(ctx, r), nil
 }
 
 type multiReadCloser struct {
@@ -77,14 +80,14 @@ func (r *multiReadCloser) Close() error {
 // Skips any specified types that don't exist.
 // If you need seeking functionality, use Open().
 // Call Close() on returned reader when done.
-func (f *File) OpenMulti(types ...DataType) (io.ReadCloser, error) {
+func (f *File) OpenMulti(ctx context.Context, types ...DataType) (io.ReadCloser, error) {
 	var rdcs []io.ReadCloser
 	var rds []io.Reader
 	for _, dataType := range types {
 		if !f.Exists(dataType) {
 			continue
 		}
-		r, err := f.Open(dataType)
+		r, err := f.Open(ctx, dataType)
 		if err != nil {
 			for _, rdc := range rdcs {
 				rdc.Close()
@@ -102,7 +105,8 @@ func (f *File) OpenMulti(types ...DataType) (io.ReadCloser, error) {
 
 // For testing purposes, takes a HUGE amount of time to execute.
 func (a *File) contentEqual(b *File, dt DataType) (bool, error) {
-	fa, err := a.Open(dt)
+	ctx := context.Background()
+	fa, err := a.Open(ctx, dt)
 	if err != nil {
 		return false, err
 	}
@@ -111,7 +115,7 @@ func (a *File) contentEqual(b *File, dt DataType) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	fb, err := b.Open(dt)
+	fb, err := b.Open(ctx, dt)
 	if err != nil {
 		return false, err
 	}
@@ -127,7 +131,9 @@ type DataDir struct {
 	Files map[FileID]*File
 }
 
-func OpenDataDir(dirPath string) (*DataDir, error) {
+// Opens the "data" game directory, reading all file metadata. Ctx allows for granular cancellation (before each triad open).
+// onProgress is optional.
+func OpenDataDir(ctx context.Context, dirPath string, onProgress func(curr, total int)) (*DataDir, error) {
 	const errPfx = errPfx + "OpenDataDir: "
 
 	ents, err := os.ReadDir(dirPath)
@@ -139,7 +145,13 @@ func OpenDataDir(dirPath string) (*DataDir, error) {
 		Files: make(map[FileID]*File),
 	}
 
-	for _, ent := range ents {
+	for i, ent := range ents {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		if onProgress != nil {
+			onProgress(i, len(ents))
+		}
 		if !ent.Type().IsRegular() {
 			continue
 		}

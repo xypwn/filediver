@@ -7,7 +7,6 @@ import (
 	"io"
 	"math"
 	"os"
-	"path/filepath"
 
 	"github.com/go-audio/audio"
 	"github.com/go-audio/wav"
@@ -84,7 +83,7 @@ func pcmFloat32ToIntS16(dst []int, src []float32) {
 	}
 }
 
-func convertWemStream(ctx extractor.Context, outPath string, in io.ReadSeeker, format format) error {
+func convertWemStream(ctx extractor.Context, outName string, in io.ReadSeeker, format format) error {
 	if !ctx.Runner().Has("ffmpeg") {
 		format = formatWav
 	}
@@ -95,7 +94,11 @@ func convertWemStream(ctx extractor.Context, outPath string, in io.ReadSeeker, f
 	}
 	switch format {
 	case formatWav:
-		out, err := os.Create(outPath + ".wav")
+		outPath, err := ctx.AllocateFile(outName + ".wav")
+		if err != nil {
+			return err
+		}
+		out, err := os.Create(outPath)
 		if err != nil {
 			return err
 		}
@@ -139,6 +142,10 @@ func convertWemStream(ctx extractor.Context, outPath string, in io.ReadSeeker, f
 		case formatAac:
 			fmtExt = ".aac"
 		}
+		outPath, err := ctx.AllocateFile(outName + fmtExt)
+		if err != nil {
+			return err
+		}
 		if err := ctx.Runner().Run(
 			"ffmpeg",
 			nil,
@@ -148,7 +155,7 @@ func convertWemStream(ctx extractor.Context, outPath string, in io.ReadSeeker, f
 			"-ac", fmt.Sprint(dec.Channels()),
 			"-channel_layout", fmt.Sprintf("0x%x", uint32(dec.ChannelLayout())),
 			"-i", "pipe:",
-			outPath+fmtExt,
+			outPath,
 		); err != nil {
 			return err
 		}
@@ -180,16 +187,12 @@ func ConvertWem(ctx extractor.Context) error {
 	if err != nil {
 		return err
 	}
-	outPath, err := ctx.OutPath()
-	if err != nil {
-		return err
-	}
-	r, err := ctx.File().Open(stingray.DataStream)
+	r, err := ctx.File().Open(ctx.Ctx(), stingray.DataStream)
 	if err != nil {
 		return err
 	}
 	defer r.Close()
-	if err := convertWemStream(ctx, outPath, r, format); err != nil {
+	if err := convertWemStream(ctx, "", r, format); err != nil {
 		return err
 	}
 	return nil
@@ -226,7 +229,7 @@ func extractBnk(in io.ReadSeeker) (io.ReadSeeker, error) {
 }
 
 func ExtractBnk(ctx extractor.Context) error {
-	f, err := ctx.File().Open(stingray.DataMain)
+	f, err := ctx.File().Open(ctx.Ctx(), stingray.DataMain)
 	if err != nil {
 		return err
 	}
@@ -253,7 +256,7 @@ func ConvertBnk(ctx extractor.Context) error {
 		return err
 	}
 
-	in, err := ctx.File().Open(stingray.DataMain)
+	in, err := ctx.File().Open(ctx.Ctx(), stingray.DataMain)
 	if err != nil {
 		return err
 	}
@@ -273,22 +276,13 @@ func ConvertBnk(ctx extractor.Context) error {
 		return err
 	}
 
-	outPath, err := ctx.OutPath()
-	if err != nil {
-		return err
-	}
-	dirPath := outPath + ".bnk"
-	if err := os.MkdirAll(dirPath, os.ModePerm); err != nil {
-		return err
-	}
 	for i := 0; i < bnk.NumFiles(); i++ {
 		wemR, err := bnk.OpenFile(i)
 		if err != nil {
 			return err
 		}
 		if err := func() error {
-			outPath := filepath.Join(dirPath, fmt.Sprintf("%03d", i))
-			if err := convertWemStream(ctx, outPath, wemR, format); err != nil {
+			if err := convertWemStream(ctx, fmt.Sprintf(".bnk/%03d", i), wemR, format); err != nil {
 				return err
 			}
 			return nil

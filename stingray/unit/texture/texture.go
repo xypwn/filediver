@@ -1,6 +1,7 @@
 package texture
 
 import (
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -44,11 +45,11 @@ func DecodeInfo(r io.Reader) (*Info, error) {
 	}, nil
 }
 
-func decode(f *stingray.File, readMipMaps bool) (*dds.DDS, error) {
+func decode(ctx context.Context, f *stingray.File, readMipMaps bool) (*dds.DDS, error) {
 	if !f.Exists(stingray.DataMain) {
 		return nil, errors.New("no main data")
 	}
-	r, err := f.OpenMulti(stingray.DataMain, stingray.DataStream, stingray.DataGPU)
+	r, err := f.OpenMulti(ctx, stingray.DataMain, stingray.DataStream, stingray.DataGPU)
 	if err != nil {
 		return nil, err
 	}
@@ -65,8 +66,8 @@ func decode(f *stingray.File, readMipMaps bool) (*dds.DDS, error) {
 }
 
 // Decode DDS texture with Stingray wrapper.
-func Decode(f *stingray.File, readMipMaps bool) (*dds.DDS, error) {
-	tex, err := decode(f, readMipMaps)
+func Decode(ctx context.Context, f *stingray.File, readMipMaps bool) (*dds.DDS, error) {
+	tex, err := decode(ctx, f, readMipMaps)
 	if err != nil {
 		return nil, fmt.Errorf("stingray texture: %w", err)
 	}

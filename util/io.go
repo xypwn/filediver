@@ -1,6 +1,7 @@
 package util
 
 import (
+	"context"
 	"io"
 )
 
@@ -52,4 +53,31 @@ func (r *SectionReadSeeker) Seek(offset int64, whence int) (int64, error) {
 	}
 	pos, err := r.r.Seek(r.off, io.SeekStart)
 	return pos - r.base, err
+}
+
+// Cancellable ReadSeekCloser type
+type contextReadSeekCloser struct {
+	io.ReadSeekCloser
+	ctx context.Context
+}
+
+func NewContextReadSeekCloser(ctx context.Context, r io.ReadSeekCloser) io.ReadSeekCloser {
+	return &contextReadSeekCloser{
+		ReadSeekCloser: r,
+		ctx:            ctx,
+	}
+}
+
+func (r *contextReadSeekCloser) Read(p []byte) (n int, err error) {
+	if err := r.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return r.ReadSeekCloser.Read(p)
+}
+
+func (r *contextReadSeekCloser) Seek(offset int64, whence int) (int64, error) {
+	if err := r.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return r.ReadSeekCloser.Seek(offset, whence)
 }
