@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"image"
 	"image/color"
-	"image/png"
+	"image/jpeg"
 	"io"
 	"math"
 
@@ -22,8 +22,13 @@ import (
 
 // Adds back in the truncated Z component of a normal map.
 func reconstructNormalZ(c color.Color) color.Color {
-	iX, iY, _, _ := c.RGBA()
-	x, y := (float64(iX)/32767.5)-1, (float64(iY)/32767.5)-1
+	var x, y float64
+	if nc, ok := c.(color.NRGBA); ok {
+		x, y = (float64(nc.R)/127.5)-1, (float64(nc.G)/127.5)-1
+	} else {
+		iX, iY, _, _ := c.RGBA()
+		x, y = (float64(iX)/32767.5)-1, (float64(iY)/32767.5)-1
+	}
 	z := math.Sqrt(-x*x - y*y + 1)
 	return color.RGBA64{
 		R: uint16(math.Max(math.Min(math.Round((x+1)*32767.5), 65535), 0)),
@@ -133,11 +138,23 @@ func writeTexture(ctx extractor.Context, doc *gltf.Document, id stingray.Hash, p
 			return 0, errors.New("DDS image does not support Set()")
 		}
 	}
-	var pngData bytes.Buffer
-	if err := png.Encode(&pngData, tex); err != nil {
+	// Keeping this around since PNG is lossless, but JPEG is significantly faster
+	// TODO: Allow specifying PNG/JPEG as argument
+	/*var pngData bytes.Buffer
+	if err := (&png.Encoder{
+		CompressionLevel: png.DefaultCompression,
+	}).Encode(&pngData, tex); err != nil {
 		return 0, err
 	}
 	imgIdx, err := modeler.WriteImage(doc, id.String(), "image/png", &pngData)
+	if err != nil {
+		return 0, err
+	}*/
+	var jpgData bytes.Buffer
+	if err := jpeg.Encode(&jpgData, tex, &jpeg.Options{Quality: 95}); err != nil {
+		return 0, err
+	}
+	imgIdx, err := modeler.WriteImage(doc, id.String(), "image/jpeg", &jpgData)
 	if err != nil {
 		return 0, err
 	}
@@ -338,9 +355,8 @@ func Convert(ctx extractor.Context) error {
 			Name: name,
 			Mesh: gltf.Index(uint32(len(doc.Meshes) - 1)),
 		})
+		doc.Scenes[0].Nodes = append(doc.Scenes[0].Nodes, uint32(len(doc.Nodes)-1))
 	}
-
-	doc.Scenes[0].Nodes = append(doc.Scenes[0].Nodes, 0)
 
 	out, err := ctx.CreateFile(".glb")
 	if err != nil {
