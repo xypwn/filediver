@@ -28,7 +28,8 @@ var ConfigFormat = ConfigTemplate{
 			Category: "audio",
 			Options: map[string]ConfigTemplateOption{
 				"format": {
-					PossibleValues: []string{"ogg", "wav", "aac", "mp3", "wem", "source"},
+					Type: ConfigValueEnum,
+					Enum: []string{"ogg", "wav", "aac", "mp3", "wem", "source"},
 				},
 			},
 		},
@@ -36,7 +37,8 @@ var ConfigFormat = ConfigTemplate{
 			Category: "audio",
 			Options: map[string]ConfigTemplateOption{
 				"format": {
-					PossibleValues: []string{"ogg", "wav", "aac", "mp3", "bnk", "source"},
+					Type: ConfigValueEnum,
+					Enum: []string{"ogg", "wav", "aac", "mp3", "bnk", "source"},
 				},
 			},
 		},
@@ -44,7 +46,8 @@ var ConfigFormat = ConfigTemplate{
 			Category: "video",
 			Options: map[string]ConfigTemplateOption{
 				"format": {
-					PossibleValues: []string{"mp4", "bik", "source"},
+					Type: ConfigValueEnum,
+					Enum: []string{"mp4", "bik", "source"},
 				},
 			},
 		},
@@ -52,7 +55,8 @@ var ConfigFormat = ConfigTemplate{
 			Category: "image",
 			Options: map[string]ConfigTemplateOption{
 				"format": {
-					PossibleValues: []string{"png", "dds", "source"},
+					Type: ConfigValueEnum,
+					Enum: []string{"png", "dds", "source"},
 				},
 			},
 		},
@@ -60,10 +64,25 @@ var ConfigFormat = ConfigTemplate{
 			Category: "model",
 			Options: map[string]ConfigTemplateOption{
 				"format": {
-					PossibleValues: []string{"glb", "source"},
+					Type: ConfigValueEnum,
+					Enum: []string{"glb", "source"},
 				},
 				"meshes": {
-					PossibleValues: []string{"highest_detail", "all"},
+					Type: ConfigValueEnum,
+					Enum: []string{"highest_detail", "all"},
+				},
+				"image_jpeg": {
+					Type: ConfigValueEnum,
+					Enum: []string{"false", "true"},
+				},
+				"jpeg_quality": {
+					Type:        ConfigValueIntRange,
+					IntRangeMin: 1,
+					IntRangeMax: 100,
+				},
+				"png_compression": {
+					Type: ConfigValueEnum,
+					Enum: []string{"default", "none", "fastest", "best"},
 				},
 			},
 		},
@@ -71,7 +90,8 @@ var ConfigFormat = ConfigTemplate{
 			Category: "",
 			Options: map[string]ConfigTemplateOption{
 				"format": {
-					PossibleValues: []string{"source"},
+					Type: ConfigValueEnum,
+					Enum: []string{"source"},
 				},
 			},
 			DefaultDisabled: true,

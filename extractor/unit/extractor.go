@@ -7,8 +7,10 @@ import (
 	"image"
 	"image/color"
 	"image/jpeg"
+	"image/png"
 	"io"
 	"math"
+	"strconv"
 
 	"github.com/qmuntal/gltf"
 	"github.com/qmuntal/gltf/modeler"
@@ -19,6 +21,12 @@ import (
 	"github.com/xypwn/filediver/stingray/unit/material"
 	"github.com/xypwn/filediver/stingray/unit/texture"
 )
+
+type ImageOptions struct {
+	Jpeg           bool                 // PNG if false, JPEG if true
+	JpegQuality    int                  // Quality if Jpeg == true; interval = [1;100]; 0 for default quality
+	PngCompression png.CompressionLevel // Compression if Jpeg == false
+}
 
 // Adds back in the truncated Z component of a normal map.
 func reconstructNormalZ(c color.Color) color.Color {
@@ -77,7 +85,7 @@ const (
 	textureTypeNormal
 )
 
-func tryWriteTexture(ctx extractor.Context, mat *material.Material, texType textureType, doc *gltf.Document) (uint32, bool, error) {
+func tryWriteTexture(ctx extractor.Context, mat *material.Material, texType textureType, doc *gltf.Document, imgOpts *ImageOptions) (uint32, bool, error) {
 	var id stingray.Hash
 	var pixelConv func(color.Color) color.Color
 	switch texType {
@@ -104,7 +112,7 @@ func tryWriteTexture(ctx extractor.Context, mat *material.Material, texType text
 	default:
 		panic("unhandled case")
 	}
-	res, err := writeTexture(ctx, doc, id, pixelConv)
+	res, err := writeTexture(ctx, doc, id, pixelConv, imgOpts)
 	if err != nil {
 		return 0, false, err
 	}
@@ -113,7 +121,7 @@ func tryWriteTexture(ctx extractor.Context, mat *material.Material, texType text
 
 // Adds a texture to doc. Returns new texture ID if err != nil.
 // pixelConv optionally converts individual pixel colors.
-func writeTexture(ctx extractor.Context, doc *gltf.Document, id stingray.Hash, pixelConv func(color.Color) color.Color) (uint32, error) {
+func writeTexture(ctx extractor.Context, doc *gltf.Document, id stingray.Hash, pixelConv func(color.Color) color.Color, imgOpts *ImageOptions) (uint32, error) {
 	file, exists := ctx.GetResource(id, stingray.Sum64([]byte("texture")))
 	if !exists || !file.Exists(stingray.DataMain) {
 		return 0, fmt.Errorf("texture resource %v doesn't exist", id)
@@ -138,23 +146,30 @@ func writeTexture(ctx extractor.Context, doc *gltf.Document, id stingray.Hash, p
 			return 0, errors.New("DDS image does not support Set()")
 		}
 	}
-	// Keeping this around since PNG is lossless, but JPEG is significantly faster
-	// TODO: Allow specifying PNG/JPEG as argument
-	/*var pngData bytes.Buffer
-	if err := (&png.Encoder{
-		CompressionLevel: png.DefaultCompression,
-	}).Encode(&pngData, tex); err != nil {
-		return 0, err
+	var encData bytes.Buffer
+	var mimeType string
+	if imgOpts != nil && imgOpts.Jpeg {
+		quality := jpeg.DefaultQuality
+		if imgOpts.JpegQuality != 0 {
+			quality = imgOpts.JpegQuality
+		}
+		if err := jpeg.Encode(&encData, tex, &jpeg.Options{Quality: quality}); err != nil {
+			return 0, err
+		}
+		mimeType = "image/jpeg"
+	} else {
+		compression := png.DefaultCompression
+		if imgOpts != nil {
+			compression = imgOpts.PngCompression
+		}
+		if err := (&png.Encoder{
+			CompressionLevel: compression,
+		}).Encode(&encData, tex); err != nil {
+			return 0, err
+		}
+		mimeType = "image/png"
 	}
-	imgIdx, err := modeler.WriteImage(doc, id.String(), "image/png", &pngData)
-	if err != nil {
-		return 0, err
-	}*/
-	var jpgData bytes.Buffer
-	if err := jpeg.Encode(&jpgData, tex, &jpeg.Options{Quality: 95}); err != nil {
-		return 0, err
-	}
-	imgIdx, err := modeler.WriteImage(doc, id.String(), "image/jpeg", &jpgData)
+	imgIdx, err := modeler.WriteImage(doc, id.String(), mimeType, &encData)
 	if err != nil {
 		return 0, err
 	}
@@ -165,7 +180,7 @@ func writeTexture(ctx extractor.Context, doc *gltf.Document, id stingray.Hash, p
 	return uint32(len(doc.Textures) - 1), nil
 }
 
-func Convert(ctx extractor.Context) error {
+func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions) error {
 	fMain, err := ctx.File().Open(ctx.Ctx(), stingray.DataMain)
 	if err != nil {
 		return err
@@ -180,7 +195,7 @@ func Convert(ctx extractor.Context) error {
 		defer fGPU.Close()
 	}
 
-	u, err := unit.Load(fMain, fGPU)
+	unitInfo, err := unit.LoadInfo(fMain)
 	if err != nil {
 		return err
 	}
@@ -196,7 +211,7 @@ func Convert(ctx extractor.Context) error {
 
 	// Load materials
 	materialIdxs := make(map[stingray.ThinHash]uint32)
-	for id, resID := range u.Materials {
+	for id, resID := range unitInfo.Materials {
 		matRes, exists := ctx.GetResource(resID, stingray.Sum64([]byte("material")))
 		if !exists || !matRes.Exists(stingray.DataMain) {
 			return fmt.Errorf("referenced material resource %v doesn't exist", resID)
@@ -259,14 +274,14 @@ func Convert(ctx extractor.Context) error {
 			}
 		}*/
 
-		texIdxBaseColor, ok, err := tryWriteTexture(ctx, mat, textureTypeBaseColor, doc)
+		texIdxBaseColor, ok, err := tryWriteTexture(ctx, mat, textureTypeBaseColor, doc, imgOpts)
 		if err != nil {
 			return err
 		}
 		if !ok {
 			continue
 		}
-		texIdxNormal, ok, err := tryWriteTexture(ctx, mat, textureTypeNormal, doc)
+		texIdxNormal, ok, err := tryWriteTexture(ctx, mat, textureTypeNormal, doc, imgOpts)
 		if err != nil {
 			return err
 		}
@@ -290,15 +305,15 @@ func Convert(ctx extractor.Context) error {
 	}
 
 	// Determine which meshes to convert
-	var meshIndices []uint32
+	var meshesToLoad []uint32
 	switch ctx.Config()["meshes"] {
 	case "all":
-		for i := range u.Meshes {
-			meshIndices = append(meshIndices, uint32(i))
+		for i := uint32(0); i < unitInfo.NumMeshes; i++ {
+			meshesToLoad = append(meshesToLoad, i)
 		}
 	default: // "highest_detail"
-		if len(u.LODGroups) > 0 {
-			entries := u.LODGroups[0].Entries
+		if len(unitInfo.LODGroups) > 0 {
+			entries := unitInfo.LODGroups[0].Entries
 			highestDetailIdx := -1
 			for i := range entries {
 				if highestDetailIdx == -1 || entries[i].Detail.Max > entries[highestDetailIdx].Detail.Max {
@@ -306,19 +321,22 @@ func Convert(ctx extractor.Context) error {
 				}
 			}
 			if highestDetailIdx != -1 {
-				meshIndices = entries[highestDetailIdx].Indices
+				meshesToLoad = entries[highestDetailIdx].Indices
 			}
 		}
 	}
 
 	// Load meshes
-	for _, meshIdx := range meshIndices {
-		if int(meshIdx) >= len(u.Meshes) {
-			// TODO: Figure out WTF is going on here
-			continue
+	meshes, err := unit.LoadMeshes(fGPU, unitInfo, meshesToLoad)
+	if err != nil {
+		return err
+	}
+	for _, meshID := range meshesToLoad {
+		if meshID >= unitInfo.NumMeshes {
+			panic("meshID out of bounds")
 		}
 
-		mesh := u.Meshes[meshIdx]
+		mesh := meshes[meshID]
 		if len(mesh.UVCoords) == 0 {
 			continue
 		}
@@ -367,4 +385,31 @@ func Convert(ctx extractor.Context) error {
 		return err
 	}
 	return nil
+}
+
+func Convert(ctx extractor.Context) error {
+	var opts ImageOptions
+	if v, ok := ctx.Config()["image_jpeg"]; ok && v == "true" {
+		opts.Jpeg = true
+	}
+	if v, ok := ctx.Config()["jpeg_quality"]; ok {
+		quality, err := strconv.Atoi(v)
+		if err != nil {
+			return err
+		}
+		opts.JpegQuality = quality
+	}
+	if v, ok := ctx.Config()["png_compression"]; ok {
+		switch v {
+		case "default":
+			opts.PngCompression = png.DefaultCompression
+		case "none":
+			opts.PngCompression = png.NoCompression
+		case "fastest":
+			opts.PngCompression = png.BestSpeed
+		case "best":
+			opts.PngCompression = png.BestCompression
+		}
+	}
+	return ConvertOpts(ctx, &opts)
 }

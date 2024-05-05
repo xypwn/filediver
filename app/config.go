@@ -3,11 +3,22 @@ package app
 import (
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 )
 
+type ConfigValueType int
+
+const (
+	ConfigValueEnum ConfigValueType = iota
+	ConfigValueIntRange
+)
+
 type ConfigTemplateOption struct {
-	PossibleValues []string
+	Type        ConfigValueType
+	Enum        []string
+	IntRangeMin int
+	IntRangeMax int
 }
 
 type ConfigTemplateExtractor struct {
@@ -71,12 +82,22 @@ func validateExtractorOptions(template ConfigTemplateExtractor, opts map[string]
 			slices.Sort(availKs)
 			return fmt.Errorf("%vunrecognized option: \"%v\", available options: %v", errPfx, k, strings.Join(availKs, ", "))
 		}
-		if !slices.Contains(opt.PossibleValues, v) {
-			var availVs []string
-			for _, v := range opt.PossibleValues {
-				availVs = append(availVs, "\""+v+"\"")
+		switch opt.Type {
+		case ConfigValueEnum:
+			if !slices.Contains(opt.Enum, v) {
+				var availVs []string
+				for _, v := range opt.Enum {
+					availVs = append(availVs, "\""+v+"\"")
+				}
+				return fmt.Errorf("%vunrecognized value: \"%v\", available values: %v", errPfx, v, strings.Join(availVs, ", "))
 			}
-			return fmt.Errorf("%vunrecognized value: \"%v\", available values: %v", errPfx, v, strings.Join(availVs, ", "))
+		case ConfigValueIntRange:
+			vInt, err := strconv.Atoi(v)
+			if err != nil || vInt < opt.IntRangeMin || vInt > opt.IntRangeMax {
+				return fmt.Errorf("%vinvalid value: \"%v\", expected whole number from %v to %v", errPfx, v, opt.IntRangeMin, opt.IntRangeMax)
+			}
+		default:
+			panic("invalid config ConfigValueType")
 		}
 	}
 	return nil
@@ -198,12 +219,17 @@ func ExtractorConfigHelpMessage(template ConfigTemplate) string {
 		fmt.Fprintf(&res, "\n")
 		for name, opt := range extr.Options {
 			fmt.Fprintf(&res, "    \"%v\"", name)
-			var possibleVs []string
-			for _, v := range opt.PossibleValues {
-				possibleVs = append(possibleVs, "\""+v+"\"")
-			}
-			if len(possibleVs) > 0 {
-				fmt.Fprintf(&res, " (possible values: %v)", strings.Join(possibleVs, ", "))
+			switch opt.Type {
+			case ConfigValueEnum:
+				var enumVals []string
+				for _, v := range opt.Enum {
+					enumVals = append(enumVals, "\""+v+"\"")
+				}
+				if len(enumVals) > 0 {
+					fmt.Fprintf(&res, " (any of: %v)", strings.Join(enumVals, ", "))
+				}
+			case ConfigValueIntRange:
+				fmt.Fprintf(&res, " (whole number from %v to %v)", opt.IntRangeMin, opt.IntRangeMax)
 			}
 			fmt.Fprintf(&res, "\n")
 		}

@@ -196,12 +196,14 @@ type Mesh struct {
 	Indices   []uint32
 }
 
-type Unit struct {
+type Info struct {
 	LODGroups              []LODGroup
 	JointTransforms        []JointTransform
 	JointTransformMatrices [][4][4]float32
 	Materials              map[stingray.ThinHash]stingray.Hash
-	Meshes                 []Mesh
+	NumMeshes              uint32
+	meshInfos              []MeshInfo
+	meshLayouts            []MeshLayout
 }
 
 func loadMesh(gpuR io.ReadSeeker, info MeshInfo, layout MeshLayout) (Mesh, error) {
@@ -336,7 +338,7 @@ func loadMesh(gpuR io.ReadSeeker, info MeshInfo, layout MeshLayout) (Mesh, error
 	return mesh, nil
 }
 
-func Load(mainR io.ReadSeeker, gpuR io.ReadSeeker) (*Unit, error) {
+func LoadInfo(mainR io.ReadSeeker) (*Info, error) {
 	var hdr Header
 	if err := binary.Read(mainR, binary.LittleEndian, &hdr); err != nil {
 		return nil, err
@@ -536,7 +538,6 @@ func Load(mainR io.ReadSeeker, gpuR io.ReadSeeker) (*Unit, error) {
 		}
 	}
 
-	var meshes []Mesh
 	if hdr.MeshDataOffset != 0 {
 		if _, err := mainR.Seek(int64(hdr.MeshDataOffset), io.SeekStart); err != nil {
 			return nil, err
@@ -548,31 +549,48 @@ func Load(mainR io.ReadSeeker, gpuR io.ReadSeeker) (*Unit, error) {
 		if int(count) != len(meshInfos) {
 			return nil, fmt.Errorf("expected mesh data count (%v) to equal mesh info count (%v)", count, len(meshInfos))
 		}
-		meshes = make([]Mesh, 0, count)
-		for _, info := range meshInfos {
-			if info.Header.LayoutIdx < 0 {
+		for _, meshInfo := range meshInfos {
+			if meshInfo.Header.LayoutIdx < 0 {
 				continue
 			}
-			if int(info.Header.LayoutIdx) >= len(meshLayouts) {
-				return nil, fmt.Errorf("mesh layout index (%v) is out of bounds of mesh layouts (len=%v)", info.Header.LayoutIdx, len(meshLayouts))
+			if int(meshInfo.Header.LayoutIdx) >= len(meshLayouts) {
+				return nil, fmt.Errorf("mesh layout index (%v) is out of bounds of mesh layouts (len=%v)", meshInfo.Header.LayoutIdx, len(meshLayouts))
 			}
-			layout := meshLayouts[info.Header.LayoutIdx]
-			if len(info.Groups) > 0 && gpuR == nil {
-				return nil, errors.New("mesh group exists, but GPU resource data is nil")
-			}
-			mesh, err := loadMesh(gpuR, info, layout)
-			if err != nil {
-				return nil, err
-			}
-			meshes = append(meshes, mesh)
 		}
 	}
 
-	return &Unit{
+	return &Info{
 		LODGroups:              lodGroups,
 		JointTransforms:        jointTransforms,
 		JointTransformMatrices: jointTransformMatrices,
 		Materials:              materialMap,
-		Meshes:                 meshes,
+		NumMeshes:              uint32(len(meshInfos)),
+		meshInfos:              meshInfos,
+		meshLayouts:            meshLayouts,
 	}, nil
+}
+
+// idsToLoad contains the mesh IDs (=indices) of the meshes which should be loaded.
+// To load all meshes, pass a slice with value {0,1,...,info.NumMeshes-1}.
+func LoadMeshes(gpuR io.ReadSeeker, info *Info, idsToLoad []uint32) (map[uint32]Mesh, error) {
+	meshes := make(map[uint32]Mesh)
+	for _, id := range idsToLoad {
+		if _, ok := meshes[id]; ok {
+			continue
+		}
+		if int(id) > len(info.meshInfos) {
+			return nil, fmt.Errorf("mesh ID (%v) is out of bounds of meshes (len=%v)", id, len(info.meshInfos))
+		}
+		meshInfo := info.meshInfos[id]
+		layout := info.meshLayouts[meshInfo.Header.LayoutIdx]
+		if len(meshInfo.Groups) > 0 && gpuR == nil {
+			return nil, errors.New("mesh group exists, but GPU resource data is nil")
+		}
+		mesh, err := loadMesh(gpuR, meshInfo, layout)
+		if err != nil {
+			return nil, err
+		}
+		meshes[id] = mesh
+	}
+	return meshes, nil
 }
