@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"image"
-	"image/color"
 	"image/jpeg"
 	"image/png"
 	"io"
@@ -29,53 +28,42 @@ type ImageOptions struct {
 }
 
 // Adds back in the truncated Z component of a normal map.
-func reconstructNormalZ(c color.Color) color.Color {
-	var x, y float64
-	if nc, ok := c.(color.NRGBA); ok {
-		x, y = (float64(nc.R)/127.5)-1, (float64(nc.G)/127.5)-1
-	} else {
-		iX, iY, _, _ := c.RGBA()
-		x, y = (float64(iX)/32767.5)-1, (float64(iY)/32767.5)-1
+func postProcessReconstructNormalZ(img image.Image) error {
+	calcZ := func(x, y float64) float64 {
+		return math.Sqrt(-x*x - y*y + 1)
 	}
-	z := math.Sqrt(-x*x - y*y + 1)
-	return color.RGBA64{
-		R: uint16(math.Max(math.Min(math.Round((x+1)*32767.5), 65535), 0)),
-		G: uint16(math.Max(math.Min(math.Round((y+1)*32767.5), 65535), 0)),
-		B: uint16(math.Max(math.Min(math.Round((z+1)*32767.5), 65535), 0)),
-		A: uint16(65535),
+	switch img := img.(type) {
+	case *image.NRGBA:
+		for iY := img.Rect.Min.Y; iY < img.Rect.Max.Y; iY++ {
+			for iX := img.Rect.Min.X; iX < img.Rect.Max.X; iX++ {
+				idx := img.PixOffset(iX, iY)
+				r, g := img.Pix[idx], img.Pix[idx+1]
+				x, y := (float64(r)/127.5)-1, (float64(g)/127.5)-1
+				z := calcZ(x, y)
+				img.Pix[idx+2] = uint8(math.Round((z + 1) * 127.5))
+			}
+		}
+		return nil
+	default:
+		return errors.New("postProcessReconstructNormalZ: unsupported image type")
 	}
 }
 
 // Attempts to completely remove the influence of the alpha channel,
 // giving the whole image an opacity of 1.
-// ONLY works with non-premultiplied formats due to a Go PNG bug
-// (see https://github.com/golang/go/issues/26001)
-func tryToOpaque(c color.Color) color.Color {
-	if nc, ok := c.(color.NRGBA); ok {
-		return color.NRGBA{
-			R: nc.R,
-			G: nc.G,
-			B: nc.B,
-			A: 255,
+func postProcessToOpaque(img image.Image) error {
+	switch img := img.(type) {
+	case *image.NRGBA:
+		for iY := img.Rect.Min.Y; iY < img.Rect.Max.Y; iY++ {
+			for iX := img.Rect.Min.X; iX < img.Rect.Max.X; iX++ {
+				idx := img.PixOffset(iX, iY)
+				img.Pix[idx+3] = 255
+			}
 		}
-	} else if nc, ok := c.(color.NRGBA64); ok {
-		return color.NRGBA64{
-			R: nc.R,
-			G: nc.G,
-			B: nc.B,
-			A: 65535,
-		}
-	} else if nc, ok := c.(color.NYCbCrA); ok {
-		return color.NYCbCrA{
-			YCbCr: color.YCbCr{
-				Y:  nc.Y,
-				Cb: nc.Cb,
-				Cr: nc.Cr,
-			},
-			A: 255,
-		}
+		return nil
+	default:
+		return errors.New("postProcessToOpaque: unsupported image type")
 	}
-	return c
 }
 
 type textureType int
@@ -87,13 +75,13 @@ const (
 
 func tryWriteTexture(ctx extractor.Context, mat *material.Material, texType textureType, doc *gltf.Document, imgOpts *ImageOptions) (uint32, bool, error) {
 	var id stingray.Hash
-	var pixelConv func(color.Color) color.Color
+	var postProcess func(image.Image) error
 	switch texType {
 	case textureTypeBaseColor:
 		var ok bool
 		id, ok = mat.Textures[stingray.Sum64([]byte("albedo_iridescence")).Thin()]
 		if ok {
-			pixelConv = tryToOpaque
+			postProcess = postProcessToOpaque
 			break
 		}
 		id, ok = mat.Textures[stingray.Sum64([]byte("albedo")).Thin()]
@@ -105,14 +93,14 @@ func tryWriteTexture(ctx extractor.Context, mat *material.Material, texType text
 		var ok bool
 		id, ok = mat.Textures[stingray.Sum64([]byte("normal")).Thin()]
 		if ok {
-			pixelConv = reconstructNormalZ
+			postProcess = postProcessReconstructNormalZ
 			break
 		}
 		return 0, false, nil
 	default:
 		panic("unhandled case")
 	}
-	res, err := writeTexture(ctx, doc, id, pixelConv, imgOpts)
+	res, err := writeTexture(ctx, doc, id, postProcess, imgOpts)
 	if err != nil {
 		return 0, false, err
 	}
@@ -120,8 +108,8 @@ func tryWriteTexture(ctx extractor.Context, mat *material.Material, texType text
 }
 
 // Adds a texture to doc. Returns new texture ID if err != nil.
-// pixelConv optionally converts individual pixel colors.
-func writeTexture(ctx extractor.Context, doc *gltf.Document, id stingray.Hash, pixelConv func(color.Color) color.Color, imgOpts *ImageOptions) (uint32, error) {
+// postProcess optionally applies image post-processing.
+func writeTexture(ctx extractor.Context, doc *gltf.Document, id stingray.Hash, postProcess func(image.Image) error, imgOpts *ImageOptions) (uint32, error) {
 	file, exists := ctx.GetResource(id, stingray.Sum64([]byte("texture")))
 	if !exists || !file.Exists(stingray.DataMain) {
 		return 0, fmt.Errorf("texture resource %v doesn't exist", id)
@@ -132,18 +120,9 @@ func writeTexture(ctx extractor.Context, doc *gltf.Document, id stingray.Hash, p
 		return 0, err
 	}
 
-	if pixelConv != nil {
-		if img, ok := tex.Image.(interface {
-			image.Image
-			Set(int, int, color.Color)
-		}); ok {
-			for y := img.Bounds().Min.Y; y < img.Bounds().Max.Y; y++ {
-				for x := img.Bounds().Min.X; x < img.Bounds().Max.X; x++ {
-					img.Set(x, y, pixelConv(img.At(x, y)))
-				}
-			}
-		} else {
-			return 0, errors.New("DDS image does not support Set()")
+	if postProcess != nil {
+		if err := postProcess(tex.Image); err != nil {
+			return 0, err
 		}
 	}
 	var encData bytes.Buffer

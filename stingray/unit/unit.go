@@ -582,6 +582,9 @@ func LoadMeshes(gpuR io.ReadSeeker, info *Info, idsToLoad []uint32) (map[uint32]
 			return nil, fmt.Errorf("mesh ID (%v) is out of bounds of meshes (len=%v)", id, len(info.meshInfos))
 		}
 		meshInfo := info.meshInfos[id]
+		if meshInfo.Header.LayoutIdx < 0 {
+			continue
+		}
 		layout := info.meshLayouts[meshInfo.Header.LayoutIdx]
 		if len(meshInfo.Groups) > 0 && gpuR == nil {
 			return nil, errors.New("mesh group exists, but GPU resource data is nil")
