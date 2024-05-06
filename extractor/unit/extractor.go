@@ -384,7 +384,7 @@ func Convert(ctx extractor.Context) error {
 			opts.PngCompression = png.DefaultCompression
 		case "none":
 			opts.PngCompression = png.NoCompression
-		case "fastest":
+		case "fast":
 			opts.PngCompression = png.BestSpeed
 		case "best":
 			opts.PngCompression = png.BestCompression

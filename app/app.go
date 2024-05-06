@@ -82,7 +82,7 @@ var ConfigFormat = ConfigTemplate{
 				},
 				"png_compression": {
 					Type: ConfigValueEnum,
-					Enum: []string{"default", "none", "fastest", "best"},
+					Enum: []string{"default", "none", "fast", "best"},
 				},
 			},
 		},
