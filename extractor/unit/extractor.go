@@ -340,10 +340,16 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions) error {
 		//    - a bile titan's undamaged front left leg has UV coords of (31.X, 0.X), and its damaged
 		//      front left leg has UV coords of (0.x, 1.x)
 		var components map[UVKey][]uint32 = make(map[UVKey][]uint32)
-		for i := range mesh.Indices {
-			uv := mesh.UVCoords[mesh.Indices[i]]
-			key := UVKey{uint32(uv[0]), uint32(uv[1])}
-			components[key] = append(components[key], mesh.Indices[i])
+		componentCfg := ctx.Config()["components"]
+		if componentCfg == "split" {
+			for i := range mesh.Indices {
+				uv := mesh.UVCoords[mesh.Indices[i]]
+				key := UVKey{uint32(uv[0]), uint32(uv[1])}
+				components[key] = append(components[key], mesh.Indices[i])
+			}
+		} else {
+			key := UVKey{uint32(0), uint32(0)}
+			components[key] = append(components[key], mesh.Indices...)
 		}
 
 		var material *uint32
@@ -355,14 +361,18 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions) error {
 		positions := modeler.WritePosition(doc, mesh.Positions)
 		texCoords := modeler.WriteTextureCoord(doc, mesh.UVCoords)
 		meshIndex := len(doc.Meshes)
-		name := fmt.Sprintf("Object %v", len(doc.Nodes))
+		parentIndex := len(doc.Nodes)
+		name := fmt.Sprintf("Mesh %v", meshIndex)
 		parent := gltf.Node{
 			Name: name,
 		}
 		doc.Nodes = append(doc.Nodes, &parent)
-		parentIndex := len(doc.Nodes) - 1
 		for k := range components {
-			name := fmt.Sprintf("Mesh %v Component %d", meshIndex, k.U+(k.V<<5))
+			cmpStr := ""
+			if len(components) > 1 {
+				cmpStr = fmt.Sprintf(" Component %d", k.U+(k.V<<5))
+			}
+			name := fmt.Sprintf("Mesh %d%s", meshIndex, cmpStr)
 			doc.Meshes = append(doc.Meshes, &gltf.Mesh{
 				Name: name,
 				Primitives: []*gltf.Primitive{
@@ -377,11 +387,15 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions) error {
 					},
 				},
 			})
-			doc.Nodes = append(doc.Nodes, &gltf.Node{
-				Name: name,
-				Mesh: gltf.Index(uint32(len(doc.Meshes) - 1)),
-			})
-			parent.Children = append(parent.Children, uint32(len(doc.Nodes)-1))
+			if len(components) > 1 {
+				doc.Nodes = append(doc.Nodes, &gltf.Node{
+					Name: name,
+					Mesh: gltf.Index(uint32(len(doc.Meshes) - 1)),
+				})
+				parent.Children = append(parent.Children, uint32(len(doc.Nodes)-1))
+			} else {
+				parent.Mesh = gltf.Index(uint32(len(doc.Meshes) - 1))
+			}
 		}
 
 		doc.Scenes[0].Nodes = append(doc.Scenes[0].Nodes, uint32(parentIndex))

@@ -71,6 +71,10 @@ var ConfigFormat = ConfigTemplate{
 					Type: ConfigValueEnum,
 					Enum: []string{"highest_detail", "all"},
 				},
+				"components": {
+					Type: ConfigValueEnum,
+					Enum: []string{"combined", "split"},
+				},
 				"image_jpeg": {
 					Type: ConfigValueEnum,
 					Enum: []string{"false", "true"},
