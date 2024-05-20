@@ -27,6 +27,11 @@ type ImageOptions struct {
 	PngCompression png.CompressionLevel // Compression if Jpeg == false
 }
 
+type UVKey struct {
+	U uint32
+	V uint32
+}
+
 // Adds back in the truncated Z component of a normal map.
 func postProcessReconstructNormalZ(img image.Image) error {
 	calcZ := func(x, y float64) float64 {
@@ -328,36 +333,18 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions) error {
 		}
 
 		// Components of the model (damage states, separate parts, etc) seem to be distinguished by their
-		// U coordinate - a charger's intact head will have U coords from 8 to 9, while the destroyed head
-		// has U coordinates ranging from 9 to 10
-		var components []uint32
-		intU := int32(-1)
-		for i := range mesh.UVCoords {
-			u := mesh.UVCoords[i][0]
-			if int32(u) != intU {
-				intU = int32(u)
-				fmt.Printf("Change in U found at index %d: %d\n", i, intU)
-				components = append(components, uint32(i))
-			}
-		}
-		components = append(components, uint32(len(mesh.UVCoords)))
-		fmt.Println(components)
-
-		// Split the indices into separate components
-		// Assumes the index value never drops below the threshold once passed
-		thresholdNum := 1
-		threshold := components[0]
-		var componentIndices []uint32
+		// UV coordinates. The range appears to be [0, 32), so theoretically there could be
+		// 1024 components in a mesh.
+		//    - a charger's intact head has UV coords of (8.x, 0.x), while the destroyed head
+		//      has UV coords of (9.x, 0.x)
+		//    - a bile titan's undamaged front left leg has UV coords of (31.X, 0.X), and its damaged
+		//      front left leg has UV coords of (0.x, 1.x)
+		var components map[UVKey][]uint32 = make(map[UVKey][]uint32)
 		for i := range mesh.Indices {
-			if mesh.Indices[i] >= threshold && thresholdNum < len(components) {
-				fmt.Printf("Threshold %d reached at indices index %d\n", threshold, i)
-				threshold = components[thresholdNum]
-				thresholdNum = thresholdNum + 1
-				componentIndices = append(componentIndices, uint32(i))
-			}
+			uv := mesh.UVCoords[mesh.Indices[i]]
+			key := UVKey{uint32(uv[0]), uint32(uv[1])}
+			components[key] = append(components[key], mesh.Indices[i])
 		}
-		componentIndices = append(componentIndices, uint32(len(mesh.Indices)))
-		fmt.Println(componentIndices)
 
 		var material *uint32
 		if len(mesh.Info.Materials) > 0 {
@@ -374,16 +361,13 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions) error {
 		}
 		doc.Nodes = append(doc.Nodes, &parent)
 		parentIndex := len(doc.Nodes) - 1
-		for i := range componentIndices {
-			if i == 0 {
-				continue
-			}
-			name := fmt.Sprintf("Mesh %v Component %d", meshIndex, i)
+		for k := range components {
+			name := fmt.Sprintf("Mesh %v Component %d", meshIndex, k.U+(k.V<<5))
 			doc.Meshes = append(doc.Meshes, &gltf.Mesh{
 				Name: name,
 				Primitives: []*gltf.Primitive{
 					{
-						Indices: gltf.Index(modeler.WriteIndices(doc, mesh.Indices[componentIndices[i-1]:componentIndices[i]])),
+						Indices: gltf.Index(modeler.WriteIndices(doc, components[k])),
 						Attributes: map[string]uint32{
 							gltf.POSITION:   positions,
 							gltf.TEXCOORD_0: texCoords,
