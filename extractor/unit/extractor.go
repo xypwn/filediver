@@ -14,6 +14,8 @@ import (
 	"github.com/qmuntal/gltf"
 	"github.com/qmuntal/gltf/modeler"
 
+	"github.com/go-gl/mathgl/mgl32"
+
 	"github.com/xypwn/filediver/extractor"
 	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/stingray/unit"
@@ -356,8 +358,49 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions) error {
 				material = gltf.Index(idx)
 			}
 		}
+
+		var matrices [][4][4]float32 = make([][4][4]float32, len(unitInfo.JointTransformMatrices))
+		for i := range matrices {
+			jtm := unitInfo.JointTransformMatrices[i]
+			row0, row1, row2, row3 := mgl32.Mat4FromRows(jtm[0], jtm[1], jtm[2], jtm[3]).Inv().Rows()
+			matrices[i] = [4][4]float32{row0, row1, row2, row3}
+		}
+
+		inverseBindMatrices := modeler.WriteAccessor(doc, gltf.TargetArrayBuffer, matrices)
+		jointIndices := make([]uint32, 0)
+		boneBaseIndex := uint32(len(doc.Nodes))
+		for _, bone := range unitInfo.Bones {
+			var rot [3][3]float32 = bone.Transform.Rotation
+			quat := mgl32.Mat4ToQuat(mgl32.Mat3FromRows(rot[0], rot[1], rot[2]).Mat4())
+			t := bone.Transform.Translation
+			//t[0], t[1], t[2] = t[1], t[2], t[0]
+			s := bone.Transform.Scale
+			//s[0], s[1], s[2] = s[1], s[2], s[0]
+			doc.Nodes = append(doc.Nodes, &gltf.Node{
+				Name:        fmt.Sprintf("Bone_%08X", bone.NameHash.Value),
+				Rotation:    [4]float32{quat.X(), quat.Y(), quat.Z(), quat.W},
+				Translation: t,
+				Scale:       s,
+			})
+			boneIdx := uint32(len(doc.Nodes) - 1)
+			jointIndices = append(jointIndices, boneIdx)
+			parentIndex := bone.ParentIndex + boneBaseIndex
+			if parentIndex != boneIdx {
+				doc.Nodes[parentIndex].Children = append(doc.Nodes[parentIndex].Children, boneIdx)
+			}
+		}
+
+		doc.Skins = append(doc.Skins, &gltf.Skin{
+			InverseBindMatrices: gltf.Index(inverseBindMatrices),
+			Joints:              jointIndices,
+		})
+
+		skin := uint32(len(doc.Skins) - 1)
+
 		positions := modeler.WritePosition(doc, mesh.Positions)
 		texCoords := modeler.WriteTextureCoord(doc, mesh.UVCoords)
+		weights := modeler.WriteWeights(doc, mesh.BoneWeights)
+		joints := modeler.WriteJoints(doc, mesh.BoneIndices)
 		meshIndex := len(doc.Meshes)
 		parentIndex := len(doc.Nodes)
 		name := fmt.Sprintf("Mesh %v", meshIndex)
@@ -380,6 +423,8 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions) error {
 							gltf.POSITION:   positions,
 							gltf.TEXCOORD_0: texCoords,
 							//gltf.COLOR_0:    modeler.WriteColor(doc, mesh.Colors),
+							gltf.JOINTS_0:  joints,
+							gltf.WEIGHTS_0: weights,
 						},
 						Material: material,
 					},
@@ -389,10 +434,12 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions) error {
 				doc.Nodes = append(doc.Nodes, &gltf.Node{
 					Name: name,
 					Mesh: gltf.Index(uint32(len(doc.Meshes) - 1)),
+					Skin: gltf.Index(skin),
 				})
 				parent.Children = append(parent.Children, uint32(len(doc.Nodes)-1))
 			} else {
 				parent.Mesh = gltf.Index(uint32(len(doc.Meshes) - 1))
+				parent.Skin = gltf.Index(skin)
 			}
 		}
 
