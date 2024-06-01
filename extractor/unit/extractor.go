@@ -327,32 +327,76 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions) error {
 			mesh.Positions[i] = p
 		}
 
-		name := fmt.Sprintf("Mesh %v", len(doc.Meshes))
+		// Components of the model (damage states, separate parts, etc) seem to be distinguished by their
+		// UV coordinates. The range appears to be [0, 32), so theoretically there could be
+		// 1024 components in a mesh.
+		//    - a charger's intact head has UV coords of (8.x, 0.x), while the destroyed head
+		//      has UV coords of (9.x, 0.x)
+		//    - a bile titan's undamaged front left leg has UV coords of (31.X, 0.X), and its damaged
+		//      front left leg has UV coords of (0.x, 1.x)
+		var components map[uint32][]uint32 = make(map[uint32][]uint32)
+		componentCfg := ctx.Config()["components"]
+		if componentCfg == "split" {
+			for i := range mesh.Indices {
+				uv := mesh.UVCoords[mesh.Indices[i]]
+				key := uint32(uv[0]) + (uint32(uv[1]) << 5)
+				if uv[1] < 0 {
+					key = uint32(uv[0]) + (uint32((-uv[1])+1) << 5)
+				}
+				components[key] = append(components[key], mesh.Indices[i])
+			}
+		} else {
+			key := uint32(0)
+			components[key] = append(components[key], mesh.Indices...)
+		}
+
 		var material *uint32
 		if len(mesh.Info.Materials) > 0 {
 			if idx, ok := materialIdxs[mesh.Info.Materials[0]]; ok {
 				material = gltf.Index(idx)
 			}
 		}
-		doc.Meshes = append(doc.Meshes, &gltf.Mesh{
+		positions := modeler.WritePosition(doc, mesh.Positions)
+		texCoords := modeler.WriteTextureCoord(doc, mesh.UVCoords)
+		meshIndex := len(doc.Meshes)
+		parentIndex := len(doc.Nodes)
+		name := fmt.Sprintf("Mesh %v", meshIndex)
+		parent := gltf.Node{
 			Name: name,
-			Primitives: []*gltf.Primitive{
-				{
-					Indices: gltf.Index(modeler.WriteIndices(doc, mesh.Indices)),
-					Attributes: map[string]uint32{
-						gltf.POSITION:   modeler.WritePosition(doc, mesh.Positions),
-						gltf.TEXCOORD_0: modeler.WriteTextureCoord(doc, mesh.UVCoords),
-						//gltf.COLOR_0:    modeler.WriteColor(doc, mesh.Colors),
+		}
+		doc.Nodes = append(doc.Nodes, &parent)
+		for k := range components {
+			cmpStr := ""
+			if len(components) > 1 {
+				cmpStr = fmt.Sprintf(" Component %d", k)
+			}
+			name := fmt.Sprintf("Mesh %d%s", meshIndex, cmpStr)
+			doc.Meshes = append(doc.Meshes, &gltf.Mesh{
+				Name: name,
+				Primitives: []*gltf.Primitive{
+					{
+						Indices: gltf.Index(modeler.WriteIndices(doc, components[k])),
+						Attributes: map[string]uint32{
+							gltf.POSITION:   positions,
+							gltf.TEXCOORD_0: texCoords,
+							//gltf.COLOR_0:    modeler.WriteColor(doc, mesh.Colors),
+						},
+						Material: material,
 					},
-					Material: material,
 				},
-			},
-		})
-		doc.Nodes = append(doc.Nodes, &gltf.Node{
-			Name: name,
-			Mesh: gltf.Index(uint32(len(doc.Meshes) - 1)),
-		})
-		doc.Scenes[0].Nodes = append(doc.Scenes[0].Nodes, uint32(len(doc.Nodes)-1))
+			})
+			if len(components) > 1 {
+				doc.Nodes = append(doc.Nodes, &gltf.Node{
+					Name: name,
+					Mesh: gltf.Index(uint32(len(doc.Meshes) - 1)),
+				})
+				parent.Children = append(parent.Children, uint32(len(doc.Nodes)-1))
+			} else {
+				parent.Mesh = gltf.Index(uint32(len(doc.Meshes) - 1))
+			}
+		}
+
+		doc.Scenes[0].Nodes = append(doc.Scenes[0].Nodes, uint32(parentIndex))
 	}
 
 	out, err := ctx.CreateFile(".glb")
