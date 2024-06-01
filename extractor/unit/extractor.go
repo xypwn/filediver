@@ -18,6 +18,7 @@ import (
 
 	"github.com/xypwn/filediver/extractor"
 	"github.com/xypwn/filediver/stingray"
+	"github.com/xypwn/filediver/stingray/bones"
 	"github.com/xypwn/filediver/stingray/unit"
 	"github.com/xypwn/filediver/stingray/unit/material"
 	"github.com/xypwn/filediver/stingray/unit/texture"
@@ -161,6 +162,22 @@ func writeTexture(ctx extractor.Context, doc *gltf.Document, id stingray.Hash, p
 	return uint32(len(doc.Textures) - 1), nil
 }
 
+func loadBoneMap(ctx extractor.Context) (*bones.BoneInfo, error) {
+	bonesId := ctx.File().ID()
+	bonesId.Type = stingray.Sum64([]byte("bones"))
+	bonesFile, exists := ctx.GetResource(bonesId.Name, bonesId.Type)
+	if !exists {
+		return nil, fmt.Errorf("loadBoneMap: bones file does not exist")
+	}
+	bonesMain, err := bonesFile.Open(ctx.Ctx(), stingray.DataMain)
+	if err != nil {
+		return nil, fmt.Errorf("loadBoneMap: bones file does not have a main component")
+	}
+
+	boneInfo, err := bones.LoadBones(bonesMain)
+	return boneInfo, err
+}
+
 func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions) error {
 	fMain, err := ctx.File().Open(ctx.Ctx(), stingray.DataMain)
 	if err != nil {
@@ -175,6 +192,8 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions) error {
 		}
 		defer fGPU.Close()
 	}
+
+	boneInfo, _ := loadBoneMap(ctx)
 
 	unitInfo, err := unit.LoadInfo(fMain)
 	if err != nil {
@@ -376,8 +395,15 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions) error {
 			//t[0], t[1], t[2] = t[1], t[2], t[0]
 			s := bone.Transform.Scale
 			//s[0], s[1], s[2] = s[1], s[2], s[0]
+			boneName := fmt.Sprintf("Bone_%08X", bone.NameHash.Value)
+			if boneInfo != nil {
+				name, exists := boneInfo.NameMap[bone.NameHash]
+				if exists {
+					boneName = name
+				}
+			}
 			doc.Nodes = append(doc.Nodes, &gltf.Node{
-				Name:        fmt.Sprintf("Bone_%08X", bone.NameHash.Value),
+				Name:        boneName,
 				Rotation:    [4]float32{quat.X(), quat.Y(), quat.Z(), quat.W},
 				Translation: t,
 				Scale:       s,
