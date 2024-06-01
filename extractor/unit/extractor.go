@@ -27,11 +27,6 @@ type ImageOptions struct {
 	PngCompression png.CompressionLevel // Compression if Jpeg == false
 }
 
-type UVKey struct {
-	U uint32
-	V uint32
-}
-
 // Adds back in the truncated Z component of a normal map.
 func postProcessReconstructNormalZ(img image.Image) error {
 	calcZ := func(x, y float64) float64 {
@@ -339,16 +334,19 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions) error {
 		//      has UV coords of (9.x, 0.x)
 		//    - a bile titan's undamaged front left leg has UV coords of (31.X, 0.X), and its damaged
 		//      front left leg has UV coords of (0.x, 1.x)
-		var components map[UVKey][]uint32 = make(map[UVKey][]uint32)
+		var components map[uint32][]uint32 = make(map[uint32][]uint32)
 		componentCfg := ctx.Config()["components"]
 		if componentCfg == "split" {
 			for i := range mesh.Indices {
 				uv := mesh.UVCoords[mesh.Indices[i]]
-				key := UVKey{uint32(uv[0]), uint32(uv[1])}
+				key := uint32(uv[0]) + (uint32(uv[1]) << 5)
+				if uv[1] < 0 {
+					key = uint32(uv[0]) + (uint32((-uv[1])+1) << 5)
+				}
 				components[key] = append(components[key], mesh.Indices[i])
 			}
 		} else {
-			key := UVKey{uint32(0), uint32(0)}
+			key := uint32(0)
 			components[key] = append(components[key], mesh.Indices...)
 		}
 
@@ -370,7 +368,7 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions) error {
 		for k := range components {
 			cmpStr := ""
 			if len(components) > 1 {
-				cmpStr = fmt.Sprintf(" Component %d", k.U+(k.V<<5))
+				cmpStr = fmt.Sprintf(" Component %d", k)
 			}
 			name := fmt.Sprintf("Mesh %d%s", meshIndex, cmpStr)
 			doc.Meshes = append(doc.Meshes, &gltf.Mesh{
