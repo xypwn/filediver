@@ -388,18 +388,18 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions) error {
 		inverseBindMatrices := modeler.WriteAccessor(doc, gltf.TargetArrayBuffer, matrices)
 		jointIndices := make([]uint32, 0)
 		boneBaseIndex := uint32(len(doc.Nodes))
-		for _, bone := range unitInfo.Bones {
+		for i, bone := range unitInfo.Bones {
 			var rot [3][3]float32 = bone.Transform.Rotation
 			quat := mgl32.Mat4ToQuat(mgl32.Mat3FromRows(rot[0], rot[1], rot[2]).Mat4())
 			t := bone.Transform.Translation
 			//t[0], t[1], t[2] = t[1], t[2], t[0]
 			s := bone.Transform.Scale
 			//s[0], s[1], s[2] = s[1], s[2], s[0]
-			boneName := fmt.Sprintf("Bone_%08X", bone.NameHash.Value)
+			boneName := fmt.Sprintf("%d:Bone_%08X", i, bone.NameHash.Value)
 			if boneInfo != nil {
 				name, exists := boneInfo.NameMap[bone.NameHash]
 				if exists {
-					boneName = name
+					boneName = fmt.Sprintf("%d:%s", i, name)
 				}
 			}
 			doc.Nodes = append(doc.Nodes, &gltf.Node{
