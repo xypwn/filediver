@@ -285,12 +285,11 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions) error {
 
 	// Determine which meshes to convert
 	var meshesToLoad []uint32
-	switch ctx.Config()["meshes"] {
-	case "all":
+	if ctx.Config()["include_lods"] == "true" {
 		for i := uint32(0); i < unitInfo.NumMeshes; i++ {
 			meshesToLoad = append(meshesToLoad, i)
 		}
-	default: // "highest_detail"
+	} else {
 		if len(unitInfo.LODGroups) > 0 {
 			entries := unitInfo.LODGroups[0].Entries
 			highestDetailIdx := -1
@@ -305,12 +304,18 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions) error {
 		}
 	}
 
+	rootNode := &gltf.Node{
+		Name: ctx.File().ID().Name.String(),
+	}
+	doc.Nodes = append(doc.Nodes, rootNode)
+	doc.Scenes[0].Nodes = append(doc.Scenes[0].Nodes, uint32(len(doc.Nodes)-1))
+
 	// Load meshes
 	meshes, err := unit.LoadMeshes(fGPU, unitInfo, meshesToLoad)
 	if err != nil {
 		return err
 	}
-	for _, meshID := range meshesToLoad {
+	for meshDisplayNumber, meshID := range meshesToLoad {
 		if meshID >= unitInfo.NumMeshes {
 			panic("meshID out of bounds")
 		}
@@ -335,8 +340,10 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions) error {
 		//    - a bile titan's undamaged front left leg has UV coords of (31.X, 0.X), and its damaged
 		//      front left leg has UV coords of (0.x, 1.x)
 		var components map[uint32][]uint32 = make(map[uint32][]uint32)
-		componentCfg := ctx.Config()["components"]
-		if componentCfg == "split" {
+		if ctx.Config()["join_components"] == "true" {
+			key := uint32(0)
+			components[key] = append(components[key], mesh.Indices...)
+		} else {
 			for i := range mesh.Indices {
 				uv := mesh.UVCoords[mesh.Indices[i]]
 				key := uint32(uv[0]) + (uint32(uv[1]) << 5)
@@ -345,9 +352,6 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions) error {
 				}
 				components[key] = append(components[key], mesh.Indices[i])
 			}
-		} else {
-			key := uint32(0)
-			components[key] = append(components[key], mesh.Indices...)
 		}
 
 		var material *uint32
@@ -358,24 +362,35 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions) error {
 		}
 		positions := modeler.WritePosition(doc, mesh.Positions)
 		texCoords := modeler.WriteTextureCoord(doc, mesh.UVCoords)
-		meshIndex := len(doc.Meshes)
-		parentIndex := len(doc.Nodes)
-		name := fmt.Sprintf("Mesh %v", meshIndex)
-		parent := gltf.Node{
-			Name: name,
-		}
-		doc.Nodes = append(doc.Nodes, &parent)
-		for k := range components {
-			cmpStr := ""
-			if len(components) > 1 {
-				cmpStr = fmt.Sprintf(" Component %d", k)
+		var lodName string
+		var meshNode *gltf.Node
+		if len(meshesToLoad) > 1 {
+			lodName = fmt.Sprintf("LOD %v", meshDisplayNumber)
+			meshNode = &gltf.Node{
+				Name: lodName,
 			}
-			name := fmt.Sprintf("Mesh %d%s", meshIndex, cmpStr)
+			doc.Nodes = append(doc.Nodes, meshNode)
+			rootNode.Children = append(rootNode.Children, uint32(len(doc.Nodes)-1))
+		} else {
+			meshNode = rootNode
+		}
+		for i := range components {
+			var componentName string
+			if len(components) > 1 {
+				componentName = fmt.Sprintf("Component %v", i)
+			}
+			if lodName != "" {
+				if componentName != "" {
+					componentName = lodName + " " + componentName
+				} else {
+					componentName = lodName
+				}
+			}
 			doc.Meshes = append(doc.Meshes, &gltf.Mesh{
-				Name: name,
+				Name: componentName + " Mesh",
 				Primitives: []*gltf.Primitive{
 					{
-						Indices: gltf.Index(modeler.WriteIndices(doc, components[k])),
+						Indices: gltf.Index(modeler.WriteIndices(doc, components[i])),
 						Attributes: map[string]uint32{
 							gltf.POSITION:   positions,
 							gltf.TEXCOORD_0: texCoords,
@@ -387,16 +402,14 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions) error {
 			})
 			if len(components) > 1 {
 				doc.Nodes = append(doc.Nodes, &gltf.Node{
-					Name: name,
+					Name: componentName,
 					Mesh: gltf.Index(uint32(len(doc.Meshes) - 1)),
 				})
-				parent.Children = append(parent.Children, uint32(len(doc.Nodes)-1))
+				meshNode.Children = append(meshNode.Children, uint32(len(doc.Nodes)-1))
 			} else {
-				parent.Mesh = gltf.Index(uint32(len(doc.Meshes) - 1))
+				meshNode.Mesh = gltf.Index(uint32(len(doc.Meshes) - 1))
 			}
 		}
-
-		doc.Scenes[0].Nodes = append(doc.Scenes[0].Nodes, uint32(parentIndex))
 	}
 
 	out, err := ctx.CreateFile(".glb")
