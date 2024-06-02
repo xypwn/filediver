@@ -67,13 +67,13 @@ var ConfigFormat = ConfigTemplate{
 					Type: ConfigValueEnum,
 					Enum: []string{"glb", "source"},
 				},
-				"meshes": {
+				"include_lods": {
 					Type: ConfigValueEnum,
-					Enum: []string{"highest_detail", "all"},
+					Enum: []string{"false", "true"},
 				},
-				"components": {
+				"join_components": {
 					Type: ConfigValueEnum,
-					Enum: []string{"combined", "split"},
+					Enum: []string{"false", "true"},
 				},
 				"bones": {
 					Type: ConfigValueEnum,
@@ -413,7 +413,7 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 			extr = extr_texture.ConvertToPNG
 		}
 	default:
-		extr = extractor.ExtractFuncRaw(typ)
+		extr = extractor.ExtractFuncRaw("."+typ, stingray.DataMain, stingray.DataStream, stingray.DataGPU)
 	}
 
 	outPath := filepath.Join(outDir, name)
