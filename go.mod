@@ -19,6 +19,9 @@ require (
 
 require (
 	github.com/go-audio/riff v1.0.0 // indirect
+	github.com/go-gl/mathgl v1.1.0 // indirect
 	github.com/stretchr/testify v1.8.1 // indirect
+	github.com/westphae/quaternion v0.0.0-20210908005042-fa06d546065c // indirect
+	golang.org/x/image v0.0.0-20190321063152-3fc05d484e9f // indirect
 	golang.org/x/term v0.5.0 // indirect
 )

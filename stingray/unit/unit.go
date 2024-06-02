@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/go-gl/mathgl/mgl32"
+
 	"github.com/x448/float16"
 	"github.com/xypwn/filediver/stingray"
 )
@@ -34,6 +36,23 @@ type LODGroup struct {
 	}
 }
 
+type SkeletonRemap struct {
+	Unk00   uint32
+	Unk01   uint32
+	Count   uint32
+	Indices []uint32
+}
+
+type SkeletonMap struct {
+	Count uint32
+	// This appears to always be 16?
+	Unk00       uint32
+	BoneIndices []uint32
+	RemapData   SkeletonRemap
+	// Maybe inverse bind matrices?
+	Matrices [][4][4]float32
+}
+
 type JointTransform struct {
 	Rotation    [3][3]float32
 	Translation [3]float32
@@ -46,14 +65,49 @@ type JointListHeader struct {
 	Unk00     [12]byte
 }
 
+type JointMapEntry struct {
+	Increment uint16
+	Parent    uint16
+}
+
+type Bone struct {
+	NameHash    stingray.ThinHash
+	Index       uint32
+	ParentIndex uint32
+	Increment   uint32
+	Transform   JointTransform
+	Matrix      [4][4]float32
+	Children    []uint32
+}
+
+func (curr *Bone) remap(bones *[]Bone) {
+	for _, i := range curr.Children {
+		(*bones)[i].remap(bones)
+	}
+	if curr.Index == curr.ParentIndex {
+		return
+	}
+	parent := (*bones)[curr.ParentIndex]
+	currTranslation := mgl32.Vec3(curr.Transform.Translation)
+	parentTranslation := mgl32.Vec3(parent.Transform.Translation)
+	currTranslation = currTranslation.Sub(parentTranslation)
+
+	currRotation := mgl32.Mat3FromRows(curr.Transform.Rotation[0], curr.Transform.Rotation[1], curr.Transform.Rotation[2])
+	parentRotation := mgl32.Mat3FromRows(parent.Transform.Rotation[0], parent.Transform.Rotation[1], parent.Transform.Rotation[2])
+	currRotation = parentRotation.Inv().Mul3(currRotation)
+
+	curr.Transform.Translation = currTranslation
+	curr.Transform.Rotation = [3][3]float32{currRotation.Row(0), currRotation.Row(1), currRotation.Row(2)}
+}
+
 type MeshLayoutItemType uint32
 
 const (
 	ItemPosition   MeshLayoutItemType = 0
 	ItemColor      MeshLayoutItemType = 1
 	ItemUVCoords   MeshLayoutItemType = 4
-	ItemBoneWeight MeshLayoutItemType = 6
-	ItemBoneIdx    MeshLayoutItemType = 7
+	ItemBoneIdx    MeshLayoutItemType = 6
+	ItemBoneWeight MeshLayoutItemType = 7
 )
 
 func (v MeshLayoutItemType) String() string {
@@ -76,15 +130,17 @@ func (v MeshLayoutItemType) String() string {
 type MeshLayoutItemFormat uint32
 
 const (
-	FormatF32     MeshLayoutItemFormat = 0
-	FormatVec2F   MeshLayoutItemFormat = 1
-	FormatVec3F   MeshLayoutItemFormat = 2
-	FormatVec4F   MeshLayoutItemFormat = 3
-	FormatVec4U8  MeshLayoutItemFormat = 26
-	FormatF16     MeshLayoutItemFormat = 28
-	FormatVec2F16 MeshLayoutItemFormat = 29
-	FormatVec3F16 MeshLayoutItemFormat = 30
-	FormatVec4F16 MeshLayoutItemFormat = 31
+	FormatF32       MeshLayoutItemFormat = 0
+	FormatVec2F     MeshLayoutItemFormat = 1
+	FormatVec3F     MeshLayoutItemFormat = 2
+	FormatVec4F     MeshLayoutItemFormat = 3
+	FormatVec4S8    MeshLayoutItemFormat = 24
+	FormatVec4Norm8 MeshLayoutItemFormat = 25
+	FormatVec4U8    MeshLayoutItemFormat = 26
+	FormatF16       MeshLayoutItemFormat = 28
+	FormatVec2F16   MeshLayoutItemFormat = 29
+	FormatVec3F16   MeshLayoutItemFormat = 30
+	FormatVec4F16   MeshLayoutItemFormat = 31
 )
 
 func (v MeshLayoutItemFormat) String() string {
@@ -97,6 +153,10 @@ func (v MeshLayoutItemFormat) String() string {
 		return "[3]float32"
 	case FormatVec4F:
 		return "[4]float32"
+	case FormatVec4S8:
+		return "[4]int8"
+	case FormatVec4Norm8:
+		return "[4]uint8"
 	case FormatVec4U8:
 		return "[4]uint8"
 	case FormatF16:
@@ -166,39 +226,42 @@ type MeshInfo struct {
 }
 
 type Header struct {
-	Unk00                [8]byte
-	Bones                stingray.Hash
-	Unk01                [8]byte
-	UnkHash00            stingray.Hash
-	StateMachine         stingray.Hash
-	Unk02                [8]byte
-	LODGroupListOffset   uint32
-	JointListOffset      uint32
-	UnkOffset01          uint32
-	UnkOffset02          uint32
-	Unk03                [12]byte
-	UnkOffset03          uint32
-	UnkOffset04          uint32
-	Unk04                [4]byte
-	UnkOffset05          uint32
-	MeshLayoutListOffset uint32
-	MeshDataOffset       uint32
-	MeshInfoListOffset   uint32
-	Unk05                [8]byte
-	MaterialListOffset   uint32
+	Unk00                 [8]byte
+	Bones                 stingray.Hash
+	Unk01                 [8]byte
+	UnkHash00             stingray.Hash
+	StateMachine          stingray.Hash
+	Unk02                 [8]byte
+	LODGroupListOffset    uint32
+	JointListOffset       uint32
+	UnkOffset01           uint32
+	UnkOffset02           uint32
+	Unk03                 [12]byte
+	UnkOffset03           uint32
+	UnkOffset04           uint32
+	Unk04                 [4]byte
+	SkeletonMapListOffset uint32
+	MeshLayoutListOffset  uint32
+	MeshDataOffset        uint32
+	MeshInfoListOffset    uint32
+	Unk05                 [8]byte
+	MaterialListOffset    uint32
 }
 
 type Mesh struct {
-	Info      MeshInfo
-	Positions [][3]float32
-	UVCoords  [][2]float32
-	Colors    [][4]float32
-	Indices   []uint32
+	Info        MeshInfo
+	Positions   [][3]float32
+	UVCoords    [][2]float32
+	Colors      [][4]float32
+	BoneIndices [][4]uint8
+	BoneWeights [][4]float32
+	Indices     []uint32
 }
 
 type Info struct {
 	LODGroups              []LODGroup
-	JointTransforms        []JointTransform
+	SkeletonMaps           []SkeletonMap
+	Bones                  []Bone
 	JointTransformMatrices [][4][4]float32
 	Materials              map[stingray.ThinHash]stingray.Hash
 	NumMeshes              uint32
@@ -212,6 +275,8 @@ func loadMesh(gpuR io.ReadSeeker, info MeshInfo, layout MeshLayout) (Mesh, error
 	mesh.Positions = make([][3]float32, 0, layout.NumVertices)
 	mesh.UVCoords = make([][2]float32, 0, layout.NumVertices)
 	mesh.Colors = make([][4]float32, 0, layout.NumVertices)
+	mesh.BoneIndices = make([][4]uint8, 0, layout.NumVertices)
+	mesh.BoneWeights = make([][4]float32, 0, layout.NumVertices)
 	for _, group := range info.Groups {
 		for i := uint32(0); i < group.NumVertices; i++ {
 			offset := layout.VertexOffset +
@@ -299,9 +364,37 @@ func loadMesh(gpuR io.ReadSeeker, info MeshInfo, layout MeshLayout) (Mesh, error
 					_ = v
 					// TODO
 				case ItemBoneWeight:
-					// TODO
+					var val [4]float32
+					switch item.Format {
+					case FormatVec4F16:
+						var tmp [4]uint16
+						if err := binary.Read(gpuR, binary.LittleEndian, &tmp); err != nil {
+							return Mesh{}, err
+						}
+						for i := range tmp {
+							val[i] = float16.Frombits(tmp[i]).Float32()
+						}
+					case FormatVec4Norm8:
+						var tmp [4]uint8
+						if err := binary.Read(gpuR, binary.LittleEndian, &tmp); err != nil {
+							return Mesh{}, err
+						}
+						for i := range tmp {
+							val[i] = float32(tmp[i]) / 255.0
+						}
+					default:
+						return Mesh{}, fmt.Errorf("expected bone index item to have format [4]float16 or [4]uint8, but got: %v", item.Format.String())
+					}
+					mesh.BoneWeights = append(mesh.BoneWeights, val)
 				case ItemBoneIdx:
-					// TODO
+					if item.Format != FormatVec4S8 {
+						return Mesh{}, fmt.Errorf("expected bone index item to have format [4]uint8, but got: %v", item.Format.String())
+					}
+					var val [4]uint8
+					if err := binary.Read(gpuR, binary.LittleEndian, &val); err != nil {
+						return Mesh{}, err
+					}
+					mesh.BoneIndices = append(mesh.BoneIndices, val)
 				default:
 					return Mesh{}, fmt.Errorf("unknown mesh layout item type: %v", item.Type)
 				}
@@ -410,9 +503,74 @@ func LoadInfo(mainR io.ReadSeeker) (*Info, error) {
 		}
 	}
 
+	var skeletonMapList []SkeletonMap
+	if hdr.SkeletonMapListOffset != 0 {
+		if _, err := mainR.Seek(int64(hdr.SkeletonMapListOffset), io.SeekStart); err != nil {
+			return nil, err
+		}
+		var count uint32
+		if err := binary.Read(mainR, binary.LittleEndian, &count); err != nil {
+			return nil, err
+		}
+		skeletonMapOffsets := make([]uint32, count)
+		if err := binary.Read(mainR, binary.LittleEndian, &skeletonMapOffsets); err != nil {
+			return nil, err
+		}
+		skeletonMapList = make([]SkeletonMap, count)
+		for i, skeletonMapOffset := range skeletonMapOffsets {
+			if _, err := mainR.Seek(int64(hdr.SkeletonMapListOffset+skeletonMapOffset), io.SeekStart); err != nil {
+				return nil, err
+			}
+			if err := binary.Read(mainR, binary.LittleEndian, &skeletonMapList[i].Count); err != nil {
+				return nil, err
+			}
+			if err := binary.Read(mainR, binary.LittleEndian, &skeletonMapList[i].Unk00); err != nil {
+				return nil, err
+			}
+			var indicesOffset uint32
+			if err := binary.Read(mainR, binary.LittleEndian, &indicesOffset); err != nil {
+				return nil, err
+			}
+			var remapOffset uint32
+			if err := binary.Read(mainR, binary.LittleEndian, &remapOffset); err != nil {
+				return nil, err
+			}
+			skeletonMapList[i].Matrices = make([][4][4]float32, skeletonMapList[i].Count)
+			if err := binary.Read(mainR, binary.LittleEndian, &skeletonMapList[i].Matrices); err != nil {
+				return nil, err
+			}
+			if _, err := mainR.Seek(int64(hdr.SkeletonMapListOffset+skeletonMapOffset+indicesOffset), io.SeekStart); err != nil {
+				return nil, err
+			}
+			skeletonMapList[i].BoneIndices = make([]uint32, skeletonMapList[i].Count)
+			if err := binary.Read(mainR, binary.LittleEndian, &skeletonMapList[i].BoneIndices); err != nil {
+				return nil, err
+			}
+			if _, err := mainR.Seek(int64(hdr.SkeletonMapListOffset+skeletonMapOffset+remapOffset), io.SeekStart); err != nil {
+				return nil, err
+			}
+			if err := binary.Read(mainR, binary.LittleEndian, &skeletonMapList[i].RemapData.Unk00); err != nil {
+				return nil, err
+			}
+			if err := binary.Read(mainR, binary.LittleEndian, &skeletonMapList[i].RemapData.Unk01); err != nil {
+				return nil, err
+			}
+			if err := binary.Read(mainR, binary.LittleEndian, &skeletonMapList[i].RemapData.Count); err != nil {
+				return nil, err
+			}
+			skeletonMapList[i].RemapData.Indices = make([]uint32, skeletonMapList[i].RemapData.Count)
+			if err := binary.Read(mainR, binary.LittleEndian, &skeletonMapList[i].RemapData.Indices); err != nil {
+				return nil, err
+			}
+		}
+	}
+
 	var jointListHdr JointListHeader
 	var jointTransforms []JointTransform
 	var jointTransformMatrices [][4][4]float32
+	var jointMap []JointMapEntry
+	var nameHashes []stingray.ThinHash
+	var bones []Bone
 	if hdr.JointListOffset != 0 {
 		if _, err := mainR.Seek(int64(hdr.JointListOffset), io.SeekStart); err != nil {
 			return nil, err
@@ -425,12 +583,45 @@ func LoadInfo(mainR io.ReadSeeker) (*Info, error) {
 			if err := binary.Read(mainR, binary.LittleEndian, &jointTransforms[i]); err != nil {
 				return nil, err
 			}
+			rotation := jointTransforms[i].Rotation
+			rotationMatrix := mgl32.Mat3FromRows(rotation[0], rotation[1], rotation[2]).Transpose()
+			jointTransforms[i].Rotation = [3][3]float32{rotationMatrix.Row(0), rotationMatrix.Row(1), rotationMatrix.Row(2)}
 		}
 		jointTransformMatrices = make([][4][4]float32, jointListHdr.NumJoints)
 		for i := range jointTransformMatrices {
 			if err := binary.Read(mainR, binary.LittleEndian, &jointTransformMatrices[i]); err != nil {
 				return nil, err
 			}
+		}
+		jointMap = make([]JointMapEntry, jointListHdr.NumJoints)
+		for i := range jointMap {
+			if err := binary.Read(mainR, binary.LittleEndian, &jointMap[i]); err != nil {
+				return nil, err
+			}
+		}
+		nameHashes = make([]stingray.ThinHash, jointListHdr.NumJoints)
+		for i := range nameHashes {
+			if err := binary.Read(mainR, binary.LittleEndian, &nameHashes[i]); err != nil {
+				return nil, err
+			}
+		}
+		bones = make([]Bone, jointListHdr.NumJoints)
+		for i := range bones {
+			bones[i].Index = uint32(i)
+			bones[i].ParentIndex = uint32(jointMap[i].Parent)
+			bones[i].Increment = uint32(jointMap[i].Increment)
+			jtm := jointTransformMatrices[i]
+			matrix := mgl32.Mat4FromRows(jtm[0], jtm[1], jtm[2], jtm[3]).Transpose()
+			bones[i].Matrix = [4][4]float32{matrix.Row(0), matrix.Row(1), matrix.Row(2), matrix.Row(3)}
+			bones[i].NameHash = nameHashes[i]
+			bones[i].Transform = jointTransforms[i]
+			if bones[i].ParentIndex != uint32(i) {
+				bones[jointMap[i].Parent].Children = append(bones[jointMap[i].Parent].Children, uint32(i))
+			}
+		}
+
+		if jointListHdr.NumJoints > 0 {
+			bones[0].remap(&bones)
 		}
 	}
 
@@ -561,7 +752,8 @@ func LoadInfo(mainR io.ReadSeeker) (*Info, error) {
 
 	return &Info{
 		LODGroups:              lodGroups,
-		JointTransforms:        jointTransforms,
+		SkeletonMaps:           skeletonMapList,
+		Bones:                  bones,
 		JointTransformMatrices: jointTransformMatrices,
 		Materials:              materialMap,
 		NumMeshes:              uint32(len(meshInfos)),

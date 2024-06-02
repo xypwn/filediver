@@ -14,8 +14,11 @@ import (
 	"github.com/qmuntal/gltf"
 	"github.com/qmuntal/gltf/modeler"
 
+	"github.com/go-gl/mathgl/mgl32"
+
 	"github.com/xypwn/filediver/extractor"
 	"github.com/xypwn/filediver/stingray"
+	"github.com/xypwn/filediver/stingray/bones"
 	"github.com/xypwn/filediver/stingray/unit"
 	"github.com/xypwn/filediver/stingray/unit/material"
 	"github.com/xypwn/filediver/stingray/unit/texture"
@@ -159,6 +162,92 @@ func writeTexture(ctx extractor.Context, doc *gltf.Document, id stingray.Hash, p
 	return uint32(len(doc.Textures) - 1), nil
 }
 
+func loadBoneMap(ctx extractor.Context) (*bones.BoneInfo, error) {
+	bonesId := ctx.File().ID()
+	bonesId.Type = stingray.Sum64([]byte("bones"))
+	bonesFile, exists := ctx.GetResource(bonesId.Name, bonesId.Type)
+	if !exists {
+		return nil, fmt.Errorf("loadBoneMap: bones file does not exist")
+	}
+	bonesMain, err := bonesFile.Open(ctx.Ctx(), stingray.DataMain)
+	if err != nil {
+		return nil, fmt.Errorf("loadBoneMap: bones file does not have a main component")
+	}
+
+	boneInfo, err := bones.LoadBones(bonesMain)
+	return boneInfo, err
+}
+
+func remapMeshBones(mesh *unit.Mesh, mapping unit.SkeletonMap) {
+	for i := range mesh.BoneIndices {
+		for j := range mesh.BoneIndices[i] {
+			if mesh.BoneWeights[i][j] > 0 {
+				remapIndex := mapping.RemapData.Indices[mesh.BoneIndices[i][j]]
+				mesh.BoneIndices[i][j] = uint8(mapping.BoneIndices[remapIndex])
+			}
+		}
+	}
+}
+
+// Adds the unit's skeleton to the gltf document
+func addSkeleton(doc *gltf.Document, unitInfo *unit.Info, boneInfo *bones.BoneInfo) uint32 {
+	var matrices [][4][4]float32 = make([][4][4]float32, len(unitInfo.JointTransformMatrices))
+	gltfConversionMatrix := mgl32.HomogRotate3DX(mgl32.DegToRad(-90.0)).Mul4(mgl32.HomogRotate3DZ(mgl32.DegToRad(-90.0)))
+	for i := range matrices {
+		jtm := unitInfo.JointTransformMatrices[i]
+		bindMatrix := mgl32.Mat4FromRows(jtm[0], jtm[1], jtm[2], jtm[3]).Transpose()
+		bindMatrix = gltfConversionMatrix.Mul4(bindMatrix)
+		row0, row1, row2, row3 := bindMatrix.Inv().Rows()
+		matrices[i] = [4][4]float32{row0, row1, row2, row3}
+	}
+
+	for i, index := range unitInfo.SkeletonMaps[0].BoneIndices {
+		skm := unitInfo.SkeletonMaps[0].Matrices[i]
+		bindMatrix := mgl32.Mat4FromRows(skm[0], skm[1], skm[2], skm[3]).Transpose().Inv()
+		bindMatrix = gltfConversionMatrix.Mul4(bindMatrix)
+		row0, row1, row2, row3 := bindMatrix.Inv().Rows()
+		matrices[index] = [4][4]float32{row0, row1, row2, row3}
+	}
+
+	inverseBindMatrices := modeler.WriteAccessor(doc, gltf.TargetArrayBuffer, matrices)
+	jointIndices := make([]uint32, 0)
+	boneBaseIndex := uint32(len(doc.Nodes))
+	for i, bone := range unitInfo.Bones {
+		var rot [3][3]float32 = bone.Transform.Rotation
+		quat := mgl32.Mat4ToQuat(mgl32.Mat3FromRows(rot[0], rot[1], rot[2]).Mat4())
+		t := bone.Transform.Translation
+		t[0], t[1], t[2] = t[1], t[2], t[0]
+		s := bone.Transform.Scale
+		//s[0], s[1], s[2] = s[1], s[2], s[0]
+		boneName := fmt.Sprintf("%d:Bone_%08X", i, bone.NameHash.Value)
+		if boneInfo != nil {
+			name, exists := boneInfo.NameMap[bone.NameHash]
+			if exists {
+				boneName = fmt.Sprintf("%d:%s", i, name)
+			}
+		}
+		doc.Nodes = append(doc.Nodes, &gltf.Node{
+			Name:        boneName,
+			Rotation:    [4]float32{quat.X(), quat.Y(), quat.Z(), quat.W},
+			Translation: t,
+			Scale:       s,
+		})
+		boneIdx := uint32(len(doc.Nodes) - 1)
+		jointIndices = append(jointIndices, boneIdx)
+		parentIndex := bone.ParentIndex + boneBaseIndex
+		if parentIndex != boneIdx {
+			doc.Nodes[parentIndex].Children = append(doc.Nodes[parentIndex].Children, boneIdx)
+		}
+	}
+
+	doc.Skins = append(doc.Skins, &gltf.Skin{
+		InverseBindMatrices: gltf.Index(inverseBindMatrices),
+		Joints:              jointIndices,
+	})
+
+	return uint32(len(doc.Skins) - 1)
+}
+
 func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions) error {
 	fMain, err := ctx.File().Open(ctx.Ctx(), stingray.DataMain)
 	if err != nil {
@@ -173,6 +262,8 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions) error {
 		}
 		defer fGPU.Close()
 	}
+
+	boneInfo, _ := loadBoneMap(ctx)
 
 	unitInfo, err := unit.LoadInfo(fMain)
 	if err != nil {
@@ -360,6 +451,22 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions) error {
 				material = gltf.Index(idx)
 			}
 		}
+
+		boneCfg := ctx.Config()["bones"]
+
+		var skin *uint32 = nil
+		var weights uint32 = 0
+		var joints uint32 = 0
+
+		if boneCfg == "enabled" {
+			if len(unitInfo.SkeletonMaps) > 0 {
+				remapMeshBones(&mesh, unitInfo.SkeletonMaps[0])
+			}
+			skin = gltf.Index(addSkeleton(doc, unitInfo, boneInfo))
+			weights = modeler.WriteWeights(doc, mesh.BoneWeights)
+			joints = modeler.WriteJoints(doc, mesh.BoneIndices)
+		}
+
 		positions := modeler.WritePosition(doc, mesh.Positions)
 		texCoords := modeler.WriteTextureCoord(doc, mesh.UVCoords)
 		var lodName string
@@ -386,28 +493,38 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions) error {
 					componentName = lodName
 				}
 			}
+
+			primitive := &gltf.Primitive{
+				Indices: gltf.Index(modeler.WriteIndices(doc, components[k])),
+				Attributes: map[string]uint32{
+					gltf.POSITION:   positions,
+					gltf.TEXCOORD_0: texCoords,
+					//gltf.COLOR_0:    modeler.WriteColor(doc, mesh.Colors),
+				},
+				Material: material,
+			}
+
+			if boneCfg == "enabled" {
+				primitive.Attributes[gltf.JOINTS_0] = joints
+				primitive.Attributes[gltf.WEIGHTS_0] = weights
+			}
+
 			doc.Meshes = append(doc.Meshes, &gltf.Mesh{
 				Name: componentName + " Mesh",
 				Primitives: []*gltf.Primitive{
-					{
-						Indices: gltf.Index(modeler.WriteIndices(doc, components[i])),
-						Attributes: map[string]uint32{
-							gltf.POSITION:   positions,
-							gltf.TEXCOORD_0: texCoords,
-							//gltf.COLOR_0:    modeler.WriteColor(doc, mesh.Colors),
-						},
-						Material: material,
-					},
+					primitive,
 				},
 			})
 			if len(components) > 1 {
 				doc.Nodes = append(doc.Nodes, &gltf.Node{
 					Name: componentName,
 					Mesh: gltf.Index(uint32(len(doc.Meshes) - 1)),
+					Skin: skin,
 				})
 				meshNode.Children = append(meshNode.Children, uint32(len(doc.Nodes)-1))
 			} else {
 				meshNode.Mesh = gltf.Index(uint32(len(doc.Meshes) - 1))
+        meshNode.Skin = skin
 			}
 		}
 	}
