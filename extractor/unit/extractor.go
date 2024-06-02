@@ -181,10 +181,21 @@ func loadBoneMap(ctx extractor.Context) (*bones.BoneInfo, error) {
 // Adds the unit's skeleton to the gltf document
 func addSkeleton(doc *gltf.Document, unitInfo *unit.Info, boneInfo *bones.BoneInfo) uint32 {
 	var matrices [][4][4]float32 = make([][4][4]float32, len(unitInfo.JointTransformMatrices))
+	gltfConversionMatrix := mgl32.HomogRotate3DX(mgl32.DegToRad(-90.0)).Mul4(mgl32.HomogRotate3DZ(mgl32.DegToRad(-90.0)))
 	for i := range matrices {
 		jtm := unitInfo.JointTransformMatrices[i]
-		row0, row1, row2, row3 := mgl32.Mat4FromRows(jtm[0], jtm[1], jtm[2], jtm[3]).Inv().Rows()
+		bindMatrix := mgl32.Mat4FromRows(jtm[0], jtm[1], jtm[2], jtm[3]).Transpose()
+		bindMatrix = gltfConversionMatrix.Mul4(bindMatrix)
+		row0, row1, row2, row3 := bindMatrix.Inv().Rows()
 		matrices[i] = [4][4]float32{row0, row1, row2, row3}
+	}
+
+	for i, index := range unitInfo.SkeletonMaps[0].BoneIndices {
+		skm := unitInfo.SkeletonMaps[0].Matrices[i]
+		bindMatrix := mgl32.Mat4FromRows(skm[0], skm[1], skm[2], skm[3]).Transpose().Inv()
+		bindMatrix = gltfConversionMatrix.Mul4(bindMatrix)
+		row0, row1, row2, row3 := bindMatrix.Inv().Rows()
+		matrices[index] = [4][4]float32{row0, row1, row2, row3}
 	}
 
 	inverseBindMatrices := modeler.WriteAccessor(doc, gltf.TargetArrayBuffer, matrices)
@@ -194,7 +205,7 @@ func addSkeleton(doc *gltf.Document, unitInfo *unit.Info, boneInfo *bones.BoneIn
 		var rot [3][3]float32 = bone.Transform.Rotation
 		quat := mgl32.Mat4ToQuat(mgl32.Mat3FromRows(rot[0], rot[1], rot[2]).Mat4())
 		t := bone.Transform.Translation
-		//t[0], t[1], t[2] = t[1], t[2], t[0]
+		t[0], t[1], t[2] = t[1], t[2], t[0]
 		s := bone.Transform.Scale
 		//s[0], s[1], s[2] = s[1], s[2], s[0]
 		boneName := fmt.Sprintf("%d:Bone_%08X", i, bone.NameHash.Value)
@@ -423,6 +434,15 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions) error {
 		if len(mesh.Info.Materials) > 0 {
 			if idx, ok := materialIdxs[mesh.Info.Materials[0]]; ok {
 				material = gltf.Index(idx)
+			}
+		}
+
+		if len(unitInfo.SkeletonMaps) > 0 {
+			for i := range mesh.BoneIndices {
+				for j := range mesh.BoneIndices[i] {
+					remapIndex := unitInfo.SkeletonMaps[0].RemapData.Indices[mesh.BoneIndices[i][j]]
+					mesh.BoneIndices[i][j] = uint8(unitInfo.SkeletonMaps[0].BoneIndices[remapIndex])
+				}
 			}
 		}
 

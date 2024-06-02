@@ -94,7 +94,7 @@ func (curr *Bone) remap(bones *[]Bone) {
 
 	currRotation := mgl32.Mat3FromRows(curr.Transform.Rotation[0], curr.Transform.Rotation[1], curr.Transform.Rotation[2])
 	parentRotation := mgl32.Mat3FromRows(parent.Transform.Rotation[0], parent.Transform.Rotation[1], parent.Transform.Rotation[2])
-	currRotation = currRotation.Mul3(parentRotation.Inv())
+	currRotation = parentRotation.Inv().Mul3(currRotation)
 
 	curr.Transform.Translation = currTranslation
 	curr.Transform.Rotation = [3][3]float32{currRotation.Row(0), currRotation.Row(1), currRotation.Row(2)}
@@ -583,6 +583,9 @@ func LoadInfo(mainR io.ReadSeeker) (*Info, error) {
 			if err := binary.Read(mainR, binary.LittleEndian, &jointTransforms[i]); err != nil {
 				return nil, err
 			}
+			rotation := jointTransforms[i].Rotation
+			rotationMatrix := mgl32.Mat3FromRows(rotation[0], rotation[1], rotation[2]).Transpose()
+			jointTransforms[i].Rotation = [3][3]float32{rotationMatrix.Row(0), rotationMatrix.Row(1), rotationMatrix.Row(2)}
 		}
 		jointTransformMatrices = make([][4][4]float32, jointListHdr.NumJoints)
 		for i := range jointTransformMatrices {
@@ -607,7 +610,9 @@ func LoadInfo(mainR io.ReadSeeker) (*Info, error) {
 			bones[i].Index = uint32(i)
 			bones[i].ParentIndex = uint32(jointMap[i].Parent)
 			bones[i].Increment = uint32(jointMap[i].Increment)
-			bones[i].Matrix = jointTransformMatrices[i]
+			jtm := jointTransformMatrices[i]
+			matrix := mgl32.Mat4FromRows(jtm[0], jtm[1], jtm[2], jtm[3]).Transpose()
+			bones[i].Matrix = [4][4]float32{matrix.Row(0), matrix.Row(1), matrix.Row(2), matrix.Row(3)}
 			bones[i].NameHash = nameHashes[i]
 			bones[i].Transform = jointTransforms[i]
 			if bones[i].ParentIndex != uint32(i) {
