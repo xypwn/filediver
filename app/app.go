@@ -75,6 +75,10 @@ var ConfigFormat = ConfigTemplate{
 					Type: ConfigValueEnum,
 					Enum: []string{"combined", "split"},
 				},
+				"bones": {
+					Type: ConfigValueEnum,
+					Enum: []string{"disabled", "enabled"},
+				},
 				"image_jpeg": {
 					Type: ConfigValueEnum,
 					Enum: []string{"false", "true"},
