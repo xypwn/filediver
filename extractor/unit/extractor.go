@@ -495,7 +495,7 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions) error {
 			}
 
 			primitive := &gltf.Primitive{
-				Indices: gltf.Index(modeler.WriteIndices(doc, components[k])),
+				Indices: gltf.Index(modeler.WriteIndices(doc, components[i])),
 				Attributes: map[string]uint32{
 					gltf.POSITION:   positions,
 					gltf.TEXCOORD_0: texCoords,
@@ -524,7 +524,7 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions) error {
 				meshNode.Children = append(meshNode.Children, uint32(len(doc.Nodes)-1))
 			} else {
 				meshNode.Mesh = gltf.Index(uint32(len(doc.Meshes) - 1))
-        meshNode.Skin = skin
+				meshNode.Skin = skin
 			}
 		}
 	}
