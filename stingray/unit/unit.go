@@ -36,6 +36,23 @@ type LODGroup struct {
 	}
 }
 
+type SkeletonRemap struct {
+	Unk00   uint32
+	Unk01   uint32
+	Count   uint32
+	Indices []uint32
+}
+
+type SkeletonMap struct {
+	Count uint32
+	// This appears to always be 16?
+	Unk00       uint32
+	BoneIndices []uint32
+	RemapData   SkeletonRemap
+	// Maybe inverse bind matrices?
+	Matrices [][4][4]float32
+}
+
 type JointTransform struct {
 	Rotation    [3][3]float32
 	Translation [3]float32
@@ -209,26 +226,26 @@ type MeshInfo struct {
 }
 
 type Header struct {
-	Unk00                [8]byte
-	Bones                stingray.Hash
-	Unk01                [8]byte
-	UnkHash00            stingray.Hash
-	StateMachine         stingray.Hash
-	Unk02                [8]byte
-	LODGroupListOffset   uint32
-	JointListOffset      uint32
-	UnkOffset01          uint32
-	UnkOffset02          uint32
-	Unk03                [12]byte
-	UnkOffset03          uint32
-	UnkOffset04          uint32
-	Unk04                [4]byte
-	UnkOffset05          uint32
-	MeshLayoutListOffset uint32
-	MeshDataOffset       uint32
-	MeshInfoListOffset   uint32
-	Unk05                [8]byte
-	MaterialListOffset   uint32
+	Unk00                 [8]byte
+	Bones                 stingray.Hash
+	Unk01                 [8]byte
+	UnkHash00             stingray.Hash
+	StateMachine          stingray.Hash
+	Unk02                 [8]byte
+	LODGroupListOffset    uint32
+	JointListOffset       uint32
+	UnkOffset01           uint32
+	UnkOffset02           uint32
+	Unk03                 [12]byte
+	UnkOffset03           uint32
+	UnkOffset04           uint32
+	Unk04                 [4]byte
+	SkeletonMapListOffset uint32
+	MeshLayoutListOffset  uint32
+	MeshDataOffset        uint32
+	MeshInfoListOffset    uint32
+	Unk05                 [8]byte
+	MaterialListOffset    uint32
 }
 
 type Mesh struct {
@@ -243,6 +260,7 @@ type Mesh struct {
 
 type Info struct {
 	LODGroups              []LODGroup
+	SkeletonMaps           []SkeletonMap
 	Bones                  []Bone
 	JointTransformMatrices [][4][4]float32
 	Materials              map[stingray.ThinHash]stingray.Hash
@@ -485,6 +503,68 @@ func LoadInfo(mainR io.ReadSeeker) (*Info, error) {
 		}
 	}
 
+	var skeletonMapList []SkeletonMap
+	if hdr.SkeletonMapListOffset != 0 {
+		if _, err := mainR.Seek(int64(hdr.SkeletonMapListOffset), io.SeekStart); err != nil {
+			return nil, err
+		}
+		var count uint32
+		if err := binary.Read(mainR, binary.LittleEndian, &count); err != nil {
+			return nil, err
+		}
+		skeletonMapOffsets := make([]uint32, count)
+		if err := binary.Read(mainR, binary.LittleEndian, &skeletonMapOffsets); err != nil {
+			return nil, err
+		}
+		skeletonMapList = make([]SkeletonMap, count)
+		for i, skeletonMapOffset := range skeletonMapOffsets {
+			if _, err := mainR.Seek(int64(hdr.SkeletonMapListOffset+skeletonMapOffset), io.SeekStart); err != nil {
+				return nil, err
+			}
+			if err := binary.Read(mainR, binary.LittleEndian, &skeletonMapList[i].Count); err != nil {
+				return nil, err
+			}
+			if err := binary.Read(mainR, binary.LittleEndian, &skeletonMapList[i].Unk00); err != nil {
+				return nil, err
+			}
+			var indicesOffset uint32
+			if err := binary.Read(mainR, binary.LittleEndian, &indicesOffset); err != nil {
+				return nil, err
+			}
+			var remapOffset uint32
+			if err := binary.Read(mainR, binary.LittleEndian, &remapOffset); err != nil {
+				return nil, err
+			}
+			skeletonMapList[i].Matrices = make([][4][4]float32, skeletonMapList[i].Count)
+			if err := binary.Read(mainR, binary.LittleEndian, &skeletonMapList[i].Matrices); err != nil {
+				return nil, err
+			}
+			if _, err := mainR.Seek(int64(hdr.SkeletonMapListOffset+skeletonMapOffset+indicesOffset), io.SeekStart); err != nil {
+				return nil, err
+			}
+			skeletonMapList[i].BoneIndices = make([]uint32, skeletonMapList[i].Count)
+			if err := binary.Read(mainR, binary.LittleEndian, &skeletonMapList[i].BoneIndices); err != nil {
+				return nil, err
+			}
+			if _, err := mainR.Seek(int64(hdr.SkeletonMapListOffset+skeletonMapOffset+remapOffset), io.SeekStart); err != nil {
+				return nil, err
+			}
+			if err := binary.Read(mainR, binary.LittleEndian, &skeletonMapList[i].RemapData.Unk00); err != nil {
+				return nil, err
+			}
+			if err := binary.Read(mainR, binary.LittleEndian, &skeletonMapList[i].RemapData.Unk01); err != nil {
+				return nil, err
+			}
+			if err := binary.Read(mainR, binary.LittleEndian, &skeletonMapList[i].RemapData.Count); err != nil {
+				return nil, err
+			}
+			skeletonMapList[i].RemapData.Indices = make([]uint32, skeletonMapList[i].RemapData.Count)
+			if err := binary.Read(mainR, binary.LittleEndian, &skeletonMapList[i].RemapData.Indices); err != nil {
+				return nil, err
+			}
+		}
+	}
+
 	var jointListHdr JointListHeader
 	var jointTransforms []JointTransform
 	var jointTransformMatrices [][4][4]float32
@@ -667,6 +747,7 @@ func LoadInfo(mainR io.ReadSeeker) (*Info, error) {
 
 	return &Info{
 		LODGroups:              lodGroups,
+		SkeletonMaps:           skeletonMapList,
 		Bones:                  bones,
 		JointTransformMatrices: jointTransformMatrices,
 		Materials:              materialMap,
