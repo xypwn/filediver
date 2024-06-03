@@ -199,15 +199,10 @@ func addSkeleton(doc *gltf.Document, unitInfo *unit.Info, boneInfo *bones.BoneIn
 		bindMatrix = gltfConversionMatrix.Mul4(bindMatrix)
 		row0, row1, row2, row3 := bindMatrix.Inv().Rows()
 		matrices[i] = [4][4]float32{row0, row1, row2, row3}
+		unitInfo.Bones[i].Matrix = bindMatrix
 	}
 
-	for i, index := range unitInfo.SkeletonMaps[0].BoneIndices {
-		skm := unitInfo.SkeletonMaps[0].Matrices[i]
-		bindMatrix := mgl32.Mat4FromRows(skm[0], skm[1], skm[2], skm[3]).Transpose().Inv()
-		bindMatrix = gltfConversionMatrix.Mul4(bindMatrix)
-		row0, row1, row2, row3 := bindMatrix.Inv().Rows()
-		matrices[index] = [4][4]float32{row0, row1, row2, row3}
-	}
+	unitInfo.Bones[0].RecursiveCalcLocalTransforms(&unitInfo.Bones)
 
 	inverseBindMatrices := modeler.WriteAccessor(doc, gltf.TargetArrayBuffer, matrices)
 	jointIndices := make([]uint32, 0)
@@ -215,10 +210,6 @@ func addSkeleton(doc *gltf.Document, unitInfo *unit.Info, boneInfo *bones.BoneIn
 	for i, bone := range unitInfo.Bones {
 		var rot [3][3]float32 = bone.Transform.Rotation
 		quat := mgl32.Mat4ToQuat(mgl32.Mat3FromRows(rot[0], rot[1], rot[2]).Mat4())
-		t := bone.Transform.Translation
-		t[0], t[1], t[2] = t[1], t[2], t[0]
-		s := bone.Transform.Scale
-		//s[0], s[1], s[2] = s[1], s[2], s[0]
 		boneName := fmt.Sprintf("%d:Bone_%08X", i, bone.NameHash.Value)
 		if boneInfo != nil {
 			name, exists := boneInfo.NameMap[bone.NameHash]
@@ -228,9 +219,9 @@ func addSkeleton(doc *gltf.Document, unitInfo *unit.Info, boneInfo *bones.BoneIn
 		}
 		doc.Nodes = append(doc.Nodes, &gltf.Node{
 			Name:        boneName,
-			Rotation:    [4]float32{quat.X(), quat.Y(), quat.Z(), quat.W},
-			Translation: t,
-			Scale:       s,
+			Rotation:    quat.V.Vec4(quat.W),
+			Translation: bone.Transform.Translation,
+			Scale:       bone.Transform.Scale,
 		})
 		boneIdx := uint32(len(doc.Nodes) - 1)
 		jointIndices = append(jointIndices, boneIdx)
