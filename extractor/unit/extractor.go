@@ -442,13 +442,13 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions) error {
 			}
 		}
 
-		boneCfg := ctx.Config()["bones"]
+		bonesEnabled := ctx.Config()["no_bones"] != "true"
 
 		var skin *uint32 = nil
 		var weights uint32 = 0
 		var joints uint32 = 0
 
-		if boneCfg == "enabled" {
+		if bonesEnabled {
 			if len(unitInfo.SkeletonMaps) > 0 {
 				remapMeshBones(&mesh, unitInfo.SkeletonMaps[0])
 			}
@@ -494,7 +494,7 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions) error {
 				Material: material,
 			}
 
-			if boneCfg == "enabled" {
+			if bonesEnabled {
 				primitive.Attributes[gltf.JOINTS_0] = joints
 				primitive.Attributes[gltf.WEIGHTS_0] = weights
 			}

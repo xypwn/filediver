@@ -75,9 +75,9 @@ var ConfigFormat = ConfigTemplate{
 					Type: ConfigValueEnum,
 					Enum: []string{"false", "true"},
 				},
-				"bones": {
+				"no_bones": {
 					Type: ConfigValueEnum,
-					Enum: []string{"disabled", "enabled"},
+					Enum: []string{"false", "true"},
 				},
 				"image_jpeg": {
 					Type: ConfigValueEnum,
