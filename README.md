@@ -66,9 +66,12 @@ Extract the Super Earth anthem as mp3:
 - **Audio**: Audiokinetic wwise bnk/wem; automatically converted to WAV; other formats require FFmpeg
 - **Video**: Bink; automatically converted to MP4 via FFmpeg (shipped with Windows binary)
 - **Textures**: Direct Draw Surface (.dds); automatically converted to PNG
-- **Models (WIP)**: Stingray Unit; automatically converted to GLB (=glTF); can be imported into [Blender](https://www.blender.org/)
+- **Models (WIP)**: Stingray Unit; automatically converted to GLB (=glTF); can be imported into [Blender](https://www.blender.org/); for importing bones, see [Importing Bones](#importing-bones)
 
-Planned: bones, animations
+Planned: animations
+
+### Importing Bones
+When importing the .glb into blender, you need to change the "Bone Dir" option from "Blender" to "Temperance", or you will see huge spheres for bones.
 
 ## Credits/Links
 This app builds on a lot of work from other people. This includes:
