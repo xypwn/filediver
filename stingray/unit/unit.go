@@ -54,9 +54,9 @@ type SkeletonMap struct {
 }
 
 type JointTransform struct {
-	Rotation    [3][3]float32
-	Translation [3]float32
-	Scale       [3]float32
+	Rotation    mgl32.Mat3
+	Translation mgl32.Vec3
+	Scale       mgl32.Vec3
 	Skew        float32
 }
 
@@ -98,12 +98,9 @@ func (curr *Bone) RecursiveCalcLocalTransforms(bones *[]Bone) {
 func (curr *Bone) setTransforms(matrix mgl32.Mat4) {
 	curr.Transform.Translation = matrix.Col(3).Vec3()
 	mat3 := matrix.Mat3()
-	curr.Transform.Scale = [3]float32{mat3.Row(0).Len(), mat3.Row(1).Len(), mat3.Row(2).Len()}
-	curr.Transform.Rotation = [3][3]float32{
-		mat3.Row(0).Mul(1 / curr.Transform.Scale[0]),
-		mat3.Row(1).Mul(1 / curr.Transform.Scale[1]),
-		mat3.Row(2).Mul(1 / curr.Transform.Scale[2]),
-	}
+	curr.Transform.Scale = mgl32.Vec3{mat3.Row(0).Len(), mat3.Row(1).Len(), mat3.Row(2).Len()}
+	invScale := mgl32.Vec3{1 / curr.Transform.Scale[0], 1 / curr.Transform.Scale[1], 1 / curr.Transform.Scale[1]}
+	curr.Transform.Rotation = mat3.Mul3(mgl32.Diag3(invScale))
 }
 
 type MeshLayoutItemType uint32
@@ -589,9 +586,6 @@ func LoadInfo(mainR io.ReadSeeker) (*Info, error) {
 			if err := binary.Read(mainR, binary.LittleEndian, &jointTransforms[i]); err != nil {
 				return nil, err
 			}
-			rotation := jointTransforms[i].Rotation
-			rotationMatrix := mgl32.Mat3FromRows(rotation[0], rotation[1], rotation[2]).Transpose()
-			jointTransforms[i].Rotation = [3][3]float32{rotationMatrix.Row(0), rotationMatrix.Row(1), rotationMatrix.Row(2)}
 		}
 		jointTransformMatrices = make([][4][4]float32, jointListHdr.NumJoints)
 		for i := range jointTransformMatrices {

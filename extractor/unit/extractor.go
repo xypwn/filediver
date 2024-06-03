@@ -208,8 +208,7 @@ func addSkeleton(doc *gltf.Document, unitInfo *unit.Info, boneInfo *bones.BoneIn
 	jointIndices := make([]uint32, 0)
 	boneBaseIndex := uint32(len(doc.Nodes))
 	for i, bone := range unitInfo.Bones {
-		var rot [3][3]float32 = bone.Transform.Rotation
-		quat := mgl32.Mat4ToQuat(mgl32.Mat3FromRows(rot[0], rot[1], rot[2]).Mat4())
+		quat := mgl32.Mat4ToQuat(bone.Transform.Rotation.Mat4())
 		boneName := fmt.Sprintf("%d:Bone_%08X", i, bone.NameHash.Value)
 		if boneInfo != nil {
 			name, exists := boneInfo.NameMap[bone.NameHash]
