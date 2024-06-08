@@ -182,7 +182,7 @@ func remapMeshBones(mesh *unit.Mesh, mapping unit.SkeletonMap) {
 	for i := range mesh.BoneIndices {
 		for j := range mesh.BoneIndices[i] {
 			if mesh.BoneWeights[i][j] > 0 {
-				remapIndex := mapping.RemapData.Indices[mesh.BoneIndices[i][j]]
+				remapIndex := mapping.RemapList[0][mesh.BoneIndices[i][j]]
 				mesh.BoneIndices[i][j] = uint8(mapping.BoneIndices[remapIndex])
 			}
 		}
