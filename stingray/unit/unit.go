@@ -36,21 +36,16 @@ type LODGroup struct {
 	}
 }
 
-type SkeletonRemap struct {
-	Unk00   uint32
-	Unk01   uint32
-	Count   uint32
-	Indices []uint32
+type RemapItem struct {
+	IndexDataOffset uint32
+	IndexCount      uint32
 }
 
 type SkeletonMap struct {
-	Count uint32
-	// This appears to always be 16?
-	Unk00       uint32
+	Count       uint32
+	Matrices    [][4][4]float32
 	BoneIndices []uint32
-	RemapData   SkeletonRemap
-	// Maybe inverse bind matrices?
-	Matrices [][4][4]float32
+	RemapList   [][]uint32
 }
 
 type JointTransform struct {
@@ -214,12 +209,12 @@ type MeshHeader struct {
 }
 
 type MeshGroup struct {
-	Unk00        [4]byte
-	VertexOffset uint32
-	NumVertices  uint32
-	IndexOffset  uint32
-	NumIndices   uint32
-	Unk01        [4]byte
+	GroupIdx       uint32
+	VertexOffset   uint32
+	NumVertices    uint32
+	IndexOffset    uint32
+	NumIndices     uint32
+	RepeatGroupIdx uint32
 }
 
 type MeshInfo struct {
@@ -527,7 +522,8 @@ func LoadInfo(mainR io.ReadSeeker) (*Info, error) {
 			if err := binary.Read(mainR, binary.LittleEndian, &skeletonMapList[i].Count); err != nil {
 				return nil, err
 			}
-			if err := binary.Read(mainR, binary.LittleEndian, &skeletonMapList[i].Unk00); err != nil {
+			var matricesOffset uint32
+			if err := binary.Read(mainR, binary.LittleEndian, &matricesOffset); err != nil {
 				return nil, err
 			}
 			var indicesOffset uint32
@@ -536,6 +532,9 @@ func LoadInfo(mainR io.ReadSeeker) (*Info, error) {
 			}
 			var remapOffset uint32
 			if err := binary.Read(mainR, binary.LittleEndian, &remapOffset); err != nil {
+				return nil, err
+			}
+			if _, err := mainR.Seek(int64(hdr.SkeletonMapListOffset+skeletonMapOffset+matricesOffset), io.SeekStart); err != nil {
 				return nil, err
 			}
 			skeletonMapList[i].Matrices = make([][4][4]float32, skeletonMapList[i].Count)
@@ -552,18 +551,23 @@ func LoadInfo(mainR io.ReadSeeker) (*Info, error) {
 			if _, err := mainR.Seek(int64(hdr.SkeletonMapListOffset+skeletonMapOffset+remapOffset), io.SeekStart); err != nil {
 				return nil, err
 			}
-			if err := binary.Read(mainR, binary.LittleEndian, &skeletonMapList[i].RemapData.Unk00); err != nil {
+			var remapListCount uint32
+			if err := binary.Read(mainR, binary.LittleEndian, &remapListCount); err != nil {
 				return nil, err
 			}
-			if err := binary.Read(mainR, binary.LittleEndian, &skeletonMapList[i].RemapData.Unk01); err != nil {
+			var remapListItems []RemapItem = make([]RemapItem, remapListCount)
+			if err := binary.Read(mainR, binary.LittleEndian, &remapListItems); err != nil {
 				return nil, err
 			}
-			if err := binary.Read(mainR, binary.LittleEndian, &skeletonMapList[i].RemapData.Count); err != nil {
-				return nil, err
-			}
-			skeletonMapList[i].RemapData.Indices = make([]uint32, skeletonMapList[i].RemapData.Count)
-			if err := binary.Read(mainR, binary.LittleEndian, &skeletonMapList[i].RemapData.Indices); err != nil {
-				return nil, err
+			skeletonMapList[i].RemapList = make([][]uint32, remapListCount)
+			for j := range remapListItems {
+				skeletonMapList[i].RemapList[j] = make([]uint32, remapListItems[j].IndexCount)
+				if _, err := mainR.Seek(int64(hdr.SkeletonMapListOffset+skeletonMapOffset+remapOffset+remapListItems[j].IndexDataOffset), io.SeekStart); err != nil {
+					return nil, err
+				}
+				if err := binary.Read(mainR, binary.LittleEndian, &skeletonMapList[i].RemapList[j]); err != nil {
+					return nil, err
+				}
 			}
 		}
 	}
