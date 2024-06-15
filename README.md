@@ -90,6 +90,6 @@ Some useful discussion on the topic of HD2 resource extraction: https://reshax.c
 - `go run ./cmd/filediver-cli`
 
 ## License
-Copyright (c) Darwin Schuppan
+Copyright (c) Darwin Schuppan and contributors
 
 FileDiver is licensed under the 3-Clause BSD License (https://opensource.org/license/bsd-3-clause).
