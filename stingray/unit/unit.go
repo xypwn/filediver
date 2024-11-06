@@ -381,7 +381,7 @@ func loadMesh(gpuR io.ReadSeeker, info MeshInfo, layout MeshLayout) (Mesh, error
 							val[i] = float32(tmp[i]) / 255.0
 						}
 					default:
-						return Mesh{}, fmt.Errorf("expected bone index item to have format [4]float16 or [4]uint8, but got: %v", item.Format.String())
+						return Mesh{}, fmt.Errorf("expected bone weight item to have format [4]float16 or [4]uint8, but got: %v", item.Format.String())
 					}
 					mesh.BoneWeights = append(mesh.BoneWeights, val)
 				case ItemBoneIdx:
