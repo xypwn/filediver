@@ -178,15 +178,19 @@ func loadBoneMap(ctx extractor.Context) (*bones.BoneInfo, error) {
 	return boneInfo, err
 }
 
-func remapMeshBones(mesh *unit.Mesh, mapping unit.SkeletonMap) {
+func remapMeshBones(mesh *unit.Mesh, mapping unit.SkeletonMap) error {
 	for i := range mesh.BoneIndices {
 		for j := range mesh.BoneIndices[i] {
+			if int(mesh.BoneIndices[i][j]) >= len(mapping.RemapList[0]) {
+				return fmt.Errorf("remapMeshBones: remap list item out of bounds")
+			}
 			if mesh.BoneWeights[i][j] > 0 {
 				remapIndex := mapping.RemapList[0][mesh.BoneIndices[i][j]]
 				mesh.BoneIndices[i][j] = uint8(mapping.BoneIndices[remapIndex])
 			}
 		}
 	}
+	return nil
 }
 
 // Adds the unit's skeleton to the gltf document
@@ -450,7 +454,9 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions) error {
 
 		if bonesEnabled {
 			if len(unitInfo.SkeletonMaps) > 0 {
-				remapMeshBones(&mesh, unitInfo.SkeletonMaps[0])
+				if err := remapMeshBones(&mesh, unitInfo.SkeletonMaps[0]); err != nil {
+					return err
+				}
 			}
 			skin = gltf.Index(addSkeleton(doc, unitInfo, boneInfo))
 			weights = modeler.WriteWeights(doc, mesh.BoneWeights)
