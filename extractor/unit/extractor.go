@@ -179,14 +179,22 @@ func loadBoneMap(ctx extractor.Context) (*bones.BoneInfo, error) {
 }
 
 func remapMeshBones(mesh *unit.Mesh, mapping unit.SkeletonMap) error {
-	for i := range mesh.BoneIndices {
-		for j := range mesh.BoneIndices[i] {
-			if int(mesh.BoneIndices[i][j]) >= len(mapping.RemapList[0]) {
-				return fmt.Errorf("remapMeshBones: remap list item out of bounds")
+	var remappedIndices map[uint32]bool = make(map[uint32]bool)
+	for component := range mesh.Indices {
+		for _, index := range mesh.Indices[component] {
+			if _, contains := remappedIndices[index]; contains {
+				continue
 			}
-			if mesh.BoneWeights[i][j] > 0 {
-				remapIndex := mapping.RemapList[0][mesh.BoneIndices[i][j]]
-				mesh.BoneIndices[i][j] = uint8(mapping.BoneIndices[remapIndex])
+			for layer := range mesh.BoneIndices {
+				for j := range mesh.BoneIndices[layer][index] {
+					if mesh.BoneWeights[index][j] > 0 {
+						boneIndex := mesh.BoneIndices[layer][index][j]
+						remapList := mapping.RemapList[component]
+						remapIndex := remapList[boneIndex]
+						mesh.BoneIndices[layer][index][j] = uint8(mapping.BoneIndices[remapIndex])
+						remappedIndices[index] = true
+					}
+				}
 			}
 		}
 	}
@@ -194,9 +202,9 @@ func remapMeshBones(mesh *unit.Mesh, mapping unit.SkeletonMap) error {
 }
 
 // Adds the unit's skeleton to the gltf document
-func addSkeleton(doc *gltf.Document, unitInfo *unit.Info, boneInfo *bones.BoneInfo) uint32 {
+func addSkeleton(ctx extractor.Context, doc *gltf.Document, unitInfo *unit.Info, boneInfo *bones.BoneInfo) uint32 {
 	var matrices [][4][4]float32 = make([][4][4]float32, len(unitInfo.JointTransformMatrices))
-	gltfConversionMatrix := mgl32.HomogRotate3DX(mgl32.DegToRad(-90.0)).Mul4(mgl32.HomogRotate3DZ(mgl32.DegToRad(-90.0)))
+	gltfConversionMatrix := mgl32.HomogRotate3DX(mgl32.DegToRad(-90.0)).Mul4(mgl32.HomogRotate3DZ(mgl32.DegToRad(0)))
 	for i := range matrices {
 		jtm := unitInfo.JointTransformMatrices[i]
 		bindMatrix := mgl32.Mat4FromRows(jtm[0], jtm[1], jtm[2], jtm[3]).Transpose()
@@ -208,16 +216,16 @@ func addSkeleton(doc *gltf.Document, unitInfo *unit.Info, boneInfo *bones.BoneIn
 
 	unitInfo.Bones[0].RecursiveCalcLocalTransforms(&unitInfo.Bones)
 
-	inverseBindMatrices := modeler.WriteAccessor(doc, gltf.TargetArrayBuffer, matrices)
+	inverseBindMatrices := modeler.WriteAccessor(doc, gltf.TargetNone, matrices)
 	jointIndices := make([]uint32, 0)
 	boneBaseIndex := uint32(len(doc.Nodes))
-	for i, bone := range unitInfo.Bones {
+	for _, bone := range unitInfo.Bones {
 		quat := mgl32.Mat4ToQuat(bone.Transform.Rotation.Mat4())
-		boneName := fmt.Sprintf("%d:Bone_%08X", i, bone.NameHash.Value)
+		boneName := fmt.Sprintf("Bone_%08X", bone.NameHash.Value)
 		if boneInfo != nil {
 			name, exists := boneInfo.NameMap[bone.NameHash]
 			if exists {
-				boneName = fmt.Sprintf("%d:%s", i, name)
+				boneName = name
 			}
 		}
 		doc.Nodes = append(doc.Nodes, &gltf.Node{
@@ -233,8 +241,10 @@ func addSkeleton(doc *gltf.Document, unitInfo *unit.Info, boneInfo *bones.BoneIn
 			doc.Nodes[parentIndex].Children = append(doc.Nodes[parentIndex].Children, boneIdx)
 		}
 	}
+	doc.Scenes[0].Nodes = append(doc.Scenes[0].Nodes, boneBaseIndex)
 
 	doc.Skins = append(doc.Skins, &gltf.Skin{
+		Name:                ctx.File().ID().Name.String(),
 		InverseBindMatrices: gltf.Index(inverseBindMatrices),
 		Joints:              jointIndices,
 	})
@@ -258,6 +268,9 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions) error {
 	}
 
 	boneInfo, _ := loadBoneMap(ctx)
+	if boneInfo == nil {
+		boneInfo, _ = bones.PlayerBones()
+	}
 
 	unitInfo, err := unit.LoadInfo(fMain)
 	if err != nil {
@@ -386,14 +399,12 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions) error {
 			if highestDetailIdx != -1 {
 				meshesToLoad = entries[highestDetailIdx].Indices
 			}
+		} else {
+			for i := uint32(0); i < unitInfo.NumMeshes; i++ {
+				meshesToLoad = append(meshesToLoad, i)
+			}
 		}
 	}
-
-	rootNode := &gltf.Node{
-		Name: ctx.File().ID().Name.String(),
-	}
-	doc.Nodes = append(doc.Nodes, rootNode)
-	doc.Scenes[0].Nodes = append(doc.Scenes[0].Nodes, uint32(len(doc.Nodes)-1))
 
 	// Load meshes
 	meshes, err := unit.LoadMeshes(fGPU, unitInfo, meshesToLoad)
@@ -413,30 +424,8 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions) error {
 		// Transform coordinates into glTF ones
 		for i := range mesh.Positions {
 			p := mesh.Positions[i]
-			p[0], p[1], p[2] = p[1], p[2], p[0]
+			p[1], p[2] = p[2], -p[1]
 			mesh.Positions[i] = p
-		}
-
-		// Components of the model (damage states, separate parts, etc) seem to be distinguished by their
-		// UV coordinates. The range appears to be [0, 32), so theoretically there could be
-		// 1024 components in a mesh.
-		//    - a charger's intact head has UV coords of (8.x, 0.x), while the destroyed head
-		//      has UV coords of (9.x, 0.x)
-		//    - a bile titan's undamaged front left leg has UV coords of (31.X, 0.X), and its damaged
-		//      front left leg has UV coords of (0.x, 1.x)
-		var components map[uint32][]uint32 = make(map[uint32][]uint32)
-		if ctx.Config()["join_components"] == "true" {
-			key := uint32(0)
-			components[key] = append(components[key], mesh.Indices...)
-		} else {
-			for i := range mesh.Indices {
-				uv := mesh.UVCoords[mesh.Indices[i]]
-				key := uint32(uv[0]) + (uint32(uv[1]) << 5)
-				if uv[1] < 0 {
-					key = uint32(uv[0]) + (uint32((-uv[1])+1) << 5)
-				}
-				components[key] = append(components[key], mesh.Indices[i])
-			}
 		}
 
 		var material *uint32
@@ -450,21 +439,26 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions) error {
 
 		var skin *uint32 = nil
 		var weights uint32 = 0
-		var joints uint32 = 0
+		var joints []uint32 = make([]uint32, len(mesh.BoneIndices))
 
 		if bonesEnabled {
-			if len(unitInfo.SkeletonMaps) > 0 {
-				if err := remapMeshBones(&mesh, unitInfo.SkeletonMaps[0]); err != nil {
+			if len(unitInfo.SkeletonMaps) > 0 && mesh.Info.Header.SkeletonMapIdx >= 0 {
+				if err := remapMeshBones(&mesh, unitInfo.SkeletonMaps[mesh.Info.Header.SkeletonMapIdx]); err != nil {
 					return err
 				}
 			}
-			skin = gltf.Index(addSkeleton(doc, unitInfo, boneInfo))
+			skin = gltf.Index(addSkeleton(ctx, doc, unitInfo, boneInfo))
 			weights = modeler.WriteWeights(doc, mesh.BoneWeights)
-			joints = modeler.WriteJoints(doc, mesh.BoneIndices)
+			for i := range mesh.BoneIndices {
+				joints[i] = modeler.WriteJoints(doc, mesh.BoneIndices[i])
+			}
 		}
 
 		positions := modeler.WritePosition(doc, mesh.Positions)
-		texCoords := modeler.WriteTextureCoord(doc, mesh.UVCoords)
+		var texCoords []uint32 = make([]uint32, len(mesh.UVCoords))
+		for i := range mesh.UVCoords {
+			texCoords[i] = modeler.WriteTextureCoord(doc, mesh.UVCoords[i])
+		}
 		var lodName string
 		var meshNode *gltf.Node
 		if len(meshesToLoad) > 1 {
@@ -473,13 +467,15 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions) error {
 				Name: lodName,
 			}
 			doc.Nodes = append(doc.Nodes, meshNode)
-			rootNode.Children = append(rootNode.Children, uint32(len(doc.Nodes)-1))
+			doc.Scenes[0].Nodes = append(doc.Scenes[0].Nodes, uint32(len(doc.Nodes)-1))
 		} else {
-			meshNode = rootNode
+			meshNode = &gltf.Node{
+				Name: ctx.File().ID().Name.String(),
+			}
 		}
-		for i := range components {
+		for i := range mesh.Indices {
 			var componentName string
-			if len(components) > 1 {
+			if len(mesh.Indices) > 1 {
 				componentName = fmt.Sprintf("Component %v", i)
 			}
 			if lodName != "" {
@@ -491,18 +487,24 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions) error {
 			}
 
 			primitive := &gltf.Primitive{
-				Indices: gltf.Index(modeler.WriteIndices(doc, components[i])),
+				Indices: gltf.Index(modeler.WriteIndices(doc, mesh.Indices[i])),
 				Attributes: map[string]uint32{
-					gltf.POSITION:   positions,
-					gltf.TEXCOORD_0: texCoords,
+					gltf.POSITION: positions,
+					//gltf.TEXCOORD_0: texCoords,
 					//gltf.COLOR_0:    modeler.WriteColor(doc, mesh.Colors),
 				},
 				Material: material,
 			}
 
 			if bonesEnabled {
-				primitive.Attributes[gltf.JOINTS_0] = joints
-				primitive.Attributes[gltf.WEIGHTS_0] = weights
+				for j := range joints {
+					primitive.Attributes[fmt.Sprintf("JOINTS_%v", j)] = joints[j]
+					primitive.Attributes[fmt.Sprintf("WEIGHTS_%v", j)] = weights
+				}
+			}
+
+			for j := range texCoords {
+				primitive.Attributes[fmt.Sprintf("TEXCOORD_%v", j)] = texCoords[j]
 			}
 
 			doc.Meshes = append(doc.Meshes, &gltf.Mesh{
@@ -511,13 +513,13 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions) error {
 					primitive,
 				},
 			})
-			if len(components) > 1 {
+			if len(mesh.Indices) > 1 {
 				doc.Nodes = append(doc.Nodes, &gltf.Node{
 					Name: componentName,
 					Mesh: gltf.Index(uint32(len(doc.Meshes) - 1)),
 					Skin: skin,
 				})
-				meshNode.Children = append(meshNode.Children, uint32(len(doc.Nodes)-1))
+				doc.Scenes[0].Nodes = append(doc.Scenes[0].Nodes, uint32(len(doc.Nodes)-1))
 			} else {
 				meshNode.Mesh = gltf.Index(uint32(len(doc.Meshes) - 1))
 				meshNode.Skin = skin
