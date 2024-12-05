@@ -228,7 +228,7 @@ type MeshHeader struct {
 	UnkInt00       uint32
 	UnkHash        stingray.ThinHash
 	UnkInt01       uint32
-	UnkInt02       uint32
+	TransformIdx   uint32
 	UnkInt03       uint32
 	SkeletonMapIdx int32
 	LayoutIdx      int32

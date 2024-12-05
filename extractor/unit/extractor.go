@@ -190,6 +190,12 @@ func remapMeshBones(mesh *unit.Mesh, mapping unit.SkeletonMap) error {
 					if mesh.BoneWeights[index][j] > 0 {
 						boneIndex := mesh.BoneIndices[layer][index][j]
 						remapList := mapping.RemapList[component]
+						if int(boneIndex) >= len(remapList) {
+							if layer > 0 {
+								break
+							}
+							return fmt.Errorf("vertex %v has boneIndex exceeding remapList length", index)
+						}
 						remapIndex := remapList[boneIndex]
 						mesh.BoneIndices[layer][index][j] = uint8(mapping.BoneIndices[remapIndex])
 						remappedIndices[index] = true
@@ -419,6 +425,19 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions) error {
 		mesh := meshes[meshID]
 		if len(mesh.UVCoords) == 0 {
 			continue
+		}
+
+		// Apply vertex transform
+		transform := unitInfo.Bones[mesh.Info.Header.TransformIdx].Transform
+		transformMatrix := mgl32.Scale3D(transform.Scale.Elem()).Mul4(transform.Rotation.Mat4()).Mul4(mgl32.Translate3D(transform.Translation.Elem()))
+		// If translation, rotation, and scale are not identities, apply transform to all vertices
+		if !(transformMatrix.ApproxEqual(mgl32.Ident4())) {
+			// Apply transformations
+			for i := range mesh.Positions {
+				p := mgl32.Vec3(mesh.Positions[i])
+				p = transformMatrix.Mul4x1(p.Vec4(1)).Vec3()
+				mesh.Positions[i] = p
+			}
 		}
 
 		// Transform coordinates into glTF ones
