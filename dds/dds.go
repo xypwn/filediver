@@ -17,6 +17,70 @@ type Info struct {
 	NumImages   int
 }
 
+func StackLayers(origTex *DDS) *DDS {
+	var img image.Image
+	var pxBuf []uint8
+	width, height := origTex.Bounds().Dx(), len(origTex.Images)*origTex.Bounds().Dy()
+	switch origTex.Info.ColorModel {
+	case color.GrayModel:
+		newImg := image.NewGray(image.Rect(0, 0, width, height))
+		pxBuf = newImg.Pix
+		img = newImg
+	case color.Gray16Model:
+		newImg := image.NewGray16(image.Rect(0, 0, width, height))
+		pxBuf = newImg.Pix
+		img = newImg
+	case color.NRGBAModel:
+		newImg := image.NewNRGBA(image.Rect(0, 0, width, height))
+		pxBuf = newImg.Pix
+		img = newImg
+	case color.NRGBA64Model:
+		newImg := image.NewNRGBA64(image.Rect(0, 0, width, height))
+		pxBuf = newImg.Pix
+		img = newImg
+	}
+	offset := 0
+	for _, layer := range origTex.Images {
+		if layer.Bounds().Dx() != img.Bounds().Dx() {
+			continue
+		}
+		var layerPxBuf []uint8
+		switch layer.ColorModel() {
+		case color.GrayModel:
+			m, _ := layer.Image.(*image.Gray)
+			layerPxBuf = m.Pix
+		case color.Gray16Model:
+			m, _ := layer.Image.(*image.Gray16)
+			layerPxBuf = m.Pix
+		case color.NRGBAModel:
+			m, _ := layer.Image.(*image.NRGBA)
+			layerPxBuf = m.Pix
+		case color.NRGBA64Model:
+			m, _ := layer.Image.(*image.NRGBA64)
+			layerPxBuf = m.Pix
+		}
+		fmt.Printf("offset %v\n", offset)
+		offset += copy(pxBuf[offset:], layerPxBuf[:])
+	}
+
+	mipMaps := make([]*DDSMipMap, 1)
+	mipMaps[0] = &DDSMipMap{
+		Image:  img,
+		Width:  width,
+		Height: height,
+	}
+	images := make([]*DDSImage, 1)
+	images[0] = &DDSImage{
+		Image:   img,
+		MipMaps: mipMaps,
+	}
+
+	return &DDS{
+		Image:  img,
+		Images: images,
+	}
+}
+
 func DecodeInfo(r io.Reader) (Info, error) {
 	hdr, err := DecodeHeader(r)
 	if err != nil {
@@ -132,6 +196,11 @@ func DecodeInfo(r io.Reader) (Info, error) {
 	}
 
 	info.NumImages = 1
+
+	if info.DXT10Header != nil {
+		info.NumImages = int(info.DXT10Header.ArraySize)
+	}
+
 	if cubemap {
 		info.NumImages = 0
 		if hdr.Caps2&Caps2CubemapPlusX != 0 {
@@ -213,7 +282,7 @@ func Decode(r io.Reader, readMipMaps bool) (*DDS, error) {
 	}
 
 	mipMapsToRead := 1
-	if readMipMaps {
+	if readMipMaps || info.NumImages > 1 {
 		mipMapsToRead = info.NumMipMaps
 	}
 
