@@ -5,6 +5,7 @@ import (
 	"image/png"
 	"io"
 
+	"github.com/xypwn/filediver/dds"
 	"github.com/xypwn/filediver/extractor"
 	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/stingray/unit/texture"
@@ -34,9 +35,14 @@ func ExtractDDS(ctx extractor.Context) error {
 }
 
 func ConvertToPNG(ctx extractor.Context) error {
-	tex, err := texture.Decode(ctx.Ctx(), ctx.File(), false)
+	origTex, err := texture.Decode(ctx.Ctx(), ctx.File(), false)
 	if err != nil {
 		return err
+	}
+
+	tex := origTex
+	if len(origTex.Images) > 1 {
+		tex = dds.StackLayers(origTex)
 	}
 
 	out, err := ctx.CreateFile(".png")
