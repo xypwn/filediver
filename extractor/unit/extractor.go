@@ -16,6 +16,7 @@ import (
 
 	"github.com/go-gl/mathgl/mgl32"
 
+	"github.com/xypwn/filediver/dds"
 	"github.com/xypwn/filediver/extractor"
 	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/stingray/bones"
@@ -121,6 +122,10 @@ func writeTexture(ctx extractor.Context, doc *gltf.Document, id stingray.Hash, p
 	tex, err := texture.Decode(ctx.Ctx(), file, false)
 	if err != nil {
 		return 0, err
+	}
+
+	if len(tex.Images) > 1 {
+		tex = dds.StackLayers(tex)
 	}
 
 	if postProcess != nil {
