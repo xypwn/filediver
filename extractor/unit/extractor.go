@@ -9,6 +9,7 @@ import (
 	"image/png"
 	"io"
 	"math"
+	"slices"
 	"strconv"
 
 	"github.com/qmuntal/gltf"
@@ -543,15 +544,34 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions) error {
 		}
 
 		// Apply vertex transform
-		transform := unitInfo.Bones[mesh.Info.Header.TransformIdx].Transform
-		transformMatrix := mgl32.Scale3D(transform.Scale.Elem()).Mul4(transform.Rotation.Mat4()).Mul4(mgl32.Translate3D(transform.Translation.Elem()))
-		// If translation, rotation, and scale are not identities, apply transform to all vertices
-		if !(transformMatrix.ApproxEqual(mgl32.Ident4())) {
+		transformBoneIdx := mesh.Info.Header.TransformIdx
+		parentIdx := -1
+		for boneIdx, bone := range unitInfo.Bones {
+			if bone.NameHash == stingray.Sum64([]byte("game_mesh")).Thin() {
+				parentIdx = int(boneIdx)
+			}
+			if bone.ParentIndex == uint32(parentIdx) {
+				transformBoneIdx = uint32(boneIdx)
+			}
+		}
+		transformMatrix := unitInfo.Bones[transformBoneIdx].Matrix
+		// If translation, rotation, and scale are identities, use the TransformIndex instead
+		if transformMatrix.ApproxEqual(mgl32.Ident4()) {
+			transformMatrix = unitInfo.Bones[mesh.Info.Header.TransformIdx].Matrix
+		}
+		if !transformMatrix.ApproxEqual(mgl32.Ident4()) {
 			// Apply transformations
 			for i := range mesh.Positions {
 				p := mgl32.Vec3(mesh.Positions[i])
 				p = transformMatrix.Mul4x1(p.Vec4(1)).Vec3()
 				mesh.Positions[i] = p
+			}
+			if transformMatrix.Det() < 0 {
+				// If the matrix flips the vertices, we need to flip the normals
+				// Reversing the indices accomplishes this task
+				for i := range mesh.Indices {
+					slices.Reverse(mesh.Indices[i])
+				}
 			}
 		}
 
