@@ -128,24 +128,24 @@ func (v MeshLayoutItemType) String() string {
 type MeshLayoutItemFormat uint32
 
 const (
-	FormatF32       MeshLayoutItemFormat = 0
-	FormatVec2F     MeshLayoutItemFormat = 1
-	FormatVec3F     MeshLayoutItemFormat = 2
-	FormatVec4F     MeshLayoutItemFormat = 3
-	FormatU32       MeshLayoutItemFormat = 17
-	FormatVec2U32   MeshLayoutItemFormat = 18
-	FormatVec3U32   MeshLayoutItemFormat = 19
-	FormatVec4U32   MeshLayoutItemFormat = 20
-	FormatS8        MeshLayoutItemFormat = 21
-	FormatVec2S8    MeshLayoutItemFormat = 22
-	FormatVec3S8    MeshLayoutItemFormat = 23
-	FormatVec4S8    MeshLayoutItemFormat = 24
-	FormatVec4Norm8 MeshLayoutItemFormat = 25
-	FormatVec4U8    MeshLayoutItemFormat = 26
-	FormatF16       MeshLayoutItemFormat = 28
-	FormatVec2F16   MeshLayoutItemFormat = 29
-	FormatVec3F16   MeshLayoutItemFormat = 30
-	FormatVec4F16   MeshLayoutItemFormat = 31
+	FormatF32          MeshLayoutItemFormat = 0
+	FormatVec2F        MeshLayoutItemFormat = 1
+	FormatVec3F        MeshLayoutItemFormat = 2
+	FormatVec4F        MeshLayoutItemFormat = 3
+	FormatU32          MeshLayoutItemFormat = 17
+	FormatVec2U32      MeshLayoutItemFormat = 18
+	FormatVec3U32      MeshLayoutItemFormat = 19
+	FormatVec4U32      MeshLayoutItemFormat = 20
+	FormatS8           MeshLayoutItemFormat = 21
+	FormatVec2S8       MeshLayoutItemFormat = 22
+	FormatVec3S8       MeshLayoutItemFormat = 23
+	FormatVec4S8       MeshLayoutItemFormat = 24
+	FormatVec4Packed32 MeshLayoutItemFormat = 25
+	FormatVec4U8       MeshLayoutItemFormat = 26
+	FormatF16          MeshLayoutItemFormat = 28
+	FormatVec2F16      MeshLayoutItemFormat = 29
+	FormatVec3F16      MeshLayoutItemFormat = 30
+	FormatVec4F16      MeshLayoutItemFormat = 31
 )
 
 func (v MeshLayoutItemFormat) String() string {
@@ -174,8 +174,8 @@ func (v MeshLayoutItemFormat) String() string {
 		return "[3]int8"
 	case FormatVec4S8:
 		return "[4]int8"
-	case FormatVec4Norm8:
-		return "[4]uint8"
+	case FormatVec4Packed32:
+		return "packed32"
 	case FormatVec4U8:
 		return "[4]uint8"
 	case FormatF16:
@@ -419,14 +419,18 @@ func loadMesh(gpuR io.ReadSeeker, info MeshInfo, layout MeshLayout) (Mesh, error
 					for i := range tmp {
 						val[i] = float16.Frombits(tmp[i]).Float32()
 					}
-				case FormatVec4Norm8:
-					var tmp [4]uint8
+				case FormatVec4Packed32:
+					var tmp uint32
 					if err := binary.Read(gpuR, binary.LittleEndian, &tmp); err != nil {
 						return Mesh{}, err
 					}
-					for i := range tmp {
-						val[i] = float32(tmp[i]) / 255.0
-					}
+					// for i := range tmp {
+					// 	val[i] = float32(tmp[i]) / 255.0
+					// }
+					val[0] = float32(tmp&0x3ff) / 1023.0
+					val[1] = float32((tmp>>10)&0x3ff) / 1023.0
+					val[2] = float32((tmp>>20)&0x3ff) / 1023.0
+					val[3] = 0.0
 				case FormatVec2F16:
 					var tmp [2]uint16
 					if err := binary.Read(gpuR, binary.LittleEndian, &tmp); err != nil {
