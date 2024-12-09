@@ -59,7 +59,6 @@ func StackLayers(origTex *DDS) *DDS {
 			m, _ := layer.Image.(*image.NRGBA64)
 			layerPxBuf = m.Pix
 		}
-		fmt.Printf("offset %v\n", offset)
 		offset += copy(pxBuf[offset:], layerPxBuf[:])
 	}
 
