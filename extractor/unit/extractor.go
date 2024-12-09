@@ -166,10 +166,13 @@ const (
 	AlbedoIridescence                     TextureUsage = 0xff2c91cc //stingray.Sum64([]byte("albedo_iridescence")).Thin()
 	Albedo                                TextureUsage = 0xac652e43
 	Normal                                TextureUsage = 0xcaed6cd6
+	MRA                                   TextureUsage = 0x756f6fa6
+	EmissiveColor                         TextureUsage = 0xc985395a
 	BaseData                              TextureUsage = 0xc2eb8d6e
 	MaterialLUT                           TextureUsage = 0x7e662968
 	PatternLUT                            TextureUsage = 0x81d4c49d
 	CompositeArray                        TextureUsage = 0xa17b45a8
+	LensCutoutTexture                     TextureUsage = 0x89bbcec2
 	BloodSplatterTiler                    TextureUsage = 0x30e2d136
 	WeatheringSpecial                     TextureUsage = 0xd2f99d38
 	WeatheringDirt                        TextureUsage = 0x6834aa9b
@@ -223,7 +226,11 @@ func (usage *TextureUsage) String() string {
 func addMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Document, imgOpts *ImageOptions) (uint32, error) {
 	usedTextures := make(map[TextureUsage]uint32)
 	var baseColorTexture *gltf.TextureInfo
+	var metallicRoughnessTexture *gltf.TextureInfo
+	var emissiveTexture *gltf.TextureInfo
 	var normalTexture *gltf.NormalTexture
+	var postProcess func(image.Image) error
+	var emissiveFactor [3]float32
 	origImgOpts := imgOpts
 	lutImgOpts := &ImageOptions{
 		Jpeg:           imgOpts.Jpeg,
@@ -255,6 +262,27 @@ func addMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 				Index: gltf.Index(index),
 			}
 			usedTextures[TextureUsage(texUsage.Value)] = index
+		case MRA:
+			index, err := writeTexture(ctx, doc, mat.Textures[texUsage], postProcess, imgOpts)
+			if err != nil {
+				return 0, err
+			}
+			metallicRoughnessTexture = &gltf.TextureInfo{
+				Index: index,
+			}
+			usedTextures[TextureUsage(texUsage.Value)] = index
+		case EmissiveColor:
+			index, err := writeTexture(ctx, doc, mat.Textures[texUsage], postProcess, imgOpts)
+			if err != nil {
+				return 0, err
+			}
+			emissiveTexture = &gltf.TextureInfo{
+				Index: index,
+			}
+			emissiveFactor[0] = 1.0
+			emissiveFactor[1] = 1.0
+			emissiveFactor[2] = 1.0
+			usedTextures[TextureUsage(texUsage.Value)] = index
 		case MaterialLUT:
 			fallthrough
 		case PatternLUT:
@@ -275,12 +303,13 @@ func addMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 			fallthrough
 		case IdMasksArray:
 			fallthrough
+		case LensCutoutTexture:
+			fallthrough
 		case PatternMasksArray:
 			fallthrough
 		case WeatheringDirt:
 			fallthrough
 		case WeatheringSpecial:
-			var postProcess func(image.Image) error
 			index, err := writeTexture(ctx, doc, mat.Textures[texUsage], postProcess, imgOpts)
 			if err != nil {
 				return 0, err
@@ -300,12 +329,13 @@ func addMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 	doc.Materials = append(doc.Materials, &gltf.Material{
 		Name: mat.BaseMaterial.String(),
 		PBRMetallicRoughness: &gltf.PBRMetallicRoughness{
-			BaseColorTexture: baseColorTexture,
-			MetallicFactor:   gltf.Float(0.5),
-			RoughnessFactor:  gltf.Float(1),
+			BaseColorTexture:         baseColorTexture,
+			MetallicRoughnessTexture: metallicRoughnessTexture,
 		},
-		NormalTexture: normalTexture,
-		Extras:        usagesToTextureNames,
+		EmissiveTexture: emissiveTexture,
+		EmissiveFactor:  emissiveFactor,
+		NormalTexture:   normalTexture,
+		Extras:          usagesToTextureNames,
 	})
 	return uint32(len(doc.Materials) - 1), nil
 }
