@@ -29,6 +29,7 @@ type ImageOptions struct {
 	Jpeg           bool                 // PNG if false, JPEG if true
 	JpegQuality    int                  // Quality if Jpeg == true; interval = [1;100]; 0 for default quality
 	PngCompression png.CompressionLevel // Compression if Jpeg == false
+	Raw            bool                 // Save raw dds in addition to png/jpg using gltf MSFT DDS extension if true
 }
 
 // Adds back in the truncated Z component of a normal map.
@@ -68,47 +69,6 @@ func postProcessToOpaque(img image.Image) error {
 	default:
 		return errors.New("postProcessToOpaque: unsupported image type")
 	}
-}
-
-type textureType int
-
-const (
-	textureTypeBaseColor textureType = iota
-	textureTypeNormal
-)
-
-func tryWriteTexture(ctx extractor.Context, mat *material.Material, texType textureType, doc *gltf.Document, imgOpts *ImageOptions) (uint32, bool, error) {
-	var id stingray.Hash
-	var postProcess func(image.Image) error
-	switch texType {
-	case textureTypeBaseColor:
-		var ok bool
-		id, ok = mat.Textures[stingray.Sum64([]byte("albedo_iridescence")).Thin()]
-		if ok {
-			postProcess = postProcessToOpaque
-			break
-		}
-		id, ok = mat.Textures[stingray.Sum64([]byte("albedo")).Thin()]
-		if ok {
-			break
-		}
-		return 0, false, nil
-	case textureTypeNormal:
-		var ok bool
-		id, ok = mat.Textures[stingray.Sum64([]byte("normal")).Thin()]
-		if ok {
-			postProcess = postProcessReconstructNormalZ
-			break
-		}
-		return 0, false, nil
-	default:
-		panic("unhandled case")
-	}
-	res, err := writeTexture(ctx, doc, id, postProcess, imgOpts)
-	if err != nil {
-		return 0, false, err
-	}
-	return res, true, nil
 }
 
 // Adds a texture to doc. Returns new texture ID if err != nil.
@@ -164,7 +124,190 @@ func writeTexture(ctx extractor.Context, doc *gltf.Document, id stingray.Hash, p
 		Sampler: gltf.Index(0),
 		Source:  gltf.Index(imgIdx),
 	})
-	return uint32(len(doc.Textures) - 1), nil
+	texIdx := uint32(len(doc.Textures) - 1)
+	if imgOpts != nil && imgOpts.Raw {
+		reader, err := file.OpenMulti(ctx.Ctx(), stingray.DataMain, stingray.DataStream, stingray.DataGPU)
+		if err != nil {
+			fmt.Printf("writeTexture: Failed to open multireader for raw dds\n")
+			return texIdx, nil
+		}
+		defer reader.Close()
+		if _, err := texture.DecodeInfo(reader); err != nil {
+			fmt.Printf("writeTexture: Failed to decode stingray texture info\n")
+			return texIdx, nil
+		}
+		mimeType = "image/vnd-ms.dds"
+		imgIdx, err = modeler.WriteImage(doc, id.String()+".dds", mimeType, reader)
+		if err != nil {
+			fmt.Printf("writeTexture: Failed to write dds image to document\n")
+			return texIdx, nil
+		}
+		doc.Textures[texIdx].Extensions = make(gltf.Extensions)
+		msftTextureDDS := make(map[string]uint32)
+		msftTextureDDS["source"] = imgIdx
+		doc.Textures[texIdx].Extensions["MSFT_texture_dds"] = msftTextureDDS
+		contained := false
+		for _, ext := range doc.ExtensionsUsed {
+			if ext == "MSFT_texture_dds" {
+				contained = true
+				break
+			}
+		}
+		if !contained {
+			doc.ExtensionsUsed = append(doc.ExtensionsUsed, "MSFT_texture_dds")
+		}
+	}
+	return texIdx, nil
+}
+
+type TextureUsage uint32
+
+const (
+	AlbedoIridescence                     TextureUsage = 0xff2c91cc //stingray.Sum64([]byte("albedo_iridescence")).Thin()
+	Albedo                                TextureUsage = 0xac652e43
+	Normal                                TextureUsage = 0xcaed6cd6
+	BaseData                              TextureUsage = 0xc2eb8d6e
+	MaterialLUT                           TextureUsage = 0x7e662968
+	PatternLUT                            TextureUsage = 0x81d4c49d
+	CompositeArray                        TextureUsage = 0xa17b45a8
+	BloodSplatterTiler                    TextureUsage = 0x30e2d136
+	WeatheringSpecial                     TextureUsage = 0xd2f99d38
+	WeatheringDirt                        TextureUsage = 0x6834aa9b
+	BugSplatterTiler                      TextureUsage = 0x37831285
+	DecalSheet                            TextureUsage = 0x632a8b80
+	CustomizationCamoTilerArray           TextureUsage = 0x0f5ff78d
+	PatternMasksArray                     TextureUsage = 0x05a27dd5
+	CustomizationMaterialDetailTilerArray TextureUsage = 0xd3a0408e
+	IdMasksArray                          TextureUsage = 0xb281e5f2
+)
+
+func (usage *TextureUsage) String() string {
+	switch *usage {
+	case AlbedoIridescence:
+		return "albedo_iridescence"
+	case Albedo:
+		return "albedo"
+	case BaseData:
+		return "base_data"
+	case BloodSplatterTiler:
+		return "blood_splatter_tiler"
+	case BugSplatterTiler:
+		return "bug_splatter_tiler"
+	case CompositeArray:
+		return "composite_array"
+	case CustomizationCamoTilerArray:
+		return "customization_camo_tiler_array"
+	case CustomizationMaterialDetailTilerArray:
+		return "customization_material_detail_tiler_array"
+	case DecalSheet:
+		return "decal_sheet"
+	case IdMasksArray:
+		return "id_masks_array"
+	case MaterialLUT:
+		return "material_lut"
+	case Normal:
+		return "normal"
+	case PatternLUT:
+		return "pattern_lut"
+	case PatternMasksArray:
+		return "pattern_masks_array"
+	case WeatheringDirt:
+		return "weathering_dirt"
+	case WeatheringSpecial:
+		return "weathering_special"
+	default:
+		return "unknown texture usage!"
+	}
+}
+
+func addMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Document, imgOpts *ImageOptions) (uint32, error) {
+	usedTextures := make(map[TextureUsage]uint32)
+	var baseColorTexture *gltf.TextureInfo
+	var normalTexture *gltf.NormalTexture
+	origImgOpts := imgOpts
+	lutImgOpts := &ImageOptions{
+		Jpeg:           imgOpts.Jpeg,
+		JpegQuality:    imgOpts.JpegQuality,
+		PngCompression: imgOpts.PngCompression,
+		Raw:            true,
+	}
+	for texUsage := range mat.Textures {
+		switch TextureUsage(texUsage.Value) {
+		case AlbedoIridescence:
+			fallthrough
+		case Albedo:
+			index, err := writeTexture(ctx, doc, mat.Textures[texUsage], postProcessToOpaque, imgOpts)
+			if err != nil {
+				return 0, err
+			}
+			baseColorTexture = &gltf.TextureInfo{
+				Index: index,
+			}
+			usedTextures[TextureUsage(texUsage.Value)] = index
+		case Normal:
+			fallthrough
+		case BaseData:
+			index, err := writeTexture(ctx, doc, mat.Textures[texUsage], postProcessReconstructNormalZ, imgOpts)
+			if err != nil {
+				return 0, err
+			}
+			normalTexture = &gltf.NormalTexture{
+				Index: gltf.Index(index),
+			}
+			usedTextures[TextureUsage(texUsage.Value)] = index
+		case MaterialLUT:
+			fallthrough
+		case PatternLUT:
+			// Save raw DDS for both LUT types, to later be processed into exr
+			imgOpts = lutImgOpts
+			fallthrough
+		case BloodSplatterTiler:
+			fallthrough
+		case BugSplatterTiler:
+			fallthrough
+		case CompositeArray:
+			fallthrough
+		case CustomizationCamoTilerArray:
+			fallthrough
+		case CustomizationMaterialDetailTilerArray:
+			fallthrough
+		case DecalSheet:
+			fallthrough
+		case IdMasksArray:
+			fallthrough
+		case PatternMasksArray:
+			fallthrough
+		case WeatheringDirt:
+			fallthrough
+		case WeatheringSpecial:
+			var postProcess func(image.Image) error
+			index, err := writeTexture(ctx, doc, mat.Textures[texUsage], postProcess, imgOpts)
+			if err != nil {
+				return 0, err
+			}
+			usedTextures[TextureUsage(texUsage.Value)] = index
+			imgOpts = origImgOpts
+		default:
+			fmt.Printf("addMaterial: Unknown texture usage %v\n", texUsage.String())
+		}
+	}
+
+	usagesToTextureNames := make(map[string]string)
+	for usage, texIdx := range usedTextures {
+		usagesToTextureNames[usage.String()] = doc.Images[*doc.Textures[texIdx].Source].Name
+	}
+
+	doc.Materials = append(doc.Materials, &gltf.Material{
+		Name: mat.BaseMaterial.String(),
+		PBRMetallicRoughness: &gltf.PBRMetallicRoughness{
+			BaseColorTexture: baseColorTexture,
+			MetallicFactor:   gltf.Float(0.5),
+			RoughnessFactor:  gltf.Float(1),
+		},
+		NormalTexture: normalTexture,
+		Extras:        usagesToTextureNames,
+	})
+	return uint32(len(doc.Materials) - 1), nil
 }
 
 func loadBoneMap(ctx extractor.Context) (*bones.BoneInfo, error) {
@@ -322,80 +465,11 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions) error {
 			return err
 		}
 
-		/*materialNames := make(map[stingray.ThinHash]string)
-		f, err := os.Open("material_textures.txt")
+		matIdx, err := addMaterial(ctx, mat, doc, imgOpts)
 		if err != nil {
 			return err
 		}
-		defer f.Close()
-		sc := bufio.NewScanner(f)
-		for sc.Scan() {
-			s := sc.Text()
-			materialNames[stingray.Sum64([]byte(s)).Thin()] = s
-		}
-		fmt.Println()
-		for k, v := range mat.Textures {
-			name := k.String()
-			if s, ok := materialNames[k]; ok {
-				name = s
-			}
-			fmt.Println(name, v)
-		}*/
-
-		/*for k, v := range mat.Textures {
-			texRes, exists := ctx.GetResource(v, stingray.Sum64([]byte("texture")))
-			if !exists || !texRes.Exists(stingray.DataMain) {
-				return fmt.Errorf("texture resource %v doesn't exist", id)
-			}
-
-			tex, err := texture.Decode(texRes, false)
-			if err != nil {
-				return err
-			}
-
-			if err := func() error {
-				out, err := ctx.CreateFileDir(".unit.textures", k.String()+"_"+v.String()+".png")
-				if err != nil {
-					return err
-				}
-				defer out.Close()
-				if err := png.Encode(out, tex); err != nil {
-					return err
-				}
-				return nil
-			}(); err != nil {
-				return err
-			}
-		}*/
-
-		texIdxBaseColor, ok, err := tryWriteTexture(ctx, mat, textureTypeBaseColor, doc, imgOpts)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			continue
-		}
-		texIdxNormal, ok, err := tryWriteTexture(ctx, mat, textureTypeNormal, doc, imgOpts)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			continue
-		}
-		doc.Materials = append(doc.Materials, &gltf.Material{
-			Name: resID.String(),
-			PBRMetallicRoughness: &gltf.PBRMetallicRoughness{
-				BaseColorTexture: &gltf.TextureInfo{
-					Index: texIdxBaseColor,
-				},
-				MetallicFactor:  gltf.Float(0.5),
-				RoughnessFactor: gltf.Float(1),
-			},
-			NormalTexture: &gltf.NormalTexture{
-				Index: gltf.Index(texIdxNormal),
-			},
-		})
-		materialIdxs[id] = uint32(len(doc.Materials) - 1)
+		materialIdxs[id] = matIdx
 	}
 
 	// Determine which meshes to convert
@@ -507,8 +581,6 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions) error {
 				Indices: gltf.Index(modeler.WriteIndices(doc, mesh.Indices[i])),
 				Attributes: map[string]uint32{
 					gltf.POSITION: positions,
-					//gltf.TEXCOORD_0: texCoords,
-					//gltf.COLOR_0:    modeler.WriteColor(doc, mesh.Colors),
 				},
 				Material: material,
 			}
