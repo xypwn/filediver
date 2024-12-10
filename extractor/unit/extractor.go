@@ -75,6 +75,13 @@ func postProcessToOpaque(img image.Image) error {
 // Adds a texture to doc. Returns new texture ID if err != nil.
 // postProcess optionally applies image post-processing.
 func writeTexture(ctx extractor.Context, doc *gltf.Document, id stingray.Hash, postProcess func(image.Image) error, imgOpts *ImageOptions) (uint32, error) {
+	// Check if we've already added this texture
+	for j, texture := range doc.Textures {
+		if doc.Images[*texture.Source].Name == id.String() {
+			return uint32(j), nil
+		}
+	}
+
 	file, exists := ctx.GetResource(id, stingray.Sum64([]byte("texture")))
 	if !exists || !file.Exists(stingray.DataMain) {
 		return 0, fmt.Errorf("texture resource %v doesn't exist", id)
@@ -322,9 +329,9 @@ func addMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 		}
 	}
 
-	usagesToTextureNames := make(map[string]string)
+	usagesToTextureIndices := make(map[string]uint32)
 	for usage, texIdx := range usedTextures {
-		usagesToTextureNames[usage.String()] = doc.Images[*doc.Textures[texIdx].Source].Name
+		usagesToTextureIndices[usage.String()] = texIdx
 	}
 
 	doc.Materials = append(doc.Materials, &gltf.Material{
@@ -336,7 +343,7 @@ func addMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 		EmissiveTexture: emissiveTexture,
 		EmissiveFactor:  emissiveFactor,
 		NormalTexture:   normalTexture,
-		Extras:          usagesToTextureNames,
+		Extras:          usagesToTextureIndices,
 	})
 	return uint32(len(doc.Materials) - 1), nil
 }
