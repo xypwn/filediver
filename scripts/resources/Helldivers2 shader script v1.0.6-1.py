@@ -47,18 +47,11 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     current_material_name = get_current_material_name()
     
     #automatically set the material to use the newly generated shader preset, reposition it, and remove copies
-    try:
-        for ReplaceShader in material.node_tree.nodes:
-            if ReplaceShader.name == "HD2 Shader Template":
-                ReplaceShader.node_tree = bpy.data.node_groups.get("HD2 Shader Template File Do Not Name Anything Else This Name")
-    except:
-        pass
-            
-    try:        
-        bpy.data.node_groups["HD2 Shader Template File Do Not Name Anything Else This Name"].name = (current_material_name+ScriptVersion)
-    except:
-        pass
-      
+    hd2_shader_group_node: ShaderNodeGroup = material.node_tree.nodes["HD2 Shader Template"]
+    hd2_shader_group_node.node_tree = HD2_Shader
+
+    HD2_Shader.name = current_material_name + ScriptVersion
+
     output_socket = HD2_Shader.interface.new_socket(name = "Output", in_out='OUTPUT', socket_type = 'NodeSocketShader')
     #ID Mask Array UV Fix
     id_mask_array_uv_fix = HD2_Shader.interface.new_socket(name = "ID Mask Array UV Fix", in_out='INPUT', socket_type = 'NodeSocketColor')
@@ -120,7 +113,7 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     clearcoat_normal_socket = HD2_Shader.interface.new_socket(name = "Bake_Clearcoat Normal", in_out='OUTPUT', socket_type = 'NodeSocketVector', parent = bake_outputs_panel)
     
 #sets the detail texture tile size to 1.000 by default
-    material.node_tree.nodes['HD2 Shader Template'].inputs[12].default_value = (1.000)
+    hd2_shader_group_node.inputs[12].default_value = (1.000)
 
     print("################################"+current_material_name+ScriptVersion+"################################")
     
@@ -221,31 +214,13 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     except:
         pass
     
-#set UVs for arrays
-    material.node_tree.nodes['ID Mask UV'].inputs[0].default_value = (0.000)
-    material.node_tree.nodes['Pattern Mask UV'].inputs[0].default_value = (0.000)
-    try:
-        IDMaskArraySizeX = material.node_tree.nodes['ID Mask Array Texture'].inputs[0].node.image.size[0]
-        IDMaskArraySizeY = material.node_tree.nodes['ID Mask Array Texture'].inputs[0].node.image.size[1]
-        if (IDMaskArraySizeY/IDMaskArraySizeX) >= 2.0:
-            material.node_tree.nodes['ID Mask UV'].inputs[0].default_value = (1.000)
-    except:
-        pass
-    
-    try:
-        PatternMaskArraySizeX = material.node_tree.nodes['Pattern Mask Array'].inputs[0].node.image.size[0]
-        PatternMaskArraySizeY = material.node_tree.nodes['Pattern Mask Array'].inputs[0].node.image.size[1]
-        if (PatternMaskArraySizeY/PatternMaskArraySizeX) >= 2.0:
-            material.node_tree.nodes['Pattern Mask UV'].inputs[0].default_value = (1.000)
-    except:
-        pass
-
+    update_array_uvs(material)
 #reconnect nodes if they get undone
     try:
         for IDMaskNoncolor in material.node_tree.nodes:
             if IDMaskNoncolor.name == "Reroute.001":
-                material.node_tree.links.new(IDMaskNoncolor.outputs[0], material.node_tree.nodes['HD2 Shader Template'].inputs[2])
-                material.node_tree.links.new(material.node_tree.nodes['Reroute.003'].outputs[0], material.node_tree.nodes['HD2 Shader Template'].inputs[3])
+                material.node_tree.links.new(IDMaskNoncolor.outputs[0], hd2_shader_group_node.inputs[2])
+                material.node_tree.links.new(material.node_tree.nodes['Reroute.003'].outputs[0], hd2_shader_group_node.inputs[3])
                 if material.node_tree.nodes['ID Mask Array Texture'].type == 'TEX_IMAGE' and material.node_tree.nodes['ID Mask Array Texture'].image:
                     material.node_tree.nodes['ID Mask Array Texture'].image.colorspace_settings.name = "Non-Color"
     except:
@@ -254,15 +229,15 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     try:
         for ArrayUVOverride in material.node_tree.nodes:
             if ArrayUVOverride.name == "Reroute.034":
-                material.node_tree.links.new(ArrayUVOverride.outputs[0], material.node_tree.nodes['HD2 Shader Template'].inputs[0])
-                material.node_tree.links.new(material.node_tree.nodes['Reroute.035'].outputs[0], material.node_tree.nodes['HD2 Shader Template'].inputs[1])
+                material.node_tree.links.new(ArrayUVOverride.outputs[0], hd2_shader_group_node.inputs[0])
+                material.node_tree.links.new(material.node_tree.nodes['Reroute.035'].outputs[0], hd2_shader_group_node.inputs[1])
     except:
         pass
 
     try:
         for PatternMaskNoncolor in material.node_tree.nodes:
             if PatternMaskNoncolor.name == "Reroute.005":
-                material.node_tree.links.new(PatternMaskNoncolor.outputs[0], material.node_tree.nodes['HD2 Shader Template'].inputs[4])
+                material.node_tree.links.new(PatternMaskNoncolor.outputs[0], hd2_shader_group_node.inputs[4])
                 if material.node_tree.nodes['Pattern Mask Array'].type == 'TEX_IMAGE' and material.node_tree.nodes['Pattern Mask Array'].image:
                     material.node_tree.nodes['Pattern Mask Array'].image.colorspace_settings.name = "Non-Color"
     except:
@@ -271,8 +246,8 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     try:
         for DecalTexsRGB in material.node_tree.nodes:
             if DecalTexsRGB.name == "Reroute.007":
-                material.node_tree.links.new(DecalTexsRGB.outputs[0], material.node_tree.nodes['HD2 Shader Template'].inputs[5])
-                material.node_tree.links.new(material.node_tree.nodes['Reroute.009'].outputs[0], material.node_tree.nodes['HD2 Shader Template'].inputs[6])
+                material.node_tree.links.new(DecalTexsRGB.outputs[0], hd2_shader_group_node.inputs[5])
+                material.node_tree.links.new(material.node_tree.nodes['Reroute.009'].outputs[0], hd2_shader_group_node.inputs[6])
                 if material.node_tree.nodes['Decal Texture'].type == 'TEX_IMAGE' and material.node_tree.nodes['Decal Texture'].image:
                     material.node_tree.nodes['Decal Texture'].image.colorspace_settings.name = "sRGB"
                     material.node_tree.nodes['Decal Texture'].image.alpha_mode = "CHANNEL_PACKED"
@@ -282,7 +257,7 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     try:
         for PrimaryMaterialLUTLinear in material.node_tree.nodes:
             if PrimaryMaterialLUTLinear.name == "Reroute.013":
-                material.node_tree.links.new(PrimaryMaterialLUTLinear.outputs[0], material.node_tree.nodes['HD2 Shader Template'].inputs[7])
+                material.node_tree.links.new(PrimaryMaterialLUTLinear.outputs[0], hd2_shader_group_node.inputs[7])
                 if material.node_tree.nodes['Primary Material LUT Texture'].type == 'TEX_IMAGE' and material.node_tree.nodes['Primary Material LUT Texture'].image:
                     material.node_tree.nodes['Primary Material LUT Texture'].image.colorspace_settings.name = "Non-Color"
                     material.node_tree.nodes['Primary Material LUT Texture'].image.alpha_mode = "CHANNEL_PACKED"
@@ -292,7 +267,7 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     try:
         for SecondaryMaterialLUTLinear in material.node_tree.nodes:
             if SecondaryMaterialLUTLinear.name == "Reroute.015":
-                material.node_tree.links.new(SecondaryMaterialLUTLinear.outputs[0], material.node_tree.nodes['HD2 Shader Template'].inputs[8])
+                material.node_tree.links.new(SecondaryMaterialLUTLinear.outputs[0], hd2_shader_group_node.inputs[8])
                 if material.node_tree.nodes['Secondary Material LUT Texture'].type == 'TEX_IMAGE' and material.node_tree.nodes['Secondary Material LUT Texture'].image:
                     material.node_tree.nodes['Secondary Material LUT Texture'].image.colorspace_settings.name = "Non-Color"
                     material.node_tree.nodes['Secondary Material LUT Texture'].image.alpha_mode = "CHANNEL_PACKED"
@@ -302,7 +277,7 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     try:
         for PatternLUTLinear in material.node_tree.nodes:
             if PatternLUTLinear.name == "Reroute.019":
-                material.node_tree.links.new(PatternLUTLinear.outputs[0], material.node_tree.nodes['HD2 Shader Template'].inputs[9])
+                material.node_tree.links.new(PatternLUTLinear.outputs[0], hd2_shader_group_node.inputs[9])
                 if material.node_tree.nodes['Pattern LUT Texture'].type == 'TEX_IMAGE' and material.node_tree.nodes['Pattern LUT Texture'].image:
                     material.node_tree.nodes['Pattern LUT Texture'].image.colorspace_settings.name = "Non-Color"
                     material.node_tree.nodes['Pattern LUT Texture'].alpha_mode = "CHANNEL_PACKED"
@@ -312,8 +287,8 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     try:
         for NormalMapNoncolor in material.node_tree.nodes:
             if NormalMapNoncolor.name == "Reroute.020":
-                material.node_tree.links.new(NormalMapNoncolor.outputs[0], material.node_tree.nodes['HD2 Shader Template'].inputs[10])
-                material.node_tree.links.new(material.node_tree.nodes['Reroute.021'].outputs[0], material.node_tree.nodes['HD2 Shader Template'].inputs[11])
+                material.node_tree.links.new(NormalMapNoncolor.outputs[0], hd2_shader_group_node.inputs[10])
+                material.node_tree.links.new(material.node_tree.nodes['Reroute.021'].outputs[0], hd2_shader_group_node.inputs[11])
                 if material.node_tree.nodes['Normal Map'].type == 'TEX_IMAGE' and material.node_tree.nodes['Normal Map'].image:
                     material.node_tree.nodes['Normal Map'].image.colorspace_settings.name = "Non-Color"
     except:
@@ -411,8 +386,8 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
         
     DecalTextureLocation = material.node_tree.nodes['Decal Texture'].location
     try:
-        if not DecalTextureFiletype == "PNG":
-            #Tell user that the texture isnt a proper Material LUT
+        if DecalTextureFiletype not in ["PNG", "OPEN_EXR"]:
+            #Tell user that the texture isnt a proper Decal texture
             DecalTextureFiletypeWarning = material.node_tree.nodes.new("NodeFrame")
             DecalTextureFiletypeWarning.label = "WARNING!Current texture must be a PNG file. Errors may occur->"
             DecalTextureFiletypeWarning.name = "Decal Texture Filetype Warning"
@@ -593,7 +568,7 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     except:
         print("No Normal Map Texture detected")
         
-    ShaderLocation = material.node_tree.nodes['HD2 Shader Template'].location
+    ShaderLocation = hd2_shader_group_node.location
     
     try:
         if bpy.app.version < (4, 0, 0) :
@@ -610,7 +585,7 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
         pass
     
     try:
-        if not material.node_tree.nodes['HD2 Shader Template'].label == "HD2 Shader Template v1.0.5" and bpy.app.version > (4, 0, 0):
+        if not hd2_shader_group_node.label == "HD2 Shader Template v1.0.5" and bpy.app.version > (4, 0, 0):
             ShaderUpdateWarning1 = material.node_tree.nodes.new("NodeFrame")
             ShaderUpdateWarning1.label = "WARNING!Update your nodes to 1.0.5. Errors may occur otherwise"
             ShaderUpdateWarning1.name = "Shader Version Warning1"
@@ -7310,7 +7285,7 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     #node Separate XYZ.020
     separate_xyz_020 = HD2_Shader.nodes.new("ShaderNodeSeparateXYZ")
     separate_xyz_020.name = "Separate XYZ.020"
-    
+
     #node Mix.028
     Slot1and2 = HD2_Shader.nodes.new("ShaderNodeMix")
     Slot1and2.label = "Slot 1 & 2"
@@ -7320,11 +7295,6 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     Slot1and2.clamp_result = False
     Slot1and2.data_type = 'FLOAT'
     Slot1and2.factor_mode = 'UNIFORM'
-    try:
-        Slot1and2.inputs[2].default_value = (1-(0.5/PrimaryMaterialLUTSizeY))
-        Slot1and2.inputs[3].default_value = (1-(0.5/PrimaryMaterialLUTSizeY*3))
-    except:
-        pass
     
     #node Math.238
     math_238 = HD2_Shader.nodes.new("ShaderNodeMath")
@@ -7435,12 +7405,6 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     Slot3.clamp_result = False
     Slot3.data_type = 'FLOAT'
     Slot3.factor_mode = 'UNIFORM'
-    try:
-        Slot3.inputs[3].default_value = (1-(0.5/PrimaryMaterialLUTSizeY*5))
-        if PrimaryMaterialLUTSizeY < 2.1:
-            Slot3.mute = True
-    except:
-        pass
         
     #node customization_material_detail_tiler_array
     customization_material_detail_tiler_array = HD2_Shader.nodes.new("ShaderNodeTexImage")
@@ -7635,12 +7599,6 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     Slot4.clamp_result = False
     Slot4.data_type = 'FLOAT'
     Slot4.factor_mode = 'UNIFORM'
-    try:
-        Slot4.inputs[3].default_value = (1-(0.5/PrimaryMaterialLUTSizeY*7))
-        if PrimaryMaterialLUTSizeY < 3.1:
-            Slot4.mute = True
-    except:
-        pass
         
     #node Secondary Material LUT_04
     secondary_material_lut_04 = HD2_Shader.nodes.new("ShaderNodeTexImage")
@@ -7834,13 +7792,7 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     Slot5.clamp_result = False
     Slot5.data_type = 'FLOAT'
     Slot5.factor_mode = 'UNIFORM'
-    try:
-        Slot5.inputs[3].default_value = (1-(0.5/PrimaryMaterialLUTSizeY*9))
-        if PrimaryMaterialLUTSizeY < 4.1:
-            Slot5.mute = True
-    except:
-        pass
-        
+    
     #node Vector Math.084
     vector_math_084 = HD2_Shader.nodes.new("ShaderNodeVectorMath")
     vector_math_084.name = "Vector Math.084"
@@ -8032,12 +7984,6 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     Slot6.clamp_result = False
     Slot6.data_type = 'FLOAT'
     Slot6.factor_mode = 'UNIFORM'
-    try:
-        Slot6.inputs[3].default_value = (1-(0.5/PrimaryMaterialLUTSizeY*11))
-        if PrimaryMaterialLUTSizeY < 5.1:
-            Slot6.mute = True
-    except:
-        pass
         
     #node pattern_lut 02
     pattern_lut_02 = HD2_Shader.nodes.new("ShaderNodeTexImage")
@@ -8232,13 +8178,9 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     Slot7.clamp_result = False
     Slot7.data_type = 'FLOAT'
     Slot7.factor_mode = 'UNIFORM'
-    try:
-        Slot7.inputs[3].default_value = (1-(0.5/PrimaryMaterialLUTSizeY*13))
-        if PrimaryMaterialLUTSizeY < 6.1:
-            Slot7.mute = True
-    except:
-        pass
-        
+
+    update_slot_defaults(HD2_Shader, material)
+
     #node Group Input
     group_input_1 = HD2_Shader.nodes.new("NodeGroupInput")
     group_input_1.name = "Group Input"
@@ -10494,12 +10436,12 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     math_194.location = (30.0, -80.0)
     
     #initialize HD2_Shader links
+    connect_input_links(HD2_Shader)
+
     #combine_xyz_002.Vector -> pattern_lut.Vector
     HD2_Shader.links.new(combine_xyz_002.outputs[0], pattern_lut.inputs[0])
     #combine_xyz_003.Vector -> pattern_lut_02.Vector
     HD2_Shader.links.new(combine_xyz_003.outputs[0], pattern_lut_02.inputs[0])
-    #group_input_1.Normal Map_Alpha -> math_003.Value
-    HD2_Shader.links.new(group_input_1.outputs[11], math_003.inputs[1])
     #mix_031.Result -> math_034.Value
     HD2_Shader.links.new(mix_031.outputs[0], math_034.inputs[0])
     #math_034.Value -> math_035.Value
@@ -10560,10 +10502,6 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     HD2_Shader.links.new(combine_xyz_020.outputs[0], vector_math_019.inputs[0])
     #vector_math_019.Vector -> separate_xyz_020.Vector
     HD2_Shader.links.new(vector_math_019.outputs[0], separate_xyz_020.inputs[0])
-    #group_input_1.Normal Map_Alpha -> combine_xyz_023.X
-    HD2_Shader.links.new(group_input_1.outputs[11], combine_xyz_023.inputs[0])
-    #group_input_1.Normal Map -> separate_xyz_022.Vector
-    HD2_Shader.links.new(group_input_1.outputs[10], separate_xyz_022.inputs[0])
     #separate_xyz_022.Z -> combine_xyz_023.Y
     HD2_Shader.links.new(separate_xyz_022.outputs[2], combine_xyz_023.inputs[1])
     #combine_xyz_023.Vector -> vector_math_020.Vector
@@ -10572,8 +10510,6 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     HD2_Shader.links.new(vector_math_020.outputs[0], separate_xyz_023.inputs[0])
     #separate_xyz_023.X -> combine_xyz_024.Z
     HD2_Shader.links.new(separate_xyz_023.outputs[0], combine_xyz_024.inputs[2])
-    #group_input_1.detail_tile_factor_mult -> math_044.Value
-    HD2_Shader.links.new(group_input_1.outputs[12], math_044.inputs[0])
     #separate_xyz_024.X -> math_044.Value
     HD2_Shader.links.new(separate_xyz_024.outputs[0], math_044.inputs[1])
     #math_044.Value -> math_045.Value
@@ -10594,8 +10530,6 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     HD2_Shader.links.new(math_003.outputs[0], clamp_003.inputs[0])
     #math_191.Value -> clamp_004.Value
     HD2_Shader.links.new(math_191.outputs[0], clamp_004.inputs[0])
-    #group_input_1.Normal Map -> separate_xyz_028.Vector
-    HD2_Shader.links.new(group_input_1.outputs[10], separate_xyz_028.inputs[0])
     #separate_xyz_028.Z -> combine_xyz_028.X
     HD2_Shader.links.new(separate_xyz_028.outputs[2], combine_xyz_028.inputs[0])
     #separate_xyz_028.Y -> combine_xyz_028.Y
@@ -10762,8 +10696,6 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     HD2_Shader.links.new(math_077.outputs[0], math_078.inputs[1])
     #math_049.Value -> combine_xyz_027.X
     HD2_Shader.links.new(math_049.outputs[0], combine_xyz_027.inputs[0])
-    #group_input_1.detail_tile_factor_mult -> math_079.Value
-    HD2_Shader.links.new(group_input_1.outputs[12], math_079.inputs[0])
     #separate_xyz_024.X -> math_079.Value
     HD2_Shader.links.new(separate_xyz_024.outputs[0], math_079.inputs[1])
     #mix_031.Result -> math_080.Value
@@ -10870,8 +10802,6 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     HD2_Shader.links.new(vector_math_007.outputs[0], separate_xyz_006.inputs[0])
     #separate_xyz_006.Y -> vector_math_008.Vector
     HD2_Shader.links.new(separate_xyz_006.outputs[1], vector_math_008.inputs[0])
-    #group_input_1.detail_tile_factor_mult -> math_019.Value
-    HD2_Shader.links.new(group_input_1.outputs[12], math_019.inputs[0])
     #separate_xyz_052.Z -> math_019.Value
     HD2_Shader.links.new(separate_xyz_052.outputs[2], math_019.inputs[1])
     #mix_074.Result -> math_020.Value
@@ -11203,15 +11133,7 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     #math_119.Value -> math_120.Value
     HD2_Shader.links.new(math_119.outputs[0], math_120.inputs[0])
     #mix_077.Result -> separate_xyz_059.Vector
-    
-    try:
-        DecalTexSizeX = material.node_tree.nodes['Decal Texture'].inputs[0].node.image.size[0]
-        if DecalTexSizeX >= 0:
-            HD2_Shader.links.new(group_input_1.outputs[6], math_195.inputs[1])
-    except:
-        pass
-        
-    HD2_Shader.links.new(group_input_1.outputs[4], separate_xyz_059.inputs[0])
+
     #math_120.Value -> math_115.Value
     HD2_Shader.links.new(math_120.outputs[0], math_115.inputs[1])
     #mix_001.Result -> vector_math_053.Vector
@@ -11340,8 +11262,6 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     HD2_Shader.links.new(mix_004.outputs[0], math_150.inputs[0])
     #math_150.Value -> math_151.Value
     HD2_Shader.links.new(math_150.outputs[0], math_151.inputs[1])
-    #group_input_1.detail_tile_factor_mult -> math_152.Value
-    HD2_Shader.links.new(group_input_1.outputs[12], math_152.inputs[0])
     #separate_xyz_024.X -> math_152.Value
     HD2_Shader.links.new(separate_xyz_024.outputs[0], math_152.inputs[1])
     #separate_xyz_060.Y -> math_153.Value
@@ -11617,16 +11537,6 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     HD2_Shader.links.new(clamp_005.outputs[0], math_193.inputs[0])
     #math_193.Value -> math_195.Value
     HD2_Shader.links.new(math_193.outputs[0], math_195.inputs[0])
-    #group_input_1.Decal Texture(alpha) -> math_195.Value
-    
-    try:
-        DecalTexSizeX = material.node_tree.nodes['Decal Texture'].inputs[0].node.image.size[0]
-        if DecalTexSizeX >= 0:
-            HD2_Shader.links.new(group_input_1.outputs[6], math_195.inputs[1])
-    except:
-        pass
-        
-    
     #mix_016.Result -> vector_math_074.Vector
     HD2_Shader.links.new(mix_016.outputs[1], vector_math_074.inputs[0])
     #vector_math_074.Vector -> vector_math_075.Vector
@@ -11831,8 +11741,6 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     HD2_Shader.links.new(math_223.outputs[0], math_225.inputs[0])
     #math_225.Value -> principled_bsdf_001.Specular IOR Level
     HD2_Shader.links.new(math_225.outputs[0], principled_bsdf_001.inputs[12])
-    #group_input_1.Normal Map -> vector_math_021.Vector
-    HD2_Shader.links.new(group_input_1.outputs[10], vector_math_021.inputs[1])
     #vector_math_021.Vector -> vector_math_089.Vector
     HD2_Shader.links.new(vector_math_021.outputs[0], vector_math_089.inputs[1])
     #mix_shader.Shader -> group_output_1.Output
@@ -11861,14 +11769,6 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     HD2_Shader.links.new(vector_math_098.outputs[0], vector_math_099.inputs[0])
     #vector_math_007.Vector -> vector_math_099.Vector
     HD2_Shader.links.new(vector_math_116.outputs[0], vector_math_099.inputs[1])
-    #group_input_1.Decal Texture -> vector_math_075.Vector
-    
-    try:
-        DecalTexSizeX = material.node_tree.nodes['Decal Texture'].inputs[0].node.image.size[0]
-        if DecalTexSizeX >= 0:
-            HD2_Shader.links.new(group_input_1.outputs[5], vector_math_075.inputs[1])
-    except:
-        pass
 
     #Slot3.Result -> Slot4.A
     HD2_Shader.links.new(Slot3.outputs[0], Slot4.inputs[2])
@@ -11882,14 +11782,6 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     HD2_Shader.links.new(Slot5.outputs[0], Slot6.inputs[2])
     #Slot7.Result -> Slot8.A
     HD2_Shader.links.new(Slot7.outputs[0], Slot8.inputs[2])
-    
-    try:
-        IDMaskArraySize = material.node_tree.nodes['ID Mask Array Texture'].inputs[0].node.image.size[0]
-        if IDMaskArraySize >= 0:
-            HD2_Shader.links.new(group_input_1.outputs[2], separate_xyz_025.inputs[0])
-            HD2_Shader.links.new(group_input_1.outputs[3], math_238.inputs[0])
-    except:
-        pass
 
     #mix_018.Result -> separate_xyz_043.Vector
     HD2_Shader.links.new(mix_018.outputs[2], separate_xyz_043.inputs[0])
@@ -12407,12 +12299,6 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     HD2_Shader.links.new(id_mask_array_02.outputs[0], mix_018.inputs[7])
     #id_mask_array_02.Alpha -> mix_019.B
     HD2_Shader.links.new(id_mask_array_02.outputs[1], mix_019.inputs[3])
-    #id_mask_array_02_off_on.Value -> mix_018.Factor
-    HD2_Shader.links.new(group_input_1.outputs[0], mix_018.inputs[0])
-    #id_mask_array_02_off_on.Value -> mix_019.Factor
-    HD2_Shader.links.new(group_input_1.outputs[0], mix_019.inputs[0])
-    #pattern_mask_array_02_off_on.Value -> mix_030.Factor
-    HD2_Shader.links.new(group_input_1.outputs[1], mix_030.inputs[0])
     #pattern_mask_array_02.Color -> mix_030.B
     HD2_Shader.links.new(pattern_mask_array_02.outputs[0], mix_030.inputs[3])
     #separate_xyz_036.Z -> math_088.Value
@@ -12733,8 +12619,6 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     HD2_Shader.links.new(gamma.outputs[0], group_output_1.inputs[6])
     #gamma_001.Color -> group_output_1.Normal
     HD2_Shader.links.new(gamma_001.outputs[0], group_output_1.inputs[5])
-    #group_input_1.Normal Map -> separate_xyz_051.Vector
-    HD2_Shader.links.new(group_input_1.outputs[10], separate_xyz_051.inputs[0])
     #separate_xyz_051.Z -> math_194.Value
     HD2_Shader.links.new(separate_xyz_051.outputs[2], math_194.inputs[0])
     #principled_bsdf_001.BSDF -> mix_shader.Shader
@@ -12858,7 +12742,7 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     
     return HD2_Shader
 
-def update_images(HD2_Shader: NodeTree, material):
+def update_images(HD2_Shader: NodeTree, material: Material):
     node_tree = material.node_tree
     
     pattern_mask_array_02 = HD2_Shader.nodes["Pattern Mask Array 02"]
@@ -12909,6 +12793,94 @@ def add_bake_uvs(obj: Object):
             uv_data.uv.y = abs(uv_data.uv.y) % 1
 
     obj.data.update()
+
+def update_array_uvs(material: Material):
+    #set UVs for arrays
+    material.node_tree.nodes['ID Mask UV'].inputs[0].default_value = (0.000)
+    material.node_tree.nodes['Pattern Mask UV'].inputs[0].default_value = (0.000)
+    try:
+        IDMaskArraySizeX = material.node_tree.nodes['ID Mask Array Texture'].inputs[0].node.image.size[0]
+        IDMaskArraySizeY = material.node_tree.nodes['ID Mask Array Texture'].inputs[0].node.image.size[1]
+        if (IDMaskArraySizeY/IDMaskArraySizeX) >= 2.0:
+            material.node_tree.nodes['ID Mask UV'].inputs[0].default_value = (1.000)
+    except:
+        pass
+    
+    try:
+        PatternMaskArraySizeX = material.node_tree.nodes['Pattern Mask Array'].inputs[0].node.image.size[0]
+        PatternMaskArraySizeY = material.node_tree.nodes['Pattern Mask Array'].inputs[0].node.image.size[1]
+        if (PatternMaskArraySizeY/PatternMaskArraySizeX) >= 2.0:
+            material.node_tree.nodes['Pattern Mask UV'].inputs[0].default_value = (1.000)
+    except:
+        pass
+
+def connect_input_links(hd2_shader: NodeTree):
+    group_input_1 = hd2_shader.nodes["Group Input"]
+    #id_mask_array_02_off_on.Value -> mix_018.Factor
+    hd2_shader.links.new(group_input_1.outputs[0], hd2_shader.nodes["Mix.018"].inputs[0])
+    #id_mask_array_02_off_on.Value -> mix_019.Factor
+    hd2_shader.links.new(group_input_1.outputs[0], hd2_shader.nodes["Mix.019"].inputs[0])
+    #pattern_mask_array_02_off_on.Value -> mix_030.Factor
+    hd2_shader.links.new(group_input_1.outputs[1], hd2_shader.nodes["Mix.030"].inputs[0])
+    hd2_shader.links.new(group_input_1.outputs[2], hd2_shader.nodes["Separate XYZ.025"].inputs[0])
+    hd2_shader.links.new(group_input_1.outputs[3], hd2_shader.nodes["Math.238"].inputs[0])
+    hd2_shader.links.new(group_input_1.outputs[4], hd2_shader.nodes["Separate XYZ.059"].inputs[0])
+    #group_input_1.Decal Texture -> vector_math_075.Vector
+    hd2_shader.links.new(group_input_1.outputs[5], hd2_shader.nodes["Vector Math.075"].inputs[1])
+    #group_input_1.Decal Texture(alpha) -> math_195.Value
+    hd2_shader.links.new(group_input_1.outputs[6], hd2_shader.nodes["Math.195"].inputs[1])
+    #group_input_1.Normal Map -> vector_math_021.Vector
+    hd2_shader.links.new(group_input_1.outputs[10], hd2_shader.nodes["Vector Math.021"].inputs[1])
+    #group_input_1.Normal Map -> separate_xyz_051.Vector
+    hd2_shader.links.new(group_input_1.outputs[10], hd2_shader.nodes["Separate XYZ.051"].inputs[0])
+    #group_input_1.Normal Map -> separate_xyz_022.Vector
+    hd2_shader.links.new(group_input_1.outputs[10], hd2_shader.nodes["Separate XYZ.022"].inputs[0])
+    #group_input_1.Normal Map -> separate_xyz_028.Vector
+    hd2_shader.links.new(group_input_1.outputs[10], hd2_shader.nodes["Separate XYZ.028"].inputs[0])
+    #group_input_1.Normal Map_Alpha -> math_003.Value
+    hd2_shader.links.new(group_input_1.outputs[11], hd2_shader.nodes["Math.003"].inputs[1])
+    #group_input_1.Normal Map_Alpha -> combine_xyz_023.X
+    hd2_shader.links.new(group_input_1.outputs[11], hd2_shader.nodes["Combine XYZ.023"].inputs[0])
+    #group_input_1.detail_tile_factor_mult -> math_044.Value
+    hd2_shader.links.new(group_input_1.outputs[12], hd2_shader.nodes["Math.044"].inputs[0])
+    #group_input_1.detail_tile_factor_mult -> math_079.Value
+    hd2_shader.links.new(group_input_1.outputs[12], hd2_shader.nodes["Math.079"].inputs[0])
+    #group_input_1.detail_tile_factor_mult -> math_019.Value
+    hd2_shader.links.new(group_input_1.outputs[12], hd2_shader.nodes["Math.019"].inputs[0])
+    #group_input_1.detail_tile_factor_mult -> math_152.Value
+    hd2_shader.links.new(group_input_1.outputs[12], hd2_shader.nodes["Math.152"].inputs[0])
+
+def update_slot_defaults(hd2_shader: NodeTree, material: Material):
+    PrimaryMaterialLUTSizeX = material.node_tree.nodes['Primary Material LUT Texture'].inputs[0].node.image.size[0]
+    PrimaryMaterialLUTSizeY = material.node_tree.nodes['Primary Material LUT Texture'].inputs[0].node.image.size[1]
+    Slot1and2: ShaderNodeMix = hd2_shader.nodes["Mix.028"]
+    Slot1and2.inputs[2].default_value = (1-(0.5/PrimaryMaterialLUTSizeY))
+    Slot1and2.inputs[3].default_value = (1-(0.5/PrimaryMaterialLUTSizeY*3))
+
+    Slot3: ShaderNodeMix = hd2_shader.nodes["Mix.023"]
+    Slot3.inputs[3].default_value = (1-(0.5/PrimaryMaterialLUTSizeY*5))
+    if PrimaryMaterialLUTSizeY < 2.1:
+        Slot3.mute = True
+    
+    Slot4: ShaderNodeMix = hd2_shader.nodes["Mix.025"]
+    Slot4.inputs[3].default_value = (1-(0.5/PrimaryMaterialLUTSizeY*7))
+    if PrimaryMaterialLUTSizeY < 3.1:
+        Slot4.mute = True
+    
+    Slot5: ShaderNodeMix = hd2_shader.nodes["Mix.024"]
+    Slot5.inputs[3].default_value = (1-(0.5/PrimaryMaterialLUTSizeY*9))
+    if PrimaryMaterialLUTSizeY < 4.1:
+        Slot5.mute = True
+
+    Slot6: ShaderNodeMix = hd2_shader.nodes["Mix.027"]
+    Slot6.inputs[3].default_value = (1-(0.5/PrimaryMaterialLUTSizeY*11))
+    if PrimaryMaterialLUTSizeY < 5.1:
+        Slot6.mute = True
+    
+    Slot7: ShaderNodeMix = hd2_shader.nodes["Mix.026"]
+    Slot7.inputs[3].default_value = (1-(0.5/PrimaryMaterialLUTSizeY*13))
+    if PrimaryMaterialLUTSizeY < 6.1:
+        Slot7.mute = True
 
 class NODE(bpy.types.Operator):
     bl_label = ("(Re)Build Shader")
