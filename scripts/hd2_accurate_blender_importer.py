@@ -119,8 +119,109 @@ def main():
     gltf = load_glb(input_model, args.debug)
     assert gltf["asset"]["generator"] == "https://github.com/xypwn/filediver", f"GLB file was not created by Filediver! (Generator: {gltf['asset']['generator']})"
 
-    for i in range(len(gltf["textures"])):
-        add_texture(gltf, i)
+    print("Deleting Default Cube o7")
+    bpy.data.objects["Cube"].select_set(True)
+    bpy.ops.object.delete()
+    bpy.ops.outliner.orphans_purge()
+    print(f"Loading {input_model.name}")
+    bpy.ops.import_scene.gltf(filepath=str(input_model), import_shading="SMOOTH", bone_heuristic="TEMPERANCE")
+
+    print("Loading TheJudSub's HD2 accurate shader")
+    shader_script = bpy.data.texts.load(str(resource_path / "Helldivers2 shader script v1.0.6-1.py"))
+    shader_script.use_fake_user = True
+    shader_module = shader_script.as_module()
+    with bpy.data.libraries.load(str(resource_path / "Helldivers2 Shader v1.0.5.blend")) as (shader_blend, our_blend):
+        our_blend: BlendData # not actually but they share member names 
+        shader_blend: BlendData
+        our_blend.materials = shader_blend.materials
+    shader_mat = bpy.data.materials["HD2 Shader"]
+    shader_mat.use_fake_user = True
+
+    optional_usages = ["decal_sheet", "pattern_masks_array"]
+    unused_texture = bpy.data.images.new("unused", 1, 1, alpha=True, float_buffer=True)
+    #unused_texture.pixels[3] = 0.0
+    exr = make_exr(np.zeros((1, 1, 4), dtype=np.float32))
+    unused_texture.use_fake_user = True
+    unused_texture.pack(data=exr, data_len=len(exr))
+    unused_texture.source = "FILE"
+    unused_texture.file_format = "PNG"
+
+    unused_secondary_lut = bpy.data.images.new("unused_secondary_lut", 23, 1, alpha=True)
+    exr = make_exr(np.zeros((1, 23, 4), dtype=np.float32))
+    unused_secondary_lut.file_format = "OPEN_EXR"
+    unused_secondary_lut.use_fake_user = True
+    unused_secondary_lut.colorspace_settings.name = "Non-Color"
+    unused_secondary_lut.alpha_mode = "CHANNEL_PACKED"
+    unused_secondary_lut.pack(data=exr, data_len=len(exr))
+    unused_secondary_lut.source = "FILE"
+
+    materialTextures: Dict[int, Dict[str, Image]] = {}
+
+    print("Applying materials to meshes...")
+    for node in gltf["nodes"]:
+        if "mesh" not in node or "skin" not in node:
+            continue
+        mesh = gltf["meshes"][node["mesh"]]
+        textures: Dict[str, Image] = {}
+        assert len(mesh["primitives"]) == 1
+        primitive = mesh["primitives"][0]
+        if primitive["material"] in materialTextures:
+            textures = materialTextures[primitive["material"]]
+        else:
+            material = gltf["materials"][primitive["material"]]
+            if "albedo" in material["extras"] or "albedo_iridescence" in material["extras"]:
+                continue
+            print(f"    Packing textures for {node['name']}")
+            for usage, texIdx in material["extras"].items():
+                textures[usage] = add_texture(gltf, texIdx, usage)
+            for usage in optional_usages:
+                if usage not in textures:
+                    textures[usage] = unused_texture
+            materialTextures[primitive["material"]] = textures
+
+        print("    Copying template material")
+        obj: Object = bpy.data.objects[node["name"]]
+        object_mat = shader_mat.copy()
+        object_mat.name = obj.name
+        template_group: ShaderNodeGroup = object_mat.node_tree.nodes["HD2 Shader Template"]
+        template_group.node_tree = template_group.node_tree.copy()
+        template_group.node_tree.name = object_mat.name + shader_module.ScriptVersion
+        HD2_Shader = template_group.node_tree
+
+        print("    Applying textures")
+        obj.material_slots[0].material = object_mat
+        config_nodes: Dict[str, ShaderNodeTexImage] = object_mat.node_tree.nodes
+        config_nodes["Secondary Material LUT Texture"].image = unused_secondary_lut
+        for usage, image in textures.items():
+            match usage:
+                case "id_masks_array":
+                    config_nodes["ID Mask Array Texture"].image = image
+                    image.colorspace_settings.name = "Non-Color"
+                case "pattern_masks_array":
+                    config_nodes["Pattern Mask Array"].image = image
+                    image.colorspace_settings.name = "Non-Color"
+                case "decal_sheet":
+                    config_nodes["Decal Texture"].image = image
+                    image.colorspace_settings.name = "sRGB"
+                    image.alpha_mode = "CHANNEL_PACKED"
+                case "material_lut":
+                    config_nodes["Primary Material LUT Texture"].image = image
+                    image.colorspace_settings.name = "Non-Color"
+                case "pattern_lut":
+                    config_nodes["Pattern LUT Texture"].image = image
+                    image.colorspace_settings.name = "Non-Color"
+                case "base_data":
+                    config_nodes["Normal Map"].image = image
+                    image.colorspace_settings.name = "Non-Color"
+        print("    Finalizing material")
+        shader_module.update_images(HD2_Shader, object_mat)
+        shader_module.update_slot_defaults(HD2_Shader, object_mat)
+        shader_module.connect_input_links(HD2_Shader)
+        shader_module.update_array_uvs(object_mat)
+        shader_module.add_bake_uvs(obj)
+        obj.select_set(True)
+        bpy.ops.object.shade_smooth()
+        print(f"Applied material to {node['name']}!")
 
     bpy.ops.wm.save_mainfile(filepath=str(output))
 
