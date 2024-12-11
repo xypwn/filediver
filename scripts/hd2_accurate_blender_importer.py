@@ -74,10 +74,13 @@ def get_png_dimensions(png: bytes) -> Tuple[int, int]:
     data.close()
     return height, width
 
-def add_texture(gltf, textureIdx):
+def add_texture(gltf, textureIdx, usage: Optional[str] = None) -> Image:
     image = get_texture_image(gltf, textureIdx)
     data = get_texture_data(gltf, textureIdx)
-    name = str(Path(image["name"]).with_suffix(".png"))
+    name = image['name']
+    if usage is not None:
+        name = f"{usage} {image['name']}"
+    name = str(Path(name).with_suffix(".png"))
     if image["mimeType"] == "image/vnd-ms.dds":
         dds = DDS.parse(BytesIO(data))
         data = make_exr(dds.pixels().astype(np.float32))
@@ -87,12 +90,15 @@ def add_texture(gltf, textureIdx):
     else:
         height, width = get_png_dimensions(data)
         fmt = "PNG"
+    if name in bpy.data.images:
+        return bpy.data.images[name]
     blImage = bpy.data.images.new(name, width, height, alpha=True)
     blImage.pack(data=data, data_len=len(data))
     blImage.file_format = fmt
     blImage.source = "FILE"
     blImage.alpha_mode = "CHANNEL_PACKED"
     blImage.use_fake_user = True
+    return blImage
 
 def main():
     parser = ArgumentParser("hd2_accurate_blender_importer")
