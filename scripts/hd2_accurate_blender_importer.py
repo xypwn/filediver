@@ -39,9 +39,9 @@ def load_glb(path: Path) -> dict:
     return gltf
 
 def get_data(gltf: dict, bufferViewIdx: int) -> bytes:
-    bufferView = gltf["bufferViews"][bufferViewIdx]
+    bufferView: Dict[str, int] = gltf["bufferViews"][bufferViewIdx]
     bufferIdx = bufferView["buffer"]
-    startOffset = bufferView["byteOffset"]
+    startOffset = bufferView.get("byteOffset", 0)
     endOffset = startOffset + bufferView["byteLength"]
     return gltf["chunks"][bufferIdx].data[startOffset:endOffset]
 
