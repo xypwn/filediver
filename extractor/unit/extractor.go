@@ -435,10 +435,24 @@ func addSkeleton(ctx extractor.Context, doc *gltf.Document, unitInfo *unit.Info,
 
 	unitInfo.Bones[0].RecursiveCalcLocalTransforms(&unitInfo.Bones)
 
+	var nodeNames map[string]uint32 = make(map[string]uint32)
+	for i, node := range doc.Nodes {
+		if node.Extras == nil {
+			continue
+		}
+		skeletonId := node.Extras.(map[string]uint32)["skeletonId"]
+		nodeNames[node.Name+fmt.Sprintf("%08x", skeletonId)] = uint32(i)
+	}
+
+	skeletonId := unitInfo.Bones[2].NameHash.Value
+	var skeletonTag map[string]uint32 = make(map[string]uint32)
+	skeletonTag["skeletonId"] = skeletonId
+
 	inverseBindMatrices := modeler.WriteAccessor(doc, gltf.TargetNone, matrices)
 	jointIndices := make([]uint32, 0)
 	boneBaseIndex := uint32(len(doc.Nodes))
-	for _, bone := range unitInfo.Bones {
+	rootNodeIndex := boneBaseIndex
+	for i, bone := range unitInfo.Bones {
 		quat := mgl32.Mat4ToQuat(bone.Transform.Rotation.Mat4())
 		boneName := fmt.Sprintf("Bone_%08x", bone.NameHash.Value)
 		if boneInfo != nil {
@@ -447,20 +461,43 @@ func addSkeleton(ctx extractor.Context, doc *gltf.Document, unitInfo *unit.Info,
 				boneName = name
 			}
 		}
-		doc.Nodes = append(doc.Nodes, &gltf.Node{
-			Name:        boneName,
-			Rotation:    quat.V.Vec4(quat.W),
-			Translation: bone.Transform.Translation,
-			Scale:       bone.Transform.Scale,
-		})
-		boneIdx := uint32(len(doc.Nodes) - 1)
-		jointIndices = append(jointIndices, boneIdx)
-		parentIndex := bone.ParentIndex + boneBaseIndex
-		if parentIndex != boneIdx {
-			doc.Nodes[parentIndex].Children = append(doc.Nodes[parentIndex].Children, boneIdx)
+		var boneIdx uint32
+		var contains bool = false
+		var parentIndex uint32
+		if boneIdx, contains = nodeNames[boneName+fmt.Sprintf("%08x", skeletonId)]; !contains {
+			parentBone := unitInfo.Bones[bone.ParentIndex]
+			parentName, contains := boneInfo.NameMap[parentBone.NameHash]
+			if !contains {
+				parentName = fmt.Sprintf("Bone_%08x", parentBone.NameHash.Value)
+			}
+			parentIndex, contains = nodeNames[parentName+fmt.Sprintf("%08x", skeletonId)]
+			if !contains {
+				parentIndex = bone.ParentIndex + boneBaseIndex
+			}
+
+			doc.Nodes = append(doc.Nodes, &gltf.Node{
+				Name:        boneName,
+				Rotation:    quat.V.Vec4(quat.W),
+				Translation: bone.Transform.Translation,
+				Scale:       bone.Transform.Scale,
+				Extras:      skeletonTag,
+			})
+			boneIdx = uint32(len(doc.Nodes) - 1)
+
+			if parentIndex != boneIdx && parentIndex < boneIdx {
+				doc.Nodes[parentIndex].Children = append(doc.Nodes[parentIndex].Children, boneIdx)
+			}
+		} else {
+			if i == 0 {
+				rootNodeIndex = boneIdx
+			}
+			boneBaseIndex -= 1
 		}
+		jointIndices = append(jointIndices, boneIdx)
 	}
-	doc.Scenes[0].Nodes = append(doc.Scenes[0].Nodes, boneBaseIndex)
+	if !slices.Contains(doc.Scenes[0].Nodes, rootNodeIndex) {
+		doc.Scenes[0].Nodes = append(doc.Scenes[0].Nodes, rootNodeIndex)
+	}
 
 	doc.Skins = append(doc.Skins, &gltf.Skin{
 		Name:                ctx.File().ID().Name.String(),
