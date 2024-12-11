@@ -705,7 +705,7 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions) error {
 			}
 
 			doc.Meshes = append(doc.Meshes, &gltf.Mesh{
-				Name: componentName + " Mesh",
+				Name: ctx.File().ID().Name.String(),
 				Primitives: []*gltf.Primitive{
 					primitive,
 				},
