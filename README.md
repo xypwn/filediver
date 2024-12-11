@@ -61,6 +61,12 @@ Extract the Super Earth anthem as mp3:
 ./filediver -c "audio:format=mp3" -i "content/audio/291227525.wwise_stream"
 ```
 
+Combine several models into one file, then import into Blender with Thejudsub's accurate shader applied:
+```sh
+./filediver -c "unit:single_glb=true" -i "{0x2ec9ecbd91f29291,0x76cf8e26aad1bf7e}.unit" -o "extracted/DP-00-Tactical/"
+python ./scripts/hd2_accurate_blender_importer.py extracted/DP-00-Tactical/combined.glb DP-00-Tactical.blend
+```
+
 ## Features
 ### File Types/Formats
 - **Audio**: Audiokinetic wwise bnk/wem; automatically converted to WAV; other formats require FFmpeg
