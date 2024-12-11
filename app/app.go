@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/gobwas/glob"
+	"github.com/qmuntal/gltf"
 	"github.com/xypwn/filediver/exec"
 	"github.com/xypwn/filediver/extractor"
 	extr_bik "github.com/xypwn/filediver/extractor/bik"
@@ -72,6 +73,10 @@ var ConfigFormat = ConfigTemplate{
 					Enum: []string{"false", "true"},
 				},
 				"join_components": {
+					Type: ConfigValueEnum,
+					Enum: []string{"false", "true"},
+				},
+				"single_glb": {
 					Type: ConfigValueEnum,
 					Enum: []string{"false", "true"},
 				},
@@ -384,7 +389,7 @@ func (c *extractContext) Files() []string {
 }
 
 // Returns path to extracted file/directory.
-func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string, extrCfg map[string]map[string]string, runner *exec.Runner) ([]string, error) {
+func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string, extrCfg map[string]map[string]string, runner *exec.Runner, gltfDoc *gltf.Document) ([]string, error) {
 	name, ok := a.Hashes[id.Name]
 	if !ok {
 		name = id.Name.String()
@@ -434,7 +439,7 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 		if cfg["format"] == "source" {
 			extr = extractor.ExtractFuncRaw(".unit", stingray.DataMain, stingray.DataStream, stingray.DataGPU)
 		} else {
-			extr = extr_unit.Convert
+			extr = extr_unit.Convert(gltfDoc)
 		}
 	case "texture":
 		if cfg["format"] == "source" {
