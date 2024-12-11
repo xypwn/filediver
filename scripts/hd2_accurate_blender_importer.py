@@ -24,7 +24,7 @@ class GLTFChunk:
         length, type = struct.unpack("<I4s", data.read(8))
         return cls(length, type.decode().strip("\0"), data.read(length))
 
-def load_glb(path: Path) -> dict:
+def load_glb(path: Path, debug: bool) -> dict:
     chunks: List[GLTFChunk] = []
     with path.open("rb") as f:
         magic = f.read(4).decode()
@@ -35,6 +35,9 @@ def load_glb(path: Path) -> dict:
             chunks.append(GLTFChunk.parse(f))
     assert chunks[0].type == "JSON"
     gltf = json.loads(chunks[0].data.decode())
+    if debug:
+        with path.with_suffix(".debug.gltf").open("w") as f:
+            json.dump(gltf, f, indent=4)
     gltf["chunks"] = chunks[1:]
     return gltf
 
@@ -104,11 +107,16 @@ def main():
     parser = ArgumentParser("hd2_accurate_blender_importer")
     parser.add_argument("input_model", type=Path, help="Path to filediver-exported .glb to import into a .blend file")
     parser.add_argument("output", type=Path, help="Location to save .blend file")
+    parser.add_argument("--debug", action="store_true", help="Export debug data")
+
+    script_path = Path(os.path.realpath(__file__)).parent
+    resource_path = script_path / "resources"
 
     args = parser.parse_args()
+    input_model: Path = args.input_model
     output: Path = args.output
 
-    gltf = load_glb(args.input_model)
+    gltf = load_glb(input_model, args.debug)
     assert gltf["asset"]["generator"] == "https://github.com/xypwn/filediver", f"GLB file was not created by Filediver! (Generator: {gltf['asset']['generator']})"
 
     for i in range(len(gltf["textures"])):
