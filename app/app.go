@@ -195,6 +195,34 @@ func OpenGameDir(ctx context.Context, gameDir string, hashes []string, onProgres
 	}, nil
 }
 
+// Open specific triad
+func OpenTriad(ctx context.Context, triadPath string, hashes []string, onProgress func(curr, total int)) (*App, error) {
+	dataDir, err := stingray.OpenTriadData(ctx, triadPath, onProgress)
+	if err != nil {
+		return nil, err
+	}
+
+	hashesMap := make(map[stingray.Hash]string)
+	for _, h := range hashes {
+		hashesMap[stingray.Sum64([]byte(h))] = h
+	}
+	// wwise_dep files let us know the string of many of the wwise_banks
+	for id, file := range dataDir.Files {
+		if id.Type == stingray.Sum64([]byte("wwise_dep")) {
+			h, err := parseWwiseDep(ctx, file)
+			if err != nil {
+				return nil, fmt.Errorf("wwise_dep: %w", err)
+			}
+			hashesMap[stingray.Sum64([]byte(h))] = h
+		}
+	}
+
+	return &App{
+		Hashes:  hashesMap,
+		DataDir: dataDir,
+	}, nil
+}
+
 func (a *App) matchFileID(id stingray.FileID, glb glob.Glob, nameOnly bool) bool {
 	nameVariations := []string{
 		id.Name.StringEndian(binary.LittleEndian),
@@ -236,7 +264,7 @@ func (a *App) matchFileID(id stingray.FileID, glb glob.Glob, nameOnly bool) bool
 	return false
 }
 
-func (a *App) MatchingFiles(includeGlob, excludeGlob string, cfgTemplate ConfigTemplate, cfg map[string]map[string]string) (map[stingray.FileID]*stingray.File, error) {
+func (a *App) MatchingFiles(includeGlob, excludeGlob string, triadName string, cfgTemplate ConfigTemplate, cfg map[string]map[string]string) (map[stingray.FileID]*stingray.File, error) {
 	var inclGlob glob.Glob
 	inclGlobNameOnly := !strings.Contains(includeGlob, ".")
 	if includeGlob != "" {
@@ -259,8 +287,12 @@ func (a *App) MatchingFiles(includeGlob, excludeGlob string, cfgTemplate ConfigT
 	res := make(map[stingray.FileID]*stingray.File)
 	for id, file := range a.DataDir.Files {
 		shouldIncl := true
+		if triadName != "" && file.TriadName() != triadName {
+			shouldIncl = false
+		}
 		if includeGlob != "" {
-			shouldIncl = a.matchFileID(id, inclGlob, inclGlobNameOnly)
+			// Include all files in triad even if they don't match the includeGlob - includeGlob will only add files to read
+			shouldIncl = a.matchFileID(id, inclGlob, inclGlobNameOnly) || (triadName != "" && shouldIncl)
 		}
 		if excludeGlob != "" {
 			if a.matchFileID(id, exclGlob, exclGlobNameOnly) {

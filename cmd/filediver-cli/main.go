@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"runtime/pprof"
 	"sort"
+	"strings"
 	"syscall"
 
 	//"github.com/davecgh/go-spew/spew"
@@ -50,6 +51,7 @@ extractor config:
 ` + app.ExtractorConfigHelpMessage(app.ConfigFormat),
 		DisableDefaultShowHelp: true,
 	})
+	triad := parser.String("t", "triad", &argparse.Option{Help: "Triad name as found in game data directory (aka Archive ID, eg 0x9ba626afa44a3aa3)"})
 	gameDir := parser.String("g", "gamedir", &argparse.Option{Help: "Helldivers 2 game directory"})
 	modeList := parser.Flag("l", "list", &argparse.Option{Help: "List all files without extracting anything"})
 	outDir := parser.String("o", "out", &argparse.Option{Default: "extracted", Help: "Output directory (default: extracted)"})
@@ -138,7 +140,11 @@ extractor config:
 	}
 	prt.NoStatus()
 
-	files, err := a.MatchingFiles(*extrInclGlob, *extrExclGlob, app.ConfigFormat, extrCfg)
+	var triadTrimmed string = ""
+	if triad != nil {
+		triadTrimmed = strings.TrimPrefix(*triad, "0x")
+	}
+	files, err := a.MatchingFiles(*extrInclGlob, *extrExclGlob, triadTrimmed, app.ConfigFormat, extrCfg)
 	if err != nil {
 		prt.Fatalf("%v", err)
 	}
