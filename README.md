@@ -73,6 +73,17 @@ Planned: animations
 ### Importing Bones
 When importing the .glb into blender, you need to change the "Bone Dir" option from "Blender" to "Temperance", or you will see huge spheres for bones.
 
+### Thejudsub's Accurate Shader
+.glb models exported from filediver can be imported into Blender with the accurate shader pre-applied, saving lots of manual work finding and applying textures:
+
+(Prerequisites: `Python 3.11.*` must be installed on your system - Blender 4.1-4.3+ only supports specifically Python 3.11)
+1. Ensure you've setup your environment by running `./scripts/setup_environment.ps1` (on Windows) or `bash ./scripts/setup_environment.sh` (on Linux). These scripts will verify you have the correct Python version and will install the virtual environment
+2. Export a model that uses procedural materials (most armor pieces and weapons do)
+3. Activate the virtual environment with `&./scripts/.venv/Scripts/Activate.ps1` (Windows - powershell), `./scripts/.venv/Scripts/activate.bat` (Windows - cmd), or `source ./scripts/.venv/bin/activate` (Linux - most shells)
+4. Run `python ./scripts/hd2_accurate_blender_importer.py path/to/filediver/exported.glb path/to/output.blend`
+5. `path/to/output.blend` will be a _**new, completely fresh/overwritten**_ blend file containing the exported models with the shader applied.
+6. Run `deactivate` to leave the python virtual environment.
+
 ## Credits/Links
 This app builds on a lot of work from other people. This includes:
 - [Hellextractor by Xaymar](https://github.com/Xaymar/Hellextractor)
@@ -82,6 +93,8 @@ This app builds on a lot of work from other people. This includes:
 	- Wwise audio formats
 - [ImageMagick](https://imagemagick.org)
 	- DDS texture decoding
+- [Accurate HD2 Shader by Thejudsub](https://discord.com/channels/1210541115829260328/1222290154409033889) on [the Helldivers Archive Discord server](https://discord.gg/helldiversarchive)
+	- The most accurate Blender material replicating the game's procedural shaders
 
 Some useful discussion on the topic of HD2 resource extraction: https://reshax.com/topic/507-helldivers-2-model-extraction-help/
 
