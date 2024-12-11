@@ -6,7 +6,7 @@
 # Shader bundled with filediver with permission from @thejudsub
 
 import bpy
-from bpy.types import NodeTree, Material, Object
+from bpy.types import NodeTree, Material, Object, ShaderNodeGroup, ShaderNodeMix
 from typing import Optional
 import os
 import math

@@ -1,10 +1,16 @@
 import bpy
+import json
+import os
+import struct
 import numpy as np
 from argparse import ArgumentParser
+from bpy.types import BlendData, Image, Object, ShaderNodeGroup, ShaderNodeTexImage
 from pathlib import Path
-from dds_float16 import *
+from io import BytesIO
+from typing import Optional, Dict, List, Tuple
+
+from dds_float16 import DDS
 from openexr_builder import make_exr
-import json
 
 class GLTFChunk:
     def __init__(self, length: int, type: str, data: bytes) -> None:

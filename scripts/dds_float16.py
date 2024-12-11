@@ -1,7 +1,7 @@
 import struct
 import numpy as np
 from io import BytesIO
-from typing import Tuple, Any, List
+from typing import Any
 from enum import IntEnum, auto
 
 class DXGIFormat(IntEnum):
