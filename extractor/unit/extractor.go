@@ -508,7 +508,7 @@ func addSkeleton(ctx extractor.Context, doc *gltf.Document, unitInfo *unit.Info,
 	return uint32(len(doc.Skins) - 1)
 }
 
-func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions) error {
+func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions, gltfDoc *gltf.Document) error {
 	fMain, err := ctx.File().Open(ctx.Ctx(), stingray.DataMain)
 	if err != nil {
 		return err
@@ -540,14 +540,17 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions) error {
 		return err
 	}
 
-	doc := gltf.NewDocument()
-	doc.Asset.Generator = "https://github.com/xypwn/filediver"
-	doc.Samplers = append(doc.Samplers, &gltf.Sampler{
-		MagFilter: gltf.MagLinear,
-		MinFilter: gltf.MinLinear,
-		WrapS:     gltf.WrapRepeat,
-		WrapT:     gltf.WrapRepeat,
-	})
+	var doc *gltf.Document = gltfDoc
+	if doc == nil {
+		doc = gltf.NewDocument()
+		doc.Asset.Generator = "https://github.com/xypwn/filediver"
+		doc.Samplers = append(doc.Samplers, &gltf.Sampler{
+			MagFilter: gltf.MagLinear,
+			MinFilter: gltf.MinLinear,
+			WrapS:     gltf.WrapRepeat,
+			WrapT:     gltf.WrapRepeat,
+		})
+	}
 
 	// Load materials
 	materialIdxs := make(map[stingray.ThinHash]uint32)
@@ -594,6 +597,7 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions) error {
 				meshesToLoad = entries[highestDetailIdx].Indices
 			}
 		} else {
+			fmt.Println("\nAdding LODs anyway since no lodgroups in unitInfo?")
 			for i := uint32(0); i < unitInfo.NumMeshes; i++ {
 				meshesToLoad = append(meshesToLoad, i)
 			}
@@ -759,18 +763,20 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions) error {
 		}
 	}
 
-	out, err := ctx.CreateFile(".glb")
-	if err != nil {
-		return err
-	}
-	enc := gltf.NewEncoder(out)
-	if err := enc.Encode(doc); err != nil {
-		return err
+	if gltfDoc == nil {
+		out, err := ctx.CreateFile(".glb")
+		if err != nil {
+			return err
+		}
+		enc := gltf.NewEncoder(out)
+		if err := enc.Encode(doc); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
-func Convert(ctx extractor.Context) error {
+func getImgOpts(ctx extractor.Context) (*ImageOptions, error) {
 	var opts ImageOptions
 	if v, ok := ctx.Config()["image_jpeg"]; ok && v == "true" {
 		opts.Jpeg = true
@@ -778,7 +784,7 @@ func Convert(ctx extractor.Context) error {
 	if v, ok := ctx.Config()["jpeg_quality"]; ok {
 		quality, err := strconv.Atoi(v)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		opts.JpegQuality = quality
 	}
@@ -794,5 +800,15 @@ func Convert(ctx extractor.Context) error {
 			opts.PngCompression = png.BestCompression
 		}
 	}
-	return ConvertOpts(ctx, &opts)
+	return &opts, nil
+}
+
+func Convert(currDoc *gltf.Document) func(ctx extractor.Context) error {
+	return func(ctx extractor.Context) error {
+		opts, err := getImgOpts(ctx)
+		if err != nil {
+			return err
+		}
+		return ConvertOpts(ctx, opts, currDoc)
+	}
 }

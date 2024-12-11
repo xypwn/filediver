@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime/pprof"
 	"sort"
 	"strings"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/hellflame/argparse"
 	"github.com/jwalton/go-supportscolor"
+	"github.com/qmuntal/gltf"
 
 	"github.com/xypwn/filediver/app"
 	"github.com/xypwn/filediver/exec"
@@ -202,6 +204,13 @@ extractor config:
 	} else {
 		prt.Infof("Extracting files...")
 
+		var document *gltf.Document
+		if extrCfg["unit"]["single_glb"] == "true" {
+			var closeGLB func(doc *gltf.Document) error
+			document, closeGLB = createCloseableGltfDocument(*outDir, "combined")
+			defer closeGLB(document)
+		}
+
 		numExtrFiles := 0
 		for i, id := range sortedFileIDs {
 			truncName := getFileName(id)
@@ -209,7 +218,7 @@ extractor config:
 				truncName = "..." + truncName[len(truncName)-37:]
 			}
 			prt.Statusf("File %v/%v: %v", i+1, len(files), truncName)
-			if _, err := a.ExtractFile(ctx, id, *outDir, extrCfg, runner); err == nil {
+			if _, err := a.ExtractFile(ctx, id, *outDir, extrCfg, runner, document); err == nil {
 				numExtrFiles++
 			} else {
 				if errors.Is(err, context.Canceled) {
@@ -225,4 +234,32 @@ extractor config:
 		prt.NoStatus()
 		prt.Infof("Extracted %v/%v matching files", numExtrFiles, len(files))
 	}
+}
+
+func createCloseableGltfDocument(outDir string, triad string) (*gltf.Document, func(doc *gltf.Document) error) {
+	document := gltf.NewDocument()
+	document.Asset.Generator = "https://github.com/xypwn/filediver"
+	document.Samplers = append(document.Samplers, &gltf.Sampler{
+		MagFilter: gltf.MagLinear,
+		MinFilter: gltf.MinLinear,
+		WrapS:     gltf.WrapRepeat,
+		WrapT:     gltf.WrapRepeat,
+	})
+	closeGLB := func(doc *gltf.Document) error {
+		outPath := filepath.Join(outDir, triad)
+		path := outPath + ".glb"
+		if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
+			return err
+		}
+		out, err := os.Create(path)
+		if err != nil {
+			return err
+		}
+		enc := gltf.NewEncoder(out)
+		if err := enc.Encode(doc); err != nil {
+			return err
+		}
+		return nil
+	}
+	return document, closeGLB
 }
