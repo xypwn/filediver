@@ -330,7 +330,7 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 				}
 			}
 			if highestDetailIdx != -1 {
-				meshesToLoad = entries[highestDetailIdx].Indices
+				meshesToLoad = entries[highestDetailIdx].Indices[:1]
 			}
 		} else {
 			fmt.Println("\nAdding LODs anyway since no lodgroups in unitInfo?")
