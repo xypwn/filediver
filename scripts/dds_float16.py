@@ -198,6 +198,10 @@ class DDSHeader:
 
 
 class DDS:
+    supported_formats = [
+        DXGIFormat.R16G16B16A16_FLOAT,
+        DXGIFormat.R8G8B8A8_UNORM,
+    ]
     def __init__(self, header: DDSHeader, data: bytes):
         self.header = header
         self.data = data
@@ -208,12 +212,21 @@ class DDS:
 
     # Returns the largest mipmap's pixels
     def pixels(self) -> np.ndarray:
-        assert self.header.dx10header.dxgifmt == DXGIFormat.R16G16B16A16_FLOAT, "This script only reads the float16 RGBA format"
-        stride = 8
+        assert self.header.dds_pix_fmt.fourcc == b"DX10", f"Pixel format not DX10: got '{self.header.dds_pix_fmt.fourcc}'"
+        assert self.header.dx10header.dxgifmt in self.supported_formats, f"format not supported {self.header.dx10header.dxgifmt._name_}"
+        match self.header.dx10header.dxgifmt:
+            case DXGIFormat.R16G16B16A16_FLOAT:
+                stride = 8
+                fmt = "<eeee"
+                conv = lambda x: x
+            case DXGIFormat.R8G8B8A8_UNORM:
+                stride = 4
+                fmt = "<BBBB"
+                conv = lambda x: tuple(float(val) / 255 for val in x)
         offset = 0
         pixels = []
         for _ in range(self.header.height):
-            pixels.append([pixel for pixel in struct.iter_unpack("<eeee", self.data[offset:offset + stride * self.header.width])])
+            pixels.append([conv(pixel) for pixel in struct.iter_unpack(fmt, self.data[offset:offset + stride * self.header.width])])
             offset += stride * self.header.width
         return np.array(pixels, dtype=np.float16)
 

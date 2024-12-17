@@ -16,6 +16,7 @@ import (
 	"github.com/xypwn/filediver/exec"
 	"github.com/xypwn/filediver/extractor"
 	extr_bik "github.com/xypwn/filediver/extractor/bik"
+	extr_material "github.com/xypwn/filediver/extractor/material"
 	extr_texture "github.com/xypwn/filediver/extractor/texture"
 	extr_unit "github.com/xypwn/filediver/extractor/unit"
 	extr_wwise "github.com/xypwn/filediver/extractor/wwise"
@@ -52,6 +53,40 @@ var ConfigFormat = ConfigTemplate{
 				},
 			},
 		},
+		"material": {
+			Category: "shader",
+			Options: map[string]ConfigTemplateOption{
+				"format": {
+					Type: ConfigValueEnum,
+					Enum: []string{"glb", "source", "blend"},
+				},
+				"single_glb": {
+					Type: ConfigValueEnum,
+					Enum: []string{"false", "true"},
+				},
+				"image_jpeg": {
+					Type: ConfigValueEnum,
+					Enum: []string{"false", "true"},
+				},
+				"jpeg_quality": {
+					Type:        ConfigValueIntRange,
+					IntRangeMin: 1,
+					IntRangeMax: 100,
+				},
+				"png_compression": {
+					Type: ConfigValueEnum,
+					Enum: []string{"default", "none", "fast", "best"},
+				},
+				"all_textures": {
+					Type: ConfigValueEnum,
+					Enum: []string{"false", "true"},
+				},
+				"accurate_only": {
+					Type: ConfigValueEnum,
+					Enum: []string{"false", "true"},
+				},
+			},
+		},
 		"texture": {
 			Category: "image",
 			Options: map[string]ConfigTemplateOption{
@@ -66,13 +101,17 @@ var ConfigFormat = ConfigTemplate{
 			Options: map[string]ConfigTemplateOption{
 				"format": {
 					Type: ConfigValueEnum,
-					Enum: []string{"glb", "source"},
+					Enum: []string{"glb", "source", "blend_glb"},
 				},
 				"include_lods": {
 					Type: ConfigValueEnum,
 					Enum: []string{"false", "true"},
 				},
 				"join_components": {
+					Type: ConfigValueEnum,
+					Enum: []string{"true", "false"},
+				},
+				"bounding_boxes": {
 					Type: ConfigValueEnum,
 					Enum: []string{"false", "true"},
 				},
@@ -96,6 +135,10 @@ var ConfigFormat = ConfigTemplate{
 				"png_compression": {
 					Type: ConfigValueEnum,
 					Enum: []string{"default", "none", "fast", "best"},
+				},
+				"all_textures": {
+					Type: ConfigValueEnum,
+					Enum: []string{"false", "true"},
 				},
 			},
 		},
@@ -434,6 +477,12 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 			extr = extr_wwise.ExtractBnk
 		} else {
 			extr = extr_wwise.ConvertBnk
+		}
+	case "material":
+		if cfg["format"] == "source" {
+			extr = extractor.ExtractFuncRaw(".material", stingray.DataMain, stingray.DataStream, stingray.DataGPU)
+		} else {
+			extr = extr_material.Convert(gltfDoc)
 		}
 	case "unit":
 		if cfg["format"] == "source" {

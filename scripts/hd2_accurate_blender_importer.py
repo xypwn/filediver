@@ -1,6 +1,7 @@
 import bpy
 import json
 import os
+import sys
 import struct
 import numpy as np
 from argparse import ArgumentParser
@@ -24,15 +25,25 @@ class GLTFChunk:
         length, type = struct.unpack("<I4s", data.read(8))
         return cls(length, type.decode().strip("\0"), data.read(length))
 
+def decode_glb(f: BytesIO) -> List[GLTFChunk]:
+    chunks: List[GLTFChunk] = []
+    magic = f.read(4).decode()
+    assert magic == "glTF", "Invalid glb file!"
+    version, length = struct.unpack("<II", f.read(8))
+    assert version == 2
+    length -= 12
+    while length > 0:
+        chunks.append(GLTFChunk.parse(f))
+        length -= chunks[-1].length + 8
+    return chunks
+
 def load_glb(path: Path, debug: bool) -> dict:
     chunks: List[GLTFChunk] = []
-    with path.open("rb") as f:
-        magic = f.read(4).decode()
-        assert magic == "glTF", "Invalid glb file!"
-        version, length = struct.unpack("<II", f.read(8))
-        assert version == 2
-        while f.tell() != length:
-            chunks.append(GLTFChunk.parse(f))
+    if str(path) != "-":
+        with path.open("rb") as f:
+            chunks = decode_glb(f)
+    else:
+        chunks = decode_glb(sys.stdin.buffer)
     assert chunks[0].type == "JSON"
     gltf = json.loads(chunks[0].data.decode())
     if debug:
@@ -40,6 +51,20 @@ def load_glb(path: Path, debug: bool) -> dict:
             json.dump(gltf, f, indent=4)
     gltf["chunks"] = chunks[1:]
     return gltf
+
+def write_glb(path: Path, gltf: dict) -> int:
+    chunks: List[GLTFChunk] = gltf["chunks"]
+    written = 0
+    path.mkdir
+    json_data = json.dumps({key: value for key, value in gltf.items() if key != "chunks"}, separators=(',',':')).encode()
+    chunks = [GLTFChunk(len(json_data), "JSON", json_data)] + chunks
+    with path.open("wb") as f:
+        written += f.write(b"glTF")
+        written += f.write(struct.pack("<II", 2, 12 + 8 * len(chunks) + sum([chunk.length for chunk in chunks])))
+        for chunk in chunks:
+            written += f.write(struct.pack("<I4s", chunk.length, chunk.type.encode()))
+            written += f.write(chunk.data)
+    return written
 
 def get_data(gltf: dict, bufferViewIdx: int) -> bytes:
     bufferView: Dict[str, int] = gltf["bufferViews"][bufferViewIdx]
@@ -108,6 +133,7 @@ def main():
     parser.add_argument("input_model", type=Path, help="Path to filediver-exported .glb to import into a .blend file")
     parser.add_argument("output", type=Path, help="Location to save .blend file")
     parser.add_argument("--debug", action="store_true", help="Export debug data")
+    parser.add_argument("--packall", action="store_true", help="Pack all images")
 
     script_path = Path(os.path.realpath(__file__)).parent
     resource_path = script_path / "resources"
@@ -115,6 +141,8 @@ def main():
     args = parser.parse_args()
     input_model: Path = args.input_model
     output: Path = args.output
+
+    print("Beginning import...")
 
     gltf = load_glb(input_model, args.debug)
     assert gltf["asset"]["generator"] == "https://github.com/xypwn/filediver", f"GLB file was not created by Filediver! (Generator: {gltf['asset']['generator']})"
@@ -124,8 +152,15 @@ def main():
     bpy.ops.object.delete()
     bpy.ops.outliner.orphans_purge()
     print(f"Loading {input_model.name}")
-    bpy.ops.import_scene.gltf(filepath=str(input_model), import_shading="SMOOTH", bone_heuristic="TEMPERANCE")
-
+    try:
+        path = input_model
+        if str(path) == "-":
+            path = Path("tmp.glb")
+            write_glb(path, gltf)
+        bpy.ops.import_scene.gltf(filepath=str(path), import_shading="SMOOTH", bone_heuristic="TEMPERANCE")
+    finally:
+        if str(input_model) == "-":
+            path.unlink()
     print("Loading TheJudSub's HD2 accurate shader")
     shader_script = bpy.data.texts.load(str(resource_path / "Helldivers2 shader script v1.0.6-1.py"))
     shader_script.use_fake_user = True
@@ -155,69 +190,90 @@ def main():
     unused_secondary_lut.pack(data=exr, data_len=len(exr))
     unused_secondary_lut.source = "FILE"
 
-    materialTextures: Dict[int, Dict[str, Image]] = {}
+    materialTextures: Dict[str, Dict[str, Image]] = {}
 
     print("Applying materials to meshes...")
     for node in gltf["nodes"]:
-        if "mesh" not in node or "skin" not in node:
+        if "mesh" not in node:
             continue
         mesh = gltf["meshes"][node["mesh"]]
         textures: Dict[str, Image] = {}
         assert len(mesh["primitives"]) == 1
         primitive = mesh["primitives"][0]
-        if primitive["material"] in materialTextures:
-            textures = materialTextures[primitive["material"]]
+        material = gltf["materials"][primitive["material"]]
+        if material["name"] in materialTextures:
+            textures = materialTextures[material["name"]]
         else:
-            material = gltf["materials"][primitive["material"]]
-            if "albedo" in material["extras"] or "albedo_iridescence" in material["extras"]:
+            is_pbr = "albedo" in material["extras"] or "albedo_iridescence" in material["extras"] or "normal" in material["extras"]
+            if len(material["extras"]) == 0 or ("material_lut" not in material["extras"] and not is_pbr):
                 continue
-            print(f"    Packing textures for {node['name']}")
-            for usage, texIdx in material["extras"].items():
-                textures[usage] = add_texture(gltf, texIdx, usage)
-            for usage in optional_usages:
-                if usage not in textures:
-                    textures[usage] = unused_texture
-            materialTextures[primitive["material"]] = textures
+            if not args.packall and is_pbr:
+                continue
+            print(f"    Packing textures for material {material['name']}")
+            try:
+                for usage, texIdx in material["extras"].items():
+                    textures[usage] = add_texture(gltf, texIdx, usage)
+                for usage in optional_usages:
+                    if usage not in textures:
+                        textures[usage] = unused_texture
+                materialTextures[material["name"]] = textures
+            except AssertionError as e:
+                print(f"Error: {e}")
+                continue
+            if is_pbr:
+                continue
 
-        print("    Copying template material")
-        obj: Object = bpy.data.objects[node["name"]]
-        object_mat = shader_mat.copy()
-        object_mat.name = obj.name
-        template_group: ShaderNodeGroup = object_mat.node_tree.nodes["HD2 Shader Template"]
-        template_group.node_tree = template_group.node_tree.copy()
-        template_group.node_tree.name = object_mat.name + shader_module.ScriptVersion
-        HD2_Shader = template_group.node_tree
+        if node["name"] not in bpy.data.objects:
+            for item in bpy.data.objects:
+                if item.active_material and item.active_material.name == material["name"]:
+                    obj: Object = item
+                    break
+        else:
+            obj: Object = bpy.data.objects[node["name"]]
+        if not ("HD2 Mat " + material["name"]) in bpy.data.materials:
+            print("    Copying template material")
+            object_mat = shader_mat.copy()
+            object_mat.name = "HD2 Mat " + material["name"]
+            template_group: ShaderNodeGroup = object_mat.node_tree.nodes["HD2 Shader Template"]
+            template_group.node_tree = template_group.node_tree.copy()
+            template_group.node_tree.name = object_mat.name + shader_module.ScriptVersion
+            HD2_Shader = template_group.node_tree
 
-        print("    Applying textures")
+            print("    Applying textures")
+            config_nodes: Dict[str, ShaderNodeTexImage] = object_mat.node_tree.nodes
+            config_nodes["Secondary Material LUT Texture"].image = unused_secondary_lut
+            for usage, image in textures.items():
+                match usage:
+                    case "id_masks_array":
+                        config_nodes["ID Mask Array Texture"].image = image
+                        image.colorspace_settings.name = "Non-Color"
+                    case "pattern_masks_array":
+                        config_nodes["Pattern Mask Array"].image = image
+                        image.colorspace_settings.name = "Non-Color"
+                    case "decal_sheet":
+                        config_nodes["Decal Texture"].image = image
+                        image.colorspace_settings.name = "sRGB"
+                        image.alpha_mode = "CHANNEL_PACKED"
+                    case "material_lut":
+                        config_nodes["Primary Material LUT Texture"].image = image
+                        image.colorspace_settings.name = "Non-Color"
+                    case "pattern_lut":
+                        config_nodes["Pattern LUT Texture"].image = image
+                        image.colorspace_settings.name = "Non-Color"
+                    case "base_data":
+                        config_nodes["Normal Map"].image = image
+                        image.colorspace_settings.name = "Non-Color"
+        
+            print("    Finalizing material")
+            shader_module.update_images(HD2_Shader, object_mat)
+            shader_module.update_slot_defaults(HD2_Shader, object_mat)
+            shader_module.connect_input_links(HD2_Shader)
+            shader_module.update_array_uvs(object_mat)
+        else:
+            print(f"    Found existing material 'HD2 Mat {material['name']}'")
+            object_mat = bpy.data.materials["HD2 Mat " + material["name"]]
+
         obj.material_slots[0].material = object_mat
-        config_nodes: Dict[str, ShaderNodeTexImage] = object_mat.node_tree.nodes
-        config_nodes["Secondary Material LUT Texture"].image = unused_secondary_lut
-        for usage, image in textures.items():
-            match usage:
-                case "id_masks_array":
-                    config_nodes["ID Mask Array Texture"].image = image
-                    image.colorspace_settings.name = "Non-Color"
-                case "pattern_masks_array":
-                    config_nodes["Pattern Mask Array"].image = image
-                    image.colorspace_settings.name = "Non-Color"
-                case "decal_sheet":
-                    config_nodes["Decal Texture"].image = image
-                    image.colorspace_settings.name = "sRGB"
-                    image.alpha_mode = "CHANNEL_PACKED"
-                case "material_lut":
-                    config_nodes["Primary Material LUT Texture"].image = image
-                    image.colorspace_settings.name = "Non-Color"
-                case "pattern_lut":
-                    config_nodes["Pattern LUT Texture"].image = image
-                    image.colorspace_settings.name = "Non-Color"
-                case "base_data":
-                    config_nodes["Normal Map"].image = image
-                    image.colorspace_settings.name = "Non-Color"
-        print("    Finalizing material")
-        shader_module.update_images(HD2_Shader, object_mat)
-        shader_module.update_slot_defaults(HD2_Shader, object_mat)
-        shader_module.connect_input_links(HD2_Shader)
-        shader_module.update_array_uvs(object_mat)
         shader_module.add_bake_uvs(obj)
         obj.select_set(True)
         bpy.ops.object.shade_smooth()

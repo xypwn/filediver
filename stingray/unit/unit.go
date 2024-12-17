@@ -218,26 +218,47 @@ type MeshLayout struct {
 	Unk06         [16]byte
 }
 
+type MeshHeaderType uint32
+
+const (
+	MeshTypeUnknown00 MeshHeaderType = 0x000
+	MeshTypeUnknown01 MeshHeaderType = 0x10a
+	MeshTypeUnknown02 MeshHeaderType = 0x189
+)
+
+func (m *MeshHeaderType) String() string {
+	switch *m {
+	case MeshTypeUnknown00:
+		return "Bounding Box, maybe?"
+	case MeshTypeUnknown01:
+		return "Low detail?"
+	case MeshTypeUnknown02:
+		return "Full mesh?"
+	default:
+		return fmt.Sprintf("Very unknown value for mesh type: %08x", *m)
+	}
+}
+
 type MeshHeader struct {
 	Unk00 [8]byte
 	AABB  struct {
 		Min [3]float32
 		Max [3]float32
 	}
-	UnkFloat00     float32
-	UnkInt00       uint32
-	UnkHash        stingray.ThinHash
-	UnkInt01       uint32
-	TransformIdx   uint32
-	UnkInt03       uint32
-	SkeletonMapIdx int32
-	LayoutIdx      int32
-	Unk01          [40]byte
-	NumMaterials   uint32
-	MaterialOffset uint32
-	Unk02          [8]byte
-	NumGroups      uint32
-	GroupOffset    uint32
+	UnkFloat00         float32
+	MeshType           MeshHeaderType
+	GroupBoneHash      stingray.ThinHash
+	AABBTransformIndex uint32
+	TransformIdx       uint32
+	UnkInt03           uint32
+	SkeletonMapIdx     int32
+	LayoutIdx          int32
+	Unk01              [40]byte
+	NumMaterials       uint32
+	MaterialOffset     uint32
+	Unk02              [8]byte
+	NumGroups          uint32
+	GroupOffset        uint32
 }
 
 type MeshGroup struct {
