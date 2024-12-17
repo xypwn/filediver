@@ -205,9 +205,17 @@ extractor config:
 		prt.Infof("Extracting files...")
 
 		var document *gltf.Document
-		if extrCfg["unit"]["single_glb"] == "true" {
+		if extrCfg["unit"]["single_glb"] == "true" || extrCfg["material"]["single_glb"] == "true" {
 			var closeGLB func(doc *gltf.Document) error
-			document, closeGLB = createCloseableGltfDocument(*outDir, "combined")
+			name := "combined"
+			if triad != nil && len(*triad) > 0 {
+				name = *triad
+			}
+			if extrCfg["unit"]["single_glb"] == "true" {
+				document, closeGLB = createCloseableGltfDocument(*outDir, name, extrCfg["unit"], runner)
+			} else {
+				document, closeGLB = createCloseableGltfDocument(*outDir, name, extrCfg["material"], runner)
+			}
 			defer closeGLB(document)
 		}
 
@@ -236,7 +244,7 @@ extractor config:
 	}
 }
 
-func createCloseableGltfDocument(outDir string, triad string) (*gltf.Document, func(doc *gltf.Document) error) {
+func createCloseableGltfDocument(outDir string, triad string, cfg map[string]string, runner *exec.Runner) (*gltf.Document, func(doc *gltf.Document) error) {
 	document := gltf.NewDocument()
 	document.Asset.Generator = "https://github.com/xypwn/filediver"
 	document.Samplers = append(document.Samplers, &gltf.Sampler{
@@ -247,19 +255,29 @@ func createCloseableGltfDocument(outDir string, triad string) (*gltf.Document, f
 	})
 	closeGLB := func(doc *gltf.Document) error {
 		outPath := filepath.Join(outDir, triad)
-		path := outPath + ".glb"
-		if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
-			return err
-		}
-		out, err := os.Create(path)
-		if err != nil {
-			return err
-		}
-		enc := gltf.NewEncoder(out)
-		if err := enc.Encode(doc); err != nil {
-			return err
+		if cfg["format"] == "glb" || cfg["format"] == "blend_glb" {
+			err := exportGLB(doc, outPath)
+			if err != nil {
+				return err
+			}
 		}
 		return nil
 	}
 	return document, closeGLB
+}
+
+func exportGLB(doc *gltf.Document, outPath string) error {
+	path := outPath + ".glb"
+	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
+		return err
+	}
+	out, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	enc := gltf.NewEncoder(out)
+	if err := enc.Encode(doc); err != nil {
+		return err
+	}
+	return nil
 }

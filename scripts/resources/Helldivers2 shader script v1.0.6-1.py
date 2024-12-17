@@ -12788,9 +12788,9 @@ def add_bake_uvs(obj: Object):
         if uv_data.uv.y > 1.0:
             uv_data.uv.y %= 1
         if uv_data.uv.x < 0.0:
-            uv_data.uv.x = abs(uv_data.uv.x) % 1
+            uv_data.uv.x = uv_data.uv.x % 1
         if uv_data.uv.y < 0.0:
-            uv_data.uv.y = abs(uv_data.uv.y) % 1
+            uv_data.uv.y = uv_data.uv.y % 1
 
     obj.data.update()
 

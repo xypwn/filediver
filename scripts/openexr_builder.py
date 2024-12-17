@@ -1,6 +1,7 @@
 import zlib
 import numpy as np
 import struct
+from typing import List
 
 # Very limited EXR writer - supports files of up to 16 scanlines
 # which must use RGBA float 32 pixels
@@ -97,3 +98,36 @@ def make_exr(pixels: np.ndarray) -> bytes:
     compressed = compress_pixels(pixels)
     data += struct.pack("<I", len(compressed)) + compressed
     return data
+
+
+def main():
+    from argparse import ArgumentParser
+    from pathlib import Path
+    from dds_float16 import DDS
+    parser = ArgumentParser("openexr_builder")
+    parser.add_argument("dir", type=Path)
+
+    args = parser.parse_args()
+    dir: Path = args.dir
+    for file in dir.iterdir():
+        if file.suffix != ".dds":
+            continue
+        try:
+            with file.open("rb") as f:
+                dds = DDS.parse(f)
+            exr = make_exr(dds.pixels().astype(np.float32))
+            exr_path = file.with_suffix(".exr")
+            with exr_path.open("wb") as f:
+                f.write(exr)
+        except (AssertionError, OSError):
+            pass
+
+def decode_nsight_data(data: List[List[int]]):
+    pixels = [struct.unpack("<eeee", struct.pack("<HHHH", *line)) for line in data]
+    rows = [pixels[i*23:(i+1)*23] for i in range(8)]
+    img_data = np.array(rows, dtype=np.float16)
+    return make_exr(img_data.astype(np.float32))
+    
+
+if __name__ == "__main__":
+    main()
