@@ -316,8 +316,8 @@ type Info struct {
 	JointTransformMatrices [][4][4]float32
 	Materials              map[stingray.ThinHash]stingray.Hash
 	NumMeshes              uint32
-	meshInfos              []MeshInfo
-	meshLayouts            []MeshLayout
+	MeshInfos              []MeshInfo
+	MeshLayouts            []MeshLayout
 }
 
 func loadMesh(gpuR io.ReadSeeker, info MeshInfo, layout MeshLayout) (Mesh, error) {
@@ -520,7 +520,7 @@ func loadMesh(gpuR io.ReadSeeker, info MeshInfo, layout MeshLayout) (Mesh, error
 			default:
 				return Mesh{}, fmt.Errorf("unknown index stride: %v", indexStride)
 			}
-			mesh.Indices[grp] = append(mesh.Indices[grp], val)
+			mesh.Indices[grp] = append(mesh.Indices[grp], val+group.VertexOffset)
 		}
 	}
 	return mesh, nil
@@ -853,8 +853,8 @@ func LoadInfo(mainR io.ReadSeeker) (*Info, error) {
 		JointTransformMatrices: jointTransformMatrices,
 		Materials:              materialMap,
 		NumMeshes:              uint32(len(meshInfos)),
-		meshInfos:              meshInfos,
-		meshLayouts:            meshLayouts,
+		MeshInfos:              meshInfos,
+		MeshLayouts:            meshLayouts,
 	}, nil
 }
 
@@ -866,14 +866,14 @@ func LoadMeshes(gpuR io.ReadSeeker, info *Info, idsToLoad []uint32) (map[uint32]
 		if _, ok := meshes[id]; ok {
 			continue
 		}
-		if int(id) > len(info.meshInfos) {
-			return nil, fmt.Errorf("mesh ID (%v) is out of bounds of meshes (len=%v)", id, len(info.meshInfos))
+		if int(id) > len(info.MeshInfos) {
+			return nil, fmt.Errorf("mesh ID (%v) is out of bounds of meshes (len=%v)", id, len(info.MeshInfos))
 		}
-		meshInfo := info.meshInfos[id]
+		meshInfo := info.MeshInfos[id]
 		if meshInfo.Header.LayoutIdx < 0 {
 			continue
 		}
-		layout := info.meshLayouts[meshInfo.Header.LayoutIdx]
+		layout := info.MeshLayouts[meshInfo.Header.LayoutIdx]
 		if len(meshInfo.Groups) > 0 && gpuR == nil {
 			return nil, errors.New("mesh group exists, but GPU resource data is nil")
 		}
