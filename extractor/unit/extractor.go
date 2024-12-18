@@ -321,16 +321,19 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 			meshesToLoad = append(meshesToLoad, i)
 		}
 	} else {
-		if len(unitInfo.LODGroups) > 0 {
-			entries := unitInfo.LODGroups[0].Entries
+		if len(unitInfo.MeshInfos) > 0 {
 			highestDetailIdx := -1
-			for i := range entries {
-				if highestDetailIdx == -1 || entries[i].Detail.Max > entries[highestDetailIdx].Detail.Max {
-					highestDetailIdx = i
+			highestDetailCount := -1
+			for i, info := range unitInfo.MeshInfos {
+				for _, group := range info.Groups {
+					if highestDetailIdx == -1 || int(group.NumIndices) > highestDetailCount {
+						highestDetailIdx = i
+						highestDetailCount = int(group.NumIndices)
+					}
 				}
 			}
 			if highestDetailIdx != -1 {
-				meshesToLoad = entries[highestDetailIdx].Indices[:1]
+				meshesToLoad = []uint32{uint32(highestDetailIdx)}
 			}
 		} else {
 			fmt.Println("\nAdding LODs anyway since no lodgroups in unitInfo?")
@@ -391,7 +394,7 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 				if bone.NameHash == fbxConvertHash {
 					fbxConvertIdx = int(boneIdx)
 				}
-				if bone.ParentIndex == uint32(parentIdx) {
+				if bone.ParentIndex == uint32(parentIdx) && bone.NameHash == mesh.Info.Header.GroupBoneHash {
 					transformBoneIdx = uint32(boneIdx)
 				}
 				if bone.ParentIndex == uint32(fbxConvertIdx) {
