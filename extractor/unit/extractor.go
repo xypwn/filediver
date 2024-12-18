@@ -326,7 +326,7 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 			highestDetailCount := -1
 			for i, info := range unitInfo.MeshInfos {
 				for _, group := range info.Groups {
-					if highestDetailIdx == -1 || int(group.NumIndices) > highestDetailCount {
+					if int(group.NumIndices) > highestDetailCount && info.Header.MeshType != unit.MeshTypeUnknown00 {
 						highestDetailIdx = i
 						highestDetailCount = int(group.NumIndices)
 					}
