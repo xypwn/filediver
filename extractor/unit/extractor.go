@@ -486,13 +486,37 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 				doc.Scenes[0].Nodes = append(doc.Scenes[0].Nodes, nodeIdx)
 			} else {
 				var components map[uint32][]uint32 = make(map[uint32][]uint32)
-				for j := range mesh.Indices[i] {
-					uv := mesh.UVCoords[0][mesh.Indices[i][j]]
+				make_key := func(uv [2]float32) uint32 {
 					key := (uint32(uv[0]) & 0x1f) | (uint32(uv[1]) << 5)
 					if uv[1] < 0 {
 						key = (uint32(uv[0]) & 0x1f) | (uint32(-uv[1]+1) << 5)
 					}
-					components[key] = append(components[key], mesh.Indices[i][j])
+					return key
+				}
+				for j := range mesh.Indices[i] {
+					if j%3 != 0 {
+						continue
+					}
+					// Need to use all three sets of uvs since there are cases where
+					// 2 of the vertices will be at X.00 and the third could be at (X-1).99
+					// or at X.01, and we need to use the minimum of the three to avoid
+					// stray triangles
+					key0 := make_key(mesh.UVCoords[0][mesh.Indices[i][j]])
+					key1 := make_key(mesh.UVCoords[0][mesh.Indices[i][j+1]])
+					key2 := make_key(mesh.UVCoords[0][mesh.Indices[i][j+2]])
+					var key uint32
+					if key0 == key1 && key1 == key2 {
+						key = key0
+					} else {
+						key = key0
+						if key1 < key {
+							key = key1
+						}
+						if key2 < key {
+							key = key2
+						}
+					}
+					components[key] = append(components[key], mesh.Indices[i][j], mesh.Indices[i][j+1], mesh.Indices[i][j+2])
 				}
 
 				componentNum := 0
