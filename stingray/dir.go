@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/xypwn/filediver/util"
 )
@@ -21,6 +22,10 @@ type File struct {
 
 func (f *File) ID() FileID {
 	return f.triad.Files[f.index].ID
+}
+
+func (f *File) TriadName() string {
+	return strings.TrimSuffix(filepath.Base(f.triad.MainPath), filepath.Ext(f.triad.MainPath))
 }
 
 func (f *File) Exists(typ DataType) bool {
@@ -190,6 +195,51 @@ func OpenDataDir(ctx context.Context, dirPath string, onProgress func(curr, tota
 			}*/
 			dd.Files[v.ID] = newFile
 		}
+	}
+
+	return dd, nil
+}
+
+// Opens the "data" game directory, reading all file metadata. Ctx allows for granular cancellation (before each triad open).
+// onProgress is optional.
+func OpenTriadData(ctx context.Context, triadPath string, onProgress func(curr, total int)) (*DataDir, error) {
+	const errPfx = errPfx + "OpenTriad: "
+
+	dd := &DataDir{
+		Files: make(map[FileID]*File),
+	}
+
+	path := triadPath
+	tr, err := OpenTriad(path)
+	if err != nil {
+		return nil, fmt.Errorf("%v%w", errPfx, err)
+	}
+	for i, v := range tr.Files {
+		newFile := &File{
+			triad: tr,
+			index: i,
+		}
+		for typ := DataType(0); typ < NumDataType; typ++ {
+			has, err := tr.HasFile(i, typ)
+			if err != nil {
+				return nil, err
+			}
+			newFile.exists[typ] = has
+		}
+		// According to my testing, files that share the same ID always have the same
+		// contents. Uncomment this to re-test that.
+		/*if _, ok := dd.Files[v.ID]; ok {
+			for _, typ := range []DataType{DataMain, DataStream, DataGPU} {
+				if newFile.Exists(typ) && dd.Files[v.ID].Exists(typ) {
+					if eq, err := newFile.contentEqual(dd.Files[v.ID], typ); err != nil {
+						return nil, err
+					} else if !eq {
+						return nil, fmt.Errorf("%vduplicate file ID with different %v file contents", errPfx, typ)
+					}
+				}
+			}
+		}*/
+		dd.Files[v.ID] = newFile
 	}
 
 	return dd, nil

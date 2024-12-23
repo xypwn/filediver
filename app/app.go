@@ -12,9 +12,11 @@ import (
 	"strings"
 
 	"github.com/gobwas/glob"
+	"github.com/qmuntal/gltf"
 	"github.com/xypwn/filediver/exec"
 	"github.com/xypwn/filediver/extractor"
 	extr_bik "github.com/xypwn/filediver/extractor/bik"
+	extr_material "github.com/xypwn/filediver/extractor/material"
 	extr_texture "github.com/xypwn/filediver/extractor/texture"
 	extr_unit "github.com/xypwn/filediver/extractor/unit"
 	extr_wwise "github.com/xypwn/filediver/extractor/wwise"
@@ -51,6 +53,40 @@ var ConfigFormat = ConfigTemplate{
 				},
 			},
 		},
+		"material": {
+			Category: "shader",
+			Options: map[string]ConfigTemplateOption{
+				"format": {
+					Type: ConfigValueEnum,
+					Enum: []string{"glb", "source", "blend"},
+				},
+				"single_glb": {
+					Type: ConfigValueEnum,
+					Enum: []string{"false", "true"},
+				},
+				"image_jpeg": {
+					Type: ConfigValueEnum,
+					Enum: []string{"false", "true"},
+				},
+				"jpeg_quality": {
+					Type:        ConfigValueIntRange,
+					IntRangeMin: 1,
+					IntRangeMax: 100,
+				},
+				"png_compression": {
+					Type: ConfigValueEnum,
+					Enum: []string{"default", "none", "fast", "best"},
+				},
+				"all_textures": {
+					Type: ConfigValueEnum,
+					Enum: []string{"false", "true"},
+				},
+				"accurate_only": {
+					Type: ConfigValueEnum,
+					Enum: []string{"false", "true"},
+				},
+			},
+		},
 		"texture": {
 			Category: "image",
 			Options: map[string]ConfigTemplateOption{
@@ -65,13 +101,21 @@ var ConfigFormat = ConfigTemplate{
 			Options: map[string]ConfigTemplateOption{
 				"format": {
 					Type: ConfigValueEnum,
-					Enum: []string{"glb", "source"},
+					Enum: []string{"glb", "source", "blend_glb"},
 				},
 				"include_lods": {
 					Type: ConfigValueEnum,
 					Enum: []string{"false", "true"},
 				},
 				"join_components": {
+					Type: ConfigValueEnum,
+					Enum: []string{"true", "false"},
+				},
+				"bounding_boxes": {
+					Type: ConfigValueEnum,
+					Enum: []string{"false", "true"},
+				},
+				"single_glb": {
 					Type: ConfigValueEnum,
 					Enum: []string{"false", "true"},
 				},
@@ -91,6 +135,10 @@ var ConfigFormat = ConfigTemplate{
 				"png_compression": {
 					Type: ConfigValueEnum,
 					Enum: []string{"default", "none", "fast", "best"},
+				},
+				"all_textures": {
+					Type: ConfigValueEnum,
+					Enum: []string{"false", "true"},
 				},
 			},
 		},
@@ -195,6 +243,34 @@ func OpenGameDir(ctx context.Context, gameDir string, hashes []string, onProgres
 	}, nil
 }
 
+// Open specific triad
+func OpenTriad(ctx context.Context, triadPath string, hashes []string, onProgress func(curr, total int)) (*App, error) {
+	dataDir, err := stingray.OpenTriadData(ctx, triadPath, onProgress)
+	if err != nil {
+		return nil, err
+	}
+
+	hashesMap := make(map[stingray.Hash]string)
+	for _, h := range hashes {
+		hashesMap[stingray.Sum64([]byte(h))] = h
+	}
+	// wwise_dep files let us know the string of many of the wwise_banks
+	for id, file := range dataDir.Files {
+		if id.Type == stingray.Sum64([]byte("wwise_dep")) {
+			h, err := parseWwiseDep(ctx, file)
+			if err != nil {
+				return nil, fmt.Errorf("wwise_dep: %w", err)
+			}
+			hashesMap[stingray.Sum64([]byte(h))] = h
+		}
+	}
+
+	return &App{
+		Hashes:  hashesMap,
+		DataDir: dataDir,
+	}, nil
+}
+
 func (a *App) matchFileID(id stingray.FileID, glb glob.Glob, nameOnly bool) bool {
 	nameVariations := []string{
 		id.Name.StringEndian(binary.LittleEndian),
@@ -236,7 +312,7 @@ func (a *App) matchFileID(id stingray.FileID, glb glob.Glob, nameOnly bool) bool
 	return false
 }
 
-func (a *App) MatchingFiles(includeGlob, excludeGlob string, cfgTemplate ConfigTemplate, cfg map[string]map[string]string) (map[stingray.FileID]*stingray.File, error) {
+func (a *App) MatchingFiles(includeGlob, excludeGlob string, triadName string, cfgTemplate ConfigTemplate, cfg map[string]map[string]string) (map[stingray.FileID]*stingray.File, error) {
 	var inclGlob glob.Glob
 	inclGlobNameOnly := !strings.Contains(includeGlob, ".")
 	if includeGlob != "" {
@@ -259,8 +335,12 @@ func (a *App) MatchingFiles(includeGlob, excludeGlob string, cfgTemplate ConfigT
 	res := make(map[stingray.FileID]*stingray.File)
 	for id, file := range a.DataDir.Files {
 		shouldIncl := true
+		if triadName != "" && file.TriadName() != triadName {
+			shouldIncl = false
+		}
 		if includeGlob != "" {
-			shouldIncl = a.matchFileID(id, inclGlob, inclGlobNameOnly)
+			// Include all files in triad even if they don't match the includeGlob - includeGlob will only add files to read
+			shouldIncl = a.matchFileID(id, inclGlob, inclGlobNameOnly) || (triadName != "" && shouldIncl)
 		}
 		if excludeGlob != "" {
 			if a.matchFileID(id, exclGlob, exclGlobNameOnly) {
@@ -352,7 +432,7 @@ func (c *extractContext) Files() []string {
 }
 
 // Returns path to extracted file/directory.
-func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string, extrCfg map[string]map[string]string, runner *exec.Runner) ([]string, error) {
+func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string, extrCfg map[string]map[string]string, runner *exec.Runner, gltfDoc *gltf.Document) ([]string, error) {
 	name, ok := a.Hashes[id.Name]
 	if !ok {
 		name = id.Name.String()
@@ -398,11 +478,17 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 		} else {
 			extr = extr_wwise.ConvertBnk
 		}
+	case "material":
+		if cfg["format"] == "source" {
+			extr = extractor.ExtractFuncRaw(".material", stingray.DataMain, stingray.DataStream, stingray.DataGPU)
+		} else {
+			extr = extr_material.Convert(gltfDoc)
+		}
 	case "unit":
 		if cfg["format"] == "source" {
 			extr = extractor.ExtractFuncRaw(".unit", stingray.DataMain, stingray.DataStream, stingray.DataGPU)
 		} else {
-			extr = extr_unit.Convert
+			extr = extr_unit.Convert(gltfDoc)
 		}
 	case "texture":
 		if cfg["format"] == "source" {

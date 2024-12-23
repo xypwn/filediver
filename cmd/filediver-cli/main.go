@@ -7,14 +7,17 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime/pprof"
 	"sort"
+	"strings"
 	"syscall"
 
 	//"github.com/davecgh/go-spew/spew"
 
 	"github.com/hellflame/argparse"
 	"github.com/jwalton/go-supportscolor"
+	"github.com/qmuntal/gltf"
 
 	"github.com/xypwn/filediver/app"
 	"github.com/xypwn/filediver/exec"
@@ -50,6 +53,7 @@ extractor config:
 ` + app.ExtractorConfigHelpMessage(app.ConfigFormat),
 		DisableDefaultShowHelp: true,
 	})
+	triad := parser.String("t", "triad", &argparse.Option{Help: "Triad name as found in game data directory (aka Archive ID, eg 0x9ba626afa44a3aa3)"})
 	gameDir := parser.String("g", "gamedir", &argparse.Option{Help: "Helldivers 2 game directory"})
 	modeList := parser.Flag("l", "list", &argparse.Option{Help: "List all files without extracting anything"})
 	outDir := parser.String("o", "out", &argparse.Option{Default: "extracted", Help: "Output directory (default: extracted)"})
@@ -138,7 +142,11 @@ extractor config:
 	}
 	prt.NoStatus()
 
-	files, err := a.MatchingFiles(*extrInclGlob, *extrExclGlob, app.ConfigFormat, extrCfg)
+	var triadTrimmed string = ""
+	if triad != nil {
+		triadTrimmed = strings.TrimPrefix(*triad, "0x")
+	}
+	files, err := a.MatchingFiles(*extrInclGlob, *extrExclGlob, triadTrimmed, app.ConfigFormat, extrCfg)
 	if err != nil {
 		prt.Fatalf("%v", err)
 	}
@@ -196,6 +204,21 @@ extractor config:
 	} else {
 		prt.Infof("Extracting files...")
 
+		var document *gltf.Document
+		if extrCfg["unit"]["single_glb"] == "true" || extrCfg["material"]["single_glb"] == "true" {
+			var closeGLB func(doc *gltf.Document) error
+			name := "combined"
+			if triad != nil && len(*triad) > 0 {
+				name = *triad
+			}
+			if extrCfg["unit"]["single_glb"] == "true" {
+				document, closeGLB = createCloseableGltfDocument(*outDir, name, extrCfg["unit"], runner)
+			} else {
+				document, closeGLB = createCloseableGltfDocument(*outDir, name, extrCfg["material"], runner)
+			}
+			defer closeGLB(document)
+		}
+
 		numExtrFiles := 0
 		for i, id := range sortedFileIDs {
 			truncName := getFileName(id)
@@ -203,7 +226,7 @@ extractor config:
 				truncName = "..." + truncName[len(truncName)-37:]
 			}
 			prt.Statusf("File %v/%v: %v", i+1, len(files), truncName)
-			if _, err := a.ExtractFile(ctx, id, *outDir, extrCfg, runner); err == nil {
+			if _, err := a.ExtractFile(ctx, id, *outDir, extrCfg, runner, document); err == nil {
 				numExtrFiles++
 			} else {
 				if errors.Is(err, context.Canceled) {
@@ -219,4 +242,42 @@ extractor config:
 		prt.NoStatus()
 		prt.Infof("Extracted %v/%v matching files", numExtrFiles, len(files))
 	}
+}
+
+func createCloseableGltfDocument(outDir string, triad string, cfg map[string]string, runner *exec.Runner) (*gltf.Document, func(doc *gltf.Document) error) {
+	document := gltf.NewDocument()
+	document.Asset.Generator = "https://github.com/xypwn/filediver"
+	document.Samplers = append(document.Samplers, &gltf.Sampler{
+		MagFilter: gltf.MagLinear,
+		MinFilter: gltf.MinLinear,
+		WrapS:     gltf.WrapRepeat,
+		WrapT:     gltf.WrapRepeat,
+	})
+	closeGLB := func(doc *gltf.Document) error {
+		outPath := filepath.Join(outDir, triad)
+		if cfg["format"] == "glb" || cfg["format"] == "blend_glb" {
+			err := exportGLB(doc, outPath)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	return document, closeGLB
+}
+
+func exportGLB(doc *gltf.Document, outPath string) error {
+	path := outPath + ".glb"
+	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
+		return err
+	}
+	out, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	enc := gltf.NewEncoder(out)
+	if err := enc.Encode(doc); err != nil {
+		return err
+	}
+	return nil
 }
