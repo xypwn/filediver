@@ -588,15 +588,6 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions, gltfDoc *gltf.Doc
 		if err := enc.Encode(doc); err != nil {
 			return err
 		}
-	} else if gltfDoc == nil && ctx.Config()["format"] == "blend" {
-		path, err := ctx.(interface{ OutPath() (string, error) }).OutPath()
-		if err != nil {
-			return err
-		}
-		err = extractor.ExportBlend(doc, path, ctx.Runner())
-		if err != nil {
-			return err
-		}
 	}
 	return nil
 }
