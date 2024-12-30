@@ -345,6 +345,11 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 
 	bonesEnabled := ctx.Config()["no_bones"] != "true"
 
+	var skin *uint32 = nil
+	if bonesEnabled {
+		skin = gltf.Index(addSkeleton(ctx, doc, unitInfo, boneInfo))
+	}
+
 	var meshes map[uint32]unit.Mesh
 
 	if ctx.Config()["bounding_boxes"] == "true" {
@@ -401,7 +406,7 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 					meshNameBoneIdx = gltf.Index(uint32(boneIdx))
 				}
 			}
-			groupBoneIdx = &transformBoneIdx
+			groupBoneIdx = &unitInfo.Bones[transformBoneIdx].ParentIndex
 			transformMatrix := unitInfo.Bones[transformBoneIdx].Matrix
 			// If translation, rotation, and scale are identities, use the TransformIndex instead
 			if transformMatrix.ApproxEqual(mgl32.Ident4()) {
@@ -431,7 +436,6 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 			mesh.Positions[i] = p
 		}
 
-		var skin *uint32 = nil
 		var weights *uint32 = nil
 		var joints *uint32 = nil
 
@@ -441,7 +445,6 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 					return err
 				}
 			}
-			skin = gltf.Index(addSkeleton(ctx, doc, unitInfo, boneInfo))
 			weights = gltf.Index(modeler.WriteWeights(doc, mesh.BoneWeights))
 			joints = gltf.Index(modeler.WriteJoints(doc, mesh.BoneIndices[0]))
 		}
