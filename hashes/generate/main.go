@@ -62,6 +62,10 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+	if err := appendHTTPFile(&strs, "https://raw.githubusercontent.com/ryanjsims/filediver/hashes/hashes/cracked.txt", nil); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 
 	out, err := os.Create("hashes.txt")
 	if err != nil {
