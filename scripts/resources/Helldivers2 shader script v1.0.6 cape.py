@@ -12061,7 +12061,8 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     #math_177.Value -> mix_014.Factor
     HD2_Shader.links.new(math_177.outputs[0], mix_014.inputs[0])
     #vector_math_071.Vector -> group_output_1.Color
-    HD2_Shader.links.new(vector_math_071.outputs[0], group_output_1.inputs[1])
+    #HD2_Shader.links.new(vector_math_071.outputs[0], group_output_1.inputs[1])
+    HD2_Shader.links.new(decal_mix_node.outputs[2], group_output_1.inputs[1])
     #math_278.Value -> group_output_1.Metallic
     HD2_Shader.links.new(math_278.outputs[0], group_output_1.inputs[3])
     #math_050.Value -> group_output_1.Roughness
@@ -12793,12 +12794,19 @@ def create_cape_lut_tree() -> NodeTree:
     node_tree.links.new(combine_uv.outputs[0], lut_node.inputs[0])
     lut_node.location = combine_uv.location + VEC_HORIZ
 
+    alpha_mult_node: ShaderNodeMath = node_tree.nodes.new("ShaderNodeMath")
+    alpha_mult_node.operation = "MULTIPLY"
+    alpha_mult_node.location = lut_node.location + VEC_HORIZ
+    node_tree.links.new(lut_node.outputs[1], alpha_mult_node.inputs[0])
+    node_tree.links.new(front_face_node.outputs[0], alpha_mult_node.inputs[1])
+    alpha_mult_node.hide = True
+
     if "Group Output" not in node_tree.nodes:
         node_tree.nodes.new("NodeGroupOutput").name = "Group Output"
     group_output: NodeGroupOutput = node_tree.nodes["Group Output"]
     group_output.location = lut_node.location + VEC_HORIZ
     node_tree.links.new(lut_node.outputs[0], group_output.inputs[0])
-    node_tree.links.new(lut_node.outputs[1], group_output.inputs[1])
+    node_tree.links.new(alpha_mult_node.outputs[0], group_output.inputs[1])
 
     return node_tree
 
