@@ -21,8 +21,13 @@ struct MurmurHash {
 
 enum ImageUsage : u32 {
     AlbedoIridescence = 0xff2c91cc,
+    AlbedoEmissive = 0xe67ac0c7,
     Albedo = 0xac652e43,
     Normal = 0xcaed6cd6,
+    DetailNormalLeather = 0xe719da57,
+    DetailNormalPorcelain = 0x04fb61ad,
+    NAR = 0x4c567810,
+    IlluminateData = 0x90b84a53,
     BaseData = 0xc2eb8d6e,
     MaterialLUT = 0x7e662968,
     PatternLUT = 0x81d4c49d,
@@ -32,6 +37,8 @@ enum ImageUsage : u32 {
     WeatheringDirt = 0x6834aa9b,
     BugSplatterTiler = 0x37831285,
     DecalSheet = 0x632a8b80,
+    Wounds256 = 0xa52f1caa,
+    Wounds512 = 0x75d9cea2,
     CustomizationCamoTilerArray = 0x0f5ff78d,
     PatternMasksArray = 0x05a27dd5,
     CustomizationMaterialDetailTilerArray = 0xd3a0408e,

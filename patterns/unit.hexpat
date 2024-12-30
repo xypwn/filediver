@@ -254,7 +254,7 @@ struct MeshInfo {
     float unkFloat;
     u32 unkInt0;
     ThinMurmurHash unkHash;
-    u32 unkInt1;
+    u32 AABBTransformIndex;
     u32 TransformIndex;
     u32 unkInt2;
     u32 SkeletonMapIdx;
