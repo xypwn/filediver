@@ -101,7 +101,7 @@ var ConfigFormat = ConfigTemplate{
 			Options: map[string]ConfigTemplateOption{
 				"format": {
 					Type: ConfigValueEnum,
-					Enum: []string{"glb", "source", "blend_glb"},
+					Enum: []string{"glb", "source", "blend", "blend_glb"},
 				},
 				"include_lods": {
 					Type: ConfigValueEnum,

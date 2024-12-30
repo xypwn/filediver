@@ -200,6 +200,8 @@ def main():
         textures: Dict[str, Image] = {}
         assert len(mesh["primitives"]) == 1
         primitive = mesh["primitives"][0]
+        if "material" not in primitive:
+            continue
         material = gltf["materials"][primitive["material"]]
         if material["name"] in materialTextures:
             textures = materialTextures[material["name"]]

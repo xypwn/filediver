@@ -106,3 +106,40 @@ func (r *Runner) Run(name string, stdout io.Writer, stdin io.Reader, args ...str
 
 	return nil
 }
+
+func (r *Runner) Start(name string, stdout io.Writer, stdin io.Reader, args ...string) (*exec.Cmd, error) {
+	entry, ok := r.progs[name]
+	if !ok {
+		return nil, fmt.Errorf("exec: command \"%v\" not registered", name)
+	}
+
+	fullArgs := append(entry.DefaultArgs, args...)
+
+	var cmd *exec.Cmd
+	if entry.MemCmd != nil {
+		cmd = entry.MemCmd.Command(fullArgs...)
+	} else {
+		cmd = exec.Command(entry.Path, fullArgs...)
+	}
+	applyOSSpecificCmdOpts(cmd)
+
+	var stderr bytes.Buffer
+	if stdin != nil {
+		cmd.Stdin = stdin
+	}
+	if stdout != nil {
+		cmd.Stdout = stdout
+	}
+	cmd.Stderr = &stderr
+	if err := cmd.Start(); err != nil {
+		if exiterr, ok := err.(*exec.ExitError); ok && exiterr.ExitCode() == 1 {
+			stderrStr := stderr.String()
+			stderrStr = strings.ReplaceAll(stderrStr, "\n", " ")
+			stderrStr = strings.ReplaceAll(stderrStr, "\r", "")
+			return nil, fmt.Errorf("%v: \"%v\"", name, stderrStr)
+		}
+		return nil, err
+	}
+
+	return cmd, nil
+}
