@@ -1,3 +1,5 @@
+#include <std/ptr.pat>
+#include <std/core.pat>
 import std.io;
 
 using ThinMurmurHash;
@@ -18,6 +20,19 @@ struct ThinMurmurHash {
 struct MurmurHash {
     u64 value;
 } [[format("formatHash")]];
+
+fn relative_to_parents_parent(u128 offset) {
+    return addressof(parent.parent.parent);
+};
+
+fn relative_to_parent(u128 offset) {
+    return addressof(parent.parent);
+};
+
+u128 rootAddress = 0;
+fn relative_to_root(u128 offset) {
+    return rootAddress;
+};
 
 enum ImageUsage : u32 {
     AlbedoIridescence = 0xff2c91cc,
@@ -45,26 +60,76 @@ enum ImageUsage : u32 {
     IdMasksArray = 0xb281e5f2,
 };
 
-union ImageType {
-    ThinMurmurHash hash;
-    ImageUsage usage;
+enum SettingsUsage : u32 {
+    ResolutionSetting = 0x43695f7b,
+    EmissiveIntensity = 0x02f6dc5b,
+    BaseColor = 0xcb577b8f,
+    WeatheringVariant = 0x60e7d2a1,
+    GunkScale = 0xac339e75,
+    BloodScale = 0x2b05328b,
+    PaletteSlot = 0xf6dc872e,
+    FrostWeight = 0xe4d9b883,
+    BloodColor = 0x5461f4e2,
+    DebugMode = 0x205e89cc,
 };
 
-struct Header {
-    u8 unk00[12];
+struct StingrayHeader {
+    u32 unk00[3];
     u32 mainSize;
     u32 gpuSize;
     u8 unk01[4];
+};
+
+struct SettingsListItem {
+    u64 unk00;
+    SettingsUsage setting; // maybe
+    std::print("0x{:08X}", u32(setting));
+    u32 offset;
+    u32 unk01;
+};
+
+struct SettingsValue {
+    $ = parent.base + parent.items[std::core::array_index()].offset;
+    if(parent.items[std::core::array_index()].setting == SettingsUsage::BaseColor) {
+        float value[3];
+    } else if(parent.items[std::core::array_index()].setting == SettingsUsage::BloodColor) {
+        float value[3];
+    } else {
+        float value;
+    }
+};
+
+struct SettingsList {
+    if(parent.numTextures == 0) {
+        // There's probably a way to tell the actual location of the settings list,
+        // rather than bumping it by 4 if there aren't any textures specified in the file
+        $ += 4;
+    }
+    SettingsListItem items[parent.settingsCount];
+    u32 base = $;
+    SettingsValue values[parent.settingsCount];
+};
+
+struct SettingsHeader {
+    u32 numTextures;
+    u8 unk00[36];
+    u32 settingsCount;
+    u8 unk03[12];
+    SettingsList *settingsArray : u32 [[pointer_base("relative_to_parent"), inline]];
+    u8 unk04[12];
+};
+
+struct Header {
     MurmurHash baseMaterial;
     u8 unk02[32];
-    u32 numTextures;
-    u8 unk03[68];
 };
 
 struct Material {
+    StingrayHeader stingrayHeader;
     Header header;
-    ImageType keys[header.numTextures];
-    MurmurHash values[header.numTextures];
+    SettingsHeader settings;
+    ImageUsage keys[settings.numTextures];
+    MurmurHash values[settings.numTextures];
 };
 
 Material mat @0x00;
