@@ -61,10 +61,9 @@ Extract the Super Earth anthem as mp3:
 ./filediver -c "audio:format=mp3" -i "content/audio/291227525.wwise_stream"
 ```
 
-Combine several models into one file, then import into Blender with Thejudsub's accurate shader applied:
+Combine several models into one file, then import into Blender with Thejudsub's accurate shader applied (requires `hd2_accurate_blender_importer.zip` to be downloaded and unzipped to the same folder filediver is):
 ```sh
-./filediver -c "unit:single_glb=true" -i "{0x2ec9ecbd91f29291,0x76cf8e26aad1bf7e}.unit" -o "extracted/DP-00-Tactical/"
-python ./scripts/hd2_accurate_blender_importer.py extracted/DP-00-Tactical/combined.glb DP-00-Tactical.blend
+./filediver -c "unit:single_glb=true,format=blend" -t "0x3d8cf2088ed56091" -i "0x76cf8e26aad1bf7e.unit" -o "extracted/DP-00-Tactical/"
 ```
 
 ## Features
@@ -80,15 +79,12 @@ Planned: animations
 When importing the .glb into blender, you need to change the "Bone Dir" option from "Blender" to "Temperance", or you will see huge spheres for bones.
 
 ### Thejudsub's Accurate Shader
-.glb models exported from filediver can be imported into Blender with the accurate shader pre-applied, saving lots of manual work finding and applying textures:
+.glb models exported from filediver can be imported into Blender with the accurate shader pre-applied, saving a lot of manual work finding and applying textures:
 
-(Prerequisites: `Python 3.11.*` must be installed on your system - Blender 4.1-4.3+ only supports specifically Python 3.11)
-1. Ensure you've setup your environment by running `./scripts/setup_environment.ps1` (on Windows) or `bash ./scripts/setup_environment.sh` (on Linux). These scripts will verify you have the correct Python version and will install the virtual environment
+1. Download `hd2_accurate_blender_importer.zip` from the Releases tab and unzip it to the same directory filediver is located.
 2. Export a model that uses procedural materials (most armor pieces and weapons do)
-3. Activate the virtual environment with `&./scripts/.venv/Scripts/Activate.ps1` (Windows - powershell), `./scripts/.venv/Scripts/activate.bat` (Windows - cmd), or `source ./scripts/.venv/bin/activate` (Linux - most shells)
-4. Run `python ./scripts/hd2_accurate_blender_importer.py path/to/filediver/exported.glb path/to/output.blend`
-5. `path/to/output.blend` will be a _**new, completely fresh/overwritten**_ blend file containing the exported models with the shader applied.
-6. Run `deactivate` to leave the python virtual environment.
+3. Run `./scripts_dist/hd2_accurate_blender_importer/hd2_accurate_blender_importer.exe path/to/filediver/exported.glb path/to/output.blend`
+4. `path/to/output.blend` will be a _**new, completely fresh/overwritten**_ blend file containing the exported models with the shader applied.
 
 ## Credits/Links
 This app builds on a lot of work from other people. This includes:
