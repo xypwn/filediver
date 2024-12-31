@@ -2,6 +2,7 @@
 # Shader post can be found here: https://discord.com/channels/1210541115829260328/1222290154409033889
 
 # Modified slightly for use with filediver
+# Modified quite a bit to add cape support
 
 # Shader bundled with filediver with permission from @thejudsub
 
@@ -22,6 +23,7 @@ from bpy.types import (
     ShaderNodeValue,
     ShaderNodeNewGeometry,
     ShaderNodeClamp,
+    ShaderNodeBsdfTransparent,
     NodeGroupInput,
     NodeGroupOutput,
     NodeSocketFloat,
@@ -131,6 +133,8 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     normal_socket = HD2_Shader.interface.new_socket(name = "Bake_Normal", in_out='OUTPUT', socket_type = 'NodeSocketVector', parent = bake_outputs_panel)
     #Socket Clearcoat Normal
     clearcoat_normal_socket = HD2_Shader.interface.new_socket(name = "Bake_Clearcoat Normal", in_out='OUTPUT', socket_type = 'NodeSocketVector', parent = bake_outputs_panel)
+    #Socket Alpha
+    alpha_socket = HD2_Shader.interface.new_socket(name = "Bake_Alpha", in_out='OUTPUT', socket_type = 'NodeSocketFloat', parent = bake_outputs_panel)
 
     cape_decal_tree = create_cape_decal_template()
     
@@ -6253,6 +6257,14 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     mix_shader = HD2_Shader.nodes.new("ShaderNodeMixShader")
     mix_shader.name = "Mix Shader"
     
+    #node transparency shader
+    transparency_shader: ShaderNodeBsdfTransparent = HD2_Shader.nodes.new("ShaderNodeBsdfTransparent")
+    transparency_shader.name = "Transparent"
+
+    #node Mix Shader.001
+    mix_shader_transparency = HD2_Shader.nodes.new("ShaderNodeMixShader")
+    mix_shader_transparency.name = "Mix Shader.001"
+    
     #node Separate XYZ.051
     separate_xyz_051 = HD2_Shader.nodes.new("ShaderNodeSeparateXYZ")
     separate_xyz_051.name = "Separate XYZ.051"
@@ -9294,6 +9306,8 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     cape_decal_group_node.location = (51450.0, 4950.0)
     decal_mix_node.location = (51800.0, 4900.0)
     alpha_cutoff_node.location = (51800.0, 4600.0)
+    transparency_shader.location = (52880.0, 5040.0)
+    mix_shader_transparency.location = (53080.0, 5100.0)
     frame_052.location = (52390.0, 4900.0)
     frame_029.location = (-3152.0, 3033.0)
     combine_xyz_076.location = (-288.0, 187.0)
@@ -10021,7 +10035,7 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     math_145.location = (3300.0, 53.0)
     math_146.location = (3460.0, 53.0)
     mix_011.location = (3620.0, 53.0)
-    group_output_1.location = (52860.0, 5100.0)
+    group_output_1.location = (53320.0, 5100.0)
     math_194.location = (30.0, -80.0)
     
     #initialize HD2_Shader links
@@ -11330,8 +11344,14 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     HD2_Shader.links.new(math_225.outputs[0], principled_bsdf_001.inputs[12])
     #vector_math_021.Vector -> vector_math_089.Vector
     HD2_Shader.links.new(vector_math_021.outputs[0], vector_math_089.inputs[1])
-    #mix_shader.Shader -> group_output_1.Output
-    HD2_Shader.links.new(mix_shader.outputs[0], group_output_1.inputs[0])
+    #alpha_cutoff_node -> Transparency mix factor
+    HD2_Shader.links.new(alpha_cutoff_node.outputs[0], mix_shader_transparency.inputs[0])
+    #transparency_shader.Shader -> Transparency mix
+    HD2_Shader.links.new(transparency_shader.outputs[0], mix_shader_transparency.inputs[1])
+    #mix_shader.Shader -> Transparency mix
+    HD2_Shader.links.new(mix_shader.outputs[0], mix_shader_transparency.inputs[2])
+    #mix_shader_transparency.Shader -> group_output_1.Output
+    HD2_Shader.links.new(mix_shader_transparency.outputs[0], group_output_1.inputs[0])
     #vector_math_089.Vector -> vector_math_091.Vector
     HD2_Shader.links.new(vector_math_089.outputs[0], vector_math_091.inputs[0])
     #vector_math_115.Vector -> vector_math_096.Vector
@@ -12069,6 +12089,8 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     HD2_Shader.links.new(math_050.outputs[0], group_output_1.inputs[4])
     #gamma.Color -> group_output_1.Clearcoat Normal
     HD2_Shader.links.new(gamma.outputs[0], group_output_1.inputs[6])
+    #alpha_cutoff_node.value -> group_output_1.Alpha
+    HD2_Shader.links.new(alpha_cutoff_node.outputs[0], group_output_1.inputs[7])
     #gamma_001.Color -> group_output_1.Normal
     HD2_Shader.links.new(gamma_001.outputs[0], group_output_1.inputs[5])
     #separate_xyz_051.Z -> math_194.Value
