@@ -208,19 +208,18 @@ extractor config:
 	} else {
 		prt.Infof("Extracting files...")
 
-		var document *gltf.Document
-		if extrCfg["unit"]["single_glb"] == "true" || extrCfg["material"]["single_glb"] == "true" {
+		var documents map[string]*gltf.Document = make(map[string]*gltf.Document)
+		for key := range extrCfg {
+			if value, contains := extrCfg[key]["single_glb"]; !contains || value == "false" {
+				continue
+			}
 			var closeGLB func(doc *gltf.Document) error
-			name := "combined"
+			name := "combined_" + key
 			if triad != nil && len(*triad) > 0 {
-				name = *triad
+				name = fmt.Sprintf("%s_%s", *triad, key)
 			}
-			if extrCfg["unit"]["single_glb"] == "true" {
-				document, closeGLB = createCloseableGltfDocument(*outDir, name, extrCfg["unit"], runner)
-			} else {
-				document, closeGLB = createCloseableGltfDocument(*outDir, name, extrCfg["material"], runner)
-			}
-			defer closeGLB(document)
+			documents[key], closeGLB = createCloseableGltfDocument(*outDir, name, extrCfg[key], runner)
+			defer closeGLB(documents[key])
 		}
 
 		numExtrFiles := 0
@@ -229,7 +228,12 @@ extractor config:
 			if len(truncName) > 40 {
 				truncName = "..." + truncName[len(truncName)-37:]
 			}
+			typ, ok := a.Hashes[id.Type]
+			if !ok {
+				typ = id.Type.String()
+			}
 			prt.Statusf("File %v/%v: %v", i+1, len(files), truncName)
+			document := documents[typ]
 			if _, err := a.ExtractFile(ctx, id, *outDir, extrCfg, runner, document); err == nil {
 				numExtrFiles++
 			} else {

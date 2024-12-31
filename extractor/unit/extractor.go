@@ -85,7 +85,14 @@ func addSkeleton(ctx extractor.Context, doc *gltf.Document, unitInfo *unit.Info,
 		if node.Extras == nil {
 			continue
 		}
-		skeletonId := node.Extras.(map[string]uint32)["skeletonId"]
+		extras, ok := node.Extras.(map[string]uint32)
+		if !ok {
+			continue
+		}
+		skeletonId, ok := extras["skeletonId"]
+		if !ok {
+			continue
+		}
 		nodeNames[node.Name+fmt.Sprintf("%08x", skeletonId)] = uint32(i)
 	}
 
@@ -140,14 +147,31 @@ func addSkeleton(ctx extractor.Context, doc *gltf.Document, unitInfo *unit.Info,
 		}
 		jointIndices = append(jointIndices, boneIdx)
 	}
-	if !slices.Contains(doc.Scenes[0].Nodes, rootNodeIndex) {
-		doc.Scenes[0].Nodes = append(doc.Scenes[0].Nodes, rootNodeIndex)
+
+	var skeleton *uint32 = nil
+	for skin := range doc.Skins {
+		if doc.Skins[skin].Name == ctx.File().ID().Name.String() {
+			skeleton = doc.Skins[skin].Skeleton
+			break
+		}
+	}
+
+	if skeleton == nil {
+		doc.Nodes = append(doc.Nodes, &gltf.Node{
+			Name: ctx.File().ID().Name.String(),
+			Children: []uint32{
+				rootNodeIndex,
+			},
+		})
+		skeleton = gltf.Index(uint32(len(doc.Nodes) - 1))
+		doc.Scenes[0].Nodes = append(doc.Scenes[0].Nodes, *skeleton)
 	}
 
 	doc.Skins = append(doc.Skins, &gltf.Skin{
 		Name:                ctx.File().ID().Name.String(),
 		InverseBindMatrices: gltf.Index(inverseBindMatrices),
 		Joints:              jointIndices,
+		Skeleton:            skeleton,
 	})
 
 	return uint32(len(doc.Skins) - 1)
@@ -346,8 +370,16 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 	bonesEnabled := ctx.Config()["no_bones"] != "true"
 
 	var skin *uint32 = nil
+	var parent *uint32 = nil
 	if bonesEnabled {
 		skin = gltf.Index(addSkeleton(ctx, doc, unitInfo, boneInfo))
+		parent = doc.Skins[*skin].Skeleton
+	} else {
+		parent = gltf.Index(uint32(len(doc.Nodes)))
+		doc.Nodes = append(doc.Nodes, &gltf.Node{
+			Name: ctx.File().ID().Name.String(),
+		})
+		doc.Scenes[0].Nodes = append(doc.Scenes[0].Nodes, *parent)
 	}
 
 	var meshes map[uint32]unit.Mesh
@@ -363,7 +395,7 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 		}
 
 		for i, mesh := range meshes {
-			addBoundingBox(doc, fmt.Sprintf("Mesh %d AABB", i), mesh, unitInfo)
+			addBoundingBox(doc, fmt.Sprintf("Mesh %d Bounding Box", i), mesh, unitInfo)
 		}
 	} else {
 		// Load meshes
@@ -372,6 +404,8 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 			return err
 		}
 	}
+
+	var meshNodes []uint32 = make([]uint32, 0)
 
 	for meshDisplayNumber, meshID := range meshesToLoad {
 		if meshID >= unitInfo.NumMeshes {
@@ -385,27 +419,29 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 
 		var groupBoneIdx *uint32 = nil
 		var meshNameBoneIdx *uint32 = nil
-		if bonesEnabled {
-			// Apply vertex transform
-			transformBoneIdx := mesh.Info.Header.TransformIdx
-			parentIdx := -1
-			fbxConvertIdx := -1
-			gameMeshHash := stingray.Sum64([]byte("game_mesh")).Thin()
-			fbxConvertHash := stingray.Sum64([]byte("FbxAxisSystem_ConvertNode")).Thin()
-			for boneIdx, bone := range unitInfo.Bones {
-				if bone.NameHash == gameMeshHash {
-					parentIdx = int(boneIdx)
-				}
-				if bone.NameHash == fbxConvertHash {
-					fbxConvertIdx = int(boneIdx)
-				}
-				if bone.ParentIndex == uint32(parentIdx) && bone.NameHash == mesh.Info.Header.GroupBoneHash {
-					transformBoneIdx = uint32(boneIdx)
-				}
-				if bone.ParentIndex == uint32(fbxConvertIdx) {
-					meshNameBoneIdx = gltf.Index(uint32(boneIdx))
-				}
+		// Extract some bone indices used even if skeletons are disabled
+		transformBoneIdx := mesh.Info.Header.TransformIdx
+		parentIdx := -1
+		fbxConvertIdx := -1
+		gameMeshHash := stingray.Sum64([]byte("game_mesh")).Thin()
+		fbxConvertHash := stingray.Sum64([]byte("FbxAxisSystem_ConvertNode")).Thin()
+		for boneIdx, bone := range unitInfo.Bones {
+			if bone.NameHash == gameMeshHash {
+				parentIdx = int(boneIdx)
 			}
+			if bone.NameHash == fbxConvertHash {
+				fbxConvertIdx = int(boneIdx)
+			}
+			if bone.ParentIndex == uint32(parentIdx) && bone.NameHash == mesh.Info.Header.GroupBoneHash {
+				transformBoneIdx = uint32(boneIdx)
+			}
+			if bone.ParentIndex == uint32(fbxConvertIdx) {
+				meshNameBoneIdx = gltf.Index(uint32(boneIdx))
+			}
+		}
+
+		// Apply vertex transform
+		if bonesEnabled {
 			groupBoneIdx = &unitInfo.Bones[transformBoneIdx].ParentIndex
 			transformMatrix := unitInfo.Bones[transformBoneIdx].Matrix
 			// If translation, rotation, and scale are identities, use the TransformIndex instead
@@ -430,10 +466,14 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 		}
 
 		// Transform coordinates into glTF ones
-		for i := range mesh.Positions {
-			p := mesh.Positions[i]
-			p[1], p[2] = p[2], -p[1]
-			mesh.Positions[i] = p
+		fbxTransformMatrix := unitInfo.Bones[fbxConvertIdx].Matrix
+		if fbxTransformMatrix.ApproxEqual(mgl32.Ident4()) {
+			// tbh should probably invert the fbx transform and combine with this, but... this should be fine
+			for i := range mesh.Positions {
+				p := mesh.Positions[i]
+				p[1], p[2] = p[2], -p[1]
+				mesh.Positions[i] = p
+			}
 		}
 
 		var weights *uint32 = nil
@@ -487,6 +527,10 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 				nodeIdx := writeMesh(ctx, doc, componentName, indices, positions, texCoords, material, joints, weights, skin)
 
 				doc.Scenes[0].Nodes = append(doc.Scenes[0].Nodes, nodeIdx)
+				if skin == nil {
+					doc.Nodes[*parent].Children = append(doc.Nodes[*parent].Children, nodeIdx)
+				}
+				meshNodes = append(meshNodes, nodeIdx)
 			} else {
 				var components map[uint32][]uint32 = make(map[uint32][]uint32)
 				make_key := func(uv [2]float32) uint32 {
@@ -528,13 +572,30 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 					nodeIdx := writeMesh(ctx, doc, fmt.Sprintf("%s cmp %v", componentName, componentNum), indices, positions, texCoords, material, joints, weights, skin)
 
 					doc.Scenes[0].Nodes = append(doc.Scenes[0].Nodes, nodeIdx)
+					if skin == nil {
+						doc.Nodes[*parent].Children = append(doc.Nodes[*parent].Children, nodeIdx)
+					}
+					meshNodes = append(meshNodes, nodeIdx)
 					componentNum += 1
 				}
 			}
 		}
 	}
 
-	if gltfDoc == nil && (ctx.Config()["format"] == "glb" || ctx.Config()["format"] == "blend_glb") {
+	// Add some metadata so prefab loading can find our parent node easily
+	extras, ok := doc.Extras.(map[string]map[string]interface{})
+	if !ok {
+		extras = make(map[string]map[string]interface{})
+	}
+	extras[ctx.File().ID().Name.String()] = make(map[string]interface{})
+	extras[ctx.File().ID().Name.String()]["parent"] = *parent
+	if skin != nil {
+		extras[ctx.File().ID().Name.String()]["skin"] = *skin
+	}
+	extras[ctx.File().ID().Name.String()]["objects"] = meshNodes
+	doc.Extras = extras
+
+	if gltfDoc == nil && (ctx.Config()["format"] == "" || ctx.Config()["format"] == "glb" || ctx.Config()["format"] == "blend_glb") {
 		out, err := ctx.CreateFile(".glb")
 		if err != nil {
 			return err
