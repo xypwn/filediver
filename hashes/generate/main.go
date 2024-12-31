@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"slices"
@@ -16,14 +17,8 @@ const prolog = `// Copied from Hellextractor by Xaymar (https://github.com/Xayma
 // Their respective hashes will be generated automatically.
 `
 
-func appendHTTPFile(strs *map[string]struct{}, url string, transform func(string) string) error {
-	resp, err := http.Get(url)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	rd := bufio.NewScanner(resp.Body)
+func appendReader(strs *map[string]struct{}, r io.Reader, transform func(string) string) error {
+	rd := bufio.NewScanner(r)
 	for rd.Scan() {
 		s := rd.Text()
 		if len(s) == 0 || strings.HasPrefix(s, "//") || strings.HasPrefix(s, "#") {
@@ -35,6 +30,25 @@ func appendHTTPFile(strs *map[string]struct{}, url string, transform func(string
 		(*strs)[s] = struct{}{}
 	}
 	return nil
+}
+
+func appendHTTPFile(strs *map[string]struct{}, url string, transform func(string) string) error {
+	resp, err := http.Get(url)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	return appendReader(strs, resp.Body, transform)
+}
+
+func appendFile(strs *map[string]struct{}, path string, transform func(string) string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	return appendReader(strs, f, transform)
 }
 
 func main() {
@@ -62,7 +76,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	if err := appendHTTPFile(&strs, "https://raw.githubusercontent.com/xypwn/filediver/master/hashes/cracked.txt", nil); err != nil {
+	if err := appendFile(&strs, "cracked.txt", nil); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
