@@ -82,7 +82,7 @@ struct StingrayHeader {
 
 struct SettingsListItem {
     u64 unk00;
-    SettingsUsage setting; // maybe
+    SettingsUsage setting;
     std::print("0x{:08X}", u32(setting));
     u32 offset;
     u32 unk01;
