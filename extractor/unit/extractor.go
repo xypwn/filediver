@@ -150,7 +150,11 @@ func addSkeleton(ctx extractor.Context, doc *gltf.Document, unitInfo *unit.Info,
 
 	var skeleton *uint32 = nil
 	for skin := range doc.Skins {
-		if doc.Skins[skin].Name == ctx.File().ID().Name.String() {
+		extras, ok := doc.Skins[skin].Extras.(map[string]uint32)
+		if !ok {
+			extras = make(map[string]uint32)
+		}
+		if otherId, contains := extras["skeletonId"]; doc.Skins[skin].Name == ctx.File().ID().Name.String() || (contains && skeletonId == otherId) {
 			skeleton = doc.Skins[skin].Skeleton
 			break
 		}
@@ -172,16 +176,18 @@ func addSkeleton(ctx extractor.Context, doc *gltf.Document, unitInfo *unit.Info,
 		InverseBindMatrices: gltf.Index(inverseBindMatrices),
 		Joints:              jointIndices,
 		Skeleton:            skeleton,
+		Extras:              skeletonTag,
 	})
 
 	return uint32(len(doc.Skins) - 1)
 }
 
-func writeMesh(ctx extractor.Context, doc *gltf.Document, componentName string, indices *uint32, positions uint32, texCoords []uint32, material *uint32, joints *uint32, weights *uint32, skin *uint32) uint32 {
+func writeMesh(ctx extractor.Context, doc *gltf.Document, componentName string, indices *uint32, positions uint32, normals uint32, texCoords []uint32, material *uint32, joints *uint32, weights *uint32, skin *uint32) uint32 {
 	primitive := &gltf.Primitive{
 		Indices: indices,
 		Attributes: map[string]uint32{
 			gltf.POSITION: positions,
+			//gltf.COLOR_0:  normals,
 		},
 		Material: material,
 	}
@@ -371,7 +377,7 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 
 	var skin *uint32 = nil
 	var parent *uint32 = nil
-	if bonesEnabled {
+	if bonesEnabled && len(unitInfo.Bones) > 2 {
 		skin = gltf.Index(addSkeleton(ctx, doc, unitInfo, boneInfo))
 		parent = doc.Skins[*skin].Skeleton
 	} else {
@@ -466,13 +472,20 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 		}
 
 		// Transform coordinates into glTF ones
-		fbxTransformMatrix := unitInfo.Bones[fbxConvertIdx].Matrix
+		fbxTransformMatrix := mgl32.Ident4()
+		if fbxConvertIdx != -1 {
+			fbxTransformMatrix = unitInfo.Bones[fbxConvertIdx].Matrix
+		}
 		if fbxTransformMatrix.ApproxEqual(mgl32.Ident4()) {
 			// tbh should probably invert the fbx transform and combine with this, but... this should be fine
 			for i := range mesh.Positions {
 				p := mesh.Positions[i]
 				p[1], p[2] = p[2], -p[1]
 				mesh.Positions[i] = p
+
+				n := mesh.Normals[i]
+				n[1], n[2] = n[2], -n[1]
+				mesh.Normals[i] = n
 			}
 		}
 
@@ -490,6 +503,7 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 		}
 
 		positions := modeler.WritePosition(doc, mesh.Positions)
+		normals := modeler.WriteAccessor(doc, gltf.TargetArrayBuffer, mesh.Normals)
 		var texCoords []uint32 = make([]uint32, len(mesh.UVCoords))
 		for i := range mesh.UVCoords {
 			texCoords[i] = modeler.WriteTextureCoord(doc, mesh.UVCoords[i])
@@ -524,7 +538,7 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 
 			if ctx.Config()["join_components"] == "true" {
 				indices := gltf.Index(modeler.WriteIndices(doc, mesh.Indices[i]))
-				nodeIdx := writeMesh(ctx, doc, componentName, indices, positions, texCoords, material, joints, weights, skin)
+				nodeIdx := writeMesh(ctx, doc, componentName, indices, positions, normals, texCoords, material, joints, weights, skin)
 
 				doc.Scenes[0].Nodes = append(doc.Scenes[0].Nodes, nodeIdx)
 				if skin == nil {
@@ -541,7 +555,7 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 					return key
 				}
 				for j := range mesh.Indices[i] {
-					if j%3 != 0 {
+					if j%3 != 0 || mesh.Indices[i][j] >= uint32(len(mesh.UVCoords[0])) || mesh.Indices[i][j+1] >= uint32(len(mesh.UVCoords[0])) || mesh.Indices[i][j+2] >= uint32(len(mesh.UVCoords[0])) {
 						continue
 					}
 					// Need to use all three sets of uvs since there are cases where
@@ -551,17 +565,12 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 					key0 := make_key(mesh.UVCoords[0][mesh.Indices[i][j]])
 					key1 := make_key(mesh.UVCoords[0][mesh.Indices[i][j+1]])
 					key2 := make_key(mesh.UVCoords[0][mesh.Indices[i][j+2]])
-					var key uint32
-					if key0 == key1 && key1 == key2 {
-						key = key0
-					} else {
-						key = key0
-						if key1 < key {
-							key = key1
-						}
-						if key2 < key {
-							key = key2
-						}
+					key := key0
+					if key1 < key {
+						key = key1
+					}
+					if key2 < key {
+						key = key2
 					}
 					components[key] = append(components[key], mesh.Indices[i][j], mesh.Indices[i][j+1], mesh.Indices[i][j+2])
 				}
@@ -569,7 +578,7 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 				componentNum := 0
 				for _, componentIndices := range components {
 					indices := gltf.Index(modeler.WriteIndices(doc, componentIndices))
-					nodeIdx := writeMesh(ctx, doc, fmt.Sprintf("%s cmp %v", componentName, componentNum), indices, positions, texCoords, material, joints, weights, skin)
+					nodeIdx := writeMesh(ctx, doc, fmt.Sprintf("%s cmp %v", componentName, componentNum), indices, positions, normals, texCoords, material, joints, weights, skin)
 
 					doc.Scenes[0].Nodes = append(doc.Scenes[0].Nodes, nodeIdx)
 					if skin == nil {
