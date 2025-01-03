@@ -28,6 +28,10 @@ func (f *File) TriadName() string {
 	return strings.TrimSuffix(filepath.Base(f.triad.MainPath), filepath.Ext(f.triad.MainPath))
 }
 
+func (f *File) TriadID() Hash {
+	return f.triad.ID
+}
+
 func (f *File) Exists(typ DataType) bool {
 	return f.exists[typ]
 }
@@ -134,6 +138,10 @@ func (a *File) contentEqual(b *File, dt DataType) (bool, error) {
 
 type DataDir struct {
 	Files map[FileID]*File
+	// This is for use when exporting by Triad, since even if the file is a duplicate,
+	// if its included in the triad it should be exported with the rest. Armors will share geometry,
+	// for example
+	Duplicates map[FileID]map[Hash]*File
 }
 
 // Opens the "data" game directory, reading all file metadata. Ctx allows for granular cancellation (before each triad open).
@@ -147,7 +155,8 @@ func OpenDataDir(ctx context.Context, dirPath string, onProgress func(curr, tota
 	}
 
 	dd := &DataDir{
-		Files: make(map[FileID]*File),
+		Files:      make(map[FileID]*File),
+		Duplicates: make(map[FileID]map[Hash]*File),
 	}
 
 	for i, ent := range ents {
@@ -169,6 +178,9 @@ func OpenDataDir(ctx context.Context, dirPath string, onProgress func(curr, tota
 			return nil, fmt.Errorf("%v%w", errPfx, err)
 		}
 		for i, v := range tr.Files {
+			if _, contains := dd.Duplicates[v.ID]; !contains {
+				dd.Duplicates[v.ID] = make(map[Hash]*File)
+			}
 			newFile := &File{
 				triad: tr,
 				index: i,
@@ -194,6 +206,7 @@ func OpenDataDir(ctx context.Context, dirPath string, onProgress func(curr, tota
 				}
 			}*/
 			dd.Files[v.ID] = newFile
+			dd.Duplicates[v.ID][tr.ID] = newFile
 		}
 	}
 

@@ -234,7 +234,7 @@ extractor config:
 			}
 			prt.Statusf("File %v/%v: %v", i+1, len(files), truncName)
 			document := documents[typ]
-			if _, err := a.ExtractFile(ctx, id, *outDir, extrCfg, runner, document); err == nil {
+			if _, err := a.ExtractFile(ctx, id, files[id].TriadID(), *outDir, extrCfg, runner, document); err == nil {
 				numExtrFiles++
 			} else {
 				if errors.Is(err, context.Canceled) {

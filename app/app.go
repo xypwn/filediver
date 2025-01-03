@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/gobwas/glob"
@@ -332,10 +333,19 @@ func (a *App) MatchingFiles(includeGlob, excludeGlob string, triadName string, c
 		}
 	}
 
+	var triadHash stingray.Hash = stingray.Hash{Value: 0}
+	if triadName != "" {
+		id, err := strconv.ParseUint(triadName, 16, 64)
+		if err != nil {
+			return nil, err
+		}
+		triadHash.Value = id
+	}
+
 	res := make(map[stingray.FileID]*stingray.File)
-	for id, file := range a.DataDir.Files {
+	for id, duplicates := range a.DataDir.Duplicates {
 		shouldIncl := true
-		if triadName != "" && file.TriadName() != triadName {
+		if _, contains := duplicates[triadHash]; triadHash.Value != 0 && !contains {
 			shouldIncl = false
 		}
 		if includeGlob != "" {
@@ -376,7 +386,11 @@ func (a *App) MatchingFiles(includeGlob, excludeGlob string, triadName string, c
 			continue
 		}
 
-		res[id] = file
+		if triadHash.Value != 0 {
+			res[id] = duplicates[triadHash]
+		} else {
+			res[id] = a.DataDir.Files[id]
+		}
 	}
 
 	return res, nil
@@ -408,6 +422,13 @@ func (c *extractContext) File() *stingray.File      { return c.file }
 func (c *extractContext) Runner() *exec.Runner      { return c.runner }
 func (c *extractContext) Config() map[string]string { return c.config }
 func (c *extractContext) GetResource(name, typ stingray.Hash) (file *stingray.File, exists bool) {
+	dups, exists := c.app.DataDir.Duplicates[stingray.FileID{Name: name, Type: typ}]
+	if exists {
+		file, exists = dups[c.file.TriadID()]
+		if exists {
+			return
+		}
+	}
 	file, exists = c.app.DataDir.Files[stingray.FileID{Name: name, Type: typ}]
 	return
 }
@@ -432,7 +453,7 @@ func (c *extractContext) Files() []string {
 }
 
 // Returns path to extracted file/directory.
-func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string, extrCfg map[string]map[string]string, runner *exec.Runner, gltfDoc *gltf.Document) ([]string, error) {
+func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, triadId stingray.Hash, outDir string, extrCfg map[string]map[string]string, runner *exec.Runner, gltfDoc *gltf.Document) ([]string, error) {
 	name, ok := a.Hashes[id.Name]
 	if !ok {
 		name = id.Name.String()
@@ -442,7 +463,7 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 		typ = id.Type.String()
 	}
 
-	file, ok := a.DataDir.Files[id]
+	file, ok := a.DataDir.Duplicates[id][triadId]
 	if !ok {
 		return nil, fmt.Errorf("extract %v.%v: file does not exist", name, typ)
 	}
