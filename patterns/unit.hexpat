@@ -26,7 +26,7 @@ struct MurmurHash {
 } [[format("formatHash")]];
 // end stingray.hexpat
 
-#pragma pattern_limit 8388608
+#pragma pattern_limit 67108864
 #pragma array_limit 524288
 #pragma loop_limit 65536
 
@@ -146,7 +146,7 @@ struct MeshGroupList {
 
 enum MeshLayoutItemType : u32 {
     Position,
-    Color,
+    Normal,
     UVCoords = 4,
     BoneIdx = 6,
     BoneWeight
@@ -164,8 +164,8 @@ enum MeshLayoutItemFormat : u32 {
     // U32 Vec 4 is actually observed
     FormatVec4U32,
     FormatVec4S8 = 24,
-    FormatVec4Packed32,
-    FormatVec4U8,
+    FormatVec4R10G10B10A2_TYPELESS,
+    FormatVec4R10G10B10A2_UNORM,
     FormatF16 = 28,
     FormatVec2F16,
     FormatVec3F16,
@@ -183,8 +183,8 @@ fn formatSize(MeshLayoutItemFormat format) {
         (MeshLayoutItemFormat::FormatVec3U32): return 12;
         (MeshLayoutItemFormat::FormatVec4U32): return 16;
         (MeshLayoutItemFormat::FormatVec4S8): return 4;
-        (MeshLayoutItemFormat::FormatVec4Packed32): return 4;
-        (MeshLayoutItemFormat::FormatVec4U8): return 4;
+        (MeshLayoutItemFormat::FormatVec4R10G10B10A2_TYPELESS): return 4;
+        (MeshLayoutItemFormat::FormatVec4R10G10B10A2_UNORM): return 4;
         (MeshLayoutItemFormat::FormatF16): return 2;
         (MeshLayoutItemFormat::FormatVec2F16): return 4;
         (MeshLayoutItemFormat::FormatVec3F16): return 6;
@@ -254,7 +254,7 @@ struct MeshInfo {
     float unkFloat;
     u32 unkInt0;
     ThinMurmurHash unkHash;
-    u32 unkInt1;
+    u32 AABBTransformIndex;
     u32 TransformIndex;
     u32 unkInt2;
     u32 SkeletonMapIdx;
@@ -349,8 +349,8 @@ struct Vertex<auto Stride> {
     if(i < currentLayout.NumItems) {
         match(currentLayout.Items[i].Type, currentLayout.Items[i].Format, currentLayout.Items[i].Layer) {
             (MeshLayoutItemType::Position, _, _): float position[3];
-            (MeshLayoutItemType::Color, MeshLayoutItemFormat::FormatVec4U8, _): u8 color[4];
-            (MeshLayoutItemType::Color, MeshLayoutItemFormat::FormatVec4F16, _): type::float16 color[4];
+            (MeshLayoutItemType::Normal, MeshLayoutItemFormat::FormatVec4R10G10B10A2_UNORM, _): Packed10BitVector normal;
+            (MeshLayoutItemType::Normal, MeshLayoutItemFormat::FormatVec4F16, _): type::float16 normal[4];
             (MeshLayoutItemType::UVCoords, MeshLayoutItemFormat::FormatVec2F16, 0): type::float16 texcoord0[2];
             (MeshLayoutItemType::UVCoords, MeshLayoutItemFormat::FormatVec2F16, 1): type::float16 texcoord1[2];
             (MeshLayoutItemType::UVCoords, MeshLayoutItemFormat::FormatVec2F16, 2): type::float16 texcoord2[2];
@@ -370,15 +370,15 @@ struct Vertex<auto Stride> {
             (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatF32, _): float boneWeights;
             (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec2F16, _): type::float16 boneWeights[2];
             (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec4F16, _): type::float16 boneWeights[4];
-            (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec4Packed32, _): Packed10BitVector boneWeights;
+            (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec4R10G10B10A2_TYPELESS, _): Packed10BitVector boneWeights;
         }
     }
     i = 1;
     if(i < currentLayout.NumItems) {
         match(currentLayout.Items[i].Type, currentLayout.Items[i].Format, currentLayout.Items[i].Layer) {
             (MeshLayoutItemType::Position, _, _): float position[3];
-            (MeshLayoutItemType::Color, MeshLayoutItemFormat::FormatVec4U8, _): u8 color[4];
-            (MeshLayoutItemType::Color, MeshLayoutItemFormat::FormatVec4F16, _): type::float16 color[4];
+            (MeshLayoutItemType::Normal, MeshLayoutItemFormat::FormatVec4R10G10B10A2_UNORM, _): Packed10BitVector normal;
+            (MeshLayoutItemType::Normal, MeshLayoutItemFormat::FormatVec4F16, _): type::float16 normal[4];
             (MeshLayoutItemType::UVCoords, MeshLayoutItemFormat::FormatVec2F16, 0): type::float16 texcoord0[2];
             (MeshLayoutItemType::UVCoords, MeshLayoutItemFormat::FormatVec2F16, 1): type::float16 texcoord1[2];
             (MeshLayoutItemType::UVCoords, MeshLayoutItemFormat::FormatVec2F16, 2): type::float16 texcoord2[2];
@@ -398,15 +398,15 @@ struct Vertex<auto Stride> {
             (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatF32, _): float boneWeights;
             (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec2F16, _): type::float16 boneWeights[2];
             (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec4F16, _): type::float16 boneWeights[4];
-            (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec4Packed32, _): Packed10BitVector boneWeights;
+            (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec4R10G10B10A2_TYPELESS, _): Packed10BitVector boneWeights;
         }
     }
     i = 2;
     if(i < currentLayout.NumItems) {
         match(currentLayout.Items[i].Type, currentLayout.Items[i].Format, currentLayout.Items[i].Layer) {
             (MeshLayoutItemType::Position, _, _): float position[3];
-            (MeshLayoutItemType::Color, MeshLayoutItemFormat::FormatVec4U8, _): u8 color[4];
-            (MeshLayoutItemType::Color, MeshLayoutItemFormat::FormatVec4F16, _): type::float16 color[4];
+            (MeshLayoutItemType::Normal, MeshLayoutItemFormat::FormatVec4R10G10B10A2_UNORM, _): Packed10BitVector normal;
+            (MeshLayoutItemType::Normal, MeshLayoutItemFormat::FormatVec4F16, _): type::float16 normal[4];
             (MeshLayoutItemType::UVCoords, MeshLayoutItemFormat::FormatVec2F16, 0): type::float16 texcoord0[2];
             (MeshLayoutItemType::UVCoords, MeshLayoutItemFormat::FormatVec2F16, 1): type::float16 texcoord1[2];
             (MeshLayoutItemType::UVCoords, MeshLayoutItemFormat::FormatVec2F16, 2): type::float16 texcoord2[2];
@@ -426,15 +426,15 @@ struct Vertex<auto Stride> {
             (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatF32, _): float boneWeights;
             (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec2F16, _): type::float16 boneWeights[2];
             (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec4F16, _): type::float16 boneWeights[4];
-            (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec4Packed32, _): Packed10BitVector boneWeights;
+            (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec4R10G10B10A2_TYPELESS, _): Packed10BitVector boneWeights;
         }
     }
     i = 3;
     if(i < currentLayout.NumItems) {
         match(currentLayout.Items[i].Type, currentLayout.Items[i].Format, currentLayout.Items[i].Layer) {
             (MeshLayoutItemType::Position, _, _): float position[3];
-            (MeshLayoutItemType::Color, MeshLayoutItemFormat::FormatVec4U8, _): u8 color[4];
-            (MeshLayoutItemType::Color, MeshLayoutItemFormat::FormatVec4F16, _): type::float16 color[4];
+            (MeshLayoutItemType::Normal, MeshLayoutItemFormat::FormatVec4R10G10B10A2_UNORM, _): Packed10BitVector normal;
+            (MeshLayoutItemType::Normal, MeshLayoutItemFormat::FormatVec4F16, _): type::float16 normal[4];
             (MeshLayoutItemType::UVCoords, MeshLayoutItemFormat::FormatVec2F16, 0): type::float16 texcoord0[2];
             (MeshLayoutItemType::UVCoords, MeshLayoutItemFormat::FormatVec2F16, 1): type::float16 texcoord1[2];
             (MeshLayoutItemType::UVCoords, MeshLayoutItemFormat::FormatVec2F16, 2): type::float16 texcoord2[2];
@@ -454,15 +454,15 @@ struct Vertex<auto Stride> {
             (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatF32, _): float boneWeights;
             (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec2F16, _): type::float16 boneWeights[2];
             (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec4F16, _): type::float16 boneWeights[4];
-            (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec4Packed32, _): Packed10BitVector boneWeights;
+            (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec4R10G10B10A2_TYPELESS, _): Packed10BitVector boneWeights;
         }
     }
     i = 4;
     if(i < currentLayout.NumItems) {
         match(currentLayout.Items[i].Type, currentLayout.Items[i].Format, currentLayout.Items[i].Layer) {
             (MeshLayoutItemType::Position, _, _): float position[3];
-            (MeshLayoutItemType::Color, MeshLayoutItemFormat::FormatVec4U8, _): u8 color[4];
-            (MeshLayoutItemType::Color, MeshLayoutItemFormat::FormatVec4F16, _): type::float16 color[4];
+            (MeshLayoutItemType::Normal, MeshLayoutItemFormat::FormatVec4R10G10B10A2_UNORM, _): Packed10BitVector normal;
+            (MeshLayoutItemType::Normal, MeshLayoutItemFormat::FormatVec4F16, _): type::float16 normal[4];
             (MeshLayoutItemType::UVCoords, MeshLayoutItemFormat::FormatVec2F16, 0): type::float16 texcoord0[2];
             (MeshLayoutItemType::UVCoords, MeshLayoutItemFormat::FormatVec2F16, 1): type::float16 texcoord1[2];
             (MeshLayoutItemType::UVCoords, MeshLayoutItemFormat::FormatVec2F16, 2): type::float16 texcoord2[2];
@@ -482,15 +482,15 @@ struct Vertex<auto Stride> {
             (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatF32, _): float boneWeights;
             (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec2F16, _): type::float16 boneWeights[2];
             (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec4F16, _): type::float16 boneWeights[4];
-            (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec4Packed32, _): Packed10BitVector boneWeights;
+            (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec4R10G10B10A2_TYPELESS, _): Packed10BitVector boneWeights;
         }
     }
     i = 5;
     if(i < currentLayout.NumItems) {
         match(currentLayout.Items[i].Type, currentLayout.Items[i].Format, currentLayout.Items[i].Layer) {
             (MeshLayoutItemType::Position, _, _): float position[3];
-            (MeshLayoutItemType::Color, MeshLayoutItemFormat::FormatVec4U8, _): u8 color[4];
-            (MeshLayoutItemType::Color, MeshLayoutItemFormat::FormatVec4F16, _): type::float16 color[4];
+            (MeshLayoutItemType::Normal, MeshLayoutItemFormat::FormatVec4R10G10B10A2_UNORM, _): Packed10BitVector normal;
+            (MeshLayoutItemType::Normal, MeshLayoutItemFormat::FormatVec4F16, _): type::float16 normal[4];
             (MeshLayoutItemType::UVCoords, MeshLayoutItemFormat::FormatVec2F16, 0): type::float16 texcoord0[2];
             (MeshLayoutItemType::UVCoords, MeshLayoutItemFormat::FormatVec2F16, 1): type::float16 texcoord1[2];
             (MeshLayoutItemType::UVCoords, MeshLayoutItemFormat::FormatVec2F16, 2): type::float16 texcoord2[2];
@@ -510,15 +510,15 @@ struct Vertex<auto Stride> {
             (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatF32, _): float boneWeights;
             (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec2F16, _): type::float16 boneWeights[2];
             (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec4F16, _): type::float16 boneWeights[4];
-            (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec4Packed32, _): Packed10BitVector boneWeights;
+            (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec4R10G10B10A2_TYPELESS, _): Packed10BitVector boneWeights;
         }
     }
     i = 6;
     if(i < currentLayout.NumItems) {
         match(currentLayout.Items[i].Type, currentLayout.Items[i].Format, currentLayout.Items[i].Layer) {
             (MeshLayoutItemType::Position, _, _): float position[3];
-            (MeshLayoutItemType::Color, MeshLayoutItemFormat::FormatVec4U8, _): u8 color[4];
-            (MeshLayoutItemType::Color, MeshLayoutItemFormat::FormatVec4F16, _): type::float16 color[4];
+            (MeshLayoutItemType::Normal, MeshLayoutItemFormat::FormatVec4R10G10B10A2_UNORM, _): Packed10BitVector normal;
+            (MeshLayoutItemType::Normal, MeshLayoutItemFormat::FormatVec4F16, _): type::float16 normal[4];
             (MeshLayoutItemType::UVCoords, MeshLayoutItemFormat::FormatVec2F16, 0): type::float16 texcoord0[2];
             (MeshLayoutItemType::UVCoords, MeshLayoutItemFormat::FormatVec2F16, 1): type::float16 texcoord1[2];
             (MeshLayoutItemType::UVCoords, MeshLayoutItemFormat::FormatVec2F16, 2): type::float16 texcoord2[2];
@@ -538,15 +538,15 @@ struct Vertex<auto Stride> {
             (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatF32, _): float boneWeights;
             (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec2F16, _): type::float16 boneWeights[2];
             (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec4F16, _): type::float16 boneWeights[4];
-            (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec4Packed32, _): Packed10BitVector boneWeights;
+            (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec4R10G10B10A2_TYPELESS, _): Packed10BitVector boneWeights;
         }
     }
     i = 7;
     if(i < currentLayout.NumItems) {
         match(currentLayout.Items[i].Type, currentLayout.Items[i].Format, currentLayout.Items[i].Layer) {
             (MeshLayoutItemType::Position, _, _): float position[3];
-            (MeshLayoutItemType::Color, MeshLayoutItemFormat::FormatVec4U8, _): u8 color[4];
-            (MeshLayoutItemType::Color, MeshLayoutItemFormat::FormatVec4F16, _): type::float16 color[4];
+            (MeshLayoutItemType::Normal, MeshLayoutItemFormat::FormatVec4R10G10B10A2_UNORM, _): Packed10BitVector normal;
+            (MeshLayoutItemType::Normal, MeshLayoutItemFormat::FormatVec4F16, _): type::float16 normal[4];
             (MeshLayoutItemType::UVCoords, MeshLayoutItemFormat::FormatVec2F16, 0): type::float16 texcoord0[2];
             (MeshLayoutItemType::UVCoords, MeshLayoutItemFormat::FormatVec2F16, 1): type::float16 texcoord1[2];
             (MeshLayoutItemType::UVCoords, MeshLayoutItemFormat::FormatVec2F16, 2): type::float16 texcoord2[2];
@@ -566,15 +566,15 @@ struct Vertex<auto Stride> {
             (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatF32, _): float boneWeights;
             (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec2F16, _): type::float16 boneWeights[2];
             (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec4F16, _): type::float16 boneWeights[4];
-            (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec4Packed32, _): Packed10BitVector boneWeights;
+            (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec4R10G10B10A2_TYPELESS, _): Packed10BitVector boneWeights;
         }
     }
     i = 8;
     if(i < currentLayout.NumItems) {
         match(currentLayout.Items[i].Type, currentLayout.Items[i].Format, currentLayout.Items[i].Layer) {
             (MeshLayoutItemType::Position, _, _): float position[3];
-            (MeshLayoutItemType::Color, MeshLayoutItemFormat::FormatVec4U8, _): u8 color[4];
-            (MeshLayoutItemType::Color, MeshLayoutItemFormat::FormatVec4F16, _): type::float16 color[4];
+            (MeshLayoutItemType::Normal, MeshLayoutItemFormat::FormatVec4R10G10B10A2_UNORM, _): Packed10BitVector normal;
+            (MeshLayoutItemType::Normal, MeshLayoutItemFormat::FormatVec4F16, _): type::float16 normal[4];
             (MeshLayoutItemType::UVCoords, MeshLayoutItemFormat::FormatVec2F16, 0): type::float16 texcoord0[2];
             (MeshLayoutItemType::UVCoords, MeshLayoutItemFormat::FormatVec2F16, 1): type::float16 texcoord1[2];
             (MeshLayoutItemType::UVCoords, MeshLayoutItemFormat::FormatVec2F16, 2): type::float16 texcoord2[2];
@@ -594,15 +594,15 @@ struct Vertex<auto Stride> {
             (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatF32, _): float boneWeights;
             (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec2F16, _): type::float16 boneWeights[2];
             (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec4F16, _): type::float16 boneWeights[4];
-            (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec4Packed32, _): Packed10BitVector boneWeights;
+            (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec4R10G10B10A2_TYPELESS, _): Packed10BitVector boneWeights;
         }
     }
     i = 9;
     if(i < currentLayout.NumItems) {
         match(currentLayout.Items[i].Type, currentLayout.Items[i].Format, currentLayout.Items[i].Layer) {
             (MeshLayoutItemType::Position, _, _): float position[3];
-            (MeshLayoutItemType::Color, MeshLayoutItemFormat::FormatVec4U8, _): u8 color[4];
-            (MeshLayoutItemType::Color, MeshLayoutItemFormat::FormatVec4F16, _): type::float16 color[4];
+            (MeshLayoutItemType::Normal, MeshLayoutItemFormat::FormatVec4R10G10B10A2_UNORM, _): Packed10BitVector normal;
+            (MeshLayoutItemType::Normal, MeshLayoutItemFormat::FormatVec4F16, _): type::float16 normal[4];
             (MeshLayoutItemType::UVCoords, MeshLayoutItemFormat::FormatVec2F16, 0): type::float16 texcoord0[2];
             (MeshLayoutItemType::UVCoords, MeshLayoutItemFormat::FormatVec2F16, 1): type::float16 texcoord1[2];
             (MeshLayoutItemType::UVCoords, MeshLayoutItemFormat::FormatVec2F16, 2): type::float16 texcoord2[2];
@@ -622,15 +622,15 @@ struct Vertex<auto Stride> {
             (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatF32, _): float boneWeights;
             (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec2F16, _): type::float16 boneWeights[2];
             (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec4F16, _): type::float16 boneWeights[4];
-            (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec4Packed32, _): Packed10BitVector boneWeights;
+            (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec4R10G10B10A2_TYPELESS, _): Packed10BitVector boneWeights;
         }
     }
     i = 10;
     if(i < currentLayout.NumItems) {
         match(currentLayout.Items[i].Type, currentLayout.Items[i].Format, currentLayout.Items[i].Layer) {
             (MeshLayoutItemType::Position, _, _): float position[3];
-            (MeshLayoutItemType::Color, MeshLayoutItemFormat::FormatVec4U8, _): u8 color[4];
-            (MeshLayoutItemType::Color, MeshLayoutItemFormat::FormatVec4F16, _): type::float16 color[4];
+            (MeshLayoutItemType::Normal, MeshLayoutItemFormat::FormatVec4R10G10B10A2_UNORM, _): Packed10BitVector normal;
+            (MeshLayoutItemType::Normal, MeshLayoutItemFormat::FormatVec4F16, _): type::float16 normal[4];
             (MeshLayoutItemType::UVCoords, MeshLayoutItemFormat::FormatVec2F16, 0): type::float16 texcoord0[2];
             (MeshLayoutItemType::UVCoords, MeshLayoutItemFormat::FormatVec2F16, 1): type::float16 texcoord1[2];
             (MeshLayoutItemType::UVCoords, MeshLayoutItemFormat::FormatVec2F16, 2): type::float16 texcoord2[2];
@@ -650,15 +650,15 @@ struct Vertex<auto Stride> {
             (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatF32, _): float boneWeights;
             (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec2F16, _): type::float16 boneWeights[2];
             (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec4F16, _): type::float16 boneWeights[4];
-            (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec4Packed32, _): Packed10BitVector boneWeights;
+            (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec4R10G10B10A2_TYPELESS, _): Packed10BitVector boneWeights;
         }
     }
     i = 11;
     if(i < currentLayout.NumItems) {
         match(currentLayout.Items[i].Type, currentLayout.Items[i].Format, currentLayout.Items[i].Layer) {
             (MeshLayoutItemType::Position, _, _): float position[3];
-            (MeshLayoutItemType::Color, MeshLayoutItemFormat::FormatVec4U8, _): u8 color[4];
-            (MeshLayoutItemType::Color, MeshLayoutItemFormat::FormatVec4F16, _): type::float16 color[4];
+            (MeshLayoutItemType::Normal, MeshLayoutItemFormat::FormatVec4R10G10B10A2_UNORM, _): Packed10BitVector normal;
+            (MeshLayoutItemType::Normal, MeshLayoutItemFormat::FormatVec4F16, _): type::float16 normal[4];
             (MeshLayoutItemType::UVCoords, MeshLayoutItemFormat::FormatVec2F16, 0): type::float16 texcoord0[2];
             (MeshLayoutItemType::UVCoords, MeshLayoutItemFormat::FormatVec2F16, 1): type::float16 texcoord1[2];
             (MeshLayoutItemType::UVCoords, MeshLayoutItemFormat::FormatVec2F16, 2): type::float16 texcoord2[2];
@@ -678,15 +678,15 @@ struct Vertex<auto Stride> {
             (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatF32, _): float boneWeights;
             (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec2F16, _): type::float16 boneWeights[2];
             (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec4F16, _): type::float16 boneWeights[4];
-            (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec4Packed32, _): Packed10BitVector boneWeights;
+            (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec4R10G10B10A2_TYPELESS, _): Packed10BitVector boneWeights;
         }
     }
     i = 12;
     if(i < currentLayout.NumItems) {
         match(currentLayout.Items[i].Type, currentLayout.Items[i].Format, currentLayout.Items[i].Layer) {
             (MeshLayoutItemType::Position, _, _): float position[3];
-            (MeshLayoutItemType::Color, MeshLayoutItemFormat::FormatVec4U8, _): u8 color[4];
-            (MeshLayoutItemType::Color, MeshLayoutItemFormat::FormatVec4F16, _): type::float16 color[4];
+            (MeshLayoutItemType::Normal, MeshLayoutItemFormat::FormatVec4R10G10B10A2_UNORM, _): Packed10BitVector normal;
+            (MeshLayoutItemType::Normal, MeshLayoutItemFormat::FormatVec4F16, _): type::float16 normal[4];
             (MeshLayoutItemType::UVCoords, MeshLayoutItemFormat::FormatVec2F16, 0): type::float16 texcoord0[2];
             (MeshLayoutItemType::UVCoords, MeshLayoutItemFormat::FormatVec2F16, 1): type::float16 texcoord1[2];
             (MeshLayoutItemType::UVCoords, MeshLayoutItemFormat::FormatVec2F16, 2): type::float16 texcoord2[2];
@@ -706,15 +706,15 @@ struct Vertex<auto Stride> {
             (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatF32, _): float boneWeights;
             (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec2F16, _): type::float16 boneWeights[2];
             (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec4F16, _): type::float16 boneWeights[4];
-            (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec4Packed32, _): Packed10BitVector boneWeights;
+            (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec4R10G10B10A2_TYPELESS, _): Packed10BitVector boneWeights;
         }
     }
     i = 13;
     if(i < currentLayout.NumItems) {
         match(currentLayout.Items[i].Type, currentLayout.Items[i].Format, currentLayout.Items[i].Layer) {
             (MeshLayoutItemType::Position, _, _): float position[3];
-            (MeshLayoutItemType::Color, MeshLayoutItemFormat::FormatVec4U8, _): u8 color[4];
-            (MeshLayoutItemType::Color, MeshLayoutItemFormat::FormatVec4F16, _): type::float16 color[4];
+            (MeshLayoutItemType::Normal, MeshLayoutItemFormat::FormatVec4R10G10B10A2_UNORM, _): Packed10BitVector normal;
+            (MeshLayoutItemType::Normal, MeshLayoutItemFormat::FormatVec4F16, _): type::float16 normal[4];
             (MeshLayoutItemType::UVCoords, MeshLayoutItemFormat::FormatVec2F16, 0): type::float16 texcoord0[2];
             (MeshLayoutItemType::UVCoords, MeshLayoutItemFormat::FormatVec2F16, 1): type::float16 texcoord1[2];
             (MeshLayoutItemType::UVCoords, MeshLayoutItemFormat::FormatVec2F16, 2): type::float16 texcoord2[2];
@@ -734,15 +734,15 @@ struct Vertex<auto Stride> {
             (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatF32, _): float boneWeights;
             (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec2F16, _): type::float16 boneWeights[2];
             (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec4F16, _): type::float16 boneWeights[4];
-            (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec4Packed32, _): Packed10BitVector boneWeights;
+            (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec4R10G10B10A2_TYPELESS, _): Packed10BitVector boneWeights;
         }
     }
     i = 14;
     if(i < currentLayout.NumItems) {
         match(currentLayout.Items[i].Type, currentLayout.Items[i].Format, currentLayout.Items[i].Layer) {
             (MeshLayoutItemType::Position, _, _): float position[3];
-            (MeshLayoutItemType::Color, MeshLayoutItemFormat::FormatVec4U8, _): u8 color[4];
-            (MeshLayoutItemType::Color, MeshLayoutItemFormat::FormatVec4F16, _): type::float16 color[4];
+            (MeshLayoutItemType::Normal, MeshLayoutItemFormat::FormatVec4R10G10B10A2_UNORM, _): Packed10BitVector normal;
+            (MeshLayoutItemType::Normal, MeshLayoutItemFormat::FormatVec4F16, _): type::float16 normal[4];
             (MeshLayoutItemType::UVCoords, MeshLayoutItemFormat::FormatVec2F16, 0): type::float16 texcoord0[2];
             (MeshLayoutItemType::UVCoords, MeshLayoutItemFormat::FormatVec2F16, 1): type::float16 texcoord1[2];
             (MeshLayoutItemType::UVCoords, MeshLayoutItemFormat::FormatVec2F16, 2): type::float16 texcoord2[2];
@@ -762,15 +762,15 @@ struct Vertex<auto Stride> {
             (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatF32, _): float boneWeights;
             (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec2F16, _): type::float16 boneWeights[2];
             (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec4F16, _): type::float16 boneWeights[4];
-            (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec4Packed32, _): Packed10BitVector boneWeights;
+            (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec4R10G10B10A2_TYPELESS, _): Packed10BitVector boneWeights;
         }
     }
     i = 15;
     if(i < currentLayout.NumItems) {
         match(currentLayout.Items[i].Type, currentLayout.Items[i].Format, currentLayout.Items[i].Layer) {
             (MeshLayoutItemType::Position, _, _): float position[3];
-            (MeshLayoutItemType::Color, MeshLayoutItemFormat::FormatVec4U8, _): u8 color[4];
-            (MeshLayoutItemType::Color, MeshLayoutItemFormat::FormatVec4F16, _): type::float16 color[4];
+            (MeshLayoutItemType::Normal, MeshLayoutItemFormat::FormatVec4R10G10B10A2_UNORM, _): Packed10BitVector normal;
+            (MeshLayoutItemType::Normal, MeshLayoutItemFormat::FormatVec4F16, _): type::float16 normal[4];
             (MeshLayoutItemType::UVCoords, MeshLayoutItemFormat::FormatVec2F16, 0): type::float16 texcoord0[2];
             (MeshLayoutItemType::UVCoords, MeshLayoutItemFormat::FormatVec2F16, 1): type::float16 texcoord1[2];
             (MeshLayoutItemType::UVCoords, MeshLayoutItemFormat::FormatVec2F16, 2): type::float16 texcoord2[2];
@@ -790,7 +790,7 @@ struct Vertex<auto Stride> {
             (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatF32, _): float boneWeights;
             (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec2F16, _): type::float16 boneWeights[2];
             (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec4F16, _): type::float16 boneWeights[4];
-            (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec4Packed32, _): Packed10BitVector boneWeights;
+            (MeshLayoutItemType::BoneWeight, MeshLayoutItemFormat::FormatVec4R10G10B10A2_TYPELESS, _): Packed10BitVector boneWeights;
         }
     }
 #endif

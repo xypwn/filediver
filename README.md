@@ -61,6 +61,11 @@ Extract the Super Earth anthem as mp3:
 ./filediver -c "audio:format=mp3" -i "content/audio/291227525.wwise_stream"
 ```
 
+Combine several models into one file, then import into Blender with Thejudsub's accurate shader applied (requires `hd2_accurate_blender_importer.zip` to be downloaded and unzipped to the same folder filediver is):
+```sh
+./filediver -c "unit:single_glb=true,format=blend" -t "0x3d8cf2088ed56091" -i "0x76cf8e26aad1bf7e.unit" -o "extracted/DP-00-Tactical/"
+```
+
 ## Features
 ### File Types/Formats
 - **Audio**: Audiokinetic wwise bnk/wem; automatically converted to WAV; other formats require FFmpeg
@@ -73,6 +78,14 @@ Planned: animations
 ### Importing Bones
 When importing the .glb into blender, you need to change the "Bone Dir" option from "Blender" to "Temperance", or you will see huge spheres for bones.
 
+### Thejudsub's Accurate Shader
+.glb models exported from filediver can be imported into Blender with the accurate shader pre-applied, saving a lot of manual work finding and applying textures:
+
+1. Download `hd2_accurate_blender_importer.zip` from the Releases tab and unzip it to the same directory filediver is located.
+2. Export a model that uses procedural materials (most armor pieces and weapons do)
+3. Run `./scripts_dist/hd2_accurate_blender_importer/hd2_accurate_blender_importer.exe path/to/filediver/exported.glb path/to/output.blend`
+4. `path/to/output.blend` will be a _**new, completely fresh/overwritten**_ blend file containing the exported models with the shader applied.
+
 ## Credits/Links
 This app builds on a lot of work from other people. This includes:
 - [Hellextractor by Xaymar](https://github.com/Xaymar/Hellextractor)
@@ -82,6 +95,8 @@ This app builds on a lot of work from other people. This includes:
 	- Wwise audio formats
 - [ImageMagick](https://imagemagick.org)
 	- DDS texture decoding
+- [Accurate HD2 Shader by Thejudsub](https://discord.com/channels/1210541115829260328/1222290154409033889) on [the Helldivers Archive Discord server](https://discord.gg/helldiversarchive)
+	- The most accurate Blender material replicating the game's procedural shaders
 
 Some useful discussion on the topic of HD2 resource extraction: https://reshax.com/topic/507-helldivers-2-model-extraction-help/
 
