@@ -197,6 +197,21 @@ const (
 	WoundNormal                           TextureUsage = 0x736a0029
 	Wounds256                             TextureUsage = 0xa52f1caa
 	Wounds512                             TextureUsage = 0x75d9cea2
+	NormalMap                             TextureUsage = 0xf5c97d31
+	DirtMap                               TextureUsage = 0x38e4b36f
+	NoiseArray                            TextureUsage = 0x44f1ac4d
+	LightBleedMap                         TextureUsage = 0x826c239a
+	RoughnessMap                          TextureUsage = 0xc567338d
+	InputImage                            TextureUsage = 0xf7aafe73
+	DistortionMap                         TextureUsage = 0x08279894
+	TextureLUT                            TextureUsage = 0xdbd93d8b
+	NAC                                   TextureUsage = 0x1290c14e
+	DetailData                            TextureUsage = 0x25288cc7
+	MetalSurfaceData                      TextureUsage = 0xe32e3fa5
+	ConcreteSurfaceData                   TextureUsage = 0x8d69d2ee
+	CoveringAlbedo                        TextureUsage = 0x8261a5a5
+	CoveringNormal                        TextureUsage = 0x4c6fc000
+	WeatheringDataMask                    TextureUsage = 0xb4dcc2c1
 )
 
 func (usage *TextureUsage) String() string {
@@ -263,6 +278,36 @@ func (usage *TextureUsage) String() string {
 		return "wounds_256"
 	case Wounds512:
 		return "wounds_512"
+	case NormalMap:
+		return "normal_map"
+	case DirtMap:
+		return "dirt_map"
+	case NoiseArray:
+		return "noise_array"
+	case LightBleedMap:
+		return "light_bleed_map"
+	case RoughnessMap:
+		return "roughness_map"
+	case InputImage:
+		return "input_image"
+	case DistortionMap:
+		return "distortion_map"
+	case TextureLUT:
+		return "texture_lut"
+	case NAC:
+		return "NAC"
+	case DetailData:
+		return "Detail_Data"
+	case MetalSurfaceData:
+		return "metal_surface_data"
+	case ConcreteSurfaceData:
+		return "concrete_surface_data"
+	case CoveringAlbedo:
+		return "covering_albedo"
+	case CoveringNormal:
+		return "covering_normal"
+	case WeatheringDataMask:
+		return "weathering_data_mask"
 	default:
 		return "unknown texture usage!"
 	}
@@ -315,6 +360,10 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 		case AlbedoIridescence:
 			albedoPostProcess = nil
 			fallthrough
+		case CoveringAlbedo:
+			fallthrough
+		case InputImage:
+			fallthrough
 		case Albedo:
 			index, err := writeTexture(ctx, doc, mat.Textures[texUsage], albedoPostProcess, imgOpts)
 			if err != nil {
@@ -327,6 +376,14 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 			usedTextures[TextureUsage(texUsage.Value)] = index
 			albedoPostProcess = postProcessToOpaque
 		case Normal:
+			fallthrough
+		case NormalMap:
+			fallthrough
+		case CoveringNormal:
+			fallthrough
+		case NAC:
+			fallthrough
+		case NAR:
 			fallthrough
 		case BaseData:
 			index, err := writeTexture(ctx, doc, mat.Textures[texUsage], postProcessReconstructNormalZ, imgOpts)
@@ -363,6 +420,8 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 			usedTextures[TextureUsage(texUsage.Value)] = index
 		case MaterialLUT:
 			fallthrough
+		case TextureLUT:
+			fallthrough
 		case PatternLUT:
 			// Save raw DDS for both LUT types, to later be processed into exr
 			imgOpts = lutImgOpts
@@ -376,6 +435,12 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 		case DecalSheet:
 			fallthrough
 		case IdMasksArray:
+			fallthrough
+		case DetailData:
+			fallthrough
+		case MetalSurfaceData:
+			fallthrough
+		case ConcreteSurfaceData:
 			fallthrough
 		case PatternMasksArray:
 			index, err := writeTexture(ctx, doc, mat.Textures[texUsage], postProcess, imgOpts)
@@ -398,6 +463,16 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 		case WeatheringDirt:
 			fallthrough
 		case WeatheringSpecial:
+			fallthrough
+		case DirtMap:
+			fallthrough
+		case NoiseArray:
+			fallthrough
+		case LightBleedMap:
+			fallthrough
+		case DistortionMap:
+			fallthrough
+		case WeatheringDataMask:
 			fallthrough
 		case WoundData:
 			fallthrough
