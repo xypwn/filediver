@@ -449,7 +449,7 @@ func loadMesh(gpuR io.ReadSeeker, info MeshInfo, layout MeshLayout) (Mesh, error
 					val[0] = float32(tmp&0x3ff) / 1023.0
 					val[1] = float32((tmp>>10)&0x3ff) / 1023.0
 					val[2] = float32((tmp>>20)&0x3ff) / 1023.0
-					val[3] = float32((tmp>>30)&0x3) / 3.0
+					val[3] = 0.0 // float32((tmp>>30)&0x3) / 3.0 // This causes issues with incorrect bone weights
 				case FormatVec2F16:
 					var tmp [2]uint16
 					if err := binary.Read(gpuR, binary.LittleEndian, &tmp); err != nil {
