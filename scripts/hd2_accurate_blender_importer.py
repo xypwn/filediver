@@ -278,7 +278,11 @@ def main():
         obj.material_slots[0].material = object_mat
         shader_module.add_bake_uvs(obj)
         obj.select_set(True)
-        bpy.ops.object.shade_smooth()
+        try:
+            bpy.ops.object.shade_smooth()
+        except RuntimeError:
+            # Context incorrect? We don't actually need to do this so its okay if it fails
+            pass
         print(f"Applied material to {node['name']}!")
 
     bpy.ops.wm.save_mainfile(filepath=str(output))
