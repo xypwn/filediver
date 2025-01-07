@@ -4257,11 +4257,6 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     #Scale
     vector_math_036.inputs[3].default_value = 1.0
     
-    #node Combine XYZ.004
-    combine_xyz_004 = HD2_Shader.nodes.new("ShaderNodeCombineXYZ")
-    combine_xyz_004.label = "r27.xyw"
-    combine_xyz_004.name = "Combine XYZ.004"
-    
     #node Combine XYZ.051
     combine_xyz_051 = HD2_Shader.nodes.new("ShaderNodeCombineXYZ")
     combine_xyz_051.name = "Combine XYZ.051"
@@ -7010,10 +7005,6 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     #Value_002
     math_061.inputs[2].default_value = 0.5
     
-    #node Separate XYZ.054
-    separate_xyz_054 = HD2_Shader.nodes.new("ShaderNodeSeparateXYZ")
-    separate_xyz_054.name = "Separate XYZ.054"
-    
     #node Value.008
     value_008 = HD2_Shader.nodes.new("ShaderNodeValue")
     value_008.label = "r22.z (#476)"
@@ -8930,7 +8921,6 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     vector_math_039.parent = frame_007
     vector_math_015.parent = frame_007
     vector_math_036.parent = frame_007
-    combine_xyz_004.parent = frame_007
     combine_xyz_051.parent = frame_007
     value_007.parent = frame_009
     mix_003.parent = frame_009
@@ -9133,7 +9123,6 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     combine_xyz_093.parent = frame_045
     combine_xyz_092.parent = frame_045
     vector_math_083.parent = frame_004
-    separate_xyz_054.parent = frame_007
     value_008.parent = frame_008
     math_028.parent = frame_008
     math_029.parent = frame_008
@@ -9608,7 +9597,6 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     vector_math_039.location = (3130.0, -555.0)
     vector_math_015.location = (2490.0, -555.0)
     vector_math_036.location = (2650.0, -555.0)
-    combine_xyz_004.location = (2810.0, -755.0)
     combine_xyz_051.location = (150.0, -715.0)
     value_007.location = (-100.0, -260.0)
     mix_003.location = (60.0, -260.0)
@@ -9872,7 +9860,6 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     math_080.location = (-1480.0, 5620.0)
     vector_math_083.location = (2203.0, -320.0)
     math_061.location = (20960.0, 3880.0)
-    separate_xyz_054.location = (2650.0, -755.0)
     value_008.location = (100.0, 253.0)
     math_028.location = (100.0, 573.0)
     math_029.location = (100.0, 413.0)
@@ -10457,34 +10444,26 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     HD2_Shader.links.new(separate_xyz_008.outputs[1], vector_math_036.inputs[0])
     #vector_math_013.Vector -> vector_math_036.Vector
     HD2_Shader.links.new(vector_math_013.outputs[0], vector_math_036.inputs[2])
-    #mix_069.Result -> separate_xyz_054.Vector
-    HD2_Shader.links.new(mix_069.outputs[2], separate_xyz_054.inputs[0])
-    #separate_xyz_054.X -> combine_xyz_004.X
-    HD2_Shader.links.new(separate_xyz_054.outputs[0], combine_xyz_004.inputs[0])
-    #separate_xyz_054.Y -> combine_xyz_004.Y
-    HD2_Shader.links.new(separate_xyz_054.outputs[1], combine_xyz_004.inputs[1])
-    #mix_070.Result -> combine_xyz_004.Z
-    HD2_Shader.links.new(mix_070.outputs[0], combine_xyz_004.inputs[2])
     #vector_math_036.Vector -> vector_math_038.Vector
     HD2_Shader.links.new(vector_math_036.outputs[0], vector_math_038.inputs[0])
     #vector_math_038.Vector -> vector_math_037.Vector
     HD2_Shader.links.new(vector_math_038.outputs[0], vector_math_037.inputs[1])
-    #combine_xyz_004.Vector -> vector_math_037.Vector
-    HD2_Shader.links.new(combine_xyz_004.outputs[0], vector_math_037.inputs[0])
+    #mix_069.Result -> vector_math_037.Vector
+    HD2_Shader.links.new(mix_069.outputs[2], vector_math_037.inputs[0])
     #vector_math_037.Vector -> vector_math_039.Vector
     HD2_Shader.links.new(vector_math_037.outputs[0], vector_math_039.inputs[1])
     #separate_xyz_008.Z -> vector_math_039.Vector
     HD2_Shader.links.new(separate_xyz_008.outputs[2], vector_math_039.inputs[0])
-    #vector_math_038.Vector -> vector_math_039.Vector
-    HD2_Shader.links.new(vector_math_038.outputs[0], vector_math_039.inputs[2])
+    #vector_math_036.Vector -> vector_math_039.Vector
+    HD2_Shader.links.new(vector_math_036.outputs[0], vector_math_039.inputs[2])
     #mix_031.Result -> math_023.Value
     HD2_Shader.links.new(mix_031.outputs[0], math_023.inputs[0])
     #math_023.Value -> math_024.Value
     HD2_Shader.links.new(math_023.outputs[0], math_024.inputs[1])
     #math_003.Value -> math_025.Value
     HD2_Shader.links.new(math_003.outputs[0], math_025.inputs[0])
-    #separate_xyz_054.Z -> math_025.Value
-    HD2_Shader.links.new(separate_xyz_054.outputs[2], math_025.inputs[1])
+    #mix_070.Result -> math_025.Value
+    HD2_Shader.links.new(mix_070.outputs[0], math_025.inputs[1])
     #math_025.Value -> math_026.Value
     HD2_Shader.links.new(math_025.outputs[0], math_026.inputs[1])
     #math_026.Value -> math_027.Value
@@ -10511,8 +10490,8 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     HD2_Shader.links.new(reroute.outputs[0], combine_xyz_006.inputs[0])
     #reroute_001.Output -> combine_xyz_006.Y
     HD2_Shader.links.new(reroute_001.outputs[0], combine_xyz_006.inputs[1])
-    #separate_xyz_054.Z -> combine_xyz_006.Z
-    HD2_Shader.links.new(separate_xyz_054.outputs[2], combine_xyz_006.inputs[2])
+    #mix_070.Value -> combine_xyz_006.Z
+    HD2_Shader.links.new(mix_070.outputs[0], combine_xyz_006.inputs[2])
     #combine_xyz_006.Vector -> vector_math_040.Vector
     HD2_Shader.links.new(combine_xyz_006.outputs[0], vector_math_040.inputs[0])
     #combine_xyz_005.Vector -> vector_math_040.Vector
