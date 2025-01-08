@@ -89,8 +89,8 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     id_mask_array_alpha__socket.default_value = 0.0
     id_mask_array_alpha__socket.hide_value = True
     #Socket Pattern Mask Array
-    pattern_mask_array_socket = HD2_Shader.interface.new_socket(name = "Pattern Mask Array", in_out='INPUT', socket_type = 'NodeSocketFloat')
-    pattern_mask_array_socket.default_value = 0.0
+    pattern_mask_array_socket = HD2_Shader.interface.new_socket(name = "Pattern Mask Array", in_out='INPUT', socket_type = 'NodeSocketColor')
+    pattern_mask_array_socket.default_value = (0.0, 0.0, 0.0, 0.0)
     pattern_mask_array_socket.hide_value = True
     #Socket Decal Texture
     decal_texture_socket = HD2_Shader.interface.new_socket(name = "Decal Texture", in_out='INPUT', socket_type = 'NodeSocketColor')
@@ -2142,7 +2142,13 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     gamma_005.name = "Gamma.005"
     #Gamma
     gamma_005.inputs[1].default_value = 2.200000047683716
-    
+
+    #node Gamma.006
+    gamma_006 = HD2_Shader.nodes.new("ShaderNodeGamma")
+    gamma_006.name = "Gamma.006"
+    #Gamma
+    gamma_006.inputs[1].default_value = 2.200000047683716
+
     #node Gamma.004
     gamma_004 = HD2_Shader.nodes.new("ShaderNodeGamma")
     gamma_004.name = "Gamma.004"
@@ -8525,7 +8531,7 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     math_063.label = "r16.x (#395)"
     math_063.name = "Math.063"
     math_063.operation = 'ADD'
-    math_063.use_clamp = False
+    math_063.use_clamp = True
     #Value_002
     math_063.inputs[2].default_value = 0.5
     
@@ -9613,7 +9619,8 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     value_011.location = (-138.0, 808.0)
     mix_009.location = (36180.0, 2380.0)
     mix_010.location = (36180.0, 2200.0)
-    mix_001.location = (35020.0, 2000.0)
+    gamma_006.location = (35020.0, 1980.0)
+    mix_001.location = (35220.0, 2000.0)
     math_114.location = (2770.0, -255.0)
     math_111.location = (2450.0, -255.0)
     math_112.location = (2610.0, -255.0)
@@ -11194,7 +11201,9 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     #separate_xyz_057.Z -> math_099.Value
     HD2_Shader.links.new(separate_xyz_057.outputs[2], math_099.inputs[1])
     #mix_007.Result -> mix_001.B
-    HD2_Shader.links.new(mix_007.outputs[1], mix_001.inputs[5])
+    HD2_Shader.links.new(mix_007.outputs[1], gamma_006.inputs[0])
+    #gamma_006.Color -> mix_001.B
+    HD2_Shader.links.new(gamma_006.outputs[0], mix_001.inputs[5])
     #math_024.Value -> mix_007.Factor
     HD2_Shader.links.new(math_024.outputs[0], mix_007.inputs[0])
     #math_021.Value -> mix_001.Factor
