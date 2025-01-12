@@ -9292,6 +9292,7 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     vector_math_037.parent = frame_007
     vector_math_038.parent = frame_007
     vector_math_039.parent = frame_007
+    gamma_006.parent = frame_007
     vector_math_015.parent = frame_007
     vector_math_036.parent = frame_007
     combine_xyz_051.parent = frame_007
@@ -9663,7 +9664,7 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     frame_019.location = (11970.0, 4780.0)
     frame_048.location = (25333.0, 3590.0)
     frame_007.location = (28930.0, 3655.0)
-    frame_008.location = (4030.0, -688.0)
+    frame_008.location = (4230.0, -688.0)
     frame_009.location = (1760.0, -427.0)
     frame_010.location = (6848.0, -2203.0)
     frame_002.location = (36490.0, 3848.0)
@@ -9986,6 +9987,7 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     vector_math_037.location = (2970.0, -555.0)
     vector_math_038.location = (2810.0, -555.0)
     vector_math_039.location = (3130.0, -555.0)
+    gamma_006.location = (3330.0, -555.0)
     vector_math_015.location = (2490.0, -555.0)
     vector_math_036.location = (2650.0, -555.0)
     combine_xyz_051.location = (150.0, -715.0)
@@ -10004,7 +10006,6 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     value_011.location = (-138.0, 808.0)
     mix_009.location = (36180.0, 2380.0)
     mix_010.location = (36180.0, 2200.0)
-    gamma_006.location = (35020.0, 1980.0)
     mix_001.location = (35220.0, 2000.0)
     math_114.location = (2770.0, -255.0)
     math_111.location = (2450.0, -255.0)
@@ -10913,13 +10914,15 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     #math_030.Value -> clamp_008.Value
     HD2_Shader.links.new(math_030.outputs[0], clamp_008.inputs[0])
     #vector_math_039.Vector -> vector_math_043.Vector
-    HD2_Shader.links.new(vector_math_039.outputs[0], vector_math_043.inputs[0])
+    HD2_Shader.links.new(vector_math_039.outputs[0], gamma_006.inputs[0])
+    #vector_math_039.Vector -> vector_math_043.Vector
+    HD2_Shader.links.new(gamma_006.outputs[0], vector_math_043.inputs[0])
     #vector_math_043.Vector -> vector_math_042.Vector
     HD2_Shader.links.new(vector_math_043.outputs[0], vector_math_042.inputs[1])
     #gamma_003.Color -> vector_math_042.Vector
     HD2_Shader.links.new(gamma_003.outputs[0], vector_math_042.inputs[0])
     #vector_math_039.Vector -> vector_math_044.Vector
-    HD2_Shader.links.new(vector_math_039.outputs[0], vector_math_044.inputs[2])
+    HD2_Shader.links.new(gamma_006.outputs[0], vector_math_044.inputs[2])
     #clamp_008.Result -> math_033.Value
     HD2_Shader.links.new(clamp_008.outputs[0], math_033.inputs[0])
     #math_033.Value -> math_032.Value
@@ -11081,7 +11084,7 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     #value_007.Value -> mix_003.A
     HD2_Shader.links.new(value_007.outputs[0], mix_003.inputs[2])
     #vector_math_039.Vector -> mix_007.A
-    HD2_Shader.links.new(vector_math_039.outputs[0], mix_007.inputs[4])
+    HD2_Shader.links.new(gamma_006.outputs[0], mix_007.inputs[4])
     #vector_math_044.Vector -> mix_007.B
     HD2_Shader.links.new(vector_math_044.outputs[0], mix_007.inputs[5])
     #vector_math_051.Value -> mix_003.B
@@ -11597,10 +11600,8 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     HD2_Shader.links.new(vector_math_065.outputs[0], vector_math_064.inputs[0])
     #separate_xyz_057.Z -> math_099.Value
     HD2_Shader.links.new(separate_xyz_057.outputs[2], math_099.inputs[1])
-    #mix_007.Result -> gamma_006.Color
-    HD2_Shader.links.new(mix_007.outputs[1], gamma_006.inputs[0])
-    #gamma_006.Color -> mix_001.B
-    HD2_Shader.links.new(gamma_006.outputs[0], mix_001.inputs[5])
+    #mix_007.Result -> mix_001.B
+    HD2_Shader.links.new(mix_007.outputs[1], mix_001.inputs[5])
     #math_024.Value -> mix_007.Factor
     HD2_Shader.links.new(math_024.outputs[0], mix_007.inputs[0])
     #math_021.Value -> mix_001.Factor
