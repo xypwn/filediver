@@ -17,6 +17,7 @@ import (
 	"github.com/xypwn/filediver/dds"
 	"github.com/xypwn/filediver/extractor"
 	"github.com/xypwn/filediver/stingray"
+	dlbin "github.com/xypwn/filediver/stingray/dl_bin"
 	"github.com/xypwn/filediver/stingray/unit/material"
 	"github.com/xypwn/filediver/stingray/unit/texture"
 )
@@ -316,7 +317,7 @@ func (usage *TextureUsage) String() string {
 	}
 }
 
-func compareMaterials(doc *gltf.Document, mat *material.Material, matIdx uint32, matName string) bool {
+func compareMaterials(doc *gltf.Document, mat *material.Material, matIdx uint32, matName string, unitData *dlbin.UnitData) bool {
 	if doc.Materials[matIdx].Name != matName {
 		return false
 	}
@@ -329,17 +330,47 @@ func compareMaterials(doc *gltf.Document, mat *material.Material, matIdx uint32,
 		}
 		texture := doc.Textures[texIdx]
 		imgName := doc.Images[*texture.Source].Name
-		if imgName != mat.Textures[texUsage].String() {
+		materialTexName := mat.Textures[texUsage].String()
+		if unitData != nil {
+			switch usage {
+			case MaterialLUT:
+				if unitData.MaterialLut.Value == 0 {
+					break
+				}
+				materialTexName = unitData.MaterialLut.String()
+			case PatternLUT:
+				if unitData.PatternLut.Value == 0 {
+					break
+				}
+				materialTexName = unitData.PatternLut.String()
+			case CapeLUT:
+				if unitData.CapeLut.Value == 0 {
+					break
+				}
+				materialTexName = unitData.CapeLut.String()
+			case BaseData:
+				if unitData.BaseData.Value == 0 {
+					break
+				}
+				materialTexName = unitData.BaseData.String()
+			case DecalSheet:
+				if unitData.DecalSheet.Value == 0 {
+					break
+				}
+				materialTexName = unitData.DecalSheet.String()
+			}
+		}
+		if imgName != materialTexName {
 			return false
 		}
 	}
 	return true
 }
 
-func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Document, imgOpts *ImageOptions, matName string) (uint32, error) {
+func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Document, imgOpts *ImageOptions, matName string, unitData *dlbin.UnitData) (uint32, error) {
 	// Avoid duplicating material if it already is added to document
 	for i := range doc.Materials {
-		if compareMaterials(doc, mat, uint32(i), matName) {
+		if compareMaterials(doc, mat, uint32(i), matName, unitData) {
 			return uint32(i), nil
 		}
 	}
@@ -389,7 +420,11 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 		case NAR:
 			fallthrough
 		case BaseData:
-			index, err := writeTexture(ctx, doc, mat.Textures[texUsage], postProcessReconstructNormalZ, imgOpts)
+			hash := mat.Textures[texUsage]
+			if unitData != nil && TextureUsage(texUsage.Value) == BaseData && unitData.BaseData.Value != 0 {
+				hash = unitData.BaseData
+			}
+			index, err := writeTexture(ctx, doc, hash, postProcessReconstructNormalZ, imgOpts)
 			if err != nil {
 				continue
 				return 0, err
@@ -425,10 +460,26 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 			fallthrough
 		case TextureLUT:
 			fallthrough
-		case PatternLUT:
-			// Save raw DDS for both LUT types, to later be processed into exr
-			imgOpts = lutImgOpts
+		case CapeLUT:
 			fallthrough
+		case PatternLUT:
+			// Save raw DDS for all LUT types, to later be processed into exr
+			imgOpts = lutImgOpts
+			hash := mat.Textures[texUsage]
+			if unitData != nil && TextureUsage(texUsage.Value) == MaterialLUT && unitData.MaterialLut.Value != 0 {
+				hash = unitData.MaterialLut
+			} else if unitData != nil && TextureUsage(texUsage.Value) == PatternLUT && unitData.PatternLut.Value != 0 {
+				hash = unitData.PatternLut
+			} else if unitData != nil && TextureUsage(texUsage.Value) == CapeLUT && unitData.CapeLut.Value != 0 {
+				hash = unitData.CapeLut
+			}
+			index, err := writeTexture(ctx, doc, hash, postProcess, imgOpts)
+			if err != nil {
+				continue
+				return 0, err
+			}
+			usedTextures[TextureUsage(texUsage.Value)] = index
+			imgOpts = origImgOpts
 		case CompositeArray:
 			fallthrough
 		case CustomizationCamoTilerArray:
@@ -446,13 +497,16 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 		case ConcreteSurfaceData:
 			fallthrough
 		case PatternMasksArray:
-			index, err := writeTexture(ctx, doc, mat.Textures[texUsage], postProcess, imgOpts)
+			hash := mat.Textures[texUsage]
+			if unitData != nil && TextureUsage(texUsage.Value) == DecalSheet && unitData.DecalSheet.Value != 0 {
+				hash = unitData.DecalSheet
+			}
+			index, err := writeTexture(ctx, doc, hash, postProcess, imgOpts)
 			if err != nil {
 				continue
 				return 0, err
 			}
 			usedTextures[TextureUsage(texUsage.Value)] = index
-			imgOpts = origImgOpts
 		case BloodSplatterTiler:
 			fallthrough
 		case BugSplatterTiler:
@@ -601,7 +655,7 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions, gltfDoc *gltf.Doc
 		return nil
 	}
 
-	matIdx, err := AddMaterial(ctx, mat, doc, imgOpts, ctx.File().ID().Name.String())
+	matIdx, err := AddMaterial(ctx, mat, doc, imgOpts, ctx.File().ID().Name.String(), nil)
 	if err != nil {
 		return err
 	}

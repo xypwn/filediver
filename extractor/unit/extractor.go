@@ -17,6 +17,7 @@ import (
 	extr_material "github.com/xypwn/filediver/extractor/material"
 	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/stingray/bones"
+	dlbin "github.com/xypwn/filediver/stingray/dl_bin"
 	"github.com/xypwn/filediver/stingray/unit"
 	"github.com/xypwn/filediver/stingray/unit/material"
 )
@@ -323,6 +324,16 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 		})
 	}
 
+	// Get metadata
+	var metadata *dlbin.UnitData = nil
+	if _, contains := ctx.ArmorSets()[ctx.File().TriadID()]; contains {
+		armorSet := ctx.ArmorSets()[ctx.File().TriadID()]
+		if _, contains := armorSet.UnitMetadata[ctx.File().ID().Name]; contains {
+			value := armorSet.UnitMetadata[ctx.File().ID().Name]
+			metadata = &value
+		}
+	}
+
 	// Load materials
 	materialIdxs := make(map[stingray.ThinHash]uint32)
 	for id, resID := range unitInfo.Materials {
@@ -342,7 +353,7 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 			return err
 		}
 
-		matIdx, err := extr_material.AddMaterial(ctx, mat, doc, imgOpts, resID.String())
+		matIdx, err := extr_material.AddMaterial(ctx, mat, doc, imgOpts, resID.String(), metadata)
 		if err != nil {
 			return err
 		}
@@ -527,11 +538,15 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 
 		for i := range mesh.Indices {
 			var componentName string = fmt.Sprintf("%smesh %v", groupName, i)
-			if lodName != "" {
-				componentName = lodName + " " + componentName
-			}
-			if meshName != "" {
-				componentName = meshName + " " + componentName
+			if metadata != nil {
+				componentName = fmt.Sprintf("%s_%s_%s mesh %v", metadata.Slot.String(), metadata.Type.String(), metadata.BodyType.String(), i)
+			} else {
+				if lodName != "" {
+					componentName = lodName + " " + componentName
+				}
+				if meshName != "" {
+					componentName = meshName + " " + componentName
+				}
 			}
 
 			var material *uint32

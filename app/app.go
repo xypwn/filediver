@@ -23,6 +23,7 @@ import (
 	extr_wwise "github.com/xypwn/filediver/extractor/wwise"
 	"github.com/xypwn/filediver/steampath"
 	"github.com/xypwn/filediver/stingray"
+	dlbin "github.com/xypwn/filediver/stingray/dl_bin"
 )
 
 var ConfigFormat = ConfigTemplate{
@@ -214,6 +215,7 @@ func ParseHashes(str string) []string {
 type App struct {
 	Hashes     map[stingray.Hash]string
 	ThinHashes map[stingray.ThinHash]string
+	ArmorSets  map[stingray.Hash]dlbin.ArmorSet
 	DataDir    *stingray.DataDir
 }
 
@@ -232,6 +234,8 @@ func OpenGameDir(ctx context.Context, gameDir string, hashes []string, thinhashe
 	for _, h := range thinhashes {
 		thinHashesMap[stingray.Sum64([]byte(h)).Thin()] = h
 	}
+
+	armorSets, err := dlbin.LoadArmorSetDefinitions()
 	if err != nil {
 		return nil, err
 	}
@@ -249,6 +253,7 @@ func OpenGameDir(ctx context.Context, gameDir string, hashes []string, thinhashe
 	return &App{
 		Hashes:     hashesMap,
 		ThinHashes: thinHashesMap,
+		ArmorSets:  armorSets,
 		DataDir:    dataDir,
 	}, nil
 }
@@ -437,6 +442,9 @@ func (c *extractContext) Hashes() map[stingray.Hash]string {
 }
 func (c *extractContext) ThinHashes() map[stingray.ThinHash]string {
 	return c.app.ThinHashes
+}
+func (c *extractContext) ArmorSets() map[stingray.Hash]dlbin.ArmorSet {
+	return c.app.ArmorSets
 }
 
 // Returns path to extracted file/directory.

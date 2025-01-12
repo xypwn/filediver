@@ -10,6 +10,7 @@ import (
 	"github.com/qmuntal/gltf"
 	"github.com/xypwn/filediver/exec"
 	"github.com/xypwn/filediver/stingray"
+	dlbin "github.com/xypwn/filediver/stingray/dl_bin"
 )
 
 type Context interface {
@@ -24,6 +25,7 @@ type Context interface {
 	AllocateFile(suffix string) (string, error)
 	Hashes() map[stingray.Hash]string
 	ThinHashes() map[stingray.ThinHash]string
+	ArmorSets() map[stingray.Hash]dlbin.ArmorSet
 }
 
 type ExtractFunc func(ctx Context) error
