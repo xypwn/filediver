@@ -119,6 +119,9 @@ extractor config:
 		knownHashes = append(knownHashes, app.ParseHashes(string(b))...)
 	}
 
+	var knownThinHashes []string
+	knownThinHashes = append(knownThinHashes, app.ParseHashes(hashes.ThinHashes)...)
+
 	if !*modeList {
 		prt.Infof("Output directory: \"%v\"", *outDir)
 	}
@@ -132,7 +135,7 @@ extractor config:
 		cancel()
 	}()
 
-	a, err := app.OpenGameDir(ctx, *gameDir, knownHashes, func(curr, total int) {
+	a, err := app.OpenGameDir(ctx, *gameDir, knownHashes, knownThinHashes, func(curr, total int) {
 		prt.Statusf("Reading metadata %.0f%%", float64(curr)/float64(total)*100)
 	})
 	if err != nil {

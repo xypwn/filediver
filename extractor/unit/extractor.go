@@ -300,6 +300,11 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 			}
 		}
 	}
+	for k, v := range ctx.ThinHashes() {
+		if _, contains := boneInfo.NameMap[k]; !contains {
+			boneInfo.NameMap[k] = v
+		}
+	}
 
 	unitInfo, err := unit.LoadInfo(fMain)
 	if err != nil {

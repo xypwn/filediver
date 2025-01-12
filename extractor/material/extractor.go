@@ -212,6 +212,7 @@ const (
 	CoveringAlbedo                        TextureUsage = 0x8261a5a5
 	CoveringNormal                        TextureUsage = 0x4c6fc000
 	WeatheringDataMask                    TextureUsage = 0xb4dcc2c1
+	CapeLUT                               TextureUsage = 0x0e494183
 )
 
 func (usage *TextureUsage) String() string {
@@ -308,6 +309,8 @@ func (usage *TextureUsage) String() string {
 		return "covering_normal"
 	case WeatheringDataMask:
 		return "weathering_data_mask"
+	case CapeLUT:
+		return "cape_lut"
 	default:
 		return "unknown texture usage!"
 	}

@@ -22,6 +22,8 @@ type Context interface {
 	CreateFile(suffix string) (io.WriteCloser, error)
 	// Returns path to file.
 	AllocateFile(suffix string) (string, error)
+	Hashes() map[stingray.Hash]string
+	ThinHashes() map[stingray.ThinHash]string
 }
 
 type ExtractFunc func(ctx Context) error

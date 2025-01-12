@@ -212,12 +212,13 @@ func ParseHashes(str string) []string {
 }
 
 type App struct {
-	Hashes  map[stingray.Hash]string
-	DataDir *stingray.DataDir
+	Hashes     map[stingray.Hash]string
+	ThinHashes map[stingray.ThinHash]string
+	DataDir    *stingray.DataDir
 }
 
 // Open game dir and read metadata.
-func OpenGameDir(ctx context.Context, gameDir string, hashes []string, onProgress func(curr, total int)) (*App, error) {
+func OpenGameDir(ctx context.Context, gameDir string, hashes []string, thinhashes []string, onProgress func(curr, total int)) (*App, error) {
 	dataDir, err := stingray.OpenDataDir(ctx, filepath.Join(gameDir, "data"), onProgress)
 	if err != nil {
 		return nil, err
@@ -227,34 +228,13 @@ func OpenGameDir(ctx context.Context, gameDir string, hashes []string, onProgres
 	for _, h := range hashes {
 		hashesMap[stingray.Sum64([]byte(h))] = h
 	}
-	// wwise_dep files let us know the string of many of the wwise_banks
-	for id, file := range dataDir.Files {
-		if id.Type == stingray.Sum64([]byte("wwise_dep")) {
-			h, err := parseWwiseDep(ctx, file)
-			if err != nil {
-				return nil, fmt.Errorf("wwise_dep: %w", err)
-			}
-			hashesMap[stingray.Sum64([]byte(h))] = h
-		}
+	thinHashesMap := make(map[stingray.ThinHash]string)
+	for _, h := range thinhashes {
+		thinHashesMap[stingray.Sum64([]byte(h)).Thin()] = h
 	}
-
-	return &App{
-		Hashes:  hashesMap,
-		DataDir: dataDir,
-	}, nil
-}
-
-// Open specific triad
-func OpenTriad(ctx context.Context, triadPath string, hashes []string, onProgress func(curr, total int)) (*App, error) {
-	dataDir, err := stingray.OpenTriadData(ctx, triadPath, onProgress)
 	if err != nil {
 		return nil, err
 	}
-
-	hashesMap := make(map[stingray.Hash]string)
-	for _, h := range hashes {
-		hashesMap[stingray.Sum64([]byte(h))] = h
-	}
 	// wwise_dep files let us know the string of many of the wwise_banks
 	for id, file := range dataDir.Files {
 		if id.Type == stingray.Sum64([]byte("wwise_dep")) {
@@ -267,8 +247,9 @@ func OpenTriad(ctx context.Context, triadPath string, hashes []string, onProgres
 	}
 
 	return &App{
-		Hashes:  hashesMap,
-		DataDir: dataDir,
+		Hashes:     hashesMap,
+		ThinHashes: thinHashesMap,
+		DataDir:    dataDir,
 	}, nil
 }
 
@@ -450,6 +431,12 @@ func (c *extractContext) AllocateFile(suffix string) (string, error) {
 func (c *extractContext) Ctx() context.Context { return c.ctx }
 func (c *extractContext) Files() []string {
 	return c.files
+}
+func (c *extractContext) Hashes() map[stingray.Hash]string {
+	return c.app.Hashes
+}
+func (c *extractContext) ThinHashes() map[stingray.ThinHash]string {
+	return c.app.ThinHashes
 }
 
 // Returns path to extracted file/directory.
