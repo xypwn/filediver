@@ -73,6 +73,10 @@ enum ImageUsage : u32 {
     MetalSurfaceData = 0xe32e3fa5,
     ConcreteSurfaceData = 0x8d69d2ee,
     WeatheringDataMask = 0xb4dcc2c1,
+    NormalSpecularAO = 0xe64c5236,
+    ColorRoughness = 0x8a013406,
+    ColorSpecularB = 0x828a53ad,
+    DetailNormals = 0xbe22de88,
     /*
     normal_map,
     dirt_map,
@@ -89,6 +93,10 @@ enum ImageUsage : u32 {
     covering_albedo,
     covering_normal,
     weathering_data_mask,
+    normal_specular_ao,
+    color_roughness,
+    color_specular_b,
+    detail_normals,
     */
 };
 

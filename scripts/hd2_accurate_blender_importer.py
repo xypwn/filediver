@@ -5,10 +5,11 @@ import sys
 import struct
 import numpy as np
 from argparse import ArgumentParser
-from bpy.types import BlendData, Image, Object, ShaderNodeGroup, ShaderNodeTexImage
+from bpy.types import BlendData, Image, Object, ShaderNodeGroup, ShaderNodeTexImage, Material
 from pathlib import Path
 from io import BytesIO
 from typing import Optional, Dict, List, Tuple
+from random import randint
 
 from dds_float16 import DDS
 from openexr_builder import make_exr
@@ -128,6 +129,64 @@ def add_texture(gltf, textureIdx, usage: Optional[str] = None) -> Image:
     blImage.use_fake_user = True
     return blImage
 
+def add_accurate_material(shader_mat: Material, material: dict, shader_module, unused_secondary_lut: Image, textures: Dict[str, Image]):
+    object_mat = shader_mat.copy()
+    object_mat.name = "HD2 Mat " + material["name"]
+    template_group: ShaderNodeGroup = object_mat.node_tree.nodes["HD2 Shader Template"]
+    template_group.node_tree = template_group.node_tree.copy()
+    template_group.node_tree.name = object_mat.name + shader_module.ScriptVersion
+    HD2_Shader = template_group.node_tree
+
+    print("    Applying textures")
+    config_nodes: Dict[str, ShaderNodeTexImage] = object_mat.node_tree.nodes
+    config_nodes["Secondary Material LUT Texture"].image = unused_secondary_lut
+    for usage, image in textures.items():
+        match usage:
+            case "id_masks_array":
+                config_nodes["ID Mask Array Texture"].image = image
+                image.colorspace_settings.name = "Non-Color"
+            case "pattern_masks_array":
+                config_nodes["Pattern Mask Array"].image = image
+                image.colorspace_settings.name = "Non-Color"
+            case "decal_sheet":
+                config_nodes["Decal Texture"].image = image
+                image.colorspace_settings.name = "sRGB"
+                image.alpha_mode = "CHANNEL_PACKED"
+            case "material_lut":
+                config_nodes["Primary Material LUT Texture"].image = image
+                image.colorspace_settings.name = "Non-Color"
+            case "pattern_lut":
+                config_nodes["Pattern LUT Texture"].image = image
+                image.colorspace_settings.name = "Non-Color"
+            case "base_data":
+                config_nodes["Normal Map"].image = image
+                image.colorspace_settings.name = "Non-Color"
+
+    print("    Finalizing material")
+    shader_module.update_images(HD2_Shader, object_mat)
+    shader_module.update_slot_defaults(HD2_Shader, object_mat)
+    shader_module.connect_input_links(HD2_Shader)
+    shader_module.update_array_uvs(object_mat)
+    return object_mat
+
+def add_skin_material(skin_mat: Material, material: dict, textures: Dict[str, Image]):
+    object_mat = skin_mat.copy()
+    object_mat.name = "HD2 Mat " + material["name"]
+
+    print("    Applying textures")
+    config_nodes: Dict[str, ShaderNodeTexImage] = object_mat.node_tree.nodes
+    for usage, image in textures.items():
+        image.colorspace_settings.name = "Non-Color"
+        match usage:
+            case "color_roughness":
+                config_nodes["Image Texture"].image = image
+            case "normal_specular_ao":
+                config_nodes["Image Texture.001"].image = image
+    print("    Finalizing material")
+    # Set ethnicity to a random value
+    config_nodes["Value"].outputs[0].default_value = float(randint(0, 4))
+    return object_mat
+
 def main():
     parser = ArgumentParser("hd2_accurate_blender_importer")
     parser.add_argument("input_model", type=Path, help="Path to filediver-exported .glb to import into a .blend file")
@@ -171,6 +230,8 @@ def main():
         our_blend.materials = shader_blend.materials
     shader_mat = bpy.data.materials["HD2 Shader"]
     shader_mat.use_fake_user = True
+    skin_mat = bpy.data.materials["HD2 Skin"]
+    skin_mat.use_fake_user = True
 
     optional_usages = ["decal_sheet", "pattern_masks_array"]
     unused_texture = bpy.data.images.new("unused", 1, 1, alpha=True, float_buffer=True)
@@ -203,11 +264,13 @@ def main():
         if "material" not in primitive:
             continue
         material = gltf["materials"][primitive["material"]]
+        is_pbr = "albedo" in material["extras"] or "albedo_iridescence" in material["extras"] or "normal" in material["extras"]
+        is_skin = "color_roughness" in material["extras"] and "normal_specular_ao" in material["extras"] and len(material["extras"]) == 2
+        is_lut = "material_lut" in material["extras"]
         if material["name"] in materialTextures:
             textures = materialTextures[material["name"]]
         else:
-            is_pbr = "albedo" in material["extras"] or "albedo_iridescence" in material["extras"] or "normal" in material["extras"]
-            if len(material["extras"]) == 0 or ("material_lut" not in material["extras"] and not is_pbr):
+            if len(material["extras"]) == 0 or not any((is_pbr, is_skin, is_lut)):
                 continue
             if not args.packall and is_pbr:
                 continue
@@ -234,43 +297,10 @@ def main():
             obj: Object = bpy.data.objects[node["name"]]
         if not ("HD2 Mat " + material["name"]) in bpy.data.materials:
             print("    Copying template material")
-            object_mat = shader_mat.copy()
-            object_mat.name = "HD2 Mat " + material["name"]
-            template_group: ShaderNodeGroup = object_mat.node_tree.nodes["HD2 Shader Template"]
-            template_group.node_tree = template_group.node_tree.copy()
-            template_group.node_tree.name = object_mat.name + shader_module.ScriptVersion
-            HD2_Shader = template_group.node_tree
-
-            print("    Applying textures")
-            config_nodes: Dict[str, ShaderNodeTexImage] = object_mat.node_tree.nodes
-            config_nodes["Secondary Material LUT Texture"].image = unused_secondary_lut
-            for usage, image in textures.items():
-                match usage:
-                    case "id_masks_array":
-                        config_nodes["ID Mask Array Texture"].image = image
-                        image.colorspace_settings.name = "Non-Color"
-                    case "pattern_masks_array":
-                        config_nodes["Pattern Mask Array"].image = image
-                        image.colorspace_settings.name = "Non-Color"
-                    case "decal_sheet":
-                        config_nodes["Decal Texture"].image = image
-                        image.colorspace_settings.name = "sRGB"
-                        image.alpha_mode = "CHANNEL_PACKED"
-                    case "material_lut":
-                        config_nodes["Primary Material LUT Texture"].image = image
-                        image.colorspace_settings.name = "Non-Color"
-                    case "pattern_lut":
-                        config_nodes["Pattern LUT Texture"].image = image
-                        image.colorspace_settings.name = "Non-Color"
-                    case "base_data":
-                        config_nodes["Normal Map"].image = image
-                        image.colorspace_settings.name = "Non-Color"
-        
-            print("    Finalizing material")
-            shader_module.update_images(HD2_Shader, object_mat)
-            shader_module.update_slot_defaults(HD2_Shader, object_mat)
-            shader_module.connect_input_links(HD2_Shader)
-            shader_module.update_array_uvs(object_mat)
+            if is_lut:
+                object_mat = add_accurate_material(shader_mat, material, shader_module, unused_secondary_lut, textures)
+            elif is_skin:
+                object_mat = add_skin_material(skin_mat, material, textures)
         else:
             print(f"    Found existing material 'HD2 Mat {material['name']}'")
             object_mat = bpy.data.materials["HD2 Mat " + material["name"]]
