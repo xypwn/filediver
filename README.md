@@ -17,7 +17,7 @@ An unofficial Helldivers 2 game asset extractor.
 - [Windows (64-bit)](https://github.com/xypwn/filediver/releases/latest/download/filediver-windows-amd64.zip)
 - [Linux (64-bit)](https://github.com/xypwn/filediver/releases/latest/download/filediver-linux-amd64.tar.gz)
 
-**Extract the archive. This will create a folder named `filediver`**
+**Extract the archive. This will create a folder named `filediver`, where everything relevant is located.**
 
 The program is called "filediver.exe" (or just "filediver" on Linux). See [usage](#usage).
 
