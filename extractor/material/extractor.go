@@ -214,6 +214,10 @@ const (
 	CoveringNormal                        TextureUsage = 0x4c6fc000
 	WeatheringDataMask                    TextureUsage = 0xb4dcc2c1
 	CapeLUT                               TextureUsage = 0x0e494183
+	NormalSpecularAO                      TextureUsage = 0xe64c5236
+	ColorRoughness                        TextureUsage = 0x8a013406
+	ColorSpecularB                        TextureUsage = 0x828a53ad
+	DetailNormals                         TextureUsage = 0xbe22de88
 )
 
 func (usage *TextureUsage) String() string {
@@ -312,6 +316,14 @@ func (usage *TextureUsage) String() string {
 		return "weathering_data_mask"
 	case CapeLUT:
 		return "cape_lut"
+	case NormalSpecularAO:
+		return "normal_specular_ao"
+	case ColorRoughness:
+		return "color_roughness"
+	case ColorSpecularB:
+		return "color_specular_b"
+	case DetailNormals:
+		return "detail_normals"
 	default:
 		return "unknown texture usage!"
 	}
@@ -381,6 +393,7 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 	var normalTexture *gltf.NormalTexture
 	var postProcess func(image.Image) error
 	var albedoPostProcess func(image.Image) error = postProcessToOpaque
+	var normalPostProcess func(image.Image) error = postProcessReconstructNormalZ
 	var emissiveFactor [3]float32
 	origImgOpts := imgOpts
 	lutImgOpts := &ImageOptions{
@@ -391,6 +404,8 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 	}
 	for texUsage := range mat.Textures {
 		switch TextureUsage(texUsage.Value) {
+		case ColorRoughness:
+			fallthrough
 		case AlbedoIridescence:
 			albedoPostProcess = nil
 			fallthrough
@@ -409,6 +424,11 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 			}
 			usedTextures[TextureUsage(texUsage.Value)] = index
 			albedoPostProcess = postProcessToOpaque
+		case NormalSpecularAO:
+			// GLTF normals will look wonky, but our own material will be able to use the specular+ao in this map
+			// in blender
+			normalPostProcess = nil
+			fallthrough
 		case Normal:
 			fallthrough
 		case NormalMap:
@@ -424,7 +444,7 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 			if unitData != nil && TextureUsage(texUsage.Value) == BaseData && unitData.BaseData.Value != 0 {
 				hash = unitData.BaseData
 			}
-			index, err := writeTexture(ctx, doc, hash, postProcessReconstructNormalZ, imgOpts)
+			index, err := writeTexture(ctx, doc, hash, normalPostProcess, imgOpts)
 			if err != nil {
 				continue
 				return 0, err
@@ -433,6 +453,7 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 				Index: gltf.Index(index),
 			}
 			usedTextures[TextureUsage(texUsage.Value)] = index
+			normalPostProcess = postProcessReconstructNormalZ
 		case MRA:
 			index, err := writeTexture(ctx, doc, mat.Textures[texUsage], postProcess, imgOpts)
 			if err != nil {
