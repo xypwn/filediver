@@ -56,11 +56,11 @@ jobs:
       run: |
         uv venv --python 3.11
         uv pip install pyinstaller bpy "numpy<2"
-        uv run pyinstaller \
-          -D --distpath ./scripts_dist \
-          ./scripts/hd2_accurate_blender_importer.py \
-          --add-data ./scripts/resources:resources \
-          --collect-all bpy \
+        uv run pyinstaller\
+          -D --distpath ./scripts_dist\
+          ./scripts/hd2_accurate_blender_importer.py\
+          --add-data ./scripts/resources:resources\
+          --collect-all bpy\
           --collect-submodules logging
     - name: Create scripts_dist archive
       run: |
