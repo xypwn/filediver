@@ -1,6 +1,6 @@
 <div align="center">
 
-# FileDiver
+# Filediver
 
 [![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/xypwn/filediver/.github%2Fworkflows%2Fbuild-release.yml)](https://github.com/xypwn/filediver/actions)
 [![Scrutinizer quality (GitHub/Bitbucket)](https://img.shields.io/scrutinizer/quality/g/xypwn/filediver)](https://scrutinizer-ci.com/g/xypwn/filediver)
@@ -13,6 +13,7 @@ An unofficial Helldivers 2 game asset extractor.
 </div>
 
 ## Download
+### Filediver
 - [Windows (64-bit)](https://github.com/xypwn/filediver/releases/latest/download/filediver-windows-amd64.zip)
 - [Linux (64-bit)](https://github.com/xypwn/filediver/releases/latest/download/filediver-linux-amd64.tar.gz)
 
@@ -27,6 +28,11 @@ The program is called "filediver.exe" (or just "filediver" on Linux). See [usage
 
 You only need to keep it in the folder if you don't have it installed on your computer already.
 </details>
+
+### Helper scripts (scripts_dist)
+- [Windows (64-bit)](https://github.com/xypwn/filediver/releases/latest/download/scripts_dist_windows.zip)
+
+**Extract the helper scripts achive into the same folder you extracted the filediver archive into.**
 
 ## Usage
 ### Windows
@@ -61,7 +67,10 @@ Extract the Super Earth anthem as mp3:
 ./filediver -c "audio:format=mp3" -i "content/audio/291227525.wwise_stream"
 ```
 
-Combine several models into one file, then import into Blender with Thejudsub's accurate shader applied (requires `hd2_accurate_blender_importer.zip` to be downloaded and unzipped to the same folder filediver is):
+Extract the DP-00 Tactical armor set:
+Combine several models into one file, then import into Blender with Thejudsub's accurate shader applied.
+
+Requires [Helper Scripts](#helper-scripts-scripts_dist) to be downloaded and unzipped to the same folder filediver is:
 ```sh
 ./filediver -c "unit:single_glb=true,format=blend" -t "0x3d8cf2088ed56091" -i "0x76cf8e26aad1bf7e.unit" -o "extracted/DP-00-Tactical/"
 ```
