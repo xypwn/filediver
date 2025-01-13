@@ -58,11 +58,11 @@ func ExportBlend(doc *gltf.Document, outPath string, runner *exec.Runner) (err e
 	}
 	var blendExporter string = "scripts_dist/hd2_accurate_blender_importer/hd2_accurate_blender_importer"
 	if !runner.Has(blendExporter) {
-		return fmt.Errorf("exporting as .blend not available")
+		return fmt.Errorf("cannot export as .blend: \"%v\" missing", blendExporter)
 	}
 	enc := gltf.NewEncoder(write)
 	path := outPath + ".blend"
-	cmd, err := runner.Start(blendExporter, nil, read, "-", path)
+	cmd, err := runner.Start(blendExporter, nil, nil, read, "-", path)
 	if err != nil {
 		return err
 	}

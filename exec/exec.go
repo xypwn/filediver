@@ -70,44 +70,7 @@ func (r *Runner) Has(name string) bool {
 	return ok
 }
 
-func (r *Runner) Run(name string, stdout io.Writer, stdin io.Reader, args ...string) error {
-	entry, ok := r.progs[name]
-	if !ok {
-		return fmt.Errorf("exec: command \"%v\" not registered", name)
-	}
-
-	fullArgs := append(entry.DefaultArgs, args...)
-
-	var cmd *exec.Cmd
-	if entry.MemCmd != nil {
-		cmd = entry.MemCmd.Command(fullArgs...)
-	} else {
-		cmd = exec.Command(entry.Path, fullArgs...)
-	}
-	applyOSSpecificCmdOpts(cmd)
-
-	var stderr bytes.Buffer
-	if stdin != nil {
-		cmd.Stdin = stdin
-	}
-	if stdout != nil {
-		cmd.Stdout = stdout
-	}
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		if exiterr, ok := err.(*exec.ExitError); ok && exiterr.ExitCode() == 1 {
-			stderrStr := stderr.String()
-			stderrStr = strings.ReplaceAll(stderrStr, "\n", " ")
-			stderrStr = strings.ReplaceAll(stderrStr, "\r", "")
-			return fmt.Errorf("%v: \"%v\"", name, stderrStr)
-		}
-		return err
-	}
-
-	return nil
-}
-
-func (r *Runner) Start(name string, stdout io.Writer, stdin io.Reader, args ...string) (*exec.Cmd, error) {
+func (r *Runner) prepareCommand(name string, stdout io.Writer, stdin io.Reader, args ...string) (*exec.Cmd, error) {
 	entry, ok := r.progs[name]
 	if !ok {
 		return nil, fmt.Errorf("exec: command \"%v\" not registered", name)
@@ -123,21 +86,45 @@ func (r *Runner) Start(name string, stdout io.Writer, stdin io.Reader, args ...s
 	}
 	applyOSSpecificCmdOpts(cmd)
 
-	var stderr bytes.Buffer
 	if stdin != nil {
 		cmd.Stdin = stdin
 	}
 	if stdout != nil {
 		cmd.Stdout = stdout
 	}
+
+	return cmd, nil
+}
+
+func (r *Runner) Run(name string, stdout io.Writer, stdin io.Reader, args ...string) error {
+	cmd, err := r.prepareCommand(name, stdout, stdin, args...)
+	if err != nil {
+		return err
+	}
+	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
-	if err := cmd.Start(); err != nil {
+	if err := cmd.Run(); err != nil {
 		if exiterr, ok := err.(*exec.ExitError); ok && exiterr.ExitCode() == 1 {
 			stderrStr := stderr.String()
 			stderrStr = strings.ReplaceAll(stderrStr, "\n", " ")
 			stderrStr = strings.ReplaceAll(stderrStr, "\r", "")
-			return nil, fmt.Errorf("%v: \"%v\"", name, stderrStr)
+			return fmt.Errorf("%v: \"%v\"", name, stderrStr)
 		}
+		return err
+	}
+
+	return nil
+}
+
+func (r *Runner) Start(name string, stdout io.Writer, stderr io.Writer, stdin io.Reader, args ...string) (*exec.Cmd, error) {
+	cmd, err := r.prepareCommand(name, stdout, stdin, args...)
+	if err != nil {
+		return nil, err
+	}
+	if stderr != nil {
+		cmd.Stderr = stderr
+	}
+	if err := cmd.Start(); err != nil {
 		return nil, err
 	}
 
