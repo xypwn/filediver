@@ -28,10 +28,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    - run: wget https://github.com/GyanD/codexffmpeg/releases/download/6.1.1/ffmpeg-6.1.1-essentials_build.zip
-    - run: unzip ffmpeg-6.1.1-essentials_build.zip ffmpeg-6.1.1-essentials_build/bin/ffmpeg.exe
-    - run: mv ffmpeg-6.1.1-essentials_build/bin/ffmpeg.exe .
-    - uses: wangyoucao577/go-release-action@v1
+    - name: Download FFmpeg binary
+      run: |
+        wget https://github.com/GyanD/codexffmpeg/releases/download/6.1.1/ffmpeg-6.1.1-essentials_build.zip
+        unzip ffmpeg-6.1.1-essentials_build.zip ffmpeg-6.1.1-essentials_build/bin/ffmpeg.exe
+        mv ffmpeg-6.1.1-essentials_build/bin/ffmpeg.exe .
+    - name: Build Go binary and upload
+      uses: wangyoucao577/go-release-action@v1
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         goos: windows
@@ -41,3 +44,29 @@ jobs:
         binary_name: "filediver"
         asset_name: "filediver-windows-amd64"
         extra_files: LICENSE README.md ffmpeg.exe
+
+  release-scripts-dist-windows:
+    runs-on: windows-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    - name: Install uv by astral.sh
+      run: powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+    - name: Build hd2_accurate_blender_importer executable
+      run: |
+        uv venv --python 3.11
+        uv pip install pyinstaller bpy "numpy<2"
+        uv run pyinstaller \
+          -D --distpath ./scripts_dist \
+          ./scripts/hd2_accurate_blender_importer.py \
+          --add-data ./scripts/resources:resources \
+          --collect-all bpy \
+          --collect-submodules logging
+    - name: Create scripts_dist archive
+      run: |
+        zip -r scripts_dist_windows.zip ./scripts_dist
+    - name: Upload archive
+      uses: softprops/action-gh-release@v2
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: scripts_dist_windows.zip
