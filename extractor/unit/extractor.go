@@ -624,7 +624,7 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 	extras[ctx.File().ID().Name.String()]["objects"] = meshNodes
 	doc.Extras = extras
 
-	if gltfDoc == nil && (ctx.Config()["format"] == "" || ctx.Config()["format"] == "glb" || ctx.Config()["format"] == "blend_glb") {
+	if gltfDoc == nil && (ctx.Config()["format"] == "" || ctx.Config()["format"] == "glb") {
 		out, err := ctx.CreateFile(".glb")
 		if err != nil {
 			return err

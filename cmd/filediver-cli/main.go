@@ -272,7 +272,7 @@ func createCloseableGltfDocument(outDir string, triad string, cfg map[string]str
 			if err != nil {
 				return err
 			}
-		} else if cfg["format"] == "glb" || cfg["format"] == "blend_glb" {
+		} else if cfg["format"] == "glb" {
 			err := exportGLB(doc, outPath)
 			if err != nil {
 				return err
