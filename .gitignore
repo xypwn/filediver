@@ -1,2 +1,4 @@
 helldivers
 extracted
+.venv
+__pycache__

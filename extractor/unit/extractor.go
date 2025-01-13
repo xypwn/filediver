@@ -1,15 +1,12 @@
 package unit
 
 import (
-	"bytes"
-	"errors"
 	"fmt"
-	"image"
-	"image/jpeg"
 	"image/png"
 	"io"
-	"math"
+	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/qmuntal/gltf"
 	"github.com/qmuntal/gltf/modeler"
@@ -17,150 +14,13 @@ import (
 	"github.com/go-gl/mathgl/mgl32"
 
 	"github.com/xypwn/filediver/extractor"
+	extr_material "github.com/xypwn/filediver/extractor/material"
 	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/stingray/bones"
+	dlbin "github.com/xypwn/filediver/stingray/dl_bin"
 	"github.com/xypwn/filediver/stingray/unit"
 	"github.com/xypwn/filediver/stingray/unit/material"
-	"github.com/xypwn/filediver/stingray/unit/texture"
 )
-
-type ImageOptions struct {
-	Jpeg           bool                 // PNG if false, JPEG if true
-	JpegQuality    int                  // Quality if Jpeg == true; interval = [1;100]; 0 for default quality
-	PngCompression png.CompressionLevel // Compression if Jpeg == false
-}
-
-// Adds back in the truncated Z component of a normal map.
-func postProcessReconstructNormalZ(img image.Image) error {
-	calcZ := func(x, y float64) float64 {
-		return math.Sqrt(-x*x - y*y + 1)
-	}
-	switch img := img.(type) {
-	case *image.NRGBA:
-		for iY := img.Rect.Min.Y; iY < img.Rect.Max.Y; iY++ {
-			for iX := img.Rect.Min.X; iX < img.Rect.Max.X; iX++ {
-				idx := img.PixOffset(iX, iY)
-				r, g := img.Pix[idx], img.Pix[idx+1]
-				x, y := (float64(r)/127.5)-1, (float64(g)/127.5)-1
-				z := calcZ(x, y)
-				img.Pix[idx+2] = uint8(math.Round((z + 1) * 127.5))
-			}
-		}
-		return nil
-	default:
-		return errors.New("postProcessReconstructNormalZ: unsupported image type")
-	}
-}
-
-// Attempts to completely remove the influence of the alpha channel,
-// giving the whole image an opacity of 1.
-func postProcessToOpaque(img image.Image) error {
-	switch img := img.(type) {
-	case *image.NRGBA:
-		for iY := img.Rect.Min.Y; iY < img.Rect.Max.Y; iY++ {
-			for iX := img.Rect.Min.X; iX < img.Rect.Max.X; iX++ {
-				idx := img.PixOffset(iX, iY)
-				img.Pix[idx+3] = 255
-			}
-		}
-		return nil
-	default:
-		return errors.New("postProcessToOpaque: unsupported image type")
-	}
-}
-
-type textureType int
-
-const (
-	textureTypeBaseColor textureType = iota
-	textureTypeNormal
-)
-
-func tryWriteTexture(ctx extractor.Context, mat *material.Material, texType textureType, doc *gltf.Document, imgOpts *ImageOptions) (uint32, bool, error) {
-	var id stingray.Hash
-	var postProcess func(image.Image) error
-	switch texType {
-	case textureTypeBaseColor:
-		var ok bool
-		id, ok = mat.Textures[stingray.Sum64([]byte("albedo_iridescence")).Thin()]
-		if ok {
-			postProcess = postProcessToOpaque
-			break
-		}
-		id, ok = mat.Textures[stingray.Sum64([]byte("albedo")).Thin()]
-		if ok {
-			break
-		}
-		return 0, false, nil
-	case textureTypeNormal:
-		var ok bool
-		id, ok = mat.Textures[stingray.Sum64([]byte("normal")).Thin()]
-		if ok {
-			postProcess = postProcessReconstructNormalZ
-			break
-		}
-		return 0, false, nil
-	default:
-		panic("unhandled case")
-	}
-	res, err := writeTexture(ctx, doc, id, postProcess, imgOpts)
-	if err != nil {
-		return 0, false, err
-	}
-	return res, true, nil
-}
-
-// Adds a texture to doc. Returns new texture ID if err != nil.
-// postProcess optionally applies image post-processing.
-func writeTexture(ctx extractor.Context, doc *gltf.Document, id stingray.Hash, postProcess func(image.Image) error, imgOpts *ImageOptions) (uint32, error) {
-	file, exists := ctx.GetResource(id, stingray.Sum64([]byte("texture")))
-	if !exists || !file.Exists(stingray.DataMain) {
-		return 0, fmt.Errorf("texture resource %v doesn't exist", id)
-	}
-
-	tex, err := texture.Decode(ctx.Ctx(), file, false)
-	if err != nil {
-		return 0, err
-	}
-
-	if postProcess != nil {
-		if err := postProcess(tex.Image); err != nil {
-			return 0, err
-		}
-	}
-	var encData bytes.Buffer
-	var mimeType string
-	if imgOpts != nil && imgOpts.Jpeg {
-		quality := jpeg.DefaultQuality
-		if imgOpts.JpegQuality != 0 {
-			quality = imgOpts.JpegQuality
-		}
-		if err := jpeg.Encode(&encData, tex, &jpeg.Options{Quality: quality}); err != nil {
-			return 0, err
-		}
-		mimeType = "image/jpeg"
-	} else {
-		compression := png.DefaultCompression
-		if imgOpts != nil {
-			compression = imgOpts.PngCompression
-		}
-		if err := (&png.Encoder{
-			CompressionLevel: compression,
-		}).Encode(&encData, tex); err != nil {
-			return 0, err
-		}
-		mimeType = "image/png"
-	}
-	imgIdx, err := modeler.WriteImage(doc, id.String(), mimeType, &encData)
-	if err != nil {
-		return 0, err
-	}
-	doc.Textures = append(doc.Textures, &gltf.Texture{
-		Sampler: gltf.Index(0),
-		Source:  gltf.Index(imgIdx),
-	})
-	return uint32(len(doc.Textures) - 1), nil
-}
 
 func loadBoneMap(ctx extractor.Context) (*bones.BoneInfo, error) {
 	bonesId := ctx.File().ID()
@@ -179,14 +39,27 @@ func loadBoneMap(ctx extractor.Context) (*bones.BoneInfo, error) {
 }
 
 func remapMeshBones(mesh *unit.Mesh, mapping unit.SkeletonMap) error {
-	for i := range mesh.BoneIndices {
-		for j := range mesh.BoneIndices[i] {
-			if int(mesh.BoneIndices[i][j]) >= len(mapping.RemapList[0]) {
-				return fmt.Errorf("remapMeshBones: remap list item out of bounds")
+	var remappedIndices map[uint32]bool = make(map[uint32]bool)
+	for component := range mesh.Indices {
+		for _, index := range mesh.Indices[component] {
+			if _, contains := remappedIndices[index]; contains {
+				continue
 			}
-			if mesh.BoneWeights[i][j] > 0 {
-				remapIndex := mapping.RemapList[0][mesh.BoneIndices[i][j]]
-				mesh.BoneIndices[i][j] = uint8(mapping.BoneIndices[remapIndex])
+			layer := 0
+			if len(mesh.BoneIndices) > 0 {
+				for j := range mesh.BoneIndices[layer][index] {
+					boneIndex := mesh.BoneIndices[layer][index][j]
+					remapList := mapping.RemapList[component]
+					if int(boneIndex) >= len(remapList) {
+						if layer > 0 {
+							break
+						}
+						return fmt.Errorf("vertex %v has boneIndex exceeding remapList length", index)
+					}
+					remapIndex := remapList[boneIndex]
+					mesh.BoneIndices[layer][index][j] = uint8(mapping.BoneIndices[remapIndex])
+					remappedIndices[index] = true
+				}
 			}
 		}
 	}
@@ -194,9 +67,9 @@ func remapMeshBones(mesh *unit.Mesh, mapping unit.SkeletonMap) error {
 }
 
 // Adds the unit's skeleton to the gltf document
-func addSkeleton(doc *gltf.Document, unitInfo *unit.Info, boneInfo *bones.BoneInfo) uint32 {
+func addSkeleton(ctx extractor.Context, doc *gltf.Document, unitInfo *unit.Info, boneInfo *bones.BoneInfo) uint32 {
 	var matrices [][4][4]float32 = make([][4][4]float32, len(unitInfo.JointTransformMatrices))
-	gltfConversionMatrix := mgl32.HomogRotate3DX(mgl32.DegToRad(-90.0)).Mul4(mgl32.HomogRotate3DZ(mgl32.DegToRad(-90.0)))
+	gltfConversionMatrix := mgl32.HomogRotate3DX(mgl32.DegToRad(-90.0)).Mul4(mgl32.HomogRotate3DZ(mgl32.DegToRad(0)))
 	for i := range matrices {
 		jtm := unitInfo.JointTransformMatrices[i]
 		bindMatrix := mgl32.Mat4FromRows(jtm[0], jtm[1], jtm[2], jtm[3]).Transpose()
@@ -208,41 +81,201 @@ func addSkeleton(doc *gltf.Document, unitInfo *unit.Info, boneInfo *bones.BoneIn
 
 	unitInfo.Bones[0].RecursiveCalcLocalTransforms(&unitInfo.Bones)
 
-	inverseBindMatrices := modeler.WriteAccessor(doc, gltf.TargetArrayBuffer, matrices)
+	var nodeNames map[string]uint32 = make(map[string]uint32)
+	for i, node := range doc.Nodes {
+		if node.Extras == nil {
+			continue
+		}
+		extras, ok := node.Extras.(map[string]uint32)
+		if !ok {
+			continue
+		}
+		skeletonId, ok := extras["skeletonId"]
+		if !ok {
+			continue
+		}
+		nodeNames[node.Name+fmt.Sprintf("%08x", skeletonId)] = uint32(i)
+	}
+
+	skeletonId := unitInfo.Bones[2].NameHash.Value
+	var skeletonTag map[string]uint32 = make(map[string]uint32)
+	skeletonTag["skeletonId"] = skeletonId
+
+	inverseBindMatrices := modeler.WriteAccessor(doc, gltf.TargetNone, matrices)
 	jointIndices := make([]uint32, 0)
 	boneBaseIndex := uint32(len(doc.Nodes))
+	rootNodeIndex := boneBaseIndex
 	for i, bone := range unitInfo.Bones {
 		quat := mgl32.Mat4ToQuat(bone.Transform.Rotation.Mat4())
-		boneName := fmt.Sprintf("%d:Bone_%08X", i, bone.NameHash.Value)
+		boneName := fmt.Sprintf("Bone_%08x", bone.NameHash.Value)
 		if boneInfo != nil {
 			name, exists := boneInfo.NameMap[bone.NameHash]
 			if exists {
-				boneName = fmt.Sprintf("%d:%s", i, name)
+				boneName = name
 			}
 		}
-		doc.Nodes = append(doc.Nodes, &gltf.Node{
-			Name:        boneName,
-			Rotation:    quat.V.Vec4(quat.W),
-			Translation: bone.Transform.Translation,
-			Scale:       bone.Transform.Scale,
-		})
-		boneIdx := uint32(len(doc.Nodes) - 1)
+		var boneIdx uint32
+		var contains bool = false
+		var parentIndex uint32
+		if boneIdx, contains = nodeNames[boneName+fmt.Sprintf("%08x", skeletonId)]; !contains {
+			parentBone := unitInfo.Bones[bone.ParentIndex]
+			parentName, contains := boneInfo.NameMap[parentBone.NameHash]
+			if !contains {
+				parentName = fmt.Sprintf("Bone_%08x", parentBone.NameHash.Value)
+			}
+			parentIndex, contains = nodeNames[parentName+fmt.Sprintf("%08x", skeletonId)]
+			if !contains {
+				parentIndex = bone.ParentIndex + boneBaseIndex
+			}
+
+			doc.Nodes = append(doc.Nodes, &gltf.Node{
+				Name:        boneName,
+				Rotation:    quat.V.Vec4(quat.W),
+				Translation: bone.Transform.Translation,
+				Scale:       bone.Transform.Scale,
+				Extras:      skeletonTag,
+			})
+			boneIdx = uint32(len(doc.Nodes) - 1)
+
+			if parentIndex != boneIdx && parentIndex < boneIdx {
+				doc.Nodes[parentIndex].Children = append(doc.Nodes[parentIndex].Children, boneIdx)
+			}
+		} else {
+			if i == 0 {
+				rootNodeIndex = boneIdx
+			}
+			boneBaseIndex -= 1
+		}
 		jointIndices = append(jointIndices, boneIdx)
-		parentIndex := bone.ParentIndex + boneBaseIndex
-		if parentIndex != boneIdx {
-			doc.Nodes[parentIndex].Children = append(doc.Nodes[parentIndex].Children, boneIdx)
+	}
+
+	var skeleton *uint32 = nil
+	for skin := range doc.Skins {
+		extras, ok := doc.Skins[skin].Extras.(map[string]uint32)
+		if !ok {
+			extras = make(map[string]uint32)
+		}
+		if otherId, contains := extras["skeletonId"]; doc.Skins[skin].Name == ctx.File().ID().Name.String() || (contains && skeletonId == otherId) {
+			skeleton = doc.Skins[skin].Skeleton
+			break
 		}
 	}
 
+	if skeleton == nil {
+		doc.Nodes = append(doc.Nodes, &gltf.Node{
+			Name: ctx.File().ID().Name.String(),
+			Children: []uint32{
+				rootNodeIndex,
+			},
+		})
+		skeleton = gltf.Index(uint32(len(doc.Nodes) - 1))
+		doc.Scenes[0].Nodes = append(doc.Scenes[0].Nodes, *skeleton)
+	}
+
 	doc.Skins = append(doc.Skins, &gltf.Skin{
+		Name:                ctx.File().ID().Name.String(),
 		InverseBindMatrices: gltf.Index(inverseBindMatrices),
 		Joints:              jointIndices,
+		Skeleton:            skeleton,
+		Extras:              skeletonTag,
 	})
 
 	return uint32(len(doc.Skins) - 1)
 }
 
-func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions) error {
+func writeMesh(ctx extractor.Context, doc *gltf.Document, componentName string, indices *uint32, positions uint32, normals uint32, texCoords []uint32, material *uint32, joints *uint32, weights *uint32, skin *uint32) uint32 {
+	primitive := &gltf.Primitive{
+		Indices: indices,
+		Attributes: map[string]uint32{
+			gltf.POSITION: positions,
+			//gltf.COLOR_0:  normals,
+		},
+		Material: material,
+	}
+
+	if joints != nil {
+		primitive.Attributes[gltf.JOINTS_0] = *joints
+		primitive.Attributes[gltf.WEIGHTS_0] = *weights
+	}
+
+	for j := range texCoords {
+		primitive.Attributes[fmt.Sprintf("TEXCOORD_%v", j)] = texCoords[j]
+	}
+
+	doc.Meshes = append(doc.Meshes, &gltf.Mesh{
+		Name: ctx.File().ID().Name.String(),
+		Primitives: []*gltf.Primitive{
+			primitive,
+		},
+	})
+	doc.Nodes = append(doc.Nodes, &gltf.Node{
+		Name: componentName,
+		Mesh: gltf.Index(uint32(len(doc.Meshes) - 1)),
+		Skin: skin,
+	})
+	return uint32(len(doc.Nodes) - 1)
+}
+
+func addBoundingBox(doc *gltf.Document, name string, mesh unit.Mesh, info *unit.Info) {
+	var indices []uint32 = []uint32{
+		0, 1,
+		0, 5,
+		0, 3,
+		1, 4,
+		1, 2,
+		5, 4,
+		5, 6,
+		4, 7,
+		3, 2,
+		3, 6,
+		6, 7,
+		2, 7,
+	}
+
+	vMin := mesh.Info.Header.AABB.Min
+	vMax := mesh.Info.Header.AABB.Max
+
+	var vertices [][3]float32 = [][3]float32{
+		vMin,
+		{vMax[0], vMin[1], vMin[2]},
+		{vMax[0], vMin[1], vMax[2]},
+		{vMin[0], vMin[1], vMax[2]},
+		{vMax[0], vMax[1], vMin[2]},
+		{vMin[0], vMax[1], vMin[2]},
+		{vMin[0], vMax[1], vMax[2]},
+		vMax,
+	}
+
+	boundingBoxTransformIdx := mesh.Info.Header.AABBTransformIndex
+	for i := range vertices {
+		vertices[i] = info.Bones[boundingBoxTransformIdx].Matrix.Mul4x1(mgl32.Vec3(vertices[i]).Vec4(1.0)).Vec3()
+		vertices[i][1], vertices[i][2] = vertices[i][2], -vertices[i][1]
+	}
+
+	positions := modeler.WritePosition(doc, vertices)
+	index := gltf.Index(modeler.WriteIndices(doc, indices))
+
+	primitive := &gltf.Primitive{
+		Indices: index,
+		Attributes: map[string]uint32{
+			gltf.POSITION: positions,
+		},
+		Mode: gltf.PrimitiveLines,
+	}
+
+	doc.Meshes = append(doc.Meshes, &gltf.Mesh{
+		Name: name,
+		Primitives: []*gltf.Primitive{
+			primitive,
+		},
+	})
+	doc.Nodes = append(doc.Nodes, &gltf.Node{
+		Name: name,
+		Mesh: gltf.Index(uint32(len(doc.Meshes) - 1)),
+	})
+}
+
+func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, gltfDoc *gltf.Document) error {
 	fMain, err := ctx.File().Open(ctx.Ctx(), stingray.DataMain)
 	if err != nil {
 		return err
@@ -258,20 +291,48 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions) error {
 	}
 
 	boneInfo, _ := loadBoneMap(ctx)
+	if boneInfo == nil {
+		boneInfo, _ = bones.PlayerBones()
+	} else {
+		playerBones, _ := bones.PlayerBones()
+		for k, v := range playerBones.NameMap {
+			if _, contains := boneInfo.NameMap[k]; !contains {
+				boneInfo.NameMap[k] = v
+			}
+		}
+	}
+	for k, v := range ctx.ThinHashes() {
+		if _, contains := boneInfo.NameMap[k]; !contains {
+			boneInfo.NameMap[k] = v
+		}
+	}
 
 	unitInfo, err := unit.LoadInfo(fMain)
 	if err != nil {
 		return err
 	}
 
-	doc := gltf.NewDocument()
-	doc.Asset.Generator = "https://github.com/xypwn/filediver"
-	doc.Samplers = append(doc.Samplers, &gltf.Sampler{
-		MagFilter: gltf.MagLinear,
-		MinFilter: gltf.MinLinear,
-		WrapS:     gltf.WrapRepeat,
-		WrapT:     gltf.WrapRepeat,
-	})
+	var doc *gltf.Document = gltfDoc
+	if doc == nil {
+		doc = gltf.NewDocument()
+		doc.Asset.Generator = "https://github.com/xypwn/filediver"
+		doc.Samplers = append(doc.Samplers, &gltf.Sampler{
+			MagFilter: gltf.MagLinear,
+			MinFilter: gltf.MinLinear,
+			WrapS:     gltf.WrapRepeat,
+			WrapT:     gltf.WrapRepeat,
+		})
+	}
+
+	// Get metadata
+	var metadata *dlbin.UnitData = nil
+	if _, contains := ctx.ArmorSets()[ctx.File().TriadID()]; contains {
+		armorSet := ctx.ArmorSets()[ctx.File().TriadID()]
+		if _, contains := armorSet.UnitMetadata[ctx.File().ID().Name]; contains {
+			value := armorSet.UnitMetadata[ctx.File().ID().Name]
+			metadata = &value
+		}
+	}
 
 	// Load materials
 	materialIdxs := make(map[stingray.ThinHash]uint32)
@@ -292,80 +353,11 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions) error {
 			return err
 		}
 
-		/*materialNames := make(map[stingray.ThinHash]string)
-		f, err := os.Open("material_textures.txt")
+		matIdx, err := extr_material.AddMaterial(ctx, mat, doc, imgOpts, resID.String(), metadata)
 		if err != nil {
 			return err
 		}
-		defer f.Close()
-		sc := bufio.NewScanner(f)
-		for sc.Scan() {
-			s := sc.Text()
-			materialNames[stingray.Sum64([]byte(s)).Thin()] = s
-		}
-		fmt.Println()
-		for k, v := range mat.Textures {
-			name := k.String()
-			if s, ok := materialNames[k]; ok {
-				name = s
-			}
-			fmt.Println(name, v)
-		}*/
-
-		/*for k, v := range mat.Textures {
-			texRes, exists := ctx.GetResource(v, stingray.Sum64([]byte("texture")))
-			if !exists || !texRes.Exists(stingray.DataMain) {
-				return fmt.Errorf("texture resource %v doesn't exist", id)
-			}
-
-			tex, err := texture.Decode(texRes, false)
-			if err != nil {
-				return err
-			}
-
-			if err := func() error {
-				out, err := ctx.CreateFileDir(".unit.textures", k.String()+"_"+v.String()+".png")
-				if err != nil {
-					return err
-				}
-				defer out.Close()
-				if err := png.Encode(out, tex); err != nil {
-					return err
-				}
-				return nil
-			}(); err != nil {
-				return err
-			}
-		}*/
-
-		texIdxBaseColor, ok, err := tryWriteTexture(ctx, mat, textureTypeBaseColor, doc, imgOpts)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			continue
-		}
-		texIdxNormal, ok, err := tryWriteTexture(ctx, mat, textureTypeNormal, doc, imgOpts)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			continue
-		}
-		doc.Materials = append(doc.Materials, &gltf.Material{
-			Name: resID.String(),
-			PBRMetallicRoughness: &gltf.PBRMetallicRoughness{
-				BaseColorTexture: &gltf.TextureInfo{
-					Index: texIdxBaseColor,
-				},
-				MetallicFactor:  gltf.Float(0.5),
-				RoughnessFactor: gltf.Float(1),
-			},
-			NormalTexture: &gltf.NormalTexture{
-				Index: gltf.Index(texIdxNormal),
-			},
-		})
-		materialIdxs[id] = uint32(len(doc.Materials) - 1)
+		materialIdxs[id] = matIdx
 	}
 
 	// Determine which meshes to convert
@@ -375,31 +367,68 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions) error {
 			meshesToLoad = append(meshesToLoad, i)
 		}
 	} else {
-		if len(unitInfo.LODGroups) > 0 {
-			entries := unitInfo.LODGroups[0].Entries
+		if len(unitInfo.MeshInfos) > 0 {
 			highestDetailIdx := -1
-			for i := range entries {
-				if highestDetailIdx == -1 || entries[i].Detail.Max > entries[highestDetailIdx].Detail.Max {
-					highestDetailIdx = i
+			highestDetailCount := -1
+			for i, info := range unitInfo.MeshInfos {
+				for _, group := range info.Groups {
+					if int(group.NumIndices) > highestDetailCount && info.Header.MeshType != unit.MeshTypeUnknown00 {
+						highestDetailIdx = i
+						highestDetailCount = int(group.NumIndices)
+					}
 				}
 			}
 			if highestDetailIdx != -1 {
-				meshesToLoad = entries[highestDetailIdx].Indices
+				meshesToLoad = []uint32{uint32(highestDetailIdx)}
+			}
+		} else {
+			fmt.Println("\nAdding LODs anyway since no lodgroups in unitInfo?")
+			for i := uint32(0); i < unitInfo.NumMeshes; i++ {
+				meshesToLoad = append(meshesToLoad, i)
 			}
 		}
 	}
 
-	rootNode := &gltf.Node{
-		Name: ctx.File().ID().Name.String(),
-	}
-	doc.Nodes = append(doc.Nodes, rootNode)
-	doc.Scenes[0].Nodes = append(doc.Scenes[0].Nodes, uint32(len(doc.Nodes)-1))
+	bonesEnabled := ctx.Config()["no_bones"] != "true"
 
-	// Load meshes
-	meshes, err := unit.LoadMeshes(fGPU, unitInfo, meshesToLoad)
-	if err != nil {
-		return err
+	var skin *uint32 = nil
+	var parent *uint32 = nil
+	if bonesEnabled && len(unitInfo.Bones) > 2 {
+		skin = gltf.Index(addSkeleton(ctx, doc, unitInfo, boneInfo))
+		parent = doc.Skins[*skin].Skeleton
+	} else {
+		parent = gltf.Index(uint32(len(doc.Nodes)))
+		doc.Nodes = append(doc.Nodes, &gltf.Node{
+			Name: ctx.File().ID().Name.String(),
+		})
+		doc.Scenes[0].Nodes = append(doc.Scenes[0].Nodes, *parent)
 	}
+
+	var meshes map[uint32]unit.Mesh
+
+	if ctx.Config()["bounding_boxes"] == "true" {
+		allMeshes := make([]uint32, unitInfo.NumMeshes)
+		for i := range allMeshes {
+			allMeshes[i] = uint32(i)
+		}
+		meshes, err = unit.LoadMeshes(fGPU, unitInfo, allMeshes)
+		if err != nil {
+			return err
+		}
+
+		for i, mesh := range meshes {
+			addBoundingBox(doc, fmt.Sprintf("Mesh %d Bounding Box", i), mesh, unitInfo)
+		}
+	} else {
+		// Load meshes
+		meshes, err = unit.LoadMeshes(fGPU, unitInfo, meshesToLoad)
+		if err != nil {
+			return err
+		}
+	}
+
+	var meshNodes []uint32 = make([]uint32, 0)
+
 	for meshDisplayNumber, meshID := range meshesToLoad {
 		if meshID >= unitInfo.NumMeshes {
 			panic("meshID out of bounds")
@@ -410,141 +439,222 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions) error {
 			continue
 		}
 
-		// Transform coordinates into glTF ones
-		for i := range mesh.Positions {
-			p := mesh.Positions[i]
-			p[0], p[1], p[2] = p[1], p[2], p[0]
-			mesh.Positions[i] = p
-		}
-
-		// Components of the model (damage states, separate parts, etc) seem to be distinguished by their
-		// UV coordinates. The range appears to be [0, 32), so theoretically there could be
-		// 1024 components in a mesh.
-		//    - a charger's intact head has UV coords of (8.x, 0.x), while the destroyed head
-		//      has UV coords of (9.x, 0.x)
-		//    - a bile titan's undamaged front left leg has UV coords of (31.X, 0.X), and its damaged
-		//      front left leg has UV coords of (0.x, 1.x)
-		var components map[uint32][]uint32 = make(map[uint32][]uint32)
-		if ctx.Config()["join_components"] == "true" {
-			key := uint32(0)
-			components[key] = append(components[key], mesh.Indices...)
-		} else {
-			for i := range mesh.Indices {
-				uv := mesh.UVCoords[mesh.Indices[i]]
-				key := uint32(uv[0]) + (uint32(uv[1]) << 5)
-				if uv[1] < 0 {
-					key = uint32(uv[0]) + (uint32((-uv[1])+1) << 5)
-				}
-				components[key] = append(components[key], mesh.Indices[i])
+		var groupBoneIdx *uint32 = nil
+		var meshNameBoneIdx *uint32 = nil
+		// Extract some bone indices used even if skeletons are disabled
+		transformBoneIdx := mesh.Info.Header.TransformIdx
+		parentIdx := -1
+		fbxConvertIdx := -1
+		gameMeshHash := stingray.Sum64([]byte("game_mesh")).Thin()
+		fbxConvertHash := stingray.Sum64([]byte("FbxAxisSystem_ConvertNode")).Thin()
+		for boneIdx, bone := range unitInfo.Bones {
+			if bone.NameHash == gameMeshHash {
+				parentIdx = int(boneIdx)
+			}
+			if bone.NameHash == fbxConvertHash {
+				fbxConvertIdx = int(boneIdx)
+			}
+			if bone.ParentIndex == uint32(parentIdx) && bone.NameHash == mesh.Info.Header.GroupBoneHash {
+				transformBoneIdx = uint32(boneIdx)
+			}
+			if bone.ParentIndex == uint32(fbxConvertIdx) {
+				meshNameBoneIdx = gltf.Index(uint32(boneIdx))
 			}
 		}
 
-		var material *uint32
-		if len(mesh.Info.Materials) > 0 {
-			if idx, ok := materialIdxs[mesh.Info.Materials[0]]; ok {
-				material = gltf.Index(idx)
-			}
-		}
-
-		bonesEnabled := ctx.Config()["no_bones"] != "true"
-
-		var skin *uint32 = nil
-		var weights uint32 = 0
-		var joints uint32 = 0
-
+		// Apply vertex transform
 		if bonesEnabled {
-			if len(unitInfo.SkeletonMaps) > 0 {
-				if err := remapMeshBones(&mesh, unitInfo.SkeletonMaps[0]); err != nil {
+			groupBoneIdx = &unitInfo.Bones[transformBoneIdx].ParentIndex
+			transformMatrix := unitInfo.Bones[transformBoneIdx].Matrix
+			// If translation, rotation, and scale are identities, use the TransformIndex instead
+			if transformMatrix.ApproxEqual(mgl32.Ident4()) {
+				transformMatrix = unitInfo.Bones[mesh.Info.Header.TransformIdx].Matrix
+			}
+			if !transformMatrix.ApproxEqual(mgl32.Ident4()) {
+				// Apply transformations
+				for i := range mesh.Positions {
+					p := mgl32.Vec3(mesh.Positions[i])
+					p = transformMatrix.Mul4x1(p.Vec4(1)).Vec3()
+					mesh.Positions[i] = p
+				}
+				if transformMatrix.Det() < 0 {
+					// If the matrix flips the vertices, we need to flip the normals
+					// Reversing the indices accomplishes this task
+					for i := range mesh.Indices {
+						slices.Reverse(mesh.Indices[i])
+					}
+				}
+			}
+		}
+
+		// Transform coordinates into glTF ones
+		fbxTransformMatrix := mgl32.Ident4()
+		if fbxConvertIdx != -1 {
+			fbxTransformMatrix = unitInfo.Bones[fbxConvertIdx].Matrix
+		}
+		if fbxTransformMatrix.ApproxEqual(mgl32.Ident4()) {
+			// tbh should probably invert the fbx transform and combine with this, but... this should be fine
+			for i := range mesh.Positions {
+				p := mesh.Positions[i]
+				p[1], p[2] = p[2], -p[1]
+				mesh.Positions[i] = p
+
+				n := mesh.Normals[i]
+				n[1], n[2] = n[2], -n[1]
+				mesh.Normals[i] = n
+			}
+		}
+
+		var weights *uint32 = nil
+		var joints *uint32 = nil
+
+		if bonesEnabled && len(mesh.BoneWeights) > 0 {
+			if len(unitInfo.SkeletonMaps) > 0 && mesh.Info.Header.SkeletonMapIdx >= 0 {
+				if err := remapMeshBones(&mesh, unitInfo.SkeletonMaps[mesh.Info.Header.SkeletonMapIdx]); err != nil {
 					return err
 				}
 			}
-			skin = gltf.Index(addSkeleton(doc, unitInfo, boneInfo))
-			weights = modeler.WriteWeights(doc, mesh.BoneWeights)
-			joints = modeler.WriteJoints(doc, mesh.BoneIndices)
+			weights = gltf.Index(modeler.WriteWeights(doc, mesh.BoneWeights))
+			joints = gltf.Index(modeler.WriteJoints(doc, mesh.BoneIndices[0]))
 		}
 
 		positions := modeler.WritePosition(doc, mesh.Positions)
-		texCoords := modeler.WriteTextureCoord(doc, mesh.UVCoords)
+		normals := modeler.WriteAccessor(doc, gltf.TargetArrayBuffer, mesh.Normals)
+		var texCoords []uint32 = make([]uint32, len(mesh.UVCoords))
+		for i := range mesh.UVCoords {
+			texCoords[i] = modeler.WriteTextureCoord(doc, mesh.UVCoords[i])
+		}
 		var lodName string
-		var meshNode *gltf.Node
 		if len(meshesToLoad) > 1 {
 			lodName = fmt.Sprintf("LOD %v", meshDisplayNumber)
-			meshNode = &gltf.Node{
-				Name: lodName,
-			}
-			doc.Nodes = append(doc.Nodes, meshNode)
-			rootNode.Children = append(rootNode.Children, uint32(len(doc.Nodes)-1))
-		} else {
-			meshNode = rootNode
 		}
-		for i := range components {
-			var componentName string
-			if len(components) > 1 {
-				componentName = fmt.Sprintf("Component %v", i)
-			}
-			if lodName != "" {
-				if componentName != "" {
+
+		var groupName string
+		var meshName string
+		if groupBoneIdx != nil && skin != nil && meshNameBoneIdx != nil {
+			meshName = strings.TrimPrefix(doc.Nodes[doc.Skins[*skin].Joints[*meshNameBoneIdx]].Name, "Bone_")
+			groupName = strings.TrimPrefix(doc.Nodes[doc.Skins[*skin].Joints[*groupBoneIdx]].Name, "grp_") + " "
+		}
+
+		for i := range mesh.Indices {
+			var componentName string = fmt.Sprintf("%smesh %v", groupName, i)
+			if metadata != nil {
+				componentName = fmt.Sprintf("%s_%s_%s mesh %v", metadata.Slot.String(), metadata.Type.String(), metadata.BodyType.String(), i)
+			} else {
+				if lodName != "" {
 					componentName = lodName + " " + componentName
-				} else {
-					componentName = lodName
+				}
+				if meshName != "" {
+					componentName = meshName + " " + componentName
 				}
 			}
 
-			primitive := &gltf.Primitive{
-				Indices: gltf.Index(modeler.WriteIndices(doc, components[i])),
-				Attributes: map[string]uint32{
-					gltf.POSITION:   positions,
-					gltf.TEXCOORD_0: texCoords,
-					//gltf.COLOR_0:    modeler.WriteColor(doc, mesh.Colors),
-				},
-				Material: material,
+			var material *uint32
+			if len(mesh.Info.Materials) > int(mesh.Info.Groups[i].GroupIdx) {
+				if idx, ok := materialIdxs[mesh.Info.Materials[int(mesh.Info.Groups[i].GroupIdx)]]; ok {
+					material = gltf.Index(idx)
+				}
 			}
 
-			if bonesEnabled {
-				primitive.Attributes[gltf.JOINTS_0] = joints
-				primitive.Attributes[gltf.WEIGHTS_0] = weights
-			}
+			if ctx.Config()["join_components"] == "true" {
+				indices := gltf.Index(modeler.WriteIndices(doc, mesh.Indices[i]))
+				nodeIdx := writeMesh(ctx, doc, componentName, indices, positions, normals, texCoords, material, joints, weights, skin)
 
-			doc.Meshes = append(doc.Meshes, &gltf.Mesh{
-				Name: componentName + " Mesh",
-				Primitives: []*gltf.Primitive{
-					primitive,
-				},
-			})
-			if len(components) > 1 {
-				doc.Nodes = append(doc.Nodes, &gltf.Node{
-					Name: componentName,
-					Mesh: gltf.Index(uint32(len(doc.Meshes) - 1)),
-					Skin: skin,
-				})
-				meshNode.Children = append(meshNode.Children, uint32(len(doc.Nodes)-1))
+				doc.Scenes[0].Nodes = append(doc.Scenes[0].Nodes, nodeIdx)
+				if skin == nil {
+					doc.Nodes[*parent].Children = append(doc.Nodes[*parent].Children, nodeIdx)
+				}
+				meshNodes = append(meshNodes, nodeIdx)
 			} else {
-				meshNode.Mesh = gltf.Index(uint32(len(doc.Meshes) - 1))
-				meshNode.Skin = skin
+				var components map[uint32][]uint32 = make(map[uint32][]uint32)
+				make_key := func(uv [2]float32) uint32 {
+					key := (uint32(uv[0]) & 0x1f) | (uint32(uv[1]) << 5)
+					if uv[1] < 0 {
+						key = (uint32(uv[0]) & 0x1f) | (uint32(-uv[1]+1) << 5)
+					}
+					return key
+				}
+				for j := range mesh.Indices[i] {
+					if j%3 != 0 || mesh.Indices[i][j] >= uint32(len(mesh.UVCoords[0])) || mesh.Indices[i][j+1] >= uint32(len(mesh.UVCoords[0])) || mesh.Indices[i][j+2] >= uint32(len(mesh.UVCoords[0])) {
+						continue
+					}
+					// Need to use all three sets of uvs since there are cases where
+					// 2 of the vertices will be at X.00 and the third could be at (X-1).99
+					// or at X.01, and we need to use the minimum of the three to avoid
+					// stray triangles
+					key0 := make_key(mesh.UVCoords[0][mesh.Indices[i][j]])
+					key1 := make_key(mesh.UVCoords[0][mesh.Indices[i][j+1]])
+					key2 := make_key(mesh.UVCoords[0][mesh.Indices[i][j+2]])
+					key := key0
+					if key1 < key {
+						key = key1
+					}
+					if key2 < key {
+						key = key2
+					}
+					components[key] = append(components[key], mesh.Indices[i][j], mesh.Indices[i][j+1], mesh.Indices[i][j+2])
+				}
+
+				componentNum := 0
+				for _, componentIndices := range components {
+					indices := gltf.Index(modeler.WriteIndices(doc, componentIndices))
+					nodeIdx := writeMesh(ctx, doc, fmt.Sprintf("%s cmp %v", componentName, componentNum), indices, positions, normals, texCoords, material, joints, weights, skin)
+
+					doc.Scenes[0].Nodes = append(doc.Scenes[0].Nodes, nodeIdx)
+					if skin == nil {
+						doc.Nodes[*parent].Children = append(doc.Nodes[*parent].Children, nodeIdx)
+					}
+					meshNodes = append(meshNodes, nodeIdx)
+					componentNum += 1
+				}
 			}
 		}
 	}
 
-	out, err := ctx.CreateFile(".glb")
-	if err != nil {
-		return err
+	// Add some metadata so prefab loading can find our parent node easily
+	extras, ok := doc.Extras.(map[string]map[string]interface{})
+	if !ok {
+		extras = make(map[string]map[string]interface{})
 	}
-	enc := gltf.NewEncoder(out)
-	if err := enc.Encode(doc); err != nil {
-		return err
+	extras[ctx.File().ID().Name.String()] = make(map[string]interface{})
+	extras[ctx.File().ID().Name.String()]["parent"] = *parent
+	if skin != nil {
+		extras[ctx.File().ID().Name.String()]["skin"] = *skin
+	}
+	extras[ctx.File().ID().Name.String()]["objects"] = meshNodes
+	doc.Extras = extras
+
+	if gltfDoc == nil && (ctx.Config()["format"] == "" || ctx.Config()["format"] == "glb" || ctx.Config()["format"] == "blend_glb") {
+		out, err := ctx.CreateFile(".glb")
+		if err != nil {
+			return err
+		}
+		enc := gltf.NewEncoder(out)
+		if err := enc.Encode(doc); err != nil {
+			return err
+		}
+	} else if gltfDoc == nil && ctx.Config()["format"] == "blend" {
+		path, err := ctx.(interface{ OutPath() (string, error) }).OutPath()
+		if err != nil {
+			return err
+		}
+		err = extractor.ExportBlend(doc, path, ctx.Runner())
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
-func Convert(ctx extractor.Context) error {
-	var opts ImageOptions
+func getImgOpts(ctx extractor.Context) (*extr_material.ImageOptions, error) {
+	var opts extr_material.ImageOptions
 	if v, ok := ctx.Config()["image_jpeg"]; ok && v == "true" {
 		opts.Jpeg = true
 	}
 	if v, ok := ctx.Config()["jpeg_quality"]; ok {
 		quality, err := strconv.Atoi(v)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		opts.JpegQuality = quality
 	}
@@ -560,5 +670,15 @@ func Convert(ctx extractor.Context) error {
 			opts.PngCompression = png.BestCompression
 		}
 	}
-	return ConvertOpts(ctx, &opts)
+	return &opts, nil
+}
+
+func Convert(currDoc *gltf.Document) func(ctx extractor.Context) error {
+	return func(ctx extractor.Context) error {
+		opts, err := getImgOpts(ctx)
+		if err != nil {
+			return err
+		}
+		return ConvertOpts(ctx, opts, currDoc)
+	}
 }

@@ -10,6 +10,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 )
 
 type DataType int
@@ -79,6 +81,7 @@ type FileData struct {
 // A triad consists of a main file, a stream file and a GPU resource file.
 // The stream file and GPU resource file are optional.
 type Triad struct {
+	ID         Hash
 	MainPath   string
 	StreamPath string // optional
 	GPUpath    string // optional
@@ -90,6 +93,12 @@ type Triad struct {
 func OpenTriad(mainPath string) (*Triad, error) {
 	if filepath.Ext(mainPath) != "" {
 		return nil, errors.New("expected path to file with no extension")
+	}
+
+	basename := strings.TrimSuffix(filepath.Base(mainPath), filepath.Ext(mainPath))
+	id, err := strconv.ParseUint(basename, 16, 64)
+	if err != nil {
+		return nil, err
 	}
 
 	f, err := os.Open(mainPath)
@@ -142,6 +151,7 @@ func OpenTriad(mainPath string) (*Triad, error) {
 	defer fGPU.Close()
 
 	return &Triad{
+		ID:         Hash{id},
 		MainPath:   mainPath,
 		StreamPath: streamPath,
 		GPUpath:    gpuPath,

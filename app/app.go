@@ -9,17 +9,21 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/gobwas/glob"
+	"github.com/qmuntal/gltf"
 	"github.com/xypwn/filediver/exec"
 	"github.com/xypwn/filediver/extractor"
 	extr_bik "github.com/xypwn/filediver/extractor/bik"
+	extr_material "github.com/xypwn/filediver/extractor/material"
 	extr_texture "github.com/xypwn/filediver/extractor/texture"
 	extr_unit "github.com/xypwn/filediver/extractor/unit"
 	extr_wwise "github.com/xypwn/filediver/extractor/wwise"
 	"github.com/xypwn/filediver/steampath"
 	"github.com/xypwn/filediver/stingray"
+	dlbin "github.com/xypwn/filediver/stingray/dl_bin"
 )
 
 var ConfigFormat = ConfigTemplate{
@@ -51,6 +55,40 @@ var ConfigFormat = ConfigTemplate{
 				},
 			},
 		},
+		"material": {
+			Category: "shader",
+			Options: map[string]ConfigTemplateOption{
+				"format": {
+					Type: ConfigValueEnum,
+					Enum: []string{"glb", "source", "blend"},
+				},
+				"single_glb": {
+					Type: ConfigValueEnum,
+					Enum: []string{"false", "true"},
+				},
+				"image_jpeg": {
+					Type: ConfigValueEnum,
+					Enum: []string{"false", "true"},
+				},
+				"jpeg_quality": {
+					Type:        ConfigValueIntRange,
+					IntRangeMin: 1,
+					IntRangeMax: 100,
+				},
+				"png_compression": {
+					Type: ConfigValueEnum,
+					Enum: []string{"default", "none", "fast", "best"},
+				},
+				"all_textures": {
+					Type: ConfigValueEnum,
+					Enum: []string{"false", "true"},
+				},
+				"accurate_only": {
+					Type: ConfigValueEnum,
+					Enum: []string{"false", "true"},
+				},
+			},
+		},
 		"texture": {
 			Category: "image",
 			Options: map[string]ConfigTemplateOption{
@@ -65,13 +103,21 @@ var ConfigFormat = ConfigTemplate{
 			Options: map[string]ConfigTemplateOption{
 				"format": {
 					Type: ConfigValueEnum,
-					Enum: []string{"glb", "source"},
+					Enum: []string{"glb", "source", "blend", "blend_glb"},
 				},
 				"include_lods": {
 					Type: ConfigValueEnum,
 					Enum: []string{"false", "true"},
 				},
 				"join_components": {
+					Type: ConfigValueEnum,
+					Enum: []string{"true", "false"},
+				},
+				"bounding_boxes": {
+					Type: ConfigValueEnum,
+					Enum: []string{"false", "true"},
+				},
+				"single_glb": {
 					Type: ConfigValueEnum,
 					Enum: []string{"false", "true"},
 				},
@@ -91,6 +137,10 @@ var ConfigFormat = ConfigTemplate{
 				"png_compression": {
 					Type: ConfigValueEnum,
 					Enum: []string{"default", "none", "fast", "best"},
+				},
+				"all_textures": {
+					Type: ConfigValueEnum,
+					Enum: []string{"false", "true"},
 				},
 			},
 		},
@@ -163,12 +213,14 @@ func ParseHashes(str string) []string {
 }
 
 type App struct {
-	Hashes  map[stingray.Hash]string
-	DataDir *stingray.DataDir
+	Hashes     map[stingray.Hash]string
+	ThinHashes map[stingray.ThinHash]string
+	ArmorSets  map[stingray.Hash]dlbin.ArmorSet
+	DataDir    *stingray.DataDir
 }
 
 // Open game dir and read metadata.
-func OpenGameDir(ctx context.Context, gameDir string, hashes []string, onProgress func(curr, total int)) (*App, error) {
+func OpenGameDir(ctx context.Context, gameDir string, hashes []string, thinhashes []string, onProgress func(curr, total int)) (*App, error) {
 	dataDir, err := stingray.OpenDataDir(ctx, filepath.Join(gameDir, "data"), onProgress)
 	if err != nil {
 		return nil, err
@@ -177,6 +229,15 @@ func OpenGameDir(ctx context.Context, gameDir string, hashes []string, onProgres
 	hashesMap := make(map[stingray.Hash]string)
 	for _, h := range hashes {
 		hashesMap[stingray.Sum64([]byte(h))] = h
+	}
+	thinHashesMap := make(map[stingray.ThinHash]string)
+	for _, h := range thinhashes {
+		thinHashesMap[stingray.Sum64([]byte(h)).Thin()] = h
+	}
+
+	armorSets, err := dlbin.LoadArmorSetDefinitions()
+	if err != nil {
+		return nil, err
 	}
 	// wwise_dep files let us know the string of many of the wwise_banks
 	for id, file := range dataDir.Files {
@@ -190,8 +251,10 @@ func OpenGameDir(ctx context.Context, gameDir string, hashes []string, onProgres
 	}
 
 	return &App{
-		Hashes:  hashesMap,
-		DataDir: dataDir,
+		Hashes:     hashesMap,
+		ThinHashes: thinHashesMap,
+		ArmorSets:  armorSets,
+		DataDir:    dataDir,
 	}, nil
 }
 
@@ -236,7 +299,7 @@ func (a *App) matchFileID(id stingray.FileID, glb glob.Glob, nameOnly bool) bool
 	return false
 }
 
-func (a *App) MatchingFiles(includeGlob, excludeGlob string, cfgTemplate ConfigTemplate, cfg map[string]map[string]string) (map[stingray.FileID]*stingray.File, error) {
+func (a *App) MatchingFiles(includeGlob, excludeGlob string, triadName string, cfgTemplate ConfigTemplate, cfg map[string]map[string]string) (map[stingray.FileID]*stingray.File, error) {
 	var inclGlob glob.Glob
 	inclGlobNameOnly := !strings.Contains(includeGlob, ".")
 	if includeGlob != "" {
@@ -256,11 +319,24 @@ func (a *App) MatchingFiles(includeGlob, excludeGlob string, cfgTemplate ConfigT
 		}
 	}
 
+	var triadHash stingray.Hash = stingray.Hash{Value: 0}
+	if triadName != "" {
+		id, err := strconv.ParseUint(triadName, 16, 64)
+		if err != nil {
+			return nil, err
+		}
+		triadHash.Value = id
+	}
+
 	res := make(map[stingray.FileID]*stingray.File)
-	for id, file := range a.DataDir.Files {
+	for id, duplicates := range a.DataDir.Duplicates {
 		shouldIncl := true
+		if _, contains := duplicates[triadHash]; triadHash.Value != 0 && !contains {
+			shouldIncl = false
+		}
 		if includeGlob != "" {
-			shouldIncl = a.matchFileID(id, inclGlob, inclGlobNameOnly)
+			// Include all files in triad even if they don't match the includeGlob - includeGlob will only add files to read
+			shouldIncl = a.matchFileID(id, inclGlob, inclGlobNameOnly) || (triadName != "" && shouldIncl)
 		}
 		if excludeGlob != "" {
 			if a.matchFileID(id, exclGlob, exclGlobNameOnly) {
@@ -296,7 +372,11 @@ func (a *App) MatchingFiles(includeGlob, excludeGlob string, cfgTemplate ConfigT
 			continue
 		}
 
-		res[id] = file
+		if triadHash.Value != 0 {
+			res[id] = duplicates[triadHash]
+		} else {
+			res[id] = a.DataDir.Files[id]
+		}
 	}
 
 	return res, nil
@@ -328,6 +408,13 @@ func (c *extractContext) File() *stingray.File      { return c.file }
 func (c *extractContext) Runner() *exec.Runner      { return c.runner }
 func (c *extractContext) Config() map[string]string { return c.config }
 func (c *extractContext) GetResource(name, typ stingray.Hash) (file *stingray.File, exists bool) {
+	dups, exists := c.app.DataDir.Duplicates[stingray.FileID{Name: name, Type: typ}]
+	if exists {
+		file, exists = dups[c.file.TriadID()]
+		if exists {
+			return
+		}
+	}
 	file, exists = c.app.DataDir.Files[stingray.FileID{Name: name, Type: typ}]
 	return
 }
@@ -350,9 +437,18 @@ func (c *extractContext) Ctx() context.Context { return c.ctx }
 func (c *extractContext) Files() []string {
 	return c.files
 }
+func (c *extractContext) Hashes() map[stingray.Hash]string {
+	return c.app.Hashes
+}
+func (c *extractContext) ThinHashes() map[stingray.ThinHash]string {
+	return c.app.ThinHashes
+}
+func (c *extractContext) ArmorSets() map[stingray.Hash]dlbin.ArmorSet {
+	return c.app.ArmorSets
+}
 
 // Returns path to extracted file/directory.
-func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string, extrCfg map[string]map[string]string, runner *exec.Runner) ([]string, error) {
+func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, triadId stingray.Hash, outDir string, extrCfg map[string]map[string]string, runner *exec.Runner, gltfDoc *gltf.Document) ([]string, error) {
 	name, ok := a.Hashes[id.Name]
 	if !ok {
 		name = id.Name.String()
@@ -362,7 +458,7 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 		typ = id.Type.String()
 	}
 
-	file, ok := a.DataDir.Files[id]
+	file, ok := a.DataDir.Duplicates[id][triadId]
 	if !ok {
 		return nil, fmt.Errorf("extract %v.%v: file does not exist", name, typ)
 	}
@@ -398,11 +494,17 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 		} else {
 			extr = extr_wwise.ConvertBnk
 		}
+	case "material":
+		if cfg["format"] == "source" {
+			extr = extractor.ExtractFuncRaw(".material", stingray.DataMain, stingray.DataStream, stingray.DataGPU)
+		} else {
+			extr = extr_material.Convert(gltfDoc)
+		}
 	case "unit":
 		if cfg["format"] == "source" {
 			extr = extractor.ExtractFuncRaw(".unit", stingray.DataMain, stingray.DataStream, stingray.DataGPU)
 		} else {
-			extr = extr_unit.Convert
+			extr = extr_unit.Convert(gltfDoc)
 		}
 	case "texture":
 		if cfg["format"] == "source" {

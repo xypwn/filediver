@@ -2,10 +2,15 @@ package extractor
 
 import (
 	"context"
+	"fmt"
 	"io"
+	"os"
+	os_exec "os/exec"
 
+	"github.com/qmuntal/gltf"
 	"github.com/xypwn/filediver/exec"
 	"github.com/xypwn/filediver/stingray"
+	dlbin "github.com/xypwn/filediver/stingray/dl_bin"
 )
 
 type Context interface {
@@ -18,6 +23,9 @@ type Context interface {
 	CreateFile(suffix string) (io.WriteCloser, error)
 	// Returns path to file.
 	AllocateFile(suffix string) (string, error)
+	Hashes() map[stingray.Hash]string
+	ThinHashes() map[stingray.ThinHash]string
+	ArmorSets() map[stingray.Hash]dlbin.ArmorSet
 }
 
 type ExtractFunc func(ctx Context) error
@@ -41,4 +49,32 @@ func ExtractFuncRaw(suffix string, types ...stingray.DataType) ExtractFunc {
 		}
 		return nil
 	}
+}
+
+func ExportBlend(doc *gltf.Document, outPath string, runner *exec.Runner) (err error) {
+	read, write, err := os.Pipe()
+	if err != nil {
+		return err
+	}
+	var blendExporter string = "scripts_dist/hd2_accurate_blender_importer/hd2_accurate_blender_importer"
+	if !runner.Has(blendExporter) {
+		return fmt.Errorf("exporting as .blend not available")
+	}
+	enc := gltf.NewEncoder(write)
+	path := outPath + ".blend"
+	cmd, err := runner.Start(blendExporter, nil, read, "-", path)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		err = cmd.Wait()
+		if exiterr, ok := err.(*os_exec.ExitError); ok && exiterr.ExitCode() == 0xC0000005 {
+			err = nil
+		}
+	}()
+	if err := enc.Encode(doc); err != nil {
+		return err
+	}
+
+	return nil
 }

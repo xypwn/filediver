@@ -7,17 +7,21 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime/pprof"
 	"sort"
+	"strings"
 	"syscall"
 
 	//"github.com/davecgh/go-spew/spew"
 
 	"github.com/hellflame/argparse"
 	"github.com/jwalton/go-supportscolor"
+	"github.com/qmuntal/gltf"
 
 	"github.com/xypwn/filediver/app"
 	"github.com/xypwn/filediver/exec"
+	"github.com/xypwn/filediver/extractor"
 	"github.com/xypwn/filediver/hashes"
 	"github.com/xypwn/filediver/stingray"
 )
@@ -50,6 +54,7 @@ extractor config:
 ` + app.ExtractorConfigHelpMessage(app.ConfigFormat),
 		DisableDefaultShowHelp: true,
 	})
+	triad := parser.String("t", "triad", &argparse.Option{Help: "Triad name as found in game data directory (aka Archive ID, eg 0x9ba626afa44a3aa3)"})
 	gameDir := parser.String("g", "gamedir", &argparse.Option{Help: "Helldivers 2 game directory"})
 	modeList := parser.Flag("l", "list", &argparse.Option{Help: "List all files without extracting anything"})
 	outDir := parser.String("o", "out", &argparse.Option{Default: "extracted", Help: "Output directory (default: extracted)"})
@@ -86,6 +91,9 @@ extractor config:
 	if ok := runner.Add("ffmpeg", "-y", "-hide_banner", "-loglevel", "error"); !ok {
 		prt.Warnf("FFmpeg not installed or found locally. Please install FFmpeg, or place ffmpeg.exe in the current folder to convert videos to MP4 and audio to a variety of formats. Without FFmpeg, videos will be saved as BIK and audio will be saved was WAV.")
 	}
+	if ok := runner.Add("scripts_dist/hd2_accurate_blender_importer/hd2_accurate_blender_importer"); extrCfg["unit"]["format"] == "blend" && !ok {
+		prt.Warnf("Blender importer not found. Exporting directly to .blend is not available.")
+	}
 	defer runner.Close()
 
 	if *gameDir == "" {
@@ -111,6 +119,9 @@ extractor config:
 		knownHashes = append(knownHashes, app.ParseHashes(string(b))...)
 	}
 
+	var knownThinHashes []string
+	knownThinHashes = append(knownThinHashes, app.ParseHashes(hashes.ThinHashes)...)
+
 	if !*modeList {
 		prt.Infof("Output directory: \"%v\"", *outDir)
 	}
@@ -124,7 +135,7 @@ extractor config:
 		cancel()
 	}()
 
-	a, err := app.OpenGameDir(ctx, *gameDir, knownHashes, func(curr, total int) {
+	a, err := app.OpenGameDir(ctx, *gameDir, knownHashes, knownThinHashes, func(curr, total int) {
 		prt.Statusf("Reading metadata %.0f%%", float64(curr)/float64(total)*100)
 	})
 	if err != nil {
@@ -138,7 +149,11 @@ extractor config:
 	}
 	prt.NoStatus()
 
-	files, err := a.MatchingFiles(*extrInclGlob, *extrExclGlob, app.ConfigFormat, extrCfg)
+	var triadTrimmed string = ""
+	if triad != nil {
+		triadTrimmed = strings.TrimPrefix(*triad, "0x")
+	}
+	files, err := a.MatchingFiles(*extrInclGlob, *extrExclGlob, triadTrimmed, app.ConfigFormat, extrCfg)
 	if err != nil {
 		prt.Fatalf("%v", err)
 	}
@@ -196,14 +211,33 @@ extractor config:
 	} else {
 		prt.Infof("Extracting files...")
 
+		var documents map[string]*gltf.Document = make(map[string]*gltf.Document)
+		for key := range extrCfg {
+			if value, contains := extrCfg[key]["single_glb"]; !contains || value == "false" {
+				continue
+			}
+			var closeGLB func(doc *gltf.Document) error
+			name := "combined_" + key
+			if triad != nil && len(*triad) > 0 {
+				name = fmt.Sprintf("%s_%s", *triad, key)
+			}
+			documents[key], closeGLB = createCloseableGltfDocument(*outDir, name, extrCfg[key], runner)
+			defer closeGLB(documents[key])
+		}
+
 		numExtrFiles := 0
 		for i, id := range sortedFileIDs {
 			truncName := getFileName(id)
 			if len(truncName) > 40 {
 				truncName = "..." + truncName[len(truncName)-37:]
 			}
+			typ, ok := a.Hashes[id.Type]
+			if !ok {
+				typ = id.Type.String()
+			}
 			prt.Statusf("File %v/%v: %v", i+1, len(files), truncName)
-			if _, err := a.ExtractFile(ctx, id, *outDir, extrCfg, runner); err == nil {
+			document := documents[typ]
+			if _, err := a.ExtractFile(ctx, id, files[id].TriadID(), *outDir, extrCfg, runner, document); err == nil {
 				numExtrFiles++
 			} else {
 				if errors.Is(err, context.Canceled) {
@@ -219,4 +253,47 @@ extractor config:
 		prt.NoStatus()
 		prt.Infof("Extracted %v/%v matching files", numExtrFiles, len(files))
 	}
+}
+
+func createCloseableGltfDocument(outDir string, triad string, cfg map[string]string, runner *exec.Runner) (*gltf.Document, func(doc *gltf.Document) error) {
+	document := gltf.NewDocument()
+	document.Asset.Generator = "https://github.com/xypwn/filediver"
+	document.Samplers = append(document.Samplers, &gltf.Sampler{
+		MagFilter: gltf.MagLinear,
+		MinFilter: gltf.MinLinear,
+		WrapS:     gltf.WrapRepeat,
+		WrapT:     gltf.WrapRepeat,
+	})
+	closeGLB := func(doc *gltf.Document) error {
+		outPath := filepath.Join(outDir, triad)
+		if cfg["format"] == "blend" {
+			err := extractor.ExportBlend(doc, outPath, runner)
+			if err != nil {
+				return err
+			}
+		} else if cfg["format"] == "glb" || cfg["format"] == "blend_glb" {
+			err := exportGLB(doc, outPath)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	return document, closeGLB
+}
+
+func exportGLB(doc *gltf.Document, outPath string) error {
+	path := outPath + ".glb"
+	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
+		return err
+	}
+	out, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	enc := gltf.NewEncoder(out)
+	if err := enc.Encode(doc); err != nil {
+		return err
+	}
+	return nil
 }
