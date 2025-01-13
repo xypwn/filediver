@@ -42,6 +42,8 @@ In PowerShell/Terminal, run `./filediver -h` to get a list of options.
 
 ### Here are some example commands:
 
+**(You can use right-click to paste your current clipboard to the PowerShell terminal)**
+
 Simply running the app should automatically detect your installation directory and dump all files into the "extracted" directory in your current folder:
 ```sh
 ./filediver
