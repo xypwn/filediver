@@ -372,7 +372,7 @@ func (a *App) MatchingFiles(includeGlob, excludeGlob string, triadName string, c
 			continue
 		}
 
-		if triadHash.Value != 0 {
+		if _, contains := duplicates[triadHash]; triadHash.Value != 0 && contains {
 			res[id] = duplicates[triadHash]
 		} else {
 			res[id] = a.DataDir.Files[id]
