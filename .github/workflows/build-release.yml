@@ -64,7 +64,7 @@ jobs:
           --collect-submodules logging
     - name: Create scripts_dist archive
       run: |
-        zip -r scripts_dist_windows.zip ./scripts_dist
+        7z a scripts_dist_windows.zip ./scripts_dist
     - name: Upload archive
       uses: softprops/action-gh-release@v2
       if: startsWith(github.ref, 'refs/tags/')
