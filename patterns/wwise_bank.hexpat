@@ -28,6 +28,7 @@ fn formatBnkHeaderVersion(u32 version) {
     version ^= 0x0000008c ^ 0x9211bc20;
     return std::format("{:d} ({:016X})", version, version);
 };
+
 fn formatBnkHeaderID(u32 id) {
     id ^= 0x50c63a23 ^ 0xf3d64a1b;
     return std::format("{:d} ({:016X})", id, id);
@@ -41,10 +42,25 @@ struct BnkHeader {
     u32 ID [[format("formatBnkHeaderID")]];
 };
 
+struct BnkIndex {
+    u32 ID;
+    u32 Offset;
+    u32 Size;
+};
+
 struct Chunk {
     char Type[4];
     u32 Size;
-    u8 Data[Size];
+    match (Type) {
+        ("DIDX"): BnkIndex DataIndex[Size/0x0c];
+        ("DATA"): u8 Data[Size];
+        (_): u8 OtherData[Size];
+    }
+} [[format("formatChunk")]];
+
+
+fn formatChunk(Chunk chunk) {
+    return std::format("{:s} ({:d})", chunk.Type, chunk.Size);
 };
 
 struct StingrayBnk {
