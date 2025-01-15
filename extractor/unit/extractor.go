@@ -326,8 +326,8 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 
 	// Get metadata
 	var metadata *dlbin.UnitData = nil
-	if _, contains := ctx.ArmorSets()[ctx.File().TriadID()]; contains {
-		armorSet := ctx.ArmorSets()[ctx.File().TriadID()]
+	if triadID := ctx.TriadID(); triadID != nil {
+		armorSet := ctx.ArmorSets()[*triadID]
 		if _, contains := armorSet.UnitMetadata[ctx.File().ID().Name]; contains {
 			value := armorSet.UnitMetadata[ctx.File().ID().Name]
 			metadata = &value

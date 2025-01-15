@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime/pprof"
 	"sort"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -36,7 +37,7 @@ func main() {
 	parser := argparse.NewParser("filediver", "An unofficial Helldivers 2 game asset extractor.", &argparse.ParserConfig{
 		EpiLog: `matching files:
   Syntax is Glob (meaning * is supported)
-  Basic format being matched is: <file_path>.<file_type> .
+  Basic format being matched is: file_path.file_type .
   file_path is the file path, or the file hash and
   file_type is the data type (see "extractors" section for a list of data types).
   examples:
@@ -45,16 +46,16 @@ func main() {
     filediver -i "content/audio/us/303183090.wwise_stream" extract one particular audio file
 
 extractor config:
-  basic format: filediver -c "<key1>:<opt1>=<val1>,<opt2>=<val2> <key2>:<opt1>,<opt2>"
+  basic format: filediver -c "key1:opt1=val1,opt2=val2 key2:opt1,opt2"
   examples:
     filediver -c "enable:all"                extract ALL files, including raw files (i.e. files that can't be converted)
     filediver -c "enable:audio"              only extract audio
     filediver -c "enable:bik bik:format=bik" only extract bik files, but don't convert them to mp4
-    filediver -c "audio:format=ogg"          convert audio to ogg instead of wav
+    filediver -c "audio:format=wav"          convert audio to wav
 ` + app.ExtractorConfigHelpMessage(app.ConfigFormat),
 		DisableDefaultShowHelp: true,
 	})
-	triad := parser.String("t", "triad", &argparse.Option{Help: "Triad name as found in game data directory (aka Archive ID, eg 0x9ba626afa44a3aa3)"})
+	triad := parser.String("t", "triad", &argparse.Option{Help: "Include triad name as found in game data directory (aka Archive ID, eg 0x9ba626afa44a3aa3)"})
 	gameDir := parser.String("g", "gamedir", &argparse.Option{Help: "Helldivers 2 game directory"})
 	modeList := parser.Flag("l", "list", &argparse.Option{Help: "List all files without extracting anything"})
 	outDir := parser.String("o", "out", &argparse.Option{Default: "extracted", Help: "Output directory (default: extracted)"})
@@ -97,6 +98,17 @@ extractor config:
 	}
 	defer runner.Close()
 
+	var triadID *stingray.Hash
+	if *triad != "" {
+		triadID = new(stingray.Hash)
+		trimmed := strings.TrimPrefix(*triad, "0x")
+		var err error
+		triadID.Value, err = strconv.ParseUint(trimmed, 16, 64)
+		if err != nil {
+			prt.Fatalf("parsing triad name: %v", err)
+		}
+	}
+
 	if *gameDir == "" {
 		var err error
 		*gameDir, err = app.DetectGameDir()
@@ -136,7 +148,7 @@ extractor config:
 		cancel()
 	}()
 
-	a, err := app.OpenGameDir(ctx, *gameDir, knownHashes, knownThinHashes, func(curr, total int) {
+	a, err := app.OpenGameDir(ctx, *gameDir, knownHashes, knownThinHashes, triadID, func(curr, total int) {
 		prt.Statusf("Reading metadata %.0f%%", float64(curr)/float64(total)*100)
 	})
 	if err != nil {
@@ -150,11 +162,7 @@ extractor config:
 	}
 	prt.NoStatus()
 
-	var triadTrimmed string = ""
-	if triad != nil {
-		triadTrimmed = strings.TrimPrefix(*triad, "0x")
-	}
-	files, err := a.MatchingFiles(*extrInclGlob, *extrExclGlob, triadTrimmed, app.ConfigFormat, extrCfg)
+	files, err := a.MatchingFiles(*extrInclGlob, *extrExclGlob, triadID, app.ConfigFormat, extrCfg)
 	if err != nil {
 		prt.Fatalf("%v", err)
 	}
@@ -238,7 +246,7 @@ extractor config:
 			}
 			prt.Statusf("File %v/%v: %v", i+1, len(files), truncName)
 			document := documents[typ]
-			if _, err := a.ExtractFile(ctx, id, files[id].TriadID(), *outDir, extrCfg, runner, document); err == nil {
+			if _, err := a.ExtractFile(ctx, id, *outDir, extrCfg, runner, document); err == nil {
 				numExtrFiles++
 			} else {
 				if errors.Is(err, context.Canceled) {

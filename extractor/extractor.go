@@ -25,6 +25,8 @@ type Context interface {
 	AllocateFile(suffix string) (string, error)
 	Hashes() map[stingray.Hash]string
 	ThinHashes() map[stingray.ThinHash]string
+	// Selected triad ID, if any (-t option).
+	TriadID() *stingray.Hash
 	ArmorSets() map[stingray.Hash]dlbin.ArmorSet
 }
 

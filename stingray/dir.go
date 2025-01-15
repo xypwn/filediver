@@ -14,17 +14,25 @@ import (
 const errPfx = "stingray: "
 
 type File struct {
-	triad  *Triad
-	index  int
+	// Multiple triads may point to the same file.
+	// Len is assumed to be >= 1.
+	triads []*Triad
+	// Actual file data == triads[0].Files[indexInTriad0].
+	indexInTriad0 int
+	// Existing file types (main/stream/GPU).
 	exists [3]bool
 }
 
 func (f *File) ID() FileID {
-	return f.triad.Files[f.index].ID
+	return f.triads[0].Files[f.indexInTriad0].ID
 }
 
-func (f *File) TriadID() Hash {
-	return f.triad.ID
+func (f *File) TriadIDs() []Hash {
+	res := make([]Hash, len(f.triads))
+	for i := range f.triads {
+		res[i] = f.triads[i].ID
+	}
+	return res
 }
 
 func (f *File) Exists(typ DataType) bool {
@@ -53,7 +61,7 @@ func (r *preallocReader) Close() error {
 
 // Call Close() on returned reader when done.
 func (f *File) Open(ctx context.Context, typ DataType) (io.ReadSeekCloser, error) {
-	fileR, err := f.triad.OpenFile(f.index, typ)
+	fileR, err := f.triads[0].OpenFile(f.indexInTriad0, typ)
 	if err != nil {
 		return nil, err
 	}
@@ -133,10 +141,8 @@ func (a *File) contentEqual(b *File, dt DataType) (bool, error) {
 
 type DataDir struct {
 	Files map[FileID]*File
-	// This is for use when exporting by Triad, since even if the file is a duplicate,
-	// if its included in the triad it should be exported with the rest. Armors will share geometry,
-	// for example
-	Duplicates map[FileID]map[Hash]*File
+	// Triad ID to map of files by ID.
+	FilesByTriad map[Hash]map[FileID]*File
 }
 
 // Opens the "data" game directory, reading all file metadata. Ctx allows for granular cancellation (before each triad open).
@@ -150,8 +156,8 @@ func OpenDataDir(ctx context.Context, dirPath string, onProgress func(curr, tota
 	}
 
 	dd := &DataDir{
-		Files:      make(map[FileID]*File),
-		Duplicates: make(map[FileID]map[Hash]*File),
+		Files:        make(map[FileID]*File),
+		FilesByTriad: make(map[Hash]map[FileID]*File),
 	}
 
 	for i, ent := range ents {
@@ -173,22 +179,26 @@ func OpenDataDir(ctx context.Context, dirPath string, onProgress func(curr, tota
 			return nil, fmt.Errorf("%v%w", errPfx, err)
 		}
 		for i, v := range tr.Files {
-			if _, contains := dd.Duplicates[v.ID]; !contains {
-				dd.Duplicates[v.ID] = make(map[Hash]*File)
-			}
-			newFile := &File{
-				triad: tr,
-				index: i,
-			}
-			for typ := DataType(0); typ < NumDataType; typ++ {
-				has, err := tr.HasFile(i, typ)
-				if err != nil {
-					return nil, err
+			file, fileExists := dd.Files[v.ID]
+			if fileExists {
+				file.triads = append(file.triads, tr)
+			} else {
+				file = &File{
+					triads:        []*Triad{tr},
+					indexInTriad0: i,
 				}
-				newFile.exists[typ] = has
+				for typ := DataType(0); typ < NumDataType; typ++ {
+					has, err := tr.HasFile(i, typ)
+					if err != nil {
+						return nil, err
+					}
+					file.exists[typ] = has
+				}
+				dd.Files[v.ID] = file
 			}
 			// According to my testing, files that share the same ID always have the same
-			// contents. Uncomment this to re-test that.
+			// contents, but may have multiple triads pointing to them.
+			// Uncomment this to re-test that.
 			/*if _, ok := dd.Files[v.ID]; ok {
 				for _, typ := range []DataType{DataMain, DataStream, DataGPU} {
 					if newFile.Exists(typ) && dd.Files[v.ID].Exists(typ) {
@@ -200,54 +210,11 @@ func OpenDataDir(ctx context.Context, dirPath string, onProgress func(curr, tota
 					}
 				}
 			}*/
-			dd.Files[v.ID] = newFile
-			dd.Duplicates[v.ID][tr.ID] = newFile
-		}
-	}
-
-	return dd, nil
-}
-
-// Opens the "data" game directory, reading all file metadata. Ctx allows for granular cancellation (before each triad open).
-// onProgress is optional.
-func OpenTriadData(ctx context.Context, triadPath string, onProgress func(curr, total int)) (*DataDir, error) {
-	const errPfx = errPfx + "OpenTriad: "
-
-	dd := &DataDir{
-		Files: make(map[FileID]*File),
-	}
-
-	path := triadPath
-	tr, err := OpenTriad(path)
-	if err != nil {
-		return nil, fmt.Errorf("%v%w", errPfx, err)
-	}
-	for i, v := range tr.Files {
-		newFile := &File{
-			triad: tr,
-			index: i,
-		}
-		for typ := DataType(0); typ < NumDataType; typ++ {
-			has, err := tr.HasFile(i, typ)
-			if err != nil {
-				return nil, err
+			if _, ok := dd.FilesByTriad[tr.ID]; !ok {
+				dd.FilesByTriad[tr.ID] = make(map[FileID]*File)
 			}
-			newFile.exists[typ] = has
+			dd.FilesByTriad[tr.ID][v.ID] = file
 		}
-		// According to my testing, files that share the same ID always have the same
-		// contents. Uncomment this to re-test that.
-		/*if _, ok := dd.Files[v.ID]; ok {
-			for _, typ := range []DataType{DataMain, DataStream, DataGPU} {
-				if newFile.Exists(typ) && dd.Files[v.ID].Exists(typ) {
-					if eq, err := newFile.contentEqual(dd.Files[v.ID], typ); err != nil {
-						return nil, err
-					} else if !eq {
-						return nil, fmt.Errorf("%vduplicate file ID with different %v file contents", errPfx, typ)
-					}
-				}
-			}
-		}*/
-		dd.Files[v.ID] = newFile
 	}
 
 	return dd, nil

@@ -9,7 +9,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/gobwas/glob"
@@ -215,12 +214,14 @@ func ParseHashes(str string) []string {
 type App struct {
 	Hashes     map[stingray.Hash]string
 	ThinHashes map[stingray.ThinHash]string
-	ArmorSets  map[stingray.Hash]dlbin.ArmorSet
-	DataDir    *stingray.DataDir
+	// Passed triad ID (-t option).
+	TriadID   *stingray.Hash
+	ArmorSets map[stingray.Hash]dlbin.ArmorSet
+	DataDir   *stingray.DataDir
 }
 
 // Open game dir and read metadata.
-func OpenGameDir(ctx context.Context, gameDir string, hashes []string, thinhashes []string, onProgress func(curr, total int)) (*App, error) {
+func OpenGameDir(ctx context.Context, gameDir string, hashes []string, thinhashes []string, triadID *stingray.Hash, onProgress func(curr, total int)) (*App, error) {
 	dataDir, err := stingray.OpenDataDir(ctx, filepath.Join(gameDir, "data"), onProgress)
 	if err != nil {
 		return nil, err
@@ -253,6 +254,7 @@ func OpenGameDir(ctx context.Context, gameDir string, hashes []string, thinhashe
 	return &App{
 		Hashes:     hashesMap,
 		ThinHashes: thinHashesMap,
+		TriadID:    triadID,
 		ArmorSets:  armorSets,
 		DataDir:    dataDir,
 	}, nil
@@ -299,7 +301,16 @@ func (a *App) matchFileID(id stingray.FileID, glb glob.Glob, nameOnly bool) bool
 	return false
 }
 
-func (a *App) MatchingFiles(includeGlob, excludeGlob string, triadName string, cfgTemplate ConfigTemplate, cfg map[string]map[string]string) (map[stingray.FileID]*stingray.File, error) {
+func (a *App) MatchingFiles(
+	includeGlob string,
+	excludeGlob string,
+	includeTriadID *stingray.Hash,
+	cfgTemplate ConfigTemplate,
+	cfg map[string]map[string]string,
+) (
+	map[stingray.FileID]*stingray.File,
+	error,
+) {
 	var inclGlob glob.Glob
 	inclGlobNameOnly := !strings.Contains(includeGlob, ".")
 	if includeGlob != "" {
@@ -319,24 +330,26 @@ func (a *App) MatchingFiles(includeGlob, excludeGlob string, triadName string, c
 		}
 	}
 
-	var triadHash stingray.Hash = stingray.Hash{Value: 0}
-	if triadName != "" {
-		id, err := strconv.ParseUint(triadName, 16, 64)
-		if err != nil {
-			return nil, err
+	var includeTriadFiles map[stingray.FileID]*stingray.File
+	if includeTriadID != nil {
+		var ok bool
+		includeTriadFiles, ok = a.DataDir.FilesByTriad[*includeTriadID]
+		if !ok {
+			return nil, fmt.Errorf("triad %v does not exist", includeTriadID.String())
 		}
-		triadHash.Value = id
 	}
 
 	res := make(map[stingray.FileID]*stingray.File)
-	for id, duplicates := range a.DataDir.Duplicates {
+	for id, file := range a.DataDir.Files {
 		shouldIncl := true
-		if _, contains := duplicates[triadHash]; triadHash.Value != 0 && !contains {
-			shouldIncl = false
+		if includeTriadID != nil {
+			if _, ok := includeTriadFiles[id]; !ok {
+				shouldIncl = false
+			}
 		}
 		if includeGlob != "" {
 			// Include all files in triad even if they don't match the includeGlob - includeGlob will only add files to read
-			shouldIncl = a.matchFileID(id, inclGlob, inclGlobNameOnly) || (triadName != "" && shouldIncl)
+			shouldIncl = (includeTriadID != nil && shouldIncl) || a.matchFileID(id, inclGlob, inclGlobNameOnly)
 		}
 		if excludeGlob != "" {
 			if a.matchFileID(id, exclGlob, exclGlobNameOnly) {
@@ -372,11 +385,7 @@ func (a *App) MatchingFiles(includeGlob, excludeGlob string, triadName string, c
 			continue
 		}
 
-		if _, contains := duplicates[triadHash]; triadHash.Value != 0 && contains {
-			res[id] = duplicates[triadHash]
-		} else {
-			res[id] = a.DataDir.Files[id]
-		}
+		res[id] = file
 	}
 
 	return res, nil
@@ -408,13 +417,6 @@ func (c *extractContext) File() *stingray.File      { return c.file }
 func (c *extractContext) Runner() *exec.Runner      { return c.runner }
 func (c *extractContext) Config() map[string]string { return c.config }
 func (c *extractContext) GetResource(name, typ stingray.Hash) (file *stingray.File, exists bool) {
-	dups, exists := c.app.DataDir.Duplicates[stingray.FileID{Name: name, Type: typ}]
-	if exists {
-		file, exists = dups[c.file.TriadID()]
-		if exists {
-			return
-		}
-	}
 	file, exists = c.app.DataDir.Files[stingray.FileID{Name: name, Type: typ}]
 	return
 }
@@ -443,12 +445,15 @@ func (c *extractContext) Hashes() map[stingray.Hash]string {
 func (c *extractContext) ThinHashes() map[stingray.ThinHash]string {
 	return c.app.ThinHashes
 }
+func (c *extractContext) TriadID() *stingray.Hash {
+	return c.app.TriadID
+}
 func (c *extractContext) ArmorSets() map[stingray.Hash]dlbin.ArmorSet {
 	return c.app.ArmorSets
 }
 
 // Returns path to extracted file/directory.
-func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, triadId stingray.Hash, outDir string, extrCfg map[string]map[string]string, runner *exec.Runner, gltfDoc *gltf.Document) ([]string, error) {
+func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string, extrCfg map[string]map[string]string, runner *exec.Runner, gltfDoc *gltf.Document) ([]string, error) {
 	name, ok := a.Hashes[id.Name]
 	if !ok {
 		name = id.Name.String()
@@ -458,7 +463,7 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, triadId sting
 		typ = id.Type.String()
 	}
 
-	file, ok := a.DataDir.Duplicates[id][triadId]
+	file, ok := a.DataDir.Files[id]
 	if !ok {
 		return nil, fmt.Errorf("extract %v.%v: file does not exist", name, typ)
 	}
