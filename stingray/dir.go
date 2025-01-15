@@ -7,7 +7,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/xypwn/filediver/util"
 )
@@ -22,10 +21,6 @@ type File struct {
 
 func (f *File) ID() FileID {
 	return f.triad.Files[f.index].ID
-}
-
-func (f *File) TriadName() string {
-	return strings.TrimSuffix(filepath.Base(f.triad.MainPath), filepath.Ext(f.triad.MainPath))
 }
 
 func (f *File) TriadID() Hash {
