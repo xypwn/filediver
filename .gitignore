@@ -2,3 +2,4 @@
 __pycache__
 /scripts_dist
 /extracted
+cpu.prof

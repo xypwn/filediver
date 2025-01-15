@@ -62,7 +62,6 @@ extractor config:
 	extrCfgStr := parser.String("c", "config", &argparse.Option{Help: "Configure extractors (see \"extractor config\" section)"})
 	extrInclGlob := parser.String("i", "include", &argparse.Option{Help: "Select only matching files (glob syntax, see matching files section)"})
 	extrExclGlob := parser.String("x", "exclude", &argparse.Option{Help: "Exclude matching files from selection (glob syntax, can be mixed with --include, see matching files section)"})
-	cpuProfile := parser.String("", "cpuprofile", &argparse.Option{Help: "Write CPU diagnostic profile to specified file"})
 	//verbose := parser.Flag("v", "verbose", &argparse.Option{Help: "Provide more detailed status output"})
 	knownHashesPath := parser.String("", "hashes_file", &argparse.Option{Help: "Path to a text file containing known file and type names"})
 	if err := parser.Parse(nil); err != nil {
@@ -72,8 +71,8 @@ extractor config:
 		prt.Fatalf("%v", err)
 	}
 
-	if *cpuProfile != "" {
-		f, err := os.Create(*cpuProfile)
+	if value, ok := os.LookupEnv("FILEDIVER_CPU_PROFILE"); ok && value != "" && value != "0" {
+		f, err := os.Create(value)
 		if err != nil {
 			prt.Fatalf("%v", err)
 		}
