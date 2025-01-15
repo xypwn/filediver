@@ -282,8 +282,8 @@ func ConvertBnk(ctx extractor.Context) error {
 			return err
 		}
 		if err := func() error {
-			if err := convertWemStream(ctx, fmt.Sprintf(".bnk/%03d", i), wemR, format); err != nil {
-				return err
+			if err := convertWemStream(ctx, fmt.Sprintf(".bnk.dir/%03d", i), wemR, format); err != nil {
+				ctx.Warnf("file %v: %v", i, err)
 			}
 			return nil
 		}(); err != nil {

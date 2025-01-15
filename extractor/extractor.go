@@ -28,6 +28,8 @@ type Context interface {
 	// Selected triad ID, if any (-t option).
 	TriadID() *stingray.Hash
 	ArmorSets() map[stingray.Hash]dlbin.ArmorSet
+	// Prints a warning message.
+	Warnf(f string, a ...any)
 }
 
 type ExtractFunc func(ctx Context) error

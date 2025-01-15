@@ -113,7 +113,7 @@ func openBnk(r io.ReadSeeker, bkhdKey *BkhdXorKey) (*Bnk, error) {
 		}
 	}
 
-	// Read DIDX (contained file info)
+	// Read DIDX (data index)
 	var files []bnkIndex
 	if sections.DidxSize > 0 && sections.DataSize > 0 {
 		if _, err := r.Seek(int64(sections.DidxOffset), io.SeekStart); err != nil {

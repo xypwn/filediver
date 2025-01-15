@@ -391,6 +391,14 @@ func (a *App) MatchingFiles(
 	return res, nil
 }
 
+// Prints hash if human-readable name is unknown.
+func (a *App) LookupHash(hash stingray.Hash) string {
+	if name, ok := a.Hashes[hash]; ok {
+		return name
+	}
+	return hash.String()
+}
+
 type extractContext struct {
 	ctx     context.Context
 	app     *App
@@ -399,9 +407,10 @@ type extractContext struct {
 	config  map[string]string
 	outPath string
 	files   []string
+	printer *Printer
 }
 
-func newExtractContext(ctx context.Context, app *App, file *stingray.File, runner *exec.Runner, config map[string]string, outPath string) *extractContext {
+func newExtractContext(ctx context.Context, app *App, file *stingray.File, runner *exec.Runner, config map[string]string, outPath string, printer *Printer) *extractContext {
 	return &extractContext{
 		ctx:     ctx,
 		app:     app,
@@ -409,6 +418,7 @@ func newExtractContext(ctx context.Context, app *App, file *stingray.File, runne
 		runner:  runner,
 		config:  config,
 		outPath: outPath,
+		printer: printer,
 	}
 }
 
@@ -451,17 +461,14 @@ func (c *extractContext) TriadID() *stingray.Hash {
 func (c *extractContext) ArmorSets() map[stingray.Hash]dlbin.ArmorSet {
 	return c.app.ArmorSets
 }
+func (c *extractContext) Warnf(f string, a ...any) {
+	name, typ := c.app.LookupHash(c.file.ID().Name), c.app.LookupHash(c.file.ID().Type)
+	c.printer.Warnf("extract %v.%v: %v", name, typ, fmt.Sprintf(f, a...))
+}
 
 // Returns path to extracted file/directory.
-func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string, extrCfg map[string]map[string]string, runner *exec.Runner, gltfDoc *gltf.Document) ([]string, error) {
-	name, ok := a.Hashes[id.Name]
-	if !ok {
-		name = id.Name.String()
-	}
-	typ, ok := a.Hashes[id.Type]
-	if !ok {
-		typ = id.Type.String()
-	}
+func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string, extrCfg map[string]map[string]string, runner *exec.Runner, gltfDoc *gltf.Document, printer *Printer) ([]string, error) {
+	name, typ := a.LookupHash(id.Name), a.LookupHash(id.Type)
 
 	file, ok := a.DataDir.Files[id]
 	if !ok {
@@ -534,6 +541,7 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 		runner,
 		cfg,
 		outPath,
+		printer,
 	)
 	if err := extr(extrCtx); err != nil {
 		{

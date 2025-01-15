@@ -382,7 +382,7 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 				meshesToLoad = []uint32{uint32(highestDetailIdx)}
 			}
 		} else {
-			fmt.Println("\nAdding LODs anyway since no lodgroups in unitInfo?")
+			ctx.Warnf("Adding LODs anyway since no lodgroups in unitInfo?")
 			for i := uint32(0); i < unitInfo.NumMeshes; i++ {
 				meshesToLoad = append(meshesToLoad, i)
 			}
