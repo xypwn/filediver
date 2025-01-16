@@ -167,15 +167,7 @@ extractor config:
 	}
 
 	getFileName := func(id stingray.FileID) string {
-		name, ok := a.Hashes[id.Name]
-		if !ok {
-			name = id.Name.String()
-		}
-		typ, ok := a.Hashes[id.Type]
-		if !ok {
-			typ = id.Type.String()
-		}
-		return name + "." + typ
+		return a.LookupHash(id.Name) + "." + a.LookupHash(id.Type)
 	}
 
 	var sortedFileIDs []stingray.FileID
@@ -214,7 +206,16 @@ extractor config:
 
 	if *modeList {
 		for _, id := range sortedFileIDs {
-			fmt.Println(getFileName(id))
+			if name, ok := a.Hashes[id.Name]; ok {
+				fmt.Print(name)
+			}
+			fmt.Print(".")
+			if typ, ok := a.Hashes[id.Type]; ok {
+				fmt.Print(typ)
+			}
+			fmt.Print(", ")
+			fmt.Print(id.Name.String() + "." + id.Type.String())
+			fmt.Println()
 		}
 	} else {
 		prt.Infof("Extracting files...")
