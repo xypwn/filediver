@@ -23,6 +23,7 @@ struct MurmurHash {
 // end stingray.hexpat
 
 import std.mem;
+import std.core;
 
 fn formatBnkHeaderVersion(u32 version) {
     version ^= 0x0000008c ^ 0x9211bc20;
@@ -48,14 +49,25 @@ struct BnkIndex {
     u32 Size;
 };
 
+u32 didxOffset = 0;
+u32 didxSize = 0;
+u32 dataOffset = 0;
+u32 dataSize = 0;
+
 struct Chunk {
     char Type[4];
     u32 Size;
     match (Type) {
-        ("DIDX"): BnkIndex DataIndex[Size/0x0c];
-        ("DATA"): u8 Data[Size];
-        (_): u8 OtherData[Size];
+        ("DIDX"): {
+            didxOffset = $;
+            didxSize = Size;
+        }
+        ("DATA"): {
+            dataOffset = $;
+            dataSize = Size;
+        }
     }
+    padding[Size];
 } [[format("formatChunk")]];
 
 
@@ -63,12 +75,33 @@ fn formatChunk(Chunk chunk) {
     return std::format("{:s} ({:d})", chunk.Type, chunk.Size);
 };
 
-struct StingrayBnk {
+struct StingrayBnkHeader {
     u8 Unk00[4];
     u32 Size;
     MurmurHash Name;
-    BnkHeader BnkHeader;
-    Chunk Chunks[while(!std::mem::eof())]@$-0x08+BnkHeader.HdrSize;
 };
 
-StingrayBnk stingrayBnk @0x00;
+StingrayBnkHeader stingrayHeader @0x00;
+BnkHeader header @ $;
+Chunk chunks[while(!std::mem::eof())] @ 0x18+header.HdrSize;
+
+u32 didxCount = didxSize/0x0c;
+BnkIndex didx[didxCount] @ didxOffset;
+
+struct RiffHeader {
+    char MagicNum[4];
+    u32 RiffSize;
+    char RiffType [4];
+};
+
+struct Wem {
+    RiffHeader header;
+};
+
+struct DataSection {
+    Wem wem @
+        dataOffset + didx[std::core::array_index()].Offset
+        [[name(std::core::array_index())]];
+} [[inline]];
+
+DataSection data[didxCount] @ dataOffset /* Location is only for correct viewing order. */;
