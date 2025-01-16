@@ -1,5 +1,8 @@
-#include <std/ptr.pat>
-#include <std/core.pat>
+import std.ptr;
+import std.core;
+
+// import stingray; // Not sure where to put custom library files yet =/
+// stingray.hexpat
 import std.io;
 
 using ThinMurmurHash;
@@ -20,6 +23,7 @@ struct ThinMurmurHash {
 struct MurmurHash {
     u64 value;
 } [[format("formatHash")]];
+// end stingray.hexpat
 
 fn relative_to_parents_parent(u128 offset) {
     return addressof(parent.parent.parent);

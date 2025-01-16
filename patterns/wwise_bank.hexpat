@@ -1,3 +1,6 @@
+import std.mem;
+import std.core;
+
 // import stingray; // Not sure where to put custom library files yet =/
 // stingray.hexpat
 import std.io;
@@ -21,9 +24,6 @@ struct MurmurHash {
     u64 value;
 } [[format("formatHash")]];
 // end stingray.hexpat
-
-import std.mem;
-import std.core;
 
 fn formatBnkHeaderVersion(u32 version) {
     version ^= 0x0000008c ^ 0x9211bc20;
