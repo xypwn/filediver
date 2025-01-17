@@ -303,7 +303,7 @@ type Mesh struct {
 	Info        MeshInfo
 	Positions   [][3]float32
 	UVCoords    [][][2]float32
-	Normals     [][4]float32
+	Normals     [][3]float32
 	BoneIndices [][][4]uint8
 	BoneWeights [][4]float32
 	Indices     [][]uint32
@@ -342,7 +342,7 @@ func loadMesh(gpuR io.ReadSeeker, info MeshInfo, layout MeshLayout) (Mesh, error
 	for layer := 0; layer < int(uvCoordLayers); layer++ {
 		mesh.UVCoords[layer] = make([][2]float32, 0, layout.NumVertices)
 	}
-	mesh.Normals = make([][4]float32, 0, layout.NumVertices)
+	mesh.Normals = make([][3]float32, 0, layout.NumVertices)
 	mesh.BoneIndices = make([][][4]uint8, boneIdxLayers)
 	for layer := 0; layer < int(boneIdxLayers); layer++ {
 		mesh.BoneIndices[layer] = make([][4]uint8, 0, layout.NumVertices)
@@ -365,7 +365,7 @@ func loadMesh(gpuR io.ReadSeeker, info MeshInfo, layout MeshLayout) (Mesh, error
 				}
 				mesh.Positions = append(mesh.Positions, v)
 			case ItemNormal:
-				var val [4]float32
+				var val [3]float32
 				switch item.Format {
 				case FormatVec4R10G10B10A2_UNORM:
 					var tmp uint32
@@ -375,13 +375,12 @@ func loadMesh(gpuR io.ReadSeeker, info MeshInfo, layout MeshLayout) (Mesh, error
 					val[0] = float32(tmp&0x3ff) / 1023.0
 					val[1] = float32((tmp>>10)&0x3ff) / 1023.0
 					val[2] = float32((tmp>>20)&0x3ff) / 1023.0
-					val[3] = float32((tmp>>30)&0x3) / 3.0
 				case FormatVec4F16:
 					var tmp [4]uint16
 					if err := binary.Read(gpuR, binary.LittleEndian, &tmp); err != nil {
 						return Mesh{}, err
 					}
-					for i := range tmp {
+					for i := range val {
 						val[i] = float16.Frombits(tmp[i]).Float32()
 					}
 				default:
