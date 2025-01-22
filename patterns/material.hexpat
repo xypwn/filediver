@@ -625,6 +625,7 @@ enum SettingsUsage : u32 {
     Material3Metallic = 0x6faeaab2,
     Material2Metallic = 0xc9a20fea,
     Material1Metallic = 0xaf0cc9eb,
+    ReticleColor = 0xfa2ceef2,
 };
 
 struct StingrayHeader {
