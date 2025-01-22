@@ -49,7 +49,7 @@ func printUsage() {
 Finds all occurrences of existing game file hashes in other game files.
 
 options:
-  -S  --  exclude files that reference themselves
+  -S  --  exclude references by the file to itself
 
 examples:
   crossref-checker "*.material" material_crossrefs.txt  --  search all game files with the "material" extension for references to other game files and output result to "material_crossrefs.txt"`)
