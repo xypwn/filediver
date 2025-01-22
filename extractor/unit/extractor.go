@@ -188,7 +188,7 @@ func writeMesh(ctx extractor.Context, doc *gltf.Document, componentName string, 
 		Indices: indices,
 		Attributes: map[string]uint32{
 			gltf.POSITION: positions,
-			//gltf.COLOR_0:  normals,
+			gltf.NORMAL:   normals,
 		},
 		Material: material,
 	}
