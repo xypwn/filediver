@@ -635,19 +635,33 @@ struct StingrayHeader {
     u8 unk01[4];
 };
 
+enum SettingsType : u32 {
+    Scalar = 0,
+    Vector2 = 1,
+    Vector3 = 2,
+    Vector4 = 3,
+    Other = 12,
+};
+
 struct SettingsListItem {
-    u64 unk00;
+    SettingsType type;
+    u32 count;
     SettingsUsage setting;
     u32 offset;
-    u32 unk01;
+    u32 stride;
 };
 
 struct SettingsValue {
     $ = parent.base + parent.items[std::core::array_index()].offset;
-    if(parent.items[std::core::array_index()].setting == SettingsUsage::BaseColor) {
+    if(parent.items[std::core::array_index()].type == SettingsType::Vector3) {
         float value[3];
-    } else if(parent.items[std::core::array_index()].setting == SettingsUsage::BloodColor) {
-        float value[3];
+    } else if(parent.items[std::core::array_index()].type == SettingsType::Vector2) {
+        float value[2];
+    } else if(parent.items[std::core::array_index()].type == SettingsType::Vector4) {
+        float value[4];
+    } else if(parent.items[std::core::array_index()].type == SettingsType::Other) {
+        u32 size = parent.items[std::core::array_index()].stride * parent.items[std::core::array_index()].count;
+        u8 data[size];
     } else {
         float value;
     }
