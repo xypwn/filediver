@@ -390,6 +390,8 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 			fallthrough
 		case ConcreteSurfaceData:
 			fallthrough
+		case GrayscaleSkin:
+			fallthrough
 		case PatternMasksArray:
 			hash := mat.Textures[texUsage]
 			if unitData != nil && TextureUsage(texUsage.Value) == DecalSheet && unitData.DecalSheet.Value != 0 {
