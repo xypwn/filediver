@@ -204,10 +204,12 @@ def add_lut_skin_material(skin_mat: Material, material: dict, textures: Dict[str
         match usage:
             case "color_roughness_lut":
                 config_nodes["Image Texture"].image = image
+                config_nodes["Image Texture"].interpolation = "Closest"
             case "normal_specular_ao":
                 config_nodes["Image Texture.001"].image = image
             case "grayscale_skin":
                 config_nodes["Image Texture.002"].image = image
+                config_nodes["Image Texture.002"].interpolation = "Smart"
     print("    Finalizing material")
     # Set ethnicity to a random value
     config_nodes["Value"].outputs[0].default_value = float(randint(0, 4))
