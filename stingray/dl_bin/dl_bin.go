@@ -163,22 +163,23 @@ const (
 type CustomizationKitPassive uint32
 
 const (
-	PassiveNone           CustomizationKitPassive = 0
-	PassivePadding        CustomizationKitPassive = 1
-	PassiveTactician      CustomizationKitPassive = 2
-	PassiveFireSupport    CustomizationKitPassive = 3
-	PassiveUnk01          CustomizationKitPassive = 4
-	PassiveExperimental   CustomizationKitPassive = 5
-	PassiveCombatEngineer CustomizationKitPassive = 6
-	PassiveCombatMedic    CustomizationKitPassive = 7
-	PassiveBattleHardened CustomizationKitPassive = 8
-	PassiveHero           CustomizationKitPassive = 9
-	PassiveFireResistant  CustomizationKitPassive = 10
-	PassivePeakPhysique   CustomizationKitPassive = 11
-	PassiveGasResistant   CustomizationKitPassive = 12
-	PassiveUnflinching    CustomizationKitPassive = 13
-	PassiveAcclimated     CustomizationKitPassive = 14
-	PassiveSiegeReady     CustomizationKitPassive = 15
+	PassiveNone                 CustomizationKitPassive = 0
+	PassivePadding              CustomizationKitPassive = 1
+	PassiveTactician            CustomizationKitPassive = 2
+	PassiveFireSupport          CustomizationKitPassive = 3
+	PassiveUnk01                CustomizationKitPassive = 4
+	PassiveExperimental         CustomizationKitPassive = 5
+	PassiveCombatEngineer       CustomizationKitPassive = 6
+	PassiveCombatMedic          CustomizationKitPassive = 7
+	PassiveBattleHardened       CustomizationKitPassive = 8
+	PassiveHero                 CustomizationKitPassive = 9
+	PassiveFireResistant        CustomizationKitPassive = 10
+	PassivePeakPhysique         CustomizationKitPassive = 11
+	PassiveGasResistant         CustomizationKitPassive = 12
+	PassiveUnflinching          CustomizationKitPassive = 13
+	PassiveAcclimated           CustomizationKitPassive = 14
+	PassiveSiegeReady           CustomizationKitPassive = 15
+	PassiveIntegratedExplosives CustomizationKitPassive = 16
 )
 
 func (v CustomizationKitPassive) String() string {
@@ -215,6 +216,8 @@ func (v CustomizationKitPassive) String() string {
 		return "Acclimated"
 	case PassiveSiegeReady:
 		return "Siege-Ready"
+	case PassiveIntegratedExplosives:
+		return "Integrated Explosives"
 	default:
 		return fmt.Sprint(uint32(v))
 	}
@@ -306,7 +309,7 @@ func LoadArmorSetDefinitions() (map[stingray.Hash]ArmorSet, error) {
 			return nil, err
 		}
 
-		r.Seek(int64(item.Kit.BodyArrayAddress&0xfffff), io.SeekStart)
+		r.Seek(int64((item.Kit.BodyArrayAddress&0xfffff)-0xa0000), io.SeekStart)
 		var bodies []Body = make([]Body, item.Kit.BodyCount)
 		if err := binary.Read(r, binary.LittleEndian, bodies); err != nil {
 			return nil, err
@@ -320,7 +323,7 @@ func LoadArmorSetDefinitions() (map[stingray.Hash]ArmorSet, error) {
 		}
 
 		for _, body := range bodies {
-			r.Seek(int64(body.PiecesAddress&0xfffff), io.SeekStart)
+			r.Seek(int64((body.PiecesAddress&0xfffff)-0xa0000), io.SeekStart)
 			pieces := make([]Piece, body.PiecesCount)
 			if err := binary.Read(r, binary.LittleEndian, pieces); err != nil {
 				return nil, err

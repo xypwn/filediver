@@ -100,7 +100,7 @@ struct Pieces {
 struct Body {
     BodyType type;
     u32 unk01;
-    u32 offset = std::mem::read_unsigned($, 4) & 0xfffff;
+    u32 offset = (std::mem::read_unsigned($, 4) & 0xfffff) - 0xa0000;
     $ += 4;
     u32 unk02;
     u32 count;
@@ -135,6 +135,7 @@ enum Passive : u32 {
     UNFLINCHING,
     ACCLIMATED,
     SIEGE_READY,
+    INTEGRATED_EXPLOSIVES,
 };
 
 fn passiveName(Passive passive) {
@@ -155,6 +156,7 @@ fn passiveName(Passive passive) {
         (Passive::UNFLINCHING): return "UNFLINCHING";
         (Passive::ACCLIMATED): return "ACCLIMATED";
         (Passive::SIEGE_READY): return "SIEGE_READY";
+        (Passive::INTEGRATED_EXPLOSIVES): return "INTEGRATED_EXPLOSIVES";
     }
     return "Very unknown!";
 };
@@ -183,14 +185,15 @@ struct HelldiverCustomizationKit {
         passive_bonus != Passive::GAS_RESISTANT &&
         passive_bonus != Passive::UNFLINCHING &&
         passive_bonus != Passive::ACCLIMATED &&
-        passive_bonus != Passive::SIEGE_READY
+        passive_bonus != Passive::SIEGE_READY &&
+        passive_bonus != Passive::INTEGRATED_EXPLOSIVES
     ) {
         std::print("Unknown passive in element {:d}! {}", std::core::array_index(), u32(passive_bonus));
     }
     MurmurHash triad;
     KitType type;
     u32 unk01;
-    u32 offset = std::mem::read_unsigned($, 4) & 0xfffff;
+    u32 offset = (orig & 0xfffff) - 0xa0000;
     $ += 4;
     u32 unk02;
     u32 count;
