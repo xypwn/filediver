@@ -184,10 +184,6 @@ Example: Given the previous wordlist example's parameters, but with a prefix lis
 		os.Exit(1)
 	}
 	if *inputPath != "" {
-		if *thin {
-			fmt.Fprintln(os.Stderr, "\"thin\" option only available for \"hash\" mode")
-			os.Exit(1)
-		}
 
 		if *littleEndian {
 			fmt.Fprintln(os.Stderr, "\"big_endian\" option only available for \"hash\" mode")
