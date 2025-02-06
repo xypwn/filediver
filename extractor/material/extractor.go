@@ -164,171 +164,6 @@ func writeTexture(ctx extractor.Context, doc *gltf.Document, id stingray.Hash, p
 	return texIdx, nil
 }
 
-type TextureUsage uint32
-
-const (
-	AlbedoIridescence                     TextureUsage = 0xff2c91cc //stingray.Sum64([]byte("albedo_iridescence")).Thin()
-	AlbedoEmissive                        TextureUsage = 0xe67ac0c7
-	Albedo                                TextureUsage = 0xac652e43
-	BaseData                              TextureUsage = 0xc2eb8d6e
-	BloodSplatterTiler                    TextureUsage = 0x30e2d136
-	BugSplatterTiler                      TextureUsage = 0x37831285
-	CompositeArray                        TextureUsage = 0xa17b45a8
-	CustomizationCamoTilerArray           TextureUsage = 0x0f5ff78d
-	CustomizationMaterialDetailTilerArray TextureUsage = 0xd3a0408e
-	DecalSheet                            TextureUsage = 0x632a8b80
-	DetailNormalLeather                   TextureUsage = 0xe719da57
-	DetailNormalPorcelain                 TextureUsage = 0x04fb61ad
-	EmissiveColor                         TextureUsage = 0xc985395a
-	IdMasksArray                          TextureUsage = 0xb281e5f2
-	IlluminateData                        TextureUsage = 0x90b84a53
-	LensCutoutTexture                     TextureUsage = 0x89bbcec2
-	MaterialLUT                           TextureUsage = 0x7e662968
-	MRA                                   TextureUsage = 0x756f6fa6
-	NAR                                   TextureUsage = 0x4c567810
-	Normal                                TextureUsage = 0xcaed6cd6
-	PatternLUT                            TextureUsage = 0x81d4c49d
-	PatternMasksArray                     TextureUsage = 0x05a27dd5
-	WeatheringSpecial                     TextureUsage = 0xd2f99d38
-	WeatheringDirt                        TextureUsage = 0x6834aa9b
-	ScorchMarks                           TextureUsage = 0x5637e5d3
-	SubsurfaceOpacity                     TextureUsage = 0xe7bd9019
-	WoundData                             TextureUsage = 0xf8e31d7b
-	WoundDerivative                       TextureUsage = 0xa59f5e11
-	WoundNormal                           TextureUsage = 0x736a0029
-	Wounds256                             TextureUsage = 0xa52f1caa
-	Wounds512                             TextureUsage = 0x75d9cea2
-	NormalMap                             TextureUsage = 0xf5c97d31
-	DirtMap                               TextureUsage = 0x38e4b36f
-	NoiseArray                            TextureUsage = 0x44f1ac4d
-	LightBleedMap                         TextureUsage = 0x826c239a
-	RoughnessMap                          TextureUsage = 0xc567338d
-	InputImage                            TextureUsage = 0xf7aafe73
-	DistortionMap                         TextureUsage = 0x08279894
-	TextureLUT                            TextureUsage = 0xdbd93d8b
-	NAC                                   TextureUsage = 0x1290c14e
-	DetailData                            TextureUsage = 0x25288cc7
-	MetalSurfaceData                      TextureUsage = 0xe32e3fa5
-	ConcreteSurfaceData                   TextureUsage = 0x8d69d2ee
-	CoveringAlbedo                        TextureUsage = 0x8261a5a5
-	CoveringNormal                        TextureUsage = 0x4c6fc000
-	WeatheringDataMask                    TextureUsage = 0xb4dcc2c1
-	CapeLUT                               TextureUsage = 0x0e494183
-	NormalSpecularAO                      TextureUsage = 0xe64c5236
-	ColorRoughness                        TextureUsage = 0x8a013406
-	ColorSpecularB                        TextureUsage = 0x828a53ad
-	DetailNormals                         TextureUsage = 0xbe22de88
-)
-
-func (usage *TextureUsage) String() string {
-	switch *usage {
-	case AlbedoIridescence:
-		return "albedo_iridescence"
-	case AlbedoEmissive:
-		return "albedo_emissive"
-	case Albedo:
-		return "albedo"
-	case BaseData:
-		return "base_data"
-	case BloodSplatterTiler:
-		return "blood_splatter_tiler"
-	case BugSplatterTiler:
-		return "bug_splatter_tiler"
-	case CompositeArray:
-		return "composite_array"
-	case CustomizationCamoTilerArray:
-		return "customization_camo_tiler_array"
-	case CustomizationMaterialDetailTilerArray:
-		return "customization_material_detail_tiler_array"
-	case DecalSheet:
-		return "decal_sheet"
-	case DetailNormalLeather:
-		return "detail_normal_leather"
-	case DetailNormalPorcelain:
-		return "detail_normal_porcelain"
-	case EmissiveColor:
-		return "emissive_color"
-	case IdMasksArray:
-		return "id_masks_array"
-	case IlluminateData:
-		return "illuminate_data"
-	case LensCutoutTexture:
-		return "lens_cutout_texture"
-	case MaterialLUT:
-		return "material_lut"
-	case MRA:
-		return "mra"
-	case NAR:
-		return "nar"
-	case Normal:
-		return "normal"
-	case PatternLUT:
-		return "pattern_lut"
-	case PatternMasksArray:
-		return "pattern_masks_array"
-	case ScorchMarks:
-		return "scorch_marks"
-	case SubsurfaceOpacity:
-		return "subsurface_opacity"
-	case WeatheringDirt:
-		return "weathering_dirt"
-	case WeatheringSpecial:
-		return "weathering_special"
-	case WoundData:
-		return "wound_data"
-	case WoundDerivative:
-		return "wound_derivative"
-	case WoundNormal:
-		return "wound_normal"
-	case Wounds256:
-		return "wounds_256"
-	case Wounds512:
-		return "wounds_512"
-	case NormalMap:
-		return "normal_map"
-	case DirtMap:
-		return "dirt_map"
-	case NoiseArray:
-		return "noise_array"
-	case LightBleedMap:
-		return "light_bleed_map"
-	case RoughnessMap:
-		return "roughness_map"
-	case InputImage:
-		return "input_image"
-	case DistortionMap:
-		return "distortion_map"
-	case TextureLUT:
-		return "texture_lut"
-	case NAC:
-		return "NAC"
-	case DetailData:
-		return "Detail_Data"
-	case MetalSurfaceData:
-		return "metal_surface_data"
-	case ConcreteSurfaceData:
-		return "concrete_surface_data"
-	case CoveringAlbedo:
-		return "covering_albedo"
-	case CoveringNormal:
-		return "covering_normal"
-	case WeatheringDataMask:
-		return "weathering_data_mask"
-	case CapeLUT:
-		return "cape_lut"
-	case NormalSpecularAO:
-		return "normal_specular_ao"
-	case ColorRoughness:
-		return "color_roughness"
-	case ColorSpecularB:
-		return "color_specular_b"
-	case DetailNormals:
-		return "detail_normals"
-	default:
-		return "unknown texture usage!"
-	}
-}
-
 func compareMaterials(doc *gltf.Document, mat *material.Material, matIdx uint32, matName string, unitData *dlbin.UnitData) bool {
 	if doc.Materials[matIdx].Name != matName {
 		return false
@@ -405,6 +240,8 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 	for texUsage := range mat.Textures {
 		switch TextureUsage(texUsage.Value) {
 		case ColorRoughness:
+			fallthrough
+		case ColorSpecularB:
 			fallthrough
 		case AlbedoIridescence:
 			albedoPostProcess = nil
@@ -483,6 +320,42 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 			fallthrough
 		case CapeLUT:
 			fallthrough
+		case LUTEmissive:
+			fallthrough
+		case BloodLUT:
+			fallthrough
+		case BrdfLUT:
+			fallthrough
+		case ColorLUT:
+			fallthrough
+		case ColorRoughnessLUT:
+			fallthrough
+		case ContinentsLUT:
+			fallthrough
+		case CorporateColorRoughnessLUT:
+			fallthrough
+		case CosmicDustLUT:
+			fallthrough
+		case EmissiveNebulaLUT:
+			fallthrough
+		case EyeLUT:
+			fallthrough
+		case MinimapLUT:
+			fallthrough
+		case MoonLUT:
+			fallthrough
+		case PaletteLUT:
+			fallthrough
+		case SpaceStarLUT:
+			fallthrough
+		case SpaceStarLUTTmp:
+			fallthrough
+		case SpecularBrdfLUT:
+			fallthrough
+		case SssLUT:
+			fallthrough
+		case WoundLUTToAdd:
+			fallthrough
 		case PatternLUT:
 			// Save raw DDS for all LUT types, to later be processed into exr
 			imgOpts = lutImgOpts
@@ -516,6 +389,8 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 		case MetalSurfaceData:
 			fallthrough
 		case ConcreteSurfaceData:
+			fallthrough
+		case GrayscaleSkin:
 			fallthrough
 		case PatternMasksArray:
 			hash := mat.Textures[texUsage]
@@ -574,7 +449,7 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 			}
 		default:
 			if ctx.Config()["all_textures"] == "true" {
-				fmt.Printf("addMaterial: Unknown texture usage %v\n", texUsage.String())
+				fmt.Printf("addMaterial: Unknown/unhandled texture usage %v\n", texUsage.String())
 				index, err := writeTexture(ctx, doc, mat.Textures[texUsage], postProcess, imgOpts)
 				if err != nil {
 					continue

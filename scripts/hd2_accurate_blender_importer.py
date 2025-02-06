@@ -74,18 +74,18 @@ def get_data(gltf: dict, bufferViewIdx: int) -> bytes:
     endOffset = startOffset + bufferView["byteLength"]
     return gltf["chunks"][bufferIdx].data[startOffset:endOffset]
 
-def get_texture_data(gltf: dict, textureIdx: int) -> bytes:
+def get_texture_data(gltf: dict, textureIdx: int, dds_if_avail: bool = True) -> bytes:
     texture = gltf["textures"][textureIdx]
-    if "extensions" in texture:
+    if "extensions" in texture and dds_if_avail:
         sourceIdx = texture["extensions"]["MSFT_texture_dds"]["source"]
     else:
         sourceIdx = texture["source"]
     image = gltf["images"][sourceIdx]
     return get_data(gltf, image["bufferView"])
 
-def get_texture_image(gltf: dict, textureIdx: int) -> dict:
+def get_texture_image(gltf: dict, textureIdx: int, dds_if_avail: bool = True) -> dict:
     texture = gltf["textures"][textureIdx]
-    if "extensions" in texture:
+    if "extensions" in texture and dds_if_avail:
         sourceIdx = texture["extensions"]["MSFT_texture_dds"]["source"]
     else:
         sourceIdx = texture["source"]
@@ -111,11 +111,17 @@ def add_texture(gltf, textureIdx, usage: Optional[str] = None) -> Image:
         name = f"{usage} {image['name']}"
     name = str(Path(name).with_suffix(".png"))
     if image["mimeType"] == "image/vnd-ms.dds":
-        dds = DDS.parse(BytesIO(data))
-        data = make_exr(dds.pixels().astype(np.float32))
-        name = str(Path(name).with_suffix(".exr"))
-        height, width = dds.header.height, dds.header.width
-        fmt = "OPEN_EXR"
+        try:
+            dds = DDS.parse(BytesIO(data))
+            data = make_exr(dds.pixels().astype(np.float32))
+            name = str(Path(name).with_suffix(".exr"))
+            height, width = dds.header.height, dds.header.width
+            fmt = "OPEN_EXR"
+        except AssertionError:
+            image = get_texture_image(gltf, textureIdx, False)
+            data = get_texture_data(gltf, textureIdx, False)
+            height, width = get_png_dimensions(data)
+            fmt = "PNG"
     else:
         height, width = get_png_dimensions(data)
         fmt = "PNG"
@@ -187,6 +193,28 @@ def add_skin_material(skin_mat: Material, material: dict, textures: Dict[str, Im
     config_nodes["Value"].outputs[0].default_value = float(randint(0, 4))
     return object_mat
 
+def add_lut_skin_material(skin_mat: Material, material: dict, textures: Dict[str, Image]):
+    object_mat = skin_mat.copy()
+    object_mat.name = "HD2 Mat " + material["name"]
+
+    print("    Applying textures")
+    config_nodes: Dict[str, ShaderNodeTexImage] = object_mat.node_tree.nodes
+    for usage, image in textures.items():
+        image.colorspace_settings.name = "Non-Color"
+        match usage:
+            case "color_roughness_lut":
+                config_nodes["Image Texture"].image = image
+                config_nodes["Image Texture"].interpolation = "Closest"
+            case "normal_specular_ao":
+                config_nodes["Image Texture.001"].image = image
+            case "grayscale_skin":
+                config_nodes["Image Texture.002"].image = image
+                config_nodes["Image Texture.002"].interpolation = "Smart"
+    print("    Finalizing material")
+    # Set ethnicity to a random value
+    config_nodes["Value"].outputs[0].default_value = float(randint(0, 4))
+    return object_mat
+
 def main():
     parser = ArgumentParser("hd2_accurate_blender_importer")
     parser.add_argument("input_model", type=Path, help="Path to filediver-exported .glb to import into a .blend file")
@@ -232,6 +260,8 @@ def main():
     shader_mat.use_fake_user = True
     skin_mat = bpy.data.materials["HD2 Skin"]
     skin_mat.use_fake_user = True
+    lut_skin_mat = bpy.data.materials["HD2 LUT Skin"]
+    lut_skin_mat.use_fake_user = True
 
     optional_usages = ["decal_sheet", "pattern_masks_array"]
     unused_texture = bpy.data.images.new("unused", 1, 1, alpha=True, float_buffer=True)
@@ -265,12 +295,13 @@ def main():
             continue
         material = gltf["materials"][primitive["material"]]
         is_pbr = "albedo" in material["extras"] or "albedo_iridescence" in material["extras"] or "normal" in material["extras"]
-        is_skin = "color_roughness" in material["extras"] and "normal_specular_ao" in material["extras"] and len(material["extras"]) == 2
+        is_tex_array_skin = "color_roughness" in material["extras"] and "normal_specular_ao" in material["extras"] and len(material["extras"]) == 2
+        is_lut_skin = "grayscale_skin" in material["extras"] and "color_roughness_lut" in material["extras"]
         is_lut = "material_lut" in material["extras"]
         if material["name"] in materialTextures:
             textures = materialTextures[material["name"]]
         else:
-            if len(material["extras"]) == 0 or not any((is_pbr, is_skin, is_lut)):
+            if len(material["extras"]) == 0 or not any((is_pbr, is_tex_array_skin, is_lut_skin, is_lut)):
                 continue
             if not args.packall and is_pbr:
                 continue
@@ -299,8 +330,10 @@ def main():
             print("    Copying template material")
             if is_lut:
                 object_mat = add_accurate_material(shader_mat, material, shader_module, unused_secondary_lut, textures)
-            elif is_skin:
+            elif is_tex_array_skin:
                 object_mat = add_skin_material(skin_mat, material, textures)
+            elif is_lut_skin:
+                object_mat = add_lut_skin_material(lut_skin_mat, material, textures)
         else:
             print(f"    Found existing material 'HD2 Mat {material['name']}'")
             object_mat = bpy.data.materials["HD2 Mat " + material["name"]]

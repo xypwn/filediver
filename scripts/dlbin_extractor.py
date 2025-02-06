@@ -2,53 +2,13 @@
 # Obtaining a memory dump is an exercise left to the reader
 
 import struct
-from io import BytesIO
 from typing import List, Tuple
 from argparse import ArgumentParser
 from pathlib import Path
 from pprint import pprint
 import os
 
-class DlBinItem:
-    def __init__(self, magic: str, unk00: int, unk01: int, size: int, unk02: int, unk03: int, content: bytes):
-        self.magic = magic
-        self.unk00 = unk00
-        self.unk01 = unk01
-        self.size = size
-        self.unk02 = unk02
-        self.unk03 = unk03
-        self.content = content
-
-    @classmethod
-    def parse(cls, data: BytesIO) -> 'DlBinItem':
-        magic, unk00, unk01, size, unk02, unk03 = struct.unpack("<4sIIIII", data.read(24))
-        assert magic == b"LDLD"
-        content = data.read(size)
-        return cls(magic, unk00, unk01, size, unk02, unk03, content)
-    
-    def serialize(self) -> bytes:
-        return struct.pack("<4sIIIII", self.magic, self.unk00, self.unk01, self.size, self.unk02, self.unk03) + self.content
-
-
-class DlBin:
-    def __init__(self, count: int, items: List[DlBinItem]):
-        self.count = count
-        self.items = items
-
-    @classmethod
-    def parse(cls, data: BytesIO) -> 'DlBin':
-        count = struct.unpack("<I", data.read(4))[0]
-        items = [DlBinItem.parse(data) for _ in range(count)]
-        while data.read(4) == b"LDLD":
-            data.seek(-4, os.SEEK_CUR)
-            items.append(DlBinItem.parse(data))
-        else:
-            data.seek(-4, os.SEEK_CUR)
-        return cls(count, items)
-    
-    def serialize(self) -> bytes:
-        return struct.pack("<I", self.count) + b''.join([item.serialize() for item in self.items])
-
+from dlbin import DlBin
 
 search_bytes = b'\x4c\x44\x4c\x44\x01\x00\x00\x00'
 
