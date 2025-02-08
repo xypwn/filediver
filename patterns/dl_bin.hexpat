@@ -256,9 +256,58 @@ struct UnitCustomizationSetting {
     padding[sizeof(skins)];
 };
 
+enum WeaponCustomizationSlot : u32 {
+    NONE,
+    UNDERBARREL,
+    OPTICS,
+    PAINTSCHEME,
+    MUZZLE,
+    MAGAZINE,
+    AMMOTYPE,
+    AMMOTYPEALTERNATE,
+    INTERNALS,
+    TRIGGERS,
+    COUNT,
+};
+
+struct WeaponCustomizationSetting {
+    u32 nameOffset = std::mem::read_unsigned($, 4) & 0xfffff - 0xb0000;
+    $ += 4;
+    if (nameOffset != 0) {
+        char debugName[] @nameOffset;
+    }
+    u32 unk00;
+    u32 id;
+    u32 name_upper;
+    u32 name_cased;
+    u32 description;
+    u64 fluff;
+    MurmurHash add_path;
+    u64 unk01;
+    u32 slotOffset = std::mem::read_unsigned($, 4) & 0xfffff - 0xb0000;
+    $ += 4;
+    u32 unk02;
+    u32 count;
+    u32 unk03;
+    if (slotOffset != 0) {
+        WeaponCustomizationSlot slots[count] @slotOffset;
+    }
+};
+
+struct WeaponCustomizationSettingArray {
+    u32 offset = (std::mem::read_unsigned($, 4) & 0xfffff) - 0xb0000;
+    $ += 4;
+    u32 unk00;
+    u32 count;
+    u32 unk01;
+    WeaponCustomizationSetting settings[count] @ offset;
+    padding[sizeof(settings)];
+};
+
 enum DLItemType : u32 {
     UnitCustomization = 0xa2ba274a,
     ArmorCustomization = 0xd9a55aa0,
+    WeaponCustomization = 0x1e604234,
 };
 
 struct DLItem {
@@ -271,6 +320,7 @@ struct DLItem {
     match(type) {
         (DLItemType::UnitCustomization): UnitCustomizationSetting data;
         (DLItemType::ArmorCustomization): HelldiverCustomizationKit data;
+        (DLItemType::WeaponCustomization): WeaponCustomizationSettingArray data;
         (_): u8 data[size];
     }
     padding[size-sizeof(data)];
