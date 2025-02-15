@@ -1,6 +1,7 @@
 package strings
 
 import (
+	"bytes"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
@@ -17,7 +18,11 @@ type StingrayStrings struct {
 }
 
 func (s *StingrayStrings) MarshalJSON() ([]byte, error) {
-	return json.Marshal(s.Strings)
+	buf := bytes.Buffer{}
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	err := enc.Encode(s.Strings)
+	return buf.Bytes(), err
 }
 
 func ReadCString(r io.Reader) (*string, error) {

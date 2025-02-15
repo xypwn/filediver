@@ -22,15 +22,14 @@ func ExtractStringsJSON(ctx extractor.Context) error {
 	if err != nil {
 		return err
 	}
-	data, err := json.Marshal(strings)
-	if err != nil {
-		return nil
-	}
 	out, err := ctx.CreateFile(".json")
 	if err != nil {
 		return err
 	}
 	defer out.Close()
-	_, err = out.Write(data)
+	enc := json.NewEncoder(out)
+	enc.SetEscapeHTML(false)
+	enc.SetIndent("", "    ")
+	err = enc.Encode(strings)
 	return err
 }
