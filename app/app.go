@@ -143,6 +143,15 @@ var ConfigFormat = ConfigTemplate{
 				},
 			},
 		},
+		"strings": {
+			Category: "text",
+			Options: map[string]ConfigTemplateOption{
+				"format": {
+					Type: ConfigValueEnum,
+					Enum: []string{"json", "source"},
+				},
+			},
+		},
 		"raw": {
 			Category: "",
 			Options: map[string]ConfigTemplateOption{
@@ -525,6 +534,12 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 			extr = extr_texture.ExtractDDS
 		} else {
 			extr = extr_texture.ConvertToPNG
+		}
+	case "strings":
+		if cfg["format"] == "source" {
+			extr = extractor.ExtractFuncRaw(".strings", stingray.DataMain, stingray.DataStream, stingray.DataGPU)
+		} else {
+			extr = extr_strings.ExtractStringsJSON
 		}
 	default:
 		extr = extractor.ExtractFuncRaw("."+typ, stingray.DataMain, stingray.DataStream, stingray.DataGPU)
