@@ -151,6 +151,19 @@ const (
 	KitCape   CustomizationKitType = 2
 )
 
+func (v CustomizationKitType) String() string {
+	switch v {
+	case KitArmor:
+		return "Armor"
+	case KitHelmet:
+		return "Helmet"
+	case KitCape:
+		return "Cape"
+	default:
+		return "Unknown"
+	}
+}
+
 type CustomizationKitRarity uint32
 
 const (
@@ -159,6 +172,19 @@ const (
 	RarityUncommon CustomizationKitRarity = 1
 	RarityHeroic   CustomizationKitRarity = 2
 )
+
+func (v CustomizationKitRarity) String() string {
+	switch v {
+	case RarityCommon:
+		return "Common"
+	case RarityUncommon:
+		return "Uncommon"
+	case RarityHeroic:
+		return "Heroic"
+	default:
+		return "Unknown"
+	}
+}
 
 type CustomizationKitPassive uint32
 
