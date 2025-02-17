@@ -226,13 +226,13 @@ type App struct {
 	Hashes     map[stingray.Hash]string
 	ThinHashes map[stingray.ThinHash]string
 	// Passed triad ID (-t option).
-	TriadID   *stingray.Hash
+	TriadIDs  []stingray.Hash
 	ArmorSets map[stingray.Hash]dlbin.ArmorSet
 	DataDir   *stingray.DataDir
 }
 
 // Open game dir and read metadata.
-func OpenGameDir(ctx context.Context, gameDir string, hashes []string, thinhashes []string, triadID *stingray.Hash, onProgress func(curr, total int)) (*App, error) {
+func OpenGameDir(ctx context.Context, gameDir string, hashes []string, thinhashes []string, triadIDs []stingray.Hash, onProgress func(curr, total int)) (*App, error) {
 	dataDir, err := stingray.OpenDataDir(ctx, filepath.Join(gameDir, "data"), onProgress)
 	if err != nil {
 		return nil, err
@@ -287,7 +287,7 @@ func OpenGameDir(ctx context.Context, gameDir string, hashes []string, thinhashe
 	return &App{
 		Hashes:     hashesMap,
 		ThinHashes: thinHashesMap,
-		TriadID:    triadID,
+		TriadIDs:   triadIDs,
 		ArmorSets:  armorSets,
 		DataDir:    dataDir,
 	}, nil
@@ -337,7 +337,7 @@ func (a *App) matchFileID(id stingray.FileID, glb glob.Glob, nameOnly bool) bool
 func (a *App) MatchingFiles(
 	includeGlob string,
 	excludeGlob string,
-	includeTriadID *stingray.Hash,
+	includeTriadIDs []stingray.Hash,
 	cfgTemplate ConfigTemplate,
 	cfg map[string]map[string]string,
 ) (
@@ -363,26 +363,28 @@ func (a *App) MatchingFiles(
 		}
 	}
 
-	var includeTriadFiles map[stingray.FileID]*stingray.File
-	if includeTriadID != nil {
-		var ok bool
-		includeTriadFiles, ok = a.DataDir.FilesByTriad[*includeTriadID]
+	var includeTriadFiles map[stingray.FileID]*stingray.File = make(map[stingray.FileID]*stingray.File)
+	for _, includeTriadID := range includeTriadIDs {
+		files, ok := a.DataDir.FilesByTriad[includeTriadID]
 		if !ok {
 			return nil, fmt.Errorf("triad %v does not exist", includeTriadID.String())
+		}
+		for id, file := range files {
+			includeTriadFiles[id] = file
 		}
 	}
 
 	res := make(map[stingray.FileID]*stingray.File)
 	for id, file := range a.DataDir.Files {
 		shouldIncl := true
-		if includeTriadID != nil {
+		if len(includeTriadIDs) != 0 {
 			if _, ok := includeTriadFiles[id]; !ok {
 				shouldIncl = false
 			}
 		}
 		if includeGlob != "" {
 			// Include all files in triad even if they don't match the includeGlob - includeGlob will only add files to read
-			shouldIncl = (includeTriadID != nil && shouldIncl) || a.matchFileID(id, inclGlob, inclGlobNameOnly)
+			shouldIncl = (len(includeTriadIDs) != 0 && shouldIncl) || a.matchFileID(id, inclGlob, inclGlobNameOnly)
 		}
 		if excludeGlob != "" {
 			if a.matchFileID(id, exclGlob, exclGlobNameOnly) {
@@ -488,8 +490,8 @@ func (c *extractContext) Hashes() map[stingray.Hash]string {
 func (c *extractContext) ThinHashes() map[stingray.ThinHash]string {
 	return c.app.ThinHashes
 }
-func (c *extractContext) TriadID() *stingray.Hash {
-	return c.app.TriadID
+func (c *extractContext) TriadIDs() []stingray.Hash {
+	return c.app.TriadIDs
 }
 func (c *extractContext) ArmorSets() map[stingray.Hash]dlbin.ArmorSet {
 	return c.app.ArmorSets

@@ -55,7 +55,7 @@ extractor config:
 ` + app.ExtractorConfigHelpMessage(app.ConfigFormat),
 		DisableDefaultShowHelp: true,
 	})
-	triad := parser.String("t", "triad", &argparse.Option{Help: "Include triad name as found in game data directory (aka Archive ID, eg 0x9ba626afa44a3aa3)"})
+	triads := parser.String("t", "triads", &argparse.Option{Help: "Include comma-separated triad name(s) as found in game data directory (aka Archive ID, eg 0x9ba626afa44a3aa3)"})
 	gameDir := parser.String("g", "gamedir", &argparse.Option{Help: "Helldivers 2 game directory"})
 	modeList := parser.Flag("l", "list", &argparse.Option{Help: "List all files without extracting anything"})
 	outDir := parser.String("o", "out", &argparse.Option{Default: "extracted", Help: "Output directory (default: extracted)"})
@@ -97,14 +97,16 @@ extractor config:
 	}
 	defer runner.Close()
 
-	var triadID *stingray.Hash
-	if *triad != "" {
-		triadID = new(stingray.Hash)
-		trimmed := strings.TrimPrefix(*triad, "0x")
-		var err error
-		triadID.Value, err = strconv.ParseUint(trimmed, 16, 64)
-		if err != nil {
-			prt.Fatalf("parsing triad name: %v", err)
+	triadIDs := make([]stingray.Hash, 0)
+	if *triads != "" {
+		split := strings.Split(*triads, ",")
+		for _, triad := range split {
+			trimmed := strings.TrimPrefix(triad, "0x")
+			value, err := strconv.ParseUint(trimmed, 16, 64)
+			if err != nil {
+				prt.Fatalf("parsing triad name: %v", err)
+			}
+			triadIDs = append(triadIDs, stingray.Hash{Value: value})
 		}
 	}
 
@@ -147,7 +149,7 @@ extractor config:
 		cancel()
 	}()
 
-	a, err := app.OpenGameDir(ctx, *gameDir, knownHashes, knownThinHashes, triadID, func(curr, total int) {
+	a, err := app.OpenGameDir(ctx, *gameDir, knownHashes, knownThinHashes, triadIDs, func(curr, total int) {
 		prt.Statusf("Reading metadata %.0f%%", float64(curr)/float64(total)*100)
 	})
 	if err != nil {
@@ -161,7 +163,7 @@ extractor config:
 	}
 	prt.NoStatus()
 
-	files, err := a.MatchingFiles(*extrInclGlob, *extrExclGlob, triadID, app.ConfigFormat, extrCfg)
+	files, err := a.MatchingFiles(*extrInclGlob, *extrExclGlob, triadIDs, app.ConfigFormat, extrCfg)
 	if err != nil {
 		prt.Fatalf("%v", err)
 	}
@@ -227,8 +229,8 @@ extractor config:
 			}
 			var closeGLB func(doc *gltf.Document) error
 			name := "combined_" + key
-			if triad != nil && len(*triad) > 0 {
-				name = fmt.Sprintf("%s_%s", *triad, key)
+			if triads != nil && len(*triads) > 0 {
+				name = fmt.Sprintf("%s_%s", strings.ReplaceAll(*triads, ",", "_"), key)
 			}
 			documents[key], closeGLB = createCloseableGltfDocument(*outDir, name, extrCfg[key], runner)
 			defer closeGLB(documents[key])
