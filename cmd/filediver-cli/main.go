@@ -62,6 +62,7 @@ extractor config:
 	extrCfgStr := parser.String("c", "config", &argparse.Option{Help: "Configure extractors (see \"extractor config\" section)"})
 	extrInclGlob := parser.String("i", "include", &argparse.Option{Help: "Select only matching files (glob syntax, see matching files section)"})
 	extrExclGlob := parser.String("x", "exclude", &argparse.Option{Help: "Exclude matching files from selection (glob syntax, can be mixed with --include, see matching files section)"})
+	armorStringsFile := parser.String("s", "strings", &argparse.Option{Default: "0x7c7587b563f10985", Help: "Strings file to use to map armor set string IDs to names (default: \"0x7c7587b563f10985\" - en-us)"})
 	//verbose := parser.Flag("v", "verbose", &argparse.Option{Help: "Provide more detailed status output"})
 	knownHashesPath := parser.String("", "hashes_file", &argparse.Option{Help: "Path to a text file containing known file and type names"})
 	if err := parser.Parse(nil); err != nil {
@@ -110,6 +111,16 @@ extractor config:
 		}
 	}
 
+	armorStringsValue, err := strconv.ParseUint(strings.TrimPrefix(*armorStringsFile, "0x"), 16, 64)
+	if err != nil {
+		armorStringsValue, err = strconv.ParseUint(strings.TrimPrefix(*armorStringsFile, "0x"), 10, 64)
+		if err != nil {
+			prt.Warnf("unable to parse armor strings hash, using default of en-us")
+			armorStringsValue = 0x7c7587b563f10985
+		}
+	}
+	armorStringsHash := stingray.Hash{Value: armorStringsValue}
+
 	if *gameDir == "" {
 		var err error
 		*gameDir, err = app.DetectGameDir()
@@ -149,7 +160,7 @@ extractor config:
 		cancel()
 	}()
 
-	a, err := app.OpenGameDir(ctx, *gameDir, knownHashes, knownThinHashes, triadIDs, func(curr, total int) {
+	a, err := app.OpenGameDir(ctx, *gameDir, knownHashes, knownThinHashes, triadIDs, armorStringsHash, func(curr, total int) {
 		prt.Statusf("Reading metadata %.0f%%", float64(curr)/float64(total)*100)
 	})
 	if err != nil {

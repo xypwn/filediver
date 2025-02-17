@@ -232,7 +232,7 @@ type App struct {
 }
 
 // Open game dir and read metadata.
-func OpenGameDir(ctx context.Context, gameDir string, hashes []string, thinhashes []string, triadIDs []stingray.Hash, onProgress func(curr, total int)) (*App, error) {
+func OpenGameDir(ctx context.Context, gameDir string, hashes []string, thinhashes []string, triadIDs []stingray.Hash, armorStrings stingray.Hash, onProgress func(curr, total int)) (*App, error) {
 	dataDir, err := stingray.OpenDataDir(ctx, filepath.Join(gameDir, "data"), onProgress)
 	if err != nil {
 		return nil, err
@@ -248,7 +248,7 @@ func OpenGameDir(ctx context.Context, gameDir string, hashes []string, thinhashe
 	}
 
 	stringsFile, ok := dataDir.Files[stingray.FileID{
-		Name: stingray.Hash{Value: 0x7c7587b563f10985},
+		Name: armorStrings,
 		Type: stingray.Sum64([]byte("strings")),
 	}]
 
