@@ -15,7 +15,7 @@ var fs embed.FS
 type CustomizationKitSlot uint32
 
 const (
-	SlotUnk           CustomizationKitSlot = 0
+	SlotHelmet        CustomizationKitSlot = 0
 	SlotCape          CustomizationKitSlot = 1
 	SlotTorso         CustomizationKitSlot = 2
 	SlotHips          CustomizationKitSlot = 3
@@ -29,8 +29,8 @@ const (
 
 func (b CustomizationKitSlot) String() string {
 	switch b {
-	case SlotUnk:
-		return "unknown"
+	case SlotHelmet:
+		return "helmet"
 	case SlotCape:
 		return "cape"
 	case SlotTorso:

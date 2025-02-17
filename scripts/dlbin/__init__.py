@@ -5,7 +5,7 @@ from enum import IntEnum
 from typing import List, Union, Dict
 
 class Slot(IntEnum):
-    NONE = 0
+    HELMET = 0
     CAPE = 1
     TORSO = 2
     HIPS = 3
