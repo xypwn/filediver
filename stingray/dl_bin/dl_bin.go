@@ -295,6 +295,7 @@ type UnitData struct {
 }
 
 type ArmorSet struct {
+	Name         string
 	SetId        uint32
 	Passive      CustomizationKitPassive
 	Type         CustomizationKitType
@@ -302,7 +303,7 @@ type ArmorSet struct {
 }
 
 // Map of triad hash to armor set
-func LoadArmorSetDefinitions() (map[stingray.Hash]ArmorSet, error) {
+func LoadArmorSetDefinitions(strings map[uint32]string) (map[stingray.Hash]ArmorSet, error) {
 	file, err := fs.Open("generated_customization_armor_sets.dl_bin")
 	if err != nil {
 		return nil, err
@@ -321,6 +322,14 @@ func LoadArmorSetDefinitions() (map[stingray.Hash]ArmorSet, error) {
 	r, ok := file.(io.ReadSeeker)
 	if !ok {
 		return nil, fmt.Errorf("fs.File does not implement io.ReadSeeker (but it should so this should not happen)")
+	}
+
+	getNameIfContained := func(id uint32) string {
+		if name, contains := strings[id]; contains {
+			return name
+		} else {
+			return fmt.Sprintf("%x", id)
+		}
 	}
 
 	sets := make(map[stingray.Hash]ArmorSet)
@@ -342,6 +351,7 @@ func LoadArmorSetDefinitions() (map[stingray.Hash]ArmorSet, error) {
 		}
 
 		armorSet := ArmorSet{
+			Name:         getNameIfContained(item.Kit.NameCased),
 			SetId:        item.Kit.SetId,
 			Passive:      item.Kit.Passive,
 			Type:         item.Kit.Type,

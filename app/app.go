@@ -17,12 +17,14 @@ import (
 	"github.com/xypwn/filediver/extractor"
 	extr_bik "github.com/xypwn/filediver/extractor/bik"
 	extr_material "github.com/xypwn/filediver/extractor/material"
+	extr_strings "github.com/xypwn/filediver/extractor/strings"
 	extr_texture "github.com/xypwn/filediver/extractor/texture"
 	extr_unit "github.com/xypwn/filediver/extractor/unit"
 	extr_wwise "github.com/xypwn/filediver/extractor/wwise"
 	"github.com/xypwn/filediver/steampath"
 	"github.com/xypwn/filediver/stingray"
 	dlbin "github.com/xypwn/filediver/stingray/dl_bin"
+	stingrayStrings "github.com/xypwn/filediver/stingray/strings"
 )
 
 var ConfigFormat = ConfigTemplate{
@@ -245,7 +247,29 @@ func OpenGameDir(ctx context.Context, gameDir string, hashes []string, thinhashe
 		thinHashesMap[stingray.Sum64([]byte(h)).Thin()] = h
 	}
 
-	armorSets, err := dlbin.LoadArmorSetDefinitions()
+	stringsFile, ok := dataDir.Files[stingray.FileID{
+		Name: stingray.Hash{Value: 0x7c7587b563f10985},
+		Type: stingray.Sum64([]byte("strings")),
+	}]
+
+	var stringMap *stingrayStrings.StingrayStrings = nil
+	if ok {
+		stringsReader, err := stringsFile.Open(ctx, stingray.DataMain)
+		if err == nil {
+			defer stringsReader.Close()
+			stringMap, err = stingrayStrings.LoadStingrayStrings(stringsReader)
+			if err != nil {
+				stringMap = nil
+			}
+		}
+	}
+
+	var mapping map[uint32]string = make(map[uint32]string)
+	if stringMap != nil {
+		mapping = stringMap.Strings
+	}
+
+	armorSets, err := dlbin.LoadArmorSetDefinitions(mapping)
 	if err != nil {
 		return nil, err
 	}

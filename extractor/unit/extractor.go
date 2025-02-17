@@ -98,7 +98,7 @@ func addSkeleton(ctx extractor.Context, doc *gltf.Document, unitInfo *unit.Info,
 	}
 
 	skeletonId := unitInfo.Bones[2].NameHash.Value
-	var skeletonTag map[string]uint32 = make(map[string]uint32)
+	var skeletonTag map[string]any = make(map[string]any)
 	skeletonTag["skeletonId"] = skeletonId
 
 	inverseBindMatrices := modeler.WriteAccessor(doc, gltf.TargetNone, matrices)
@@ -167,6 +167,7 @@ func addSkeleton(ctx extractor.Context, doc *gltf.Document, unitInfo *unit.Info,
 			Children: []uint32{
 				rootNodeIndex,
 			},
+			Extras: make(map[string]any),
 		})
 		skeleton = gltf.Index(uint32(len(doc.Nodes) - 1))
 		doc.Scenes[0].Nodes = append(doc.Scenes[0].Nodes, *skeleton)
@@ -326,8 +327,10 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 
 	// Get metadata
 	var metadata *dlbin.UnitData = nil
+	var armorSetName *string = nil
 	if triadID := ctx.TriadID(); triadID != nil {
 		armorSet := ctx.ArmorSets()[*triadID]
+		armorSetName = &armorSet.Name
 		if _, contains := armorSet.UnitMetadata[ctx.File().ID().Name]; contains {
 			value := armorSet.UnitMetadata[ctx.File().ID().Name]
 			metadata = &value
@@ -399,9 +402,16 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 	} else {
 		parent = gltf.Index(uint32(len(doc.Nodes)))
 		doc.Nodes = append(doc.Nodes, &gltf.Node{
-			Name: ctx.File().ID().Name.String(),
+			Name:   ctx.File().ID().Name.String(),
+			Extras: make(map[string]any),
 		})
 		doc.Scenes[0].Nodes = append(doc.Scenes[0].Nodes, *parent)
+	}
+
+	if armorSetName != nil {
+		if extras, ok := doc.Nodes[*parent].Extras.(map[string]any); ok {
+			extras["armorSet"] = *armorSetName
+		}
 	}
 
 	var meshes map[uint32]unit.Mesh
