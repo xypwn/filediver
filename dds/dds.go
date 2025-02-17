@@ -289,9 +289,12 @@ func Decode(r io.Reader, readMipMaps bool) (*DDS, error) {
 	for i := 0; i < info.NumImages; i++ {
 		width, height := int(info.Header.Width), int(info.Header.Height)
 		mipMaps := make([]*DDSMipMap, 0, mipMapsToRead)
-		for j := 0; j < mipMapsToRead; j++ {
-			if width == 0 || height == 0 {
-				break
+		for j := 0; j < mipMapsToRead && j < info.NumMipMaps; j++ {
+			if width == 0 {
+				width = 1
+			}
+			if height == 0 {
+				height = 1
 			}
 
 			var buf []uint8
