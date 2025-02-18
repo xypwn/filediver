@@ -359,11 +359,13 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 		}
 	}
 	if triadID != nil {
-		armorSet := ctx.ArmorSets()[*triadID]
-		armorSetName = &armorSet.Name
-		if _, contains := armorSet.UnitMetadata[ctx.File().ID().Name]; contains {
-			value := armorSet.UnitMetadata[ctx.File().ID().Name]
-			metadata = &value
+		armorSet, ok := ctx.ArmorSets()[*triadID]
+		if ok {
+			armorSetName = &armorSet.Name
+			if _, contains := armorSet.UnitMetadata[ctx.File().ID().Name]; contains {
+				value := armorSet.UnitMetadata[ctx.File().ID().Name]
+				metadata = &value
+			}
 		}
 	}
 
