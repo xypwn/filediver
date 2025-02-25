@@ -26,7 +26,7 @@ type Context interface {
 	Hashes() map[stingray.Hash]string
 	ThinHashes() map[stingray.ThinHash]string
 	// Selected triad ID, if any (-t option).
-	TriadID() *stingray.Hash
+	TriadIDs() []stingray.Hash
 	ArmorSets() map[stingray.Hash]dlbin.ArmorSet
 	// Prints a warning message.
 	Warnf(f string, a ...any)
