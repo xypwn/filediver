@@ -17,12 +17,14 @@ import (
 	"github.com/xypwn/filediver/extractor"
 	extr_bik "github.com/xypwn/filediver/extractor/bik"
 	extr_material "github.com/xypwn/filediver/extractor/material"
+	extr_strings "github.com/xypwn/filediver/extractor/strings"
 	extr_texture "github.com/xypwn/filediver/extractor/texture"
 	extr_unit "github.com/xypwn/filediver/extractor/unit"
 	extr_wwise "github.com/xypwn/filediver/extractor/wwise"
 	"github.com/xypwn/filediver/steampath"
 	"github.com/xypwn/filediver/stingray"
 	dlbin "github.com/xypwn/filediver/stingray/dl_bin"
+	stingrayStrings "github.com/xypwn/filediver/stingray/strings"
 )
 
 var ConfigFormat = ConfigTemplate{
@@ -143,6 +145,15 @@ var ConfigFormat = ConfigTemplate{
 				},
 			},
 		},
+		"strings": {
+			Category: "text",
+			Options: map[string]ConfigTemplateOption{
+				"format": {
+					Type: ConfigValueEnum,
+					Enum: []string{"json", "source"},
+				},
+			},
+		},
 		"raw": {
 			Category: "",
 			Options: map[string]ConfigTemplateOption{
@@ -215,13 +226,13 @@ type App struct {
 	Hashes     map[stingray.Hash]string
 	ThinHashes map[stingray.ThinHash]string
 	// Passed triad ID (-t option).
-	TriadID   *stingray.Hash
+	TriadIDs  []stingray.Hash
 	ArmorSets map[stingray.Hash]dlbin.ArmorSet
 	DataDir   *stingray.DataDir
 }
 
 // Open game dir and read metadata.
-func OpenGameDir(ctx context.Context, gameDir string, hashes []string, thinhashes []string, triadID *stingray.Hash, onProgress func(curr, total int)) (*App, error) {
+func OpenGameDir(ctx context.Context, gameDir string, hashes []string, thinhashes []string, triadIDs []stingray.Hash, armorStrings stingray.Hash, onProgress func(curr, total int)) (*App, error) {
 	dataDir, err := stingray.OpenDataDir(ctx, filepath.Join(gameDir, "data"), onProgress)
 	if err != nil {
 		return nil, err
@@ -236,7 +247,29 @@ func OpenGameDir(ctx context.Context, gameDir string, hashes []string, thinhashe
 		thinHashesMap[stingray.Sum64([]byte(h)).Thin()] = h
 	}
 
-	armorSets, err := dlbin.LoadArmorSetDefinitions()
+	stringsFile, ok := dataDir.Files[stingray.FileID{
+		Name: armorStrings,
+		Type: stingray.Sum64([]byte("strings")),
+	}]
+
+	var stringMap *stingrayStrings.StingrayStrings = nil
+	if ok {
+		stringsReader, err := stringsFile.Open(ctx, stingray.DataMain)
+		if err == nil {
+			defer stringsReader.Close()
+			stringMap, err = stingrayStrings.LoadStingrayStrings(stringsReader)
+			if err != nil {
+				stringMap = nil
+			}
+		}
+	}
+
+	var mapping map[uint32]string = make(map[uint32]string)
+	if stringMap != nil {
+		mapping = stringMap.Strings
+	}
+
+	armorSets, err := dlbin.LoadArmorSetDefinitions(mapping)
 	if err != nil {
 		return nil, err
 	}
@@ -254,7 +287,7 @@ func OpenGameDir(ctx context.Context, gameDir string, hashes []string, thinhashe
 	return &App{
 		Hashes:     hashesMap,
 		ThinHashes: thinHashesMap,
-		TriadID:    triadID,
+		TriadIDs:   triadIDs,
 		ArmorSets:  armorSets,
 		DataDir:    dataDir,
 	}, nil
@@ -304,7 +337,7 @@ func (a *App) matchFileID(id stingray.FileID, glb glob.Glob, nameOnly bool) bool
 func (a *App) MatchingFiles(
 	includeGlob string,
 	excludeGlob string,
-	includeTriadID *stingray.Hash,
+	includeTriadIDs []stingray.Hash,
 	cfgTemplate ConfigTemplate,
 	cfg map[string]map[string]string,
 ) (
@@ -330,26 +363,28 @@ func (a *App) MatchingFiles(
 		}
 	}
 
-	var includeTriadFiles map[stingray.FileID]*stingray.File
-	if includeTriadID != nil {
-		var ok bool
-		includeTriadFiles, ok = a.DataDir.FilesByTriad[*includeTriadID]
+	var includeTriadFiles map[stingray.FileID]*stingray.File = make(map[stingray.FileID]*stingray.File)
+	for _, includeTriadID := range includeTriadIDs {
+		files, ok := a.DataDir.FilesByTriad[includeTriadID]
 		if !ok {
 			return nil, fmt.Errorf("triad %v does not exist", includeTriadID.String())
+		}
+		for id, file := range files {
+			includeTriadFiles[id] = file
 		}
 	}
 
 	res := make(map[stingray.FileID]*stingray.File)
 	for id, file := range a.DataDir.Files {
 		shouldIncl := true
-		if includeTriadID != nil {
+		if len(includeTriadIDs) != 0 {
 			if _, ok := includeTriadFiles[id]; !ok {
 				shouldIncl = false
 			}
 		}
 		if includeGlob != "" {
 			// Include all files in triad even if they don't match the includeGlob - includeGlob will only add files to read
-			shouldIncl = (includeTriadID != nil && shouldIncl) || a.matchFileID(id, inclGlob, inclGlobNameOnly)
+			shouldIncl = (len(includeTriadIDs) != 0 && shouldIncl) || a.matchFileID(id, inclGlob, inclGlobNameOnly)
 		}
 		if excludeGlob != "" {
 			if a.matchFileID(id, exclGlob, exclGlobNameOnly) {
@@ -455,8 +490,8 @@ func (c *extractContext) Hashes() map[stingray.Hash]string {
 func (c *extractContext) ThinHashes() map[stingray.ThinHash]string {
 	return c.app.ThinHashes
 }
-func (c *extractContext) TriadID() *stingray.Hash {
-	return c.app.TriadID
+func (c *extractContext) TriadIDs() []stingray.Hash {
+	return c.app.TriadIDs
 }
 func (c *extractContext) ArmorSets() map[stingray.Hash]dlbin.ArmorSet {
 	return c.app.ArmorSets
@@ -525,6 +560,12 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 			extr = extr_texture.ExtractDDS
 		} else {
 			extr = extr_texture.ConvertToPNG
+		}
+	case "strings":
+		if cfg["format"] == "source" {
+			extr = extractor.ExtractFuncRaw(".strings", stingray.DataMain, stingray.DataStream, stingray.DataGPU)
+		} else {
+			extr = extr_strings.ExtractStringsJSON
 		}
 	default:
 		extr = extractor.ExtractFuncRaw("."+typ, stingray.DataMain, stingray.DataStream, stingray.DataGPU)

@@ -193,7 +193,7 @@ struct HelldiverCustomizationKit {
     MurmurHash triad;
     KitType type;
     u32 unk01;
-    u32 offset = (orig & 0xfffff) - 0xa0000;
+    u32 offset = (std::mem::read_unsigned($, 4) & 0xfffff) - 0xa0000;
     $ += 4;
     u32 unk02;
     u32 count;

@@ -5,14 +5,14 @@ import sys
 import struct
 import numpy as np
 from argparse import ArgumentParser
-from bpy.types import BlendData, Image, Object, ShaderNodeGroup, ShaderNodeTexImage, Material
+from bpy.types import BlendData, Image, Object, ShaderNodeGroup, ShaderNodeTexImage, Material, Collection
 from pathlib import Path
 from io import BytesIO
 from typing import Optional, Dict, List, Tuple
 from random import randint
 
 from dds_float16 import DDS
-from openexr_builder import make_exr
+from openexr.types import OpenEXR
 
 class GLTFChunk:
     def __init__(self, length: int, type: str, data: bytes) -> None:
@@ -113,7 +113,7 @@ def add_texture(gltf, textureIdx, usage: Optional[str] = None) -> Image:
     if image["mimeType"] == "image/vnd-ms.dds":
         try:
             dds = DDS.parse(BytesIO(data))
-            data = make_exr(dds.pixels().astype(np.float32))
+            data = OpenEXR.from_pixels(dds.pixels().astype(np.float32)).serialize()
             name = str(Path(name).with_suffix(".exr"))
             height, width = dds.header.height, dds.header.width
             fmt = "OPEN_EXR"
@@ -266,14 +266,14 @@ def main():
     optional_usages = ["decal_sheet", "pattern_masks_array"]
     unused_texture = bpy.data.images.new("unused", 1, 1, alpha=True, float_buffer=True)
     #unused_texture.pixels[3] = 0.0
-    exr = make_exr(np.zeros((1, 1, 4), dtype=np.float32))
+    exr = OpenEXR.from_pixels(np.zeros((1, 1, 4), dtype=np.float32)).serialize()
     unused_texture.use_fake_user = True
     unused_texture.pack(data=exr, data_len=len(exr))
     unused_texture.source = "FILE"
     unused_texture.file_format = "PNG"
 
     unused_secondary_lut = bpy.data.images.new("unused_secondary_lut", 23, 1, alpha=True)
-    exr = make_exr(np.zeros((1, 23, 4), dtype=np.float32))
+    exr = OpenEXR.from_pixels(np.zeros((1, 23, 4), dtype=np.float32)).serialize()
     unused_secondary_lut.file_format = "OPEN_EXR"
     unused_secondary_lut.use_fake_user = True
     unused_secondary_lut.colorspace_settings.name = "Non-Color"
@@ -285,6 +285,15 @@ def main():
 
     print("Applying materials to meshes...")
     for node in gltf["nodes"]:
+        if "extras" in node and "armorSet" in node["extras"] and node["name"] in bpy.data.objects:
+            if node["extras"]["armorSet"] not in bpy.data.collections:
+                bpy.data.collections.new(node["extras"]["armorSet"])
+                bpy.data.scenes[0].collection.children.link(bpy.data.collections[node["extras"]["armorSet"]])
+            collection: Collection = bpy.data.collections[node["extras"]["armorSet"]]
+            obj = bpy.data.objects[node["name"]]
+            for other in obj.users_collection:
+                other.objects.unlink(obj)
+            collection.objects.link(obj)
         if "mesh" not in node:
             continue
         mesh = gltf["meshes"][node["mesh"]]
