@@ -294,24 +294,27 @@ func OpenGameDir(ctx context.Context, gameDir string, hashes []string, thinhashe
 }
 
 func (a *App) matchFileID(id stingray.FileID, glb glob.Glob, nameOnly bool) bool {
-	nameVariations := []string{
-		id.Name.StringEndian(binary.LittleEndian),
-		id.Name.StringEndian(binary.BigEndian),
-		"0x" + id.Name.StringEndian(binary.BigEndian),
-		"0x" + strings.TrimLeft(id.Name.StringEndian(binary.BigEndian), "0"),
+	hashVariations := func(h stingray.Hash) []string {
+		return []string{
+			h.StringEndian(binary.LittleEndian),
+			h.StringEndian(binary.BigEndian),
+			"0x" + h.StringEndian(binary.BigEndian),
+			"0x" + strings.TrimLeft(h.StringEndian(binary.BigEndian), "0"),
+			strings.ToUpper(h.StringEndian(binary.LittleEndian)),
+			strings.ToUpper(h.StringEndian(binary.BigEndian)),
+			"0x" + strings.ToUpper(h.StringEndian(binary.BigEndian)),
+			"0x" + strings.ToUpper(strings.TrimLeft(h.StringEndian(binary.BigEndian), "0")),
+		}
 	}
+
+	nameVariations := hashVariations(id.Name)
 	if name, ok := a.Hashes[id.Name]; ok {
 		nameVariations = append(nameVariations, name)
 	}
 
 	var typeVariations []string
 	if !nameOnly {
-		typeVariations = []string{
-			id.Type.StringEndian(binary.LittleEndian),
-			id.Type.StringEndian(binary.BigEndian),
-			"0x" + id.Type.StringEndian(binary.BigEndian),
-			"0x" + strings.TrimLeft(id.Type.StringEndian(binary.BigEndian), "0"),
-		}
+		typeVariations = hashVariations(id.Type)
 		if typ, ok := a.Hashes[id.Type]; ok {
 			typeVariations = append(typeVariations, typ)
 		}
