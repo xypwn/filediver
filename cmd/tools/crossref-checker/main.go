@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
@@ -44,12 +45,16 @@ func sortedMapHashKeys[V any](m map[stingray.Hash]V) []stingray.Hash {
 }
 
 func printUsage() {
-	fmt.Println(`Usage: crossref-checker [options] GAME_FILES_TO_SEARCH_GLOB OUTPUT_FILE
+	fmt.Println(`Usage:
+  crossref-checker [options] GAME_FILES_TO_SEARCH_GLOB OUTPUT_FILE
+  or
+  crossref-checker [options] -h HASH OUTPUT_FILE
 
 Finds all occurrences of existing game file hashes in other game files.
 
 options:
-  -S  --  exclude references by the file to itself
+  -S       --  exclude references by the file to itself
+  -h HASH  --  list of hashes to search for, separated by commas, spaces or newlines; prefix with 0x for big endian, no prefix for little endian
 
 examples:
   crossref-checker "*.material" material_crossrefs.txt  --  search all game files with the "material" extension for references to other game files and output result to "material_crossrefs.txt"`)
@@ -59,26 +64,65 @@ func main() {
 	var inclGlob string
 	var outFilePath string
 	excludeSelfReferences := false
+	specifiedHashesAsBytes := make(map[[8]byte]struct{})
 	{
-		var nonFlagArgs []string
-		for _, arg := range os.Args[1:] {
-			if strings.HasPrefix(arg, "-") {
-				switch arg {
+		var specifiedHashes []string
+		var freeArgs []string
+		args := os.Args[1:]
+		for arg_idx := 0; arg_idx < len(args); arg_idx++ {
+			if strings.HasPrefix(args[arg_idx], "-") {
+				switch args[arg_idx] {
 				case "-S":
 					excludeSelfReferences = true
+				case "-h":
+					arg_idx++
+					if arg_idx >= len(args) {
+						printUsage()
+						os.Exit(0)
+					}
+					specifiedHashes = strings.FieldsFunc(args[arg_idx], func(r rune) bool {
+						return strings.ContainsRune(", \n\r\t", r)
+					})
 				default:
 					printUsage()
 					os.Exit(0)
 				}
 			} else {
-				nonFlagArgs = append(nonFlagArgs, arg)
+				freeArgs = append(freeArgs, args[arg_idx])
 			}
 		}
-		if len(nonFlagArgs) < 2 {
-			printUsage()
-			os.Exit(0)
+		if len(specifiedHashes) == 0 {
+			if len(freeArgs) != 2 {
+				printUsage()
+				os.Exit(0)
+			}
+			inclGlob, outFilePath = freeArgs[0], freeArgs[1]
+		} else {
+			if len(freeArgs) != 1 {
+				printUsage()
+				os.Exit(0)
+			}
+			outFilePath = freeArgs[0]
+			for _, k := range specifiedHashes {
+				k, isBigEndian := strings.CutPrefix(k, "0x")
+				rawBytes, err := hex.DecodeString(k)
+				if err != nil || len(rawBytes) != 8 {
+					fmt.Println("Invalid hash string. Must be in hexadecimal and 8 bytes (16 digits) long. 0x prefix to indicate big endian.")
+					printUsage()
+					os.Exit(0)
+				}
+				var bytes [8]byte
+				if isBigEndian {
+					// Files are encoded in little endian, so reverse byte order
+					for i := range bytes {
+						bytes[7-i] = rawBytes[i]
+					}
+				} else {
+					bytes = [8]byte(rawBytes)
+				}
+				specifiedHashesAsBytes[bytes] = struct{}{}
+			}
 		}
-		inclGlob, outFilePath = nonFlagArgs[0], nonFlagArgs[1]
 	}
 
 	prt := app.NewPrinter(
@@ -109,11 +153,15 @@ func main() {
 		panic(err) // should never fail
 	}
 
-	allExistingFileNamesAsBytes := make(map[[8]byte]struct{})
-	for k := range a.DataDir.Files {
-		var b [8]byte
-		binary.LittleEndian.PutUint64(b[:], k.Name.Value)
-		allExistingFileNamesAsBytes[b] = struct{}{}
+	searchForHashesAsBytes := make(map[[8]byte]struct{})
+	if len(specifiedHashesAsBytes) == 0 {
+		for k := range a.DataDir.Files {
+			var b [8]byte
+			binary.LittleEndian.PutUint64(b[:], k.Name.Value)
+			searchForHashesAsBytes[b] = struct{}{}
+		}
+	} else {
+		searchForHashesAsBytes = specifiedHashesAsBytes
 	}
 
 	files, err := a.MatchingFiles(inclGlob, "", nil, app.ConfigFormat, appConfig)
@@ -169,7 +217,7 @@ func main() {
 			byteOffsetsByHash := make(map[stingray.Hash][]int) // where each match (that was found) was found
 			for offset := 0; offset <= len(bytesToSearchIn)-8; offset++ {
 				match := bytesToSearchIn[offset : offset+8]
-				if _, ok := allExistingFileNamesAsBytes[[8]byte(match)]; ok {
+				if _, ok := searchForHashesAsBytes[[8]byte(match)]; ok {
 					foundHash := stingray.Hash{Value: binary.LittleEndian.Uint64(match)}
 					if excludeSelfReferences && foundHash.Value == fileID.Name.Value {
 						continue
