@@ -22,7 +22,7 @@ func ExtractStringsJSON(ctx extractor.Context) error {
 	if err != nil {
 		return err
 	}
-	out, err := ctx.CreateFile(".json")
+	out, err := ctx.CreateFile(".strings.json")
 	if err != nil {
 		return err
 	}

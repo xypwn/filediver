@@ -1,4 +1,4 @@
-package unit
+package material
 
 type TextureUsage uint32
 

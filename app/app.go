@@ -17,6 +17,7 @@ import (
 	"github.com/xypwn/filediver/extractor"
 	extr_bik "github.com/xypwn/filediver/extractor/bik"
 	extr_material "github.com/xypwn/filediver/extractor/material"
+	extr_package "github.com/xypwn/filediver/extractor/package"
 	extr_strings "github.com/xypwn/filediver/extractor/strings"
 	extr_texture "github.com/xypwn/filediver/extractor/texture"
 	extr_unit "github.com/xypwn/filediver/extractor/unit"
@@ -146,6 +147,15 @@ var ConfigFormat = ConfigTemplate{
 			},
 		},
 		"strings": {
+			Category: "text",
+			Options: map[string]ConfigTemplateOption{
+				"format": {
+					Type: ConfigValueEnum,
+					Enum: []string{"json", "source"},
+				},
+			},
+		},
+		"package": {
 			Category: "text",
 			Options: map[string]ConfigTemplateOption{
 				"format": {
@@ -569,6 +579,12 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 			extr = extractor.ExtractFuncRaw(".strings", stingray.DataMain, stingray.DataStream, stingray.DataGPU)
 		} else {
 			extr = extr_strings.ExtractStringsJSON
+		}
+	case "package":
+		if cfg["format"] == "source" {
+			extr = extractor.ExtractFuncRaw(".package", stingray.DataMain, stingray.DataStream, stingray.DataGPU)
+		} else {
+			extr = extr_package.ExtractPackageJSON
 		}
 	default:
 		extr = extractor.ExtractFuncRaw("."+typ, stingray.DataMain, stingray.DataStream, stingray.DataGPU)
