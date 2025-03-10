@@ -53,6 +53,8 @@ u32 didxOffset = 0;
 u32 didxSize = 0;
 u32 dataOffset = 0;
 u32 dataSize = 0;
+u32 hircOffset = 0;
+u32 hircSize = 0;
 
 struct Chunk {
     char Type[4];
@@ -65,6 +67,10 @@ struct Chunk {
         ("DATA"): {
             dataOffset = $;
             dataSize = Size;
+        }
+        ("HIRC"): {
+            hircOffset = $;
+            hircSize = Size;
         }
     }
     padding[Size];
@@ -105,3 +111,31 @@ struct DataSection {
 } [[inline]];
 
 DataSection data[didxCount] @ dataOffset /* Location is only for correct viewing order. */;
+
+struct HircObject {
+    u8 Type;
+    u32 Size;
+    u32 ObjectID;
+    match (Type) {
+        (0x02): { // Sound
+            u32 end = $ + Size - 0x4;
+            u32 pluginID;
+            u8 streamType;
+            u32 sourceID;
+            u32 inMemoryMediaSize;
+            u8 sourceBits;
+            $ = end;
+        }
+        (_): {
+            u8 data[Size-0x4];
+        }
+    }
+    
+};
+
+struct HircSection {
+    u32 Count;
+    HircObject objects[Count];
+};
+
+HircSection hirc @ hircOffset;

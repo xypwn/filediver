@@ -2,6 +2,7 @@
 package wwise
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -32,10 +33,58 @@ type bnkIndex struct {
 	Size   uint32
 }
 
+type BnkHircObjectType uint8
+
+var (
+	BnkHircObjectSound       BnkHircObjectType = 0x02
+	BnkHircObjectAction      BnkHircObjectType = 0x03
+	BnkHircObjectEvent       BnkHircObjectType = 0x04
+	BnkHircObjectActorMixer  BnkHircObjectType = 0x07
+	BnkHircObjectAttenuation BnkHircObjectType = 0x0E
+)
+
+type BnkHircSoundPluginID uint32
+
+var (
+	BnkHircSoundPluginIDVorbis BnkHircSoundPluginID = 0x00040001
+)
+
+type BnkHircSoundStreamType uint8
+
+var (
+	BnkHircSoundStreamPrefetchStreaming BnkHircSoundStreamType = 0x01
+	BnkHircSoundStreamStreaming         BnkHircSoundStreamType = 0x02
+)
+
+type BnkHircSoundStreamSourceBits uint8
+
+var (
+	BnkHircSoundStreamSourceBitIsLanguageSpecific = BnkHircSoundStreamSourceBits(1 << 0)
+	BnkHircSoundStreamSourceBitPrefetch           = BnkHircSoundStreamSourceBits(1 << 1)
+	BnkHircSoundStreamSourceBitNonCachable        = BnkHircSoundStreamSourceBits(1 << 3)
+	BnkHircSoundStreamSourceBitHasSource          = BnkHircSoundStreamSourceBits(1 << 7)
+)
+
+type BnkHircObject struct {
+	Header struct {
+		Type     BnkHircObjectType
+		Size     uint32
+		ObjectID uint32
+	}
+	Sound struct {
+		PluginID          BnkHircSoundPluginID
+		StreamType        BnkHircSoundStreamType
+		SourceID          uint32
+		InMemoryMediaSize uint32
+		SourceBits        BnkHircSoundStreamSourceBits
+	}
+}
+
 type Bnk struct {
-	r        io.ReadSeeker
-	sections bnkSections
-	files    []bnkIndex
+	r           io.ReadSeeker
+	sections    bnkSections
+	files       []bnkIndex
+	HircObjects []BnkHircObject
 }
 
 type BkhdXorKey struct {
@@ -96,7 +145,7 @@ func openBnk(r io.ReadSeeker, bkhdKey *BkhdXorKey) (*Bnk, error) {
 				sections.DataSize = ck.Size
 			case "HIRC":
 				// Contains events, tracks, sequences etc.
-				// Not handled in this implementation.
+				// Only partially handled here.
 				sections.HircOffset = ck.Offset
 				sections.HircSize = ck.Size
 			case "INIT", "STID", "STMG", "ENVS", "PLAT":
@@ -128,10 +177,47 @@ func openBnk(r io.ReadSeeker, bkhdKey *BkhdXorKey) (*Bnk, error) {
 		}
 	}
 
+	// Read HIRC (hierarchy)
+	var hircObjects []BnkHircObject
+	if sections.HircSize > 0 {
+		if _, err := r.Seek(int64(sections.HircOffset), io.SeekStart); err != nil {
+			return nil, err
+		}
+		var count uint32
+		if err := binary.Read(r, binary.LittleEndian, &count); err != nil {
+			return nil, err
+		}
+		var buf bytes.Buffer
+		hircObjects = make([]BnkHircObject, count)
+		for i := range hircObjects {
+			obj := &hircObjects[i]
+			if err := binary.Read(r, binary.LittleEndian, &obj.Header); err != nil {
+				return nil, err
+			}
+			if obj.Header.Size < 0x04 {
+				return nil, fmt.Errorf("expected HIRC object size to be >= 4 (got size %v)", obj.Header.Size)
+			}
+			objSize := obj.Header.Size - 0x04
+			switch obj.Header.Type {
+			case BnkHircObjectSound:
+				if _, err := io.CopyN(&buf, r, int64(objSize)); err != nil {
+					return nil, err
+				}
+				if err := binary.Read(&buf, binary.LittleEndian, &obj.Sound); err != nil {
+					return nil, err
+				}
+				buf.Reset()
+			default:
+				r.Seek(int64(objSize), io.SeekCurrent)
+			}
+		}
+	}
+
 	return &Bnk{
-		r:        r,
-		sections: sections,
-		files:    files,
+		r:           r,
+		sections:    sections,
+		files:       files,
+		HircObjects: hircObjects,
 	}, nil
 }
 
