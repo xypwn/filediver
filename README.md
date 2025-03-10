@@ -66,7 +66,7 @@ Extract only video files:
 
 Extract the Super Earth anthem as mp3:
 ```sh
-./filediver -c "audio:format=mp3" -i "content/audio/291227525.wwise_stream"
+./filediver -c "enable:wwise_stream wwise_stream:format=mp3" -i "content/audio/291227525.wwise_stream"
 ```
 
 Extract the DP-00 Tactical armor set:

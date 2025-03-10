@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -25,19 +26,22 @@ import (
 	"github.com/xypwn/filediver/steampath"
 	"github.com/xypwn/filediver/stingray"
 	dlbin "github.com/xypwn/filediver/stingray/dl_bin"
-	stingrayStrings "github.com/xypwn/filediver/stingray/strings"
+	stingray_strings "github.com/xypwn/filediver/stingray/strings"
+	stingray_wwise "github.com/xypwn/filediver/stingray/wwise"
+	"github.com/xypwn/filediver/wwise"
 )
 
 var ConfigFormat = ConfigTemplate{
 	Extractors: map[string]ConfigTemplateExtractor{
 		"wwise_stream": {
-			Category: "audio",
+			Category: "loose_audio",
 			Options: map[string]ConfigTemplateOption{
 				"format": {
 					Type: ConfigValueEnum,
 					Enum: []string{"ogg", "wav", "aac", "mp3", "wem", "source"},
 				},
 			},
+			DefaultDisabled: true,
 		},
 		"wwise_bank": {
 			Category: "audio",
@@ -241,6 +245,74 @@ type App struct {
 	DataDir   *stingray.DataDir
 }
 
+// Automatically gets most wwise-related hashes by reading the game files
+func getWwiseHashes(ctx context.Context, dataDir *stingray.DataDir) (map[stingray.Hash]string, error) {
+	hashes := make(map[stingray.Hash]string)
+	// Read wwise_dep files to figure out the names of all wwise_bank files
+	for id, file := range dataDir.Files {
+		if id.Type == stingray.Sum64([]byte("wwise_dep")) {
+			h, err := parseWwiseDep(ctx, file)
+			if err != nil {
+				return nil, fmt.Errorf("wwise_dep: %w", err)
+			}
+			hashes[stingray.Sum64([]byte(h))] = h
+		}
+	}
+	// Read wwise_bank files to figure out the names of most wwise_stream files
+	for id, file := range dataDir.Files {
+		if id.Type == stingray.Sum64([]byte("wwise_bank")) {
+			name, ok := hashes[id.Name]
+			if !ok {
+				return nil, fmt.Errorf("expected all wwise banks to have a known name, but cannot find name for hash %v", id.Name)
+			}
+			dir := path.Dir(name)
+			if err := func() error {
+				r, err := file.Open(ctx, stingray.DataMain)
+				if err != nil {
+					return err
+				}
+				defer r.Close()
+				bnk, err := stingray_wwise.OpenBnk(r)
+				if err != nil {
+					return err
+				}
+				for i := 0; i < bnk.NumFiles(); i++ {
+					id := bnk.FileID(i)
+					streamPath := path.Join(dir, fmt.Sprint(id))
+					hashes[stingray.Sum64([]byte(streamPath))] = streamPath
+				}
+				for _, obj := range bnk.HircObjects {
+					if obj.Header.Type == wwise.BnkHircObjectSound {
+						streamPath := path.Join(dir, fmt.Sprint(obj.Sound.SourceID))
+						hashes[stingray.Sum64([]byte(streamPath))] = streamPath
+					}
+				}
+				return nil
+			}(); err != nil {
+				return nil, err
+			}
+		}
+	}
+	// 6 hashes were still missing when tested
+	/*// Validate that all wwise_stream file names are known
+	{
+		numWithoutName := 0
+		for id := range dataDir.Files {
+			if id.Type == stingray.Sum64([]byte("wwise_stream")) {
+				if _, ok := hashes[id.Name]; !ok {
+					fmt.Println(id.Name)
+					numWithoutName++
+				}
+			}
+		}
+		if numWithoutName > 0 {
+			return nil, fmt.Errorf("expected all wwise streams to have a known name, but cannot find name for %v hashes", numWithoutName)
+		}
+	}*/
+
+	return hashes, nil
+}
+
 // Open game dir and read metadata.
 func OpenGameDir(ctx context.Context, gameDir string, hashes []string, thinhashes []string, triadIDs []stingray.Hash, armorStrings stingray.Hash, onProgress func(curr, total int)) (*App, error) {
 	dataDir, err := stingray.OpenDataDir(ctx, filepath.Join(gameDir, "data"), onProgress)
@@ -249,6 +321,13 @@ func OpenGameDir(ctx context.Context, gameDir string, hashes []string, thinhashe
 	}
 
 	hashesMap := make(map[stingray.Hash]string)
+	if wwiseHashes, err := getWwiseHashes(ctx, dataDir); err == nil {
+		for h, n := range wwiseHashes {
+			hashesMap[h] = n
+		}
+	} else {
+		return nil, err
+	}
 	for _, h := range hashes {
 		hashesMap[stingray.Sum64([]byte(h))] = h
 	}
@@ -262,12 +341,12 @@ func OpenGameDir(ctx context.Context, gameDir string, hashes []string, thinhashe
 		Type: stingray.Sum64([]byte("strings")),
 	}]
 
-	var stringMap *stingrayStrings.StingrayStrings = nil
+	var stringMap *stingray_strings.StingrayStrings = nil
 	if ok {
 		stringsReader, err := stringsFile.Open(ctx, stingray.DataMain)
 		if err == nil {
 			defer stringsReader.Close()
-			stringMap, err = stingrayStrings.LoadStingrayStrings(stringsReader)
+			stringMap, err = stingray_strings.LoadStingrayStrings(stringsReader)
 			if err != nil {
 				stringMap = nil
 			}
@@ -282,16 +361,6 @@ func OpenGameDir(ctx context.Context, gameDir string, hashes []string, thinhashe
 	armorSets, err := dlbin.LoadArmorSetDefinitions(mapping)
 	if err != nil {
 		return nil, err
-	}
-	// wwise_dep files let us know the string of many of the wwise_banks
-	for id, file := range dataDir.Files {
-		if id.Type == stingray.Sum64([]byte("wwise_dep")) {
-			h, err := parseWwiseDep(ctx, file)
-			if err != nil {
-				return nil, fmt.Errorf("wwise_dep: %w", err)
-			}
-			hashesMap[stingray.Sum64([]byte(h))] = h
-		}
 	}
 
 	return &App{
@@ -548,7 +617,7 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 		}
 	case "wwise_bank":
 		if cfg["format"] == "source" {
-			extr = extractor.ExtractFuncRaw(".bnk", stingray.DataMain, stingray.DataStream, stingray.DataGPU)
+			extr = extractor.ExtractFuncRaw(".stingray_bnk", stingray.DataMain, stingray.DataStream, stingray.DataGPU)
 		} else if cfg["format"] == "bnk" {
 			extr = extr_wwise.ExtractBnk
 		} else {

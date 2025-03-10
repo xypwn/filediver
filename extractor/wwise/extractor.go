@@ -7,13 +7,14 @@ import (
 	"io"
 	"math"
 	"os"
+	"path"
 
 	"github.com/go-audio/audio"
 	"github.com/go-audio/wav"
 
 	"github.com/xypwn/filediver/extractor"
 	"github.com/xypwn/filediver/stingray"
-	"github.com/xypwn/filediver/util"
+	stingray_wwise "github.com/xypwn/filediver/stingray/wwise"
 	"github.com/xypwn/filediver/wwise"
 )
 
@@ -198,36 +199,6 @@ func ConvertWem(ctx extractor.Context) error {
 	return nil
 }
 
-type stingrayBnkHeader struct {
-	Unk00 [4]byte
-	Size  uint32
-	Name  stingray.Hash
-}
-
-func extractBnk(in io.ReadSeeker) (io.ReadSeeker, error) {
-	fileSize, err := in.Seek(0, io.SeekEnd)
-	if err != nil {
-		return nil, err
-	}
-	if _, err := in.Seek(0, io.SeekStart); err != nil {
-		return nil, err
-	}
-
-	var hdr stingrayBnkHeader
-	if err := binary.Read(in, binary.LittleEndian, &hdr); err != nil {
-		return nil, err
-	}
-	if int64(hdr.Size+0x10) != fileSize {
-		return nil, fmt.Errorf("size specified in header (%v) does not match actual file size (%v)", hdr.Size+0x10, fileSize)
-	}
-
-	return util.NewSectionReadSeeker(
-		in,
-		0x10,
-		fileSize-0x10,
-	)
-}
-
 func ExtractBnk(ctx extractor.Context) error {
 	f, err := ctx.File().Open(ctx.Ctx(), stingray.DataMain)
 	if err != nil {
@@ -235,7 +206,7 @@ func ExtractBnk(ctx extractor.Context) error {
 	}
 	defer f.Close()
 
-	r, err := extractBnk(f)
+	r, err := stingray_wwise.OpenRawBnk(f)
 	if err != nil {
 		return err
 	}
@@ -261,33 +232,71 @@ func ConvertBnk(ctx extractor.Context) error {
 		return err
 	}
 	defer in.Close()
-	bnkR, err := extractBnk(in)
+
+	bnk, err := stingray_wwise.OpenBnk(in)
 	if err != nil {
 		return err
 	}
 
-	bnk, err := wwise.OpenBnk(bnkR, &wwise.BkhdXorKey{
-		/* https://github.com/Xaymar/Hellextractor/issues/25 */
-		// "reverse-engineer" the key in code:
-		Version: 0x0000008c ^ 0x9211bc20,
-		ID:      0x50c63a23 ^ 0xf3d64a1b,
-	})
-	if err != nil {
-		return err
+	bnkName, ok := ctx.Hashes()[ctx.File().ID().Name]
+	if !ok {
+		return fmt.Errorf("expected wwise bank file %v.wwise_bank", ctx.File().ID().Name)
+	}
+	dir := path.Dir(bnkName)
+
+	streamFilePath := func(resourceID uint32) string {
+		return path.Join(dir, fmt.Sprint(resourceID))
+	}
+	extractStreamFile := func(resourceID, fileID uint32) (existed bool, err error) {
+		streamFileID := stingray.Sum64([]byte(streamFilePath(resourceID)))
+		if streamFile, exists := ctx.GetResource(streamFileID, stingray.Sum64([]byte("wwise_stream"))); exists {
+			wemR, err := streamFile.Open(ctx.Ctx(), stingray.DataStream)
+			if err != nil {
+				return exists, err
+			}
+			if err := convertWemStream(ctx, fmt.Sprintf(".bnk.dir/%v", fileID), wemR, format); err != nil {
+				return exists, err
+			}
+			return exists, nil
+		} else {
+			return exists, nil
+		}
 	}
 
 	for i := 0; i < bnk.NumFiles(); i++ {
-		wemR, err := bnk.OpenFile(i)
+		resourceID := bnk.FileID(i)
+		fileID := resourceID // IDK if this is a good idea...
+		// Stream should either exist as a wwise stream, or be embedded in the wwise bank file
+		existed, err := extractStreamFile(resourceID, fileID)
 		if err != nil {
-			return err
+			ctx.Warnf("stream file %v.wwise_stream: %v", streamFilePath(resourceID), err)
 		}
-		if err := func() error {
-			if err := convertWemStream(ctx, fmt.Sprintf(".bnk.dir/%03d", i), wemR, format); err != nil {
-				ctx.Warnf("file %v: %v", i, err)
+		if !existed {
+			wemR, err := bnk.OpenFile(i)
+			if err != nil {
+				return err
 			}
-			return nil
-		}(); err != nil {
-			return err
+			if err := convertWemStream(ctx, fmt.Sprintf(".bnk.dir/%v", fileID), wemR, format); err != nil {
+				ctx.Warnf("embedded file %v: %v", fileID, err)
+			}
+		}
+	}
+
+	for _, obj := range bnk.HircObjects {
+		// A source seems to exist when source bits > 0. I'm a bit unsure, though.
+		/*if obj.Header.Type == wwise.BnkHircObjectSound {
+			ctx.Warnf("%v", obj.Sound.SourceBits)
+		}*/
+		if obj.Header.Type == wwise.BnkHircObjectSound && obj.Sound.SourceBits > 0 {
+			resourceID := obj.Sound.SourceID
+			fileID := obj.Header.ObjectID
+			existed, err := extractStreamFile(resourceID, fileID)
+			if err != nil {
+				ctx.Warnf("stream file %v.wwise_stream: %v", streamFilePath(resourceID), err)
+			}
+			if !existed {
+				ctx.Warnf("wwise stream file %v.wwise_stream referenced by %v.wwise_bank does not exist", streamFilePath(resourceID), bnkName)
+			}
 		}
 	}
 	return nil
