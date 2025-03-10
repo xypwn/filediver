@@ -57,7 +57,7 @@ extractor config:
 	})
 	triads := parser.String("t", "triads", &argparse.Option{Help: "Include comma-separated triad name(s) as found in game data directory (aka Archive ID, eg 0x9ba626afa44a3aa3)"})
 	gameDir := parser.String("g", "gamedir", &argparse.Option{Help: "Helldivers 2 game directory"})
-	modeList := parser.Flag("l", "list", &argparse.Option{Help: "List all files without extracting anything"})
+	modeList := parser.Flag("l", "list", &argparse.Option{Help: "List all files without extracting anything. Format: known_name.known_type, name_hash.type_hash <- archives..."})
 	outDir := parser.String("o", "out", &argparse.Option{Default: "extracted", Help: "Output directory (default: extracted)"})
 	extrCfgStr := parser.String("c", "config", &argparse.Option{Help: "Configure extractors (see \"extractor config\" section)"})
 	extrInclGlob := parser.String("i", "include", &argparse.Option{Help: "Select only matching files (glob syntax, see matching files section)"})
@@ -219,16 +219,16 @@ extractor config:
 
 	if *modeList {
 		for _, id := range sortedFileIDs {
-			if name, ok := a.Hashes[id.Name]; ok {
-				fmt.Print(name)
+			triadIDs := a.DataDir.Files[id].TriadIDs()
+			triadIDStrings := make([]string, len(triadIDs))
+			for i := range triadIDs {
+				triadIDStrings[i] = triadIDs[i].String()
 			}
-			fmt.Print(".")
-			if typ, ok := a.Hashes[id.Type]; ok {
-				fmt.Print(typ)
-			}
-			fmt.Print(", ")
-			fmt.Print(id.Name.String() + "." + id.Type.String())
-			fmt.Println()
+			fmt.Printf("%v.%v, %v.%v <- %v\n",
+				a.Hashes[id.Name], a.Hashes[id.Type],
+				id.Name.String(), id.Type.String(),
+				strings.Join(triadIDStrings, ", "),
+			)
 		}
 	} else {
 		prt.Infof("Extracting files...")
