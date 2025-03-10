@@ -169,7 +169,7 @@ extractor config:
 			prt.Warnf("Metadata read canceled, exiting")
 			return
 		} else {
-			prt.Errorf("%v", err)
+			prt.Fatalf("%v", err)
 		}
 	}
 	prt.NoStatus()
