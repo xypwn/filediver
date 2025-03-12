@@ -67,7 +67,7 @@ func (fb *Framebuffer) resize(newWidth, newHeight int32) error {
 	return nil
 }
 
-func GLView(name string, fb *Framebuffer, draw func()) {
+func GLView(name string, fb *Framebuffer, draw func(width, height int32)) {
 	imgui.PushIDStr(name)
 	defer imgui.PopID()
 
@@ -85,7 +85,7 @@ func GLView(name string, fb *Framebuffer, draw func()) {
 
 		gl.BindFramebuffer(gl.FRAMEBUFFER, fb.fbo)
 		gl.Viewport(0, 0, int32(size.X), int32(size.Y))
-		draw()
+		draw(int32(size.X), int32(size.Y))
 		gl.BindFramebuffer(gl.FRAMEBUFFER, 0)
 
 		gl.Viewport(oldViewport[0], oldViewport[1], oldViewport[2], oldViewport[3])

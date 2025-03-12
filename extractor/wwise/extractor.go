@@ -183,6 +183,23 @@ func getFormat(config map[string]string) (format, error) {
 	}
 }
 
+func ExtractWem(ctx extractor.Context) error {
+	f, err := ctx.File().Open(ctx.Ctx(), stingray.DataStream)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	out, err := ctx.CreateFile(".wem")
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+	if _, err := io.Copy(out, f); err != nil {
+		return err
+	}
+	return nil
+}
+
 func ConvertWem(ctx extractor.Context) error {
 	format, err := getFormat(ctx.Config())
 	if err != nil {

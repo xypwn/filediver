@@ -34,22 +34,33 @@ type Context interface {
 
 type ExtractFunc func(ctx Context) error
 
-func ExtractFuncRaw(suffix string, types ...stingray.DataType) ExtractFunc {
+func ExtractFuncRaw(extension string) ExtractFunc {
 	return func(ctx Context) error {
-		r, err := ctx.File().OpenMulti(ctx.Ctx(), types...)
-		if err != nil {
-			return err
-		}
-		defer r.Close()
+		typeNames := [3]string{"main", "stream", "gpu"}
+		for _, typ := range [3]stingray.DataType{stingray.DataMain, stingray.DataStream, stingray.DataGPU} {
+			if ctx.File().Exists(typ) {
+				if err := func() error {
+					r, err := ctx.File().Open(ctx.Ctx(), typ)
+					if err != nil {
+						return err
+					}
+					defer r.Close()
 
-		out, err := ctx.CreateFile(suffix)
-		if err != nil {
-			return err
-		}
-		defer out.Close()
+					out, err := ctx.CreateFile(fmt.Sprintf(".%v.%v", extension, typeNames[typ]))
+					if err != nil {
+						return err
+					}
+					defer out.Close()
 
-		if _, err := io.Copy(out, r); err != nil {
-			return err
+					if _, err := io.Copy(out, r); err != nil {
+						return err
+					}
+
+					return nil
+				}(); err != nil {
+					return err
+				}
+			}
 		}
 		return nil
 	}
