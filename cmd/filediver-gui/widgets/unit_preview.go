@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"io"
 
+	"github.com/AllenDang/cimgui-go/imgui"
 	"github.com/go-gl/gl/v3.2-core/gl"
 	"github.com/go-gl/mathgl/mgl32"
 	"github.com/xypwn/filediver/cmd/filediver-gui/glutils"
@@ -16,14 +17,35 @@ var unitPreviewFragCode string
 //go:embed shaders/unit_preview.vert
 var unitPreviewVertCode string
 
+// stingray coords to OpenGL coords
+var stingrayToGLCoords = mgl32.Mat4{
+	1, 0, 0, 0,
+	0, 0, 1, 0,
+	0, 1, 0, 0,
+	0, 0, 0, 1,
+}
+
 type UnitPreviewState struct {
-	fb         *Framebuffer
-	program    uint32
-	vao        uint32 // vertex array object
-	ibo        uint32 // index buffer object
-	vbo        uint32 // vertex buffer object
-	mvpLoc     int32  // MVP matrix uniform location
-	numIndices int32
+	fb      *Framebuffer
+	program uint32
+	vao     uint32 // vertex array object
+	ibo     uint32 // index buffer object
+	vbo     uint32 // vertex buffer object
+
+	// Uniform locations
+	mvpLoc          int32
+	modelLoc        int32
+	normalLoc       int32
+	viewPositionLoc int32
+
+	numIndices   int32
+	model        mgl32.Mat4
+	projection   mgl32.Mat4
+	viewDistance float32
+	viewRotation mgl32.Vec2 // {yaw, pitch}
+
+	isDragging bool
+	IsUsing    bool // true if window shouldn't handle mouse events
 }
 
 func CreateUnitPreview() (*UnitPreviewState, error) {
@@ -108,36 +130,83 @@ func (pv *UnitPreviewState) LoadUnit(mainR, gpuR io.ReadSeeker) error {
 	pv.numIndices = int32(len(indices))
 
 	pv.mvpLoc = gl.GetUniformLocation(pv.program, gl.Str("mvp\x00"))
+	pv.modelLoc = gl.GetUniformLocation(pv.program, gl.Str("model\x00"))
+	pv.normalLoc = gl.GetUniformLocation(pv.program, gl.Str("normal\x00"))
+	pv.viewPositionLoc = gl.GetUniformLocation(pv.program, gl.Str("viewPosition\x00"))
+
+	pv.model = stingrayToGLCoords
+	pv.viewDistance = 25
 
 	return nil
 }
 
 func UnitPreview(name string, pv *UnitPreviewState) {
-	GLView(name, pv.fb, func(width, height int32) {
-		gl.ClearColor(0.2, 0.2, 0.2, 1)
-		gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
+	GLView(name, pv.fb,
+		func(pos, size imgui.Vec2) {
+			io := imgui.CurrentIO()
+			var isMouseInWindow bool
+			{
+				mp := io.MousePos()
+				maxPos := pos.Add(size)
+				isMouseInWindow = mp.X >= pos.X && mp.Y >= pos.Y && mp.X < maxPos.X && mp.Y < maxPos.Y
+			}
+			isMouseClicked := io.MouseClicked()[imgui.MouseButtonLeft]
+			isMouseReleased := io.MouseReleased()[imgui.MouseButtonLeft]
 
-		gl.UseProgram(pv.program)
-		defer gl.UseProgram(0)
+			if isMouseClicked {
+				pv.isDragging = isMouseInWindow
+			}
+			if isMouseReleased {
+				pv.isDragging = false
+			}
+			pv.IsUsing = isMouseInWindow || pv.isDragging
 
-		gl.BindVertexArray(pv.vao)
-		defer gl.BindVertexArray(0)
+			if pv.isDragging {
+				md := io.MouseDelta()
+				pv.viewRotation = pv.viewRotation.Add(mgl32.Vec2{md.X, md.Y}.Mul(-0.01))
+				pv.viewRotation[1] = mgl32.Clamp(pv.viewRotation[1], -1.55, 1.55)
+			}
+		},
+		func(pos, size imgui.Vec2) {
+			gl.ClearColor(0.2, 0.2, 0.2, 1)
+			gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 
-		model := mgl32.Ident4()
-		view := mgl32.LookAt(
-			15, 15, 15,
-			0, 0, 0,
-			0, 1, 0,
-		)
-		proj := mgl32.Perspective(
-			mgl32.DegToRad(60),
-			float32(width)/float32(height),
-			0.1,
-			1000,
-		)
-		mvp := proj.Mul4(view).Mul4(model)
-		gl.UniformMatrix4fv(pv.mvpLoc, 1, false, &mvp[0])
+			gl.UseProgram(pv.program)
+			defer gl.UseProgram(0)
 
-		gl.DrawElements(gl.TRIANGLES, pv.numIndices, gl.UNSIGNED_INT, nil)
-	})
+			gl.BindVertexArray(pv.vao)
+			defer gl.BindVertexArray(0)
+
+			var viewPosition mgl32.Vec3
+			{
+				mat := mgl32.Ident3()
+				mat = mat.Mul3(mgl32.Rotate3DY(pv.viewRotation[0]))
+				mat = mat.Mul3(mgl32.Rotate3DZ(-pv.viewRotation[1]))
+				viewPosition = mat.Mul3x1(mgl32.Vec3{pv.viewDistance, 0, 0})
+			}
+
+			view := mgl32.LookAt(
+				viewPosition[0], viewPosition[1], viewPosition[2],
+				0, 0, 0,
+				0, 1, 0,
+			)
+
+			pv.projection = mgl32.Perspective(
+				mgl32.DegToRad(60),
+				size.X/size.Y,
+				0.1,
+				1000,
+			)
+
+			mvp := pv.projection.Mul4(view).Mul4(pv.model)
+			gl.UniformMatrix4fv(pv.mvpLoc, 1, false, &mvp[0])
+			gl.UniformMatrix4fv(pv.modelLoc, 1, false, &pv.model[0])
+			normal := pv.model.Inv().Transpose()
+			gl.UniformMatrix4fv(pv.normalLoc, 1, false, &normal[0])
+			gl.Uniform3fv(pv.viewPositionLoc, 1, &viewPosition[0])
+
+			gl.DrawElements(gl.TRIANGLES, pv.numIndices, gl.UNSIGNED_INT, nil)
+		},
+		nil,
+	)
 }

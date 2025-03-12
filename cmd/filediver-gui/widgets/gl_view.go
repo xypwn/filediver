@@ -67,7 +67,7 @@ func (fb *Framebuffer) resize(newWidth, newHeight int32) error {
 	return nil
 }
 
-func GLView(name string, fb *Framebuffer, draw func(width, height int32)) {
+func GLView(name string, fb *Framebuffer, processInputIG func(pos, size imgui.Vec2), drawGL func(pos, size imgui.Vec2), drawOverlayIG func(pos, size imgui.Vec2)) {
 	imgui.PushIDStr(name)
 	defer imgui.PopID()
 
@@ -80,12 +80,16 @@ func GLView(name string, fb *Framebuffer, draw func(width, height int32)) {
 	}
 
 	if size.X > 0 && size.Y > 0 {
+		if processInputIG != nil {
+			processInputIG(pos, size)
+		}
+
 		var oldViewport [4]int32
 		gl.GetIntegerv(gl.VIEWPORT, &oldViewport[0])
 
 		gl.BindFramebuffer(gl.FRAMEBUFFER, fb.fbo)
 		gl.Viewport(0, 0, int32(size.X), int32(size.Y))
-		draw(int32(size.X), int32(size.Y))
+		drawGL(pos, size)
 		gl.BindFramebuffer(gl.FRAMEBUFFER, 0)
 
 		gl.Viewport(oldViewport[0], oldViewport[1], oldViewport[2], oldViewport[3])
@@ -98,5 +102,9 @@ func GLView(name string, fb *Framebuffer, draw func(width, height int32)) {
 			imgui.NewVec2(1, 0),
 			0xFFFFFFFF,
 		)
+
+		if drawOverlayIG != nil {
+			drawOverlayIG(pos, size)
+		}
 	}
 }

@@ -43,7 +43,7 @@ func main() {
 	gl.DepthFunc(gl.LESS)
 	gl.Enable(gl.BLEND)
 	gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
-	//gl.Enable(gl.CULL_FACE)
+	gl.Enable(gl.CULL_FACE)
 
 	gl.Enable(gl.DEBUG_OUTPUT)
 	gl.DebugMessageCallback(func(source, gltype, id, severity uint32, length int32, message string, userParam unsafe.Pointer) {
@@ -100,8 +100,12 @@ func main() {
 		}
 		imgui.End()
 
-		imgui.SetNextWindowSize(imgui.NewVec2(400, 400))
-		if imgui.Begin("Ligma0") {
+		imgui.SetNextWindowSizeV(imgui.NewVec2(400, 400), imgui.CondOnce)
+		previewWindowFlags := imgui.WindowFlags(0)
+		if preview.IsUsing {
+			previewWindowFlags |= imgui.WindowFlagsNoMove
+		}
+		if imgui.BeginV("Ligma0", nil, previewWindowFlags) {
 			widgets.UnitPreview("Unit Preview", preview)
 		}
 		imgui.End()
