@@ -1,6 +1,12 @@
 package main
 
-//void ImGui_ImplOpenGL3_DestroyFontsTexture();
+/*
+void ImGui_ImplOpenGL3_DestroyFontsTexture();
+
+typedef struct GLFWwindow GLFWwindow;
+GLFWwindow *glfwGetCurrentContext(void);
+void glfwMakeContextCurrent(GLFWwindow *window);
+*/
 import "C"
 
 import (
@@ -12,13 +18,16 @@ import (
 	"unsafe"
 
 	"github.com/AllenDang/cimgui-go/backend"
-	"github.com/AllenDang/cimgui-go/backend/sdlbackend"
+	"github.com/AllenDang/cimgui-go/backend/glfwbackend"
 	"github.com/AllenDang/cimgui-go/imgui"
 	"github.com/go-gl/gl/v3.2-core/gl"
 	icon_fonts "github.com/juliettef/IconFontCppHeaders"
 	"github.com/xypwn/filediver/cmd/filediver-gui/widgets"
 	"github.com/xypwn/filediver/stingray"
 )
+
+//go:embed fonts/Roboto-Regular.ttf
+var TextFont []byte
 
 //go:embed fonts/MaterialSymbolsOutlined.ttf
 var IconsFont []byte
@@ -38,32 +47,40 @@ func UpdateGUIScale(guiScale float32) {
 
 	style := imgui.NewStyle()
 
-	fontSize := 13 * guiScale
+	fontSize := 15 * guiScale
 	iconsFontSize := fontSize * 1.2
-	fontCfg := imgui.NewFontConfig()
-	defer fontCfg.Destroy()
-	fontCfg.SetSizePixels(fontSize)
-	fonts.AddFontDefaultV(fontCfg)
+	{
+		cfg := imgui.NewFontConfig()
+		cfg.SetFontDataOwnedByAtlas(false)
+		fonts.AddFontFromMemoryTTFV(
+			uintptr(unsafe.Pointer(&TextFont[0])),
+			int32(len(TextFont)),
+			fontSize,
+			cfg,
+			nil,
+		)
+		cfg.Destroy()
+	}
 
-	iconsCfg := imgui.NewFontConfig()
-	defer iconsCfg.Destroy()
-	iconsCfg.SetMergeMode(true)
-	iconsCfg.SetPixelSnapH(true)
-	iconsCfg.SetGlyphOffset(imgui.NewVec2(0, iconsFontSize/4))
-	iconsCfg.SetGlyphMinAdvanceX(iconsFontSize)
-	iconsCfg.SetFontDataOwnedByAtlas(false)
-	fonts.AddFontFromMemoryTTFV(
-		uintptr(unsafe.Pointer(&IconsFont[0])),
-		int32(len(IconsFont)),
-		iconsFontSize,
-		iconsCfg,
-		&IconsFontRanges[0],
-	)
+	{
+		cfg := imgui.NewFontConfig()
+		cfg.SetMergeMode(true)
+		cfg.SetGlyphOffset(imgui.NewVec2(0, iconsFontSize-fontSize))
+		cfg.SetGlyphMinAdvanceX(iconsFontSize)
+		cfg.SetFontDataOwnedByAtlas(false)
+		fonts.AddFontFromMemoryTTFV(
+			uintptr(unsafe.Pointer(&IconsFont[0])),
+			int32(len(IconsFont)),
+			iconsFontSize,
+			cfg,
+			&IconsFontRanges[0],
+		)
+		cfg.Destroy()
+	}
 
-	// HACK: I didn't find any other way to
-	// invalidate the font texture using the bindings.
 	C.ImGui_ImplOpenGL3_DestroyFontsTexture()
 
+	io.SetFontGlobalScale(1)
 	style.ScaleAllSizes(guiScale)
 	io.Ctx().SetStyle(*style)
 }
@@ -71,15 +88,22 @@ func UpdateGUIScale(guiScale float32) {
 func main() {
 	runtime.LockOSThread()
 
-	currentSDLBackend := sdlbackend.NewSDLBackend()
-	currentBackend, err := backend.CreateBackend(currentSDLBackend)
+	var glfwWindow *C.GLFWwindow
+
+	currentBackend, err := backend.CreateBackend(glfwbackend.NewGLFWBackend())
 	if err != nil {
 		log.Fatalf("Error creating backend: %v", err)
 	}
+	currentBackend.SetAfterCreateContextHook(func() {
+		glfwWindow = C.glfwGetCurrentContext()
+	})
 
 	currentBackend.SetTargetFPS(60)
-	currentBackend.SetWindowFlags(sdlbackend.SDLWindowFlagsResizable, 1)
+	currentBackend.SetWindowFlags(glfwbackend.GLFWWindowFlagsResizable, 1)
 	currentBackend.CreateWindow("Filediver GUI", 800, 700)
+
+	// HACK: Window creation resets the GLFW context for some reason, so we restore it here
+	C.glfwMakeContextCurrent(glfwWindow)
 
 	currentBackend.SetBgColor(imgui.NewVec4(0.2, 0.2, 0.2, 1))
 	currentBackend.SetDropCallback(func(paths []string) {
@@ -92,9 +116,12 @@ func main() {
 	io.SetConfigFlags(flags)
 	io.SetIniFilename("")
 
-	guiScale := float32(1.0)
-	UpdateGUIScale(guiScale)
-	shouldUpdateGUIScale := false
+	var guiScale float32
+	{
+		_, yScale := currentBackend.ContentScale()
+		guiScale = yScale
+	}
+	shouldUpdateGUIScale := true
 
 	currentBackend.SetBeforeRenderHook(func() {
 		if shouldUpdateGUIScale {
