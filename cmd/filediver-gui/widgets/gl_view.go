@@ -8,7 +8,7 @@ import (
 	"github.com/go-gl/gl/v3.2-core/gl"
 )
 
-type Framebuffer struct {
+type GLViewState struct {
 	width     int32
 	height    int32
 	fbo       uint32 // frame buffer object
@@ -16,8 +16,8 @@ type Framebuffer struct {
 	rbo       uint32 // render buffer object
 }
 
-func CreateFramebuffer() (*Framebuffer, error) {
-	fb := &Framebuffer{}
+func NewGLView() (*GLViewState, error) {
+	fb := &GLViewState{}
 	gl.GenFramebuffers(1, &fb.fbo)
 	gl.GenTextures(1, &fb.textureID)
 	gl.GenRenderbuffers(1, &fb.rbo)
@@ -25,13 +25,13 @@ func CreateFramebuffer() (*Framebuffer, error) {
 	return fb, nil
 }
 
-func (fb *Framebuffer) Delete() {
+func (fb *GLViewState) Delete() {
 	gl.DeleteFramebuffers(1, &fb.fbo)
 	gl.DeleteTextures(1, &fb.textureID)
 	gl.DeleteRenderbuffers(1, &fb.rbo)
 }
 
-func (fb *Framebuffer) maybeResize(newWidth, newHeight int32) error {
+func (fb *GLViewState) maybeResize(newWidth, newHeight int32) error {
 	if newWidth <= 0 || newHeight <= 0 {
 		return nil
 	}
@@ -42,7 +42,7 @@ func (fb *Framebuffer) maybeResize(newWidth, newHeight int32) error {
 	}
 }
 
-func (fb *Framebuffer) resize(newWidth, newHeight int32) error {
+func (fb *GLViewState) resize(newWidth, newHeight int32) error {
 	fb.width, fb.height = newWidth, newHeight
 
 	gl.BindFramebuffer(gl.FRAMEBUFFER, fb.fbo)
@@ -51,8 +51,8 @@ func (fb *Framebuffer) resize(newWidth, newHeight int32) error {
 	gl.BindTexture(gl.TEXTURE_2D, fb.textureID)
 	defer gl.BindTexture(gl.TEXTURE_2D, 0)
 	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGB, fb.width, fb.height, 0, gl.RGB, gl.UNSIGNED_BYTE, nil)
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
 	gl.FramebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, fb.textureID, 0)
 
 	gl.BindRenderbuffer(gl.RENDERBUFFER, fb.rbo)
@@ -67,7 +67,7 @@ func (fb *Framebuffer) resize(newWidth, newHeight int32) error {
 	return nil
 }
 
-func GLView(name string, fb *Framebuffer, processInputIG func(pos, size imgui.Vec2), drawGL func(pos, size imgui.Vec2), drawOverlayIG func(pos, size imgui.Vec2)) {
+func GLView(name string, fb *GLViewState, processInputIG func(pos, size imgui.Vec2), drawGL func(pos, size imgui.Vec2), drawOverlayIG func(pos, size imgui.Vec2)) {
 	imgui.PushIDStr(name)
 	defer imgui.PopID()
 

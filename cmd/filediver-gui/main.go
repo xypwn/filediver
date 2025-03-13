@@ -23,7 +23,6 @@ import (
 	"github.com/go-gl/gl/v3.2-core/gl"
 	icon_fonts "github.com/juliettef/IconFontCppHeaders"
 	"github.com/xypwn/filediver/cmd/filediver-gui/widgets"
-	"github.com/xypwn/filediver/stingray"
 )
 
 //go:embed fonts/Roboto-Regular.ttf
@@ -162,39 +161,15 @@ func main() {
 
 	gameDataLoad.GoLoadGameData(ctx)
 
-	unitPreviewState, err := widgets.CreateUnitPreview()
+	previewState, err := widgets.NewFilePreview()
 	if err != nil {
 		log.Fatal("Error creating unit preview:", err)
 	}
 	defer func() {
-		if unitPreviewState != nil {
-			unitPreviewState.Delete()
+		if previewState != nil {
+			previewState.Delete()
 		}
 	}()
-	loadUnit := func(fileID stingray.FileID) {
-		if gameData == nil {
-			return
-		}
-		file, ok := gameData.DataDir.Files[fileID]
-		if !ok {
-			log.Println("Unit file does not exist")
-			return
-		}
-		fMain, err := file.Open(ctx, stingray.DataMain)
-		if err != nil {
-			log.Println("Error opening unit file:", err)
-			return
-		}
-		fGPU, err := file.Open(ctx, stingray.DataGPU)
-		if err != nil {
-			log.Println("Error opening unit file:", err)
-			return
-		}
-		if err := unitPreviewState.LoadUnit(fMain, fGPU); err != nil {
-			log.Println("Error loading unit:", err)
-			return
-		}
-	}
 
 	var gameFileSearchQuery string
 
@@ -292,9 +267,7 @@ func main() {
 							imgui.TextUnformatted(gameData.LookupHash(id.Type))
 							imgui.PopID()
 							if selected {
-								if id.Type == stingray.Sum64([]byte("unit")) {
-									loadUnit(id)
-								}
+								previewState.LoadFile(ctx, gameData.DataDir.Files[id])
 							}
 						}
 					}
@@ -306,11 +279,13 @@ func main() {
 		imgui.End()
 
 		previewWindowFlags := imgui.WindowFlags(0)
-		if unitPreviewState.IsUsing {
+		if previewState.IsUsing {
 			previewWindowFlags |= imgui.WindowFlagsNoMove
 		}
 		if imgui.BeginV("Preview", nil, previewWindowFlags) {
-			widgets.UnitPreview("Unit Preview", unitPreviewState)
+			if !widgets.FilePreview("Preview", previewState) {
+				imgui.TextUnformatted("Nothing to preview")
+			}
 		}
 		imgui.End()
 

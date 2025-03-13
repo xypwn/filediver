@@ -26,7 +26,7 @@ var stingrayToGLCoords = mgl32.Mat4{
 }
 
 type UnitPreviewState struct {
-	fb      *Framebuffer
+	fb      *GLViewState
 	program uint32
 	vao     uint32 // vertex array object
 	ibo     uint32 // index buffer object
@@ -48,12 +48,12 @@ type UnitPreviewState struct {
 	IsUsing    bool // true if window shouldn't handle mouse events
 }
 
-func CreateUnitPreview() (*UnitPreviewState, error) {
+func NewUnitPreview() (*UnitPreviewState, error) {
 	var err error
 
 	pv := &UnitPreviewState{}
 
-	pv.fb, err = CreateFramebuffer()
+	pv.fb, err = NewGLView()
 	if err != nil {
 		return nil, err
 	}
