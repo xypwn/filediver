@@ -17,7 +17,7 @@ An unofficial Helldivers 2 game asset extractor.
 - [Windows (64-bit)](https://github.com/xypwn/filediver/releases/latest/download/filediver-windows-amd64.zip)
 - [Linux (64-bit)](https://github.com/xypwn/filediver/releases/latest/download/filediver-linux-amd64.tar.gz)
 
-**Extract the achive into a new folder.**
+**Extract the archive. This will create a folder named `filediver`, where everything relevant is located.**
 
 The program is called "filediver.exe" (or just "filediver" on Linux). See [usage](#usage).
 
@@ -32,17 +32,17 @@ You only need to keep it in the folder if you don't have it installed on your co
 ### Helper scripts (scripts_dist)
 - [Windows (64-bit)](https://github.com/xypwn/filediver/releases/latest/download/scripts_dist_windows.zip)
 
-**Extract the helper scripts achive into the same folder you extracted the filediver archive into.**
+**Extract the helper scripts achive into the `filediver` folder (the same folder containing the executable, e.g. `filediver.exe`).**
 
 ## Usage
 ### Windows
-Navigate to the folder where you unpacked the program into. `SHIFT`+`Right-Click` **in** the folder and select "Open in PowerShell".
+Navigate to the `filediver` folder (the one containing `filediver.exe`). `SHIFT`+`Right-Click` **in** the folder and select "Open in PowerShell".
 
 In PowerShell/Terminal, run `./filediver -h` to get a list of options.
 
 ### Here are some example commands:
 
-**(You can use right-click to paste your current clipboard to the PowerShell terminal)**
+**(you can use right-click to paste your current clipboard to the PowerShell terminal)**
 
 Simply running the app should automatically detect your installation directory and dump all files into the "extracted" directory in your current folder:
 ```sh
@@ -66,7 +66,7 @@ Extract only video files:
 
 Extract the Super Earth anthem as mp3:
 ```sh
-./filediver -c "audio:format=mp3" -i "content/audio/291227525.wwise_stream"
+./filediver -c "enable:wwise_stream wwise_stream:format=mp3" -i "content/audio/291227525.wwise_stream"
 ```
 
 Extract the DP-00 Tactical armor set:
@@ -82,20 +82,12 @@ Requires [Helper Scripts](#helper-scripts-scripts_dist) to be downloaded and unz
 - **Audio**: Audiokinetic wwise bnk/wem; automatically converted to WAV; other formats require FFmpeg
 - **Video**: Bink; automatically converted to MP4 via FFmpeg (shipped with Windows binary)
 - **Textures**: Direct Draw Surface (.dds); automatically converted to PNG
-- **Models (WIP)**: Stingray Unit; automatically converted to GLB (=glTF); can be imported into [Blender](https://www.blender.org/); for importing bones, see [Importing Bones](#importing-bones)
+- **Models (WIP)**: Stingray Unit; automatically converted to GLB (=glTF); can be imported into [Blender](https://www.blender.org/); ability to automatically apply Thejudsub's accurate HD2 Shader; for importing bones, see [Importing Bones](#importing-bones)
 
 Planned: animations
 
 ### Importing Bones
 When importing the .glb into blender, you need to change the "Bone Dir" option from "Blender" to "Temperance", or you will see huge spheres for bones.
-
-### Thejudsub's Accurate Shader
-.glb models exported from filediver can be imported into Blender with the accurate shader pre-applied, saving a lot of manual work finding and applying textures:
-
-1. Download `hd2_accurate_blender_importer.zip` from the Releases tab and unzip it to the same directory filediver is located.
-2. Export a model that uses procedural materials (most armor pieces and weapons do)
-3. Run `./scripts_dist/hd2_accurate_blender_importer/hd2_accurate_blender_importer.exe path/to/filediver/exported.glb path/to/output.blend`
-4. `path/to/output.blend` will be a _**new, completely fresh/overwritten**_ blend file containing the exported models with the shader applied.
 
 ## Credits/Links
 This app builds on a lot of work from other people. This includes:

@@ -1,0 +1,4 @@
+# The core of Filediver is written in Go, not Python!
+*.py -linguist-detectable
+# Auto detect text files and perform LF normalization
+* text=auto

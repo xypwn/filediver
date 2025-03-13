@@ -15,7 +15,7 @@ var fs embed.FS
 type CustomizationKitSlot uint32
 
 const (
-	SlotUnk           CustomizationKitSlot = 0
+	SlotHelmet        CustomizationKitSlot = 0
 	SlotCape          CustomizationKitSlot = 1
 	SlotTorso         CustomizationKitSlot = 2
 	SlotHips          CustomizationKitSlot = 3
@@ -29,8 +29,8 @@ const (
 
 func (b CustomizationKitSlot) String() string {
 	switch b {
-	case SlotUnk:
-		return "unknown"
+	case SlotHelmet:
+		return "helmet"
 	case SlotCape:
 		return "cape"
 	case SlotTorso:
@@ -151,6 +151,19 @@ const (
 	KitCape   CustomizationKitType = 2
 )
 
+func (v CustomizationKitType) String() string {
+	switch v {
+	case KitArmor:
+		return "Armor"
+	case KitHelmet:
+		return "Helmet"
+	case KitCape:
+		return "Cape"
+	default:
+		return "Unknown"
+	}
+}
+
 type CustomizationKitRarity uint32
 
 const (
@@ -160,25 +173,39 @@ const (
 	RarityHeroic   CustomizationKitRarity = 2
 )
 
+func (v CustomizationKitRarity) String() string {
+	switch v {
+	case RarityCommon:
+		return "Common"
+	case RarityUncommon:
+		return "Uncommon"
+	case RarityHeroic:
+		return "Heroic"
+	default:
+		return "Unknown"
+	}
+}
+
 type CustomizationKitPassive uint32
 
 const (
-	PassiveNone           CustomizationKitPassive = 0
-	PassivePadding        CustomizationKitPassive = 1
-	PassiveTactician      CustomizationKitPassive = 2
-	PassiveFireSupport    CustomizationKitPassive = 3
-	PassiveUnk01          CustomizationKitPassive = 4
-	PassiveExperimental   CustomizationKitPassive = 5
-	PassiveCombatEngineer CustomizationKitPassive = 6
-	PassiveCombatMedic    CustomizationKitPassive = 7
-	PassiveBattleHardened CustomizationKitPassive = 8
-	PassiveHero           CustomizationKitPassive = 9
-	PassiveFireResistant  CustomizationKitPassive = 10
-	PassivePeakPhysique   CustomizationKitPassive = 11
-	PassiveGasResistant   CustomizationKitPassive = 12
-	PassiveUnflinching    CustomizationKitPassive = 13
-	PassiveAcclimated     CustomizationKitPassive = 14
-	PassiveSiegeReady     CustomizationKitPassive = 15
+	PassiveNone                 CustomizationKitPassive = 0
+	PassivePadding              CustomizationKitPassive = 1
+	PassiveTactician            CustomizationKitPassive = 2
+	PassiveFireSupport          CustomizationKitPassive = 3
+	PassiveUnk01                CustomizationKitPassive = 4
+	PassiveExperimental         CustomizationKitPassive = 5
+	PassiveCombatEngineer       CustomizationKitPassive = 6
+	PassiveCombatMedic          CustomizationKitPassive = 7
+	PassiveBattleHardened       CustomizationKitPassive = 8
+	PassiveHero                 CustomizationKitPassive = 9
+	PassiveFireResistant        CustomizationKitPassive = 10
+	PassivePeakPhysique         CustomizationKitPassive = 11
+	PassiveGasResistant         CustomizationKitPassive = 12
+	PassiveUnflinching          CustomizationKitPassive = 13
+	PassiveAcclimated           CustomizationKitPassive = 14
+	PassiveSiegeReady           CustomizationKitPassive = 15
+	PassiveIntegratedExplosives CustomizationKitPassive = 16
 )
 
 func (v CustomizationKitPassive) String() string {
@@ -215,6 +242,8 @@ func (v CustomizationKitPassive) String() string {
 		return "Acclimated"
 	case PassiveSiegeReady:
 		return "Siege-Ready"
+	case PassiveIntegratedExplosives:
+		return "Integrated Explosives"
 	default:
 		return fmt.Sprint(uint32(v))
 	}
@@ -266,6 +295,7 @@ type UnitData struct {
 }
 
 type ArmorSet struct {
+	Name         string
 	SetId        uint32
 	Passive      CustomizationKitPassive
 	Type         CustomizationKitType
@@ -273,7 +303,7 @@ type ArmorSet struct {
 }
 
 // Map of triad hash to armor set
-func LoadArmorSetDefinitions() (map[stingray.Hash]ArmorSet, error) {
+func LoadArmorSetDefinitions(strings map[uint32]string) (map[stingray.Hash]ArmorSet, error) {
 	file, err := fs.Open("generated_customization_armor_sets.dl_bin")
 	if err != nil {
 		return nil, err
@@ -294,6 +324,14 @@ func LoadArmorSetDefinitions() (map[stingray.Hash]ArmorSet, error) {
 		return nil, fmt.Errorf("fs.File does not implement io.ReadSeeker (but it should so this should not happen)")
 	}
 
+	getNameIfContained := func(id uint32) string {
+		if name, contains := strings[id]; contains {
+			return name
+		} else {
+			return fmt.Sprintf("%x", id)
+		}
+	}
+
 	sets := make(map[stingray.Hash]ArmorSet)
 	var count uint32
 	if err := binary.Read(r, binary.LittleEndian, &count); err != nil {
@@ -306,13 +344,14 @@ func LoadArmorSetDefinitions() (map[stingray.Hash]ArmorSet, error) {
 			return nil, err
 		}
 
-		r.Seek(int64(item.Kit.BodyArrayAddress&0xfffff), io.SeekStart)
+		r.Seek(int64((item.Kit.BodyArrayAddress&0xfffff)-0xa0000), io.SeekStart)
 		var bodies []Body = make([]Body, item.Kit.BodyCount)
 		if err := binary.Read(r, binary.LittleEndian, bodies); err != nil {
 			return nil, err
 		}
 
 		armorSet := ArmorSet{
+			Name:         getNameIfContained(item.Kit.NameCased),
 			SetId:        item.Kit.SetId,
 			Passive:      item.Kit.Passive,
 			Type:         item.Kit.Type,
@@ -320,7 +359,7 @@ func LoadArmorSetDefinitions() (map[stingray.Hash]ArmorSet, error) {
 		}
 
 		for _, body := range bodies {
-			r.Seek(int64(body.PiecesAddress&0xfffff), io.SeekStart)
+			r.Seek(int64((body.PiecesAddress&0xfffff)-0xa0000), io.SeekStart)
 			pieces := make([]Piece, body.PiecesCount)
 			if err := binary.Read(r, binary.LittleEndian, pieces); err != nil {
 				return nil, err

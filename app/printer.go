@@ -74,9 +74,9 @@ func (p *Printer) Statusf(f string, a ...any) {
 		pfx = "\033[2K\r" + pfx
 	}
 	p.status = fmt.Sprintf(f, a...)
-	fmt.Print(pfx + p.status)
+	fmt.Fprint(p.stdout, pfx+p.status)
 	if !p.color {
-		fmt.Print("\n")
+		fmt.Fprint(p.stdout, "\n")
 	}
 }
 
@@ -86,6 +86,6 @@ func (p *Printer) NoStatus() {
 	}
 	p.status = ""
 	if p.color {
-		fmt.Print("\033[2K\r")
+		fmt.Fprint(p.stdout, "\033[2K\r")
 	}
 }

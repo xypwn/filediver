@@ -1,5 +1,7 @@
-helldivers
-extracted
 .venv
 __pycache__
 /scripts_dist
+/extracted
+/fd_crossrefs.txt
+/all_files.txt
+cpu.prof

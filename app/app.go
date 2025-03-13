@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/gobwas/glob"
@@ -18,24 +18,30 @@ import (
 	"github.com/xypwn/filediver/extractor"
 	extr_bik "github.com/xypwn/filediver/extractor/bik"
 	extr_material "github.com/xypwn/filediver/extractor/material"
+	extr_package "github.com/xypwn/filediver/extractor/package"
+	extr_strings "github.com/xypwn/filediver/extractor/strings"
 	extr_texture "github.com/xypwn/filediver/extractor/texture"
 	extr_unit "github.com/xypwn/filediver/extractor/unit"
 	extr_wwise "github.com/xypwn/filediver/extractor/wwise"
 	"github.com/xypwn/filediver/steampath"
 	"github.com/xypwn/filediver/stingray"
 	dlbin "github.com/xypwn/filediver/stingray/dl_bin"
+	stingray_strings "github.com/xypwn/filediver/stingray/strings"
+	stingray_wwise "github.com/xypwn/filediver/stingray/wwise"
+	"github.com/xypwn/filediver/wwise"
 )
 
 var ConfigFormat = ConfigTemplate{
 	Extractors: map[string]ConfigTemplateExtractor{
 		"wwise_stream": {
-			Category: "audio",
+			Category: "loose_audio",
 			Options: map[string]ConfigTemplateOption{
 				"format": {
 					Type: ConfigValueEnum,
 					Enum: []string{"ogg", "wav", "aac", "mp3", "wem", "source"},
 				},
 			},
+			DefaultDisabled: true,
 		},
 		"wwise_bank": {
 			Category: "audio",
@@ -144,6 +150,24 @@ var ConfigFormat = ConfigTemplate{
 				},
 			},
 		},
+		"strings": {
+			Category: "text",
+			Options: map[string]ConfigTemplateOption{
+				"format": {
+					Type: ConfigValueEnum,
+					Enum: []string{"json", "source"},
+				},
+			},
+		},
+		"package": {
+			Category: "text",
+			Options: map[string]ConfigTemplateOption{
+				"format": {
+					Type: ConfigValueEnum,
+					Enum: []string{"json", "source"},
+				},
+			},
+		},
 		"raw": {
 			Category: "",
 			Options: map[string]ConfigTemplateOption{
@@ -215,18 +239,95 @@ func ParseHashes(str string) []string {
 type App struct {
 	Hashes     map[stingray.Hash]string
 	ThinHashes map[stingray.ThinHash]string
-	ArmorSets  map[stingray.Hash]dlbin.ArmorSet
-	DataDir    *stingray.DataDir
+	// Passed triad ID (-t option).
+	TriadIDs  []stingray.Hash
+	ArmorSets map[stingray.Hash]dlbin.ArmorSet
+	DataDir   *stingray.DataDir
+}
+
+// Automatically gets most wwise-related hashes by reading the game files
+func getWwiseHashes(ctx context.Context, dataDir *stingray.DataDir) (map[stingray.Hash]string, error) {
+	hashes := make(map[stingray.Hash]string)
+	// Read wwise_dep files to figure out the names of all wwise_bank files
+	for id, file := range dataDir.Files {
+		if id.Type == stingray.Sum64([]byte("wwise_dep")) {
+			h, err := parseWwiseDep(ctx, file)
+			if err != nil {
+				return nil, fmt.Errorf("wwise_dep: %w", err)
+			}
+			hashes[stingray.Sum64([]byte(h))] = h
+		}
+	}
+	// Read wwise_bank files to figure out the names of most wwise_stream files
+	for id, file := range dataDir.Files {
+		if id.Type == stingray.Sum64([]byte("wwise_bank")) {
+			name, ok := hashes[id.Name]
+			if !ok {
+				return nil, fmt.Errorf("expected all wwise banks to have a known name, but cannot find name for hash %v", id.Name)
+			}
+			dir := path.Dir(name)
+			if err := func() error {
+				r, err := file.Open(ctx, stingray.DataMain)
+				if err != nil {
+					return err
+				}
+				defer r.Close()
+				bnk, err := stingray_wwise.OpenBnk(r)
+				if err != nil {
+					return err
+				}
+				for i := 0; i < bnk.NumFiles(); i++ {
+					id := bnk.FileID(i)
+					streamPath := path.Join(dir, fmt.Sprint(id))
+					hashes[stingray.Sum64([]byte(streamPath))] = streamPath
+				}
+				for _, obj := range bnk.HircObjects {
+					if obj.Header.Type == wwise.BnkHircObjectSound {
+						streamPath := path.Join(dir, fmt.Sprint(obj.Sound.SourceID))
+						hashes[stingray.Sum64([]byte(streamPath))] = streamPath
+					}
+				}
+				return nil
+			}(); err != nil {
+				return nil, err
+			}
+		}
+	}
+	// 6 hashes were still missing when tested
+	/*// Validate that all wwise_stream file names are known
+	{
+		numWithoutName := 0
+		for id := range dataDir.Files {
+			if id.Type == stingray.Sum64([]byte("wwise_stream")) {
+				if _, ok := hashes[id.Name]; !ok {
+					fmt.Println(id.Name)
+					numWithoutName++
+				}
+			}
+		}
+		if numWithoutName > 0 {
+			return nil, fmt.Errorf("expected all wwise streams to have a known name, but cannot find name for %v hashes", numWithoutName)
+		}
+	}*/
+
+	return hashes, nil
 }
 
 // Open game dir and read metadata.
-func OpenGameDir(ctx context.Context, gameDir string, hashes []string, thinhashes []string, onProgress func(curr, total int)) (*App, error) {
+func OpenGameDir(ctx context.Context, gameDir string, hashes []string, thinhashes []string, triadIDs []stingray.Hash, armorStrings stingray.Hash, onProgress func(curr, total int)) (*App, error) {
 	dataDir, err := stingray.OpenDataDir(ctx, filepath.Join(gameDir, "data"), onProgress)
 	if err != nil {
 		return nil, err
 	}
 
 	hashesMap := make(map[stingray.Hash]string)
+	if wwiseHashes, err := getWwiseHashes(ctx, dataDir); err == nil {
+		for h, n := range wwiseHashes {
+			hashesMap[h] = n
+		}
+	} else {
+		return nil, err
+	}
 	for _, h := range hashes {
 		hashesMap[stingray.Sum64([]byte(h))] = h
 	}
@@ -235,48 +336,64 @@ func OpenGameDir(ctx context.Context, gameDir string, hashes []string, thinhashe
 		thinHashesMap[stingray.Sum64([]byte(h)).Thin()] = h
 	}
 
-	armorSets, err := dlbin.LoadArmorSetDefinitions()
+	stringsFile, ok := dataDir.Files[stingray.FileID{
+		Name: armorStrings,
+		Type: stingray.Sum64([]byte("strings")),
+	}]
+
+	var stringMap *stingray_strings.StingrayStrings = nil
+	if ok {
+		stringsReader, err := stringsFile.Open(ctx, stingray.DataMain)
+		if err == nil {
+			defer stringsReader.Close()
+			stringMap, err = stingray_strings.LoadStingrayStrings(stringsReader)
+			if err != nil {
+				stringMap = nil
+			}
+		}
+	}
+
+	var mapping map[uint32]string = make(map[uint32]string)
+	if stringMap != nil {
+		mapping = stringMap.Strings
+	}
+
+	armorSets, err := dlbin.LoadArmorSetDefinitions(mapping)
 	if err != nil {
 		return nil, err
-	}
-	// wwise_dep files let us know the string of many of the wwise_banks
-	for id, file := range dataDir.Files {
-		if id.Type == stingray.Sum64([]byte("wwise_dep")) {
-			h, err := parseWwiseDep(ctx, file)
-			if err != nil {
-				return nil, fmt.Errorf("wwise_dep: %w", err)
-			}
-			hashesMap[stingray.Sum64([]byte(h))] = h
-		}
 	}
 
 	return &App{
 		Hashes:     hashesMap,
 		ThinHashes: thinHashesMap,
+		TriadIDs:   triadIDs,
 		ArmorSets:  armorSets,
 		DataDir:    dataDir,
 	}, nil
 }
 
 func (a *App) matchFileID(id stingray.FileID, glb glob.Glob, nameOnly bool) bool {
-	nameVariations := []string{
-		id.Name.StringEndian(binary.LittleEndian),
-		id.Name.StringEndian(binary.BigEndian),
-		"0x" + id.Name.StringEndian(binary.BigEndian),
-		"0x" + strings.TrimLeft(id.Name.StringEndian(binary.BigEndian), "0"),
+	hashVariations := func(h stingray.Hash) []string {
+		return []string{
+			h.StringEndian(binary.LittleEndian),
+			h.StringEndian(binary.BigEndian),
+			"0x" + h.StringEndian(binary.BigEndian),
+			"0x" + strings.TrimLeft(h.StringEndian(binary.BigEndian), "0"),
+			strings.ToUpper(h.StringEndian(binary.LittleEndian)),
+			strings.ToUpper(h.StringEndian(binary.BigEndian)),
+			"0x" + strings.ToUpper(h.StringEndian(binary.BigEndian)),
+			"0x" + strings.ToUpper(strings.TrimLeft(h.StringEndian(binary.BigEndian), "0")),
+		}
 	}
+
+	nameVariations := hashVariations(id.Name)
 	if name, ok := a.Hashes[id.Name]; ok {
 		nameVariations = append(nameVariations, name)
 	}
 
 	var typeVariations []string
 	if !nameOnly {
-		typeVariations = []string{
-			id.Type.StringEndian(binary.LittleEndian),
-			id.Type.StringEndian(binary.BigEndian),
-			"0x" + id.Type.StringEndian(binary.BigEndian),
-			"0x" + strings.TrimLeft(id.Type.StringEndian(binary.BigEndian), "0"),
-		}
+		typeVariations = hashVariations(id.Type)
 		if typ, ok := a.Hashes[id.Type]; ok {
 			typeVariations = append(typeVariations, typ)
 		}
@@ -299,7 +416,16 @@ func (a *App) matchFileID(id stingray.FileID, glb glob.Glob, nameOnly bool) bool
 	return false
 }
 
-func (a *App) MatchingFiles(includeGlob, excludeGlob string, triadName string, cfgTemplate ConfigTemplate, cfg map[string]map[string]string) (map[stingray.FileID]*stingray.File, error) {
+func (a *App) MatchingFiles(
+	includeGlob string,
+	excludeGlob string,
+	includeTriadIDs []stingray.Hash,
+	cfgTemplate ConfigTemplate,
+	cfg map[string]map[string]string,
+) (
+	map[stingray.FileID]*stingray.File,
+	error,
+) {
 	var inclGlob glob.Glob
 	inclGlobNameOnly := !strings.Contains(includeGlob, ".")
 	if includeGlob != "" {
@@ -319,24 +445,28 @@ func (a *App) MatchingFiles(includeGlob, excludeGlob string, triadName string, c
 		}
 	}
 
-	var triadHash stingray.Hash = stingray.Hash{Value: 0}
-	if triadName != "" {
-		id, err := strconv.ParseUint(triadName, 16, 64)
-		if err != nil {
-			return nil, err
+	var includeTriadFiles map[stingray.FileID]*stingray.File = make(map[stingray.FileID]*stingray.File)
+	for _, includeTriadID := range includeTriadIDs {
+		files, ok := a.DataDir.FilesByTriad[includeTriadID]
+		if !ok {
+			return nil, fmt.Errorf("triad %v does not exist", includeTriadID.String())
 		}
-		triadHash.Value = id
+		for id, file := range files {
+			includeTriadFiles[id] = file
+		}
 	}
 
 	res := make(map[stingray.FileID]*stingray.File)
-	for id, duplicates := range a.DataDir.Duplicates {
+	for id, file := range a.DataDir.Files {
 		shouldIncl := true
-		if _, contains := duplicates[triadHash]; triadHash.Value != 0 && !contains {
-			shouldIncl = false
+		if len(includeTriadIDs) != 0 {
+			if _, ok := includeTriadFiles[id]; !ok {
+				shouldIncl = false
+			}
 		}
 		if includeGlob != "" {
 			// Include all files in triad even if they don't match the includeGlob - includeGlob will only add files to read
-			shouldIncl = a.matchFileID(id, inclGlob, inclGlobNameOnly) || (triadName != "" && shouldIncl)
+			shouldIncl = (len(includeTriadIDs) != 0 && shouldIncl) || a.matchFileID(id, inclGlob, inclGlobNameOnly)
 		}
 		if excludeGlob != "" {
 			if a.matchFileID(id, exclGlob, exclGlobNameOnly) {
@@ -372,14 +502,18 @@ func (a *App) MatchingFiles(includeGlob, excludeGlob string, triadName string, c
 			continue
 		}
 
-		if _, contains := duplicates[triadHash]; triadHash.Value != 0 && contains {
-			res[id] = duplicates[triadHash]
-		} else {
-			res[id] = a.DataDir.Files[id]
-		}
+		res[id] = file
 	}
 
 	return res, nil
+}
+
+// Prints hash if human-readable name is unknown.
+func (a *App) LookupHash(hash stingray.Hash) string {
+	if name, ok := a.Hashes[hash]; ok {
+		return name
+	}
+	return hash.String()
 }
 
 type extractContext struct {
@@ -390,9 +524,10 @@ type extractContext struct {
 	config  map[string]string
 	outPath string
 	files   []string
+	printer *Printer
 }
 
-func newExtractContext(ctx context.Context, app *App, file *stingray.File, runner *exec.Runner, config map[string]string, outPath string) *extractContext {
+func newExtractContext(ctx context.Context, app *App, file *stingray.File, runner *exec.Runner, config map[string]string, outPath string, printer *Printer) *extractContext {
 	return &extractContext{
 		ctx:     ctx,
 		app:     app,
@@ -400,6 +535,7 @@ func newExtractContext(ctx context.Context, app *App, file *stingray.File, runne
 		runner:  runner,
 		config:  config,
 		outPath: outPath,
+		printer: printer,
 	}
 }
 
@@ -408,13 +544,6 @@ func (c *extractContext) File() *stingray.File      { return c.file }
 func (c *extractContext) Runner() *exec.Runner      { return c.runner }
 func (c *extractContext) Config() map[string]string { return c.config }
 func (c *extractContext) GetResource(name, typ stingray.Hash) (file *stingray.File, exists bool) {
-	dups, exists := c.app.DataDir.Duplicates[stingray.FileID{Name: name, Type: typ}]
-	if exists {
-		file, exists = dups[c.file.TriadID()]
-		if exists {
-			return
-		}
-	}
 	file, exists = c.app.DataDir.Files[stingray.FileID{Name: name, Type: typ}]
 	return
 }
@@ -443,22 +572,22 @@ func (c *extractContext) Hashes() map[stingray.Hash]string {
 func (c *extractContext) ThinHashes() map[stingray.ThinHash]string {
 	return c.app.ThinHashes
 }
+func (c *extractContext) TriadIDs() []stingray.Hash {
+	return c.app.TriadIDs
+}
 func (c *extractContext) ArmorSets() map[stingray.Hash]dlbin.ArmorSet {
 	return c.app.ArmorSets
 }
+func (c *extractContext) Warnf(f string, a ...any) {
+	name, typ := c.app.LookupHash(c.file.ID().Name), c.app.LookupHash(c.file.ID().Type)
+	c.printer.Warnf("extract %v.%v: %v", name, typ, fmt.Sprintf(f, a...))
+}
 
 // Returns path to extracted file/directory.
-func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, triadId stingray.Hash, outDir string, extrCfg map[string]map[string]string, runner *exec.Runner, gltfDoc *gltf.Document) ([]string, error) {
-	name, ok := a.Hashes[id.Name]
-	if !ok {
-		name = id.Name.String()
-	}
-	typ, ok := a.Hashes[id.Type]
-	if !ok {
-		typ = id.Type.String()
-	}
+func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string, extrCfg map[string]map[string]string, runner *exec.Runner, gltfDoc *gltf.Document, printer *Printer) ([]string, error) {
+	name, typ := a.LookupHash(id.Name), a.LookupHash(id.Type)
 
-	file, ok := a.DataDir.Duplicates[id][triadId]
+	file, ok := a.DataDir.Files[id]
 	if !ok {
 		return nil, fmt.Errorf("extract %v.%v: file does not exist", name, typ)
 	}
@@ -469,53 +598,45 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, triadId sting
 	}
 
 	var extr extractor.ExtractFunc
-	switch typ {
-	case "bik":
-		if cfg["format"] == "source" {
-			extr = extractor.ExtractFuncRaw(".stingray_bik", stingray.DataMain, stingray.DataStream, stingray.DataGPU)
-		} else if cfg["format"] == "bik" {
-			extr = extr_bik.ExtractBik
-		} else {
-			extr = extr_bik.ConvertToMP4
-		}
-	case "wwise_stream":
-		if cfg["format"] == "source" {
-			extr = extractor.ExtractFuncRaw(".stingray_wem", stingray.DataMain, stingray.DataStream, stingray.DataGPU)
-		} else if cfg["format"] == "wem" {
-			extr = extractor.ExtractFuncRaw(".wem", stingray.DataStream)
-		} else {
-			extr = extr_wwise.ConvertWem
-		}
-	case "wwise_bank":
-		if cfg["format"] == "source" {
-			extr = extractor.ExtractFuncRaw(".bnk", stingray.DataMain, stingray.DataStream, stingray.DataGPU)
-		} else if cfg["format"] == "bnk" {
-			extr = extr_wwise.ExtractBnk
-		} else {
-			extr = extr_wwise.ConvertBnk
-		}
-	case "material":
-		if cfg["format"] == "source" {
-			extr = extractor.ExtractFuncRaw(".material", stingray.DataMain, stingray.DataStream, stingray.DataGPU)
-		} else {
+	if cfg["format"] == "source" {
+		extr = extractor.ExtractFuncRaw(typ)
+	} else {
+		switch typ {
+		case "bik":
+			if cfg["format"] == "bik" {
+				extr = extr_bik.ExtractBik
+			} else {
+				extr = extr_bik.ConvertToMP4
+			}
+		case "wwise_stream":
+			if cfg["format"] == "wem" {
+				extr = extr_wwise.ExtractWem
+			} else {
+				extr = extr_wwise.ConvertWem
+			}
+		case "wwise_bank":
+			if cfg["format"] == "bnk" {
+				extr = extr_wwise.ExtractBnk
+			} else {
+				extr = extr_wwise.ConvertBnk
+			}
+		case "material":
 			extr = extr_material.Convert(gltfDoc)
-		}
-	case "unit":
-		if cfg["format"] == "source" {
-			extr = extractor.ExtractFuncRaw(".unit", stingray.DataMain, stingray.DataStream, stingray.DataGPU)
-		} else {
+		case "unit":
 			extr = extr_unit.Convert(gltfDoc)
+		case "texture":
+			if cfg["format"] == "dds" {
+				extr = extr_texture.ExtractDDS
+			} else {
+				extr = extr_texture.ConvertToPNG
+			}
+		case "strings":
+			extr = extr_strings.ExtractStringsJSON
+		case "package":
+			extr = extr_package.ExtractPackageJSON
+		default:
+			extr = extractor.ExtractFuncRaw(typ)
 		}
-	case "texture":
-		if cfg["format"] == "source" {
-			extr = extractor.ExtractFuncRaw(".texture", stingray.DataMain, stingray.DataStream, stingray.DataGPU)
-		} else if cfg["format"] == "dds" {
-			extr = extr_texture.ExtractDDS
-		} else {
-			extr = extr_texture.ConvertToPNG
-		}
-	default:
-		extr = extractor.ExtractFuncRaw("."+typ, stingray.DataMain, stingray.DataStream, stingray.DataGPU)
 	}
 
 	outPath := filepath.Join(outDir, name)
@@ -529,6 +650,7 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, triadId sting
 		runner,
 		cfg,
 		outPath,
+		printer,
 	)
 	if err := extr(extrCtx); err != nil {
 		{

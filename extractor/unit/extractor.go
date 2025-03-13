@@ -67,7 +67,7 @@ func remapMeshBones(mesh *unit.Mesh, mapping unit.SkeletonMap) error {
 }
 
 // Adds the unit's skeleton to the gltf document
-func addSkeleton(ctx extractor.Context, doc *gltf.Document, unitInfo *unit.Info, boneInfo *bones.BoneInfo) uint32 {
+func addSkeleton(ctx extractor.Context, doc *gltf.Document, unitInfo *unit.Info, boneInfo *bones.BoneInfo, armorName *string) uint32 {
 	var matrices [][4][4]float32 = make([][4][4]float32, len(unitInfo.JointTransformMatrices))
 	gltfConversionMatrix := mgl32.HomogRotate3DX(mgl32.DegToRad(-90.0)).Mul4(mgl32.HomogRotate3DZ(mgl32.DegToRad(0)))
 	for i := range matrices {
@@ -86,11 +86,15 @@ func addSkeleton(ctx extractor.Context, doc *gltf.Document, unitInfo *unit.Info,
 		if node.Extras == nil {
 			continue
 		}
-		extras, ok := node.Extras.(map[string]uint32)
+		extras, ok := node.Extras.(map[string]any)
 		if !ok {
 			continue
 		}
-		skeletonId, ok := extras["skeletonId"]
+		skeletonIdAny, ok := extras["skeletonId"]
+		if !ok {
+			continue
+		}
+		skeletonId, ok := skeletonIdAny.(uint32)
 		if !ok {
 			continue
 		}
@@ -98,8 +102,11 @@ func addSkeleton(ctx extractor.Context, doc *gltf.Document, unitInfo *unit.Info,
 	}
 
 	skeletonId := unitInfo.Bones[2].NameHash.Value
-	var skeletonTag map[string]uint32 = make(map[string]uint32)
+	var skeletonTag map[string]any = make(map[string]any)
 	skeletonTag["skeletonId"] = skeletonId
+	if armorName != nil {
+		skeletonTag["armorSet"] = *armorName
+	}
 
 	inverseBindMatrices := modeler.WriteAccessor(doc, gltf.TargetNone, matrices)
 	jointIndices := make([]uint32, 0)
@@ -151,24 +158,30 @@ func addSkeleton(ctx extractor.Context, doc *gltf.Document, unitInfo *unit.Info,
 
 	var skeleton *uint32 = nil
 	for skin := range doc.Skins {
-		extras, ok := doc.Skins[skin].Extras.(map[string]uint32)
+		extras, ok := doc.Skins[skin].Extras.(map[string]any)
 		if !ok {
-			extras = make(map[string]uint32)
+			extras = make(map[string]any)
 		}
-		if otherId, contains := extras["skeletonId"]; doc.Skins[skin].Name == ctx.File().ID().Name.String() || (contains && skeletonId == otherId) {
+		otherIdAny, contains := extras["skeletonId"]
+		if otherId, ok := otherIdAny.(uint32); doc.Skins[skin].Name == ctx.File().ID().Name.String() || (contains && ok && skeletonId == otherId) {
 			skeleton = doc.Skins[skin].Skeleton
 			break
 		}
 	}
 
 	if skeleton == nil {
+		idx := len(doc.Nodes)
 		doc.Nodes = append(doc.Nodes, &gltf.Node{
 			Name: ctx.File().ID().Name.String(),
 			Children: []uint32{
 				rootNodeIndex,
 			},
 		})
-		skeleton = gltf.Index(uint32(len(doc.Nodes) - 1))
+		if armorName != nil {
+			extras := map[string]any{"armorSet": *armorName}
+			doc.Nodes[idx].Extras = extras
+		}
+		skeleton = gltf.Index(uint32(idx))
 		doc.Scenes[0].Nodes = append(doc.Scenes[0].Nodes, *skeleton)
 	}
 
@@ -183,12 +196,12 @@ func addSkeleton(ctx extractor.Context, doc *gltf.Document, unitInfo *unit.Info,
 	return uint32(len(doc.Skins) - 1)
 }
 
-func writeMesh(ctx extractor.Context, doc *gltf.Document, componentName string, indices *uint32, positions uint32, normals uint32, texCoords []uint32, material *uint32, joints *uint32, weights *uint32, skin *uint32) uint32 {
+func writeMesh(ctx extractor.Context, doc *gltf.Document, componentName string, indices *uint32, positions uint32, normals uint32, texCoords []uint32, material *uint32, joints *uint32, weights *uint32, skin *uint32, armorSet *string) uint32 {
 	primitive := &gltf.Primitive{
 		Indices: indices,
 		Attributes: map[string]uint32{
 			gltf.POSITION: positions,
-			//gltf.COLOR_0:  normals,
+			gltf.NORMAL:   normals,
 		},
 		Material: material,
 	}
@@ -208,15 +221,20 @@ func writeMesh(ctx extractor.Context, doc *gltf.Document, componentName string, 
 			primitive,
 		},
 	})
+	idx := len(doc.Nodes)
 	doc.Nodes = append(doc.Nodes, &gltf.Node{
 		Name: componentName,
 		Mesh: gltf.Index(uint32(len(doc.Meshes) - 1)),
 		Skin: skin,
 	})
-	return uint32(len(doc.Nodes) - 1)
+	if armorSet != nil {
+		extras := map[string]any{"armorSet": *armorSet}
+		doc.Nodes[idx].Extras = extras
+	}
+	return uint32(idx)
 }
 
-func addBoundingBox(doc *gltf.Document, name string, mesh unit.Mesh, info *unit.Info) {
+func addBoundingBox(doc *gltf.Document, name string, mesh unit.Mesh, info *unit.Info, armorSet *string) {
 	var indices []uint32 = []uint32{
 		0, 1,
 		0, 5,
@@ -269,10 +287,15 @@ func addBoundingBox(doc *gltf.Document, name string, mesh unit.Mesh, info *unit.
 			primitive,
 		},
 	})
+	idx := len(doc.Nodes)
 	doc.Nodes = append(doc.Nodes, &gltf.Node{
 		Name: name,
 		Mesh: gltf.Index(uint32(len(doc.Meshes) - 1)),
 	})
+	if armorSet != nil {
+		extras := map[string]any{"armorSet": *armorSet}
+		doc.Nodes[idx].Extras = extras
+	}
 }
 
 func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, gltfDoc *gltf.Document) error {
@@ -326,11 +349,23 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 
 	// Get metadata
 	var metadata *dlbin.UnitData = nil
-	if _, contains := ctx.ArmorSets()[ctx.File().TriadID()]; contains {
-		armorSet := ctx.ArmorSets()[ctx.File().TriadID()]
-		if _, contains := armorSet.UnitMetadata[ctx.File().ID().Name]; contains {
-			value := armorSet.UnitMetadata[ctx.File().ID().Name]
-			metadata = &value
+	var armorSetName *string = nil
+	var triadID *stingray.Hash = nil
+	for _, triad := range ctx.TriadIDs() {
+		for _, fileTriad := range ctx.File().TriadIDs() {
+			if fileTriad == triad {
+				triadID = &triad
+			}
+		}
+	}
+	if triadID != nil {
+		armorSet, ok := ctx.ArmorSets()[*triadID]
+		if ok {
+			armorSetName = &armorSet.Name
+			if _, contains := armorSet.UnitMetadata[ctx.File().ID().Name]; contains {
+				value := armorSet.UnitMetadata[ctx.File().ID().Name]
+				metadata = &value
+			}
 		}
 	}
 
@@ -382,7 +417,7 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 				meshesToLoad = []uint32{uint32(highestDetailIdx)}
 			}
 		} else {
-			fmt.Println("\nAdding LODs anyway since no lodgroups in unitInfo?")
+			ctx.Warnf("Adding LODs anyway since no lodgroups in unitInfo?")
 			for i := uint32(0); i < unitInfo.NumMeshes; i++ {
 				meshesToLoad = append(meshesToLoad, i)
 			}
@@ -394,7 +429,7 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 	var skin *uint32 = nil
 	var parent *uint32 = nil
 	if bonesEnabled && len(unitInfo.Bones) > 2 {
-		skin = gltf.Index(addSkeleton(ctx, doc, unitInfo, boneInfo))
+		skin = gltf.Index(addSkeleton(ctx, doc, unitInfo, boneInfo, armorSetName))
 		parent = doc.Skins[*skin].Skeleton
 	} else {
 		parent = gltf.Index(uint32(len(doc.Nodes)))
@@ -402,6 +437,10 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 			Name: ctx.File().ID().Name.String(),
 		})
 		doc.Scenes[0].Nodes = append(doc.Scenes[0].Nodes, *parent)
+		if armorSetName != nil {
+			extras := map[string]any{"armorSet": *armorSetName}
+			doc.Nodes[*parent].Extras = extras
+		}
 	}
 
 	var meshes map[uint32]unit.Mesh
@@ -417,7 +456,7 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 		}
 
 		for i, mesh := range meshes {
-			addBoundingBox(doc, fmt.Sprintf("Mesh %d Bounding Box", i), mesh, unitInfo)
+			addBoundingBox(doc, fmt.Sprintf("Mesh %d Bounding Box", i), mesh, unitInfo, armorSetName)
 		}
 	} else {
 		// Load meshes
@@ -558,7 +597,7 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 
 			if ctx.Config()["join_components"] == "true" {
 				indices := gltf.Index(modeler.WriteIndices(doc, mesh.Indices[i]))
-				nodeIdx := writeMesh(ctx, doc, componentName, indices, positions, normals, texCoords, material, joints, weights, skin)
+				nodeIdx := writeMesh(ctx, doc, componentName, indices, positions, normals, texCoords, material, joints, weights, skin, armorSetName)
 
 				doc.Scenes[0].Nodes = append(doc.Scenes[0].Nodes, nodeIdx)
 				if skin == nil {
@@ -598,7 +637,7 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 				componentNum := 0
 				for _, componentIndices := range components {
 					indices := gltf.Index(modeler.WriteIndices(doc, componentIndices))
-					nodeIdx := writeMesh(ctx, doc, fmt.Sprintf("%s cmp %v", componentName, componentNum), indices, positions, normals, texCoords, material, joints, weights, skin)
+					nodeIdx := writeMesh(ctx, doc, fmt.Sprintf("%s cmp %v", componentName, componentNum), indices, positions, normals, texCoords, material, joints, weights, skin, armorSetName)
 
 					doc.Scenes[0].Nodes = append(doc.Scenes[0].Nodes, nodeIdx)
 					if skin == nil {

@@ -83,6 +83,8 @@ content/fac_helldivers/equipment/support_weapons/heavy_mg/heavy_mg
 content/fac_helldivers/equipment/throwables/gas_grenade/gas_grenade
 content/fac_helldivers/equipment/throwables/incendiary_impact_grenade/incendiary_impact_grenade
 content/fac_helldivers/equipment/throwables/throwing_knife/throwing_knife
+content/fac_helldivers/vehicles/shuttle_transport/shuttle_transport
+content/fac_helldivers/vehicles/shuttle_tanker/shuttle_tanker
 content/fac_illuminate/cha_brainwashed/cha_brainwashed
 content/fac_illuminate/cha_corrupted/cha_corrupted
 content/fac_illuminate/cha_jet_champion/cha_jet_champion
