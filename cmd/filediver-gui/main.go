@@ -98,7 +98,6 @@ func main() {
 		glfwWindow = C.glfwGetCurrentContext()
 	})
 
-	currentBackend.SetTargetFPS(60)
 	currentBackend.SetWindowFlags(glfwbackend.GLFWWindowFlagsResizable, 1)
 	currentBackend.CreateWindow("Filediver GUI", 800, 700)
 
@@ -123,10 +122,17 @@ func main() {
 	}
 	shouldUpdateGUIScale := true
 
+	var targetFPS uint = 60
+	shouldUpdateTargetFPS := true
+
 	currentBackend.SetBeforeRenderHook(func() {
 		if shouldUpdateGUIScale {
 			UpdateGUIScale(guiScale)
 			shouldUpdateGUIScale = false
+		}
+		if shouldUpdateTargetFPS {
+			currentBackend.SetTargetFPS(targetFPS)
+			shouldUpdateTargetFPS = false
 		}
 	})
 
@@ -314,19 +320,42 @@ func main() {
 		imgui.SetNextWindowSize(imgui.NewVec2(0, 0))
 		imgui.SetNextWindowPosV(viewport.Center(), imgui.CondAlways, imgui.NewVec2(0.5, 0.5))
 		if imgui.BeginPopupModalV("Preferences", &isPreferencesOpen, imgui.WindowFlagsNoMove|imgui.WindowFlagsNoResize) {
-			values := [...]float32{0.5, 1.0, 1.5, 2.0, 2.5, 3.0}
-			if imgui.BeginCombo("GUI Scale", fmt.Sprint(guiScale)) {
-				for _, value := range values {
-					if imgui.SelectableBool(fmt.Sprint(value)) {
-						guiScale = value
-						shouldUpdateGUIScale = true
+			valueCombo := func(title string, selected float32, values []float32, onChanged func(v float32)) {
+				if imgui.BeginCombo(title, fmt.Sprint(selected)) {
+					for _, value := range values {
+						if value == selected {
+							imgui.SetItemDefaultFocus()
+						}
+						label := fmt.Sprint(value)
+						if value == selected {
+							label += " (selected)"
+						}
+						if imgui.SelectableBool(label) {
+							onChanged(value)
+						}
 					}
-					if value == guiScale {
-						imgui.SetItemDefaultFocus()
-					}
+					imgui.EndCombo()
 				}
-				imgui.EndCombo()
 			}
+			valueCombo(
+				"GUI Scale",
+				guiScale,
+				[]float32{0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2, 2.25, 2.5, 2.75, 3},
+				func(v float32) {
+					guiScale = v
+					shouldUpdateGUIScale = true
+				},
+			)
+			valueCombo(
+				"Target FPS",
+				float32(targetFPS),
+				[]float32{15, 30, 60, 75, 90, 120, 144, 165, 244, 300},
+				func(v float32) {
+					targetFPS = uint(v)
+					shouldUpdateTargetFPS = true
+				},
+			)
+
 			if imgui.ButtonV("Close", imgui.NewVec2(imgui.ContentRegionAvail().X, 0)) {
 				imgui.CloseCurrentPopup()
 				isPreferencesOpen = false
