@@ -18,7 +18,7 @@ jobs:
       with:
         go-version: '>=1.24'
     - name: Build executable
-      run: GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o filediver-gui/filediver-gui ./cmd/filediver-gui
+      run: go build -ldflags="-s -w" -o filediver-gui/filediver-gui ./cmd/filediver-gui
     - name: Create archive
       run: zip -r filediver-gui-linux-amd64.zip filediver-gui/
     - name: Upload archive
@@ -38,7 +38,7 @@ jobs:
       with:
         go-version: '>=1.24'
     - name: Build executable
-      run: GOOS=windows GOARCH=amd64 go build -ldflags="-s -w -H=windowsgui" -o filediver-gui/filediver-gui ./cmd/filediver-gui
+      run: go build -ldflags="-s -w -H=windowsgui" -o filediver-gui/filediver-gui ./cmd/filediver-gui
     - name: Upload executable
       uses: softprops/action-gh-release@v2
       if: startsWith(github.ref, 'refs/tags/')
@@ -60,7 +60,7 @@ jobs:
         mkdir filediver
         cp README.md LICENSE filediver/
     - name: Build executable
-      run: GOOS=linux GOARCH=amd64 go build -o filediver-cli/filediver ./cmd/filediver-cli
+      run: go build -o filediver-cli/filediver ./cmd/filediver-cli
     - name: Create archive
       run: zip -r filediver-cli-linux-amd64.zip filediver-cli/
     - name: Upload archive
