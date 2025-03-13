@@ -328,6 +328,7 @@ func main() {
 				imgui.EndCombo()
 			}
 			if imgui.ButtonV("Close", imgui.NewVec2(imgui.ContentRegionAvail().X, 0)) {
+				imgui.CloseCurrentPopup()
 				isPreferencesOpen = false
 			}
 			imgui.EndPopup()
