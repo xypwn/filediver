@@ -73,6 +73,8 @@ func CreateUnitPreview() (*UnitPreviewState, error) {
 	gl.BindBuffer(gl.ARRAY_BUFFER, pv.vbo)
 	gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, pv.ibo)
 
+	pv.viewDistance = 25
+
 	return pv, nil
 }
 
@@ -150,12 +152,14 @@ func (pv *UnitPreviewState) LoadUnit(mainR, gpuR io.ReadSeeker) error {
 	pv.viewPositionLoc = gl.GetUniformLocation(pv.program, gl.Str("viewPosition\x00"))
 
 	pv.model = stingrayToGLCoords
-	pv.viewDistance = 25
 
 	return nil
 }
 
 func UnitPreview(name string, pv *UnitPreviewState) {
+	if pv.numIndices == 0 {
+		return
+	}
 	GLView(name, pv.fb,
 		func(pos, size imgui.Vec2) {
 			io := imgui.CurrentIO()

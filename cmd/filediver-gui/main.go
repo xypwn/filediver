@@ -1,106 +1,107 @@
 package main
 
+//void ImGui_ImplOpenGL3_DestroyFontsTexture();
+import "C"
+
 import (
-	"bytes"
 	"context"
+	_ "embed"
 	"fmt"
 	"log"
-	"os"
 	"runtime"
-	"slices"
-	"strings"
-	"sync"
 	"unsafe"
 
 	"github.com/AllenDang/cimgui-go/backend"
 	"github.com/AllenDang/cimgui-go/backend/sdlbackend"
 	"github.com/AllenDang/cimgui-go/imgui"
 	"github.com/go-gl/gl/v3.2-core/gl"
-	"github.com/xypwn/filediver/app"
+	icon_fonts "github.com/juliettef/IconFontCppHeaders"
 	"github.com/xypwn/filediver/cmd/filediver-gui/widgets"
-	"github.com/xypwn/filediver/hashes"
 	"github.com/xypwn/filediver/stingray"
 )
 
-func init() {
-	runtime.LockOSThread()
+//go:embed fonts/MaterialSymbolsOutlined.ttf
+var IconsFont []byte
+
+var IconsFontInfo = icon_fonts.IconsMaterialSymbols
+var Icons = IconsFontInfo.Icons
+var IconsFontRanges = [3]imgui.Wchar{
+	imgui.Wchar(IconsFontInfo.Min),
+	imgui.Wchar(IconsFontInfo.Max16),
+	0,
 }
 
-type LoadGameDataState struct {
-	sync.Mutex
-	Progress float32
-	Result   struct {
-		*app.App
-		SortedFileIDs []stingray.FileID
-	}
-	Err         error
-	Done        bool
-	JustGotDone bool
-}
+func UpdateGUIScale(guiScale float32) {
+	io := imgui.CurrentIO()
+	fonts := io.Fonts()
+	fonts.Clear()
 
-func loadGameData(state *LoadGameDataState) {
-	ctx := context.Background()
-	gameDir, err := app.DetectGameDir()
-	if err != nil {
-		state.Lock()
-		state.Err = fmt.Errorf("Helldivers 2 Steam installation path not found: %w", err)
-		state.Unlock()
-		return
-	}
+	style := imgui.NewStyle()
 
-	defer func() {
-		state.Lock()
-		state.Done = true
-		state.JustGotDone = true
-		if state.Result.App != nil {
-			files := state.Result.DataDir.Files
-			for id := range files {
-				state.Result.SortedFileIDs = append(state.Result.SortedFileIDs, id)
-			}
-			fileName := func(id stingray.FileID) string {
-				return state.Result.LookupHash(id.Name) + "." + state.Result.LookupHash(id.Type)
-			}
-			slices.SortFunc(state.Result.SortedFileIDs, func(aID, bID stingray.FileID) int {
-				return strings.Compare(fileName(aID), fileName(bID))
-			})
-		}
-		state.Unlock()
-	}()
+	fontSize := 13 * guiScale
+	iconsFontSize := fontSize * 1.2
+	fontCfg := imgui.NewFontConfig()
+	defer fontCfg.Destroy()
+	fontCfg.SetSizePixels(fontSize)
+	fonts.AddFontDefaultV(fontCfg)
 
-	a, err := app.OpenGameDir(ctx, gameDir, app.ParseHashes(hashes.Hashes), app.ParseHashes(hashes.ThinHashes), nil, stingray.Hash{}, func(curr, total int) {
-		state.Lock()
-		state.Progress = float32(curr) / float32(total)
-		state.Unlock()
-	})
-	if err != nil {
-		state.Lock()
-		state.Err = err
-		state.Unlock()
-		return
-	}
+	iconsCfg := imgui.NewFontConfig()
+	defer iconsCfg.Destroy()
+	iconsCfg.SetMergeMode(true)
+	iconsCfg.SetPixelSnapH(true)
+	iconsCfg.SetGlyphOffset(imgui.NewVec2(0, iconsFontSize/4))
+	iconsCfg.SetGlyphMinAdvanceX(iconsFontSize)
+	iconsCfg.SetFontDataOwnedByAtlas(false)
+	fonts.AddFontFromMemoryTTFV(
+		uintptr(unsafe.Pointer(&IconsFont[0])),
+		int32(len(IconsFont)),
+		iconsFontSize,
+		iconsCfg,
+		&IconsFontRanges[0],
+	)
 
-	state.Lock()
-	state.Result.App = a
-	state.Unlock()
+	// HACK: I didn't find any other way to
+	// invalidate the font texture using the bindings.
+	C.ImGui_ImplOpenGL3_DestroyFontsTexture()
+
+	style.ScaleAllSizes(guiScale)
+	io.Ctx().SetStyle(*style)
 }
 
 func main() {
-	currentBackend, _ := backend.CreateBackend(sdlbackend.NewSDLBackend())
+	runtime.LockOSThread()
+
+	currentSDLBackend := sdlbackend.NewSDLBackend()
+	currentBackend, err := backend.CreateBackend(currentSDLBackend)
+	if err != nil {
+		log.Fatalf("Error creating backend: %v", err)
+	}
 
 	currentBackend.SetTargetFPS(60)
 	currentBackend.SetWindowFlags(sdlbackend.SDLWindowFlagsResizable, 1)
-	currentBackend.CreateWindow("Window Name", 800, 700)
+	currentBackend.CreateWindow("Filediver GUI", 800, 700)
 
 	currentBackend.SetBgColor(imgui.NewVec4(0.2, 0.2, 0.2, 1))
 	currentBackend.SetDropCallback(func(paths []string) {
 		log.Println("drop:", paths)
 	})
 
-	flags := imgui.CurrentIO().ConfigFlags()
-	flags &= ^imgui.ConfigFlagsViewportsEnable
+	io := imgui.CurrentIO()
+	flags := io.ConfigFlags()
 	flags |= imgui.ConfigFlagsDockingEnable | imgui.ConfigFlagsViewportsEnable
-	imgui.CurrentIO().SetConfigFlags(flags)
-	imgui.CurrentIO().SetIniFilename("")
+	io.SetConfigFlags(flags)
+	io.SetIniFilename("")
+
+	guiScale := float32(1.0)
+	UpdateGUIScale(guiScale)
+	shouldUpdateGUIScale := false
+
+	currentBackend.SetBeforeRenderHook(func() {
+		if shouldUpdateGUIScale {
+			UpdateGUIScale(guiScale)
+			shouldUpdateGUIScale = false
+		}
+	})
 
 	if err := gl.Init(); err != nil {
 		log.Fatal(err)
@@ -121,106 +122,188 @@ func main() {
 		log.Printf("GL: %v%v\n", typStr, message)
 	}, nil)
 
-	var loadGameDataState LoadGameDataState
+	ctx := context.Background()
 
-	go loadGameData(&loadGameDataState)
+	var gameDataLoad GameDataLoad
+	var gameData *GameData
 
-	preview, err := widgets.CreateUnitPreview()
+	gameDataLoad.GoLoadGameData(ctx)
+
+	unitPreviewState, err := widgets.CreateUnitPreview()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("Error creating unit preview:", err)
 	}
-	defer preview.Delete()
-	{
-		mainB, err := os.ReadFile("cha_strider.unit.main")
-		if err != nil {
-			log.Fatal(err)
+	defer func() {
+		if unitPreviewState != nil {
+			unitPreviewState.Delete()
 		}
-		gpuB, err := os.ReadFile("cha_strider.unit.gpu")
-		if err != nil {
-			log.Fatal(err)
+	}()
+	loadUnit := func(fileID stingray.FileID) {
+		if gameData == nil {
+			return
 		}
-		if err := preview.LoadUnit(bytes.NewReader(mainB), bytes.NewReader(gpuB)); err != nil {
-			log.Fatal(err)
+		file, ok := gameData.DataDir.Files[fileID]
+		if !ok {
+			log.Println("Unit file does not exist")
+			return
+		}
+		fMain, err := file.Open(ctx, stingray.DataMain)
+		if err != nil {
+			log.Println("Error opening unit file:", err)
+			return
+		}
+		fGPU, err := file.Open(ctx, stingray.DataGPU)
+		if err != nil {
+			log.Println("Error opening unit file:", err)
+			return
+		}
+		if err := unitPreviewState.LoadUnit(fMain, fGPU); err != nil {
+			log.Println("Error loading unit:", err)
+			return
 		}
 	}
 
 	var gameFileSearchQuery string
-	var matchingFiles map[stingray.FileID]*stingray.File
+
+	isPreferencesOpen := false
 
 	currentBackend.Run(func() {
 		viewport := imgui.MainViewport()
 		imgui.SetNextWindowPos(viewport.Pos())
-		imgui.SetNextWindowSize(viewport.Size())
-		const mainWindowFlags = imgui.WindowFlagsNoDecoration | imgui.WindowFlagsNoResize | imgui.WindowFlagsNoBringToFrontOnFocus | imgui.WindowFlagsNoSavedSettings | imgui.WindowFlagsNoTitleBar | imgui.WindowFlagsNoCollapse | imgui.WindowFlagsNoNavFocus | imgui.WindowFlagsMenuBar
+		imgui.SetNextWindowSize(imgui.NewVec2(viewport.Size().X, 0))
+		imgui.PushStyleVarVec2(imgui.StyleVarWindowPadding, imgui.NewVec2(0, 0))
+		dockSpacePos := viewport.Pos()
+		dockSpaceSize := viewport.Size()
+		const mainWindowFlags = imgui.WindowFlagsNoDecoration | imgui.WindowFlagsNoResize | imgui.WindowFlagsNoBringToFrontOnFocus | imgui.WindowFlagsNoSavedSettings | imgui.WindowFlagsNoTitleBar | imgui.WindowFlagsNoCollapse | imgui.WindowFlagsNoNavFocus | imgui.WindowFlagsMenuBar | imgui.WindowFlagsNoDocking
 		if imgui.BeginV("##Main", nil, mainWindowFlags) {
 			if imgui.BeginMenuBar() {
-				if imgui.BeginMenu("Help") {
-					imgui.MenuItemBool("About")
-					imgui.End()
+				{
+					menuHeight := imgui.FrameHeight()
+					dockSpacePos.Y += menuHeight
+					dockSpaceSize.Y -= menuHeight
 				}
-
+				if imgui.BeginMenu("Help") {
+					imgui.MenuItemBool(Icons["Help"] + " Tutorial")
+					imgui.MenuItemBool(Icons["Info"] + " About")
+					imgui.EndMenu()
+				}
+				if imgui.BeginMenu("Settings") {
+					if imgui.MenuItemBool(Icons["Settings"] + " Preferences") {
+						isPreferencesOpen = true
+					}
+					imgui.EndMenu()
+				}
 				imgui.EndMenuBar()
 			}
 		}
 		imgui.End()
+		imgui.PopStyleVar()
 
-		{
-			offset := imgui.NewVec2(0, 20)
-			imgui.SetNextWindowPos(viewport.Pos().Add(offset))
-			imgui.SetNextWindowSize(viewport.Size().Sub(offset))
-		}
-		const dockingSpaceWindowFlags = imgui.WindowFlagsNoDecoration | imgui.WindowFlagsNoResize | imgui.WindowFlagsNoBringToFrontOnFocus | imgui.WindowFlagsNoSavedSettings | imgui.WindowFlagsNoTitleBar | imgui.WindowFlagsNoCollapse | imgui.WindowFlagsNoNavFocus
-		if imgui.BeginV("##MainDockingSpace", nil, dockingSpaceWindowFlags) {
-		}
-		imgui.End()
-
-		imgui.SetNextWindowPosV(viewport.Pos().Add(imgui.NewVec2(400, 400)), imgui.CondOnce, imgui.Vec2{})
-		imgui.SetNextWindowSizeV(imgui.NewVec2(400, 400), imgui.CondOnce)
-		if imgui.Begin("Browser") {
-			loadGameDataState.Lock()
-			if loadGameDataState.Done {
-				if loadGameDataState.Err == nil {
-					a := loadGameDataState.Result
-					if loadGameDataState.JustGotDone {
-						matchingFiles = a.DataDir.Files
-					}
-					if imgui.InputTextWithHint("##Search", "Search", &gameFileSearchQuery, 0, nil) {
-						cfg, err := app.ParseExtractorConfig(app.ConfigFormat, "")
-						if err != nil {
-							log.Printf("app.ParseExtractorConfig: %v\n", err)
-						}
-						matchingFiles, err = a.MatchingFiles(gameFileSearchQuery, "", nil, app.ConfigFormat, cfg)
-						if err != nil {
-							log.Printf("app.MatchingFiles: %v\n", err)
-						}
-					}
-					imgui.BeginListBoxV("##Game Files", imgui.ContentRegionAvail())
-					for _, id := range loadGameDataState.Result.SortedFileIDs {
-						if _, ok := matchingFiles[id]; ok {
-							imgui.TextUnformatted(fmt.Sprintf("%v.%v", a.LookupHash(id.Name), a.LookupHash(id.Type)))
-						}
-					}
-					imgui.EndListBox()
-				} else {
-					imgui.TextUnformatted(fmt.Sprintf("Error: %v", loadGameDataState.Err))
-				}
-				loadGameDataState.JustGotDone = false
-			} else {
-				imgui.TextUnformatted("Loading game data...")
-				imgui.ProgressBar(loadGameDataState.Progress)
+		imgui.SetNextWindowPos(dockSpacePos)
+		imgui.SetNextWindowSize(dockSpaceSize)
+		imgui.PushStyleVarVec2(imgui.StyleVarWindowPadding, imgui.NewVec2(0, 0))
+		const dockSpaceWindowFlags = imgui.WindowFlagsNoTitleBar | imgui.WindowFlagsNoCollapse | imgui.WindowFlagsNoResize | imgui.WindowFlagsNoMove | imgui.WindowFlagsNoDocking | imgui.WindowFlagsNoBringToFrontOnFocus | imgui.WindowFlagsNoNavFocus //| imgui.WindowFlagsNoBackground
+		if imgui.BeginV("##MainDockSpace", nil, dockSpaceWindowFlags) {
+			winClass := imgui.NewWindowClass() // passing nil as window class causes a nil pointer dereference (probably an error in the binding generation)
+			id := imgui.IDStr("MainDockSpace")
+			if imgui.InternalDockBuilderGetNode(id).CData == nil {
+				imgui.InternalDockBuilderAddNodeV(id, imgui.DockNodeFlags(imgui.DockNodeFlagsDockSpace))
+				imgui.InternalDockBuilderSetNodeSize(id, dockSpaceSize)
+				var leftID, rightID imgui.ID
+				imgui.InternalDockBuilderSplitNode(id, imgui.DirLeft, 0.5, &leftID, &rightID)
+				imgui.InternalDockBuilderDockWindow("Browser", leftID)
+				imgui.InternalDockBuilderDockWindow("Preview", rightID)
+				imgui.InternalDockBuilderFinish(id)
 			}
-			loadGameDataState.Unlock()
+			imgui.DockSpaceV(id, imgui.NewVec2(0, 0), 0, winClass)
+		}
+		imgui.End()
+		imgui.PopStyleVar()
+
+		if imgui.Begin("Browser") {
+			if gameData == nil {
+				gameDataLoad.Lock()
+				if gameDataLoad.Done {
+					if gameDataLoad.Err == nil {
+						if gameData == nil {
+							gameData = gameDataLoad.Result
+						}
+					} else {
+						imgui.TextUnformatted(fmt.Sprintf("Error: %v", gameDataLoad.Err))
+					}
+				} else {
+					imgui.TextUnformatted(Icons["Hourglass_top"] + " Loading game data...")
+					imgui.ProgressBar(gameDataLoad.Progress)
+				}
+				gameDataLoad.Unlock()
+			} else {
+				if imgui.InputTextWithHint("##Search", Icons["Search"]+" Search...", &gameFileSearchQuery, 0, nil) {
+					gameData.UpdateSearchQuery(gameFileSearchQuery)
+				}
+				const tableFlags = imgui.TableFlagsResizable | imgui.TableFlagsBorders | imgui.TableFlagsScrollY
+				if imgui.BeginTableV("##Game Files", 2, tableFlags, imgui.NewVec2(0, 0), 0) {
+					imgui.TableSetupColumn("Name")
+					imgui.TableSetupColumn("Type")
+					imgui.TableSetupScrollFreeze(0, 1)
+					imgui.TableHeadersRow()
+
+					clipper := imgui.NewListClipper()
+					clipper.Begin(int32(len(gameData.SortedSearchResultFileIDs)))
+					for clipper.Step() {
+						for row := clipper.DisplayStart(); row < clipper.DisplayEnd(); row++ {
+							id := gameData.SortedSearchResultFileIDs[row]
+							imgui.PushIDStr(id.Name.String() + id.Type.String()) // might be a bit slow
+							imgui.TableNextColumn()
+							selected := imgui.SelectableBoolV(gameData.LookupHash(id.Name), false, imgui.SelectableFlagsSpanAllColumns, imgui.NewVec2(0, 0))
+							imgui.TableNextColumn()
+							imgui.TextUnformatted(gameData.LookupHash(id.Type))
+							imgui.PopID()
+							if selected {
+								if id.Type == stingray.Sum64([]byte("unit")) {
+									loadUnit(id)
+								}
+							}
+						}
+					}
+
+					imgui.EndTable()
+				}
+			}
 		}
 		imgui.End()
 
-		imgui.SetNextWindowSizeV(imgui.NewVec2(400, 400), imgui.CondOnce)
 		previewWindowFlags := imgui.WindowFlags(0)
-		if preview.IsUsing {
+		if unitPreviewState.IsUsing {
 			previewWindowFlags |= imgui.WindowFlagsNoMove
 		}
 		if imgui.BeginV("Preview", nil, previewWindowFlags) {
-			widgets.UnitPreview("Unit Preview", preview)
+			widgets.UnitPreview("Unit Preview", unitPreviewState)
 		}
 		imgui.End()
+
+		if isPreferencesOpen {
+			imgui.OpenPopupStr("Preferences")
+		}
+		imgui.SetNextWindowSize(imgui.NewVec2(0, 0))
+		imgui.SetNextWindowPosV(viewport.Center(), imgui.CondAlways, imgui.NewVec2(0.5, 0.5))
+		if imgui.BeginPopupModalV("Preferences", &isPreferencesOpen, imgui.WindowFlagsNoMove|imgui.WindowFlagsNoResize) {
+			values := [...]float32{0.5, 1.0, 1.5, 2.0, 2.5, 3.0}
+			if imgui.BeginCombo("GUI Scale", fmt.Sprint(guiScale)) {
+				for _, value := range values {
+					if imgui.SelectableBool(fmt.Sprint(value)) {
+						guiScale = value
+						shouldUpdateGUIScale = true
+					}
+					if value == guiScale {
+						imgui.SetItemDefaultFocus()
+					}
+				}
+				imgui.EndCombo()
+			}
+			if imgui.ButtonV("Close", imgui.NewVec2(imgui.ContentRegionAvail().X, 0)) {
+				isPreferencesOpen = false
+			}
+			imgui.EndPopup()
+		}
 	})
 }

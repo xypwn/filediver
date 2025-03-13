@@ -24,6 +24,7 @@ require (
 	github.com/AllenDang/cimgui-go v1.3.1-0.20250221075015-ddd0ecb043b6 // indirect
 	github.com/go-audio/riff v1.0.0 // indirect
 	github.com/go-gl/gl v0.0.0-20231021071112-07e5d0ea2e71 // indirect
+	github.com/juliettef/IconFontCppHeaders v0.0.0-20250310113834-3eac3a08c436 // indirect
 	github.com/stretchr/testify v1.10.0 // indirect
 	golang.org/x/term v0.5.0 // indirect
 )
