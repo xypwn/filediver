@@ -79,7 +79,7 @@ func CreateUnitPreview() (*UnitPreviewState, error) {
 func (pv *UnitPreviewState) Delete() {
 	pv.fb.Delete()
 	gl.DeleteProgram(pv.program)
-	gl.DeleteBuffers(1, &pv.vao)
+	gl.DeleteVertexArrays(1, &pv.vao)
 	gl.DeleteBuffers(1, &pv.vbo)
 	gl.DeleteBuffers(1, &pv.ibo)
 }
@@ -119,15 +119,30 @@ func (pv *UnitPreviewState) LoadUnit(mainR, gpuR io.ReadSeeker) error {
 	gl.BindVertexArray(pv.vao)
 	defer gl.BindVertexArray(0)
 
-	gl.BufferData(gl.ARRAY_BUFFER, len(mesh.Positions)*3*4, gl.Ptr(mesh.Positions), gl.STATIC_DRAW)
+	positionsSize := len(mesh.Positions) * 3 * 4
+	normalsSize := len(mesh.Normals) * 3 * 4
+	gl.BufferData(gl.ARRAY_BUFFER, positionsSize+normalsSize, nil, gl.STATIC_DRAW)
+	gl.BufferSubData(gl.ARRAY_BUFFER, 0, positionsSize, gl.Ptr(mesh.Positions))
+	gl.BufferSubData(gl.ARRAY_BUFFER, positionsSize, normalsSize, gl.Ptr(mesh.Normals))
 
-	indices := mesh.Indices[0]
-	gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, len(indices)*4, gl.Ptr(indices), gl.STATIC_DRAW)
+	pv.numIndices = 0
+	for _, indices := range mesh.Indices {
+		pv.numIndices += int32(len(indices))
+	}
+	gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, int(pv.numIndices*4), nil, gl.STATIC_DRAW)
+	{
+		offset := 0
+		for _, indices := range mesh.Indices {
+			length := len(indices)
+			gl.BufferSubData(gl.ELEMENT_ARRAY_BUFFER, offset*4, length*4, gl.Ptr(indices))
+			offset += length
+		}
+	}
 
-	gl.VertexAttribPointer(0, int32(3), gl.FLOAT, false, int32(3*4), nil)
+	gl.VertexAttribPointer(0, 3, gl.FLOAT, false, 3*4, nil)
 	gl.EnableVertexAttribArray(0)
-
-	pv.numIndices = int32(len(indices))
+	gl.VertexAttribPointerWithOffset(1, 3, gl.FLOAT, true, 3*4, uintptr(positionsSize))
+	gl.EnableVertexAttribArray(1)
 
 	pv.mvpLoc = gl.GetUniformLocation(pv.program, gl.Str("mvp\x00"))
 	pv.modelLoc = gl.GetUniformLocation(pv.program, gl.Str("model\x00"))
@@ -145,18 +160,19 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 		func(pos, size imgui.Vec2) {
 			io := imgui.CurrentIO()
 			var isMouseInWindow bool
-			{
+			if imgui.IsWindowFocused() {
 				mp := io.MousePos()
 				maxPos := pos.Add(size)
 				isMouseInWindow = mp.X >= pos.X && mp.Y >= pos.Y && mp.X < maxPos.X && mp.Y < maxPos.Y
 			}
 			isMouseClicked := io.MouseClicked()[imgui.MouseButtonLeft]
-			isMouseReleased := io.MouseReleased()[imgui.MouseButtonLeft]
+			isMouseDown := io.MouseDown()[imgui.MouseButtonLeft]
+			mouseWheel := io.MouseWheel()
 
 			if isMouseClicked {
 				pv.isDragging = isMouseInWindow
 			}
-			if isMouseReleased {
+			if !isMouseDown {
 				pv.isDragging = false
 			}
 			pv.IsUsing = isMouseInWindow || pv.isDragging
@@ -165,6 +181,9 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 				md := io.MouseDelta()
 				pv.viewRotation = pv.viewRotation.Add(mgl32.Vec2{md.X, md.Y}.Mul(-0.01))
 				pv.viewRotation[1] = mgl32.Clamp(pv.viewRotation[1], -1.55, 1.55)
+			}
+			if pv.IsUsing {
+				pv.viewDistance = mgl32.Clamp(pv.viewDistance-(0.1*pv.viewDistance*mouseWheel), 0.1, 1000)
 			}
 		},
 		func(pos, size imgui.Vec2) {
