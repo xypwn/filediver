@@ -7,8 +7,8 @@ permissions:
     packages: write
 
 jobs:
-  release-linux:
-    name: Release Linux Binary
+  release-gui-linux:
+    name: Release GUI Linux Binary
     runs-on: ubuntu-latest
     steps:
     - name: Checkout
@@ -16,23 +16,19 @@ jobs:
     - name: Setup Go
       uses: actions/setup-go@v5
       with:
-        go-version: '>=1.20'
-    - name: Prepare archive directory
-      run: |
-        mkdir filediver
-        cp README.md LICENSE filediver/
-    - name: Build Executable
-      run: GOOS=linux GOARCH=amd64 go build -o filediver/filediver ./cmd/filediver-cli
+        go-version: '>=1.24'
+    - name: Build executable
+      run: GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o filediver-gui/filediver-gui ./cmd/filediver-gui
     - name: Create archive
-      run: zip -r filediver-linux-amd64.zip filediver/
+      run: zip -r filediver-gui-linux-amd64.zip filediver-gui/
     - name: Upload archive
       uses: softprops/action-gh-release@v2
       if: startsWith(github.ref, 'refs/tags/')
       with:
-        files: filediver-linux-amd64.zip
+        files: filediver-gui-linux-amd64.zip
 
-  release-windows:
-    name: Release Windows Binary
+  release-gui-windows:
+    name: Release GUI Windows Binary
     runs-on: ubuntu-latest
     steps:
     - name: Checkout
@@ -40,25 +36,67 @@ jobs:
     - name: Setup Go
       uses: actions/setup-go@v5
       with:
-        go-version: '>=1.20'
+        go-version: '>=1.24'
+    - name: Build executable
+      run: GOOS=windows GOARCH=amd64 go build -ldflags="-s -w -H=windowsgui" -o filediver-gui/filediver-gui ./cmd/filediver-gui
+    - name: Upload executable
+      uses: softprops/action-gh-release@v2
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: filediver-gui/filediver-gui.exe
+
+  release-cli-linux:
+    name: Release CLI Linux Binary
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    - name: Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '>=1.24'
     - name: Prepare archive directory
       run: |
         mkdir filediver
         cp README.md LICENSE filediver/
-    - name: Build Executable
-      run: GOOS=windows GOARCH=amd64 go build -o filediver/filediver.exe ./cmd/filediver-cli
+    - name: Build executable
+      run: GOOS=linux GOARCH=amd64 go build -o filediver-cli/filediver ./cmd/filediver-cli
+    - name: Create archive
+      run: zip -r filediver-cli-linux-amd64.zip filediver-cli/
+    - name: Upload archive
+      uses: softprops/action-gh-release@v2
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: filediver-cli-linux-amd64.zip
+
+  release-cli-windows:
+    name: Release CLI Windows Binary
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    - name: Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '>=1.24'
+    - name: Prepare archive directory
+      run: |
+        mkdir filediver
+        cp README.md LICENSE filediver/
+    - name: Build executable
+      run: GOOS=windows GOARCH=amd64 go build -o filediver-cli/filediver.exe ./cmd/filediver-cli
     - name: Download FFmpeg binary
       run: |
         wget https://github.com/GyanD/codexffmpeg/releases/download/6.1.1/ffmpeg-6.1.1-essentials_build.zip
         unzip ffmpeg-6.1.1-essentials_build.zip ffmpeg-6.1.1-essentials_build/bin/ffmpeg.exe
-        mv ffmpeg-6.1.1-essentials_build/bin/ffmpeg.exe filediver/
+        mv ffmpeg-6.1.1-essentials_build/bin/ffmpeg.exe filediver-cli/
     - name: Create archive
-      run: zip -r filediver-windows-amd64.zip filediver/
+      run: zip -r filediver-cli-windows-amd64.zip filediver/
     - name: Upload archive
       uses: softprops/action-gh-release@v2
       if: startsWith(github.ref, 'refs/tags/')
       with:
-        files: filediver-windows-amd64.zip
+        files: filediver-cli-windows-amd64.zip
 
   release-scripts-dist-windows:
     name: Release Helper Scripts (Windows)
