@@ -1,11 +1,45 @@
 package main
 
 /*
-void ImGui_ImplOpenGL3_DestroyFontsTexture();
-
+// GLFW
 typedef struct GLFWwindow GLFWwindow;
-GLFWwindow *glfwGetCurrentContext(void);
+typedef void (*GLFWwindowsizefun)(GLFWwindow* window, int width, int height);
+typedef void (*GLFWwindowrefreshfun)(GLFWwindow* window);
+int glfwWindowShouldClose(GLFWwindow *window);
+void glfwPollEvents();
+void glfwGetFramebufferSize(GLFWwindow *window, int *width, int *height);
+void glfwSwapInterval(int interval);
+GLFWwindow *glfwGetCurrentContext();
 void glfwMakeContextCurrent(GLFWwindow *window);
+void *glfwGetWindowUserPointer(GLFWwindow *window);
+void glfwSetWindowUserPointer(GLFWwindow *window, void *pointer);
+void glfwSwapBuffers(GLFWwindow *window);
+void glfwDestroyWindow(GLFWwindow *window);
+void glfwTerminate();
+GLFWwindowsizefun glfwSetWindowSizeCallback(GLFWwindow *window, GLFWwindowsizefun callback);
+GLFWwindowrefreshfun glfwSetWindowRefreshCallback(GLFWwindow* window, GLFWwindowrefreshfun callback);
+
+// cimgui
+typedef struct ImGuiContext ImGuiContext;
+typedef struct ImDrawData ImDrawData;
+void igNewFrame();
+ImDrawData* igGetDrawData();
+
+// ImGui implementation
+void ImGui_ImplOpenGL3_NewFrame();
+void ImGui_ImplGlfw_NewFrame();
+void ImGui_ImplOpenGL3_RenderDrawData(ImDrawData* draw_data);
+void ImGui_ImplOpenGL3_DestroyFontsTexture();
+void ImGui_ImplOpenGL3_Shutdown();
+void ImGui_ImplGlfw_Shutdown();
+
+// cimgui-go C++ wrapper stuff
+typedef void (*VoidCallback)();
+void glfw_render(GLFWwindow *window, VoidCallback renderLoop);
+
+// custom functions
+void goWindowResizeCallback(GLFWwindow* window, int height, int width);
+void goWindowRefreshCallback(GLFWwindow* window);
 */
 import "C"
 
@@ -15,6 +49,7 @@ import (
 	"fmt"
 	"log"
 	"runtime"
+	"time"
 	"unsafe"
 
 	"github.com/AllenDang/cimgui-go/backend"
@@ -24,6 +59,20 @@ import (
 	icon_fonts "github.com/juliettef/IconFontCppHeaders"
 	"github.com/xypwn/filediver/cmd/filediver-gui/widgets"
 )
+
+var OnWindowResize func(window *C.GLFWwindow, width int32, height int32)
+
+//export goWindowResizeCallback
+func goWindowResizeCallback(window *C.GLFWwindow, width C.int, height C.int) {
+	OnWindowResize(window, int32(width), int32(height))
+}
+
+var OnWindowRefresh func(window *C.GLFWwindow)
+
+//export goWindowRefreshCallback
+func goWindowRefreshCallback(window *C.GLFWwindow) {
+	OnWindowRefresh(window)
+}
 
 //go:embed fonts/Roboto-Regular.ttf
 var TextFont []byte
@@ -100,10 +149,9 @@ func main() {
 	currentBackend.SetWindowFlags(glfwbackend.GLFWWindowFlagsResizable, 1)
 	currentBackend.CreateWindow("Filediver GUI", 800, 700)
 
-	// HACK: Window creation resets the GLFW context for some reason, so we restore it here
 	C.glfwMakeContextCurrent(glfwWindow)
+	C.glfwSwapInterval(0)
 
-	currentBackend.SetBgColor(imgui.NewVec4(0.2, 0.2, 0.2, 1))
 	currentBackend.SetDropCallback(func(paths []string) {
 		log.Println("drop:", paths)
 	})
@@ -121,19 +169,7 @@ func main() {
 	}
 	shouldUpdateGUIScale := true
 
-	var targetFPS uint = 60
-	shouldUpdateTargetFPS := true
-
-	currentBackend.SetBeforeRenderHook(func() {
-		if shouldUpdateGUIScale {
-			UpdateGUIScale(guiScale)
-			shouldUpdateGUIScale = false
-		}
-		if shouldUpdateTargetFPS {
-			currentBackend.SetTargetFPS(targetFPS)
-			shouldUpdateTargetFPS = false
-		}
-	})
+	var targetFPS float64 = 60
 
 	if err := gl.Init(); err != nil {
 		log.Fatal(err)
@@ -175,7 +211,7 @@ func main() {
 
 	isPreferencesOpen := false
 
-	currentBackend.Run(func() {
+	draw := func() {
 		viewport := imgui.MainViewport()
 		imgui.SetNextWindowPos(viewport.Pos())
 		imgui.SetNextWindowSize(imgui.NewVec2(viewport.Size().X, 0))
@@ -326,8 +362,7 @@ func main() {
 				float32(targetFPS),
 				[]float32{15, 30, 60, 75, 90, 120, 144, 165, 244, 300},
 				func(v float32) {
-					targetFPS = uint(v)
-					shouldUpdateTargetFPS = true
+					targetFPS = float64(v)
 				},
 			)
 
@@ -337,5 +372,68 @@ func main() {
 			}
 			imgui.EndPopup()
 		}
-	})
+	}
+
+	lastDrawTimestamp := time.Now()
+	drawAndPresentFrame := func() {
+		C.ImGui_ImplOpenGL3_NewFrame()
+		C.ImGui_ImplGlfw_NewFrame()
+		C.igNewFrame()
+		gl.ClearColor(0.2, 0.2, 0.2, 1)
+		gl.Clear(gl.COLOR_BUFFER_BIT)
+
+		draw()
+
+		imgui.Render()
+		C.ImGui_ImplOpenGL3_RenderDrawData(C.igGetDrawData())
+
+		if imgui.CurrentIO().ConfigFlags()&imgui.ConfigFlagsViewportsEnable != 0 {
+			prevContext := C.glfwGetCurrentContext()
+			imgui.UpdatePlatformWindows()
+			imgui.RenderPlatformWindowsDefault()
+			C.glfwMakeContextCurrent(prevContext)
+		}
+
+		C.glfwSwapBuffers(glfwWindow)
+
+		targetFrameTime := time.Duration(float64(time.Second) / targetFPS)
+		lastDrawTimestamp = lastDrawTimestamp.Add(targetFrameTime)
+	}
+	C.glfwSetWindowSizeCallback(glfwWindow, (*[0]byte)(C.goWindowResizeCallback))
+	OnWindowResize = func(window *C.GLFWwindow, width, height int32) {
+		gl.Viewport(0, 0, width, height)
+		//drawAndPresentFrame()
+	}
+	C.glfwSetWindowRefreshCallback(glfwWindow, (*[0]byte)(C.goWindowRefreshCallback))
+	OnWindowRefresh = func(window *C.GLFWwindow) {
+		drawAndPresentFrame()
+	}
+	for C.glfwWindowShouldClose(glfwWindow) == 0 {
+		if shouldUpdateGUIScale {
+			UpdateGUIScale(guiScale)
+			shouldUpdateGUIScale = false
+		}
+
+		timeToDraw := time.Now().Sub(lastDrawTimestamp)
+		numFramesToDraw := timeToDraw.Seconds() * targetFPS
+		if timeToDraw < 0 {
+			// Frame over-draw
+			//log.Printf("Skipped %.5f frames due to over-draw", -numFramesToDraw)
+			lastDrawTimestamp = time.Now()
+		} else if timeToDraw >= time.Second {
+			// Frame under-draw
+			//log.Printf("Dropped %.5f frames due to lag", numFramesToDraw)
+			lastDrawTimestamp = time.Now()
+		} else if numFramesToDraw >= 1 {
+			C.glfwPollEvents()
+			drawAndPresentFrame()
+		} else {
+			time.Sleep(timeToDraw)
+		}
+	}
+	C.ImGui_ImplOpenGL3_Shutdown()
+	C.ImGui_ImplGlfw_Shutdown()
+	imgui.DestroyContext()
+	C.glfwDestroyWindow(glfwWindow)
+	C.glfwTerminate()
 }
