@@ -67,7 +67,7 @@ func (fb *GLViewState) resize(newWidth, newHeight int32) error {
 	return nil
 }
 
-func GLView(name string, fb *GLViewState, processInputIG func(pos, size imgui.Vec2), drawGL func(pos, size imgui.Vec2), drawOverlayIG func(pos, size imgui.Vec2)) {
+func GLView(name string, fb *GLViewState, processViewAreaInputIG func(), drawGL func(pos, size imgui.Vec2), drawOverlayIG func(pos, size imgui.Vec2)) {
 	imgui.PushIDStr(name)
 	defer imgui.PopID()
 
@@ -80,8 +80,9 @@ func GLView(name string, fb *GLViewState, processInputIG func(pos, size imgui.Ve
 	}
 
 	if size.X > 0 && size.Y > 0 {
-		if processInputIG != nil {
-			processInputIG(pos, size)
+		imgui.InvisibleButton("GLViewArea", size)
+		if processViewAreaInputIG != nil {
+			processViewAreaInputIG()
 		}
 
 		var oldViewport [4]int32

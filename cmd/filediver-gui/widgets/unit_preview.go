@@ -160,34 +160,21 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 	if pv.numIndices == 0 {
 		return
 	}
+
 	GLView(name, pv.fb,
-		func(pos, size imgui.Vec2) {
+		func() {
 			io := imgui.CurrentIO()
-			var isMouseInWindow bool
-			if imgui.IsWindowFocused() {
-				mp := io.MousePos()
-				maxPos := pos.Add(size)
-				isMouseInWindow = mp.X >= pos.X && mp.Y >= pos.Y && mp.X < maxPos.X && mp.Y < maxPos.Y
-			}
-			isMouseClicked := io.MouseClicked()[imgui.MouseButtonLeft]
-			isMouseDown := io.MouseDown()[imgui.MouseButtonLeft]
-			mouseWheel := io.MouseWheel()
 
-			if isMouseClicked {
-				pv.isDragging = isMouseInWindow
-			}
-			if !isMouseDown {
-				pv.isDragging = false
-			}
-			pv.IsUsing = isMouseInWindow || pv.isDragging
+			pv.IsUsing = imgui.IsItemActive() || imgui.IsItemHovered()
 
-			if pv.isDragging {
+			if imgui.IsItemActive() {
 				md := io.MouseDelta()
 				pv.viewRotation = pv.viewRotation.Add(mgl32.Vec2{md.X, md.Y}.Mul(-0.01))
 				pv.viewRotation[1] = mgl32.Clamp(pv.viewRotation[1], -1.55, 1.55)
 			}
-			if pv.IsUsing {
-				pv.viewDistance = mgl32.Clamp(pv.viewDistance-(0.1*pv.viewDistance*mouseWheel), 0.1, 1000)
+			if imgui.IsItemHovered() {
+				scroll := io.MouseWheel()
+				pv.viewDistance = mgl32.Clamp(pv.viewDistance-(0.1*pv.viewDistance*scroll), 0.1, 1000)
 			}
 		},
 		func(pos, size imgui.Vec2) {
