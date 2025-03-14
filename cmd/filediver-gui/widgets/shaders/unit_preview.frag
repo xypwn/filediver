@@ -24,8 +24,7 @@ void main() {
 
     vec3 viewDirection = normalize(viewPosition - fragPosition);
     vec3 reflectDirection = reflect(-lightDirection, fragNormal);
-    //vec3 specular = pow(max(dot(viewDirection, reflectDirection), 0.0), 32) * lightColor;
-    vec3 specular = pow(max(dot(viewDirection, reflectDirection), 0.0), 256) * lightColor;
+    vec3 specular = pow(max(dot(viewDirection, reflectDirection), 0.0), 32) * lightColor;
 
     fragColor = vec4(albedo * (mix(ambient, diffuse, 0.9) + 0.5 * specular), 1.0);
 
