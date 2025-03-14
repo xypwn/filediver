@@ -1,6 +1,7 @@
 package wwise
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -250,70 +251,35 @@ func ConvertBnk(ctx extractor.Context) error {
 	}
 	defer in.Close()
 
-	bnk, err := stingray_wwise.OpenBnk(in)
-	if err != nil {
-		return err
-	}
-
 	bnkName, ok := ctx.Hashes()[ctx.File().ID().Name]
 	if !ok {
-		return fmt.Errorf("expected wwise bank file %v.wwise_bank", ctx.File().ID().Name)
+		return fmt.Errorf("expected wwise bank file %v.wwise_bank to have a known name", ctx.File().ID().Name)
 	}
 	dir := path.Dir(bnkName)
 
 	streamFilePath := func(resourceID uint32) string {
 		return path.Join(dir, fmt.Sprint(resourceID))
 	}
-	extractStreamFile := func(resourceID, fileID uint32) (existed bool, err error) {
-		streamFileID := stingray.Sum64([]byte(streamFilePath(resourceID)))
+
+	streams, err := stingray_wwise.BnkGetAllReferencedStreamData(in, func(id uint32) (data []byte, ok bool, err error) {
+		streamFileID := stingray.Sum64([]byte(streamFilePath(id)))
 		if streamFile, exists := ctx.GetResource(streamFileID, stingray.Sum64([]byte("wwise_stream"))); exists {
-			wemR, err := streamFile.Open(ctx.Ctx(), stingray.DataStream)
+			data, err := streamFile.Read(stingray.DataStream)
 			if err != nil {
-				return exists, err
+				return nil, true, err
 			}
-			if err := convertWemStream(ctx, fmt.Sprintf(".bnk.dir/%v", fileID), wemR, format); err != nil {
-				return exists, err
-			}
-			return exists, nil
+			return data, true, nil
 		} else {
-			return exists, nil
+			return nil, false, nil
 		}
+	})
+	if err != nil {
+		return err
 	}
 
-	for i := 0; i < bnk.NumFiles(); i++ {
-		resourceID := bnk.FileID(i)
-		fileID := resourceID // IDK if this is a good idea...
-		// Stream should either exist as a wwise stream, or be embedded in the wwise bank file
-		existed, err := extractStreamFile(resourceID, fileID)
-		if err != nil {
-			ctx.Warnf("stream file %v.wwise_stream: %v", streamFilePath(resourceID), err)
-		}
-		if !existed {
-			wemR, err := bnk.OpenFile(i)
-			if err != nil {
-				return err
-			}
-			if err := convertWemStream(ctx, fmt.Sprintf(".bnk.dir/%v", fileID), wemR, format); err != nil {
-				ctx.Warnf("embedded file %v: %v", fileID, err)
-			}
-		}
-	}
-
-	for _, obj := range bnk.HircObjects {
-		// A source seems to exist when source bits > 0. I'm a bit unsure, though.
-		/*if obj.Header.Type == wwise.BnkHircObjectSound {
-			ctx.Warnf("%v", obj.Sound.SourceBits)
-		}*/
-		if obj.Header.Type == wwise.BnkHircObjectSound && obj.Sound.SourceBits > 0 {
-			resourceID := obj.Sound.SourceID
-			fileID := obj.Header.ObjectID
-			existed, err := extractStreamFile(resourceID, fileID)
-			if err != nil {
-				ctx.Warnf("stream file %v.wwise_stream: %v", streamFilePath(resourceID), err)
-			}
-			if !existed {
-				ctx.Warnf("wwise stream file %v.wwise_stream referenced by %v.wwise_bank does not exist", streamFilePath(resourceID), bnkName)
-			}
+	for id, data := range streams {
+		if err := convertWemStream(ctx, fmt.Sprintf(".bnk.dir/%v", id), bytes.NewReader(data), format); err != nil {
+			ctx.Warnf("stream file with ID %v: %v", id, err)
 		}
 	}
 	return nil

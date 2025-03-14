@@ -2,15 +2,14 @@ package widgets
 
 import (
 	"bytes"
-	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
 	"log"
 	"math"
-	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 
 	"github.com/AllenDang/cimgui-go/imgui"
@@ -23,7 +22,6 @@ import (
 const wwisePlayerBytesPerSample = 4 * 2 // sizeof(float32) * 2 channels
 
 type wwiseStream struct {
-	id               uint64
 	wem              *wwise.Wem
 	err              error
 	title            string
@@ -33,10 +31,11 @@ type wwiseStream struct {
 	playbackPosition *atomic.Int64 // in bytes
 }
 
-type loadingWwiseStream struct {
-	id     uint64
+type loadableWwiseStream struct {
 	title  string
-	cancel context.CancelFunc
+	loaded atomic.Bool
+	cancel atomic.Bool
+	*wwiseStream
 }
 
 type WwisePreviewState struct {
@@ -50,10 +49,8 @@ type WwisePreviewState struct {
 	volume           float32
 	currentStreamIdx int
 
-	loadedStreams  chan *wwiseStream
-	streams        []*wwiseStream
-	loadingStreams []*loadingWwiseStream
-	nextStreamID   uint64
+	streams  []*loadableWwiseStream
+	streamWg sync.WaitGroup
 }
 
 func NewWwisePreview(otoCtx *oto.Context, sampleRate int) *WwisePreviewState {
@@ -62,7 +59,6 @@ func NewWwisePreview(otoCtx *oto.Context, sampleRate int) *WwisePreviewState {
 		sampleRate:       sampleRate,
 		currentStreamIdx: -1,
 		volume:           100,
-		loadedStreams:    make(chan *wwiseStream),
 	}
 }
 
@@ -77,10 +73,10 @@ func (pv *WwisePreviewState) ClearStreams() {
 		pv.otoPlayer.Close()
 	}
 
-	for _, ls := range pv.loadingStreams {
-		ls.cancel()
+	for i := range pv.streams {
+		pv.streams[i].cancel.Store(true)
 	}
-	pv.loadingStreams = nil
+	pv.streamWg.Wait()
 
 	pv.currentStreamIdx = -1
 	pv.streams = nil
@@ -108,20 +104,14 @@ func (pv *WwisePreviewState) LoadStream(title string, wem *wwise.Wem, playWhenDo
 		return errors.New("expected channel count to be at least 1")
 	}
 
-	streamID := pv.nextStreamID
-	pv.nextStreamID++
-
-	ctx, cancel := context.WithCancel(context.Background())
-	loadingStrm := &loadingWwiseStream{
-		id:     streamID,
-		title:  title,
-		cancel: cancel,
+	loadableStream := &loadableWwiseStream{
+		title: title,
 	}
-	pv.loadingStreams = append(pv.loadingStreams, loadingStrm)
+	pv.streams = append(pv.streams, loadableStream)
+	pv.streamWg.Add(1)
 
 	go func() {
 		strm := &wwiseStream{
-			id:               streamID,
 			wem:              wem,
 			title:            title,
 			playbackPosition: new(atomic.Int64),
@@ -129,8 +119,8 @@ func (pv *WwisePreviewState) LoadStream(title string, wem *wwise.Wem, playWhenDo
 
 		var pcm bytes.Buffer
 		for {
-			if err := ctx.Err(); err != nil {
-				strm.err = err
+			if loadableStream.cancel.Load() {
+				strm.err = errors.New("canceled")
 				break
 			}
 
@@ -177,17 +167,20 @@ func (pv *WwisePreviewState) LoadStream(title string, wem *wwise.Wem, playWhenDo
 			strm.pcmBuf = pcm.Bytes()
 			strm.paused = !playWhenDoneLoading
 		}
-
-		pv.loadedStreams <- strm
+		loadableStream.wwiseStream = strm
+		loadableStream.loaded.Store(true)
+		pv.streamWg.Done()
 	}()
 	return nil
 }
 
 func (pv *WwisePreviewState) currentStream() *wwiseStream {
-	if pv.currentStreamIdx < 0 || pv.currentStreamIdx >= len(pv.streams) {
+	if pv.currentStreamIdx < 0 ||
+		pv.currentStreamIdx >= len(pv.streams) ||
+		!pv.streams[pv.currentStreamIdx].loaded.Load() {
 		return nil
 	}
-	return pv.streams[pv.currentStreamIdx]
+	return pv.streams[pv.currentStreamIdx].wwiseStream
 }
 
 func (pv *WwisePreviewState) playStreamIndex(idx int) {
@@ -202,6 +195,7 @@ func (pv *WwisePreviewState) playStreamIndex(idx int) {
 	}
 
 	stream := pv.streams[idx]
+	stream.paused = false
 	pv.currentStreamIdx = idx
 	rd := ioutils.NewTrackingReadSeeker(bytes.NewReader(stream.pcmBuf), stream.playbackPosition)
 	pv.otoPlayer = pv.otoCtx.NewPlayer(rd)
@@ -224,20 +218,6 @@ func (pv *WwisePreviewState) updateVolume() {
 }
 
 func WwisePreview(name string, pv *WwisePreviewState) {
-	select {
-	case strm := <-pv.loadedStreams:
-		pv.loadingStreams = slices.DeleteFunc(pv.loadingStreams, func(v *loadingWwiseStream) bool {
-			return strm.id == v.id
-		})
-		if !errors.Is(strm.err, context.Canceled) {
-			pv.streams = append(pv.streams, strm)
-			if strm.err == nil && !strm.paused {
-				pv.playStreamIndex(len(pv.streams) - 1)
-			}
-		}
-	default:
-	}
-
 	if imgui.BeginChildStr(name) {
 		if pv.Title != "" {
 			imgui.TextUnformatted(pv.Title)
@@ -259,72 +239,74 @@ func WwisePreview(name string, pv *WwisePreviewState) {
 				imgui.TableNextColumn()
 				imgui.TextUnformatted(stream.title)
 				imgui.TableNextColumn()
-				if stream.err == nil {
-					isActionPlay := pv.currentStreamIdx != i || stream.paused // play or pause
-					var playPauseIcon string
-					if isActionPlay {
-						playPauseIcon = fnt.I("Play_arrow")
-					} else {
-						playPauseIcon = fnt.I("Pause")
-					}
-					if imgui.Button(playPauseIcon) {
+				if stream.loaded.Load() {
+					if stream.err == nil {
+						isActionPlay := pv.currentStreamIdx != i || stream.paused // play or pause
+						var playPauseIcon string
 						if isActionPlay {
-							pv.playStreamIndex(i)
+							playPauseIcon = fnt.I("Play_arrow")
 						} else {
-							pv.pause()
+							playPauseIcon = fnt.I("Pause")
 						}
-					}
-					imgui.SameLine()
-					var playTime float32
-					if i == pv.currentStreamIdx {
-						pos := float64(stream.playbackPosition.Load())
-						playTime = float32(pos / stream.bytesPerSecond)
-					}
-					duration := float32(float64(len(stream.pcmBuf)) / stream.bytesPerSecond)
-					imgui.TextUnformatted(fmt.Sprintf(
-						"%v / %v",
-						formatPlayerTimeF(playTime, pv.showTimestampMS),
-						formatPlayerTimeF(duration, pv.showTimestampMS),
-					))
-					imgui.SameLine()
-					imgui.SetNextItemWidth(-math.SmallestNonzeroFloat32)
-					if imgui.SliderFloatV("##Time", &playTime, 0, duration, "", 0) {
-						pos := int64(float64(playTime) * stream.bytesPerSecond)
+						if imgui.Button(playPauseIcon) {
+							if isActionPlay {
+								pv.playStreamIndex(i)
+							} else {
+								pv.pause()
+							}
+						}
+						imgui.SameLine()
+						var playTime float32
+						if i == pv.currentStreamIdx {
+							pos := float64(stream.playbackPosition.Load())
+							playTime = float32(pos / stream.bytesPerSecond)
+						}
+						duration := float32(float64(len(stream.pcmBuf)) / stream.bytesPerSecond)
+						imgui.TextUnformatted(fmt.Sprintf(
+							"%v / %v",
+							formatPlayerTimeF(playTime, pv.showTimestampMS),
+							formatPlayerTimeF(duration, pv.showTimestampMS),
+						))
+						imgui.SameLine()
+						imgui.SetNextItemWidth(-math.SmallestNonzeroFloat32)
+						if imgui.SliderFloatV("##Time", &playTime, 0, duration, "", 0) {
+							pos := int64(float64(playTime) * stream.bytesPerSecond)
 
-						// Truncate to an actual valid sample position
-						pos = pos / wwisePlayerBytesPerSample * wwisePlayerBytesPerSample
+							// Truncate to an actual valid sample position
+							pos = pos / wwisePlayerBytesPerSample * wwisePlayerBytesPerSample
 
-						_, err := pv.otoPlayer.Seek(pos, io.SeekStart)
-						if err != nil {
-							log.Println("Error getting seeking to playback position:", err)
+							_, err := pv.otoPlayer.Seek(pos, io.SeekStart)
+							if err != nil {
+								log.Println("Error seeking to playback position:", err)
+							}
 						}
-					}
-					if i == pv.currentStreamIdx {
-						// Pause/unpause silently when dragging
-						if imgui.IsItemActivated() {
-							pv.otoPlayer.Pause()
+						if i == pv.currentStreamIdx {
+							// Pause/unpause silently when dragging
+							if imgui.IsItemActivated() {
+								pv.otoPlayer.Pause()
+							}
+							if imgui.IsItemDeactivated() && !stream.paused {
+								pv.playStreamIndex(i)
+							}
+
+							if playTime >= duration {
+								pv.pause()
+								_, err := pv.otoPlayer.Seek(0, io.SeekStart)
+								if err != nil {
+									log.Println("Error seeking to start position:", err)
+								}
+							}
 						}
-						if imgui.IsItemDeactivated() && !stream.paused {
-							pv.playStreamIndex(i)
-						}
+					} else {
+						imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.8, 0.5, 0.5, 1))
+						imgui.TextUnformatted(fmt.Sprint("Error:", stream.err))
+						imgui.PopStyleColor()
 					}
 				} else {
-					imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.8, 0.5, 0.5, 1))
-					imgui.TextUnformatted(fmt.Sprint("Error:", stream.err))
-					imgui.PopStyleColor()
+					imgui.ProgressBar(-float32(imgui.Time()))
 				}
 				imgui.PopID()
 			}
-
-			for i, ls := range pv.loadingStreams {
-				imgui.PushIDInt(int32(i))
-				imgui.TableNextColumn()
-				imgui.TextUnformatted(ls.title)
-				imgui.TableNextColumn()
-				imgui.ProgressBar(-float32(imgui.Time()))
-				imgui.PopID()
-			}
-
 			imgui.EndTable()
 		}
 		imgui.Checkbox("Show timestamp milliseconds", &pv.showTimestampMS)

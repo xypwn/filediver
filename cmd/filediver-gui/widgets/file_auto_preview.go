@@ -4,10 +4,14 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"maps"
+	"path"
+	"slices"
 
 	"github.com/AllenDang/cimgui-go/imgui"
 	"github.com/ebitengine/oto/v3"
 	"github.com/xypwn/filediver/stingray"
+	stingray_wwise "github.com/xypwn/filediver/stingray/wwise"
 	"github.com/xypwn/filediver/wwise"
 )
 
@@ -22,16 +26,24 @@ const (
 
 type FileAutoPreviewState struct {
 	activeType FileAutoPreviewType
+	activeID   stingray.FileID
 	state      struct {
 		unit  *UnitPreviewState
 		audio *WwisePreviewState
 	}
+
+	hashes      map[stingray.Hash]string
+	getResource GetResourceFunc
+
 	err error
 }
 
-func NewFileAutoPreview(otoCtx *oto.Context, audioSampleRate int) (*FileAutoPreviewState, error) {
+func NewFileAutoPreview(otoCtx *oto.Context, audioSampleRate int, hashes map[stingray.Hash]string, getResource GetResourceFunc) (*FileAutoPreviewState, error) {
 	var err error
-	pv := &FileAutoPreviewState{}
+	pv := &FileAutoPreviewState{
+		hashes:      hashes,
+		getResource: getResource,
+	}
 	pv.state.unit, err = NewUnitPreview()
 	if err != nil {
 		return nil, err
@@ -45,12 +57,19 @@ func (pv *FileAutoPreviewState) Delete() {
 	pv.state.audio.Delete()
 }
 
+func (pv *FileAutoPreviewState) ActiveID() stingray.FileID {
+	return pv.activeID
+}
+
 func (pv *FileAutoPreviewState) LoadFile(ctx context.Context, file *stingray.File) {
 	if file == nil {
+		pv.activeID.Name.Value = 0
+		pv.activeID.Type.Value = 0
 		pv.activeType = FileAutoPreviewEmpty
 		return
 	}
 
+	pv.activeID = file.ID()
 	pv.err = nil
 
 	var data [3][]byte
@@ -97,6 +116,47 @@ func (pv *FileAutoPreviewState) LoadFile(ctx context.Context, file *stingray.Fil
 		pv.state.audio.Title = file.ID().Name.String()
 		if err := pv.state.audio.LoadStream(file.ID().Name.String(), wem, true); err != nil {
 			pv.err = err
+			return
+		}
+	case stingray.Sum64([]byte("wwise_bank")):
+		pv.state.audio.ClearStreams()
+		pv.activeType = FileAutoPreviewAudio
+		if err := loadFiles(stingray.DataMain); err != nil {
+			pv.err = err
+			return
+		}
+		bnkFile, ok := pv.hashes[file.ID().Name]
+		if !ok {
+			pv.err = fmt.Errorf("expected wwise bank file %v.wwise_bank to have a known name", file.ID().Name)
+			return
+		}
+		pv.state.audio.Title = bnkFile
+		dir := path.Dir(bnkFile)
+		streams, err := stingray_wwise.BnkGetAllReferencedStreamData(
+			bytes.NewReader(data[stingray.DataMain]),
+			func(id uint32) (data []byte, exists bool, err error) {
+				fileID := stingray.FileID{
+					Name: stingray.Sum64([]byte(path.Join(dir, fmt.Sprint(id)))),
+					Type: stingray.Sum64([]byte("wwise_stream")),
+				}
+				return pv.getResource(fileID, stingray.DataStream)
+			},
+		)
+		if err != nil {
+			pv.err = fmt.Errorf("loading wwise bank: %w", err)
+			return
+		}
+		for _, id := range slices.Sorted(maps.Keys(streams)) {
+			stream := streams[id]
+			wem, err := wwise.OpenWem(bytes.NewReader(stream))
+			if err != nil {
+				pv.err = fmt.Errorf("loading wwise stream: %w", err)
+				return
+			}
+			if err := pv.state.audio.LoadStream(fmt.Sprint(id), wem, false); err != nil {
+				pv.err = err
+				return
+			}
 		}
 	default:
 		pv.activeType = FileAutoPreviewEmpty

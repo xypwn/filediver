@@ -59,6 +59,7 @@ import (
 	"github.com/go-gl/gl/v3.2-core/gl"
 	fnt "github.com/xypwn/filediver/cmd/filediver-gui/fonts"
 	"github.com/xypwn/filediver/cmd/filediver-gui/widgets"
+	"github.com/xypwn/filediver/stingray"
 )
 
 var OnWindowResize func(window *C.GLFWwindow, width int32, height int32)
@@ -139,6 +140,10 @@ func main() {
 		glfwWindow = C.glfwGetCurrentContext()
 	})
 
+	{
+		const GLFW_CONTEXT_DEBUG = 0x00022007
+		currentBackend.SetWindowFlags(GLFW_CONTEXT_DEBUG, 1)
+	}
 	currentBackend.SetWindowFlags(glfwbackend.GLFWWindowFlagsResizable, 1)
 	currentBackend.CreateWindow("Filediver GUI", 800, 700)
 
@@ -202,10 +207,7 @@ func main() {
 
 	gameDataLoad.GoLoadGameData(ctx)
 
-	previewState, err := widgets.NewFileAutoPreview(otoCtx, audioSampleRate)
-	if err != nil {
-		log.Fatal("Error creating unit preview:", err)
-	}
+	var previewState *widgets.FileAutoPreviewState
 	defer func() {
 		if previewState != nil {
 			previewState.Delete()
@@ -215,6 +217,35 @@ func main() {
 	var gameFileSearchQuery string
 
 	isPreferencesOpen := false
+
+	preDraw := func() {
+		if gameData != nil && previewState == nil {
+			var err error
+			previewState, err = widgets.NewFileAutoPreview(
+				otoCtx, audioSampleRate,
+				gameData.Hashes,
+				func(id stingray.FileID, typ stingray.DataType) (data []byte, exists bool, err error) {
+					file, ok := gameData.DataDir.Files[id]
+					if !ok {
+						return nil, false, nil
+					}
+					data, err = file.Read(typ)
+					if err != nil {
+						return nil, true, err
+					}
+					return data, true, nil
+				},
+			)
+			if err != nil {
+				log.Fatal("Error creating unit preview:", err)
+			}
+		}
+
+		if shouldUpdateGUIScale {
+			UpdateGUIScale(guiScale)
+			shouldUpdateGUIScale = false
+		}
+	}
 
 	draw := func() {
 		viewport := imgui.MainViewport()
@@ -320,7 +351,7 @@ func main() {
 		imgui.End()
 
 		if imgui.Begin("Preview") {
-			if !widgets.FileAutoPreview("Preview", previewState) {
+			if previewState == nil || !widgets.FileAutoPreview("Preview", previewState) {
 				imgui.TextUnformatted("Nothing to preview")
 			}
 		}
@@ -377,8 +408,8 @@ func main() {
 
 	lastDrawTimestamp := time.Now()
 	drawAndPresentFrame := func() {
-		C.ImGui_ImplOpenGL3_NewFrame()
 		C.ImGui_ImplGlfw_NewFrame()
+		C.ImGui_ImplOpenGL3_NewFrame()
 		C.igNewFrame()
 		gl.ClearColor(0.2, 0.2, 0.2, 1)
 		gl.Clear(gl.COLOR_BUFFER_BIT)
@@ -410,10 +441,7 @@ func main() {
 		drawAndPresentFrame()
 	}
 	for C.glfwWindowShouldClose(glfwWindow) == 0 {
-		if shouldUpdateGUIScale {
-			UpdateGUIScale(guiScale)
-			shouldUpdateGUIScale = false
-		}
+		preDraw()
 
 		timeToDraw := time.Now().Sub(lastDrawTimestamp)
 		numFramesToDraw := timeToDraw.Seconds() * targetFPS
