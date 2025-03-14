@@ -20,6 +20,8 @@ require (
 
 require (
 	github.com/AllenDang/cimgui-go v1.3.1-0.20250221075015-ddd0ecb043b6 // indirect
+	github.com/ebitengine/oto/v3 v3.3.2 // indirect
+	github.com/ebitengine/purego v0.8.0 // indirect
 	github.com/go-audio/riff v1.0.0 // indirect
 	github.com/go-gl/gl v0.0.0-20231021071112-07e5d0ea2e71 // indirect
 	github.com/juliettef/IconFontCppHeaders v0.0.0-20250310113834-3eac3a08c436 // indirect

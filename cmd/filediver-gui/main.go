@@ -55,8 +55,9 @@ import (
 	"github.com/AllenDang/cimgui-go/backend"
 	"github.com/AllenDang/cimgui-go/backend/glfwbackend"
 	"github.com/AllenDang/cimgui-go/imgui"
+	"github.com/ebitengine/oto/v3"
 	"github.com/go-gl/gl/v3.2-core/gl"
-	icon_fonts "github.com/juliettef/IconFontCppHeaders"
+	fnt "github.com/xypwn/filediver/cmd/filediver-gui/fonts"
 	"github.com/xypwn/filediver/cmd/filediver-gui/widgets"
 )
 
@@ -74,17 +75,9 @@ func goWindowRefreshCallback(window *C.GLFWwindow) {
 	OnWindowRefresh(window)
 }
 
-//go:embed fonts/Roboto-Regular.ttf
-var TextFont []byte
-
-//go:embed fonts/MaterialSymbolsOutlined.ttf
-var IconsFont []byte
-
-var IconsFontInfo = icon_fonts.IconsMaterialSymbols
-var Icons = IconsFontInfo.Icons
 var IconsFontRanges = [3]imgui.Wchar{
-	imgui.Wchar(IconsFontInfo.Min),
-	imgui.Wchar(IconsFontInfo.Max16),
+	imgui.Wchar(fnt.IconsFontInfo.Min),
+	imgui.Wchar(fnt.IconsFontInfo.Max16),
 	0,
 }
 
@@ -101,8 +94,8 @@ func UpdateGUIScale(guiScale float32) {
 		cfg := imgui.NewFontConfig()
 		cfg.SetFontDataOwnedByAtlas(false)
 		fonts.AddFontFromMemoryTTFV(
-			uintptr(unsafe.Pointer(&TextFont[0])),
-			int32(len(TextFont)),
+			uintptr(unsafe.Pointer(&fnt.TextFont[0])),
+			int32(len(fnt.TextFont)),
 			fontSize,
 			cfg,
 			nil,
@@ -117,8 +110,8 @@ func UpdateGUIScale(guiScale float32) {
 		cfg.SetGlyphMinAdvanceX(iconsFontSize)
 		cfg.SetFontDataOwnedByAtlas(false)
 		fonts.AddFontFromMemoryTTFV(
-			uintptr(unsafe.Pointer(&IconsFont[0])),
-			int32(len(IconsFont)),
+			uintptr(unsafe.Pointer(&fnt.IconsFont[0])),
+			int32(len(fnt.IconsFont)),
 			iconsFontSize,
 			cfg,
 			&IconsFontRanges[0],
@@ -190,6 +183,17 @@ func main() {
 		log.Printf("GL: %v%v\n", typStr, message)
 	}, nil)
 
+	var otoCtx *oto.Context
+	{
+		var readyChan chan struct{}
+		otoCtx, readyChan, err = oto.NewContext(&oto.NewContextOptions{
+			SampleRate:   48000,
+			ChannelCount: 2,
+			Format:       oto.FormatFloat32LE,
+		})
+		<-readyChan
+	}
+
 	ctx := context.Background()
 
 	var gameDataLoad GameDataLoad
@@ -197,7 +201,7 @@ func main() {
 
 	gameDataLoad.GoLoadGameData(ctx)
 
-	previewState, err := widgets.NewFileAutoPreview()
+	previewState, err := widgets.NewFileAutoPreview(otoCtx)
 	if err != nil {
 		log.Fatal("Error creating unit preview:", err)
 	}
@@ -227,12 +231,12 @@ func main() {
 					dockSpaceSize.Y -= menuHeight
 				}
 				if imgui.BeginMenu("Help") {
-					imgui.MenuItemBool(Icons["Help"] + " Tutorial")
-					imgui.MenuItemBool(Icons["Info"] + " About")
+					imgui.MenuItemBool(fnt.I("Help") + " Tutorial")
+					imgui.MenuItemBool(fnt.I("Info") + " About")
 					imgui.EndMenu()
 				}
 				if imgui.BeginMenu("Settings") {
-					if imgui.MenuItemBool(Icons["Settings"] + " Preferences") {
+					if imgui.MenuItemBool(fnt.I("Settings") + " Preferences") {
 						isPreferencesOpen = true
 					}
 					imgui.EndMenu()
@@ -276,12 +280,12 @@ func main() {
 						imgui.TextUnformatted(fmt.Sprintf("Error: %v", gameDataLoad.Err))
 					}
 				} else {
-					imgui.TextUnformatted(Icons["Hourglass_top"] + " Loading game data...")
+					imgui.TextUnformatted(fnt.I("Hourglass_top") + " Loading game data...")
 					imgui.ProgressBar(gameDataLoad.Progress)
 				}
 				gameDataLoad.Unlock()
 			} else {
-				if imgui.InputTextWithHint("##Search", Icons["Search"]+" Search...", &gameFileSearchQuery, 0, nil) {
+				if imgui.InputTextWithHint("##Search", fnt.I("Search")+" Search...", &gameFileSearchQuery, 0, nil) {
 					gameData.UpdateSearchQuery(gameFileSearchQuery)
 				}
 				const tableFlags = imgui.TableFlagsResizable | imgui.TableFlagsBorders | imgui.TableFlagsScrollY
