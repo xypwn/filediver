@@ -23,8 +23,6 @@ type FileAutoPreviewState struct {
 		unit *UnitPreviewState
 	}
 	err error
-
-	IsUsing bool
 }
 
 func NewFileAutoPreview() (*FileAutoPreviewState, error) {
@@ -103,7 +101,6 @@ func FileAutoPreview(name string, pv *FileAutoPreviewState) bool {
 		return false
 	case FileAutoPreviewUnit:
 		UnitPreview(name, pv.state.unit)
-		pv.IsUsing = pv.state.unit.IsUsing
 	default:
 		panic("unhandled case")
 	}

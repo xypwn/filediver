@@ -314,11 +314,7 @@ func main() {
 		}
 		imgui.End()
 
-		previewWindowFlags := imgui.WindowFlags(0)
-		if previewState.IsUsing {
-			previewWindowFlags |= imgui.WindowFlagsNoMove
-		}
-		if imgui.BeginV("Preview", nil, previewWindowFlags) {
+		if imgui.Begin("Preview") {
 			if !widgets.FileAutoPreview("Preview", previewState) {
 				imgui.TextUnformatted("Nothing to preview")
 			}

@@ -43,9 +43,6 @@ type UnitPreviewState struct {
 	projection   mgl32.Mat4
 	viewDistance float32
 	viewRotation mgl32.Vec2 // {yaw, pitch}
-
-	isDragging bool
-	IsUsing    bool // true if window shouldn't handle mouse events
 }
 
 func NewUnitPreview() (*UnitPreviewState, error) {
@@ -164,8 +161,6 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 	GLView(name, pv.fb,
 		func() {
 			io := imgui.CurrentIO()
-
-			pv.IsUsing = imgui.IsItemActive() || imgui.IsItemHovered()
 
 			if imgui.IsItemActive() {
 				md := io.MouseDelta()
