@@ -197,7 +197,7 @@ func main() {
 
 	gameDataLoad.GoLoadGameData(ctx)
 
-	previewState, err := widgets.NewFilePreview()
+	previewState, err := widgets.NewFileAutoPreview()
 	if err != nil {
 		log.Fatal("Error creating unit preview:", err)
 	}
@@ -319,7 +319,7 @@ func main() {
 			previewWindowFlags |= imgui.WindowFlagsNoMove
 		}
 		if imgui.BeginV("Preview", nil, previewWindowFlags) {
-			if !widgets.FilePreview("Preview", previewState) {
+			if !widgets.FileAutoPreview("Preview", previewState) {
 				imgui.TextUnformatted("Nothing to preview")
 			}
 		}

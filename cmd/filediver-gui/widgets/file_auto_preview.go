@@ -9,16 +9,16 @@ import (
 	"github.com/xypwn/filediver/stingray"
 )
 
-type FilePreviewType int
+type FileAutoPreviewType int
 
 const (
-	FilePreviewEmpty FilePreviewType = iota
-	FilePreviewUnit
-	FilePreviewTexture
+	FileAutoPreviewEmpty FileAutoPreviewType = iota
+	FileAutoPreviewUnit
+	FileAutoPreviewTexture
 )
 
-type FilePreviewState struct {
-	activeType FilePreviewType
+type FileAutoPreviewState struct {
+	activeType FileAutoPreviewType
 	state      struct {
 		unit *UnitPreviewState
 	}
@@ -27,9 +27,9 @@ type FilePreviewState struct {
 	IsUsing bool
 }
 
-func NewFilePreview() (*FilePreviewState, error) {
+func NewFileAutoPreview() (*FileAutoPreviewState, error) {
 	var err error
-	pv := &FilePreviewState{}
+	pv := &FileAutoPreviewState{}
 	pv.state.unit, err = NewUnitPreview()
 	if err != nil {
 		return nil, err
@@ -37,13 +37,13 @@ func NewFilePreview() (*FilePreviewState, error) {
 	return pv, nil
 }
 
-func (pv *FilePreviewState) Delete() {
+func (pv *FileAutoPreviewState) Delete() {
 	pv.state.unit.Delete()
 }
 
-func (pv *FilePreviewState) LoadFile(ctx context.Context, file *stingray.File) {
+func (pv *FileAutoPreviewState) LoadFile(ctx context.Context, file *stingray.File) {
 	if file == nil {
-		pv.activeType = FilePreviewEmpty
+		pv.activeType = FileAutoPreviewEmpty
 		return
 	}
 
@@ -74,7 +74,7 @@ func (pv *FilePreviewState) LoadFile(ctx context.Context, file *stingray.File) {
 
 	switch file.ID().Type {
 	case stingray.Sum64([]byte("unit")):
-		pv.activeType = FilePreviewUnit
+		pv.activeType = FileAutoPreviewUnit
 		if err := loadFiles(stingray.DataMain, stingray.DataGPU); err != nil {
 			pv.err = err
 			return
@@ -87,11 +87,11 @@ func (pv *FilePreviewState) LoadFile(ctx context.Context, file *stingray.File) {
 			return
 		}
 	default:
-		pv.activeType = FilePreviewEmpty
+		pv.activeType = FileAutoPreviewEmpty
 	}
 }
 
-func FilePreview(name string, pv *FilePreviewState) bool {
+func FileAutoPreview(name string, pv *FileAutoPreviewState) bool {
 	if pv.err != nil {
 		imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.8, 0.5, 0.5, 1))
 		imgui.TextUnformatted(fmt.Sprintf("Error: %v", pv.err))
@@ -99,9 +99,9 @@ func FilePreview(name string, pv *FilePreviewState) bool {
 		return true
 	}
 	switch pv.activeType {
-	case FilePreviewEmpty:
+	case FileAutoPreviewEmpty:
 		return false
-	case FilePreviewUnit:
+	case FileAutoPreviewUnit:
 		UnitPreview(name, pv.state.unit)
 		pv.IsUsing = pv.state.unit.IsUsing
 	default:
