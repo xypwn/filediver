@@ -183,11 +183,12 @@ func main() {
 		log.Printf("GL: %v%v\n", typStr, message)
 	}, nil)
 
+	const audioSampleRate = 48000
 	var otoCtx *oto.Context
 	{
 		var readyChan chan struct{}
 		otoCtx, readyChan, err = oto.NewContext(&oto.NewContextOptions{
-			SampleRate:   48000,
+			SampleRate:   audioSampleRate,
 			ChannelCount: 2,
 			Format:       oto.FormatFloat32LE,
 		})
@@ -201,7 +202,7 @@ func main() {
 
 	gameDataLoad.GoLoadGameData(ctx)
 
-	previewState, err := widgets.NewFileAutoPreview(otoCtx)
+	previewState, err := widgets.NewFileAutoPreview(otoCtx, audioSampleRate)
 	if err != nil {
 		log.Fatal("Error creating unit preview:", err)
 	}

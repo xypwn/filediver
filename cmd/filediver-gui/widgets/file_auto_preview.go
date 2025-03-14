@@ -29,14 +29,14 @@ type FileAutoPreviewState struct {
 	err error
 }
 
-func NewFileAutoPreview(otoCtx *oto.Context) (*FileAutoPreviewState, error) {
+func NewFileAutoPreview(otoCtx *oto.Context, audioSampleRate int) (*FileAutoPreviewState, error) {
 	var err error
 	pv := &FileAutoPreviewState{}
 	pv.state.unit, err = NewUnitPreview()
 	if err != nil {
 		return nil, err
 	}
-	pv.state.audio = NewWwisePreview(otoCtx)
+	pv.state.audio = NewWwisePreview(otoCtx, audioSampleRate)
 	return pv, nil
 }
 

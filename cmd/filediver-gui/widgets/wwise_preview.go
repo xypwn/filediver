@@ -33,8 +33,9 @@ type WwisePreviewState struct {
 	Title            string
 	PlayOnLoadStream bool
 
-	otoCtx    *oto.Context
-	otoPlayer *oto.Player
+	otoCtx     *oto.Context
+	sampleRate int
+	otoPlayer  *oto.Player
 
 	showTimestampMS  bool
 	volume           float32
@@ -42,9 +43,10 @@ type WwisePreviewState struct {
 	streams          []*wwiseStream
 }
 
-func NewWwisePreview(otoCtx *oto.Context) *WwisePreviewState {
+func NewWwisePreview(otoCtx *oto.Context, sampleRate int) *WwisePreviewState {
 	return &WwisePreviewState{
 		otoCtx:           otoCtx,
+		sampleRate:       sampleRate,
 		currentStreamIdx: -1,
 		volume:           100,
 	}
@@ -74,6 +76,12 @@ func (pv *WwisePreviewState) LoadStream(title string, wem *wwise.Wem) error {
 
 	chans := wem.Channels()
 	layout := wem.ChannelLayout()
+
+	// So far, it seems all wwise streams are fixed at 48kHz, so having a fixed
+	// sample rate is probably OK
+	if wem.SampleRate() != pv.sampleRate {
+		log.Printf("audio sample (%v) rate does not match with player sample rate (%v)\n", wem.SampleRate(), pv.sampleRate)
+	}
 
 	// All active speakers in order
 	var speakers []wwise.SpeakerFlag
@@ -158,6 +166,7 @@ func (pv *WwisePreviewState) playStreamIndex(idx int) {
 	pv.currentStreamIdx = idx
 	rd := ioutils.NewTrackingReadSeeker(bytes.NewReader(stream.pcmBuf), stream.playbackPosition)
 	pv.otoPlayer = pv.otoCtx.NewPlayer(rd)
+	pv.otoPlayer.SetBufferSize(32768)
 	pv.updateVolume()
 	pv.otoPlayer.Play()
 }
@@ -273,7 +282,7 @@ func formatPlayerTimeMS(timeMilliseconds int, showMS bool) string {
 	}
 
 	var hrs, mins, secs, msecs int
-	msecs = t & 1000
+	msecs = t % 1000
 	t /= 1000
 	secs = t % 60
 	t /= 60
