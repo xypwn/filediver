@@ -1,9 +1,9 @@
 package widgets
 
 import (
+	"bytes"
 	"context"
 	"fmt"
-	"io"
 
 	"github.com/AllenDang/cimgui-go/imgui"
 	"github.com/ebitengine/oto/v3"
@@ -53,32 +53,20 @@ func (pv *FileAutoPreviewState) LoadFile(ctx context.Context, file *stingray.Fil
 
 	pv.err = nil
 
-	// TODO: Evaluate if maybe we shouldn't pre-read all data all the time.
-	// Currently this is necessary since we close the readers (although right
-	// now the implementation is prealloc readers internally, but that may
-	// change in the future).
-	var readers [3]io.ReadSeekCloser
+	var data [3][]byte
 	loadFiles := func(types ...stingray.DataType) error {
 		for _, typ := range types {
-			if readers[typ] != nil {
+			if data[typ] != nil {
 				panic("programmer error: duplicate data type")
 			}
-			rd, err := file.Open(ctx, typ)
+			b, err := file.Read(typ)
 			if err != nil {
-				return fmt.Errorf("opening file: %w", err)
+				return fmt.Errorf("reading file: %w", err)
 			}
-			readers[typ] = rd
+			data[typ] = b
 		}
 		return nil
 	}
-
-	defer func() {
-		for _, rd := range readers {
-			if rd != nil {
-				rd.Close()
-			}
-		}
-	}()
 
 	switch file.ID().Type {
 	case stingray.Sum64([]byte("unit")):
@@ -88,27 +76,28 @@ func (pv *FileAutoPreviewState) LoadFile(ctx context.Context, file *stingray.Fil
 			return
 		}
 		if err := pv.state.unit.LoadUnit(
-			readers[stingray.DataMain],
-			readers[stingray.DataGPU],
+			data[stingray.DataMain],
+			data[stingray.DataGPU],
 		); err != nil {
 			pv.err = fmt.Errorf("loading unit: %w", err)
 			return
 		}
 	case stingray.Sum64([]byte("wwise_stream")):
 		pv.state.audio.ClearStreams()
-		pv.state.audio.PlayOnLoadStream = true
 		pv.activeType = FileAutoPreviewAudio
 		if err := loadFiles(stingray.DataStream); err != nil {
 			pv.err = err
 			return
 		}
-		wem, err := wwise.OpenWem(readers[stingray.DataStream])
+		wem, err := wwise.OpenWem(bytes.NewReader(data[stingray.DataStream]))
 		if err != nil {
 			pv.err = fmt.Errorf("loading wwise stream: %w", err)
 			return
 		}
 		pv.state.audio.Title = file.ID().Name.String()
-		pv.state.audio.LoadStream(file.ID().Name.String(), wem)
+		if err := pv.state.audio.LoadStream(file.ID().Name.String(), wem, true); err != nil {
+			pv.err = err
+		}
 	default:
 		pv.activeType = FileAutoPreviewEmpty
 	}

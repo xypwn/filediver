@@ -1,8 +1,8 @@
 package widgets
 
 import (
+	"bytes"
 	_ "embed"
-	"io"
 
 	"github.com/AllenDang/cimgui-go/imgui"
 	"github.com/go-gl/gl/v3.2-core/gl"
@@ -83,8 +83,8 @@ func (pv *UnitPreviewState) Delete() {
 	gl.DeleteBuffers(1, &pv.ibo)
 }
 
-func (pv *UnitPreviewState) LoadUnit(mainR, gpuR io.ReadSeeker) error {
-	info, err := unit.LoadInfo(mainR)
+func (pv *UnitPreviewState) LoadUnit(mainData, gpuData []byte) error {
+	info, err := unit.LoadInfo(bytes.NewReader(mainData))
 	if err != nil {
 		return err
 	}
@@ -108,7 +108,7 @@ func (pv *UnitPreviewState) LoadUnit(mainR, gpuR io.ReadSeeker) error {
 
 	var mesh unit.Mesh
 	{
-		meshes, err := unit.LoadMeshes(gpuR, info, []uint32{meshToLoad})
+		meshes, err := unit.LoadMeshes(bytes.NewReader(gpuData), info, []uint32{meshToLoad})
 		if err != nil {
 			return err
 		}

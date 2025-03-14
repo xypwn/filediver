@@ -2,12 +2,14 @@ package widgets
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
 	"log"
 	"math"
+	"slices"
 	"strings"
 	"sync/atomic"
 
@@ -21,7 +23,9 @@ import (
 const wwisePlayerBytesPerSample = 4 * 2 // sizeof(float32) * 2 channels
 
 type wwiseStream struct {
-	*wwise.Wem
+	id               uint64
+	wem              *wwise.Wem
+	err              error
 	title            string
 	pcmBuf           []byte
 	bytesPerSecond   float64
@@ -29,18 +33,27 @@ type wwiseStream struct {
 	playbackPosition *atomic.Int64 // in bytes
 }
 
-type WwisePreviewState struct {
-	Title            string
-	PlayOnLoadStream bool
+type loadingWwiseStream struct {
+	id     uint64
+	title  string
+	cancel context.CancelFunc
+}
 
-	otoCtx     *oto.Context
+type WwisePreviewState struct {
+	Title string
+
 	sampleRate int
+	otoCtx     *oto.Context
 	otoPlayer  *oto.Player
 
 	showTimestampMS  bool
 	volume           float32
 	currentStreamIdx int
-	streams          []*wwiseStream
+
+	loadedStreams  chan *wwiseStream
+	streams        []*wwiseStream
+	loadingStreams []*loadingWwiseStream
+	nextStreamID   uint64
 }
 
 func NewWwisePreview(otoCtx *oto.Context, sampleRate int) *WwisePreviewState {
@@ -49,6 +62,7 @@ func NewWwisePreview(otoCtx *oto.Context, sampleRate int) *WwisePreviewState {
 		sampleRate:       sampleRate,
 		currentStreamIdx: -1,
 		volume:           100,
+		loadedStreams:    make(chan *wwiseStream),
 	}
 }
 
@@ -63,17 +77,16 @@ func (pv *WwisePreviewState) ClearStreams() {
 		pv.otoPlayer.Close()
 	}
 
+	for _, ls := range pv.loadingStreams {
+		ls.cancel()
+	}
+	pv.loadingStreams = nil
+
 	pv.currentStreamIdx = -1
 	pv.streams = nil
 }
 
-func (pv *WwisePreviewState) LoadStream(title string, wem *wwise.Wem) error {
-	strm := &wwiseStream{
-		Wem:              wem,
-		title:            title,
-		playbackPosition: new(atomic.Int64),
-	}
-
+func (pv *WwisePreviewState) LoadStream(title string, wem *wwise.Wem, playWhenDoneLoading bool) error {
 	chans := wem.Channels()
 	layout := wem.ChannelLayout()
 
@@ -95,52 +108,78 @@ func (pv *WwisePreviewState) LoadStream(title string, wem *wwise.Wem) error {
 		return errors.New("expected channel count to be at least 1")
 	}
 
-	var pcm bytes.Buffer
-	for {
-		pcmFlt, err := wem.Decode()
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				break
-			}
-			return err
-		}
-		if len(pcmFlt)%chans != 0 {
-			return errors.New("expected sample count to be divisible by channel count")
+	streamID := pv.nextStreamID
+	pv.nextStreamID++
+
+	ctx, cancel := context.WithCancel(context.Background())
+	loadingStrm := &loadingWwiseStream{
+		id:     streamID,
+		title:  title,
+		cancel: cancel,
+	}
+	pv.loadingStreams = append(pv.loadingStreams, loadingStrm)
+
+	go func() {
+		strm := &wwiseStream{
+			id:               streamID,
+			wem:              wem,
+			title:            title,
+			playbackPosition: new(atomic.Int64),
 		}
 
-		if chans == 1 {
-			for i := 0; i < len(pcmFlt); i++ {
-				sampleStereo := [2]float32{
-					pcmFlt[i],
-					pcmFlt[i],
-				}
-				binary.Write(&pcm, binary.LittleEndian, sampleStereo)
+		var pcm bytes.Buffer
+		for {
+			if err := ctx.Err(); err != nil {
+				strm.err = err
+				break
 			}
-		} else {
-			// TODO: Improve downmixing (we're currently
-			// just sampling front left and front right speakers).
-			for i := 0; i < len(pcmFlt); i += chans {
-				var sampleStereo [2]float32
-				for j := 0; j < chans; j++ {
-					switch speakers[j] {
-					case wwise.SpeakerFL:
-						sampleStereo[0] = pcmFlt[i+j]
-					case wwise.SpeakerFR:
-						sampleStereo[1] = pcmFlt[i+j]
-					}
+
+			pcmFlt, err := wem.Decode()
+			if err != nil {
+				if errors.Is(err, io.EOF) {
+					break
 				}
-				binary.Write(&pcm, binary.LittleEndian, sampleStereo)
+				strm.err = err
+				break
+			}
+			if len(pcmFlt)%chans != 0 {
+				strm.err = errors.New("expected sample count to be divisible by channel count")
+				break
+			}
+
+			if chans == 1 {
+				for i := 0; i < len(pcmFlt); i++ {
+					sampleStereo := [2]float32{
+						pcmFlt[i],
+						pcmFlt[i],
+					}
+					binary.Write(&pcm, binary.LittleEndian, sampleStereo)
+				}
+			} else {
+				// TODO: Improve downmixing (we're currently
+				// just sampling front left and front right speakers).
+				for i := 0; i < len(pcmFlt); i += chans {
+					var sampleStereo [2]float32
+					for j := 0; j < chans; j++ {
+						switch speakers[j] {
+						case wwise.SpeakerFL:
+							sampleStereo[0] = pcmFlt[i+j]
+						case wwise.SpeakerFR:
+							sampleStereo[1] = pcmFlt[i+j]
+						}
+					}
+					binary.Write(&pcm, binary.LittleEndian, sampleStereo)
+				}
 			}
 		}
-	}
-	{
-		strm.bytesPerSecond = float64(wem.SampleRate() * wwisePlayerBytesPerSample)
-	}
-	strm.pcmBuf = pcm.Bytes()
-	pv.streams = append(pv.streams, strm)
-	if pv.PlayOnLoadStream {
-		pv.playStreamIndex(len(pv.streams) - 1)
-	}
+		if strm.err == nil {
+			strm.bytesPerSecond = float64(wem.SampleRate() * wwisePlayerBytesPerSample)
+			strm.pcmBuf = pcm.Bytes()
+			strm.paused = !playWhenDoneLoading
+		}
+
+		pv.loadedStreams <- strm
+	}()
 	return nil
 }
 
@@ -185,6 +224,20 @@ func (pv *WwisePreviewState) updateVolume() {
 }
 
 func WwisePreview(name string, pv *WwisePreviewState) {
+	select {
+	case strm := <-pv.loadedStreams:
+		pv.loadingStreams = slices.DeleteFunc(pv.loadingStreams, func(v *loadingWwiseStream) bool {
+			return strm.id == v.id
+		})
+		if !errors.Is(strm.err, context.Canceled) {
+			pv.streams = append(pv.streams, strm)
+			if strm.err == nil && !strm.paused {
+				pv.playStreamIndex(len(pv.streams) - 1)
+			}
+		}
+	default:
+	}
+
 	if imgui.BeginChildStr(name) {
 		if pv.Title != "" {
 			imgui.TextUnformatted(pv.Title)
@@ -206,54 +259,69 @@ func WwisePreview(name string, pv *WwisePreviewState) {
 				imgui.TableNextColumn()
 				imgui.TextUnformatted(stream.title)
 				imgui.TableNextColumn()
-				isActionPlay := pv.currentStreamIdx != i || stream.paused // play or pause
-				var playPauseIcon string
-				if isActionPlay {
-					playPauseIcon = fnt.I("Play_arrow")
-				} else {
-					playPauseIcon = fnt.I("Pause")
-				}
-				if imgui.Button(playPauseIcon) {
+				if stream.err == nil {
+					isActionPlay := pv.currentStreamIdx != i || stream.paused // play or pause
+					var playPauseIcon string
 					if isActionPlay {
-						pv.playStreamIndex(i)
+						playPauseIcon = fnt.I("Play_arrow")
 					} else {
-						pv.pause()
+						playPauseIcon = fnt.I("Pause")
 					}
-				}
-				imgui.SameLine()
-				var playTime float32
-				if i == pv.currentStreamIdx {
-					pos := float64(stream.playbackPosition.Load())
-					playTime = float32(pos / stream.bytesPerSecond)
-				}
-				duration := float32(float64(len(stream.pcmBuf)) / stream.bytesPerSecond)
-				imgui.TextUnformatted(fmt.Sprintf(
-					"%v / %v",
-					formatPlayerTimeF(playTime, pv.showTimestampMS),
-					formatPlayerTimeF(duration, pv.showTimestampMS),
-				))
-				imgui.SameLine()
-				imgui.SetNextItemWidth(-math.SmallestNonzeroFloat32)
-				if imgui.SliderFloatV("##Time", &playTime, 0, duration, "", 0) {
-					pos := int64(float64(playTime) * stream.bytesPerSecond)
+					if imgui.Button(playPauseIcon) {
+						if isActionPlay {
+							pv.playStreamIndex(i)
+						} else {
+							pv.pause()
+						}
+					}
+					imgui.SameLine()
+					var playTime float32
+					if i == pv.currentStreamIdx {
+						pos := float64(stream.playbackPosition.Load())
+						playTime = float32(pos / stream.bytesPerSecond)
+					}
+					duration := float32(float64(len(stream.pcmBuf)) / stream.bytesPerSecond)
+					imgui.TextUnformatted(fmt.Sprintf(
+						"%v / %v",
+						formatPlayerTimeF(playTime, pv.showTimestampMS),
+						formatPlayerTimeF(duration, pv.showTimestampMS),
+					))
+					imgui.SameLine()
+					imgui.SetNextItemWidth(-math.SmallestNonzeroFloat32)
+					if imgui.SliderFloatV("##Time", &playTime, 0, duration, "", 0) {
+						pos := int64(float64(playTime) * stream.bytesPerSecond)
 
-					// Truncate to an actual valid sample position
-					pos = pos / wwisePlayerBytesPerSample * wwisePlayerBytesPerSample
+						// Truncate to an actual valid sample position
+						pos = pos / wwisePlayerBytesPerSample * wwisePlayerBytesPerSample
 
-					_, err := pv.otoPlayer.Seek(pos, io.SeekStart)
-					if err != nil {
-						log.Println("Error getting seeking to playback position:", err)
+						_, err := pv.otoPlayer.Seek(pos, io.SeekStart)
+						if err != nil {
+							log.Println("Error getting seeking to playback position:", err)
+						}
 					}
+					if i == pv.currentStreamIdx {
+						// Pause/unpause silently when dragging
+						if imgui.IsItemActivated() {
+							pv.otoPlayer.Pause()
+						}
+						if imgui.IsItemDeactivated() && !stream.paused {
+							pv.playStreamIndex(i)
+						}
+					}
+				} else {
+					imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.8, 0.5, 0.5, 1))
+					imgui.TextUnformatted(fmt.Sprint("Error:", stream.err))
+					imgui.PopStyleColor()
 				}
-				if i == pv.currentStreamIdx {
-					// Pause/unpause silently when dragging
-					if imgui.IsItemActivated() {
-						pv.otoPlayer.Pause()
-					}
-					if imgui.IsItemDeactivated() && !stream.paused {
-						pv.playStreamIndex(i)
-					}
-				}
+				imgui.PopID()
+			}
+
+			for i, ls := range pv.loadingStreams {
+				imgui.PushIDInt(int32(i))
+				imgui.TableNextColumn()
+				imgui.TextUnformatted(ls.title)
+				imgui.TableNextColumn()
+				imgui.ProgressBar(-float32(imgui.Time()))
 				imgui.PopID()
 			}
 
