@@ -337,7 +337,9 @@ func main() {
 							})
 						}
 					} else {
+						imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.8, 0.5, 0.5, 1))
 						imgui.TextUnformatted(fmt.Sprintf("Error: %v", gameDataLoad.Err))
+						imgui.PopStyleColor()
 					}
 				} else {
 					imgui.TextUnformatted(fnt.I("Hourglass_top") + " Loading game data...")
