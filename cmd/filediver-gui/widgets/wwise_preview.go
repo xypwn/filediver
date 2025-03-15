@@ -241,8 +241,8 @@ func WwisePreview(name string, pv *WwisePreviewState) {
 
 		const tableFlags = imgui.TableFlagsResizable | imgui.TableFlagsBorders | imgui.TableFlagsScrollY
 		if imgui.BeginTableV("##Streams", 2, tableFlags, tableSize, 0) {
-			imgui.TableSetupColumn("Name")
-			imgui.TableSetupColumn("Controls")
+			imgui.TableSetupColumnV("Name", imgui.TableColumnFlagsWidthStretch, 1, 0)
+			imgui.TableSetupColumnV("Controls", imgui.TableColumnFlagsWidthStretch, 3, 0)
 			imgui.TableSetupScrollFreeze(0, 1)
 			imgui.TableHeadersRow()
 

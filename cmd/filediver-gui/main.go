@@ -262,18 +262,24 @@ func main() {
 					dockSpacePos.Y += menuHeight
 					dockSpaceSize.Y -= menuHeight
 				}
+				imgui.PushStyleVarVec2(imgui.StyleVarItemSpacing, imgui.NewVec2(5, 5))
 				if imgui.BeginMenu("Help") {
+					imgui.Separator()
 					imgui.MenuItemBool(fnt.I("Help") + " Tutorial")
 					imgui.MenuItemBool(fnt.I("Info") + " About")
+					imgui.Separator()
 					imgui.EndMenu()
 				}
 				if imgui.BeginMenu("Settings") {
+					imgui.Separator()
 					if imgui.MenuItemBool(fnt.I("Settings") + " Preferences") {
 						isPreferencesOpen = true
 					}
+					imgui.Separator()
 					imgui.EndMenu()
 				}
 				imgui.EndMenuBar()
+				imgui.PopStyleVar()
 			}
 		}
 		imgui.End()
@@ -327,8 +333,8 @@ func main() {
 				}
 				const tableFlags = imgui.TableFlagsResizable | imgui.TableFlagsBorders | imgui.TableFlagsScrollY
 				if imgui.BeginTableV("##Game Files", 2, tableFlags, imgui.NewVec2(0, 0), 0) {
-					imgui.TableSetupColumn("Name")
-					imgui.TableSetupColumn("Type")
+					imgui.TableSetupColumnV("Name", imgui.TableColumnFlagsWidthStretch, 3, 0)
+					imgui.TableSetupColumnV("Type", imgui.TableColumnFlagsWidthStretch, 1, 0)
 					imgui.TableSetupScrollFreeze(0, 1)
 					imgui.TableHeadersRow()
 
