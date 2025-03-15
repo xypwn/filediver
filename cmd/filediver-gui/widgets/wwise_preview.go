@@ -82,28 +82,7 @@ func (pv *WwisePreviewState) ClearStreams() {
 	pv.streams = nil
 }
 
-func (pv *WwisePreviewState) LoadStream(title string, wem *wwise.Wem, playWhenDoneLoading bool) error {
-	chans := wem.Channels()
-	layout := wem.ChannelLayout()
-
-	// So far, it seems all wwise streams are fixed at 48kHz, so having a fixed
-	// sample rate is probably OK
-	if wem.SampleRate() != pv.sampleRate {
-		log.Printf("audio sample (%v) rate does not match with player sample rate (%v)\n", wem.SampleRate(), pv.sampleRate)
-	}
-
-	// All active speakers in order
-	var speakers []wwise.SpeakerFlag
-	for i := 0; i < 64; i++ {
-		if (layout>>i)&1 != 0 {
-			speakers = append(speakers, 1<<i)
-		}
-	}
-
-	if chans == 0 {
-		return errors.New("expected channel count to be at least 1")
-	}
-
+func (pv *WwisePreviewState) LoadStream(title string, wemData []byte, playWhenDoneLoading bool) {
 	loadableStream := &loadableWwiseStream{
 		title: title,
 	}
@@ -111,30 +90,72 @@ func (pv *WwisePreviewState) LoadStream(title string, wem *wwise.Wem, playWhenDo
 	pv.streamWg.Add(1)
 
 	go func() {
+		var err error
+		var wem *wwise.Wem
+		var pcm bytes.Buffer
+
 		strm := &wwiseStream{
-			wem:              wem,
 			title:            title,
 			playbackPosition: new(atomic.Int64),
 		}
 
-		var pcm bytes.Buffer
+		defer func() {
+			if strm.err == nil {
+				strm.bytesPerSecond = float64(wem.SampleRate() * wwisePlayerBytesPerSample)
+				strm.pcmBuf = pcm.Bytes()
+				strm.paused = !playWhenDoneLoading
+			}
+			loadableStream.wwiseStream = strm
+			loadableStream.loaded.Store(true)
+			pv.streamWg.Done()
+		}()
+
+		wem, err = wwise.OpenWem(bytes.NewReader(wemData))
+		if err != nil {
+			strm.err = fmt.Errorf("loading wwise stream: %w", err)
+			return
+		}
+
+		chans := wem.Channels()
+		layout := wem.ChannelLayout()
+
+		// So far, it seems all wwise streams are fixed at 48kHz, so having a fixed
+		// sample rate is probably OK
+		if wem.SampleRate() != pv.sampleRate {
+			strm.err = fmt.Errorf("loading wwise stream: %w", err)
+			return
+		}
+
+		// All active speakers in order
+		var speakers []wwise.SpeakerFlag
+		for i := 0; i < 64; i++ {
+			if (layout>>i)&1 != 0 {
+				speakers = append(speakers, 1<<i)
+			}
+		}
+
+		if chans == 0 {
+			strm.err = errors.New("expected channel count to be at least 1")
+			return
+		}
+
 		for {
 			if loadableStream.cancel.Load() {
 				strm.err = errors.New("canceled")
-				break
+				return
 			}
 
 			pcmFlt, err := wem.Decode()
 			if err != nil {
 				if errors.Is(err, io.EOF) {
-					break
+					return
 				}
 				strm.err = err
-				break
+				return
 			}
 			if len(pcmFlt)%chans != 0 {
 				strm.err = errors.New("expected sample count to be divisible by channel count")
-				break
+				return
 			}
 
 			if chans == 1 {
@@ -162,16 +183,7 @@ func (pv *WwisePreviewState) LoadStream(title string, wem *wwise.Wem, playWhenDo
 				}
 			}
 		}
-		if strm.err == nil {
-			strm.bytesPerSecond = float64(wem.SampleRate() * wwisePlayerBytesPerSample)
-			strm.pcmBuf = pcm.Bytes()
-			strm.paused = !playWhenDoneLoading
-		}
-		loadableStream.wwiseStream = strm
-		loadableStream.loaded.Store(true)
-		pv.streamWg.Done()
 	}()
-	return nil
 }
 
 func (pv *WwisePreviewState) currentStream() *wwiseStream {
@@ -270,6 +282,10 @@ func WwisePreview(name string, pv *WwisePreviewState) {
 						imgui.SameLine()
 						imgui.SetNextItemWidth(-math.SmallestNonzeroFloat32)
 						if imgui.SliderFloatV("##Time", &playTime, 0, duration, "", 0) {
+							if i != pv.currentStreamIdx {
+								pv.playStreamIndex(i)
+							}
+
 							pos := int64(float64(playTime) * stream.bytesPerSecond)
 
 							// Truncate to an actual valid sample position

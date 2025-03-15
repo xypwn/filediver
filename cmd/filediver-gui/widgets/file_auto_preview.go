@@ -12,7 +12,6 @@ import (
 	"github.com/ebitengine/oto/v3"
 	"github.com/xypwn/filediver/stingray"
 	stingray_wwise "github.com/xypwn/filediver/stingray/wwise"
-	"github.com/xypwn/filediver/wwise"
 )
 
 type FileAutoPreviewType int
@@ -108,16 +107,8 @@ func (pv *FileAutoPreviewState) LoadFile(ctx context.Context, file *stingray.Fil
 			pv.err = err
 			return
 		}
-		wem, err := wwise.OpenWem(bytes.NewReader(data[stingray.DataStream]))
-		if err != nil {
-			pv.err = fmt.Errorf("loading wwise stream: %w", err)
-			return
-		}
 		pv.state.audio.Title = file.ID().Name.String()
-		if err := pv.state.audio.LoadStream(file.ID().Name.String(), wem, true); err != nil {
-			pv.err = err
-			return
-		}
+		pv.state.audio.LoadStream(file.ID().Name.String(), data[stingray.DataStream], true)
 	case stingray.Sum64([]byte("wwise_bank")):
 		pv.state.audio.ClearStreams()
 		pv.activeType = FileAutoPreviewAudio
@@ -148,15 +139,7 @@ func (pv *FileAutoPreviewState) LoadFile(ctx context.Context, file *stingray.Fil
 		}
 		for _, id := range slices.Sorted(maps.Keys(streams)) {
 			stream := streams[id]
-			wem, err := wwise.OpenWem(bytes.NewReader(stream))
-			if err != nil {
-				pv.err = fmt.Errorf("loading wwise stream: %w", err)
-				return
-			}
-			if err := pv.state.audio.LoadStream(fmt.Sprint(id), wem, false); err != nil {
-				pv.err = err
-				return
-			}
+			pv.state.audio.LoadStream(fmt.Sprint(id), stream, false)
 		}
 	default:
 		pv.activeType = FileAutoPreviewEmpty
