@@ -79,6 +79,9 @@ func goWindowRefreshCallback(window *C.GLFWwindow) {
 	OnWindowRefresh(window)
 }
 
+//go:embed LICENSE
+var license string
+
 var IconsFontRanges = [3]imgui.Wchar{
 	imgui.Wchar(fnt.IconsFontInfo.Min),
 	imgui.Wchar(fnt.IconsFontInfo.Max16),
@@ -220,13 +223,14 @@ func main() {
 	var gameFileTypes []stingray.Hash
 	allowedGameFileTypes := make(map[stingray.Hash]struct{})
 	commonGameFileTypes := map[stingray.Hash]struct{}{
-		stingray.Sum64([]byte("texture")):      struct{}{},
-		stingray.Sum64([]byte("unit")):         struct{}{},
-		stingray.Sum64([]byte("wwise_bank")):   struct{}{},
-		stingray.Sum64([]byte("wwise_stream")): struct{}{},
+		stingray.Sum64([]byte("texture")):      {},
+		stingray.Sum64([]byte("unit")):         {},
+		stingray.Sum64([]byte("wwise_bank")):   {},
+		stingray.Sum64([]byte("wwise_stream")): {},
 	}
 
 	isPreferencesOpen := false
+	isAboutOpen := false
 
 	preDraw := func() {
 		if gameData != nil && previewState == nil {
@@ -275,8 +279,9 @@ func main() {
 				imgui.PushStyleVarVec2(imgui.StyleVarItemSpacing, imgui.NewVec2(5, 5))
 				if imgui.BeginMenu("Help") {
 					imgui.Separator()
-					imgui.MenuItemBool(fnt.I("Help") + " Tutorial")
-					imgui.MenuItemBool(fnt.I("Info") + " About")
+					if imgui.MenuItemBool(fnt.I("Info") + " About") {
+						isAboutOpen = true
+					}
 					imgui.Separator()
 					imgui.EndMenu()
 				}
@@ -482,6 +487,38 @@ func main() {
 			if imgui.ButtonV("Close", imgui.NewVec2(imgui.ContentRegionAvail().X, 0)) {
 				imgui.CloseCurrentPopup()
 				isPreferencesOpen = false
+			}
+			imgui.EndPopup()
+		}
+
+		imgui.SetNextWindowSize(imgui.NewVec2(400, 300))
+		imgui.SetNextWindowPosV(viewport.Center(), imgui.CondAlways, imgui.NewVec2(0.5, 0.5))
+		if isAboutOpen {
+			imgui.OpenPopupStr("About")
+		}
+		if imgui.BeginPopupModalV("About", &isAboutOpen, imgui.WindowFlagsNoMove|imgui.WindowFlagsNoResize) {
+			imgui.TextUnformatted("Filediver GUI")
+			if imgui.CollapsingHeaderBoolPtr("License", nil) {
+				imgui.PushTextWrapPos()
+				imgui.TextUnformatted(license)
+			}
+			imgui.Separator()
+			if imgui.CollapsingHeaderBoolPtr("Font Licenses", nil) {
+				imgui.Indent()
+				if imgui.CollapsingHeaderBoolPtr("Roboto", nil) {
+					imgui.PushTextWrapPos()
+					imgui.TextUnformatted(fnt.TextFontLicense)
+				}
+				if imgui.CollapsingHeaderBoolPtr("Material Symbols", nil) {
+					imgui.PushTextWrapPos()
+					imgui.TextUnformatted(fnt.IconsFontLicense)
+				}
+				imgui.Unindent()
+			}
+			imgui.Separator()
+			if imgui.ButtonV("Close", imgui.NewVec2(imgui.ContentRegionAvail().X, 0)) {
+				imgui.CloseCurrentPopup()
+				isAboutOpen = false
 			}
 			imgui.EndPopup()
 		}

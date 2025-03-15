@@ -12,6 +12,12 @@ var TextFont []byte
 //go:embed MaterialSymbolsOutlined.ttf
 var IconsFont []byte
 
+//go:embed RobotoLicense.txt
+var TextFontLicense string
+
+//go:embed MaterialSymbolsLicense.txt
+var IconsFontLicense string
+
 var IconsFontInfo = icon_fonts.IconsMaterialSymbols
 var Icons = IconsFontInfo.Icons
 
