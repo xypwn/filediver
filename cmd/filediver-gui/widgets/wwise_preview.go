@@ -276,6 +276,7 @@ func WwisePreview(name string, pv *WwisePreviewState) {
 						var playTime float32
 						if i == pv.currentStreamIdx {
 							pos := float64(stream.playbackPosition.Load())
+							pos -= float64(pv.otoPlayer.BufferedSize())
 							playTime = float32(pos / stream.bytesPerSecond)
 						}
 						duration := float32(float64(len(stream.pcmBuf)) / stream.bytesPerSecond)
