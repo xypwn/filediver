@@ -120,10 +120,9 @@ func (pv *WwisePreviewState) LoadStream(title string, wemData []byte, playWhenDo
 		chans := wem.Channels()
 		layout := wem.ChannelLayout()
 
-		// So far, it seems all wwise streams are fixed at 48kHz, so having a fixed
-		// sample rate is probably OK
+		// TODO: Most streams are at 48kHz, but some are at 44kHz, meaning we have to downsample those.
 		if wem.SampleRate() != pv.sampleRate {
-			strm.err = fmt.Errorf("loading wwise stream: %w", err)
+			strm.err = fmt.Errorf("audio sample rate (%v) does not match with player sample rate (%v)\n", wem.SampleRate(), pv.sampleRate)
 			return
 		}
 
