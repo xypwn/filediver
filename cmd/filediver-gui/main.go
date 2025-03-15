@@ -48,7 +48,10 @@ import (
 	_ "embed"
 	"fmt"
 	"log"
+	"maps"
 	"runtime"
+	"slices"
+	"strings"
 	"time"
 	"unsafe"
 
@@ -213,8 +216,15 @@ func main() {
 			previewState.Delete()
 		}
 	}()
-
 	var gameFileSearchQuery string
+	var gameFileTypes []stingray.Hash
+	allowedGameFileTypes := make(map[stingray.Hash]struct{})
+	commonGameFileTypes := map[stingray.Hash]struct{}{
+		stingray.Sum64([]byte("texture")):      struct{}{},
+		stingray.Sum64([]byte("unit")):         struct{}{},
+		stingray.Sum64([]byte("wwise_bank")):   struct{}{},
+		stingray.Sum64([]byte("wwise_stream")): struct{}{},
+	}
 
 	isPreferencesOpen := false
 
@@ -313,6 +323,13 @@ func main() {
 					if gameDataLoad.Err == nil {
 						if gameData == nil {
 							gameData = gameDataLoad.Result
+							types := make(map[stingray.Hash]struct{})
+							for _, f := range gameData.DataDir.Files {
+								types[f.ID().Type] = struct{}{}
+							}
+							gameFileTypes = slices.SortedFunc(maps.Keys(types), func(h1, h2 stingray.Hash) int {
+								return strings.Compare(gameData.LookupHash(h1), gameData.LookupHash(h2))
+							})
 						}
 					} else {
 						imgui.TextUnformatted(fmt.Sprintf("Error: %v", gameDataLoad.Err))
@@ -328,8 +345,56 @@ func main() {
 					activeFileID = previewState.ActiveID()
 				}
 
-				if imgui.InputTextWithHint("##Search", fnt.I("Search")+" Search...", &gameFileSearchQuery, 0, nil) {
-					gameData.UpdateSearchQuery(gameFileSearchQuery)
+				if imgui.InputTextWithHint("##SearchName", fnt.I("Search")+" Search By File Name...", &gameFileSearchQuery, 0, nil) {
+					gameData.UpdateSearchQuery(gameFileSearchQuery, allowedGameFileTypes)
+				}
+				imgui.SameLine()
+				var numTypeFiltersStr string
+				if len(allowedGameFileTypes) > 0 {
+					numTypeFiltersStr = fmt.Sprintf(" (%v)", len(allowedGameFileTypes))
+				}
+				if imgui.Button(fnt.I("Filter_list") + " Types" + numTypeFiltersStr) {
+					imgui.OpenPopupStr("Type Filter")
+				}
+				if imgui.BeginPopup("Type Filter") {
+					makeCheckbox := func(typ stingray.Hash) {
+						_, checked := allowedGameFileTypes[typ]
+						if imgui.Checkbox(gameData.LookupHash(typ), &checked) {
+							if checked {
+								allowedGameFileTypes[typ] = struct{}{}
+							} else {
+								delete(allowedGameFileTypes, typ)
+							}
+							gameData.UpdateSearchQuery(gameFileSearchQuery, allowedGameFileTypes)
+						}
+					}
+					if len(allowedGameFileTypes) > 0 {
+						if imgui.Button("Reset") {
+							for k := range allowedGameFileTypes {
+								delete(allowedGameFileTypes, k)
+								gameData.UpdateSearchQuery(gameFileSearchQuery, allowedGameFileTypes)
+							}
+						}
+						imgui.Separator()
+					}
+					imgui.TextUnformatted("Common Types")
+					for _, typ := range gameFileTypes {
+						if _, ok := commonGameFileTypes[typ]; ok {
+							makeCheckbox(typ)
+						}
+					}
+					if imgui.CollapsingHeaderBoolPtr("Other Types", nil) {
+						imgui.SetNextWindowSize(imgui.NewVec2(0, 400))
+						if imgui.BeginChildStr("Container") {
+							for _, typ := range gameFileTypes {
+								if _, ok := commonGameFileTypes[typ]; !ok {
+									makeCheckbox(typ)
+								}
+							}
+						}
+						imgui.EndChild()
+					}
+					imgui.EndPopup()
 				}
 				const tableFlags = imgui.TableFlagsResizable | imgui.TableFlagsBorders | imgui.TableFlagsScrollY
 				if imgui.BeginTableV("##Game Files", 2, tableFlags, imgui.NewVec2(0, 0), 0) {

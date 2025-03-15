@@ -27,15 +27,20 @@ func NewGameData(a *app.App) *GameData {
 		gd.KnownFileNames[id] = strings.ToLower(gd.LookupHash(id.Name) + "." + gd.LookupHash(id.Type))
 		gd.HashFileNames[id] = id.Name.String() + "." + id.Type.String()
 	}
-	gd.UpdateSearchQuery("")
+	gd.UpdateSearchQuery("", nil)
 	return gd
 }
 
-func (gd *GameData) UpdateSearchQuery(query string) {
+func (gd *GameData) UpdateSearchQuery(query string, allowedTypes map[stingray.Hash]struct{}) {
 	query = strings.ToLower(query)
 
 	gd.SortedSearchResultFileIDs = gd.SortedSearchResultFileIDs[:0]
 	for fileID := range gd.DataDir.Files {
+		if allowedTypes != nil && len(allowedTypes) > 0 {
+			if _, allowed := allowedTypes[fileID.Type]; !allowed {
+				continue
+			}
+		}
 		if strings.Contains(gd.KnownFileNames[fileID], query) || strings.Contains(gd.HashFileNames[fileID], query) {
 			gd.SortedSearchResultFileIDs = append(gd.SortedSearchResultFileIDs, fileID)
 		}
