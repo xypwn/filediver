@@ -67,12 +67,20 @@ func (fb *GLViewState) resize(newWidth, newHeight int32) error {
 	return nil
 }
 
-func GLView(name string, fb *GLViewState, processViewAreaInputIG func(), drawGL func(pos, size imgui.Vec2), drawOverlayIG func(pos, size imgui.Vec2)) {
+func GLView(name string, fb *GLViewState, size imgui.Vec2, processViewAreaInputIG func(), drawGL func(pos, size imgui.Vec2), drawOverlayIG func(pos, size imgui.Vec2)) {
 	imgui.PushIDStr(name)
 	defer imgui.PopID()
 
 	pos := imgui.CursorScreenPos()
-	size := imgui.ContentRegionAvail()
+	{
+		avail := imgui.ContentRegionAvail()
+		if size.X == 0 {
+			size.X = avail.X
+		}
+		if size.Y == 0 {
+			size.Y = avail.Y
+		}
+	}
 
 	if err := fb.maybeResize(int32(size.X), int32(size.Y)); err != nil {
 		log.Println(err)
