@@ -29,6 +29,7 @@ type wwiseStream struct {
 	bytesPerSecond   float64
 	paused           bool
 	playbackPosition *atomic.Int64 // in bytes
+	startPlaying     bool
 }
 
 type loadableWwiseStream struct {
@@ -103,7 +104,7 @@ func (pv *WwisePreviewState) LoadStream(title string, wemData []byte, playWhenDo
 			if strm.err == nil {
 				strm.bytesPerSecond = float64(wem.SampleRate() * wwisePlayerBytesPerSample)
 				strm.pcmBuf = pcm.Bytes()
-				strm.paused = !playWhenDoneLoading
+				strm.startPlaying = playWhenDoneLoading
 			}
 			loadableStream.wwiseStream = strm
 			loadableStream.loaded.Store(true)
@@ -253,6 +254,11 @@ func WwisePreview(name string, pv *WwisePreviewState) {
 				imgui.TableNextColumn()
 				if stream.loaded.Load() {
 					if stream.err == nil {
+						if stream.startPlaying {
+							pv.playStreamIndex(i)
+							stream.startPlaying = false
+						}
+
 						isActionPlay := pv.currentStreamIdx != i || stream.paused // play or pause
 						var playPauseIcon string
 						if isActionPlay {
