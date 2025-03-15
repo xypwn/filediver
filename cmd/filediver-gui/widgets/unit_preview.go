@@ -199,8 +199,8 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 			pv.projection = mgl32.Perspective(
 				mgl32.DegToRad(60),
 				size.X/size.Y,
-				0.1,
-				1000,
+				0.125,
+				32768,
 			)
 
 			mvp := pv.projection.Mul4(view).Mul4(pv.model)
