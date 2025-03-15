@@ -18,7 +18,7 @@ jobs:
       with:
         go-version: '>=1.24'
     - name: Install dependencies
-      run: sudo apt install -y libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libglx-dev libgl1-mesa-dev libxxf86vm-dev
+      run: sudo apt install -y libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libglx-dev libgl1-mesa-dev libxxf86vm-dev libasound2-dev
     - name: Build executable
       run: go build -ldflags="-s -w" -o filediver-gui/filediver-gui ./cmd/filediver-gui
     - name: Create archive
