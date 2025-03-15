@@ -317,6 +317,11 @@ func main() {
 				}
 				gameDataLoad.Unlock()
 			} else {
+				var activeFileID stingray.FileID
+				if previewState != nil {
+					activeFileID = previewState.ActiveID()
+				}
+
 				if imgui.InputTextWithHint("##Search", fnt.I("Search")+" Search...", &gameFileSearchQuery, 0, nil) {
 					gameData.UpdateSearchQuery(gameFileSearchQuery)
 				}
@@ -334,7 +339,12 @@ func main() {
 							id := gameData.SortedSearchResultFileIDs[row]
 							imgui.PushIDStr(id.Name.String() + id.Type.String()) // might be a bit slow
 							imgui.TableNextColumn()
-							selected := imgui.SelectableBoolV(gameData.LookupHash(id.Name), false, imgui.SelectableFlagsSpanAllColumns, imgui.NewVec2(0, 0))
+							selected := imgui.SelectableBoolV(
+								gameData.LookupHash(id.Name),
+								id == activeFileID,
+								imgui.SelectableFlagsSpanAllColumns|imgui.SelectableFlags(imgui.SelectableFlagsSelectOnNav),
+								imgui.NewVec2(0, 0),
+							)
 							imgui.TableNextColumn()
 							imgui.TextUnformatted(gameData.LookupHash(id.Type))
 							imgui.PopID()
