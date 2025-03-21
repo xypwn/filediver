@@ -281,7 +281,7 @@ def main():
     unused_secondary_lut.pack(data=exr, data_len=len(exr))
     unused_secondary_lut.source = "FILE"
 
-    materialTextures: Dict[str, Dict[str, Image]] = {}
+    materialTextures: Dict[int, Dict[str, Image]] = {}
 
     print("Applying materials to meshes...")
     for node in gltf["nodes"]:
@@ -307,8 +307,8 @@ def main():
         is_tex_array_skin = "color_roughness" in material["extras"] and "normal_specular_ao" in material["extras"] and len(material["extras"]) == 2
         is_lut_skin = "grayscale_skin" in material["extras"] and "color_roughness_lut" in material["extras"]
         is_lut = "material_lut" in material["extras"]
-        if material["name"] in materialTextures:
-            textures = materialTextures[material["name"]]
+        if primitive["material"] in materialTextures:
+            textures = materialTextures[primitive["material"]]
         else:
             if len(material["extras"]) == 0 or not any((is_pbr, is_tex_array_skin, is_lut_skin, is_lut)):
                 continue
@@ -321,7 +321,7 @@ def main():
                 for usage in optional_usages:
                     if usage not in textures:
                         textures[usage] = unused_texture
-                materialTextures[material["name"]] = textures
+                materialTextures[primitive["material"]] = textures
             except AssertionError as e:
                 print(f"Error: {e}")
                 continue
@@ -335,7 +335,12 @@ def main():
                     break
         else:
             obj: Object = bpy.data.objects[node["name"]]
-        if not ("HD2 Mat " + material["name"]) in bpy.data.materials:
+        key = "HD2 Mat " + material["name"]
+        i = 1
+        while key in bpy.data.materials and bpy.data.materials[key]["gltfId"] != primitive["material"]:
+            key = "HD2 Mat " + material["name"] + f".{i:03d}"
+            i += 1
+        if not key in bpy.data.materials:
             print("    Copying template material")
             if is_lut:
                 object_mat = add_accurate_material(shader_mat, material, shader_module, unused_secondary_lut, textures)
@@ -343,9 +348,10 @@ def main():
                 object_mat = add_skin_material(skin_mat, material, textures)
             elif is_lut_skin:
                 object_mat = add_lut_skin_material(lut_skin_mat, material, textures)
+            object_mat["gltfId"] = primitive["material"]
         else:
-            print(f"    Found existing material 'HD2 Mat {material['name']}'")
-            object_mat = bpy.data.materials["HD2 Mat " + material["name"]]
+            print(f"    Found existing material '{key}'")
+            object_mat = bpy.data.materials[key]
 
         obj.material_slots[0].material = object_mat
         shader_module.add_bake_uvs(obj)
