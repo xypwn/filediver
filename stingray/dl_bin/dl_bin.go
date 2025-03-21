@@ -344,7 +344,7 @@ func LoadArmorSetDefinitions(strings map[uint32]string) (map[stingray.Hash]Armor
 			return nil, err
 		}
 
-		r.Seek(int64((item.Kit.BodyArrayAddress&0xfffff)-0xa0000), io.SeekStart)
+		r.Seek(int64((item.Kit.BodyArrayAddress&0xfffff)-0x80000), io.SeekStart)
 		var bodies []Body = make([]Body, item.Kit.BodyCount)
 		if err := binary.Read(r, binary.LittleEndian, bodies); err != nil {
 			return nil, err
@@ -359,7 +359,7 @@ func LoadArmorSetDefinitions(strings map[uint32]string) (map[stingray.Hash]Armor
 		}
 
 		for _, body := range bodies {
-			r.Seek(int64((body.PiecesAddress&0xfffff)-0xa0000), io.SeekStart)
+			r.Seek(int64((body.PiecesAddress&0xfffff)-0x80000), io.SeekStart)
 			pieces := make([]Piece, body.PiecesCount)
 			if err := binary.Read(r, binary.LittleEndian, pieces); err != nil {
 				return nil, err
