@@ -1,7 +1,5 @@
-github.com/AllenDang/cimgui-go v1.3.0 h1:iFK0SBjfOnd8qCnn8PLMFh/uTceuJGN0hVXRxokMz20=
-github.com/AllenDang/cimgui-go v1.3.0/go.mod h1:1i5vebTbRcCAlui+AUn3A3U0V2tu/qImW0NoLr+/Fek=
-github.com/AllenDang/cimgui-go v1.3.1-0.20250221075015-ddd0ecb043b6 h1:oi1QGxoZmPYhuqiYGQ2IH16chnUJIf1BeHMNbcMv4Mo=
-github.com/AllenDang/cimgui-go v1.3.1-0.20250221075015-ddd0ecb043b6/go.mod h1:Fuj3G2E3zd2bMQxmhuSPSFFl41MwS+MhyZ6DHgYq/YM=
+github.com/AllenDang/cimgui-go v1.3.1 h1:2f33a7GHJwRofH0CRQbUTXywazfph/K5LQLKyOBv24k=
+github.com/AllenDang/cimgui-go v1.3.1/go.mod h1:Fuj3G2E3zd2bMQxmhuSPSFFl41MwS+MhyZ6DHgYq/YM=
 github.com/adrg/xdg v0.4.0 h1:RzRqFcjH4nE5C6oTAxhBtoE2IRyjBSa62SCbyPidvls=
 github.com/adrg/xdg v0.4.0/go.mod h1:N6ag73EX4wyxeaoeHctc1mas01KZgsj5tYiAIwqJE/E=
 github.com/amenzhinsky/go-memexec v0.7.1 h1:DVm4cXzklaNWZoTJgZUi/dlXtelhC7QBtX4luKjl1qk=
