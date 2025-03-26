@@ -240,7 +240,7 @@ func ConvertBnk(ctx extractor.Context) error {
 
 	bnkName, ok := ctx.Hashes()[ctx.File().ID().Name]
 	if !ok {
-		return fmt.Errorf("expected wwise bank file %v.wwise_bank", ctx.File().ID().Name)
+		return fmt.Errorf("expected wwise bank file %v.wwise_bank to have a known name", ctx.File().ID().Name)
 	}
 	dir := path.Dir(bnkName)
 
