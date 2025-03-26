@@ -58,6 +58,7 @@ class Passive(IntEnum):
     ACCLIMATED = 14
     SIEGE_READY = 15
     INTEGRATED_EXPLOSIVES = 16
+    GUNSLINGER = 17
 
 class MurmurHash:
     def __init__(self, value: int):
@@ -137,7 +138,7 @@ class Body:
     def parse(cls, data: BytesIO) -> 'Body':
         bodyType, unk00, offset, unk01, count, unk02 = struct.unpack("<IIIIII", data.read(24))
         prev = data.tell()
-        data.seek((offset&0xfffff)-0xa0000)
+        data.seek((offset&0xfffff)-0x80000)
         pieces = [Piece.parse(data) for _ in range(count)]
         data.seek(prev)
         return cls(BodyType(bodyType), unk00, pieces, unk01, count, unk02)
@@ -172,7 +173,7 @@ class HelldiverCustomizationKit:
         _id, dlc_id, set_id, name_upper, name_cased, description, rarity, passive = struct.unpack("<IIIIIIII", data.read(32))
         triad, kit_type, unk01, offset, unk02, count, unk03 = struct.unpack("<QIIIIII", data.read(32))
         prev = data.tell()
-        data.seek((offset&0xfffff)-0xa0000)
+        data.seek((offset&0xfffff)-0x80000)
         body_types = [Body.parse(data) for _ in range(count)]
         data.seek(prev)
         return cls(_id, dlc_id, set_id, name_upper, name_cased, description, rarity, Passive(passive), MurmurHash(triad), Kit(kit_type), unk01, body_types, unk02, count, unk03)

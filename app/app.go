@@ -263,7 +263,10 @@ func getWwiseHashes(ctx context.Context, dataDir *stingray.DataDir) (map[stingra
 		if id.Type == stingray.Sum64([]byte("wwise_bank")) {
 			name, ok := hashes[id.Name]
 			if !ok {
-				return nil, fmt.Errorf("expected all wwise banks to have a known name, but cannot find name for hash %v", id.Name)
+				// It seems the wwise banks no longer all have an according wwise_dep (https://github.com/xypwn/filediver/issues/35).
+				// Hopefully these banks missing won't become a problem.
+				//return nil, fmt.Errorf("expected all wwise banks to have a known name, but cannot find name for hash %v", id.Name)
+				continue
 			}
 			dir := path.Dir(name)
 			if err := func() error {
