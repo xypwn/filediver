@@ -61,6 +61,7 @@ import (
 	"github.com/ebitengine/oto/v3"
 	"github.com/go-gl/gl/v3.2-core/gl"
 	fnt "github.com/xypwn/filediver/cmd/filediver-gui/fonts"
+	"github.com/xypwn/filediver/cmd/filediver-gui/imutils"
 	"github.com/xypwn/filediver/cmd/filediver-gui/widgets"
 	"github.com/xypwn/filediver/stingray"
 )
@@ -337,12 +338,10 @@ func main() {
 							})
 						}
 					} else {
-						imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.8, 0.5, 0.5, 1))
-						imgui.TextUnformatted(fmt.Sprintf("Error: %v", gameDataLoad.Err))
-						imgui.PopStyleColor()
+						imutils.TextError(gameDataLoad.Err)
 					}
 				} else {
-					imgui.TextUnformatted(fnt.I("Hourglass_top") + " Loading game data...")
+					imutils.Textf(fnt.I("Hourglass_top") + " Loading game data...")
 					imgui.ProgressBar(gameDataLoad.Progress)
 				}
 				gameDataLoad.Unlock()
@@ -493,12 +492,13 @@ func main() {
 			imgui.EndPopup()
 		}
 
-		imgui.SetNextWindowSize(imgui.NewVec2(400, 300))
+		imgui.SetNextWindowSizeV(imgui.NewVec2(500, 400), imgui.CondOnce)
+		imgui.SetNextWindowSizeConstraints(imgui.NewVec2(300, 200), viewport.Size())
 		imgui.SetNextWindowPosV(viewport.Center(), imgui.CondAlways, imgui.NewVec2(0.5, 0.5))
 		if isAboutOpen {
 			imgui.OpenPopupStr("About")
 		}
-		if imgui.BeginPopupModalV("About", &isAboutOpen, imgui.WindowFlagsNoMove|imgui.WindowFlagsNoResize) {
+		if imgui.BeginPopupModalV("About", &isAboutOpen, imgui.WindowFlagsNoMove) {
 			imgui.TextUnformatted("Filediver GUI")
 			if imgui.CollapsingHeaderBoolPtr("License", nil) {
 				imgui.PushTextWrapPos()

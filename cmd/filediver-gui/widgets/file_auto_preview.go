@@ -8,8 +8,8 @@ import (
 	"path"
 	"slices"
 
-	"github.com/AllenDang/cimgui-go/imgui"
 	"github.com/ebitengine/oto/v3"
+	"github.com/xypwn/filediver/cmd/filediver-gui/imutils"
 	"github.com/xypwn/filediver/stingray"
 	stingray_wwise "github.com/xypwn/filediver/stingray/wwise"
 )
@@ -148,9 +148,7 @@ func (pv *FileAutoPreviewState) LoadFile(ctx context.Context, file *stingray.Fil
 
 func FileAutoPreview(name string, pv *FileAutoPreviewState) bool {
 	if pv.err != nil {
-		imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.8, 0.5, 0.5, 1))
-		imgui.TextUnformatted(fmt.Sprintf("Error: %v", pv.err))
-		imgui.PopStyleColor()
+		imutils.TextError(pv.err)
 		return true
 	}
 	switch pv.activeType {

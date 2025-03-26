@@ -9,6 +9,7 @@ import (
 	"github.com/go-gl/gl/v3.2-core/gl"
 	"github.com/go-gl/mathgl/mgl32"
 	"github.com/xypwn/filediver/cmd/filediver-gui/glutils"
+	"github.com/xypwn/filediver/cmd/filediver-gui/imutils"
 	"github.com/xypwn/filediver/stingray/unit"
 )
 
@@ -312,8 +313,7 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 	imgui.PushIDStr(name)
 
 	viewSize := imgui.ContentRegionAvail()
-	// HACK
-	viewSize.Y -= imgui.FrameHeight() + imgui.CurrentStyle().FramePadding().Y + imgui.CurrentStyle().ItemSpacing().Y
+	viewSize.Y -= imutils.CheckboxHeight()
 
 	GLView(name, pv.fb, viewSize,
 		func() {

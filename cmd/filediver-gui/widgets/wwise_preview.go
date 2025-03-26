@@ -15,6 +15,7 @@ import (
 	"github.com/AllenDang/cimgui-go/imgui"
 	"github.com/ebitengine/oto/v3"
 	fnt "github.com/xypwn/filediver/cmd/filediver-gui/fonts"
+	"github.com/xypwn/filediver/cmd/filediver-gui/imutils"
 	"github.com/xypwn/filediver/cmd/filediver-gui/ioutils"
 	"github.com/xypwn/filediver/wwise"
 )
@@ -235,9 +236,7 @@ func WwisePreview(name string, pv *WwisePreviewState) {
 			imgui.TextUnformatted(pv.Title)
 		}
 		tableSize := imgui.ContentRegionAvail()
-
-		// HACK: Place checkboxes below table while auto-sizing table
-		tableSize.Y -= imgui.FrameHeight() + imgui.CurrentStyle().FramePadding().Y + imgui.CurrentStyle().ItemSpacing().Y
+		tableSize.Y -= imutils.CheckboxHeight()
 
 		const tableFlags = imgui.TableFlagsResizable | imgui.TableFlagsBorders | imgui.TableFlagsScrollY
 		if imgui.BeginTableV("##Streams", 2, tableFlags, tableSize, 0) {
@@ -320,9 +319,7 @@ func WwisePreview(name string, pv *WwisePreviewState) {
 							}
 						}
 					} else {
-						imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.8, 0.5, 0.5, 1))
-						imgui.TextUnformatted(fmt.Sprint("Error:", stream.err))
-						imgui.PopStyleColor()
+						imutils.TextError(stream.err)
 					}
 				} else {
 					imgui.ProgressBar(-float32(imgui.Time()))
