@@ -23,9 +23,9 @@ func TextError(err error) {
 	imgui.PopStyleColor()
 	if imgui.BeginItemTooltip() {
 		if imgui.Time()-errorCopiedTime < 1 {
-			Textf("Copied " + fnt.I("Check"))
+			Textf(fnt.I("Check") + " Copied")
 		} else {
-			Textf("Click to copy error to clipboard " + fnt.I("Content_copy"))
+			Textf(fnt.I("Content_copy") + " Click to copy error to clipboard")
 		}
 		imgui.EndTooltip()
 	}
