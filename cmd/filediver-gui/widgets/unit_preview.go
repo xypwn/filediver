@@ -311,6 +311,7 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 	}
 
 	imgui.PushIDStr(name)
+	defer imgui.PopID()
 
 	viewSize := imgui.ContentRegionAvail()
 	viewSize.Y -= imutils.CheckboxHeight()
@@ -421,6 +422,4 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 	imgui.Checkbox("Auto-zoom on load", &pv.zoomToFitOnLoad)
 	imgui.SameLine()
 	imgui.Checkbox("Show bounding box", &pv.showAABB)
-
-	imgui.PopID()
 }

@@ -4,13 +4,16 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"maps"
 	"path"
 	"slices"
 
 	"github.com/ebitengine/oto/v3"
 	"github.com/xypwn/filediver/cmd/filediver-gui/imutils"
+	"github.com/xypwn/filediver/dds"
 	"github.com/xypwn/filediver/stingray"
+	"github.com/xypwn/filediver/stingray/unit/texture"
 	stingray_wwise "github.com/xypwn/filediver/stingray/wwise"
 )
 
@@ -27,8 +30,9 @@ type FileAutoPreviewState struct {
 	activeType FileAutoPreviewType
 	activeID   stingray.FileID
 	state      struct {
-		unit  *UnitPreviewState
-		audio *WwisePreviewState
+		unit    *UnitPreviewState
+		audio   *WwisePreviewState
+		texture *DDSPreviewState
 	}
 
 	hashes      map[stingray.Hash]string
@@ -48,12 +52,14 @@ func NewFileAutoPreview(otoCtx *oto.Context, audioSampleRate int, hashes map[sti
 		return nil, err
 	}
 	pv.state.audio = NewWwisePreview(otoCtx, audioSampleRate)
+	pv.state.texture = NewDDSPreview()
 	return pv, nil
 }
 
 func (pv *FileAutoPreviewState) Delete() {
 	pv.state.unit.Delete()
 	pv.state.audio.Delete()
+	pv.state.texture.Delete()
 }
 
 func (pv *FileAutoPreviewState) ActiveID() stingray.FileID {
@@ -141,6 +147,27 @@ func (pv *FileAutoPreviewState) LoadFile(ctx context.Context, file *stingray.Fil
 			stream := streams[id]
 			pv.state.audio.LoadStream(fmt.Sprint(id), stream, false)
 		}
+	case stingray.Sum64([]byte("texture")):
+		pv.activeType = FileAutoPreviewTexture
+		if err := loadFiles(stingray.DataMain, stingray.DataStream, stingray.DataGPU); err != nil {
+			pv.err = err
+			return
+		}
+		r := io.MultiReader(
+			bytes.NewReader(data[stingray.DataMain]),
+			bytes.NewReader(data[stingray.DataStream]),
+			bytes.NewReader(data[stingray.DataGPU]),
+		)
+		if _, err := texture.DecodeInfo(r); err != nil {
+			pv.err = fmt.Errorf("loading stingray DDS info: %w", err)
+			return
+		}
+		img, err := dds.Decode(r, false)
+		if err != nil {
+			pv.err = fmt.Errorf("loading DDS image: %w", err)
+			return
+		}
+		pv.state.texture.LoadImage(img)
 	default:
 		pv.activeType = FileAutoPreviewEmpty
 	}
@@ -158,6 +185,8 @@ func FileAutoPreview(name string, pv *FileAutoPreviewState) bool {
 		UnitPreview(name, pv.state.unit)
 	case FileAutoPreviewAudio:
 		WwisePreview(name, pv.state.audio)
+	case FileAutoPreviewTexture:
+		DDSPreview(name, pv.state.texture)
 	default:
 		panic("unhandled case")
 	}
