@@ -139,10 +139,10 @@ func (pv *WwisePreviewState) LoadStream(title string, wemData []byte, playWhenDo
 
 		// NOTE: The data for the whole PCM stream is allocated
 		// as one array here. This can take up a few 100s of MBs
-		// of // data for larger audio streams. We should definitely
+		// of data for larger audio streams. We should definitely
 		// be able to do all steps piece by piece in the loop, but I
 		// didn't bother.
-		var allSamplesP [2][]float32 // downmixer wants planar data... ugh.
+		var allSamplesP [2][]float32 // resampler wants planar data
 
 		for {
 			if loadableStream.cancel.Load() {
