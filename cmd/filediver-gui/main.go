@@ -3,6 +3,15 @@ package main
 /*
 // GLFW
 typedef struct GLFWwindow GLFWwindow;
+typedef struct GLFWmonitor GLFWmonitor;
+typedef struct GLFWvidmode {
+	int width;
+	int height;
+	int redBits;
+	int greenBits;
+	int blueBits;
+	int refreshRate;
+} GLFWvidmode;
 typedef void (*GLFWwindowsizefun)(GLFWwindow* window, int width, int height);
 typedef void (*GLFWwindowrefreshfun)(GLFWwindow* window);
 int glfwWindowShouldClose(GLFWwindow *window);
@@ -13,6 +22,8 @@ GLFWwindow *glfwGetCurrentContext();
 void glfwMakeContextCurrent(GLFWwindow *window);
 void *glfwGetWindowUserPointer(GLFWwindow *window);
 void glfwSetWindowUserPointer(GLFWwindow *window, void *pointer);
+GLFWmonitor *glfwGetPrimaryMonitor();
+GLFWvidmode *glfwGetVideoMode(GLFWmonitor *monitor);
 void glfwSwapBuffers(GLFWwindow *window);
 void glfwDestroyWindow(GLFWwindow *window);
 void glfwTerminate();
@@ -153,6 +164,7 @@ func main() {
 	}
 	currentBackend.SetWindowFlags(glfwbackend.GLFWWindowFlagsResizable, 1)
 	currentBackend.CreateWindow("Filediver GUI", 800, 700)
+	currentBackend.SetWindowSizeLimits(250, 150, -1, -1)
 
 	C.glfwMakeContextCurrent(glfwWindow)
 	C.glfwSwapInterval(0)
@@ -174,7 +186,12 @@ func main() {
 	}
 	shouldUpdateGUIScale := true
 
-	var targetFPS float64 = 60
+	var targetFPS float64
+	{
+		monitor := C.glfwGetPrimaryMonitor()
+		mode := C.glfwGetVideoMode(monitor)
+		targetFPS = float64(mode.refreshRate)
+	}
 
 	if err := gl.Init(); err != nil {
 		log.Fatal(err)
