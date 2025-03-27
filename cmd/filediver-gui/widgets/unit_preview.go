@@ -3,6 +3,7 @@ package widgets
 import (
 	"bytes"
 	"embed"
+	"fmt"
 	"path"
 
 	"github.com/AllenDang/cimgui-go/imgui"
@@ -158,6 +159,10 @@ func (pv *UnitPreviewState) LoadUnit(mainData, gpuData []byte) error {
 		return err
 	}
 
+	if len(info.MeshInfos) == 0 {
+		return fmt.Errorf("unit contains no meshes")
+	}
+
 	var meshToLoad uint32
 	{
 		highestDetailIdx := -1
@@ -170,9 +175,10 @@ func (pv *UnitPreviewState) LoadUnit(mainData, gpuData []byte) error {
 				}
 			}
 		}
-		if highestDetailIdx != -1 {
-			meshToLoad = uint32(highestDetailIdx)
+		if highestDetailIdx == -1 {
+			return fmt.Errorf("unable to find mesh to load")
 		}
+		meshToLoad = uint32(highestDetailIdx)
 	}
 
 	var mesh unit.Mesh
@@ -186,6 +192,16 @@ func (pv *UnitPreviewState) LoadUnit(mainData, gpuData []byte) error {
 	{
 		pv.aabb = [2]mgl32.Vec3{mesh.Info.Header.AABB.Min, mesh.Info.Header.AABB.Max}
 		pv.aabbMat = info.Bones[mesh.Info.Header.AABBTransformIndex].Matrix
+	}
+
+	if len(mesh.Positions) == 0 {
+		return fmt.Errorf("mesh contains no positions")
+	}
+	if len(mesh.Normals) == 0 {
+		return fmt.Errorf("mesh contains no normals")
+	}
+	if len(mesh.UVCoords) == 0 {
+		return fmt.Errorf("mesh contains no UV coordinates")
 	}
 
 	// Upload object data

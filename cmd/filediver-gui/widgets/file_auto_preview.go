@@ -78,16 +78,22 @@ func (pv *FileAutoPreviewState) LoadFile(ctx context.Context, file *stingray.Fil
 	pv.err = nil
 
 	var data [3][]byte
+	// Fills data with the files of the according
+	// data types. If the requested type doesn't
+	// exist, the data slice of the missing type
+	// remains nil.
 	loadFiles := func(types ...stingray.DataType) error {
 		for _, typ := range types {
 			if data[typ] != nil {
 				panic("programmer error: duplicate data type")
 			}
-			b, err := file.Read(typ)
-			if err != nil {
-				return fmt.Errorf("reading file: %w", err)
+			if file.Exists(typ) {
+				b, err := file.Read(typ)
+				if err != nil {
+					return fmt.Errorf("reading file: %w", err)
+				}
+				data[typ] = b
 			}
-			data[typ] = b
 		}
 		return nil
 	}
