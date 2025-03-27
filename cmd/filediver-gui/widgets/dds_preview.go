@@ -61,7 +61,11 @@ func (pv *DDSPreviewState) LoadImage(img *dds.DDS) {
 		}
 	case *image.Gray16:
 		for i := range width * height {
-			y := img.Pix[2*i]
+			// TODO: Data is big endian, so
+			// this should be wrong, but it
+			// looks right... maybe my DDS
+			// decoder is wrong or something.
+			y := img.Pix[2*i+1]
 			data[4*i+0] = y
 			data[4*i+1] = y
 			data[4*i+2] = y
@@ -71,10 +75,10 @@ func (pv *DDSPreviewState) LoadImage(img *dds.DDS) {
 		copy(data, img.Pix)
 	case *image.NRGBA64:
 		for i := range width * height {
-			data[4*i+0] = img.Pix[8*i]
-			data[4*i+1] = img.Pix[8*i+2]
-			data[4*i+2] = img.Pix[8*i+4]
-			data[4*i+3] = img.Pix[8*i+6]
+			data[4*i+0] = img.Pix[8*i+1]
+			data[4*i+1] = img.Pix[8*i+3]
+			data[4*i+2] = img.Pix[8*i+5]
+			data[4*i+3] = img.Pix[8*i+7]
 		}
 	default:
 		pv.err = fmt.Errorf("unhandled image type %T", img)
