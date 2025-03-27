@@ -25,6 +25,7 @@ require (
 require (
 	github.com/ebitengine/purego v0.8.0 // indirect
 	github.com/go-audio/riff v1.0.0 // indirect
+	github.com/oov/audio v0.0.0-20171004131523-88a2be6dbe38 // indirect
 	github.com/stretchr/testify v1.10.0 // indirect
 	golang.org/x/term v0.5.0 // indirect
 )

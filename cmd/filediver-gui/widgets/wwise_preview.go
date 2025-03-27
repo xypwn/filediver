@@ -7,13 +7,13 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"math"
 	"strings"
 	"sync"
 	"sync/atomic"
 
 	"github.com/AllenDang/cimgui-go/imgui"
 	"github.com/ebitengine/oto/v3"
+	"github.com/oov/audio/resampler"
 	fnt "github.com/xypwn/filediver/cmd/filediver-gui/fonts"
 	"github.com/xypwn/filediver/cmd/filediver-gui/imutils"
 	"github.com/xypwn/filediver/cmd/filediver-gui/ioutils"
@@ -23,14 +23,15 @@ import (
 const wwisePlayerBytesPerSample = 4 * 2 // sizeof(float32) * 2 channels
 
 type wwiseStream struct {
-	wem              *wwise.Wem
-	err              error
-	title            string
-	pcmBuf           []byte
-	bytesPerSecond   float64
-	paused           bool
-	playbackPosition *atomic.Int64 // in bytes
-	startPlaying     bool
+	wem                  *wwise.Wem
+	err                  error
+	title                string
+	pcmBuf               []byte
+	bytesPerSecond       float64
+	paused               bool
+	playbackPosition     *atomic.Int64 // in bytes
+	startPlaying         bool
+	qualityInfoTextItems []string
 }
 
 type loadableWwiseStream struct {
@@ -103,7 +104,7 @@ func (pv *WwisePreviewState) LoadStream(title string, wemData []byte, playWhenDo
 
 		defer func() {
 			if strm.err == nil {
-				strm.bytesPerSecond = float64(wem.SampleRate() * wwisePlayerBytesPerSample)
+				strm.bytesPerSecond = float64(pv.sampleRate * wwisePlayerBytesPerSample)
 				strm.pcmBuf = pcm.Bytes()
 				strm.startPlaying = playWhenDoneLoading
 			}
@@ -121,12 +122,6 @@ func (pv *WwisePreviewState) LoadStream(title string, wemData []byte, playWhenDo
 		chans := wem.Channels()
 		layout := wem.ChannelLayout()
 
-		// TODO: Most streams are at 48kHz, but some are at 44kHz, meaning we have to downsample those.
-		if wem.SampleRate() != pv.sampleRate {
-			strm.err = fmt.Errorf("audio sample rate (%v) does not match with player sample rate (%v)\n", wem.SampleRate(), pv.sampleRate)
-			return
-		}
-
 		// All active speakers in order
 		var speakers []wwise.SpeakerFlag
 		for i := 0; i < 64; i++ {
@@ -140,48 +135,85 @@ func (pv *WwisePreviewState) LoadStream(title string, wemData []byte, playWhenDo
 			return
 		}
 
+		shouldResample := wem.SampleRate() != pv.sampleRate
+
+		// NOTE: The data for the whole PCM stream is allocated
+		// as one array here. This can take up a few 100s of MBs
+		// of // data for larger audio streams. We should definitely
+		// be able to do all steps piece by piece in the loop, but I
+		// didn't bother.
+		var allSamplesP [2][]float32 // downmixer wants planar data... ugh.
+
 		for {
 			if loadableStream.cancel.Load() {
 				strm.err = errors.New("canceled")
 				return
 			}
 
-			pcmFlt, err := wem.Decode()
+			samples, err := wem.Decode()
 			if err != nil {
 				if errors.Is(err, io.EOF) {
-					return
+					break
 				}
 				strm.err = err
 				return
 			}
-			if len(pcmFlt)%chans != 0 {
+			if len(samples)%chans != 0 {
 				strm.err = errors.New("expected sample count to be divisible by channel count")
 				return
 			}
 
+			// Downmix
 			if chans == 1 {
-				for i := 0; i < len(pcmFlt); i++ {
-					sampleStereo := [2]float32{
-						pcmFlt[i],
-						pcmFlt[i],
-					}
-					binary.Write(&pcm, binary.LittleEndian, sampleStereo)
+				for i := 0; i < len(samples)/chans; i++ {
+					allSamplesP[0] = append(allSamplesP[0], samples[i])
+					allSamplesP[1] = append(allSamplesP[1], samples[i])
 				}
 			} else {
 				// TODO: Improve downmixing (we're currently
 				// just sampling front left and front right speakers).
-				for i := 0; i < len(pcmFlt); i += chans {
-					var sampleStereo [2]float32
+				for i := 0; i < len(samples)/chans; i++ {
 					for j := 0; j < chans; j++ {
 						switch speakers[j] {
 						case wwise.SpeakerFL:
-							sampleStereo[0] = pcmFlt[i+j]
+							allSamplesP[0] = append(allSamplesP[0], samples[i*chans+j])
 						case wwise.SpeakerFR:
-							sampleStereo[1] = pcmFlt[i+j]
+							allSamplesP[1] = append(allSamplesP[1], samples[i*chans+j])
 						}
 					}
-					binary.Write(&pcm, binary.LittleEndian, sampleStereo)
 				}
+			}
+		}
+
+		if len(allSamplesP[0]) != len(allSamplesP[1]) {
+			panic("expected both audio channels to have same number of samples")
+		}
+
+		if chans > 2 {
+			strm.qualityInfoTextItems = append(strm.qualityInfoTextItems, fmt.Sprintf("Channel layout truncated from %v to stereo", layout))
+		}
+
+		// Resample
+		if shouldResample {
+			resampledPBuf := [2][]float32{
+				make([]float32, len(allSamplesP[0])*pv.sampleRate/wem.SampleRate()),
+				make([]float32, len(allSamplesP[1])*pv.sampleRate/wem.SampleRate()),
+			}
+			resamp := resampler.NewWithSkipZeros(2, wem.SampleRate(), pv.sampleRate, 6)
+			for i := 0; i < 2; i++ {
+				_, wr := resamp.ProcessFloat32(i, allSamplesP[i], resampledPBuf[i])
+				resampledPBuf[i] = resampledPBuf[i][:wr]
+			}
+			allSamplesP = resampledPBuf
+			strm.qualityInfoTextItems = append(strm.qualityInfoTextItems, fmt.Sprintf("Resampled from %vHz to %vHz", wem.SampleRate(), pv.sampleRate))
+		}
+
+		// Write to PCM
+		pcm.Reset()
+		pcm.Grow(len(allSamplesP[0]) * wwisePlayerBytesPerSample)
+		for i := 0; i < len(allSamplesP[0]); i++ {
+			for j := 0; j < 2; j++ {
+				binary.Write(&pcm, binary.LittleEndian, allSamplesP[j][i])
 			}
 		}
 	}()
@@ -285,7 +317,12 @@ func WwisePreview(name string, pv *WwisePreviewState) {
 							formatPlayerTimeF(duration, pv.showTimestampMS),
 						))
 						imgui.SameLine()
-						imgui.SetNextItemWidth(-math.SmallestNonzeroFloat32)
+						playbackSliderWidth := imgui.ContentRegionAvail().X
+						if len(stream.qualityInfoTextItems) > 0 {
+							style := imgui.CurrentStyle()
+							playbackSliderWidth -= style.ItemSpacing().X + style.FramePadding().X + imgui.CalcTextSize(fnt.I("Info")).X
+						}
+						imgui.SetNextItemWidth(playbackSliderWidth)
 						if imgui.SliderFloatV("##Time", &playTime, 0, duration, "", 0) {
 							if i != pv.currentStreamIdx {
 								pv.playStreamIndex(i)
@@ -299,6 +336,20 @@ func WwisePreview(name string, pv *WwisePreviewState) {
 							_, err := pv.otoPlayer.Seek(pos, io.SeekStart)
 							if err != nil {
 								log.Println("Error seeking to playback position:", err)
+							}
+						}
+						if len(stream.qualityInfoTextItems) > 0 {
+							imgui.SameLine()
+							imgui.TextUnformatted(fnt.I("Info"))
+							imgui.SetNextWindowSize(imgui.NewVec2(300, 0))
+							if imgui.BeginItemTooltip() {
+								imgui.PushTextWrapPos()
+								imgui.TextUnformatted("This audio has some inaccuracies in preview mode:")
+								for _, item := range stream.qualityInfoTextItems {
+									imgui.Bullet()
+									imgui.TextUnformatted(item)
+								}
+								imgui.EndTooltip()
 							}
 						}
 						if i == pv.currentStreamIdx {

@@ -35,6 +35,8 @@ github.com/juliettef/IconFontCppHeaders v0.0.0-20250310113834-3eac3a08c436 h1:FT
 github.com/juliettef/IconFontCppHeaders v0.0.0-20250310113834-3eac3a08c436/go.mod h1:edkq0hzsRusIHvIaeynCDd0hpwLQbjjHcGnMEuADrVk=
 github.com/jwalton/go-supportscolor v1.2.0 h1:g6Ha4u7Vm3LIsQ5wmeBpS4gazu0UP1DRDE8y6bre4H8=
 github.com/jwalton/go-supportscolor v1.2.0/go.mod h1:hFVUAZV2cWg+WFFC4v8pT2X/S2qUUBYMioBD9AINXGs=
+github.com/oov/audio v0.0.0-20171004131523-88a2be6dbe38 h1:4Upfs5rLQdx7KwBct3bmPYAhWsDDJdx660gYb7Lv9TQ=
+github.com/oov/audio v0.0.0-20171004131523-88a2be6dbe38/go.mod h1:Xj06yMta9R1RSKiHmxL0Bo2TB8wiKVnMgA0KVopHHkk=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/qmuntal/gltf v0.24.3 h1:iWEz+ytMaRrPe9m6OCgYd5rkLP440lh2M4TDMKsSG2c=
