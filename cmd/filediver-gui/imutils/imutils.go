@@ -8,21 +8,19 @@ import (
 	fnt "github.com/xypwn/filediver/cmd/filediver-gui/fonts"
 )
 
-// This use of a global is kind of
-// ugly, but eh, it works.
-var errorCopiedTime float64
-
 func TextError(err error) {
+	ctx := imgui.CurrentContext()
 	imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.8, 0.5, 0.5, 1))
 	imgui.PushTextWrapPos()
 	textPos := imgui.CursorScreenPos()
 	Textf(fnt.I("Error")+" Error: %v", err)
 	imgui.SetCursorScreenPos(textPos)
 	imgui.SetNextItemAllowOverlap()
+	textBtnID := imgui.IDStr("##Error text")
 	clicked := imgui.InvisibleButton("##Error text", imgui.ItemRectSize())
 	imgui.PopStyleColor()
 	if imgui.BeginItemTooltip() {
-		if imgui.Time()-errorCopiedTime < 1 {
+		if ctx.LastActiveId() == textBtnID && ctx.LastActiveIdTimer() < 1 {
 			Textf(fnt.I("Check") + " Copied")
 		} else {
 			Textf(fnt.I("Content_copy") + " Click to copy error to clipboard")
@@ -31,7 +29,6 @@ func TextError(err error) {
 	}
 	if clicked {
 		imgui.SetClipboardText(fmt.Sprintf("Error: %v", err))
-		errorCopiedTime = imgui.Time()
 	}
 }
 
