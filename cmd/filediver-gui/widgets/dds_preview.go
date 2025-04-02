@@ -3,7 +3,6 @@ package widgets
 import (
 	"fmt"
 	"image"
-	"slices"
 
 	"github.com/AllenDang/cimgui-go/imgui"
 	"github.com/go-gl/gl/v3.2-core/gl"
@@ -13,16 +12,15 @@ import (
 )
 
 type DDSPreviewState struct {
-	textureID        uint32
-	imageHasAlpha    bool
-	decodedImageData []uint8 // 32-bit RGBA
-	imageSize        imgui.Vec2
-	ddsInfo          dds.Info
-	offset           imgui.Vec2 // -1 < x,y < 1
-	zoom             float32
-	linearFiltering  bool
-	ignoreAlpha      bool
-	err              error
+	textureID       uint32
+	imageHasAlpha   bool
+	imageSize       imgui.Vec2
+	ddsInfo         dds.Info
+	offset          imgui.Vec2 // -1 < x,y < 1
+	zoom            float32
+	linearFiltering bool
+	ignoreAlpha     bool
+	err             error
 }
 
 func NewDDSPreview() *DDSPreviewState {
@@ -43,19 +41,6 @@ func NewDDSPreview() *DDSPreviewState {
 
 func (pv *DDSPreviewState) Delete() {
 	gl.DeleteTextures(1, &pv.textureID)
-}
-
-func (pv *DDSPreviewState) uploadImageData() {
-	data := pv.decodedImageData
-	if pv.imageHasAlpha && pv.ignoreAlpha {
-		data = slices.Clone(data)
-		for i := range int(pv.imageSize.X) * int(pv.imageSize.Y) {
-			data[4*i+3] = 255
-		}
-	}
-	gl.BindTexture(gl.TEXTURE_2D, pv.textureID)
-	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, int32(pv.imageSize.X), int32(pv.imageSize.Y), 0, gl.RGBA, gl.UNSIGNED_BYTE, gl.Ptr(data))
-	gl.BindTexture(gl.TEXTURE_2D, 0)
 }
 
 func (pv *DDSPreviewState) LoadImage(img *dds.DDS) {
@@ -108,8 +93,9 @@ func (pv *DDSPreviewState) LoadImage(img *dds.DDS) {
 
 	pv.imageSize = imgui.NewVec2(float32(width), float32(height))
 	pv.ddsInfo = img.Info
-	pv.decodedImageData = data
-	pv.uploadImageData()
+	gl.BindTexture(gl.TEXTURE_2D, pv.textureID)
+	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, int32(pv.imageSize.X), int32(pv.imageSize.Y), 0, gl.RGBA, gl.UNSIGNED_BYTE, gl.Ptr(data))
+	gl.BindTexture(gl.TEXTURE_2D, 0)
 }
 
 func DDSPreview(name string, pv *DDSPreviewState) {
@@ -181,7 +167,13 @@ func DDSPreview(name string, pv *DDSPreviewState) {
 		imgui.BeginDisabled()
 	}
 	if imgui.Checkbox("Ignore alpha", &pv.ignoreAlpha) {
-		pv.uploadImageData()
+		swizzleA := int32(gl.ALPHA)
+		if pv.ignoreAlpha {
+			swizzleA = gl.ONE
+		}
+		gl.BindTexture(gl.TEXTURE_2D, pv.textureID)
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_SWIZZLE_A, swizzleA)
+		gl.BindTexture(gl.TEXTURE_2D, 0)
 	}
 	if !pv.imageHasAlpha {
 		imgui.EndDisabled()
