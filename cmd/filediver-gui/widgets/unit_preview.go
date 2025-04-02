@@ -4,7 +4,10 @@ import (
 	"bytes"
 	"embed"
 	"fmt"
+	"image"
+	"io"
 	"path"
+	"slices"
 
 	"github.com/AllenDang/cimgui-go/imgui"
 	"github.com/go-gl/gl/v3.2-core/gl"
@@ -12,7 +15,12 @@ import (
 	fnt "github.com/xypwn/filediver/cmd/filediver-gui/fonts"
 	"github.com/xypwn/filediver/cmd/filediver-gui/glutils"
 	"github.com/xypwn/filediver/cmd/filediver-gui/imutils"
+	"github.com/xypwn/filediver/dds"
+	extr_material "github.com/xypwn/filediver/extractor/material"
+	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/stingray/unit"
+	"github.com/xypwn/filediver/stingray/unit/material"
+	"github.com/xypwn/filediver/stingray/unit/texture"
 )
 
 //go:embed shaders/*
@@ -27,9 +35,10 @@ var stingrayToGLCoords = mgl32.Mat4{
 }
 
 type unitPreviewGLObject struct {
-	vao uint32 // vertex array object
-	ibo uint32 // index buffer object
-	vbo uint32 // vertex buffer object
+	vao       uint32 // vertex array object
+	ibo       uint32 // index buffer object
+	vbo       uint32 // vertex buffer object
+	texAlbedo uint32
 
 	// Uniform locations
 	mvpLoc          int32
@@ -37,14 +46,18 @@ type unitPreviewGLObject struct {
 	normalLoc       int32
 	viewPositionLoc int32
 	colorLoc        int32
+	texAlbedoLoc    int32
 
 	numIndices int32
 }
 
-func (obj *unitPreviewGLObject) genBuffers() {
+func (obj *unitPreviewGLObject) genObjects(textures bool) {
 	gl.GenVertexArrays(1, &obj.vao)
 	gl.GenBuffers(1, &obj.vbo)
 	gl.GenBuffers(1, &obj.ibo)
+	if textures {
+		gl.GenTextures(1, &obj.texAlbedo)
+	}
 
 	gl.BindVertexArray(obj.vao)
 	defer gl.BindVertexArray(0)
@@ -55,7 +68,7 @@ func (obj *unitPreviewGLObject) genBuffers() {
 	gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, obj.ibo)
 }
 
-func (obj *unitPreviewGLObject) genUniformLocations(program uint32, mvp bool, model bool, normal bool, viewPosition bool, color bool) {
+func (obj *unitPreviewGLObject) genUniformLocations(program uint32, mvp bool, model bool, normal bool, viewPosition bool, color bool, texAlbedoLoc bool) {
 	if mvp {
 		obj.mvpLoc = gl.GetUniformLocation(program, gl.Str("mvp\x00"))
 	}
@@ -71,12 +84,16 @@ func (obj *unitPreviewGLObject) genUniformLocations(program uint32, mvp bool, mo
 	if color {
 		obj.colorLoc = gl.GetUniformLocation(program, gl.Str("color\x00"))
 	}
+	if texAlbedoLoc {
+		obj.texAlbedoLoc = gl.GetUniformLocation(program, gl.Str("texAlbedo\x00"))
+	}
 }
 
-func (obj unitPreviewGLObject) deleteBuffers() {
+func (obj unitPreviewGLObject) deleteObjects() {
 	gl.DeleteVertexArrays(1, &obj.vao)
 	gl.DeleteBuffers(1, &obj.vbo)
 	gl.DeleteBuffers(1, &obj.ibo)
+	gl.DeleteTextures(1, &obj.texAlbedo)
 }
 
 type UnitPreviewState struct {
@@ -135,11 +152,18 @@ func NewUnitPreview() (*UnitPreviewState, error) {
 		return nil, err
 	}
 
-	pv.object.genBuffers()
-	pv.object.genUniformLocations(pv.objectProgram, true, true, true, true, false)
+	pv.object.genObjects(true)
+	gl.BindTexture(gl.TEXTURE_2D, pv.object.texAlbedo)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+	gl.PixelStorei(gl.UNPACK_ROW_LENGTH, 0)
+	gl.BindTexture(gl.TEXTURE_2D, 0)
+	pv.object.genUniformLocations(pv.objectProgram, true, true, true, true, false, true)
 
-	pv.dbgObj.genBuffers()
-	pv.dbgObj.genUniformLocations(pv.dbgObjProgram, true, false, false, false, true)
+	pv.dbgObj.genObjects(false)
+	pv.dbgObj.genUniformLocations(pv.dbgObjProgram, true, false, false, false, true, false)
 
 	pv.vfov = mgl32.DegToRad(60)
 	pv.viewDistance = 25
@@ -150,11 +174,11 @@ func NewUnitPreview() (*UnitPreviewState, error) {
 func (pv *UnitPreviewState) Delete() {
 	pv.fb.Delete()
 	gl.DeleteProgram(pv.objectProgram)
-	pv.object.deleteBuffers()
-	pv.dbgObj.deleteBuffers()
+	pv.object.deleteObjects()
+	pv.dbgObj.deleteObjects()
 }
 
-func (pv *UnitPreviewState) LoadUnit(mainData, gpuData []byte) error {
+func (pv *UnitPreviewState) LoadUnit(mainData, gpuData []byte, getResource GetResourceFunc) error {
 	info, err := unit.LoadInfo(bytes.NewReader(mainData))
 	if err != nil {
 		return err
@@ -201,23 +225,111 @@ func (pv *UnitPreviewState) LoadUnit(mainData, gpuData []byte) error {
 	if len(mesh.Normals) == 0 {
 		return fmt.Errorf("mesh contains no normals")
 	}
-	if len(mesh.UVCoords) == 0 {
+	if len(mesh.UVCoords) == 0 || len(mesh.UVCoords[0]) == 0 {
 		return fmt.Errorf("mesh contains no UV coordinates")
+	}
+
+	// Upload object texture
+	albedoTexFileName, albedoRemoveAlpha, err := func() (albedoFileName stingray.Hash, albedoRemoveAlpha bool, err error) {
+		for matID, matFileName := range info.Materials {
+			if !slices.Contains(mesh.Info.Materials, matID) {
+				continue
+			}
+			matData, ok, err := getResource(stingray.FileID{
+				Name: matFileName,
+				Type: stingray.Sum64([]byte("material")),
+			}, stingray.DataMain)
+			if err != nil {
+				return stingray.Hash{}, false, fmt.Errorf("load material %v.material: %w", matFileName, err)
+			}
+			if !ok {
+				return stingray.Hash{}, false, fmt.Errorf("load material %v.material does not exist", matFileName)
+			}
+			mat, err := material.Load(bytes.NewReader(matData))
+			// TODO: Use all albedo textures. Currently, simply the first one
+			// found is used.
+			for texUsage, texFileName := range mat.Textures {
+				removeAlpha := true
+				switch extr_material.TextureUsage(texUsage.Value) {
+				case extr_material.ColorRoughness, extr_material.ColorSpecularB, extr_material.AlbedoIridescence:
+					removeAlpha = false
+					fallthrough
+				case extr_material.CoveringAlbedo, extr_material.InputImage, extr_material.Albedo:
+					return texFileName, removeAlpha, nil
+				}
+			}
+		}
+		return stingray.Hash{Value: 0}, false, nil
+	}()
+	if err != nil {
+		return err
+	}
+	if albedoTexFileName.Value != 0 {
+		file := stingray.FileID{Name: albedoTexFileName, Type: stingray.Sum64([]byte("texture"))}
+		var texMain, texStream, texGPU []byte
+		var err error
+		texMain, _, err = getResource(file, stingray.DataMain)
+		if err == nil {
+			texStream, _, err = getResource(file, stingray.DataStream)
+		}
+		if err == nil {
+			texGPU, _, err = getResource(file, stingray.DataGPU)
+		}
+		if err != nil {
+			return fmt.Errorf("load texture %v.texture does not exist", albedoTexFileName)
+		}
+		dataR := io.MultiReader(
+			bytes.NewReader(texMain),
+			bytes.NewReader(texStream),
+			bytes.NewReader(texGPU),
+		)
+		if _, err := texture.DecodeInfo(dataR); err != nil {
+			return fmt.Errorf("loading stingray DDS info: %w", err)
+		}
+		dds, err := dds.Decode(dataR, false)
+		if err != nil {
+			return fmt.Errorf("loading DDS image: %w", err)
+		}
+		img, ok := dds.Image.(*image.NRGBA)
+		if !ok {
+			return fmt.Errorf("expected albedo texture to be of type *image.NRGBA")
+		}
+		gl.BindTexture(gl.TEXTURE_2D, pv.object.texAlbedo)
+		gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, int32(img.Bounds().Dx()), int32(img.Bounds().Dy()), 0, gl.RGBA, gl.UNSIGNED_BYTE, gl.Ptr(img.Pix))
+		if albedoRemoveAlpha {
+			gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_SWIZZLE_A, gl.ONE)
+		}
+		gl.BindTexture(gl.TEXTURE_2D, 0)
+	} else {
+		data := []byte{255, 255, 255, 255}
+		gl.BindTexture(gl.TEXTURE_2D, pv.object.texAlbedo)
+		gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, gl.Ptr(data))
+		gl.BindTexture(gl.TEXTURE_2D, 0)
 	}
 
 	// Upload object data
 	{
 		gl.BindVertexArray(pv.object.vao)
-		defer gl.BindVertexArray(0)
 
 		positionsSize := len(mesh.Positions) * 3 * 4
 		normalsSize := len(mesh.Normals) * 3 * 4
+		uvsSize := len(mesh.UVCoords[0]) * 2 * 4
 
 		gl.BindBuffer(gl.ARRAY_BUFFER, pv.object.vbo)
-		defer gl.BindBuffer(gl.ARRAY_BUFFER, 0)
-		gl.BufferData(gl.ARRAY_BUFFER, positionsSize+normalsSize, nil, gl.STATIC_DRAW)
-		gl.BufferSubData(gl.ARRAY_BUFFER, 0, positionsSize, gl.Ptr(mesh.Positions))
-		gl.BufferSubData(gl.ARRAY_BUFFER, positionsSize, normalsSize, gl.Ptr(mesh.Normals))
+		gl.BufferData(gl.ARRAY_BUFFER, positionsSize+normalsSize+uvsSize, nil, gl.STATIC_DRAW)
+		offset := 0
+		gl.BufferSubData(gl.ARRAY_BUFFER, offset, positionsSize, gl.Ptr(mesh.Positions))
+		gl.VertexAttribPointerWithOffset(0, 3, gl.FLOAT, false, 3*4, uintptr(offset))
+		gl.EnableVertexAttribArray(0)
+		offset += positionsSize
+		gl.BufferSubData(gl.ARRAY_BUFFER, offset, normalsSize, gl.Ptr(mesh.Normals))
+		gl.VertexAttribPointerWithOffset(1, 3, gl.FLOAT, true, 3*4, uintptr(offset))
+		gl.EnableVertexAttribArray(1)
+		offset += normalsSize
+		gl.BufferSubData(gl.ARRAY_BUFFER, offset, uvsSize, gl.Ptr(mesh.UVCoords[0]))
+		gl.VertexAttribPointerWithOffset(2, 2, gl.FLOAT, false, 2*4, uintptr(offset))
+		gl.EnableVertexAttribArray(2)
+		offset += uvsSize
 
 		pv.object.numIndices = 0
 		for _, indices := range mesh.Indices {
@@ -233,16 +345,13 @@ func (pv *UnitPreviewState) LoadUnit(mainData, gpuData []byte) error {
 			}
 		}
 
-		gl.VertexAttribPointer(0, 3, gl.FLOAT, false, 3*4, nil)
-		gl.EnableVertexAttribArray(0)
-		gl.VertexAttribPointerWithOffset(1, 3, gl.FLOAT, true, 3*4, uintptr(positionsSize))
-		gl.EnableVertexAttribArray(1)
+		gl.BindBuffer(gl.ARRAY_BUFFER, 0)
+		gl.BindVertexArray(0)
 	}
 
 	// Upload debug object data
 	{
 		gl.BindVertexArray(pv.dbgObj.vao)
-		defer gl.BindVertexArray(0)
 
 		verts := pv.getAABBVertices()
 		gl.BindBuffer(gl.ARRAY_BUFFER, pv.dbgObj.vbo)
@@ -254,6 +363,8 @@ func (pv *UnitPreviewState) LoadUnit(mainData, gpuData []byte) error {
 
 		gl.VertexAttribPointer(0, 3, gl.FLOAT, false, 3*4, nil)
 		gl.EnableVertexAttribArray(0)
+
+		gl.BindVertexArray(0)
 	}
 
 	pv.model = stingrayToGLCoords
@@ -356,22 +467,22 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 			// Draw object
 			gl.Enable(gl.DEPTH_TEST)
 			gl.UseProgram(pv.objectProgram)
-			defer gl.UseProgram(0)
 			gl.BindVertexArray(pv.object.vao)
-			defer gl.BindVertexArray(0)
 			gl.UniformMatrix4fv(pv.object.mvpLoc, 1, false, &mvp[0])
 			gl.UniformMatrix4fv(pv.object.modelLoc, 1, false, &pv.model[0])
 			gl.UniformMatrix4fv(pv.object.normalLoc, 1, false, &normal[0])
 			gl.Uniform3fv(pv.object.viewPositionLoc, 1, &viewPosition[0])
+			gl.BindTexture(gl.TEXTURE_2D, pv.object.texAlbedo)
 			gl.DrawElements(gl.TRIANGLES, pv.object.numIndices, gl.UNSIGNED_INT, nil)
+			gl.BindTexture(gl.TEXTURE_2D, 0)
+			gl.BindVertexArray(0)
+			gl.UseProgram(0)
 
 			// Draw debug object
 			if pv.showAABB {
 				gl.Disable(gl.DEPTH_TEST)
 				gl.UseProgram(pv.dbgObjProgram)
-				defer gl.UseProgram(0)
 				gl.BindVertexArray(pv.dbgObj.vao)
-				defer gl.BindVertexArray(0)
 				{
 					aabbMVP := mvp.Mul4(pv.aabbMat)
 					gl.UniformMatrix4fv(pv.dbgObj.mvpLoc, 1, false, &aabbMVP[0])
@@ -381,6 +492,8 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 					gl.Uniform4fv(pv.dbgObj.colorLoc, 1, &col[0])
 				}
 				gl.DrawElements(gl.TRIANGLES, pv.dbgObj.numIndices, gl.UNSIGNED_INT, nil)
+				gl.BindVertexArray(0)
+				gl.UseProgram(0)
 			}
 
 			if pv.zoomToFitAABB {

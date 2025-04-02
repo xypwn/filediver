@@ -108,6 +108,7 @@ func (pv *FileAutoPreviewState) LoadFile(ctx context.Context, file *stingray.Fil
 		if err := pv.state.unit.LoadUnit(
 			data[stingray.DataMain],
 			data[stingray.DataGPU],
+			pv.getResource,
 		); err != nil {
 			pv.err = fmt.Errorf("loading unit: %w", err)
 			return
