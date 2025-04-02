@@ -9,6 +9,7 @@ import (
 	"github.com/AllenDang/cimgui-go/imgui"
 	"github.com/go-gl/gl/v3.2-core/gl"
 	"github.com/go-gl/mathgl/mgl32"
+	fnt "github.com/xypwn/filediver/cmd/filediver-gui/fonts"
 	"github.com/xypwn/filediver/cmd/filediver-gui/glutils"
 	"github.com/xypwn/filediver/cmd/filediver-gui/imutils"
 	"github.com/xypwn/filediver/stingray/unit"
@@ -435,6 +436,12 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 		nil,
 	)
 
+	if imgui.Button(fnt.I("Home")) {
+		pv.viewRotation = mgl32.Vec2{}
+		pv.viewDistance = 25
+	}
+	imgui.SetItemTooltip("Reset view")
+	imgui.SameLine()
 	imgui.Checkbox("Auto-zoom on load", &pv.zoomToFitOnLoad)
 	imgui.SameLine()
 	imgui.Checkbox("Show bounding box", &pv.showAABB)

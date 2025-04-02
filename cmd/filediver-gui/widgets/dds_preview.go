@@ -6,18 +6,19 @@ import (
 
 	"github.com/AllenDang/cimgui-go/imgui"
 	"github.com/go-gl/gl/v3.2-core/gl"
+	fnt "github.com/xypwn/filediver/cmd/filediver-gui/fonts"
 	"github.com/xypwn/filediver/cmd/filediver-gui/imutils"
 	"github.com/xypwn/filediver/dds"
 )
 
 type DDSPreviewState struct {
-	textureID         uint32
-	imageSize         imgui.Vec2
-	ddsInfo           dds.Info
-	offset            imgui.Vec2 // -1 < x,y < 1
-	zoom              float32
-	selectedMagFilter int32
-	err               error
+	textureID       uint32
+	imageSize       imgui.Vec2
+	ddsInfo         dds.Info
+	offset          imgui.Vec2 // -1 < x,y < 1
+	zoom            float32
+	linearFiltering bool
+	err             error
 }
 
 func NewDDSPreview() *DDSPreviewState {
@@ -30,7 +31,7 @@ func NewDDSPreview() *DDSPreviewState {
 	defer gl.BindTexture(gl.TEXTURE_2D, 0)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
-	pv.selectedMagFilter = gl.LINEAR
+	pv.linearFiltering = true
 	gl.PixelStorei(gl.UNPACK_ROW_LENGTH, 0)
 
 	return pv
@@ -131,30 +132,20 @@ func DDSPreview(name string, pv *DDSPreviewState) {
 	}
 	imgui.EndChild()
 
-	{
-		filterStr := func(filter int32) string {
-			switch filter {
-			case gl.LINEAR:
-				return "Linear (blurry)"
-			case gl.NEAREST:
-				return "Nearest (pixely)"
-			default:
-				panic("unreachable")
-			}
-		}
-		if imgui.BeginComboV("Magnification filter", filterStr(pv.selectedMagFilter), imgui.ComboFlagsWidthFitPreview) {
-			for _, filter := range []int32{gl.LINEAR, gl.NEAREST} {
-				if pv.selectedMagFilter == filter {
-					imgui.SetItemDefaultFocus()
-				}
-				if imgui.SelectableBool(filterStr(filter)) {
-					gl.BindTexture(gl.TEXTURE_2D, pv.textureID)
-					gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter)
-					gl.BindTexture(gl.TEXTURE_2D, 0)
-					pv.selectedMagFilter = filter
-				}
-			}
-			imgui.EndCombo()
-		}
+	if imgui.Button(fnt.I("Home")) {
+		pv.offset = imgui.NewVec2(0, 0)
+		pv.zoom = 1
 	}
+	imgui.SetItemTooltip("Reset view")
+	imgui.SameLine()
+	if imgui.Checkbox("Linear filtering", &pv.linearFiltering) {
+		filter := int32(gl.NEAREST)
+		if pv.linearFiltering {
+			filter = gl.LINEAR
+		}
+		gl.BindTexture(gl.TEXTURE_2D, pv.textureID)
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter)
+		gl.BindTexture(gl.TEXTURE_2D, 0)
+	}
+	imgui.SetItemTooltip("Linear filtering \"blurs\" pixels when zooming in. Disable to view individual pixels more clearly.")
 }
