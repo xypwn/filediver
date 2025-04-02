@@ -389,6 +389,23 @@ const (
 	D3D10ResourceDimensionTexture3D
 )
 
+func (d D3D10ResourceDimension) String() string {
+	switch d {
+	case D3D10ResourceDimensionUnknown:
+		return "Unknown"
+	case D3D10ResourceDimensionBuffer:
+		return "Buffer"
+	case D3D10ResourceDimensionTexture1D:
+		return "Texture1D"
+	case D3D10ResourceDimensionTexture2D:
+		return "Texture2D"
+	case D3D10ResourceDimensionTexture3D:
+		return "Texture3D"
+	default:
+		panic("unknown resource dimension")
+	}
+}
+
 type D3D10ResourceMiscFlags uint32
 
 const (

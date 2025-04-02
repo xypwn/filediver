@@ -346,7 +346,7 @@ func DecompressUncompressedDXT10(buf []uint8, r io.Reader, width, height int, in
 				if err := binary.Read(r, binary.LittleEndian, &v); err != nil {
 					return err
 				}
-				binary.LittleEndian.PutUint16(buf[idx+2*i:], uint16(v*0xffff))
+				binary.BigEndian.PutUint16(buf[idx+2*i:], uint16(v*0xffff))
 			}
 			return nil
 		}
@@ -360,7 +360,7 @@ func DecompressUncompressedDXT10(buf []uint8, r io.Reader, width, height int, in
 				if err := binary.Read(r, binary.LittleEndian, &v); err != nil {
 					return err
 				}
-				binary.LittleEndian.PutUint16(buf[idx+2*i:], uint16(float16.Frombits(v).Float32()*0xffff))
+				binary.BigEndian.PutUint16(buf[idx+2*i:], uint16(float16.Frombits(v).Float32()*0xffff))
 			}
 			return nil
 		}
@@ -373,7 +373,7 @@ func DecompressUncompressedDXT10(buf []uint8, r io.Reader, width, height int, in
 			if err := binary.Read(r, binary.LittleEndian, &v); err != nil {
 				return err
 			}
-			binary.LittleEndian.PutUint16(buf[idx:], uint16(v*0xffff))
+			binary.BigEndian.PutUint16(buf[idx:], uint16(v*0xffff))
 			return nil
 		}
 	case DXGIFormatR8G8B8A8UNorm:
