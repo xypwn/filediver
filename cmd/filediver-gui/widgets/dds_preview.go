@@ -3,6 +3,7 @@ package widgets
 import (
 	"fmt"
 	"image"
+	"slices"
 
 	"github.com/AllenDang/cimgui-go/imgui"
 	"github.com/go-gl/gl/v3.2-core/gl"
@@ -12,13 +13,16 @@ import (
 )
 
 type DDSPreviewState struct {
-	textureID       uint32
-	imageSize       imgui.Vec2
-	ddsInfo         dds.Info
-	offset          imgui.Vec2 // -1 < x,y < 1
-	zoom            float32
-	linearFiltering bool
-	err             error
+	textureID        uint32
+	imageHasAlpha    bool
+	decodedImageData []uint8 // 32-bit RGBA
+	imageSize        imgui.Vec2
+	ddsInfo          dds.Info
+	offset           imgui.Vec2 // -1 < x,y < 1
+	zoom             float32
+	linearFiltering  bool
+	ignoreAlpha      bool
+	err              error
 }
 
 func NewDDSPreview() *DDSPreviewState {
@@ -41,6 +45,19 @@ func (pv *DDSPreviewState) Delete() {
 	gl.DeleteTextures(1, &pv.textureID)
 }
 
+func (pv *DDSPreviewState) uploadImageData() {
+	data := pv.decodedImageData
+	if pv.imageHasAlpha && pv.ignoreAlpha {
+		data = slices.Clone(data)
+		for i := range int(pv.imageSize.X) * int(pv.imageSize.Y) {
+			data[4*i+3] = 255
+		}
+	}
+	gl.BindTexture(gl.TEXTURE_2D, pv.textureID)
+	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, int32(pv.imageSize.X), int32(pv.imageSize.Y), 0, gl.RGBA, gl.UNSIGNED_BYTE, gl.Ptr(data))
+	gl.BindTexture(gl.TEXTURE_2D, 0)
+}
+
 func (pv *DDSPreviewState) LoadImage(img *dds.DDS) {
 	pv.err = nil
 
@@ -48,8 +65,6 @@ func (pv *DDSPreviewState) LoadImage(img *dds.DDS) {
 	defer gl.BindTexture(gl.TEXTURE_2D, 0)
 
 	width, height := img.Bounds().Dx(), img.Bounds().Dy()
-	pv.imageSize = imgui.NewVec2(float32(width), float32(height))
-	pv.ddsInfo = img.Info
 	data := make([]uint8, 4*width*height)
 	switch img := img.Image.(type) {
 	case *image.Gray:
@@ -81,7 +96,20 @@ func (pv *DDSPreviewState) LoadImage(img *dds.DDS) {
 		pv.err = fmt.Errorf("unhandled image type %T", img)
 		return
 	}
-	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, int32(width), int32(height), 0, gl.RGBA, gl.UNSIGNED_BYTE, gl.Ptr(data))
+
+	pv.imageHasAlpha = false
+	for i := range width * height {
+		a := data[4*i+3]
+		if a != 255 {
+			pv.imageHasAlpha = true
+			break
+		}
+	}
+
+	pv.imageSize = imgui.NewVec2(float32(width), float32(height))
+	pv.ddsInfo = img.Info
+	pv.decodedImageData = data
+	pv.uploadImageData()
 }
 
 func DDSPreview(name string, pv *DDSPreviewState) {
@@ -148,4 +176,17 @@ func DDSPreview(name string, pv *DDSPreviewState) {
 		gl.BindTexture(gl.TEXTURE_2D, 0)
 	}
 	imgui.SetItemTooltip("Linear filtering \"blurs\" pixels when zooming in. Disable to view individual pixels more clearly.")
+	imgui.SameLine()
+	if !pv.imageHasAlpha {
+		imgui.BeginDisabled()
+	}
+	if imgui.Checkbox("Ignore alpha", &pv.ignoreAlpha) {
+		pv.uploadImageData()
+	}
+	if !pv.imageHasAlpha {
+		imgui.EndDisabled()
+		imgui.SetItemTooltip("This image doesn't use an alpha component.")
+	} else {
+		imgui.SetItemTooltip("Ignore alpha component, making RGB components always fully visible.")
+	}
 }
