@@ -1,16 +1,29 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
 	"sync"
 
 	"github.com/xypwn/filediver/app"
+	"github.com/xypwn/filediver/exec"
 	"github.com/xypwn/filediver/hashes"
 	"github.com/xypwn/filediver/stingray"
 )
+
+type GameDataExport struct {
+	sync.Mutex
+	Cancel           func()
+	Done             bool
+	Canceled         bool
+	CurrentFileIndex int
+	CurrentFileName  string
+	NumFiles         int
+}
 
 type GameData struct {
 	*app.App
@@ -48,6 +61,39 @@ func (gd *GameData) UpdateSearchQuery(query string, allowedTypes map[stingray.Ha
 	slices.SortFunc(gd.SortedSearchResultFileIDs, func(a, b stingray.FileID) int {
 		return strings.Compare(gd.KnownFileNames[a], gd.KnownFileNames[b])
 	})
+}
+
+func (gd *GameData) GoExport(extractCtx context.Context, files []stingray.FileID, outDir string, cfg app.Config, runner *exec.Runner) *GameDataExport {
+	ex := &GameDataExport{}
+	ex.NumFiles = len(files)
+	extractCtx, cancel := context.WithCancel(extractCtx)
+	ex.Cancel = cancel
+	prt := app.NewPrinter(false, bytes.NewBuffer(nil), bytes.NewBuffer(nil))
+
+	go func() {
+		for _, fileID := range files {
+			ex.Lock()
+			ex.CurrentFileName = gd.LookupHash(fileID.Name) + "." + gd.LookupHash(fileID.Type)
+			ex.Unlock()
+
+			_, err := gd.ExtractFile(extractCtx, fileID, outDir, cfg, runner, nil, prt)
+			if errors.Is(err, context.Canceled) {
+				ex.Lock()
+				ex.Canceled = true
+				ex.Unlock()
+				break
+			} else {
+			}
+
+			ex.Lock()
+			ex.CurrentFileIndex++
+			ex.Unlock()
+		}
+		ex.Lock()
+		ex.Done = true
+		ex.Unlock()
+	}()
+	return ex
 }
 
 type GameDataLoad struct {

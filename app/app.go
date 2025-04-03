@@ -587,7 +587,7 @@ func (c *extractContext) Warnf(f string, a ...any) {
 }
 
 // Returns path to extracted file/directory.
-func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string, extrCfg map[string]map[string]string, runner *exec.Runner, gltfDoc *gltf.Document, printer *Printer) ([]string, error) {
+func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string, extrCfg Config, runner *exec.Runner, gltfDoc *gltf.Document, printer *Printer) ([]string, error) {
 	name, typ := a.LookupHash(id.Name), a.LookupHash(id.Type)
 
 	file, ok := a.DataDir.Files[id]

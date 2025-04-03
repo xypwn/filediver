@@ -60,6 +60,8 @@ import (
 	"fmt"
 	"log"
 	"maps"
+	"math"
+	"path/filepath"
 	"runtime"
 	"slices"
 	"strings"
@@ -69,12 +71,18 @@ import (
 	"github.com/AllenDang/cimgui-go/backend"
 	"github.com/AllenDang/cimgui-go/backend/glfwbackend"
 	"github.com/AllenDang/cimgui-go/imgui"
+	"github.com/adrg/xdg"
 	"github.com/ebitengine/oto/v3"
 	"github.com/go-gl/gl/v3.2-core/gl"
+	"github.com/ncruces/zenity"
+	"github.com/skratchdot/open-golang/open"
+	"github.com/xypwn/filediver/app"
 	fnt "github.com/xypwn/filediver/cmd/filediver-gui/fonts"
 	"github.com/xypwn/filediver/cmd/filediver-gui/imutils"
 	"github.com/xypwn/filediver/cmd/filediver-gui/widgets"
+	"github.com/xypwn/filediver/exec"
 	"github.com/xypwn/filediver/stingray"
+	"golang.design/x/clipboard"
 )
 
 var OnWindowResize func(window *C.GLFWwindow, width int32, height int32)
@@ -145,14 +153,14 @@ func UpdateGUIScale(guiScale float32) {
 	io.Ctx().SetStyle(*style)
 }
 
-func main() {
+func run(onError func(error)) error {
 	runtime.LockOSThread()
 
 	var glfwWindow *C.GLFWwindow
 
 	currentBackend, err := backend.CreateBackend(glfwbackend.NewGLFWBackend())
 	if err != nil {
-		log.Fatalf("Error creating backend: %v", err)
+		return fmt.Errorf("creating backend: %w", err)
 	}
 	currentBackend.SetAfterCreateContextHook(func() {
 		glfwWindow = C.glfwGetCurrentContext()
@@ -194,7 +202,7 @@ func main() {
 	}
 
 	if err := gl.Init(); err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("initializing OpenGL: %w", err)
 	}
 	gl.Enable(gl.DEPTH_TEST)
 	gl.DepthFunc(gl.LESS)
@@ -221,12 +229,19 @@ func main() {
 			ChannelCount: 2,
 			Format:       oto.FormatFloat32LE,
 		})
+		if err != nil {
+			return fmt.Errorf("creating audio context: %w", err)
+		}
 		<-readyChan
+	}
+	if err := otoCtx.Err(); err != nil {
+		return fmt.Errorf("audio context: %w", err)
 	}
 
 	ctx := context.Background()
 
 	var gameDataLoad GameDataLoad
+	var gameDataExport *GameDataExport
 	var gameData *GameData
 
 	gameDataLoad.GoLoadGameData(ctx)
@@ -239,7 +254,9 @@ func main() {
 	}()
 	var gameFileSearchQuery string
 	var gameFileTypes []stingray.Hash
-	allowedGameFileTypes := make(map[stingray.Hash]struct{})
+	filesSelectedForExport := map[stingray.FileID]struct{}{}
+	allSelectedForExport := false
+	allowedGameFileTypes := map[stingray.Hash]struct{}{}
 	commonGameFileTypes := map[stingray.Hash]struct{}{
 		stingray.Sum64([]byte("texture")):      {},
 		stingray.Sum64([]byte("unit")):         {},
@@ -247,10 +264,27 @@ func main() {
 		stingray.Sum64([]byte("wwise_stream")): {},
 	}
 
+	exportDir := filepath.Join(xdg.UserDirs.Download, "filediver_exports")
+	exportNotifyWhenDone := true
+	var extractorConfig app.Config
+
+	runner := exec.NewRunner()
+	if ok := runner.Add("ffmpeg", "-y", "-hide_banner", "-loglevel", "error"); !ok {
+		zenity.Info("FFmpeg not installed or found locally. Please install FFmpeg, or place ffmpeg.exe in the current folder to convert videos to MP4 and audio to a variety of formats. Without FFmpeg, videos will be saved as BIK and audio will be saved was WAV.",
+			zenity.OKLabel("OK"),
+		)
+	}
+	if ok := runner.Add("scripts_dist/hd2_accurate_blender_importer/hd2_accurate_blender_importer"); !ok {
+		zenity.Info("Blender importer not found. Exporting directly to .blend is not available. Please download the scripts_dist archive and place its contents into the same folder as filediver (see https://github.com/xypwn/filediver?tab=readme-ov-file#helper-scripts-scripts_dist). Without blender importer, models will be saved as GLB.",
+			zenity.OKLabel("OK"),
+		)
+	}
+	defer runner.Close()
+
 	isPreferencesOpen := false
 	isAboutOpen := false
 
-	preDraw := func() {
+	preDraw := func() error {
 		if gameData != nil && previewState == nil {
 			var err error
 			previewState, err = widgets.NewFileAutoPreview(
@@ -269,7 +303,7 @@ func main() {
 				},
 			)
 			if err != nil {
-				log.Fatal("Error creating unit preview:", err)
+				return fmt.Errorf("creating unit preview: %w", err)
 			}
 		}
 
@@ -277,6 +311,8 @@ func main() {
 			UpdateGUIScale(guiScale)
 			shouldUpdateGUIScale = false
 		}
+
+		return nil
 	}
 
 	draw := func() {
@@ -328,9 +364,12 @@ func main() {
 			if imgui.InternalDockBuilderGetNode(id).CData == nil {
 				imgui.InternalDockBuilderAddNodeV(id, imgui.DockNodeFlags(imgui.DockNodeFlagsDockSpace))
 				imgui.InternalDockBuilderSetNodeSize(id, dockSpaceSize)
-				var leftID, rightID imgui.ID
+				var leftID, topLeftID, bottomLeftID, rightID imgui.ID
 				imgui.InternalDockBuilderSplitNode(id, imgui.DirLeft, 0.5, &leftID, &rightID)
-				imgui.InternalDockBuilderDockWindow("Browser", leftID)
+				imgui.InternalDockBuilderSplitNode(leftID, imgui.DirDown, 0.4, &bottomLeftID, &topLeftID)
+				imgui.InternalDockBuilderDockWindow("Browser", topLeftID)
+				imgui.InternalDockBuilderDockWindow("Export", bottomLeftID)
+				imgui.InternalDockBuilderDockWindow("Extractor config", bottomLeftID)
 				imgui.InternalDockBuilderDockWindow("Preview", rightID)
 				imgui.InternalDockBuilderFinish(id)
 			}
@@ -368,8 +407,25 @@ func main() {
 					activeFileID = previewState.ActiveID()
 				}
 
+				// We use state tracking for allSelectedForExport
+				// since recalculating each frame would eat up
+				// ~5ms (on a good PC!) for nothing.
+				// This function should be used whenever
+				// the status of all items being selected may have
+				// changed.
+				calcAllSelectedForExport := func() bool {
+					for _, id := range gameData.SortedSearchResultFileIDs {
+						_, sel := filesSelectedForExport[id]
+						if !sel {
+							return false
+						}
+					}
+					return true
+				}
+
 				if imgui.InputTextWithHint("##SearchName", fnt.I("Search")+" Search By File Name...", &gameFileSearchQuery, 0, nil) {
 					gameData.UpdateSearchQuery(gameFileSearchQuery, allowedGameFileTypes)
+					allSelectedForExport = calcAllSelectedForExport()
 				}
 				imgui.SameLine()
 				var numTypeFiltersStr string
@@ -389,6 +445,7 @@ func main() {
 								delete(allowedGameFileTypes, typ)
 							}
 							gameData.UpdateSearchQuery(gameFileSearchQuery, allowedGameFileTypes)
+							allSelectedForExport = calcAllSelectedForExport()
 						}
 					}
 					if len(allowedGameFileTypes) > 0 {
@@ -419,8 +476,30 @@ func main() {
 					}
 					imgui.EndPopup()
 				}
-				const tableFlags = imgui.TableFlagsResizable | imgui.TableFlagsBorders | imgui.TableFlagsScrollY
-				if imgui.BeginTableV("##Game Files", 2, tableFlags, imgui.NewVec2(0, 0), 0) {
+				if imgui.Checkbox("Select all for export", &allSelectedForExport) {
+					if allSelectedForExport {
+						for _, id := range gameData.SortedSearchResultFileIDs {
+							filesSelectedForExport[id] = struct{}{}
+						}
+					} else {
+						for _, id := range gameData.SortedSearchResultFileIDs {
+							delete(filesSelectedForExport, id)
+						}
+					}
+				}
+				if allSelectedForExport {
+					imgui.SetItemTooltip("Deselect all currently visible files for export")
+				} else {
+					imgui.SetItemTooltip("Select all currently visible files for export")
+				}
+				{
+					size := imgui.ContentRegionAvail()
+					size.Y -= imgui.TextLineHeightWithSpacing()
+					imgui.SetNextWindowSize(size)
+				}
+				const tableFlags = imgui.TableFlagsResizable | imgui.TableFlagsBorders | imgui.TableFlagsScrollY | imgui.TableFlagsRowBg
+				if imgui.BeginTableV("##Game Files", 3, tableFlags, imgui.NewVec2(0, 0), 0) {
+					imgui.TableSetupColumnV(fnt.I("File_export"), imgui.TableColumnFlagsWidthFixed|imgui.TableColumnFlagsNoResize, imgui.FrameHeight(), 0)
 					imgui.TableSetupColumnV("Name", imgui.TableColumnFlagsWidthStretch, 3, 0)
 					imgui.TableSetupColumnV("Type", imgui.TableColumnFlagsWidthStretch, 1, 0)
 					imgui.TableSetupScrollFreeze(0, 1)
@@ -432,6 +511,23 @@ func main() {
 						for row := clipper.DisplayStart(); row < clipper.DisplayEnd(); row++ {
 							id := gameData.SortedSearchResultFileIDs[row]
 							imgui.PushIDStr(id.Name.String() + id.Type.String()) // might be a bit slow
+
+							imgui.TableNextColumn()
+							_, export := filesSelectedForExport[id]
+							if imgui.Checkbox("", &export) {
+								if export {
+									filesSelectedForExport[id] = struct{}{}
+								} else {
+									delete(filesSelectedForExport, id)
+								}
+								allSelectedForExport = calcAllSelectedForExport()
+							}
+							if export {
+								imgui.SetItemTooltip("Deselect for export")
+							} else {
+								imgui.SetItemTooltip("Select for export")
+							}
+
 							imgui.TableNextColumn()
 							selected := imgui.SelectableBoolV(
 								gameData.LookupHash(id.Name),
@@ -440,8 +536,10 @@ func main() {
 								imgui.NewVec2(0, 0),
 							)
 							imgui.TableNextColumn()
+
 							imgui.TextUnformatted(gameData.LookupHash(id.Type))
 							imgui.PopID()
+
 							if selected {
 								previewState.LoadFile(ctx, gameData.DataDir.Files[id])
 							}
@@ -450,13 +548,89 @@ func main() {
 
 					imgui.EndTable()
 				}
+				imutils.Textf("Showing %v/%v files (%v selected for export)", len(gameData.SortedSearchResultFileIDs), len(gameData.DataDir.Files), len(filesSelectedForExport))
 			}
+		}
+		imgui.End()
+
+		if imgui.Begin("Export") {
+			dirName := exportDir
+			if after, ok := strings.CutPrefix(dirName, xdg.Home); ok {
+				dirName = "~" + after
+			}
+
+			imgui.BeginDisabledV(gameDataExport != nil)
+			imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.9, 0.9, 0.9, 1))
+			if imgui.Button(fnt.I("Folder_open") + " " + dirName) {
+				if dir, err := zenity.SelectFile(
+					zenity.Filename(exportDir),
+					zenity.Directory(),
+				); err == nil {
+					exportDir = dir
+				} else if err != zenity.ErrCanceled {
+					onError(err)
+				}
+			}
+			imgui.SetItemTooltip(fnt.I("Folder") + " Choose output folder")
+			imgui.PopStyleColor()
+			imgui.SameLine()
+			imutils.Textf("Output directory")
+			imgui.EndDisabled()
+
+			imgui.Checkbox(fnt.I("Notifications")+" Notify when done", &exportNotifyWhenDone)
+
+			imgui.Separator()
+
+			if imgui.ButtonV(fnt.I("Folder_open")+" Open output folder", imgui.NewVec2(-math.SmallestNonzeroFloat32, 0)) {
+				open.Start(exportDir)
+			}
+
+			imgui.Separator()
+
+			if gameDataExport == nil {
+				imgui.BeginDisabledV(len(filesSelectedForExport) == 0 || gameData == nil)
+				if imgui.ButtonV(fnt.I("File_export")+" Begin export", imgui.NewVec2(-math.SmallestNonzeroFloat32, 0)) && gameData != nil {
+					gameDataExport = gameData.GoExport(ctx, slices.Collect(maps.Keys(filesSelectedForExport)), exportDir, extractorConfig, runner)
+				}
+				if gameData == nil {
+					imgui.SetItemTooltip("Game data not loaded")
+				} else if len(filesSelectedForExport) == 0 {
+					imgui.SetItemTooltip("Nothing selected for export")
+				}
+				imgui.EndDisabled()
+			} else {
+				if gameDataExport.Done {
+					if !gameDataExport.Canceled && exportNotifyWhenDone {
+						zenity.Notify(fmt.Sprintf("Filediver has finished exporting %v files", gameDataExport.NumFiles),
+							zenity.Title("Finished exporting"),
+							zenity.InfoIcon,
+						)
+					}
+					gameDataExport = nil
+				} else {
+					imgui.ProgressBarV(
+						float32(gameDataExport.CurrentFileIndex)/float32(gameDataExport.NumFiles),
+						imgui.NewVec2(-math.SmallestNonzeroFloat32, 0),
+						fmt.Sprintf("%v/%v", gameDataExport.CurrentFileIndex+1, gameDataExport.NumFiles),
+					)
+					imutils.Textf("%v", gameDataExport.CurrentFileName)
+					if imgui.ButtonV(fnt.I("Cancel")+" Cancel export", imgui.NewVec2(-math.SmallestNonzeroFloat32, 0)) {
+						gameDataExport.Cancel()
+					}
+				}
+			}
+		}
+		imgui.End()
+
+		if imgui.Begin("Extractor config") {
+			widgets.ConfigEditor(app.ConfigFormat, &extractorConfig)
 		}
 		imgui.End()
 
 		if imgui.Begin("Preview") {
 			if previewState == nil || !widgets.FileAutoPreview("Preview", previewState) {
-				imgui.TextUnformatted("Nothing to preview")
+				imgui.PushTextWrapPos()
+				imgui.TextUnformatted("Nothing selected to preview. Select an item from the Browser.")
 			}
 		}
 		imgui.End()
@@ -578,7 +752,9 @@ func main() {
 		drawAndPresentFrame()
 	}
 	for C.glfwWindowShouldClose(glfwWindow) == 0 {
-		preDraw()
+		if err := preDraw(); err != nil {
+			return err
+		}
 
 		timeToDraw := time.Now().Sub(lastDrawTimestamp)
 		numFramesToDraw := timeToDraw.Seconds() * targetFPS
@@ -602,4 +778,26 @@ func main() {
 	imgui.DestroyContext()
 	C.glfwDestroyWindow(glfwWindow)
 	C.glfwTerminate()
+
+	return nil
+}
+
+func main() {
+	clipboardOk := clipboard.Init() == nil
+
+	onError := func(err error) {
+		text := "Error: " + err.Error()
+		if clipboardOk {
+			clipboard.Write(clipboard.FmtText, []byte(text))
+			text += "\n\n(error copied to clipboard)"
+		}
+		zenity.Info(text,
+			zenity.Title("Internal Filediver error"),
+			zenity.ErrorIcon,
+		)
+	}
+
+	if err := run(onError); err != nil {
+		onError(err)
+	}
 }

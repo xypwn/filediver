@@ -7,6 +7,8 @@ import (
 	"strings"
 )
 
+type Config map[string]map[string]string
+
 type ConfigValueType int
 
 const (
@@ -46,8 +48,8 @@ func parseExtractorOptions(optsStr string) (map[string]string, error) {
 	return res, nil
 }
 
-func parseExtractorConfig(cfgStr string) (map[string]map[string]string, error) {
-	res := make(map[string]map[string]string)
+func parseExtractorConfig(cfgStr string) (Config, error) {
+	res := make(Config)
 	if cfgStr == "" {
 		return res, nil
 	}
@@ -103,7 +105,7 @@ func validateExtractorOptions(template ConfigTemplateExtractor, opts map[string]
 	return nil
 }
 
-func validateExtractorConfig(template ConfigTemplate, cfg map[string]map[string]string, shorthands map[string][]string) error {
+func validateExtractorConfig(template ConfigTemplate, cfg Config, shorthands map[string][]string) error {
 	validExtractorName := func(name string) (isShorthand bool, ok bool) {
 		if _, ok := template.Extractors[name]; ok {
 			return false, true
@@ -251,7 +253,7 @@ func ExtractorConfigHelpMessage(template ConfigTemplate) string {
 	return res.String()
 }
 
-func ParseExtractorConfig(template ConfigTemplate, cfgStr string) (map[string]map[string]string, error) {
+func ParseExtractorConfig(template ConfigTemplate, cfgStr string) (Config, error) {
 	res, err := parseExtractorConfig(cfgStr)
 	if err != nil {
 		return nil, fmt.Errorf("extractor config: %w", err)

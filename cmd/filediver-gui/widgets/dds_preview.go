@@ -163,9 +163,7 @@ func DDSPreview(name string, pv *DDSPreviewState) {
 	}
 	imgui.SetItemTooltip("Linear filtering \"blurs\" pixels when zooming in. Disable to view individual pixels more clearly.")
 	imgui.SameLine()
-	if !pv.imageHasAlpha {
-		imgui.BeginDisabled()
-	}
+	imgui.BeginDisabledV(!pv.imageHasAlpha)
 	if imgui.Checkbox("Ignore alpha", &pv.ignoreAlpha) {
 		swizzleA := int32(gl.ALPHA)
 		if pv.ignoreAlpha {
@@ -175,8 +173,8 @@ func DDSPreview(name string, pv *DDSPreviewState) {
 		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_SWIZZLE_A, swizzleA)
 		gl.BindTexture(gl.TEXTURE_2D, 0)
 	}
+	imgui.EndDisabled()
 	if !pv.imageHasAlpha {
-		imgui.EndDisabled()
 		imgui.SetItemTooltip("This image doesn't use an alpha component.")
 	} else {
 		imgui.SetItemTooltip("Ignore alpha component, making RGB components always fully visible.")
