@@ -156,6 +156,11 @@ func UpdateGUIScale(guiScale float32) {
 func run(onError func(error)) error {
 	runtime.LockOSThread()
 
+	zenity.Info("Filediver GUI is still very work-in-progress and I'm trying to make it work well and reliably.\nIf you encounter any issues, please report them on GitHub.",
+		zenity.Title("Thanks for trying out Filediver GUI!"),
+		zenity.OKLabel("Continue"),
+	)
+
 	var glfwWindow *C.GLFWwindow
 
 	currentBackend, err := backend.CreateBackend(glfwbackend.NewGLFWBackend())
