@@ -39,37 +39,43 @@ func (f *File) Exists(typ DataType) bool {
 	return f.exists[typ]
 }
 
-type preallocReader struct {
-	*bytes.Reader
-	b []byte
-}
-
-func newPreallocReader(r io.Reader) (*preallocReader, error) {
-	pr := &preallocReader{}
-	var err error
-	pr.b, err = io.ReadAll(r)
+// Reads the whole file and returns it.
+func (f *File) Read(typ DataType) ([]byte, error) {
+	r, err := f.triads[0].OpenFile(f.indexInTriad0, typ)
 	if err != nil {
 		return nil, err
 	}
-	pr.Reader = bytes.NewReader(pr.b)
-	return pr, nil
+	defer r.Close()
+	return io.ReadAll(r)
 }
 
-func (r *preallocReader) Close() error {
+type nopReadSeekCloser struct {
+	r io.ReadSeeker
+}
+
+func newNopReadSeekCloser(r io.ReadSeeker) *nopReadSeekCloser {
+	return &nopReadSeekCloser{r}
+}
+
+func (r *nopReadSeekCloser) Read(p []byte) (int, error) {
+	return r.r.Read(p)
+}
+
+func (r *nopReadSeekCloser) Seek(offset int64, whence int) (int64, error) {
+	return r.r.Seek(offset, whence)
+}
+
+func (r *nopReadSeekCloser) Close() error {
 	return nil
 }
 
 // Call Close() on returned reader when done.
 func (f *File) Open(ctx context.Context, typ DataType) (io.ReadSeekCloser, error) {
-	fileR, err := f.triads[0].OpenFile(f.indexInTriad0, typ)
+	b, err := f.Read(typ)
 	if err != nil {
 		return nil, err
 	}
-	r, err := newPreallocReader(fileR)
-	if err != nil {
-		return nil, err
-	}
-	return util.NewContextReadSeekCloser(ctx, r), nil
+	return util.NewContextReadSeekCloser(ctx, newNopReadSeekCloser(bytes.NewReader(b))), nil
 }
 
 type multiReadCloser struct {

@@ -587,7 +587,7 @@ func (c *extractContext) Warnf(f string, a ...any) {
 }
 
 // Returns path to extracted file/directory.
-func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string, extrCfg map[string]map[string]string, runner *exec.Runner, gltfDoc *gltf.Document, printer *Printer) ([]string, error) {
+func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string, extrCfg Config, runner *exec.Runner, gltfDoc *gltf.Document, printer *Printer) ([]string, error) {
 	name, typ := a.LookupHash(id.Name), a.LookupHash(id.Type)
 
 	file, ok := a.DataDir.Files[id]
@@ -601,65 +601,45 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 	}
 
 	var extr extractor.ExtractFunc
-	switch typ {
-	case "bik":
-		if cfg["format"] == "source" {
-			extr = extractor.ExtractFuncRaw(".stingray_bik", stingray.DataMain, stingray.DataStream, stingray.DataGPU)
-		} else if cfg["format"] == "bik" {
-			extr = extr_bik.ExtractBik
-		} else {
-			extr = extr_bik.ConvertToMP4
-		}
-	case "wwise_stream":
-		if cfg["format"] == "source" {
-			extr = extractor.ExtractFuncRaw(".stingray_wem", stingray.DataMain, stingray.DataStream, stingray.DataGPU)
-		} else if cfg["format"] == "wem" {
-			extr = extractor.ExtractFuncRaw(".wem", stingray.DataStream)
-		} else {
-			extr = extr_wwise.ConvertWem
-		}
-	case "wwise_bank":
-		if cfg["format"] == "source" {
-			extr = extractor.ExtractFuncRaw(".stingray_bnk", stingray.DataMain, stingray.DataStream, stingray.DataGPU)
-		} else if cfg["format"] == "bnk" {
-			extr = extr_wwise.ExtractBnk
-		} else {
-			extr = extr_wwise.ConvertBnk
-		}
-	case "material":
-		if cfg["format"] == "source" {
-			extr = extractor.ExtractFuncRaw(".material", stingray.DataMain, stingray.DataStream, stingray.DataGPU)
-		} else {
+	if cfg["format"] == "source" {
+		extr = extractor.ExtractFuncRaw(typ)
+	} else {
+		switch typ {
+		case "bik":
+			if cfg["format"] == "bik" {
+				extr = extr_bik.ExtractBik
+			} else {
+				extr = extr_bik.ConvertToMP4
+			}
+		case "wwise_stream":
+			if cfg["format"] == "wem" {
+				extr = extr_wwise.ExtractWem
+			} else {
+				extr = extr_wwise.ConvertWem
+			}
+		case "wwise_bank":
+			if cfg["format"] == "bnk" {
+				extr = extr_wwise.ExtractBnk
+			} else {
+				extr = extr_wwise.ConvertBnk
+			}
+		case "material":
 			extr = extr_material.Convert(gltfDoc)
-		}
-	case "unit":
-		if cfg["format"] == "source" {
-			extr = extractor.ExtractFuncRaw(".unit", stingray.DataMain, stingray.DataStream, stingray.DataGPU)
-		} else {
+		case "unit":
 			extr = extr_unit.Convert(gltfDoc)
-		}
-	case "texture":
-		if cfg["format"] == "source" {
-			extr = extractor.ExtractFuncRaw(".texture", stingray.DataMain, stingray.DataStream, stingray.DataGPU)
-		} else if cfg["format"] == "dds" {
-			extr = extr_texture.ExtractDDS
-		} else {
-			extr = extr_texture.ConvertToPNG
-		}
-	case "strings":
-		if cfg["format"] == "source" {
-			extr = extractor.ExtractFuncRaw(".strings", stingray.DataMain, stingray.DataStream, stingray.DataGPU)
-		} else {
+		case "texture":
+			if cfg["format"] == "dds" {
+				extr = extr_texture.ExtractDDS
+			} else {
+				extr = extr_texture.ConvertToPNG
+			}
+		case "strings":
 			extr = extr_strings.ExtractStringsJSON
-		}
-	case "package":
-		if cfg["format"] == "source" {
-			extr = extractor.ExtractFuncRaw(".package", stingray.DataMain, stingray.DataStream, stingray.DataGPU)
-		} else {
+		case "package":
 			extr = extr_package.ExtractPackageJSON
+		default:
+			extr = extractor.ExtractFuncRaw(typ)
 		}
-	default:
-		extr = extractor.ExtractFuncRaw("."+typ, stingray.DataMain, stingray.DataStream, stingray.DataGPU)
 	}
 
 	outPath := filepath.Join(outDir, name)

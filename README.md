@@ -77,6 +77,17 @@ Requires [Helper Scripts](#helper-scripts-scripts_dist) to be downloaded and unz
 ./filediver -c "unit:single_glb=true,format=blend" -t "0x3d8cf2088ed56091" -i "0x76cf8e26aad1bf7e.unit" -o "extracted/DP-00-Tactical/"
 ```
 
+## Filediver GUI (experimental)
+An experimental graphical interface for Filediver, WIP.
+
+Allows you to explore several file types using the preview,
+and to interactively select your extraction options.
+
+![GUI Screenshot](screenshots/gui.png)
+### Download Filediver GUI
+- [Windows (64-bit)](https://github.com/xypwn/filediver/releases/latest/download/filediver-gui-windows-amd64.zip)
+- [Linux (64-bit)](https://github.com/xypwn/filediver/releases/latest/download/filediver-gui-linux-amd64.tar.gz)
+
 ## Features
 ### File Types/Formats
 - **Audio**: Audiokinetic wwise bnk/wem; automatically converted to WAV; other formats require FFmpeg
@@ -108,6 +119,6 @@ Some useful discussion on the topic of HD2 resource extraction: https://reshax.c
 - `go run ./cmd/filediver-cli`
 
 ## License
-Copyright (c) Darwin Schuppan and contributors
+Copyright (c) filediver contributors
 
 FileDiver is licensed under the 3-Clause BSD License (https://opensource.org/license/bsd-3-clause).
