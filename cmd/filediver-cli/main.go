@@ -92,9 +92,8 @@ extractor config:
 	if ok := runner.Add("ffmpeg", "-y", "-hide_banner", "-loglevel", "error"); !ok {
 		prt.Warnf("FFmpeg not installed or found locally. Please install FFmpeg, or place ffmpeg.exe in the current folder to convert videos to MP4 and audio to a variety of formats. Without FFmpeg, videos will be saved as BIK and audio will be saved was WAV.")
 	}
-	if ok := runner.Add("scripts_dist/hd2_accurate_blender_importer/hd2_accurate_blender_importer"); extrCfg["unit"]["format"] == "blend" && !ok {
+	if ok := runner.Add("scripts_dist/hd2_accurate_blender_importer/hd2_accurate_blender_importer"); !ok {
 		prt.Warnf("Blender importer not found. Exporting directly to .blend is not available. Please download the scripts_dist archive and place its contents into the same folder as filediver (see https://github.com/xypwn/filediver?tab=readme-ov-file#helper-scripts-scripts_dist). Without blender importer, models will be saved as GLB.")
-		extrCfg["unit"]["format"] = "glb"
 	}
 	defer runner.Close()
 
@@ -288,12 +287,13 @@ func createCloseableGltfDocument(outDir string, triad string, cfg map[string]str
 	})
 	closeGLB := func(doc *gltf.Document) error {
 		outPath := filepath.Join(outDir, triad)
-		if cfg["format"] == "blend" {
+		formatIsBlend := cfg["format"] == "blend" && runner.Has("hd2_accurate_blender_importer")
+		if formatIsBlend {
 			err := extractor.ExportBlend(doc, outPath, runner)
 			if err != nil {
 				return err
 			}
-		} else if cfg["format"] == "glb" {
+		} else {
 			err := exportGLB(doc, outPath)
 			if err != nil {
 				return err

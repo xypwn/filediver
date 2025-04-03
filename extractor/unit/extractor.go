@@ -663,7 +663,8 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 	extras[ctx.File().ID().Name.String()]["objects"] = meshNodes
 	doc.Extras = extras
 
-	if gltfDoc == nil && (ctx.Config()["format"] == "" || ctx.Config()["format"] == "glb") {
+	formatIsBlend := ctx.Config()["format"] == "blend" && ctx.Runner().Has("hd2_accurate_blender_importer")
+	if gltfDoc == nil && !formatIsBlend {
 		out, err := ctx.CreateFile(".glb")
 		if err != nil {
 			return err
@@ -672,7 +673,7 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 		if err := enc.Encode(doc); err != nil {
 			return err
 		}
-	} else if gltfDoc == nil && ctx.Config()["format"] == "blend" {
+	} else if gltfDoc == nil && formatIsBlend {
 		path, err := ctx.(interface{ OutPath() (string, error) }).OutPath()
 		if err != nil {
 			return err

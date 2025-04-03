@@ -61,6 +61,7 @@ import (
 	"log"
 	"maps"
 	"math"
+	"os"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -153,13 +154,21 @@ func UpdateGUIScale(guiScale float32) {
 	io.Ctx().SetStyle(*style)
 }
 
+var downloadFFmpegURL string
+var downloadScriptsDistURL string
+
+func init() {
+	switch runtime.GOOS {
+	case "windows":
+		downloadFFmpegURL = "https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-7.1.1-essentials_build.zip"
+		downloadScriptsDistURL = "https://github.com/xypwn/filediver/releases/latest/download/scripts-dist-windows.zip"
+	case "linux":
+		downloadFFmpegURL = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz"
+	}
+}
+
 func run(onError func(error)) error {
 	runtime.LockOSThread()
-
-	zenity.Info("Filediver GUI is still very work-in-progress and I'm trying to make it work well and reliably.\nIf you encounter any issues, please report them on GitHub.",
-		zenity.Title("Thanks for trying out Filediver GUI!"),
-		zenity.OKLabel("Continue"),
-	)
 
 	var glfwWindow *C.GLFWwindow
 
@@ -273,21 +282,15 @@ func run(onError func(error)) error {
 	exportNotifyWhenDone := true
 	var extractorConfig app.Config
 
-	runner := exec.NewRunner()
-	if ok := runner.Add("ffmpeg", "-y", "-hide_banner", "-loglevel", "error"); !ok {
-		zenity.Info("FFmpeg not installed or found locally. Please install FFmpeg, or place ffmpeg.exe in the current folder to convert videos to MP4 and audio to a variety of formats. Without FFmpeg, videos will be saved as BIK and audio will be saved was WAV.",
-			zenity.OKLabel("OK"),
-		)
-	}
-	if ok := runner.Add("scripts_dist/hd2_accurate_blender_importer/hd2_accurate_blender_importer"); !ok {
-		zenity.Info("Blender importer not found. Exporting directly to .blend is not available. Please download the scripts_dist archive and place its contents into the same folder as filediver (see https://github.com/xypwn/filediver?tab=readme-ov-file#helper-scripts-scripts_dist). Without blender importer, models will be saved as GLB.",
-			zenity.OKLabel("OK"),
-		)
-	}
-	defer runner.Close()
+	downloadsDir := filepath.Join(xdg.DataHome, "filediver")
+	ffmpegDownloadState := widgets.NewDownloader(downloadFFmpegURL, downloadsDir)
+	scriptsDistDownloadState := widgets.NewDownloader(downloadScriptsDistURL, downloadsDir)
 
 	isPreferencesOpen := false
 	isAboutOpen := false
+	isExtensionsOpen := false
+	isExtensionsWarningPopupOpen := !ffmpegDownloadState.Have() || !scriptsDistDownloadState.Have()
+	isWelcomePopupOpen := true
 
 	preDraw := func() error {
 		if gameData != nil && previewState == nil {
@@ -345,6 +348,10 @@ func run(onError func(error)) error {
 					imgui.EndMenu()
 				}
 				if imgui.BeginMenu("Settings") {
+					imgui.Separator()
+					if imgui.MenuItemBool(fnt.I("Extension") + " Extensions") {
+						isExtensionsOpen = true
+					}
 					imgui.Separator()
 					if imgui.MenuItemBool(fnt.I("Settings") + " Preferences") {
 						isPreferencesOpen = true
@@ -595,7 +602,17 @@ func run(onError func(error)) error {
 			if gameDataExport == nil {
 				imgui.BeginDisabledV(len(filesSelectedForExport) == 0 || gameData == nil)
 				if imgui.ButtonV(fnt.I("File_export")+" Begin export", imgui.NewVec2(-math.SmallestNonzeroFloat32, 0)) && gameData != nil {
+					runner := exec.NewRunner()
+					ffmpegPath := filepath.Join(ffmpegDownloadState.Dir(), "ffmpeg-7.1.1-essentials_build", "bin", "ffmpeg")
+					ffmpegArgs := []string{"-y", "-hide_banner", "-loglevel", "error"}
+					blenderImporterPath := filepath.Join(scriptsDistDownloadState.Dir(), "scripts_dist", "hd2_accurate_blender_importer", "hd2_accurate_blender_importer")
+					if !runner.Add(ffmpegPath, ffmpegArgs...) {
+						// Try to use a local FFmpeg instance if the extension isn't installed
+						runner.Add("ffmpeg", ffmpegArgs...)
+					}
+					runner.Add(blenderImporterPath)
 					gameDataExport = gameData.GoExport(ctx, slices.Collect(maps.Keys(filesSelectedForExport)), exportDir, extractorConfig, runner)
+					runner.Close()
 				}
 				if gameData == nil {
 					imgui.SetItemTooltip("Game data not loaded")
@@ -606,7 +623,11 @@ func run(onError func(error)) error {
 			} else {
 				if gameDataExport.Done {
 					if !gameDataExport.Canceled && exportNotifyWhenDone {
-						zenity.Notify(fmt.Sprintf("Filediver has finished exporting %v files", gameDataExport.NumFiles),
+						pluralS := ""
+						if gameDataExport.NumFiles != 1 {
+							pluralS = "s"
+						}
+						zenity.Notify(fmt.Sprintf("Filediver has finished exporting %v file%v", gameDataExport.NumFiles, pluralS),
 							zenity.Title("Finished exporting"),
 							zenity.InfoIcon,
 						)
@@ -640,12 +661,85 @@ func run(onError func(error)) error {
 		}
 		imgui.End()
 
+		if isWelcomePopupOpen {
+			imgui.OpenPopupStr("Welcome to Filediver GUI")
+		}
+		imgui.SetNextWindowPosV(viewport.Center(), imgui.CondAlways, imgui.NewVec2(0.5, 0.5))
+		if imgui.BeginPopupModalV("Welcome to Filediver GUI", &isWelcomePopupOpen, imgui.WindowFlagsAlwaysAutoResize) {
+			imgui.PushTextWrapPos()
+			imgui.TextUnformatted("Filediver GUI is still work-in-progress.")
+			imgui.TextUnformatted("If you encounter any bugs, please create an issue on the project's GitHub page.")
+			imgui.Separator()
+			imgui.TextLinkOpenURLV("Filediver Issues", "https://github.com/xypwn/filediver/issues")
+			imgui.Separator()
+			if imgui.ButtonV("OK", imgui.NewVec2(400, 0)) {
+				isWelcomePopupOpen = false
+				imgui.CloseCurrentPopup()
+			}
+
+			imgui.EndPopup()
+		}
+
+		if !isWelcomePopupOpen {
+			if isExtensionsWarningPopupOpen {
+				imgui.OpenPopupStr("Some optional extensions missing")
+			}
+			imgui.SetNextWindowPosV(viewport.Center(), imgui.CondAlways, imgui.NewVec2(0.5, 0.5))
+			if imgui.BeginPopupModalV("Some optional extensions missing", &isExtensionsWarningPopupOpen, imgui.WindowFlagsAlwaysAutoResize) {
+				imgui.PushTextWrapPos()
+				imgui.TextUnformatted("The following recommended extensions are missing:")
+				if !ffmpegDownloadState.Have() {
+					imgui.Bullet()
+					imgui.PushTextWrapPos()
+					imgui.TextUnformatted("FFmpeg: Without FFmpeg, videos will be saved as BIK and audio will be saved was WAV.")
+				}
+				if !scriptsDistDownloadState.Have() {
+					imgui.Bullet()
+					imgui.PushTextWrapPos()
+					imgui.TextUnformatted("ScriptsDist: Without ScriptsDist, exporting directly to .blend is not available. Models will be saved as .glb.")
+				}
+				imgui.TextUnformatted("You can download these extensions by clicking \"Manage extensions\", or by going to Settings->Extensions.")
+				imgui.Separator()
+				if imgui.ButtonV("Close", imgui.NewVec2(120, 0)) {
+					isExtensionsWarningPopupOpen = false
+					imgui.CloseCurrentPopup()
+				}
+				imgui.SameLine()
+				if imgui.ButtonV("Manage extensions", imgui.NewVec2(160, 0)) {
+					isExtensionsWarningPopupOpen = false
+					imgui.CloseCurrentPopup()
+					isExtensionsOpen = true
+				}
+				imgui.EndPopup()
+			}
+		}
+
+		if isExtensionsOpen {
+			imgui.OpenPopupStr("Extensions")
+		}
+		imgui.SetNextWindowPosV(viewport.Center(), imgui.CondAlways, imgui.NewVec2(0.5, 0.5))
+		if imgui.BeginPopupModalV("Extensions", &isExtensionsOpen, imgui.WindowFlagsAlwaysAutoResize) {
+			widgets.Downloader("FFmpeg", "Required to extract audio to anything other than wav, and to extract video to MP4.", ffmpegDownloadState)
+			imgui.Separator()
+			widgets.Downloader("ScriptsDist", "Required for exporting to Blender.", scriptsDistDownloadState)
+			imgui.Separator()
+			if imgui.ButtonV(fnt.I("Folder_open")+" Open extensions folder", imgui.NewVec2(imgui.ContentRegionAvail().X, 0)) {
+				_ = os.MkdirAll(downloadsDir, os.ModePerm)
+				open.Start(downloadsDir)
+			}
+			imgui.Separator()
+			if imgui.ButtonV("Close", imgui.NewVec2(imgui.ContentRegionAvail().X, 0)) {
+				imgui.CloseCurrentPopup()
+				isExtensionsOpen = false
+			}
+			imgui.EndPopup()
+		}
+
 		if isPreferencesOpen {
 			imgui.OpenPopupStr("Preferences")
 		}
-		imgui.SetNextWindowSize(imgui.NewVec2(0, 0))
 		imgui.SetNextWindowPosV(viewport.Center(), imgui.CondAlways, imgui.NewVec2(0.5, 0.5))
-		if imgui.BeginPopupModalV("Preferences", &isPreferencesOpen, imgui.WindowFlagsNoMove|imgui.WindowFlagsNoResize) {
+		if imgui.BeginPopupModalV("Preferences", &isPreferencesOpen, imgui.WindowFlagsAlwaysAutoResize) {
 			valueCombo := func(title string, selected float32, values []float32, onChanged func(v float32)) {
 				if imgui.BeginCombo(title, fmt.Sprint(selected)) {
 					for _, value := range values {

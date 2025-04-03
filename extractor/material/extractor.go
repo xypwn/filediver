@@ -607,7 +607,8 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions, gltfDoc *gltf.Doc
 	})
 	doc.Scenes[0].Nodes = append(doc.Scenes[0].Nodes, uint32(len(doc.Nodes)-1))
 
-	if gltfDoc == nil && (ctx.Config()["format"] == "glb") {
+	formatIsBlend := ctx.Config()["format"] == "blend" && ctx.Runner().Has("hd2_accurate_blender_importer")
+	if gltfDoc == nil && !formatIsBlend {
 		out, err := ctx.CreateFile(".glb")
 		if err != nil {
 			return err
@@ -616,7 +617,7 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions, gltfDoc *gltf.Doc
 		if err := enc.Encode(doc); err != nil {
 			return err
 		}
-	} else if gltfDoc == nil && ctx.Config()["format"] == "blend" {
+	} else if gltfDoc == nil && formatIsBlend {
 		path, err := ctx.(interface{ OutPath() (string, error) }).OutPath()
 		if err != nil {
 			return err

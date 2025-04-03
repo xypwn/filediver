@@ -66,7 +66,7 @@ var ConfigFormat = ConfigTemplate{
 			Options: map[string]ConfigTemplateOption{
 				"format": {
 					Type: ConfigValueEnum,
-					Enum: []string{"glb", "source", "blend"},
+					Enum: []string{"glb", "blend", "source"},
 				},
 				"single_glb": {
 					Type: ConfigValueEnum,
@@ -117,7 +117,7 @@ var ConfigFormat = ConfigTemplate{
 				},
 				"join_components": {
 					Type: ConfigValueEnum,
-					Enum: []string{"true", "false"},
+					Enum: []string{"false", "true"},
 				},
 				"bounding_boxes": {
 					Type: ConfigValueEnum,

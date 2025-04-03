@@ -71,7 +71,7 @@ func ExportBlend(doc *gltf.Document, outPath string, runner *exec.Runner) (err e
 	if err != nil {
 		return err
 	}
-	var blendExporter string = "scripts_dist/hd2_accurate_blender_importer/hd2_accurate_blender_importer"
+	var blendExporter string = "hd2_accurate_blender_importer"
 	if !runner.Has(blendExporter) {
 		return fmt.Errorf("cannot export as .blend: \"%v\" missing", blendExporter)
 	}

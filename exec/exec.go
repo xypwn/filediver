@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/amenzhinsky/go-memexec"
@@ -14,6 +15,16 @@ type entry struct {
 	MemCmd      *memexec.Exec
 	Path        string
 	DefaultArgs []string
+}
+
+func LookPath(name string) (path string, found bool) {
+	path, err := exec.LookPath("./" + name)
+	if err != nil {
+		if path, err = exec.LookPath(name); err != nil {
+			return "", false
+		}
+	}
+	return path, true
 }
 
 type Runner struct {
@@ -52,13 +63,11 @@ func (r *Runner) AddMem(name string, data []byte, defaultArgs ...string) error {
 }
 
 func (r *Runner) Add(name string, defaultArgs ...string) (found bool) {
-	path, err := exec.LookPath("./" + name)
-	if err != nil {
-		if path, err = exec.LookPath(name); err != nil {
-			return false
-		}
+	path, ok := LookPath(name)
+	if !ok {
+		return false
 	}
-	r.progs[name] = entry{
+	r.progs[filepath.Base(name)] = entry{
 		Path:        path,
 		DefaultArgs: defaultArgs,
 	}

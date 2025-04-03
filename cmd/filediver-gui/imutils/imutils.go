@@ -36,6 +36,12 @@ func Textf(format string, args ...any) {
 	imgui.TextUnformatted(fmt.Sprintf(format, args...))
 }
 
+func Textcf(color imgui.Vec4, format string, args ...any) {
+	imgui.PushStyleColorVec4(imgui.ColText, color)
+	Textf(format, args...)
+	imgui.PopStyleColor()
+}
+
 func CheckboxHeight() float32 {
 	// HACK: This is probably not accurate, but it seems
 	// good enough so it's not noticeable for the user.
