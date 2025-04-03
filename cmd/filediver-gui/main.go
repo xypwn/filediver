@@ -426,6 +426,9 @@ func run(onError func(error)) error {
 				// the status of all items being selected may have
 				// changed.
 				calcAllSelectedForExport := func() bool {
+					if len(gameData.SortedSearchResultFileIDs) == 0 {
+						return false
+					}
 					for _, id := range gameData.SortedSearchResultFileIDs {
 						_, sel := filesSelectedForExport[id]
 						if !sel {
@@ -488,6 +491,7 @@ func run(onError func(error)) error {
 					}
 					imgui.EndPopup()
 				}
+				imgui.BeginDisabledV(len(gameData.SortedSearchResultFileIDs) == 0)
 				if imgui.Checkbox("Select all for export", &allSelectedForExport) {
 					if allSelectedForExport {
 						for _, id := range gameData.SortedSearchResultFileIDs {
@@ -499,10 +503,13 @@ func run(onError func(error)) error {
 						}
 					}
 				}
-				if allSelectedForExport {
-					imgui.SetItemTooltip("Deselect all currently visible files for export")
-				} else {
-					imgui.SetItemTooltip("Select all currently visible files for export")
+				imgui.EndDisabled()
+				if len(gameData.SortedSearchResultFileIDs) != 0 {
+					if allSelectedForExport {
+						imgui.SetItemTooltip("Deselect all currently visible files for export")
+					} else {
+						imgui.SetItemTooltip("Select all currently visible files for export")
+					}
 				}
 				{
 					size := imgui.ContentRegionAvail()
@@ -594,6 +601,7 @@ func run(onError func(error)) error {
 			imgui.Separator()
 
 			if imgui.ButtonV(fnt.I("Folder_open")+" Open output folder", imgui.NewVec2(-math.SmallestNonzeroFloat32, 0)) {
+				_ = os.MkdirAll(exportDir, os.ModePerm)
 				open.Start(exportDir)
 			}
 
