@@ -93,7 +93,7 @@ jobs:
         unzip ffmpeg-6.1.1-essentials_build.zip ffmpeg-6.1.1-essentials_build/bin/ffmpeg.exe
         mv ffmpeg-6.1.1-essentials_build/bin/ffmpeg.exe filediver-cli/
     - name: Create archive
-      run: zip -r filediver-cli-windows-amd64.zip filediver/
+      run: zip -r filediver-cli-windows-amd64.zip filediver-cli/
     - name: Upload archive
       uses: softprops/action-gh-release@v2
       if: startsWith(github.ref, 'refs/tags/')
