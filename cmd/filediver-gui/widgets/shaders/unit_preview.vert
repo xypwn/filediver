@@ -40,7 +40,8 @@ void main() {
         dbg_fragTBN = tbn;
         dbg_fragITBN = itbn;
 
-        vec3 lightPosition = vec3(0.0, 1000.0, 1000.0);
+        vec3 lightPosition = normalize(viewPosition) * 10000.0; // light behind camera
+
         fragTangentLightPosition    = itbn * lightPosition;
         fragTangentViewPosition     = itbn * viewPosition;
         fragTangentFragmentPosition = itbn * fragPosition;

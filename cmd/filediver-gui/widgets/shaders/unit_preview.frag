@@ -13,8 +13,6 @@ in vec3 fragTangentFragmentPosition;
 in mat3 dbg_fragTBN;
 in mat3 dbg_fragITBN;
 
-#define FLAG_NORMAL_TEXTURE 0x1u
-
 uniform mat4 mvp; // projection*view*model
 uniform mat4 model;
 uniform mat4 normalMat; // normal matrix = transpose(inverse(model)) // actually mat3
@@ -30,8 +28,11 @@ float reconstructNormalZ(vec2 xy) {
 
 void main() {
     vec3 normal = texture(texNormal, fragUV).xyz;
+    //fragColor = vec4(normal, 1.0);
+
     normal = normalize(normal * 2.0 - 1.0); // in tangent space
-    normal.z = reconstructNormalZ(normal.xy);
+    normal.z = -reconstructNormalZ(normal.xy);
+    normal.xy = normal.xy;
 
     vec3 albedo = texture(texAlbedo, fragUV).xyz;
     vec3 ambient = vec3(1.0);
@@ -47,10 +48,12 @@ void main() {
 
     fragColor = vec4(albedo * (mix(ambient, diffuse, 0.6) + 0.5 * specular), 1.0);
 
-    //fragColor = vec4(normalize(fragTangentLightPosition) * 0.5 + 0.5, 1.0);
+    // Normal debugging (ignoring normal map)
+    //fragColor = vec4(normalize(dbg_fragTBN * vec3(0.0, 0.0, 1.0)), 1.0);
+    // Normal debugging (world space)
+    //fragColor = vec4(normalize(dbg_fragTBN * normal), 1.0);
     //fragColor = vec4(normalize(dbg_fragTBN * normal) * 0.5 + 0.5, 1.0);
-
-    // Normal debugging
+    // Normal debugging (tangent space)
+    //fragColor = vec4(normal, 1.0);
     //fragColor = vec4(normal * 0.5 + 0.5, 1.0);
-    //fragColor = vec4(n, 1.0);
 }

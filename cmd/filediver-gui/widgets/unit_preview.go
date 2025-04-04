@@ -28,12 +28,12 @@ import (
 var unitPreviewShaderCode embed.FS
 
 // stingray coords to OpenGL coords
-var stingrayToGLCoords = mgl32.Mat4{
-	1, 0, 0, 0,
-	0, 0, -1, 0,
-	0, 1, 0, 0,
-	0, 0, 0, 1,
-}
+var stingrayToGLCoords = mgl32.Mat4FromRows(
+	mgl32.Vec4{1, 0, 0, 0},
+	mgl32.Vec4{0, 0, 1, 0},
+	mgl32.Vec4{0, -1, 0, 0},
+	mgl32.Vec4{0, 0, 0, 1},
+)
 
 type unitPreviewGLObject struct {
 	vao       uint32 // vertex array object
@@ -48,6 +48,8 @@ type unitPreviewGLObject struct {
 	normalMatLoc    int32
 	viewPositionLoc int32
 	colorLoc        int32
+	texAlbedoLoc    int32
+	texNormalLoc    int32
 
 	numIndices int32
 }
@@ -70,7 +72,7 @@ func (obj *unitPreviewGLObject) genObjects(textures bool) {
 	gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, obj.ibo)
 }
 
-func (obj *unitPreviewGLObject) genUniformLocations(program uint32, mvp bool, model bool, normalMat bool, viewPosition bool, color bool) {
+func (obj *unitPreviewGLObject) genUniformLocations(program uint32, mvp bool, model bool, normalMat bool, viewPosition bool, color bool, texAlbedo bool, texNormal bool) {
 	if mvp {
 		obj.mvpLoc = gl.GetUniformLocation(program, gl.Str("mvp\x00"))
 	}
@@ -85,6 +87,12 @@ func (obj *unitPreviewGLObject) genUniformLocations(program uint32, mvp bool, mo
 	}
 	if color {
 		obj.colorLoc = gl.GetUniformLocation(program, gl.Str("color\x00"))
+	}
+	if texAlbedo {
+		obj.texAlbedoLoc = gl.GetUniformLocation(program, gl.Str("texAlbedo\x00"))
+	}
+	if texNormal {
+		obj.texNormalLoc = gl.GetUniformLocation(program, gl.Str("texNormal\x00"))
 	}
 }
 
@@ -164,10 +172,15 @@ func NewUnitPreview() (*UnitPreviewState, error) {
 	}
 	setupTexture(pv.object.texAlbedo)
 	setupTexture(pv.object.texNormal)
-	pv.object.genUniformLocations(pv.objectProgram, true, true, true, true, false)
+	pv.object.genUniformLocations(pv.objectProgram, true, true, true, true, false, true, true)
+
+	gl.UseProgram(pv.objectProgram)
+	gl.Uniform1i(pv.object.texAlbedoLoc, 0)
+	gl.Uniform1i(pv.object.texNormalLoc, 1)
+	gl.UseProgram(0)
 
 	pv.dbgObj.genObjects(false)
-	pv.dbgObj.genUniformLocations(pv.dbgObjProgram, true, false, false, false, true)
+	pv.dbgObj.genUniformLocations(pv.dbgObjProgram, true, false, false, false, true, false, false)
 
 	pv.vfov = mgl32.DegToRad(60)
 	pv.viewDistance = 25
@@ -298,8 +311,7 @@ func (pv *UnitPreviewState) LoadUnit(mainData, gpuData []byte, getResource GetRe
 		return nil
 	}
 
-	fmt.Println(normalTexFileName)
-	if false && albedoTexFileName.Value != 0 {
+	if albedoTexFileName.Value != 0 {
 		if err := uploadStingrayTexture(pv.object.texAlbedo, albedoTexFileName); err != nil {
 			return err
 		}
@@ -338,17 +350,19 @@ func (pv *UnitPreviewState) LoadUnit(mainData, gpuData []byte, getResource GetRe
 		indices = append(indices, idxs...)
 	}
 
-	fmt.Println(mesh.Normals[:12])
-	fmt.Println(indices[:12])
 	if len(mesh.Positions) != len(mesh.UVCoords[0]) {
 		return errors.New("expected positions and UVs to have the same length")
 	}
-	/*if len(mesh.Positions)%3 != 0 {
-		return errors.New("expected lengths of positions, normals and UVs to be divisible by 3")
-	}*/
 
 	// Calculate tangents and bitangents
-	normals := make([][3]float32, len(mesh.Positions)) // the normals read from the model don't seem quite right
+	//
+	// NOTE(xypwn): The mesh.Normals don't seem quite right,
+	// but maybe I just messed up some calculations. In any
+	// case, calculating them manually seems to work.
+	// Another idea is that the normals aren't actual normals,
+	// but rather some kind of normal offset in tangent space.
+	// Just wild speculation, though.
+	normals := make([][3]float32, len(mesh.Positions))
 	tangents := make([][3]float32, len(mesh.Positions))
 	bitangents := make([][3]float32, len(mesh.Positions))
 	for i := 0; i < len(indices); i += 3 {
@@ -382,10 +396,6 @@ func (pv *UnitPreviewState) LoadUnit(mainData, gpuData []byte, getResource GetRe
 		tangent, bitangent := tb.Rows()
 		tangent = tangent.Normalize()
 		bitangent = bitangent.Normalize()
-
-		normal[1], normal[2] = normal[2], normal[1]
-		tangent[1], tangent[2] = tangent[2], tangent[1]
-		bitangent[1], bitangent[2] = bitangent[2], bitangent[1]
 
 		normals[i1] = normal
 		normals[i2] = normal
@@ -569,7 +579,10 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 			gl.Uniform3fv(pv.object.viewPositionLoc, 1, &viewPosition[0])
 			gl.ActiveTexture(gl.TEXTURE0)
 			gl.BindTexture(gl.TEXTURE_2D, pv.object.texAlbedo)
+			gl.ActiveTexture(gl.TEXTURE1)
+			gl.BindTexture(gl.TEXTURE_2D, pv.object.texNormal)
 			gl.DrawElements(gl.TRIANGLES, pv.object.numIndices, gl.UNSIGNED_INT, nil)
+			gl.ActiveTexture(gl.TEXTURE0)
 			gl.BindTexture(gl.TEXTURE_2D, 0)
 			gl.BindVertexArray(0)
 			gl.UseProgram(0)
