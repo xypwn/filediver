@@ -3,7 +3,6 @@
 # Filediver
 
 [![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/xypwn/filediver/.github%2Fworkflows%2Fbuild-release.yml)](https://github.com/xypwn/filediver/actions)
-[![Scrutinizer quality (GitHub/Bitbucket)](https://img.shields.io/scrutinizer/quality/g/xypwn/filediver)](https://scrutinizer-ci.com/g/xypwn/filediver)
 [![GitHub License](https://img.shields.io/github/license/xypwn/filediver)](https://opensource.org/license/bsd-3-clause)
 
 [![GitHub Release](https://img.shields.io/github/v/release/xypwn/filediver)](https://github.com/xypwn/filediver/releases/latest/)
