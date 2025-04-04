@@ -3,6 +3,7 @@ package widgets
 import (
 	"bytes"
 	"embed"
+	"errors"
 	"fmt"
 	"image"
 	"io"
@@ -27,26 +28,28 @@ import (
 var unitPreviewShaderCode embed.FS
 
 // stingray coords to OpenGL coords
-var stingrayToGLCoords = mgl32.Mat4{
-	1, 0, 0, 0,
-	0, 0, 1, 0,
-	0, 1, 0, 0,
-	0, 0, 0, 1,
-}
+var stingrayToGLCoords = mgl32.Mat4FromRows(
+	mgl32.Vec4{1, 0, 0, 0},
+	mgl32.Vec4{0, 0, 1, 0},
+	mgl32.Vec4{0, -1, 0, 0},
+	mgl32.Vec4{0, 0, 0, 1},
+)
 
 type unitPreviewGLObject struct {
 	vao       uint32 // vertex array object
 	ibo       uint32 // index buffer object
 	vbo       uint32 // vertex buffer object
 	texAlbedo uint32
+	texNormal uint32
 
 	// Uniform locations
 	mvpLoc          int32
 	modelLoc        int32
-	normalLoc       int32
+	normalMatLoc    int32
 	viewPositionLoc int32
 	colorLoc        int32
 	texAlbedoLoc    int32
+	texNormalLoc    int32
 
 	numIndices int32
 }
@@ -57,6 +60,7 @@ func (obj *unitPreviewGLObject) genObjects(textures bool) {
 	gl.GenBuffers(1, &obj.ibo)
 	if textures {
 		gl.GenTextures(1, &obj.texAlbedo)
+		gl.GenTextures(1, &obj.texNormal)
 	}
 
 	gl.BindVertexArray(obj.vao)
@@ -68,15 +72,15 @@ func (obj *unitPreviewGLObject) genObjects(textures bool) {
 	gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, obj.ibo)
 }
 
-func (obj *unitPreviewGLObject) genUniformLocations(program uint32, mvp bool, model bool, normal bool, viewPosition bool, color bool, texAlbedoLoc bool) {
+func (obj *unitPreviewGLObject) genUniformLocations(program uint32, mvp bool, model bool, normalMat bool, viewPosition bool, color bool, texAlbedo bool, texNormal bool) {
 	if mvp {
 		obj.mvpLoc = gl.GetUniformLocation(program, gl.Str("mvp\x00"))
 	}
 	if model {
 		obj.modelLoc = gl.GetUniformLocation(program, gl.Str("model\x00"))
 	}
-	if normal {
-		obj.normalLoc = gl.GetUniformLocation(program, gl.Str("normal\x00"))
+	if normalMat {
+		obj.normalMatLoc = gl.GetUniformLocation(program, gl.Str("normalMat\x00"))
 	}
 	if viewPosition {
 		obj.viewPositionLoc = gl.GetUniformLocation(program, gl.Str("viewPosition\x00"))
@@ -84,8 +88,11 @@ func (obj *unitPreviewGLObject) genUniformLocations(program uint32, mvp bool, mo
 	if color {
 		obj.colorLoc = gl.GetUniformLocation(program, gl.Str("color\x00"))
 	}
-	if texAlbedoLoc {
+	if texAlbedo {
 		obj.texAlbedoLoc = gl.GetUniformLocation(program, gl.Str("texAlbedo\x00"))
+	}
+	if texNormal {
+		obj.texNormalLoc = gl.GetUniformLocation(program, gl.Str("texNormal\x00"))
 	}
 }
 
@@ -94,6 +101,7 @@ func (obj unitPreviewGLObject) deleteObjects() {
 	gl.DeleteBuffers(1, &obj.vbo)
 	gl.DeleteBuffers(1, &obj.ibo)
 	gl.DeleteTextures(1, &obj.texAlbedo)
+	gl.DeleteTextures(1, &obj.texNormal)
 }
 
 type UnitPreviewState struct {
@@ -153,17 +161,26 @@ func NewUnitPreview() (*UnitPreviewState, error) {
 	}
 
 	pv.object.genObjects(true)
-	gl.BindTexture(gl.TEXTURE_2D, pv.object.texAlbedo)
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT)
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT)
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
-	gl.PixelStorei(gl.UNPACK_ROW_LENGTH, 0)
-	gl.BindTexture(gl.TEXTURE_2D, 0)
-	pv.object.genUniformLocations(pv.objectProgram, true, true, true, true, false, true)
+	setupTexture := func(textureID uint32) {
+		gl.BindTexture(gl.TEXTURE_2D, textureID)
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT)
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT)
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+		gl.PixelStorei(gl.UNPACK_ROW_LENGTH, 0)
+		gl.BindTexture(gl.TEXTURE_2D, 0)
+	}
+	setupTexture(pv.object.texAlbedo)
+	setupTexture(pv.object.texNormal)
+	pv.object.genUniformLocations(pv.objectProgram, true, true, true, true, false, true, true)
+
+	gl.UseProgram(pv.objectProgram)
+	gl.Uniform1i(pv.object.texAlbedoLoc, 0)
+	gl.Uniform1i(pv.object.texNormalLoc, 1)
+	gl.UseProgram(0)
 
 	pv.dbgObj.genObjects(false)
-	pv.dbgObj.genUniformLocations(pv.dbgObjProgram, true, false, false, false, true, false)
+	pv.dbgObj.genUniformLocations(pv.dbgObjProgram, true, false, false, false, true, false, false)
 
 	pv.vfov = mgl32.DegToRad(60)
 	pv.viewDistance = 25
@@ -222,15 +239,12 @@ func (pv *UnitPreviewState) LoadUnit(mainData, gpuData []byte, getResource GetRe
 	if len(mesh.Positions) == 0 {
 		return fmt.Errorf("mesh contains no positions")
 	}
-	if len(mesh.Normals) == 0 {
-		return fmt.Errorf("mesh contains no normals")
-	}
 	if len(mesh.UVCoords) == 0 || len(mesh.UVCoords[0]) == 0 {
 		return fmt.Errorf("mesh contains no UV coordinates")
 	}
 
 	// Upload object texture
-	albedoTexFileName, albedoRemoveAlpha, err := func() (albedoFileName stingray.Hash, albedoRemoveAlpha bool, err error) {
+	albedoTexFileName, albedoRemoveAlpha, normalTexFileName, err := func() (albedoFileName stingray.Hash, albedoRemoveAlpha bool, normalFileName stingray.Hash, err error) {
 		for matID, matFileName := range info.Materials {
 			if !slices.Contains(mesh.Info.Materials, matID) {
 				continue
@@ -240,13 +254,13 @@ func (pv *UnitPreviewState) LoadUnit(mainData, gpuData []byte, getResource GetRe
 				Type: stingray.Sum64([]byte("material")),
 			}, stingray.DataMain)
 			if err != nil {
-				return stingray.Hash{}, false, fmt.Errorf("load material %v.material: %w", matFileName, err)
+				return stingray.Hash{}, false, stingray.Hash{}, fmt.Errorf("load material %v.material: %w", matFileName, err)
 			}
 			if !ok {
-				return stingray.Hash{}, false, fmt.Errorf("load material %v.material does not exist", matFileName)
+				return stingray.Hash{}, false, stingray.Hash{}, fmt.Errorf("load material %v.material does not exist", matFileName)
 			}
 			mat, err := material.Load(bytes.NewReader(matData))
-			// TODO: Use all albedo textures. Currently, simply the first one
+			// TODO: Use all textures somehow. Currently, simply the first one
 			// found is used.
 			for texUsage, texFileName := range mat.Textures {
 				removeAlpha := true
@@ -255,29 +269,26 @@ func (pv *UnitPreviewState) LoadUnit(mainData, gpuData []byte, getResource GetRe
 					removeAlpha = false
 					fallthrough
 				case extr_material.CoveringAlbedo, extr_material.InputImage, extr_material.Albedo:
-					return texFileName, removeAlpha, nil
+					albedoFileName = texFileName
+					albedoRemoveAlpha = removeAlpha
+				case extr_material.NormalSpecularAO, extr_material.Normal, extr_material.NormalMap, extr_material.CoveringNormal, extr_material.NAC, extr_material.NAR, extr_material.BaseData:
+					normalFileName = texFileName
 				}
 			}
 		}
-		return stingray.Hash{Value: 0}, false, nil
+		return
 	}()
 	if err != nil {
 		return err
 	}
-	if albedoTexFileName.Value != 0 {
-		file := stingray.FileID{Name: albedoTexFileName, Type: stingray.Sum64([]byte("texture"))}
+	uploadStingrayTexture := func(textureID uint32, fileName stingray.Hash) error {
+		file := stingray.FileID{Name: fileName, Type: stingray.Sum64([]byte("texture"))}
 		var texMain, texStream, texGPU []byte
-		var err error
-		texMain, _, err = getResource(file, stingray.DataMain)
-		if err == nil {
-			texStream, _, err = getResource(file, stingray.DataStream)
+		if texMain, _, err = getResource(file, stingray.DataMain); err != nil {
+			return fmt.Errorf("load texture %v.texture: %w", fileName, err)
 		}
-		if err == nil {
-			texGPU, _, err = getResource(file, stingray.DataGPU)
-		}
-		if err != nil {
-			return fmt.Errorf("load texture %v.texture does not exist", albedoTexFileName)
-		}
+		texStream, _, _ = getResource(file, stingray.DataStream)
+		texGPU, _, _ = getResource(file, stingray.DataGPU)
 		dataR := io.MultiReader(
 			bytes.NewReader(texMain),
 			bytes.NewReader(texStream),
@@ -292,19 +303,109 @@ func (pv *UnitPreviewState) LoadUnit(mainData, gpuData []byte, getResource GetRe
 		}
 		img, ok := dds.Image.(*image.NRGBA)
 		if !ok {
-			return fmt.Errorf("expected albedo texture to be of type *image.NRGBA")
+			return fmt.Errorf("expected texture to be of type *image.NRGBA")
 		}
-		gl.BindTexture(gl.TEXTURE_2D, pv.object.texAlbedo)
+		gl.BindTexture(gl.TEXTURE_2D, textureID)
 		gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, int32(img.Bounds().Dx()), int32(img.Bounds().Dy()), 0, gl.RGBA, gl.UNSIGNED_BYTE, gl.Ptr(img.Pix))
-		if albedoRemoveAlpha {
-			gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_SWIZZLE_A, gl.ONE)
-		}
 		gl.BindTexture(gl.TEXTURE_2D, 0)
+		return nil
+	}
+
+	if albedoTexFileName.Value != 0 {
+		if err := uploadStingrayTexture(pv.object.texAlbedo, albedoTexFileName); err != nil {
+			return err
+		}
+		if albedoRemoveAlpha {
+			gl.BindTexture(gl.TEXTURE_2D, pv.object.texAlbedo)
+			gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_SWIZZLE_A, gl.ONE)
+			gl.BindTexture(gl.TEXTURE_2D, 0)
+		}
 	} else {
 		data := []byte{255, 255, 255, 255}
 		gl.BindTexture(gl.TEXTURE_2D, pv.object.texAlbedo)
 		gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, gl.Ptr(data))
 		gl.BindTexture(gl.TEXTURE_2D, 0)
+	}
+	if normalTexFileName.Value != 0 {
+		if err := uploadStingrayTexture(pv.object.texNormal, normalTexFileName); err != nil {
+			return err
+		}
+	} else {
+		data := []byte{0, 0, 255, 0}
+		gl.BindTexture(gl.TEXTURE_2D, pv.object.texNormal)
+		gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, gl.Ptr(data))
+		gl.BindTexture(gl.TEXTURE_2D, 0)
+	}
+
+	// Flatten indices
+	var indices []uint32
+	{
+		n := 0
+		for _, idxs := range mesh.Indices {
+			n += len(idxs)
+		}
+		indices = make([]uint32, 0, n)
+	}
+	for _, idxs := range mesh.Indices {
+		indices = append(indices, idxs...)
+	}
+
+	if len(mesh.Positions) != len(mesh.UVCoords[0]) {
+		return errors.New("expected positions and UVs to have the same length")
+	}
+
+	// Calculate tangents and bitangents
+	//
+	// NOTE(xypwn): The mesh.Normals don't seem quite right,
+	// but maybe I just messed up some calculations. In any
+	// case, calculating them manually seems to work.
+	// Another idea is that the normals aren't actual normals,
+	// but rather some kind of normal offset in tangent space.
+	// Just wild speculation, though.
+	normals := make([][3]float32, len(mesh.Positions))
+	tangents := make([][3]float32, len(mesh.Positions))
+	bitangents := make([][3]float32, len(mesh.Positions))
+	for i := 0; i < len(indices); i += 3 {
+		i1 := indices[i+0]
+		i2 := indices[i+1]
+		i3 := indices[i+2]
+
+		p1 := mgl32.Vec3(mesh.Positions[i1])
+		p2 := mgl32.Vec3(mesh.Positions[i2])
+		p3 := mgl32.Vec3(mesh.Positions[i3])
+		uv1 := mgl32.Vec2(mesh.UVCoords[0][i1])
+		uv2 := mgl32.Vec2(mesh.UVCoords[0][i2])
+		uv3 := mgl32.Vec2(mesh.UVCoords[0][i3])
+
+		edge1 := p2.Sub(p1)
+		edge2 := p3.Sub(p1)
+		deltaUV1 := uv2.Sub(uv1)
+		deltaUV2 := uv3.Sub(uv1)
+
+		tb := mgl32.Mat2FromRows(
+			mgl32.Vec2{deltaUV2.Y(), -deltaUV1.Y()},
+			mgl32.Vec2{-deltaUV2.X(), deltaUV1.X()},
+		).Mul2x3(mgl32.Mat2x3FromRows(
+			edge1,
+			edge2,
+		)).Mul(
+			1.0 / (deltaUV1.X()*deltaUV2.Y() - deltaUV2.X()*deltaUV1.Y()),
+		)
+
+		normal := edge2.Cross(edge1).Normalize()
+		tangent, bitangent := tb.Rows()
+		tangent = tangent.Normalize()
+		bitangent = bitangent.Normalize()
+
+		normals[i1] = normal
+		normals[i2] = normal
+		normals[i3] = normal
+		tangents[i1] = tangent
+		tangents[i2] = tangent
+		tangents[i3] = tangent
+		bitangents[i1] = bitangent
+		bitangents[i2] = bitangent
+		bitangents[i3] = bitangent
 	}
 
 	// Upload object data
@@ -312,38 +413,42 @@ func (pv *UnitPreviewState) LoadUnit(mainData, gpuData []byte, getResource GetRe
 		gl.BindVertexArray(pv.object.vao)
 
 		positionsSize := len(mesh.Positions) * 3 * 4
-		normalsSize := len(mesh.Normals) * 3 * 4
+		normalsSize := len(normals) * 3 * 4
 		uvsSize := len(mesh.UVCoords[0]) * 2 * 4
+		tangentsSize := len(tangents) * 3 * 4
+		bitangentsSize := len(bitangents) * 3 * 4
 
 		gl.BindBuffer(gl.ARRAY_BUFFER, pv.object.vbo)
-		gl.BufferData(gl.ARRAY_BUFFER, positionsSize+normalsSize+uvsSize, nil, gl.STATIC_DRAW)
+		gl.BufferData(gl.ARRAY_BUFFER, positionsSize+normalsSize+uvsSize+tangentsSize+bitangentsSize, nil, gl.STATIC_DRAW)
 		offset := 0
+		//
 		gl.BufferSubData(gl.ARRAY_BUFFER, offset, positionsSize, gl.Ptr(mesh.Positions))
 		gl.VertexAttribPointerWithOffset(0, 3, gl.FLOAT, false, 3*4, uintptr(offset))
 		gl.EnableVertexAttribArray(0)
 		offset += positionsSize
-		gl.BufferSubData(gl.ARRAY_BUFFER, offset, normalsSize, gl.Ptr(mesh.Normals))
+		//
+		gl.BufferSubData(gl.ARRAY_BUFFER, offset, normalsSize, gl.Ptr(normals))
 		gl.VertexAttribPointerWithOffset(1, 3, gl.FLOAT, true, 3*4, uintptr(offset))
 		gl.EnableVertexAttribArray(1)
 		offset += normalsSize
+		//
 		gl.BufferSubData(gl.ARRAY_BUFFER, offset, uvsSize, gl.Ptr(mesh.UVCoords[0]))
 		gl.VertexAttribPointerWithOffset(2, 2, gl.FLOAT, false, 2*4, uintptr(offset))
 		gl.EnableVertexAttribArray(2)
 		offset += uvsSize
+		//
+		gl.BufferSubData(gl.ARRAY_BUFFER, offset, tangentsSize, gl.Ptr(tangents))
+		gl.VertexAttribPointerWithOffset(3, 3, gl.FLOAT, true, 3*4, uintptr(offset))
+		gl.EnableVertexAttribArray(3)
+		offset += tangentsSize
+		//
+		gl.BufferSubData(gl.ARRAY_BUFFER, offset, bitangentsSize, gl.Ptr(bitangents))
+		gl.VertexAttribPointerWithOffset(4, 3, gl.FLOAT, true, 3*4, uintptr(offset))
+		gl.EnableVertexAttribArray(4)
+		offset += bitangentsSize
 
-		pv.object.numIndices = 0
-		for _, indices := range mesh.Indices {
-			pv.object.numIndices += int32(len(indices))
-		}
-		gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, int(pv.object.numIndices*4), nil, gl.STATIC_DRAW)
-		{
-			offset := 0
-			for _, indices := range mesh.Indices {
-				length := len(indices)
-				gl.BufferSubData(gl.ELEMENT_ARRAY_BUFFER, offset*4, length*4, gl.Ptr(indices))
-				offset += length
-			}
-		}
+		gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, len(indices)*4, gl.Ptr(indices), gl.STATIC_DRAW)
+		pv.object.numIndices = int32(len(indices))
 
 		gl.BindBuffer(gl.ARRAY_BUFFER, 0)
 		gl.BindVertexArray(0)
@@ -387,8 +492,8 @@ func (pv *UnitPreviewState) computeMVP(aspectRatio float32) (
 	{
 		mat := mgl32.Ident3()
 		mat = mat.Mul3(mgl32.Rotate3DY(pv.viewRotation[0]))
-		mat = mat.Mul3(mgl32.Rotate3DZ(-pv.viewRotation[1]))
-		viewPosition = mat.Mul3x1(mgl32.Vec3{pv.viewDistance, 0, 0})
+		mat = mat.Mul3(mgl32.Rotate3DX(pv.viewRotation[1]))
+		viewPosition = mat.Mul3x1(mgl32.Vec3{0, 0, pv.viewDistance})
 	}
 	view = mgl32.LookAt(
 		viewPosition[0], viewPosition[1], viewPosition[2],
@@ -470,10 +575,14 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 			gl.BindVertexArray(pv.object.vao)
 			gl.UniformMatrix4fv(pv.object.mvpLoc, 1, false, &mvp[0])
 			gl.UniformMatrix4fv(pv.object.modelLoc, 1, false, &pv.model[0])
-			gl.UniformMatrix4fv(pv.object.normalLoc, 1, false, &normal[0])
+			gl.UniformMatrix4fv(pv.object.normalMatLoc, 1, false, &normal[0])
 			gl.Uniform3fv(pv.object.viewPositionLoc, 1, &viewPosition[0])
+			gl.ActiveTexture(gl.TEXTURE0)
 			gl.BindTexture(gl.TEXTURE_2D, pv.object.texAlbedo)
+			gl.ActiveTexture(gl.TEXTURE1)
+			gl.BindTexture(gl.TEXTURE_2D, pv.object.texNormal)
 			gl.DrawElements(gl.TRIANGLES, pv.object.numIndices, gl.UNSIGNED_INT, nil)
+			gl.ActiveTexture(gl.TEXTURE0)
 			gl.BindTexture(gl.TEXTURE_2D, 0)
 			gl.BindVertexArray(0)
 			gl.UseProgram(0)
