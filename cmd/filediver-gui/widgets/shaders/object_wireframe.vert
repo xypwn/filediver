@@ -1,6 +1,7 @@
 #version 320 es
 
 precision mediump float;
+precision mediump int;
 
 layout(location = 0) in vec3 inPosition;
 

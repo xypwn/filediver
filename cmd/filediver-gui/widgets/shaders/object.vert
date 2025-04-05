@@ -19,7 +19,7 @@ out mat3 dbg_fragITBN;
 
 uniform mat4 mvp; // projection*view*model
 uniform mat4 model;
-uniform mat4 normalMat; // normal matrix = transpose(inverse(model)) // actually mat3
+uniform mat3 normalMat; // normal matrix = transpose(inverse(model))
 uniform vec3 viewPosition;
 
 void main() {
@@ -28,9 +28,9 @@ void main() {
     fragUV = inUV;
 
     {
-        vec3 t = normalize(mat3(normalMat) * inTangent);
-        vec3 n = normalize(mat3(normalMat) * inNormal);
-        //vec3 b = normalize(mat3(normalMat) * inBitangent);
+        vec3 t = normalize(normalMat * inTangent);
+        vec3 n = normalize(normalMat * inNormal);
+        //vec3 b = normalize(normalMat * inBitangent);
         t = normalize(t - dot(t, n) * n);
         vec3 b = cross(n, t);
 

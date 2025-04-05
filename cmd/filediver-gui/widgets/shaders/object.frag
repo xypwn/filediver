@@ -13,11 +13,6 @@ in vec3 fragTangentFragmentPosition;
 in mat3 dbg_fragTBN;
 in mat3 dbg_fragITBN;
 
-uniform mat4 mvp; // projection*view*model
-uniform mat4 model;
-uniform mat4 normalMat; // normal matrix = transpose(inverse(model)) // actually mat3
-uniform vec3 viewPosition;
-
 uniform sampler2D texAlbedo;
 uniform sampler2D texNormal;
 
@@ -31,8 +26,8 @@ void main() {
     //fragColor = vec4(normal, 1.0);
 
     normal = normalize(normal * 2.0 - 1.0); // in tangent space
-    normal.z = -reconstructNormalZ(normal.xy);
-    normal.xy = normal.xy;
+    normal.z = reconstructNormalZ(normal.xy);
+    normal.x = -normal.x;
 
     vec3 albedo = texture(texAlbedo, fragUV).xyz;
     vec3 ambient = vec3(1.0);
