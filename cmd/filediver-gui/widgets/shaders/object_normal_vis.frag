@@ -1,11 +1,12 @@
 #version 320 es
 
 precision mediump float;
+precision mediump int;
 
-layout(location = 0) out vec4 outColor;
+out vec4 fragColor;
 
 uniform vec4 color;
 
 void main() {
-    outColor = color;
+    fragColor = color;
 }

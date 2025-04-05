@@ -3,6 +3,9 @@ package glutils
 import (
 	"errors"
 	"fmt"
+	"io"
+	"io/fs"
+	"path"
 
 	"github.com/go-gl/gl/v3.2-core/gl"
 )
@@ -34,10 +37,11 @@ func CreateShader(source string, shaderType uint32) (uint32, error) {
 }
 
 // Doesn't delete the shaders (you may delete them after calling)
-func CreateProgram(vertShader, fragShader uint32) (uint32, error) {
+func CreateProgram(shaders ...uint32) (uint32, error) {
 	program := gl.CreateProgram()
-	gl.AttachShader(program, vertShader)
-	gl.AttachShader(program, fragShader)
+	for _, shader := range shaders {
+		gl.AttachShader(program, shader)
+	}
 	gl.LinkProgram(program)
 
 	var status int32
@@ -56,20 +60,44 @@ func CreateProgram(vertShader, fragShader uint32) (uint32, error) {
 	return program, nil
 }
 
-func CreateProgramFromSources(vertSource string, fragSource string) (uint32, error) {
-	vert, err := CreateShader(vertSource, gl.VERTEX_SHADER)
-	if err != nil {
-		return 0, fmt.Errorf("vertex shader: %w", err)
+// Recognized extensions: .frag, .vert, .geom
+func CreateProgramFromSources(fs fs.FS, paths ...string) (uint32, error) {
+	var shaders []uint32
+	for _, p := range paths {
+		var shaderType uint32
+		var shaderTypeName string
+		ext := path.Ext(p)
+		switch ext {
+		case ".frag":
+			shaderType = gl.FRAGMENT_SHADER
+			shaderTypeName = "fragment"
+		case ".vert":
+			shaderType = gl.VERTEX_SHADER
+			shaderTypeName = "vertex"
+		case ".geom":
+			shaderType = gl.GEOMETRY_SHADER
+			shaderTypeName = "geometry"
+		default:
+			return 0, fmt.Errorf("\"%v\": unknown shader extension \"%v\"", p, ext)
+		}
+		r, err := fs.Open(p)
+		if err != nil {
+			return 0, fmt.Errorf("opening \"%v\": %w", p, err)
+		}
+		defer r.Close()
+		data, err := io.ReadAll(r)
+		if err != nil {
+			return 0, fmt.Errorf("reading \"%v\": %w", p, err)
+		}
+		shader, err := CreateShader(string(data), shaderType)
+		if err != nil {
+			return 0, fmt.Errorf("%v shader: %w", shaderTypeName, err)
+		}
+		defer gl.DeleteShader(shader)
+		shaders = append(shaders, shader)
 	}
-	defer gl.DeleteShader(vert)
 
-	frag, err := CreateShader(fragSource, gl.FRAGMENT_SHADER)
-	if err != nil {
-		return 0, fmt.Errorf("fragment shader: %w", err)
-	}
-	defer gl.DeleteShader(frag)
-
-	program, err := CreateProgram(vert, frag)
+	program, err := CreateProgram(shaders...)
 	if err != nil {
 		return 0, fmt.Errorf("link shader program: %w", err)
 	}
