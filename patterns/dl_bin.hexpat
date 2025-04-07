@@ -25,6 +25,11 @@ struct MurmurHash {
 } [[format("formatHash")]];
 // end stingray.hexpat
 
+#define WEAPON_CUSTOMIZATION_OFFSET 0x70000
+#define UNIT_CUSTOMIZATION_OFFSET 0x60000
+#define HELLDIVER_CUSTOMIZATION_OFFSET 0xa0000
+#define ANIMATION_EVENT_TRIGGER_OFFSET 0x60000
+
 fn relative_to_parents_parent(u128 offset) {
     return addressof(parent.parent.parent);
 };
@@ -100,7 +105,7 @@ struct Pieces {
 struct Body {
     BodyType type;
     u32 unk01;
-    u32 offset = (std::mem::read_unsigned($, 4) & 0xfffff) - 0xa0000;
+    u32 offset = (std::mem::read_unsigned($, 4) & 0xfffff) - HELLDIVER_CUSTOMIZATION_OFFSET;
     $ += 4;
     u32 unk02;
     u32 count;
@@ -136,6 +141,7 @@ enum Passive : u32 {
     ACCLIMATED,
     SIEGE_READY,
     INTEGRATED_EXPLOSIVES,
+    GUNSLINGER,
 };
 
 fn passiveName(Passive passive) {
@@ -157,6 +163,7 @@ fn passiveName(Passive passive) {
         (Passive::ACCLIMATED): return "ACCLIMATED";
         (Passive::SIEGE_READY): return "SIEGE_READY";
         (Passive::INTEGRATED_EXPLOSIVES): return "INTEGRATED_EXPLOSIVES";
+        (Passive::GUNSLINGER): return "GUNSLINGER";
     }
     return "Very unknown!";
 };
@@ -193,7 +200,7 @@ struct HelldiverCustomizationKit {
     MurmurHash triad;
     KitType type;
     u32 unk01;
-    u32 offset = (std::mem::read_unsigned($, 4) & 0xfffff) - 0xa0000;
+    u32 offset = (std::mem::read_unsigned($, 4) & 0xfffff) - HELLDIVER_CUSTOMIZATION_OFFSET;
     $ += 4;
     u32 unk02;
     u32 count;
@@ -216,7 +223,7 @@ struct UIColors {
 };
 
 struct UnitCustomizationSkin {
-    u32 nameOffset = std::mem::read_unsigned($, 4) & 0xfffff;
+    u32 nameOffset = std::mem::read_unsigned($, 4) & 0xfffff - UNIT_CUSTOMIZATION_OFFSET;
     $ += 4;
     if (nameOffset != 0) {
         char debugName[] @nameOffset;
@@ -228,7 +235,7 @@ struct UnitCustomizationSkin {
     u32 name;
     u32 unk02;
     MurmurHash thumbnail;
-    u32 uiColorsOffset = std::mem::read_unsigned($, 4) & 0xfffff;
+    u32 uiColorsOffset = std::mem::read_unsigned($, 4) & 0xfffff - UNIT_CUSTOMIZATION_OFFSET;
     $ += 4;
     if (uiColorsOffset != 0) {
         UIColors uiColors @uiColorsOffset;
@@ -245,7 +252,7 @@ struct UnitCustomizationSetting {
     ThinMurmurHash skinName;
     u32 categoryType;
     u32 unk00;
-    u32 offset = std::mem::read_unsigned($, 4) & 0xfffff;
+    u32 offset = std::mem::read_unsigned($, 4) & 0xfffff - UNIT_CUSTOMIZATION_OFFSET;
     $ += 4;
     u32 unk01;
     u32 count;
@@ -271,7 +278,7 @@ enum WeaponCustomizationSlot : u32 {
 };
 
 struct WeaponCustomizationSetting {
-    u32 nameOffset = std::mem::read_unsigned($, 4) & 0xfffff - 0xb0000;
+    u32 nameOffset = std::mem::read_unsigned($, 4) & 0xfffff - WEAPON_CUSTOMIZATION_OFFSET;
     $ += 4;
     if (nameOffset != 0) {
         char debugName[] @nameOffset;
@@ -284,7 +291,7 @@ struct WeaponCustomizationSetting {
     u64 fluff;
     MurmurHash add_path;
     u64 unk01;
-    u32 slotOffset = std::mem::read_unsigned($, 4) & 0xfffff - 0xb0000;
+    u32 slotOffset = std::mem::read_unsigned($, 4) & 0xfffff - WEAPON_CUSTOMIZATION_OFFSET;
     $ += 4;
     u32 unk02;
     u32 count;
@@ -295,7 +302,7 @@ struct WeaponCustomizationSetting {
 };
 
 struct WeaponCustomizationSettingArray {
-    u32 offset = (std::mem::read_unsigned($, 4) & 0xfffff) - 0xb0000;
+    u32 offset = (std::mem::read_unsigned($, 4) & 0xfffff) - WEAPON_CUSTOMIZATION_OFFSET;
     $ += 4;
     u32 unk00;
     u32 count;
@@ -304,9 +311,62 @@ struct WeaponCustomizationSettingArray {
     padding[sizeof(settings)];
 };
 
+struct AnimationEventEffect {
+    MurmurHash particlePath;
+    float offset[3];
+    float rotationOffset[3];
+    u32 nodeID;
+    u32 triggerEmitEvent;
+    u32 linkOption;
+    u32 inheritRotation;
+    u32 linked;
+};
+
+struct AnimationEventCameraShake {
+    u32 shake;
+    u32 nodeID;
+    float offset[3];
+    float innerRadius;
+    float outerRadius;
+    u32 orphanPolicy;
+    u32 linked;
+};
+
+struct AnimationEventTrigger {
+    u32 animationEvent;
+    u32 soundEvent;
+    u32 ownerSpecificSoundEvent;
+    u32 soundNodeID;
+    AnimationEventEffect effect;
+    AnimationEventCameraShake cameraShake;
+    padding[32];
+};
+
+struct AnimationEventTriggerSettings {
+    MurmurHash path;
+    u32 offset = (std::mem::read_unsigned($, 4) & 0xfffff);
+    $ += 4;
+    u32 unk00;
+    u32 count;
+    u32 unk01;
+    if(offset != 0) {
+        AnimationEventTrigger data @offset;
+    }
+};
+
+struct AnimationEventTriggerSettingsArray {
+    u32 offset = (std::mem::read_unsigned($, 4) & 0xfffff);
+    $ += 4;
+    u32 unk00;
+    u32 count;
+    u32 unk01;
+    AnimationEventTriggerSettings settings[count] @offset;
+};
+
 enum DLItemType : u32 {
-    UnitCustomization = 0xa2ba274a,
+    AnimationEventTriggerSettings = 0x40ecaa07,
     ArmorCustomization = 0xd9a55aa0,
+    UnitCustomization = 0xa2ba274a,
     WeaponCustomization = 0x1e604234,
 };
 
@@ -318,8 +378,9 @@ struct DLItem {
     u32 unk02;
     u32 unk03;
     match(type) {
-        (DLItemType::UnitCustomization): UnitCustomizationSetting data;
+        (DLItemType::AnimationEventTriggerSettings): AnimationEventTriggerSettingsArray data;
         (DLItemType::ArmorCustomization): HelldiverCustomizationKit data;
+        (DLItemType::UnitCustomization): UnitCustomizationSetting data;
         (DLItemType::WeaponCustomization): WeaponCustomizationSettingArray data;
         (_): u8 data[size];
     }

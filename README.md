@@ -29,7 +29,7 @@ You only need to keep it in the folder if you don't have it installed on your co
 </details>
 
 ### Helper scripts (scripts_dist)
-- [Windows (64-bit)](https://github.com/xypwn/filediver/releases/latest/download/scripts_dist_windows.zip)
+- [Windows (64-bit)](https://github.com/xypwn/filediver/releases/latest/download/scripts-dist-windows.zip)
 
 **Extract the helper scripts achive into the `filediver` folder (the same folder containing the executable, e.g. `filediver.exe`).**
 
