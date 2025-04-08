@@ -173,7 +173,7 @@ var ConfigFormat = ConfigTemplate{
 			Options: map[string]ConfigTemplateOption{
 				"format": {
 					Type: ConfigValueEnum,
-					Enum: []string{"source"},
+					Enum: []string{"source", "main", "stream", "gpu", "combined"},
 				},
 			},
 			DefaultDisabled: true,
@@ -586,6 +586,26 @@ func (c *extractContext) Warnf(f string, a ...any) {
 	c.printer.Warnf("extract %v.%v: %v", name, typ, fmt.Sprintf(f, a...))
 }
 
+func getSourceExtractFunc(extrCfg Config, typ string) (extr extractor.ExtractFunc) {
+	rawCfg := extrCfg["raw"]
+	if rawCfg == nil {
+		rawCfg = make(map[string]string)
+	}
+	switch rawCfg["format"] {
+	case "main":
+		extr = extractor.ExtractFuncRawSingleType(typ, stingray.DataMain)
+	case "stream":
+		extr = extractor.ExtractFuncRawSingleType(typ, stingray.DataStream)
+	case "gpu":
+		extr = extractor.ExtractFuncRawSingleType(typ, stingray.DataGPU)
+	case "combined":
+		extr = extractor.ExtractFuncRawCombined(typ)
+	default:
+		extr = extractor.ExtractFuncRaw(typ)
+	}
+	return
+}
+
 // Returns path to extracted file/directory.
 func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string, extrCfg Config, runner *exec.Runner, gltfDoc *gltf.Document, printer *Printer) ([]string, error) {
 	name, typ := a.LookupHash(id.Name), a.LookupHash(id.Type)
@@ -602,7 +622,7 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 
 	var extr extractor.ExtractFunc
 	if cfg["format"] == "source" {
-		extr = extractor.ExtractFuncRaw(typ)
+		extr = getSourceExtractFunc(extrCfg, typ)
 	} else {
 		switch typ {
 		case "bik":
@@ -638,7 +658,7 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 		case "package":
 			extr = extr_package.ExtractPackageJSON
 		default:
-			extr = extractor.ExtractFuncRaw(typ)
+			extr = getSourceExtractFunc(extrCfg, typ)
 		}
 	}
 

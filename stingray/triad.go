@@ -36,6 +36,19 @@ func (t DataType) String() string {
 	}
 }
 
+func (t DataType) Extension() string {
+	switch t {
+	case DataMain:
+		return "main"
+	case DataStream:
+		return "stream"
+	case DataGPU:
+		return "gpu"
+	default:
+		panic("unhandled case")
+	}
+}
+
 type FileID struct {
 	Name Hash
 	Type Hash
