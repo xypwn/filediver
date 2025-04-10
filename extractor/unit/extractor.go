@@ -447,12 +447,10 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 	var meshNodes []uint32 = make([]uint32, 0)
 
 	if unitInfo.GeometryGroup.Value != 0x0 {
-		err := loadGeometryGroupMeshes(ctx, gltfDoc, unitInfo, &meshNodes)
+		err := loadGeometryGroupMeshes(ctx, doc, unitInfo, &meshNodes, materialIdxs, *parent)
 		if err != nil {
 			return err
 		}
-		// FIXME
-		return nil
 	} else {
 		var meshes map[uint32]unit.Mesh
 		allMeshes := make([]uint32, unitInfo.NumMeshes)
@@ -689,7 +687,7 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 	return nil
 }
 
-func loadGeometryGroupMeshes(ctx extractor.Context, gltfDoc *gltf.Document, unitInfo *unit.Info, meshNodes *[]uint32) error {
+func loadGeometryGroupMeshes(ctx extractor.Context, gltfDoc *gltf.Document, unitInfo *unit.Info, meshNodes *[]uint32, materialIndices map[stingray.ThinHash]uint32, parent uint32) error {
 	geoRes, exists := ctx.GetResource(unitInfo.GeometryGroup, stingray.Sum64([]byte("geometry_group")))
 	if !exists {
 		return fmt.Errorf("%v.geometry_group does not exist", unitInfo.GeometryGroup.String())
@@ -706,12 +704,13 @@ func loadGeometryGroupMeshes(ctx extractor.Context, gltfDoc *gltf.Document, unit
 	}
 
 	geoInfo, ok := geoGroup.MeshInfos[ctx.File().ID().Name]
+	var unitName string
 	if !ok {
-		name, ok := ctx.Hashes()[ctx.File().ID().Name]
+		unitName, ok := ctx.Hashes()[ctx.File().ID().Name]
 		if !ok {
-			name = ctx.File().ID().Name.String()
+			unitName = ctx.File().ID().Name.String()
 		}
-		return fmt.Errorf("%v.geometry_group does not contain %v.unit", unitInfo.GeometryGroup.String(), name)
+		return fmt.Errorf("%v.geometry_group does not contain %v.unit", unitInfo.GeometryGroup.String(), unitName)
 	}
 
 	fmt.Printf("\nUnit materials:\n")
@@ -761,7 +760,206 @@ func loadGeometryGroupMeshes(ctx extractor.Context, gltfDoc *gltf.Document, unit
 		}
 	}
 
+	fmt.Printf("\nGeometryGroup layouts:\n")
+	for i, layout := range geoGroup.MeshLayouts {
+		fmt.Printf("    Layout %v:\n", i)
+		fmt.Printf("      %v vertices\n", layout.NumVertices)
+		fmt.Printf("      %v vertex size\n", layout.PositionsSize)
+		fmt.Printf("      %08x vertex offset\n", layout.VertexOffset)
+		fmt.Printf("      %v indices\n", layout.NumIndices)
+		fmt.Printf("      %v index size\n", layout.IndicesSize)
+		fmt.Printf("      %08x index offset\n", layout.IndexOffset)
+	}
+
+	gpuR, err := geoRes.Open(ctx.Ctx(), stingray.DataGPU)
+	if err != nil {
+		return err
+	}
+	defer gpuR.Close()
+
+	var vertexBuffer uint32
+	var indexBuffer uint32
+
+	for i, header := range geoInfo.MeshHeaders {
+		if header.MeshLayoutIndex >= uint32(len(geoGroup.MeshLayouts)) {
+			return fmt.Errorf("MeshLayoutIndex out of bounds")
+		}
+		layout := geoGroup.MeshLayouts[header.MeshLayoutIndex]
+		ensurePadding(gltfDoc)
+		buffer := lastBuffer(gltfDoc)
+		offset := uint32(len(buffer.Data))
+		buffer.ByteLength += layout.PositionsSize
+		dataOffset := offset
+		buffer.Data = append(buffer.Data, make([]byte, layout.PositionsSize)...)
+		if _, err := gpuR.Seek(int64(layout.VertexOffset), io.SeekStart); err != nil {
+			return err
+		}
+		var read int
+		if read, err = gpuR.Read(buffer.Data[dataOffset:]); err != nil {
+			return err
+		}
+		if read != int(layout.PositionsSize) {
+			return fmt.Errorf("Read an unexpected amount of data when copying geometry group vertices")
+		}
+
+		gltfDoc.BufferViews = append(gltfDoc.BufferViews, &gltf.BufferView{
+			Buffer:     uint32(len(gltfDoc.Buffers)) - 1,
+			ByteLength: layout.PositionsSize,
+			ByteOffset: offset,
+			ByteStride: layout.VertexStride,
+			Target:     gltf.TargetArrayBuffer,
+		})
+
+		vertexBuffer = uint32(len(gltfDoc.BufferViews) - 1)
+
+		attributes := make(gltf.Attribute)
+
+		byteOffset := 0
+		for j := 0; j < int(layout.NumItems); j++ {
+			item := &layout.Items[j]
+			gltfDoc.Accessors = append(gltfDoc.Accessors, &gltf.Accessor{
+				BufferView:    gltf.Index(uint32(len(gltfDoc.BufferViews)) - 1),
+				ByteOffset:    uint32(byteOffset),
+				ComponentType: item.Format.ComponentType(),
+				Type:          item.Format.Type(),
+				Count:         layout.NumVertices,
+			})
+			byteOffset += layout.Items[j].Format.Size()
+			switch layout.Items[j].Type {
+			case unit.ItemPosition:
+				attributes[gltf.POSITION] = uint32(len(gltfDoc.Accessors)) - 1
+			// case unit.ItemNormal:
+			// 	attributes[gltf.NORMAL] = uint32(len(gltfDoc.Accessors)) - 1
+			case unit.ItemUVCoords:
+				attributes[fmt.Sprintf("TEXCOORD_%v", item.Layer)] = uint32(len(gltfDoc.Accessors)) - 1
+				gltfDoc.Accessors[uint32(len(gltfDoc.Accessors))-1].Normalized = true
+			case unit.ItemBoneIdx:
+				attributes[gltf.JOINTS_0] = uint32(len(gltfDoc.Accessors)) - 1
+			case unit.ItemBoneWeight:
+				attributes[gltf.WEIGHTS_0] = uint32(len(gltfDoc.Accessors)) - 1
+				gltfDoc.Accessors[uint32(len(gltfDoc.Accessors))-1].Normalized = true
+			}
+		}
+
+		dataOffset = uint32(len(buffer.Data))
+		buffer.ByteLength += layout.IndicesSize
+		buffer.Data = append(buffer.Data, make([]byte, layout.IndicesSize)...)
+		if _, err := gpuR.Seek(int64(layout.IndexOffset), io.SeekStart); err != nil {
+			return err
+		}
+		if read, err = gpuR.Read(buffer.Data[dataOffset:]); err != nil {
+			return err
+		}
+		if read != int(layout.IndicesSize) {
+			return fmt.Errorf("Read an unexpected amount of data when copying geometry group indices")
+		}
+
+		indexStride := layout.IndicesSize / layout.NumIndices
+		indexType := gltf.ComponentUshort
+		if indexStride == 4 {
+			indexType = gltf.ComponentUint
+		}
+
+		gltfDoc.BufferViews = append(gltfDoc.BufferViews, &gltf.BufferView{
+			Buffer:     uint32(len(gltfDoc.Buffers)) - 1,
+			ByteLength: layout.IndicesSize,
+			ByteOffset: dataOffset,
+			Target:     gltf.TargetElementArrayBuffer,
+		})
+
+		indexBuffer = uint32(len(gltfDoc.BufferViews) - 1)
+
+		gltfDoc.Accessors = append(gltfDoc.Accessors, &gltf.Accessor{
+			BufferView:    gltf.Index(uint32(len(gltfDoc.BufferViews)) - 1),
+			ByteOffset:    0,
+			ComponentType: indexType,
+			Type:          gltf.AccessorScalar,
+			Count:         layout.NumIndices,
+		})
+
+		for j, group := range header.Groups {
+			groupAttr := make(gltf.Attribute)
+			gltfDoc.BufferViews = append(gltfDoc.BufferViews, &gltf.BufferView{
+				Buffer:     uint32(len(gltfDoc.Buffers)) - 1,
+				ByteOffset: group.VertexOffset*gltfDoc.BufferViews[vertexBuffer].ByteStride + gltfDoc.BufferViews[vertexBuffer].ByteOffset,
+				ByteLength: group.NumVertices * gltfDoc.BufferViews[vertexBuffer].ByteStride,
+				ByteStride: gltfDoc.BufferViews[vertexBuffer].ByteStride,
+				Target:     gltf.TargetArrayBuffer,
+			})
+			for key, index := range attributes {
+				gltfDoc.Accessors = append(gltfDoc.Accessors, &gltf.Accessor{
+					BufferView:    gltf.Index(uint32(len(gltfDoc.BufferViews)) - 1),
+					ByteOffset:    gltfDoc.Accessors[index].ByteOffset,
+					ComponentType: gltfDoc.Accessors[index].ComponentType,
+					Type:          gltfDoc.Accessors[index].Type,
+					Count:         group.NumVertices,
+				})
+				groupAttr[key] = uint32(len(gltfDoc.Accessors)) - 1
+			}
+			gltfDoc.BufferViews = append(gltfDoc.BufferViews, &gltf.BufferView{
+				Buffer:     uint32(len(gltfDoc.Buffers)) - 1,
+				ByteOffset: group.IndexOffset*indexStride + gltfDoc.BufferViews[indexBuffer].ByteOffset,
+				ByteLength: group.NumIndices * indexStride,
+				Target:     gltf.TargetElementArrayBuffer,
+			})
+			gltfDoc.Accessors = append(gltfDoc.Accessors, &gltf.Accessor{
+				BufferView:    gltf.Index(uint32(len(gltfDoc.BufferViews)) - 1),
+				ByteOffset:    0,
+				ComponentType: indexType,
+				Type:          gltf.AccessorScalar,
+				Count:         group.NumIndices,
+			})
+
+			var material *uint32
+			materialVal, ok := materialIndices[header.Materials[j]]
+			if ok {
+				material = &materialVal
+			}
+
+			primitives := make([]*gltf.Primitive, 0, 1)
+			primitives = append(primitives, &gltf.Primitive{
+				Attributes: groupAttr,
+				Indices:    gltf.Index(uint32(len(gltfDoc.Accessors)) - 1),
+				Material:   material,
+			})
+
+			gltfDoc.Meshes = append(gltfDoc.Meshes, &gltf.Mesh{
+				Primitives: primitives,
+			})
+
+			gltfDoc.Nodes = append(gltfDoc.Nodes, &gltf.Node{
+				Name: fmt.Sprintf("%v Header %v Group %v", unitName, i, j),
+				Mesh: gltf.Index(uint32(len(gltfDoc.Meshes)) - 1),
+			})
+			node := uint32(len(gltfDoc.Nodes)) - 1
+			gltfDoc.Nodes[parent].Children = append(gltfDoc.Nodes[parent].Children, node)
+			*meshNodes = append(*meshNodes, node)
+		}
+	}
+
 	return nil
+}
+
+func ensurePadding(doc *gltf.Document) {
+	buffer := lastBuffer(doc)
+	padding := getPadding(uint32(len(buffer.Data)))
+	buffer.Data = append(buffer.Data, make([]byte, padding)...)
+	buffer.ByteLength += padding
+}
+
+func lastBuffer(doc *gltf.Document) *gltf.Buffer {
+	if len(doc.Buffers) == 0 {
+		doc.Buffers = append(doc.Buffers, new(gltf.Buffer))
+	}
+	return doc.Buffers[len(doc.Buffers)-1]
+}
+
+func getPadding(offset uint32) uint32 {
+	padAlign := offset % 4
+	if padAlign == 0 {
+		return 0
+	}
+	return 4 - padAlign
 }
 
 func getImgOpts(ctx extractor.Context) (*extr_material.ImageOptions, error) {

@@ -132,7 +132,7 @@ func LoadGeometryGroup(mainR io.ReadSeeker) (*GeometryGroup, error) {
 		return nil, err
 	}
 
-	meshLayouts := make([]unit.MeshLayout, layoutCount)
+	meshLayouts := make([]unit.MeshLayout, 0, layoutCount)
 	for _, offset := range layoutOffsets {
 		if _, err := mainR.Seek(int64(offset+hdr.MeshLayoutListOffset), io.SeekStart); err != nil {
 			return nil, err

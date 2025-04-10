@@ -7,6 +7,7 @@ import (
 	"io"
 
 	"github.com/go-gl/mathgl/mgl32"
+	"github.com/qmuntal/gltf"
 
 	"github.com/x448/float16"
 	"github.com/xypwn/filediver/stingray"
@@ -188,6 +189,135 @@ func (v MeshLayoutItemFormat) String() string {
 		return "[4]float16"
 	default:
 		return fmt.Sprint(uint32(v))
+	}
+}
+
+func (v MeshLayoutItemFormat) Size() int {
+	switch v {
+	case FormatF32:
+		return 4
+	case FormatVec2F:
+		return 8
+	case FormatVec3F:
+		return 12
+	case FormatVec4F:
+		return 16
+	case FormatU32:
+		return 4
+	case FormatVec2U32:
+		return 8
+	case FormatVec3U32:
+		return 12
+	case FormatVec4U32:
+		return 16
+	case FormatS8:
+		return 1
+	case FormatVec2S8:
+		return 2
+	case FormatVec3S8:
+		return 3
+	case FormatVec4S8:
+		return 4
+	case FormatVec4R10G10B10A2_TYPELESS:
+		return 4
+	case FormatVec4R10G10B10A2_UNORM:
+		return 4
+	case FormatF16:
+		return 2
+	case FormatVec2F16:
+		return 4
+	case FormatVec3F16:
+		return 6
+	case FormatVec4F16:
+		return 8
+	default:
+		return -1
+	}
+}
+
+func (v MeshLayoutItemFormat) ComponentType() gltf.ComponentType {
+	switch v {
+	case FormatF32:
+		return gltf.ComponentFloat
+	case FormatVec2F:
+		return gltf.ComponentFloat
+	case FormatVec3F:
+		return gltf.ComponentFloat
+	case FormatVec4F:
+		return gltf.ComponentFloat
+	case FormatU32:
+		return gltf.ComponentUint
+	case FormatVec2U32:
+		return gltf.ComponentUint
+	case FormatVec3U32:
+		return gltf.ComponentUint
+	case FormatVec4U32:
+		return gltf.ComponentUint
+	case FormatS8:
+		return gltf.ComponentUbyte
+	case FormatVec2S8:
+		return gltf.ComponentUbyte
+	case FormatVec3S8:
+		return gltf.ComponentUbyte
+	case FormatVec4S8:
+		return gltf.ComponentUbyte
+	case FormatVec4R10G10B10A2_TYPELESS:
+		return gltf.ComponentUbyte
+	case FormatVec4R10G10B10A2_UNORM:
+		return gltf.ComponentUbyte
+	case FormatF16:
+		return gltf.ComponentUshort
+	case FormatVec2F16:
+		return gltf.ComponentUshort
+	case FormatVec3F16:
+		return gltf.ComponentUshort
+	case FormatVec4F16:
+		return gltf.ComponentUshort
+	default:
+		return gltf.ComponentByte
+	}
+}
+
+func (v MeshLayoutItemFormat) Type() gltf.AccessorType {
+	switch v {
+	case FormatF32:
+		return gltf.AccessorScalar
+	case FormatVec2F:
+		return gltf.AccessorVec2
+	case FormatVec3F:
+		return gltf.AccessorVec3
+	case FormatVec4F:
+		return gltf.AccessorVec4
+	case FormatU32:
+		return gltf.AccessorScalar
+	case FormatVec2U32:
+		return gltf.AccessorVec2
+	case FormatVec3U32:
+		return gltf.AccessorVec3
+	case FormatVec4U32:
+		return gltf.AccessorVec4
+	case FormatS8:
+		return gltf.AccessorScalar
+	case FormatVec2S8:
+		return gltf.AccessorVec2
+	case FormatVec3S8:
+		return gltf.AccessorVec3
+	case FormatVec4S8:
+		return gltf.AccessorVec4
+	case FormatVec4R10G10B10A2_TYPELESS:
+		return gltf.AccessorVec4
+	case FormatVec4R10G10B10A2_UNORM:
+		return gltf.AccessorVec4
+	case FormatF16:
+		return gltf.AccessorScalar
+	case FormatVec2F16:
+		return gltf.AccessorVec2
+	case FormatVec3F16:
+		return gltf.AccessorVec3
+	case FormatVec4F16:
+		return gltf.AccessorVec4
+	default:
+		return gltf.AccessorScalar
 	}
 }
 
