@@ -19,6 +19,7 @@ import (
 	"github.com/xypwn/filediver/stingray/bones"
 	dlbin "github.com/xypwn/filediver/stingray/dl_bin"
 	"github.com/xypwn/filediver/stingray/unit"
+	geometrygroup "github.com/xypwn/filediver/stingray/unit/geometry_group"
 	"github.com/xypwn/filediver/stingray/unit/material"
 )
 
@@ -443,9 +444,17 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 		}
 	}
 
-	var meshes map[uint32]unit.Mesh
+	var meshNodes []uint32 = make([]uint32, 0)
 
-	if ctx.Config()["bounding_boxes"] == "true" {
+	if unitInfo.GeometryGroup.Value != 0x0 {
+		err := loadGeometryGroupMeshes(ctx, gltfDoc, unitInfo, &meshNodes)
+		if err != nil {
+			return err
+		}
+		// FIXME
+		return nil
+	} else {
+		var meshes map[uint32]unit.Mesh
 		allMeshes := make([]uint32, unitInfo.NumMeshes)
 		for i := range allMeshes {
 			allMeshes[i] = uint32(i)
@@ -455,196 +464,190 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 			return err
 		}
 
-		for i, mesh := range meshes {
-			addBoundingBox(doc, fmt.Sprintf("Mesh %d Bounding Box", i), mesh, unitInfo, armorSetName)
-		}
-	} else {
-		// Load meshes
-		meshes, err = unit.LoadMeshes(fGPU, unitInfo, meshesToLoad)
-		if err != nil {
-			return err
-		}
-	}
-
-	var meshNodes []uint32 = make([]uint32, 0)
-
-	for meshDisplayNumber, meshID := range meshesToLoad {
-		if meshID >= unitInfo.NumMeshes {
-			panic("meshID out of bounds")
-		}
-
-		mesh := meshes[meshID]
-		if len(mesh.UVCoords) == 0 {
-			continue
-		}
-
-		var groupBoneIdx *uint32 = nil
-		var meshNameBoneIdx *uint32 = nil
-		// Extract some bone indices used even if skeletons are disabled
-		transformBoneIdx := mesh.Info.Header.TransformIdx
-		parentIdx := -1
-		fbxConvertIdx := -1
-		gameMeshHash := stingray.Sum64([]byte("game_mesh")).Thin()
-		fbxConvertHash := stingray.Sum64([]byte("FbxAxisSystem_ConvertNode")).Thin()
-		for boneIdx, bone := range unitInfo.Bones {
-			if bone.NameHash == gameMeshHash {
-				parentIdx = int(boneIdx)
-			}
-			if bone.NameHash == fbxConvertHash {
-				fbxConvertIdx = int(boneIdx)
-			}
-			if bone.ParentIndex == uint32(parentIdx) && bone.NameHash == mesh.Info.Header.GroupBoneHash {
-				transformBoneIdx = uint32(boneIdx)
-			}
-			if bone.ParentIndex == uint32(fbxConvertIdx) {
-				meshNameBoneIdx = gltf.Index(uint32(boneIdx))
+		if ctx.Config()["bounding_boxes"] == "true" {
+			for i, mesh := range meshes {
+				addBoundingBox(doc, fmt.Sprintf("Mesh %d Bounding Box", i), mesh, unitInfo, armorSetName)
 			}
 		}
 
-		// Apply vertex transform
-		if bonesEnabled {
-			groupBoneIdx = &unitInfo.Bones[transformBoneIdx].ParentIndex
-			transformMatrix := unitInfo.Bones[transformBoneIdx].Matrix
-			// If translation, rotation, and scale are identities, use the TransformIndex instead
-			if transformMatrix.ApproxEqual(mgl32.Ident4()) {
-				transformMatrix = unitInfo.Bones[mesh.Info.Header.TransformIdx].Matrix
+		for meshDisplayNumber, meshID := range meshesToLoad {
+			if meshID >= unitInfo.NumMeshes {
+				panic("meshID out of bounds")
 			}
-			if !transformMatrix.ApproxEqual(mgl32.Ident4()) {
-				// Apply transformations
+
+			mesh := meshes[meshID]
+			if len(mesh.UVCoords) == 0 {
+				continue
+			}
+
+			var groupBoneIdx *uint32 = nil
+			var meshNameBoneIdx *uint32 = nil
+			// Extract some bone indices used even if skeletons are disabled
+			transformBoneIdx := mesh.Info.Header.TransformIdx
+			parentIdx := -1
+			fbxConvertIdx := -1
+			gameMeshHash := stingray.Sum64([]byte("game_mesh")).Thin()
+			fbxConvertHash := stingray.Sum64([]byte("FbxAxisSystem_ConvertNode")).Thin()
+			for boneIdx, bone := range unitInfo.Bones {
+				if bone.NameHash == gameMeshHash {
+					parentIdx = int(boneIdx)
+				}
+				if bone.NameHash == fbxConvertHash {
+					fbxConvertIdx = int(boneIdx)
+				}
+				if bone.ParentIndex == uint32(parentIdx) && bone.NameHash == mesh.Info.Header.GroupBoneHash {
+					transformBoneIdx = uint32(boneIdx)
+				}
+				if bone.ParentIndex == uint32(fbxConvertIdx) {
+					meshNameBoneIdx = gltf.Index(uint32(boneIdx))
+				}
+			}
+
+			// Apply vertex transform
+			if bonesEnabled {
+				groupBoneIdx = &unitInfo.Bones[transformBoneIdx].ParentIndex
+				transformMatrix := unitInfo.Bones[transformBoneIdx].Matrix
+				// If translation, rotation, and scale are identities, use the TransformIndex instead
+				if transformMatrix.ApproxEqual(mgl32.Ident4()) {
+					transformMatrix = unitInfo.Bones[mesh.Info.Header.TransformIdx].Matrix
+				}
+				if !transformMatrix.ApproxEqual(mgl32.Ident4()) {
+					// Apply transformations
+					for i := range mesh.Positions {
+						p := mgl32.Vec3(mesh.Positions[i])
+						p = transformMatrix.Mul4x1(p.Vec4(1)).Vec3()
+						mesh.Positions[i] = p
+					}
+					if transformMatrix.Det() < 0 {
+						// If the matrix flips the vertices, we need to flip the normals
+						// Reversing the indices accomplishes this task
+						for i := range mesh.Indices {
+							slices.Reverse(mesh.Indices[i])
+						}
+					}
+				}
+			}
+
+			// Transform coordinates into glTF ones
+			fbxTransformMatrix := mgl32.Ident4()
+			if fbxConvertIdx != -1 {
+				fbxTransformMatrix = unitInfo.Bones[fbxConvertIdx].Matrix
+			}
+			if fbxTransformMatrix.ApproxEqual(mgl32.Ident4()) {
+				// tbh should probably invert the fbx transform and combine with this, but... this should be fine
 				for i := range mesh.Positions {
-					p := mgl32.Vec3(mesh.Positions[i])
-					p = transformMatrix.Mul4x1(p.Vec4(1)).Vec3()
+					p := mesh.Positions[i]
+					p[1], p[2] = p[2], -p[1]
 					mesh.Positions[i] = p
-				}
-				if transformMatrix.Det() < 0 {
-					// If the matrix flips the vertices, we need to flip the normals
-					// Reversing the indices accomplishes this task
-					for i := range mesh.Indices {
-						slices.Reverse(mesh.Indices[i])
-					}
-				}
-			}
-		}
 
-		// Transform coordinates into glTF ones
-		fbxTransformMatrix := mgl32.Ident4()
-		if fbxConvertIdx != -1 {
-			fbxTransformMatrix = unitInfo.Bones[fbxConvertIdx].Matrix
-		}
-		if fbxTransformMatrix.ApproxEqual(mgl32.Ident4()) {
-			// tbh should probably invert the fbx transform and combine with this, but... this should be fine
-			for i := range mesh.Positions {
-				p := mesh.Positions[i]
-				p[1], p[2] = p[2], -p[1]
-				mesh.Positions[i] = p
-
-				n := mesh.Normals[i]
-				n[1], n[2] = n[2], -n[1]
-				mesh.Normals[i] = n
-			}
-		}
-
-		var weights *uint32 = nil
-		var joints *uint32 = nil
-
-		if bonesEnabled && len(mesh.BoneWeights) > 0 {
-			if len(unitInfo.SkeletonMaps) > 0 && mesh.Info.Header.SkeletonMapIdx >= 0 {
-				if err := remapMeshBones(&mesh, unitInfo.SkeletonMaps[mesh.Info.Header.SkeletonMapIdx]); err != nil {
-					return err
-				}
-			}
-			weights = gltf.Index(modeler.WriteWeights(doc, mesh.BoneWeights))
-			joints = gltf.Index(modeler.WriteJoints(doc, mesh.BoneIndices[0]))
-		}
-
-		positions := modeler.WritePosition(doc, mesh.Positions)
-		normals := modeler.WriteAccessor(doc, gltf.TargetArrayBuffer, mesh.Normals)
-		var texCoords []uint32 = make([]uint32, len(mesh.UVCoords))
-		for i := range mesh.UVCoords {
-			texCoords[i] = modeler.WriteTextureCoord(doc, mesh.UVCoords[i])
-		}
-		var lodName string
-		if len(meshesToLoad) > 1 {
-			lodName = fmt.Sprintf("LOD %v", meshDisplayNumber)
-		}
-
-		var groupName string
-		var meshName string
-		if groupBoneIdx != nil && skin != nil && meshNameBoneIdx != nil {
-			meshName = strings.TrimPrefix(doc.Nodes[doc.Skins[*skin].Joints[*meshNameBoneIdx]].Name, "Bone_")
-			groupName = strings.TrimPrefix(doc.Nodes[doc.Skins[*skin].Joints[*groupBoneIdx]].Name, "grp_") + " "
-		}
-
-		for i := range mesh.Indices {
-			var componentName string = fmt.Sprintf("%smesh %v", groupName, i)
-			if metadata != nil {
-				componentName = fmt.Sprintf("%s_%s_%s mesh %v", metadata.Slot.String(), metadata.Type.String(), metadata.BodyType.String(), i)
-			} else {
-				if lodName != "" {
-					componentName = lodName + " " + componentName
-				}
-				if meshName != "" {
-					componentName = meshName + " " + componentName
+					n := mesh.Normals[i]
+					n[1], n[2] = n[2], -n[1]
+					mesh.Normals[i] = n
 				}
 			}
 
-			var material *uint32
-			if len(mesh.Info.Materials) > int(mesh.Info.Groups[i].GroupIdx) {
-				if idx, ok := materialIdxs[mesh.Info.Materials[int(mesh.Info.Groups[i].GroupIdx)]]; ok {
-					material = gltf.Index(idx)
+			var weights *uint32 = nil
+			var joints *uint32 = nil
+
+			if bonesEnabled && len(mesh.BoneWeights) > 0 {
+				if len(unitInfo.SkeletonMaps) > 0 && mesh.Info.Header.SkeletonMapIdx >= 0 {
+					if err := remapMeshBones(&mesh, unitInfo.SkeletonMaps[mesh.Info.Header.SkeletonMapIdx]); err != nil {
+						return err
+					}
 				}
+				weights = gltf.Index(modeler.WriteWeights(doc, mesh.BoneWeights))
+				joints = gltf.Index(modeler.WriteJoints(doc, mesh.BoneIndices[0]))
 			}
 
-			if ctx.Config()["join_components"] == "true" {
-				indices := gltf.Index(modeler.WriteIndices(doc, mesh.Indices[i]))
-				nodeIdx := writeMesh(ctx, doc, componentName, indices, positions, normals, texCoords, material, joints, weights, skin, armorSetName)
+			positions := modeler.WritePosition(doc, mesh.Positions)
+			normals := modeler.WriteAccessor(doc, gltf.TargetArrayBuffer, mesh.Normals)
+			var texCoords []uint32 = make([]uint32, len(mesh.UVCoords))
+			for i := range mesh.UVCoords {
+				texCoords[i] = modeler.WriteTextureCoord(doc, mesh.UVCoords[i])
+			}
+			var lodName string
+			if len(meshesToLoad) > 1 {
+				lodName = fmt.Sprintf("LOD %v", meshDisplayNumber)
+			}
 
-				doc.Scenes[0].Nodes = append(doc.Scenes[0].Nodes, nodeIdx)
-				if skin == nil {
-					doc.Nodes[*parent].Children = append(doc.Nodes[*parent].Children, nodeIdx)
-				}
-				meshNodes = append(meshNodes, nodeIdx)
-			} else {
-				var components map[uint32][]uint32 = make(map[uint32][]uint32)
-				make_key := func(uv [2]float32) uint32 {
-					key := (uint32(uv[0]) & 0x1f) | (uint32(uv[1]) << 5)
-					if uv[1] < 0 {
-						key = (uint32(uv[0]) & 0x1f) | (uint32(-uv[1]+1) << 5)
+			var groupName string
+			var meshName string
+			if groupBoneIdx != nil && skin != nil && meshNameBoneIdx != nil {
+				meshName = strings.TrimPrefix(doc.Nodes[doc.Skins[*skin].Joints[*meshNameBoneIdx]].Name, "Bone_")
+				groupName = strings.TrimPrefix(doc.Nodes[doc.Skins[*skin].Joints[*groupBoneIdx]].Name, "grp_") + " "
+			}
+
+			for i := range mesh.Indices {
+				var componentName string = fmt.Sprintf("%smesh %v", groupName, i)
+				if metadata != nil {
+					componentName = fmt.Sprintf("%s_%s_%s mesh %v", metadata.Slot.String(), metadata.Type.String(), metadata.BodyType.String(), i)
+				} else {
+					if lodName != "" {
+						componentName = lodName + " " + componentName
 					}
-					return key
-				}
-				for j := range mesh.Indices[i] {
-					if j%3 != 0 || mesh.Indices[i][j] >= uint32(len(mesh.UVCoords[0])) || mesh.Indices[i][j+1] >= uint32(len(mesh.UVCoords[0])) || mesh.Indices[i][j+2] >= uint32(len(mesh.UVCoords[0])) {
-						continue
+					if meshName != "" {
+						componentName = meshName + " " + componentName
 					}
-					// Need to use all three sets of uvs since there are cases where
-					// 2 of the vertices will be at X.00 and the third could be at (X-1).99
-					// or at X.01, and we need to use the minimum of the three to avoid
-					// stray triangles
-					key0 := make_key(mesh.UVCoords[0][mesh.Indices[i][j]])
-					key1 := make_key(mesh.UVCoords[0][mesh.Indices[i][j+1]])
-					key2 := make_key(mesh.UVCoords[0][mesh.Indices[i][j+2]])
-					key := key0
-					if key1 < key {
-						key = key1
-					}
-					if key2 < key {
-						key = key2
-					}
-					components[key] = append(components[key], mesh.Indices[i][j], mesh.Indices[i][j+1], mesh.Indices[i][j+2])
 				}
 
-				componentNum := 0
-				for _, componentIndices := range components {
-					indices := gltf.Index(modeler.WriteIndices(doc, componentIndices))
-					nodeIdx := writeMesh(ctx, doc, fmt.Sprintf("%s cmp %v", componentName, componentNum), indices, positions, normals, texCoords, material, joints, weights, skin, armorSetName)
+				var material *uint32
+				if len(mesh.Info.Materials) > int(mesh.Info.Groups[i].GroupIdx) {
+					if idx, ok := materialIdxs[mesh.Info.Materials[int(mesh.Info.Groups[i].GroupIdx)]]; ok {
+						material = gltf.Index(idx)
+					}
+				}
+
+				if ctx.Config()["join_components"] == "true" {
+					indices := gltf.Index(modeler.WriteIndices(doc, mesh.Indices[i]))
+					nodeIdx := writeMesh(ctx, doc, componentName, indices, positions, normals, texCoords, material, joints, weights, skin, armorSetName)
 
 					doc.Scenes[0].Nodes = append(doc.Scenes[0].Nodes, nodeIdx)
 					if skin == nil {
 						doc.Nodes[*parent].Children = append(doc.Nodes[*parent].Children, nodeIdx)
 					}
 					meshNodes = append(meshNodes, nodeIdx)
-					componentNum += 1
+				} else {
+					var components map[uint32][]uint32 = make(map[uint32][]uint32)
+					make_key := func(uv [2]float32) uint32 {
+						key := (uint32(uv[0]) & 0x1f) | (uint32(uv[1]) << 5)
+						if uv[1] < 0 {
+							key = (uint32(uv[0]) & 0x1f) | (uint32(-uv[1]+1) << 5)
+						}
+						return key
+					}
+					for j := range mesh.Indices[i] {
+						if j%3 != 0 || mesh.Indices[i][j] >= uint32(len(mesh.UVCoords[0])) || mesh.Indices[i][j+1] >= uint32(len(mesh.UVCoords[0])) || mesh.Indices[i][j+2] >= uint32(len(mesh.UVCoords[0])) {
+							continue
+						}
+						// Need to use all three sets of uvs since there are cases where
+						// 2 of the vertices will be at X.00 and the third could be at (X-1).99
+						// or at X.01, and we need to use the minimum of the three to avoid
+						// stray triangles
+						key0 := make_key(mesh.UVCoords[0][mesh.Indices[i][j]])
+						key1 := make_key(mesh.UVCoords[0][mesh.Indices[i][j+1]])
+						key2 := make_key(mesh.UVCoords[0][mesh.Indices[i][j+2]])
+						key := key0
+						if key1 < key {
+							key = key1
+						}
+						if key2 < key {
+							key = key2
+						}
+						components[key] = append(components[key], mesh.Indices[i][j], mesh.Indices[i][j+1], mesh.Indices[i][j+2])
+					}
+
+					componentNum := 0
+					for _, componentIndices := range components {
+						indices := gltf.Index(modeler.WriteIndices(doc, componentIndices))
+						nodeIdx := writeMesh(ctx, doc, fmt.Sprintf("%s cmp %v", componentName, componentNum), indices, positions, normals, texCoords, material, joints, weights, skin, armorSetName)
+
+						doc.Scenes[0].Nodes = append(doc.Scenes[0].Nodes, nodeIdx)
+						if skin == nil {
+							doc.Nodes[*parent].Children = append(doc.Nodes[*parent].Children, nodeIdx)
+						}
+						meshNodes = append(meshNodes, nodeIdx)
+						componentNum += 1
+					}
 				}
 			}
 		}
@@ -683,6 +686,81 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 			return err
 		}
 	}
+	return nil
+}
+
+func loadGeometryGroupMeshes(ctx extractor.Context, gltfDoc *gltf.Document, unitInfo *unit.Info, meshNodes *[]uint32) error {
+	geoRes, exists := ctx.GetResource(unitInfo.GeometryGroup, stingray.Sum64([]byte("geometry_group")))
+	if !exists {
+		return fmt.Errorf("%v.geometry_group does not exist", unitInfo.GeometryGroup.String())
+	}
+	f, err := geoRes.Open(ctx.Ctx(), stingray.DataMain)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	geoGroup, err := geometrygroup.LoadGeometryGroup(f)
+	if err != nil {
+		return err
+	}
+
+	geoInfo, ok := geoGroup.MeshInfos[ctx.File().ID().Name]
+	if !ok {
+		name, ok := ctx.Hashes()[ctx.File().ID().Name]
+		if !ok {
+			name = ctx.File().ID().Name.String()
+		}
+		return fmt.Errorf("%v.geometry_group does not contain %v.unit", unitInfo.GeometryGroup.String(), name)
+	}
+
+	fmt.Printf("\nUnit materials:\n")
+	for thin, material := range unitInfo.Materials {
+		thinName, ok := ctx.ThinHashes()[thin]
+		if !ok {
+			thinName = thin.String()
+		}
+		fullName, ok := ctx.Hashes()[material]
+		if !ok {
+			fullName = material.String()
+		}
+		fmt.Printf("    %v: %v\n", thinName, fullName)
+	}
+
+	fmt.Printf("\nUnit bones:\n")
+	for i, bone := range unitInfo.Bones {
+		name, ok := ctx.ThinHashes()[bone.NameHash]
+		if !ok {
+			name = bone.NameHash.String()
+		}
+		fmt.Printf("    %v: %v\n", i, name)
+	}
+
+	fmt.Printf("\nGeometryGroup bones:\n")
+	for _, thin := range geoInfo.Bones {
+		name, ok := ctx.ThinHashes()[thin]
+		if !ok {
+			name = thin.String()
+		}
+		fmt.Printf("    %v\n", name)
+	}
+
+	fmt.Printf("\nGeometryGroup materials:\n")
+	for i, header := range geoInfo.MeshHeaders {
+		fmt.Printf("    Mesh %v:\n", i)
+		for _, group := range header.Groups {
+			fmt.Printf("      %v vertices\n", group.NumVertices)
+			fmt.Printf("      %v indices\n", group.NumIndices)
+		}
+		for _, thin := range header.Materials {
+			name, ok := ctx.ThinHashes()[thin]
+			if !ok {
+				name = thin.String()
+			}
+			fmt.Printf("      %v\n", name)
+		}
+	}
+
 	return nil
 }
 

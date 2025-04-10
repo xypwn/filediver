@@ -279,7 +279,7 @@ type MeshInfo struct {
 type Header struct {
 	Unk00                 [8]byte
 	Bones                 stingray.Hash
-	Unk01                 [8]byte
+	GeometryGroup         stingray.Hash
 	UnkHash00             stingray.Hash
 	StateMachine          stingray.Hash
 	Unk02                 [8]byte
@@ -310,6 +310,7 @@ type Mesh struct {
 }
 
 type Info struct {
+	GeometryGroup          stingray.Hash
 	LODGroups              []LODGroup
 	SkeletonMaps           []SkeletonMap
 	Bones                  []Bone
@@ -844,6 +845,7 @@ func LoadInfo(mainR io.ReadSeeker) (*Info, error) {
 	}
 
 	return &Info{
+		GeometryGroup:          hdr.GeometryGroup,
 		LODGroups:              lodGroups,
 		SkeletonMaps:           skeletonMapList,
 		Bones:                  bones,
