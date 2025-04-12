@@ -448,6 +448,7 @@ type Info struct {
 	Materials              map[stingray.ThinHash]stingray.Hash
 	NumMeshes              uint32
 	MeshInfos              []MeshInfo
+	GroupBones             []stingray.ThinHash
 	MeshLayouts            []MeshLayout
 }
 
@@ -877,6 +878,7 @@ func LoadInfo(mainR io.ReadSeeker) (*Info, error) {
 	}
 
 	var meshInfos []MeshInfo
+	var groupBones []stingray.ThinHash
 	if hdr.MeshInfoListOffset != 0 {
 		if _, err := mainR.Seek(int64(hdr.MeshInfoListOffset), io.SeekStart); err != nil {
 			return nil, err
@@ -886,10 +888,12 @@ func LoadInfo(mainR io.ReadSeeker) (*Info, error) {
 			return nil, err
 		}
 		offsets := make([]uint32, count)
-		for i := range offsets {
-			if err := binary.Read(mainR, binary.LittleEndian, &offsets[i]); err != nil {
-				return nil, err
-			}
+		if err := binary.Read(mainR, binary.LittleEndian, &offsets); err != nil {
+			return nil, err
+		}
+		groupBones = make([]stingray.ThinHash, count)
+		if err := binary.Read(mainR, binary.LittleEndian, &groupBones); err != nil {
+			return nil, err
 		}
 		meshInfos = make([]MeshInfo, 0, count)
 		for i := uint32(0); i < count; i++ {
@@ -983,6 +987,7 @@ func LoadInfo(mainR io.ReadSeeker) (*Info, error) {
 		Materials:              materialMap,
 		NumMeshes:              uint32(len(meshInfos)),
 		MeshInfos:              meshInfos,
+		GroupBones:             groupBones,
 		MeshLayouts:            meshLayouts,
 	}, nil
 }
