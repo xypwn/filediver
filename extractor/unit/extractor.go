@@ -755,6 +755,34 @@ type MeshInfo struct {
 	MeshLayoutIndex uint32
 }
 
+func getMaxIndex(idxView *gltf.BufferView, buffer *gltf.Buffer, indexAccessor *gltf.Accessor) (uint32, error) {
+	max := uint32(0)
+	if indexAccessor.ComponentType == gltf.ComponentUshort {
+		var indexSlice []uint16 = make([]uint16, indexAccessor.Count)
+		_, err := binary.Decode(buffer.Data[idxView.ByteOffset+indexAccessor.ByteOffset:], binary.LittleEndian, &indexSlice)
+		if err != nil {
+			return 0, err
+		}
+		for _, idx := range indexSlice {
+			if uint32(idx) > max {
+				max = uint32(idx)
+			}
+		}
+	} else {
+		var indexSlice []uint32 = make([]uint32, indexAccessor.Count)
+		_, err := binary.Decode(buffer.Data[idxView.ByteOffset+indexAccessor.ByteOffset:], binary.LittleEndian, &indexSlice)
+		if err != nil {
+			return 0, err
+		}
+		for _, idx := range indexSlice {
+			if idx > max {
+				max = idx
+			}
+		}
+	}
+	return max, nil
+}
+
 func loadMeshLayouts(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, meshInfos []MeshInfo, bones []stingray.ThinHash, meshLayouts []unit.MeshLayout, unitInfo *unit.Info, meshNodes *[]uint32, materialIndices map[stingray.ThinHash]uint32, parent uint32, skin *uint32) error {
 	unitName, contains := ctx.Hashes()[ctx.File().ID().Name]
 	if !contains {
@@ -788,12 +816,10 @@ func loadMeshLayouts(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Docume
 			groupName = bones[i].String()
 		}
 
-		gameMeshHash := stingray.Sum64([]byte("game_mesh")).Thin()
-		parentIdx := unitInfo.Bones[groupNameBoneIdx].ParentIndex
-
 		if ctx.Config()["include_lods"] != "true" &&
-			unitInfo.Bones[parentIdx].NameHash != gameMeshHash ||
-			strings.Contains(groupName, "_LOD") {
+			(strings.Contains(groupName, "shadow") ||
+				strings.Contains(groupName, "_LOD") ||
+				strings.Contains(groupName, "culling")) {
 			continue
 		}
 
@@ -902,7 +928,18 @@ func loadMeshLayouts(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Docume
 
 		primitives := make([]*gltf.Primitive, 0, 1)
 		nodeName := fmt.Sprintf("%v %v", unitName, groupName)
+		var transformed, remapped bool = false, false
 		for j, group := range header.Groups {
+			var materialName string
+			if _, contains := ctx.ThinHashes()[header.Materials[j]]; contains {
+				materialName = ctx.ThinHashes()[header.Materials[j]]
+			} else {
+				materialName = header.Materials[j].String()
+			}
+
+			if strings.Contains(materialName, "gibs") && ctx.Config()["include_lods"] != "true" {
+				continue
+			}
 			var transformBoneIdxMesh int32 = -1
 			var meshHeader unit.MeshHeader
 			for _, meshInfo := range unitInfo.MeshInfos {
@@ -935,21 +972,38 @@ func loadMeshLayouts(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Docume
 				transformMatrix = fbxTransformMatrix.Mul4(transformMatrix)
 			}
 
+			doc.Accessors = append(doc.Accessors, &gltf.Accessor{
+				BufferView:    indexAccessor.BufferView,
+				ByteOffset:    group.IndexOffset * indexAccessor.ComponentType.ByteSize(),
+				ComponentType: indexAccessor.ComponentType,
+				Type:          gltf.AccessorScalar,
+				Count:         group.NumIndices,
+			})
+			groupIndices := gltf.Index(uint32(len(doc.Accessors)) - 1)
+
+			idxView := doc.BufferViews[*indexAccessor.BufferView]
+			buffer := doc.Buffers[idxView.Buffer]
+			indexAccessor := doc.Accessors[*groupIndices]
+			maxIndex, err := getMaxIndex(idxView, buffer, indexAccessor)
+			if err != nil {
+				return err
+			}
+
 			vertexBuffer := layoutToVertexBufferView[header.MeshLayoutIndex]
 			groupAttr := make(gltf.Attribute)
-			for key, accessor := range layoutAttributes[header.MeshLayoutIndex] {
+			for key, layoutAttrAccessor := range layoutAttributes[header.MeshLayoutIndex] {
 				doc.Accessors = append(doc.Accessors, &gltf.Accessor{
 					BufferView:    gltf.Index(vertexBuffer),
-					ByteOffset:    accessor.ByteOffset + doc.BufferViews[vertexBuffer].ByteStride*group.VertexOffset,
-					ComponentType: accessor.ComponentType,
-					Type:          accessor.Type,
+					ByteOffset:    layoutAttrAccessor.ByteOffset + doc.BufferViews[vertexBuffer].ByteStride*group.VertexOffset,
+					ComponentType: layoutAttrAccessor.ComponentType,
+					Type:          layoutAttrAccessor.Type,
 					Count:         group.NumVertices,
 				})
-				groupAttr[key] = uint32(len(doc.Accessors)) - 1
-				if j != 0 {
-					// Only transform the positions and remap the joints once
-					continue
+				accessor := doc.Accessors[len(doc.Accessors)-1]
+				if (maxIndex + 1) > accessor.Count {
+					accessor.Count = uint32(maxIndex + 1)
 				}
+				groupAttr[key] = uint32(len(doc.Accessors)) - 1
 				if key == gltf.POSITION {
 					minTransformed := transformMatrix.Mul4x1(mgl32.Vec3(meshHeader.AABB.Min).Vec4(1)).Vec3()
 					maxTransformed := transformMatrix.Mul4x1(mgl32.Vec3(meshHeader.AABB.Max).Vec4(1)).Vec3()
@@ -962,11 +1016,22 @@ func loadMeshLayouts(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Docume
 							doc.Accessors[groupAttr[key]].Min[k] = temp
 						}
 					}
+					var vertexOffset uint32 = 0
+					if len(primitives) > 0 {
+						acc := doc.Accessors[primitives[len(primitives)-1].Attributes[gltf.POSITION]]
+						if acc.Count < accessor.Count {
+							vertexOffset = acc.Count
+						}
+					}
+					if transformed && vertexOffset == 0 {
+						// Only transform the positions and remap the joints once
+						continue
+					}
 					if !transformMatrix.ApproxEqual(mgl32.Ident4()) {
 						bufferOffset := doc.Accessors[groupAttr[key]].ByteOffset + doc.BufferViews[vertexBuffer].ByteOffset
 						stride := doc.BufferViews[vertexBuffer].ByteStride
 						buffer := doc.Buffers[doc.BufferViews[vertexBuffer].Buffer]
-						for vertex := uint32(0); vertex < group.NumVertices; vertex += 1 {
+						for vertex := uint32(vertexOffset); vertex < accessor.Count; vertex += 1 {
 							var position mgl32.Vec3
 							if _, err := binary.Decode(buffer.Data[vertex*stride+bufferOffset:], binary.LittleEndian, &position); err != nil {
 								return err
@@ -976,8 +1041,9 @@ func loadMeshLayouts(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Docume
 								return err
 							}
 						}
+						transformed = true
 					}
-				} else if strings.Contains(key, "JOINTS") {
+				} else if strings.Contains(key, "JOINTS") && !remapped {
 					bufferOffset := doc.Accessors[groupAttr[key]].ByteOffset + doc.BufferViews[vertexBuffer].ByteOffset
 					stride := doc.BufferViews[vertexBuffer].ByteStride
 					buffer := doc.Buffers[doc.BufferViews[vertexBuffer].Buffer]
@@ -1008,15 +1074,9 @@ func loadMeshLayouts(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Docume
 							}
 						}
 					}
+					remapped = true
 				}
 			}
-			doc.Accessors = append(doc.Accessors, &gltf.Accessor{
-				BufferView:    indexAccessor.BufferView,
-				ByteOffset:    group.IndexOffset * indexAccessor.ComponentType.ByteSize(),
-				ComponentType: indexAccessor.ComponentType,
-				Type:          gltf.AccessorScalar,
-				Count:         group.NumIndices,
-			})
 
 			if transformMatrix.Det() < 0 {
 				bufferOffset := indexAccessor.ByteOffset + doc.BufferViews[*indexAccessor.BufferView].ByteOffset
@@ -1048,7 +1108,7 @@ func loadMeshLayouts(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Docume
 
 			primitives = append(primitives, &gltf.Primitive{
 				Attributes: groupAttr,
-				Indices:    gltf.Index(uint32(len(doc.Accessors)) - 1),
+				Indices:    groupIndices,
 				Material:   material,
 			})
 		}
