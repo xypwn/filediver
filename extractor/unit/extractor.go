@@ -755,6 +755,102 @@ type MeshInfo struct {
 	MeshLayoutIndex uint32
 }
 
+func addMeshLayoutVertexBuffer(doc *gltf.Document, data []byte, accessorInfo []AccessorInfo) (uint32, error) {
+	ensurePadding(doc)
+	buffer := lastBuffer(doc)
+	offset := uint32(len(buffer.Data))
+
+	buffer.Data = append(buffer.Data, data...)
+	buffer.ByteLength += uint32(len(data))
+	convertedVertexStride := uint32(0)
+	for _, info := range accessorInfo {
+		convertedVertexStride += info.Size
+	}
+
+	doc.BufferViews = append(doc.BufferViews, &gltf.BufferView{
+		Buffer:     uint32(len(doc.Buffers)) - 1,
+		ByteLength: uint32(len(data)),
+		ByteOffset: offset,
+		ByteStride: convertedVertexStride,
+		Target:     gltf.TargetArrayBuffer,
+	})
+
+	return uint32(len(doc.BufferViews) - 1), nil
+}
+
+func createAttributes(doc *gltf.Document, layout unit.MeshLayout, accessorInfo []AccessorInfo) map[string]*gltf.Accessor {
+	attributes := make(map[string]*gltf.Accessor)
+
+	var byteOffset uint32 = 0
+	for j := 0; j < int(layout.NumItems); j++ {
+		item := accessorInfo[j]
+		accessor := &gltf.Accessor{
+			BufferView:    gltf.Index(uint32(len(doc.BufferViews)) - 1),
+			ByteOffset:    uint32(byteOffset),
+			ComponentType: item.ComponentType,
+			Type:          item.AccessorType,
+			Count:         layout.NumVertices,
+		}
+		byteOffset += item.Size
+		if layout.Items[j].Type == unit.ItemBoneIdx && layout.Items[j].Layer != 0 {
+			continue
+		}
+		switch layout.Items[j].Type {
+		case unit.ItemPosition:
+			attributes[gltf.POSITION] = accessor
+		case unit.ItemNormal:
+			attributes[gltf.COLOR_0] = accessor
+		case unit.ItemUVCoords:
+			attributes[fmt.Sprintf("TEXCOORD_%v", layout.Items[j].Layer)] = accessor
+		case unit.ItemBoneIdx:
+			attributes[fmt.Sprintf("JOINTS_%v", layout.Items[j].Layer)] = accessor
+		case unit.ItemBoneWeight:
+			attributes[fmt.Sprintf("WEIGHTS_%v", layout.Items[j].Layer)] = accessor
+		}
+	}
+	return attributes
+}
+
+func loadMeshLayoutIndices(gpuR io.ReadSeeker, doc *gltf.Document, layout unit.MeshLayout) (*gltf.Accessor, error) {
+	ensurePadding(doc)
+	buffer := lastBuffer(doc)
+	dataOffset := uint32(len(buffer.Data))
+	buffer.ByteLength += layout.IndicesSize
+	buffer.Data = append(buffer.Data, make([]byte, layout.IndicesSize)...)
+	if _, err := gpuR.Seek(int64(layout.IndexOffset), io.SeekStart); err != nil {
+		return nil, err
+	}
+	var read int
+	var err error
+	if read, err = gpuR.Read(buffer.Data[dataOffset:]); err != nil {
+		return nil, err
+	}
+	if read != int(layout.IndicesSize) {
+		return nil, fmt.Errorf("Read an unexpected amount of data when copying geometry group indices")
+	}
+
+	indexStride := layout.IndicesSize / layout.NumIndices
+	indexType := gltf.ComponentUshort
+	if indexStride == 4 {
+		indexType = gltf.ComponentUint
+	}
+
+	doc.BufferViews = append(doc.BufferViews, &gltf.BufferView{
+		Buffer:     uint32(len(doc.Buffers)) - 1,
+		ByteLength: layout.IndicesSize,
+		ByteOffset: dataOffset,
+		Target:     gltf.TargetElementArrayBuffer,
+	})
+
+	return &gltf.Accessor{
+		BufferView:    gltf.Index(uint32(len(doc.BufferViews)) - 1),
+		ByteOffset:    0,
+		ComponentType: indexType,
+		Type:          gltf.AccessorScalar,
+		Count:         layout.NumIndices,
+	}, nil
+}
+
 func getMaxIndex(idxView *gltf.BufferView, buffer *gltf.Buffer, indexAccessor *gltf.Accessor) (uint32, error) {
 	max := uint32(0)
 	if indexAccessor.ComponentType == gltf.ComponentUshort {
@@ -825,103 +921,28 @@ func loadMeshLayouts(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Docume
 
 		var fbxConvertIdx, transformBoneIdxGeo int = -1, -1
 		var transformMatrix mgl32.Mat4 = mgl32.Ident4()
+		var err error
 		_, fbxConvertIdx, transformBoneIdxGeo = getMeshNameFbxConvertAndTransformBone(unitInfo, bones[i])
 		vertexBuffer, contains := layoutToVertexBufferView[header.MeshLayoutIndex]
 		layout := meshLayouts[header.MeshLayoutIndex]
 		if !contains {
-			ensurePadding(doc)
-			buffer := lastBuffer(doc)
-			offset := uint32(len(buffer.Data))
-
 			data, accessorInfo, err := convertVertices(gpuR, layout)
 			if err != nil {
 				return err
 			}
-			buffer.Data = append(buffer.Data, data...)
-			buffer.ByteLength += uint32(len(data))
-			convertedVertexStride := uint32(0)
-			for _, info := range accessorInfo {
-				convertedVertexStride += info.Size
+			vertexBuffer, err = addMeshLayoutVertexBuffer(doc, data, accessorInfo)
+			if err != nil {
+				return err
 			}
-
-			doc.BufferViews = append(doc.BufferViews, &gltf.BufferView{
-				Buffer:     uint32(len(doc.Buffers)) - 1,
-				ByteLength: uint32(len(data)),
-				ByteOffset: offset,
-				ByteStride: convertedVertexStride,
-				Target:     gltf.TargetArrayBuffer,
-			})
-
-			vertexBuffer = uint32(len(doc.BufferViews) - 1)
 			layoutToVertexBufferView[header.MeshLayoutIndex] = vertexBuffer
-
-			layoutAttributes[header.MeshLayoutIndex] = make(map[string]*gltf.Accessor)
-
-			var byteOffset uint32 = 0
-			for j := 0; j < int(layout.NumItems); j++ {
-				item := accessorInfo[j]
-				accessor := &gltf.Accessor{
-					BufferView:    gltf.Index(uint32(len(doc.BufferViews)) - 1),
-					ByteOffset:    uint32(byteOffset),
-					ComponentType: item.ComponentType,
-					Type:          item.AccessorType,
-					Count:         layout.NumVertices,
-				}
-				byteOffset += item.Size
-				switch layout.Items[j].Type {
-				case unit.ItemPosition:
-					layoutAttributes[header.MeshLayoutIndex][gltf.POSITION] = accessor
-				case unit.ItemNormal:
-					layoutAttributes[header.MeshLayoutIndex][gltf.COLOR_0] = accessor
-				case unit.ItemUVCoords:
-					layoutAttributes[header.MeshLayoutIndex][fmt.Sprintf("TEXCOORD_%v", layout.Items[j].Layer)] = accessor
-				case unit.ItemBoneIdx:
-					layoutAttributes[header.MeshLayoutIndex][fmt.Sprintf("JOINTS_%v", layout.Items[j].Layer)] = accessor
-				case unit.ItemBoneWeight:
-					layoutAttributes[header.MeshLayoutIndex][fmt.Sprintf("WEIGHTS_%v", layout.Items[j].Layer)] = accessor
-				}
-			}
+			layoutAttributes[header.MeshLayoutIndex] = createAttributes(doc, layout, accessorInfo)
 		}
 
 		indexAccessor, contains := layoutToIndexAccessor[header.MeshLayoutIndex]
-
 		if !contains {
-			ensurePadding(doc)
-			buffer := lastBuffer(doc)
-			dataOffset := uint32(len(buffer.Data))
-			buffer.ByteLength += layout.IndicesSize
-			buffer.Data = append(buffer.Data, make([]byte, layout.IndicesSize)...)
-			if _, err := gpuR.Seek(int64(layout.IndexOffset), io.SeekStart); err != nil {
+			indexAccessor, err = loadMeshLayoutIndices(gpuR, doc, layout)
+			if err != nil {
 				return err
-			}
-			var read int
-			var err error
-			if read, err = gpuR.Read(buffer.Data[dataOffset:]); err != nil {
-				return err
-			}
-			if read != int(layout.IndicesSize) {
-				return fmt.Errorf("Read an unexpected amount of data when copying geometry group indices")
-			}
-
-			indexStride := layout.IndicesSize / layout.NumIndices
-			indexType := gltf.ComponentUshort
-			if indexStride == 4 {
-				indexType = gltf.ComponentUint
-			}
-
-			doc.BufferViews = append(doc.BufferViews, &gltf.BufferView{
-				Buffer:     uint32(len(doc.Buffers)) - 1,
-				ByteLength: layout.IndicesSize,
-				ByteOffset: dataOffset,
-				Target:     gltf.TargetElementArrayBuffer,
-			})
-
-			indexAccessor = &gltf.Accessor{
-				BufferView:    gltf.Index(uint32(len(doc.BufferViews)) - 1),
-				ByteOffset:    0,
-				ComponentType: indexType,
-				Type:          gltf.AccessorScalar,
-				Count:         layout.NumIndices,
 			}
 			layoutToIndexAccessor[header.MeshLayoutIndex] = indexAccessor
 		}
