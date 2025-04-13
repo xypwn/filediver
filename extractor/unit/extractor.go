@@ -614,7 +614,31 @@ func convertVertices(gpuR io.ReadSeeker, layout unit.MeshLayout) ([]byte, []Acce
 						Size:          size,
 					})
 				}
-			default:
+			case unit.FormatF32:
+				fallthrough
+			case unit.FormatVec2F:
+				fallthrough
+			case unit.FormatVec3F:
+				fallthrough
+			case unit.FormatVec4F:
+				fallthrough
+			case unit.FormatS32:
+				fallthrough
+			case unit.FormatS8:
+				fallthrough
+			case unit.FormatVec2S8:
+				fallthrough
+			case unit.FormatVec3S8:
+				fallthrough
+			case unit.FormatVec4S8:
+				fallthrough
+			case unit.FormatU32:
+				fallthrough
+			case unit.FormatVec2U32:
+				fallthrough
+			case unit.FormatVec3U32:
+				fallthrough
+			case unit.FormatVec4U32:
 				data = append(data, make([]byte, item.Format.Size())...)
 				if _, err := gpuR.Read(data[dataLen:]); err != nil {
 					return nil, nil, err
@@ -634,6 +658,8 @@ func convertVertices(gpuR io.ReadSeeker, layout unit.MeshLayout) ([]byte, []Acce
 						Size:          uint32(item.Format.Size()),
 					})
 				}
+			default:
+				return nil, nil, fmt.Errorf("Unknown format %v for type %v\n", item.Format.String(), item.Type.String())
 			}
 			dataLen = len(data)
 		}
