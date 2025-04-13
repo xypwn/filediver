@@ -511,18 +511,21 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 	return nil
 }
 
-func convertFloat16Slice(gpuR io.ReadSeeker, data []byte, tmpArr []uint16) ([]byte, error) {
+func convertFloat16Slice(gpuR io.ReadSeeker, data []byte, tmpArr []uint16, extra uint32) ([]byte, uint32, error) {
 	var err error
 	if err = binary.Read(gpuR, binary.LittleEndian, &tmpArr); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
+	var size uint32 = extra * 4
 	for _, tmp := range tmpArr {
 		data, err = binary.Append(data, binary.LittleEndian, float16.Frombits(tmp).Float32())
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
+		size += 4
 	}
-	return data, nil
+	data = append(data, make([]byte, extra*4)...)
+	return data, size, nil
 }
 
 type AccessorInfo struct {
@@ -586,59 +589,29 @@ func convertVertices(gpuR io.ReadSeeker, layout unit.MeshLayout) ([]byte, []Acce
 					})
 				}
 			case unit.FormatF16:
-				tmpArr := make([]uint16, 1)
-				var err error
-				data, err = convertFloat16Slice(gpuR, data, tmpArr)
-				if err != nil {
-					return nil, nil, err
-				}
-				if vertex == 0 {
-					accessorStructure = append(accessorStructure, AccessorInfo{
-						AccessorType:  gltf.AccessorScalar,
-						ComponentType: gltf.ComponentFloat,
-						Size:          4,
-					})
-				}
+				fallthrough
 			case unit.FormatVec2F16:
-				tmpArr := make([]uint16, 2)
-				var err error
-				data, err = convertFloat16Slice(gpuR, data, tmpArr)
-				if err != nil {
-					return nil, nil, err
-				}
-				if vertex == 0 {
-					accessorStructure = append(accessorStructure, AccessorInfo{
-						AccessorType:  gltf.AccessorVec2,
-						ComponentType: gltf.ComponentFloat,
-						Size:          8,
-					})
-				}
+				fallthrough
 			case unit.FormatVec3F16:
-				tmpArr := make([]uint16, 3)
-				var err error
-				data, err = convertFloat16Slice(gpuR, data, tmpArr)
-				if err != nil {
-					return nil, nil, err
-				}
-				if vertex == 0 {
-					accessorStructure = append(accessorStructure, AccessorInfo{
-						AccessorType:  gltf.AccessorVec3,
-						ComponentType: gltf.ComponentFloat,
-						Size:          12,
-					})
-				}
+				fallthrough
 			case unit.FormatVec4F16:
-				tmpArr := make([]uint16, 4)
+				tmpArr := make([]uint16, item.Format.Type().Components())
 				var err error
-				data, err = convertFloat16Slice(gpuR, data, tmpArr)
+				var size, extra uint32
+				var accessorType gltf.AccessorType = gltf.AccessorVec2
+				if item.Type == unit.ItemBoneWeight && item.Format == unit.FormatVec2F16 {
+					accessorType = gltf.AccessorVec4
+					extra = 2
+				}
+				data, size, err = convertFloat16Slice(gpuR, data, tmpArr, extra)
 				if err != nil {
 					return nil, nil, err
 				}
 				if vertex == 0 {
 					accessorStructure = append(accessorStructure, AccessorInfo{
-						AccessorType:  gltf.AccessorVec4,
+						AccessorType:  accessorType,
 						ComponentType: gltf.ComponentFloat,
-						Size:          16,
+						Size:          size,
 					})
 				}
 			default:
