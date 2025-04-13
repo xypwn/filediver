@@ -133,6 +133,7 @@ const (
 	FormatVec2F                    MeshLayoutItemFormat = 1
 	FormatVec3F                    MeshLayoutItemFormat = 2
 	FormatVec4F                    MeshLayoutItemFormat = 3
+	FormatS32                      MeshLayoutItemFormat = 4
 	FormatU32                      MeshLayoutItemFormat = 17
 	FormatVec2U32                  MeshLayoutItemFormat = 18
 	FormatVec3U32                  MeshLayoutItemFormat = 19
@@ -159,6 +160,8 @@ func (v MeshLayoutItemFormat) String() string {
 		return "[3]float32"
 	case FormatVec4F:
 		return "[4]float32"
+	case FormatS32:
+		return "int32"
 	case FormatU32:
 		return "uint32"
 	case FormatVec2U32:
@@ -202,6 +205,8 @@ func (v MeshLayoutItemFormat) Size() int {
 		return 12
 	case FormatVec4F:
 		return 16
+	case FormatS32:
+		return 4
 	case FormatU32:
 		return 4
 	case FormatVec2U32:
@@ -245,6 +250,8 @@ func (v MeshLayoutItemFormat) ComponentType() gltf.ComponentType {
 		return gltf.ComponentFloat
 	case FormatVec4F:
 		return gltf.ComponentFloat
+	case FormatS32:
+		return gltf.ComponentUint
 	case FormatU32:
 		return gltf.ComponentUint
 	case FormatVec2U32:
@@ -288,6 +295,8 @@ func (v MeshLayoutItemFormat) Type() gltf.AccessorType {
 		return gltf.AccessorVec3
 	case FormatVec4F:
 		return gltf.AccessorVec4
+	case FormatS32:
+		return gltf.AccessorScalar
 	case FormatU32:
 		return gltf.AccessorScalar
 	case FormatVec2U32:
