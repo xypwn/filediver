@@ -851,11 +851,11 @@ func loadMeshLayoutIndices(gpuR io.ReadSeeker, doc *gltf.Document, layout unit.M
 	}, nil
 }
 
-func getMaxIndex(idxView *gltf.BufferView, buffer *gltf.Buffer, indexAccessor *gltf.Accessor) (uint32, error) {
+func getMaxIndex(buffer *gltf.Buffer, offset, indexCount uint32, componentType gltf.ComponentType) (uint32, error) {
 	max := uint32(0)
-	if indexAccessor.ComponentType == gltf.ComponentUshort {
-		var indexSlice []uint16 = make([]uint16, indexAccessor.Count)
-		_, err := binary.Decode(buffer.Data[idxView.ByteOffset+indexAccessor.ByteOffset:], binary.LittleEndian, &indexSlice)
+	if componentType == gltf.ComponentUshort {
+		var indexSlice []uint16 = make([]uint16, indexCount)
+		_, err := binary.Decode(buffer.Data[offset:], binary.LittleEndian, &indexSlice)
 		if err != nil {
 			return 0, err
 		}
@@ -865,8 +865,8 @@ func getMaxIndex(idxView *gltf.BufferView, buffer *gltf.Buffer, indexAccessor *g
 			}
 		}
 	} else {
-		var indexSlice []uint32 = make([]uint32, indexAccessor.Count)
-		_, err := binary.Decode(buffer.Data[idxView.ByteOffset+indexAccessor.ByteOffset:], binary.LittleEndian, &indexSlice)
+		var indexSlice []uint32 = make([]uint32, indexCount)
+		_, err := binary.Decode(buffer.Data[offset:], binary.LittleEndian, &indexSlice)
 		if err != nil {
 			return 0, err
 		}
@@ -1002,10 +1002,9 @@ func loadMeshLayouts(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Docume
 			})
 			groupIndices := gltf.Index(uint32(len(doc.Accessors)) - 1)
 
-			idxView := doc.BufferViews[*indexAccessor.BufferView]
-			buffer := doc.Buffers[idxView.Buffer]
-			indexAccessor := doc.Accessors[*groupIndices]
-			maxIndex, err := getMaxIndex(idxView, buffer, indexAccessor)
+			offset := doc.BufferViews[*indexAccessor.BufferView].ByteOffset + doc.Accessors[*groupIndices].ByteOffset
+			buffer := doc.Buffers[doc.BufferViews[*indexAccessor.BufferView].Buffer]
+			maxIndex, err := getMaxIndex(buffer, offset, group.NumIndices, indexAccessor.ComponentType)
 			if err != nil {
 				return err
 			}
