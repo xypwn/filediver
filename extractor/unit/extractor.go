@@ -470,6 +470,12 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 	}
 
 	// Add some metadata so prefab loading can find our parent node easily
+	if armorSetName != nil {
+		extras := map[string]any{"armorSet": *armorSetName}
+		for _, node := range meshNodes {
+			doc.Nodes[node].Extras = extras
+		}
+	}
 	extras, ok := doc.Extras.(map[string]map[string]interface{})
 	if !ok {
 		extras = make(map[string]map[string]interface{})
