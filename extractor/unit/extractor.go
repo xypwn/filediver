@@ -691,17 +691,37 @@ func getMeshNameFbxConvertAndTransformBone(unitInfo *unit.Info, groupBoneHash st
 	return
 }
 
-func remapJoint[E ~[]I, I uint8 | uint32](mapping unit.SkeletonMap, idxs E, component int) error {
+func remapJoint[E ~[]I, I uint8 | uint32](idxs E, remapList, remappedBoneIndices []uint32) {
 	for k := 0; k < 4; k++ {
-		if component >= len(mapping.RemapList) {
-			return fmt.Errorf("%v out of range of components", component)
-		}
-		remapList := mapping.RemapList[component]
 		if uint32(idxs[k]) >= uint32(len(remapList)) {
 			continue
 		}
 		remapIndex := remapList[idxs[k]]
-		idxs[k] = I(mapping.BoneIndices[remapIndex])
+		idxs[k] = I(remappedBoneIndices[remapIndex])
+	}
+}
+
+func remapJoints(buffer *gltf.Buffer, stride, bufferOffset, vertexCount uint32, componentType gltf.ComponentType, remapList, remappedBoneIndices []uint32) error {
+	for vertex := uint32(0); vertex < vertexCount; vertex += 1 {
+		if componentType == gltf.ComponentUbyte {
+			boneIndices := make([]uint8, 4)
+			if _, err := binary.Decode(buffer.Data[stride*vertex+bufferOffset:], binary.LittleEndian, &boneIndices); err != nil {
+				return err
+			}
+			remapJoint(boneIndices, remapList, remappedBoneIndices)
+			if _, err := binary.Encode(buffer.Data[stride*vertex+bufferOffset:], binary.LittleEndian, boneIndices); err != nil {
+				return err
+			}
+		} else {
+			boneIndices := make([]uint32, 4)
+			if _, err := binary.Decode(buffer.Data[stride*vertex+bufferOffset:], binary.LittleEndian, &boneIndices); err != nil {
+				return err
+			}
+			remapJoint(boneIndices, remapList, remappedBoneIndices)
+			if _, err := binary.Encode(buffer.Data[stride*vertex+bufferOffset:], binary.LittleEndian, boneIndices); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }
@@ -879,6 +899,53 @@ func getMaxIndex(buffer *gltf.Buffer, offset, indexCount uint32, componentType g
 	return max, nil
 }
 
+func addPositionMinMax(doc *gltf.Document, transformMatrix mgl32.Mat4, min, max mgl32.Vec3, accessor uint32) {
+	minTransformed := transformMatrix.Mul4x1(min.Vec4(1)).Vec3()
+	maxTransformed := transformMatrix.Mul4x1(max.Vec4(1)).Vec3()
+	doc.Accessors[accessor].Min = minTransformed[:]
+	doc.Accessors[accessor].Max = maxTransformed[:]
+	for k := 0; k < 3; k++ {
+		if doc.Accessors[accessor].Min[k] > doc.Accessors[accessor].Max[k] {
+			temp := doc.Accessors[accessor].Max[k]
+			doc.Accessors[accessor].Max[k] = doc.Accessors[accessor].Min[k]
+			doc.Accessors[accessor].Min[k] = temp
+		}
+	}
+}
+
+func transformVertices(buffer *gltf.Buffer, bufferOffset, stride, vertexOffset, vertexCount uint32, transformMatrix mgl32.Mat4) error {
+	for vertex := vertexOffset; vertex < vertexCount; vertex += 1 {
+		var position mgl32.Vec3
+		if _, err := binary.Decode(buffer.Data[vertex*stride+bufferOffset:], binary.LittleEndian, &position); err != nil {
+			return err
+		}
+		position = transformMatrix.Mul4x1(position.Vec4(1)).Vec3()
+		if _, err := binary.Encode(buffer.Data[vertex*stride+bufferOffset:], binary.LittleEndian, position); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func addGroupAttributes(doc *gltf.Document, group unit.MeshGroup, groupLayoutAttributes map[string]*gltf.Accessor, vertexBuffer, maxIndex uint32) (gltf.Attribute, error) {
+	groupAttr := make(gltf.Attribute)
+	for key, layoutAttrAccessor := range groupLayoutAttributes {
+		doc.Accessors = append(doc.Accessors, &gltf.Accessor{
+			BufferView:    gltf.Index(vertexBuffer),
+			ByteOffset:    layoutAttrAccessor.ByteOffset + doc.BufferViews[vertexBuffer].ByteStride*group.VertexOffset,
+			ComponentType: layoutAttrAccessor.ComponentType,
+			Type:          layoutAttrAccessor.Type,
+			Count:         group.NumVertices,
+		})
+		accessor := doc.Accessors[len(doc.Accessors)-1]
+		if (maxIndex + 1) > accessor.Count {
+			accessor.Count = uint32(maxIndex + 1)
+		}
+		groupAttr[key] = uint32(len(doc.Accessors)) - 1
+	}
+	return groupAttr, nil
+}
+
 func loadMeshLayouts(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, meshInfos []MeshInfo, bones []stingray.ThinHash, meshLayouts []unit.MeshLayout, unitInfo *unit.Info, meshNodes *[]uint32, materialIndices map[stingray.ThinHash]uint32, parent uint32, skin *uint32) error {
 	unitName, contains := ctx.Hashes()[ctx.File().ID().Name]
 	if !contains {
@@ -1009,96 +1076,55 @@ func loadMeshLayouts(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Docume
 				return err
 			}
 
-			vertexBuffer := layoutToVertexBufferView[header.MeshLayoutIndex]
-			groupAttr := make(gltf.Attribute)
-			for key, layoutAttrAccessor := range layoutAttributes[header.MeshLayoutIndex] {
-				doc.Accessors = append(doc.Accessors, &gltf.Accessor{
-					BufferView:    gltf.Index(vertexBuffer),
-					ByteOffset:    layoutAttrAccessor.ByteOffset + doc.BufferViews[vertexBuffer].ByteStride*group.VertexOffset,
-					ComponentType: layoutAttrAccessor.ComponentType,
-					Type:          layoutAttrAccessor.Type,
-					Count:         group.NumVertices,
-				})
-				accessor := doc.Accessors[len(doc.Accessors)-1]
-				if (maxIndex + 1) > accessor.Count {
-					accessor.Count = uint32(maxIndex + 1)
+			var previousPositionAccessor *gltf.Accessor
+			if len(primitives) > 0 {
+				previousPositionAccessor = doc.Accessors[primitives[len(primitives)-1].Attributes[gltf.POSITION]]
+			}
+			groupAttr, err := addGroupAttributes(doc, group, layoutAttributes[header.MeshLayoutIndex], vertexBuffer, maxIndex)
+			if err != nil {
+				return err
+			}
+
+			if positionAccessor, contains := groupAttr[gltf.POSITION]; contains {
+				addPositionMinMax(doc, transformMatrix, mgl32.Vec3(meshHeader.AABB.Min), mgl32.Vec3(meshHeader.AABB.Max), positionAccessor)
+
+				var vertexOffset uint32 = 0
+				if previousPositionAccessor != nil && previousPositionAccessor.Count < doc.Accessors[positionAccessor].Count {
+					// Check if there are vertices that still need to be transformed
+					vertexOffset = previousPositionAccessor.Count
 				}
-				groupAttr[key] = uint32(len(doc.Accessors)) - 1
-				if key == gltf.POSITION {
-					minTransformed := transformMatrix.Mul4x1(mgl32.Vec3(meshHeader.AABB.Min).Vec4(1)).Vec3()
-					maxTransformed := transformMatrix.Mul4x1(mgl32.Vec3(meshHeader.AABB.Max).Vec4(1)).Vec3()
-					doc.Accessors[groupAttr[key]].Min = minTransformed[:]
-					doc.Accessors[groupAttr[key]].Max = maxTransformed[:]
-					for k := 0; k < 3; k++ {
-						if doc.Accessors[groupAttr[key]].Min[k] > doc.Accessors[groupAttr[key]].Max[k] {
-							temp := doc.Accessors[groupAttr[key]].Max[k]
-							doc.Accessors[groupAttr[key]].Max[k] = doc.Accessors[groupAttr[key]].Min[k]
-							doc.Accessors[groupAttr[key]].Min[k] = temp
-						}
-					}
-					var vertexOffset uint32 = 0
-					if len(primitives) > 0 {
-						acc := doc.Accessors[primitives[len(primitives)-1].Attributes[gltf.POSITION]]
-						if acc.Count < accessor.Count {
-							vertexOffset = acc.Count
-						}
-					}
-					if transformed && vertexOffset == 0 {
-						// Only transform the positions and remap the joints once
-						continue
-					}
-					if !transformMatrix.ApproxEqual(mgl32.Ident4()) {
-						bufferOffset := doc.Accessors[groupAttr[key]].ByteOffset + doc.BufferViews[vertexBuffer].ByteOffset
-						stride := doc.BufferViews[vertexBuffer].ByteStride
-						buffer := doc.Buffers[doc.BufferViews[vertexBuffer].Buffer]
-						for vertex := uint32(vertexOffset); vertex < accessor.Count; vertex += 1 {
-							var position mgl32.Vec3
-							if _, err := binary.Decode(buffer.Data[vertex*stride+bufferOffset:], binary.LittleEndian, &position); err != nil {
-								return err
-							}
-							position = transformMatrix.Mul4x1(position.Vec4(1)).Vec3()
-							if _, err := binary.Encode(buffer.Data[vertex*stride+bufferOffset:], binary.LittleEndian, position); err != nil {
-								return err
-							}
-						}
-						transformed = true
-					}
-				} else if strings.Contains(key, "JOINTS") && !remapped {
-					bufferOffset := doc.Accessors[groupAttr[key]].ByteOffset + doc.BufferViews[vertexBuffer].ByteOffset
-					stride := doc.BufferViews[vertexBuffer].ByteStride
-					buffer := doc.Buffers[doc.BufferViews[vertexBuffer].Buffer]
-					skeletonMap := unitInfo.SkeletonMaps[meshHeader.SkeletonMapIdx]
-					for vertex := uint32(0); vertex < group.NumVertices; vertex += 1 {
-						compType := doc.Accessors[groupAttr[key]].ComponentType
-						if compType == gltf.ComponentUbyte {
-							boneIndices := make([]uint8, 4)
-							if _, err := binary.Decode(buffer.Data[stride*vertex+bufferOffset:], binary.LittleEndian, &boneIndices); err != nil {
-								return err
-							}
-							if err := remapJoint(skeletonMap, boneIndices, j); err != nil {
-								continue
-							}
-							if _, err := binary.Encode(buffer.Data[stride*vertex+bufferOffset:], binary.LittleEndian, boneIndices); err != nil {
-								return err
-							}
-						} else {
-							boneIndices := make([]uint32, 4)
-							if _, err := binary.Decode(buffer.Data[stride*vertex+bufferOffset:], binary.LittleEndian, &boneIndices); err != nil {
-								return err
-							}
-							if err := remapJoint(skeletonMap, boneIndices, j); err != nil {
-								continue
-							}
-							if _, err := binary.Encode(buffer.Data[stride*vertex+bufferOffset:], binary.LittleEndian, boneIndices); err != nil {
-								return err
-							}
-						}
-					}
-					remapped = true
+				if (transformed && vertexOffset == 0) || transformMatrix.ApproxEqual(mgl32.Ident4()) {
+					// Only transform vertices once, and only perform the multiplications if the transform does something
+					continue
 				}
+				bufferOffset := doc.Accessors[positionAccessor].ByteOffset + doc.BufferViews[vertexBuffer].ByteOffset
+				stride := doc.BufferViews[vertexBuffer].ByteStride
+				buffer := doc.Buffers[doc.BufferViews[vertexBuffer].Buffer]
+				err := transformVertices(buffer, bufferOffset, stride, vertexOffset, doc.Accessors[positionAccessor].Count, transformMatrix)
+				if err != nil {
+					return err
+				}
+				transformed = true
+			}
+
+			if jointsAccessor, contains := groupAttr[gltf.JOINTS_0]; contains && !remapped {
+				bufferOffset := doc.Accessors[jointsAccessor].ByteOffset + doc.BufferViews[vertexBuffer].ByteOffset
+				stride := doc.BufferViews[vertexBuffer].ByteStride
+				buffer := doc.Buffers[doc.BufferViews[vertexBuffer].Buffer]
+				skeletonMap := unitInfo.SkeletonMaps[meshHeader.SkeletonMapIdx]
+				if j >= len(skeletonMap.RemapList) {
+					return fmt.Errorf("%v out of range of components", j)
+				}
+				remapList := skeletonMap.RemapList[j]
+				err := remapJoints(buffer, stride, bufferOffset, group.NumVertices, doc.Accessors[jointsAccessor].ComponentType, remapList, skeletonMap.BoneIndices)
+				if err != nil {
+					return err
+				}
+				remapped = true
 			}
 
 			if transformMatrix.Det() < 0 {
+				// The transform flipped the winding order of our vertices, so we need to flip the index order to compensate
 				bufferOffset := indexAccessor.ByteOffset + doc.BufferViews[*indexAccessor.BufferView].ByteOffset
 				buffer := doc.Buffers[doc.BufferViews[*indexAccessor.BufferView].Buffer]
 				var indexSlice interface{}
