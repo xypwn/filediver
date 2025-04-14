@@ -946,6 +946,28 @@ func addGroupAttributes(doc *gltf.Document, group unit.MeshGroup, groupLayoutAtt
 	return groupAttr, nil
 }
 
+// Flips normals by reversing the winding order of vertices
+func flipNormals(buffer *gltf.Buffer, componentType gltf.ComponentType, indexCount, bufferOffset uint32) error {
+	var indexSlice interface{}
+	if componentType == gltf.ComponentUshort {
+		indexSlice = make([]uint16, indexCount)
+	} else {
+		indexSlice = make([]uint32, indexCount)
+	}
+	if _, err := binary.Decode(buffer.Data[bufferOffset:], binary.LittleEndian, &indexSlice); err != nil {
+		return err
+	}
+	if componentType == gltf.ComponentUshort {
+		slices.Reverse(indexSlice.([]uint16))
+	} else {
+		slices.Reverse(indexSlice.([]uint32))
+	}
+	if _, err := binary.Encode(buffer.Data[bufferOffset:], binary.LittleEndian, indexSlice); err != nil {
+		return err
+	}
+	return nil
+}
+
 func loadMeshLayouts(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, meshInfos []MeshInfo, bones []stingray.ThinHash, meshLayouts []unit.MeshLayout, unitInfo *unit.Info, meshNodes *[]uint32, materialIndices map[stingray.ThinHash]uint32, parent uint32, skin *uint32) error {
 	unitName, contains := ctx.Hashes()[ctx.File().ID().Name]
 	if !contains {
@@ -1127,23 +1149,7 @@ func loadMeshLayouts(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Docume
 				// The transform flipped the winding order of our vertices, so we need to flip the index order to compensate
 				bufferOffset := indexAccessor.ByteOffset + doc.BufferViews[*indexAccessor.BufferView].ByteOffset
 				buffer := doc.Buffers[doc.BufferViews[*indexAccessor.BufferView].Buffer]
-				var indexSlice interface{}
-				if indexAccessor.ComponentType == gltf.ComponentUshort {
-					indexSlice = make([]uint16, group.NumIndices)
-				} else {
-					indexSlice = make([]uint32, group.NumIndices)
-				}
-				if _, err := binary.Decode(buffer.Data[bufferOffset:], binary.LittleEndian, &indexSlice); err != nil {
-					return err
-				}
-				if indexAccessor.ComponentType == gltf.ComponentUshort {
-					slices.Reverse(indexSlice.([]uint16))
-				} else {
-					slices.Reverse(indexSlice.([]uint32))
-				}
-				if _, err := binary.Encode(buffer.Data[bufferOffset:], binary.LittleEndian, indexSlice); err != nil {
-					return err
-				}
+				flipNormals(buffer, indexAccessor.ComponentType, group.NumIndices, bufferOffset)
 			}
 
 			var material *uint32
