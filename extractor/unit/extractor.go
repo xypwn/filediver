@@ -972,21 +972,11 @@ func flipNormals(buffer *gltf.Buffer, componentType gltf.ComponentType, indexCou
 }
 
 func separateUDims(doc *gltf.Document, indexAccessor, texcoordAccessor *gltf.Accessor) (map[uint32][]uint32, error) {
-	indexSlice := make([]uint32, indexAccessor.Count)
-	indexOffset := indexAccessor.ByteOffset + doc.BufferViews[*indexAccessor.BufferView].ByteOffset
-	buffer := doc.Buffers[doc.BufferViews[*indexAccessor.BufferView].Buffer]
-	if indexAccessor.ComponentType == gltf.ComponentUshort {
-		slice := make([]uint16, indexAccessor.Count)
-		if _, err := binary.Decode(buffer.Data[indexOffset:], binary.LittleEndian, &slice); err != nil {
-			return nil, err
-		}
-		for i, item := range slice {
-			indexSlice[i] = uint32(item)
-		}
-	} else {
-		if _, err := binary.Decode(buffer.Data[indexOffset:], binary.LittleEndian, &indexSlice); err != nil {
-			return nil, err
-		}
+	indexBufferView := doc.BufferViews[*indexAccessor.BufferView]
+	buffer := doc.Buffers[indexBufferView.Buffer]
+	indexSlice, err := getIndices(buffer, indexBufferView, indexAccessor)
+	if err != nil {
+		return nil, err
 	}
 
 	texcoordOffset := texcoordAccessor.ByteOffset + doc.BufferViews[*texcoordAccessor.BufferView].ByteOffset
