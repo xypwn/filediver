@@ -1196,18 +1196,17 @@ func loadMeshLayouts(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Docume
 					// Check if there are vertices that still need to be transformed
 					vertexOffset = previousPositionAccessor.Count
 				}
-				if (transformed && vertexOffset == 0) || transformMatrix.ApproxEqual(mgl32.Ident4()) {
+				if !((transformed && vertexOffset == 0) || transformMatrix.ApproxEqual(mgl32.Ident4())) {
 					// Only transform vertices once, and only perform the multiplications if the transform does something
-					continue
+					bufferOffset := doc.Accessors[positionAccessor].ByteOffset + doc.BufferViews[vertexBuffer].ByteOffset
+					stride := doc.BufferViews[vertexBuffer].ByteStride
+					buffer := doc.Buffers[doc.BufferViews[vertexBuffer].Buffer]
+					err := transformVertices(buffer, bufferOffset, stride, vertexOffset, doc.Accessors[positionAccessor].Count, transformMatrix)
+					if err != nil {
+						return err
+					}
+					transformed = true
 				}
-				bufferOffset := doc.Accessors[positionAccessor].ByteOffset + doc.BufferViews[vertexBuffer].ByteOffset
-				stride := doc.BufferViews[vertexBuffer].ByteStride
-				buffer := doc.Buffers[doc.BufferViews[vertexBuffer].Buffer]
-				err := transformVertices(buffer, bufferOffset, stride, vertexOffset, doc.Accessors[positionAccessor].Count, transformMatrix)
-				if err != nil {
-					return err
-				}
-				transformed = true
 				previousPositionAccessor = doc.Accessors[positionAccessor]
 			}
 
