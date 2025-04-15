@@ -819,7 +819,7 @@ func createAttributes(doc *gltf.Document, layout unit.MeshLayout, accessorInfo [
 		case unit.ItemPosition:
 			attributes[gltf.POSITION] = accessor
 		case unit.ItemNormal:
-			attributes[gltf.COLOR_0] = accessor
+			attributes["COLOR_1"] = accessor
 		case unit.ItemUVCoords:
 			attributes[fmt.Sprintf("TEXCOORD_%v", layout.Items[j].Layer)] = accessor
 		case unit.ItemBoneIdx:
