@@ -701,8 +701,11 @@ func remapJoint[E ~[]I, I uint8 | uint32](idxs E, remapList, remappedBoneIndices
 	}
 }
 
-func remapJoints(buffer *gltf.Buffer, stride, bufferOffset, vertexCount uint32, componentType gltf.ComponentType, remapList, remappedBoneIndices []uint32) error {
-	for vertex := uint32(0); vertex < vertexCount; vertex += 1 {
+func remapJoints(buffer *gltf.Buffer, stride, bufferOffset, vertexCount uint32, indices []uint32, componentType gltf.ComponentType, remapList, remappedBoneIndices []uint32) error {
+	for _, vertex := range indices {
+		if vertex >= vertexCount {
+			continue
+		}
 		if componentType == gltf.ComponentUbyte {
 			boneIndices := make([]uint8, 4)
 			if _, err := binary.Decode(buffer.Data[stride*vertex+bufferOffset:], binary.LittleEndian, &boneIndices); err != nil {
@@ -1021,6 +1024,25 @@ func separateUDims(doc *gltf.Document, indexAccessor, texcoordAccessor *gltf.Acc
 	return UDIMs, nil
 }
 
+func getIndices(buffer *gltf.Buffer, bufferView *gltf.BufferView, idxAccessor *gltf.Accessor) ([]uint32, error) {
+	idxBufferOffset := idxAccessor.ByteOffset + bufferView.ByteOffset
+	indices := make([]uint32, idxAccessor.Count)
+	if idxAccessor.ComponentType == gltf.ComponentUshort {
+		temp := make([]uint16, idxAccessor.Count)
+		if _, err := binary.Decode(buffer.Data[idxBufferOffset:], binary.LittleEndian, &temp); err != nil {
+			return nil, err
+		}
+		for i, item := range temp {
+			indices[i] = uint32(item)
+		}
+	} else {
+		if _, err := binary.Decode(buffer.Data[idxBufferOffset:], binary.LittleEndian, &indices); err != nil {
+			return nil, err
+		}
+	}
+	return indices, nil
+}
+
 func loadMeshLayouts(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, meshInfos []MeshInfo, bones []stingray.ThinHash, meshLayouts []unit.MeshLayout, unitInfo *unit.Info, meshNodes *[]uint32, materialIndices map[stingray.ThinHash]uint32, parent uint32, skin *uint32) error {
 	unitName, contains := ctx.Hashes()[ctx.File().ID().Name]
 	if !contains {
@@ -1091,7 +1113,8 @@ func loadMeshLayouts(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Docume
 
 		udimPrimitives := make(map[uint32][]*gltf.Primitive)
 		nodeName := fmt.Sprintf("%v %v", unitName, groupName)
-		var transformed, remapped bool = false, false
+		var transformed bool = false
+		remapped := make(map[uint32]bool)
 		var previousPositionAccessor *gltf.Accessor
 		for j, group := range header.Groups {
 			// Check if this group is a gib, if it is skip it unless include_lods is set
@@ -1188,7 +1211,8 @@ func loadMeshLayouts(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Docume
 				previousPositionAccessor = doc.Accessors[positionAccessor]
 			}
 
-			if jointsAccessor, contains := groupAttr[gltf.JOINTS_0]; contains && !remapped {
+			_, beenRemapped := remapped[*groupIndices]
+			if jointsAccessor, contains := groupAttr[gltf.JOINTS_0]; contains && !beenRemapped {
 				bufferOffset := doc.Accessors[jointsAccessor].ByteOffset + doc.BufferViews[vertexBuffer].ByteOffset
 				stride := doc.BufferViews[vertexBuffer].ByteStride
 				buffer := doc.Buffers[doc.BufferViews[vertexBuffer].Buffer]
@@ -1197,11 +1221,18 @@ func loadMeshLayouts(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Docume
 					return fmt.Errorf("%v out of range of components", j)
 				}
 				remapList := skeletonMap.RemapList[j]
-				err := remapJoints(buffer, stride, bufferOffset, group.NumVertices, doc.Accessors[jointsAccessor].ComponentType, remapList, skeletonMap.BoneIndices)
+				idxAccessor := doc.Accessors[*groupIndices]
+				idxBufferView := doc.BufferViews[*doc.Accessors[*groupIndices].BufferView]
+				idxBuffer := doc.Buffers[idxBufferView.Buffer]
+				indices, err := getIndices(idxBuffer, idxBufferView, idxAccessor)
 				if err != nil {
 					return err
 				}
-				remapped = true
+				err = remapJoints(buffer, stride, bufferOffset, group.NumVertices, indices, doc.Accessors[jointsAccessor].ComponentType, remapList, skeletonMap.BoneIndices)
+				if err != nil {
+					return err
+				}
+				remapped[*groupIndices] = true
 			}
 
 			if transformMatrix.Det() < 0 {
