@@ -598,7 +598,7 @@ func convertVertices(gpuR io.ReadSeeker, layout unit.MeshLayout) ([]byte, []Acce
 				tmpArr := make([]uint16, item.Format.Type().Components())
 				var err error
 				var size, extra uint32
-				var accessorType gltf.AccessorType = gltf.AccessorVec2
+				var accessorType gltf.AccessorType = item.Format.Type()
 				if item.Type == unit.ItemBoneWeight && item.Format == unit.FormatVec2F16 {
 					accessorType = gltf.AccessorVec4
 					extra = 2
