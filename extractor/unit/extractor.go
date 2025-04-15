@@ -968,21 +968,21 @@ func flipNormals(buffer *gltf.Buffer, componentType gltf.ComponentType, indexCou
 	return nil
 }
 
-func separateUDims(doc *gltf.Document, indexAccessor, texcoordAccessor *gltf.Accessor) error {
+func separateUDims(doc *gltf.Document, indexAccessor, texcoordAccessor *gltf.Accessor) (map[uint32][]uint32, error) {
 	indexSlice := make([]uint32, indexAccessor.Count)
 	indexOffset := indexAccessor.ByteOffset + doc.BufferViews[*indexAccessor.BufferView].ByteOffset
 	buffer := doc.Buffers[doc.BufferViews[*indexAccessor.BufferView].Buffer]
 	if indexAccessor.ComponentType == gltf.ComponentUshort {
 		slice := make([]uint16, indexAccessor.Count)
 		if _, err := binary.Decode(buffer.Data[indexOffset:], binary.LittleEndian, &slice); err != nil {
-			return err
+			return nil, err
 		}
 		for i, item := range slice {
 			indexSlice[i] = uint32(item)
 		}
 	} else {
 		if _, err := binary.Decode(buffer.Data[indexOffset:], binary.LittleEndian, &indexSlice); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
@@ -990,36 +990,35 @@ func separateUDims(doc *gltf.Document, indexAccessor, texcoordAccessor *gltf.Acc
 	vertexStride := doc.BufferViews[*texcoordAccessor.BufferView].ByteStride
 	buffer = doc.Buffers[doc.BufferViews[*texcoordAccessor.BufferView].Buffer]
 
-	//triUDIMs := make([]uint32, 0, indexAccessor.Count / 3)
-	var udim uint32 = 0
-	for i := 0; i < len(indexSlice); i += 3 {
-		var minU, minV float32
+	UDIMs := make(map[uint32][]uint32)
+	for i := uint32(0); i+2 < uint32(len(indexSlice)); i += 3 {
 		var uv [2]float32
-		if _, err := binary.Decode(buffer.Data[indexSlice[i]*vertexStride+texcoordOffset:], binary.LittleEndian, &uv); err != nil {
-			return err
+		vertex := indexSlice[i]
+		if _, err := binary.Decode(buffer.Data[vertex*vertexStride+texcoordOffset:], binary.LittleEndian, &uv); err != nil {
+			return nil, err
 		}
-		minU = uv[0]
-		minV = 1 - uv[1]
+
+		udim := make([]uint32, 3)
+		udim[0] = uint32(uv[0]) | uint32(1-uv[1])<<5
 		for j := i + 1; j < i+3; j += 1 {
 			vertex := indexSlice[j]
-			var uv [2]float32
 			if _, err := binary.Decode(buffer.Data[vertex*vertexStride+texcoordOffset:], binary.LittleEndian, &uv); err != nil {
-				return err
+				return nil, err
 			}
-			if uv[0] < minU {
-				minU = uv[0]
-			}
-			if 1-uv[1] < minV {
-				minV = 1 - uv[1]
-			}
+			udim[j-i] = uint32(uv[0]) | uint32(1-uv[1])<<5
 		}
-		if udim != uint32(minU)|uint32(-minV+1)<<5 {
-			fmt.Printf("%v: %v\n", i, uint32(minU)|uint32(-minV+1)<<5)
-			udim = uint32(minU) | uint32(-minV+1)<<5
+		var minUdim uint32
+		if udim[0] < udim[1] && udim[0] < udim[2] {
+			minUdim = udim[0]
+		} else if udim[1] < udim[2] {
+			minUdim = udim[1]
+		} else {
+			minUdim = udim[2]
 		}
+		UDIMs[minUdim] = append(UDIMs[minUdim], indexSlice[i], indexSlice[i+1], indexSlice[i+2])
 	}
 
-	return nil
+	return UDIMs, nil
 }
 
 func loadMeshLayouts(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, meshInfos []MeshInfo, bones []stingray.ThinHash, meshLayouts []unit.MeshLayout, unitInfo *unit.Info, meshNodes *[]uint32, materialIndices map[stingray.ThinHash]uint32, parent uint32, skin *uint32) error {
@@ -1090,10 +1089,12 @@ func loadMeshLayouts(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Docume
 			layoutToIndexAccessor[header.MeshLayoutIndex] = indexAccessor
 		}
 
-		primitives := make([]*gltf.Primitive, 0, 1)
+		udimPrimitives := make(map[uint32][]*gltf.Primitive)
 		nodeName := fmt.Sprintf("%v %v", unitName, groupName)
 		var transformed, remapped bool = false, false
+		var previousPositionAccessor *gltf.Accessor
 		for j, group := range header.Groups {
+			// Check if this group is a gib, if it is skip it unless include_lods is set
 			var materialName string
 			if _, contains := ctx.ThinHashes()[header.Materials[j]]; contains {
 				materialName = ctx.ThinHashes()[header.Materials[j]]
@@ -1164,11 +1165,6 @@ func loadMeshLayouts(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Docume
 				transformMatrix = fbxTransformMatrix.Mul4(transformMatrix)
 			}
 
-			var previousPositionAccessor *gltf.Accessor
-			if len(primitives) > 0 {
-				previousPositionAccessor = doc.Accessors[primitives[len(primitives)-1].Attributes[gltf.POSITION]]
-			}
-
 			if positionAccessor, contains := groupAttr[gltf.POSITION]; contains {
 				addPositionMinMax(doc, transformMatrix, mgl32.Vec3(meshHeader.AABB.Min), mgl32.Vec3(meshHeader.AABB.Max), positionAccessor)
 
@@ -1189,6 +1185,7 @@ func loadMeshLayouts(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Docume
 					return err
 				}
 				transformed = true
+				previousPositionAccessor = doc.Accessors[positionAccessor]
 			}
 
 			if jointsAccessor, contains := groupAttr[gltf.JOINTS_0]; contains && !remapped {
@@ -1214,13 +1211,24 @@ func loadMeshLayouts(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Docume
 				flipNormals(buffer, indexAccessor.ComponentType, group.NumIndices, bufferOffset)
 			}
 
-			texcoordIndex, ok := groupAttr[gltf.TEXCOORD_0]
-			fmt.Printf("Texcoord found: %v\n", ok)
-			if ok {
-				texcoordAccessor := doc.Accessors[texcoordIndex]
-				if err := separateUDims(doc, indexAccessor, texcoordAccessor); err != nil {
-					fmt.Printf("Error: %v\n", err)
+			udimIndexAccessors := make(map[uint32]uint32)
+			if ctx.Config()["join_components"] != "true" {
+				texcoordIndex, ok := groupAttr[gltf.TEXCOORD_0]
+				if ok && !strings.Contains(groupName, "LOD") && !strings.Contains(groupName, "shadow") {
+					texcoordAccessor := doc.Accessors[texcoordIndex]
+					groupIndexAccessor := doc.Accessors[*groupIndices]
+					var UDIMs map[uint32][]uint32
+					if UDIMs, err = separateUDims(doc, groupIndexAccessor, texcoordAccessor); err != nil {
+						fmt.Printf("Error: %v\n", err)
+					} else {
+						for udim, indices := range UDIMs {
+							udimIndexAccessors[udim] = modeler.WriteIndices(doc, indices)
+						}
+					}
 				}
+			}
+			if ctx.Config()["join_components"] == "true" || (ctx.Config()["include_lods"] == "true" && (strings.Contains(groupName, "LOD") || strings.Contains(groupName, "shadow"))) {
+				udimIndexAccessors[0] = *groupIndices
 			}
 
 			var material *uint32
@@ -1229,27 +1237,35 @@ func loadMeshLayouts(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Docume
 				material = &materialVal
 			}
 
-			primitives = append(primitives, &gltf.Primitive{
-				Attributes: groupAttr,
-				Indices:    groupIndices,
-				Material:   material,
+			for udim, indexAccessor := range udimIndexAccessors {
+				udimPrimitives[udim] = append(udimPrimitives[udim], &gltf.Primitive{
+					Attributes: groupAttr,
+					Indices:    gltf.Index(indexAccessor),
+					Material:   material,
+				})
+			}
+		}
+		for udim, primitives := range udimPrimitives {
+			doc.Meshes = append(doc.Meshes, &gltf.Mesh{
+				Primitives: primitives,
 			})
-		}
-		doc.Meshes = append(doc.Meshes, &gltf.Mesh{
-			Primitives: primitives,
-		})
 
-		doc.Nodes = append(doc.Nodes, &gltf.Node{
-			Name: nodeName,
-			Mesh: gltf.Index(uint32(len(doc.Meshes)) - 1),
-		})
-		node := uint32(len(doc.Nodes)) - 1
-		if _, contains := primitives[0].Attributes[gltf.JOINTS_0]; contains {
-			doc.Nodes[node].Skin = skin
-		} else {
-			doc.Nodes[parent].Children = append(doc.Nodes[parent].Children, node)
+			udimNodeName := nodeName
+			if len(udimPrimitives) > 1 {
+				udimNodeName = fmt.Sprintf("%v udim %v", nodeName, udim)
+			}
+			doc.Nodes = append(doc.Nodes, &gltf.Node{
+				Name: udimNodeName,
+				Mesh: gltf.Index(uint32(len(doc.Meshes)) - 1),
+			})
+			node := uint32(len(doc.Nodes)) - 1
+			if _, contains := primitives[0].Attributes[gltf.JOINTS_0]; contains {
+				doc.Nodes[node].Skin = skin
+			} else {
+				doc.Nodes[parent].Children = append(doc.Nodes[parent].Children, node)
+			}
+			*meshNodes = append(*meshNodes, node)
 		}
-		*meshNodes = append(*meshNodes, node)
 	}
 
 	return nil
