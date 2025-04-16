@@ -1069,7 +1069,8 @@ func loadMeshLayouts(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Docume
 		if ctx.Config()["include_lods"] != "true" &&
 			(strings.Contains(groupName, "shadow") ||
 				strings.Contains(groupName, "_LOD") ||
-				strings.Contains(groupName, "culling")) {
+				strings.Contains(groupName, "cull") ||
+				strings.Contains(groupName, "collision")) {
 			continue
 		}
 
