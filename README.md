@@ -13,8 +13,8 @@ An unofficial Helldivers 2 game asset extractor.
 
 ## Download
 ### Filediver
-- [Windows (64-bit)](https://github.com/xypwn/filediver/releases/latest/download/filediver-cli-windows-amd64.zip)
-- [Linux (64-bit)](https://github.com/xypwn/filediver/releases/latest/download/filediver-cli-linux-amd64.zip)
+- [Windows (64-bit)](https://github.com/xypwn/filediver/releases/latest/download/filediver-cli-windows.zip)
+- [Linux (64-bit)](https://github.com/xypwn/filediver/releases/latest/download/filediver-cli-linux.zip)
 
 **Extract the archive. This will create a folder named `filediver`, where everything relevant is located.**
 
@@ -30,6 +30,7 @@ You only need to keep it in the folder if you don't have it installed on your co
 
 ### Helper scripts (scripts_dist)
 - [Windows (64-bit)](https://github.com/xypwn/filediver/releases/latest/download/scripts-dist-windows.zip)
+- [Linux (64-bit)](https://github.com/xypwn/filediver/releases/latest/download/scripts-dist-linux.zip)
 
 **Extract the helper scripts achive into the `filediver` folder (the same folder containing the executable, e.g. `filediver.exe`).**
 
@@ -84,8 +85,8 @@ and to interactively select your extraction options.
 
 ![GUI Screenshot](screenshots/gui.png)
 ### Download Filediver GUI
-- [Windows (64-bit)](https://github.com/xypwn/filediver/releases/latest/download/filediver-gui-windows-amd64.exe)
-- [Linux (64-bit)](https://github.com/xypwn/filediver/releases/latest/download/filediver-gui-linux-amd64.zip)
+- [Windows (64-bit)](https://github.com/xypwn/filediver/releases/latest/download/filediver-gui-windows.exe)
+- [Linux (64-bit)](https://github.com/xypwn/filediver/releases/latest/download/filediver-gui-linux)
 
 ## Features
 ### File Types/Formats
