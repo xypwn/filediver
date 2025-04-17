@@ -1,6 +1,7 @@
 package widgets
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"hash/fnv"
@@ -11,10 +12,11 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/AllenDang/cimgui-go/imgui"
-	"github.com/gen2brain/go-unarr"
+	"github.com/mholt/archives"
 	fnt "github.com/xypwn/filediver/cmd/filediver-gui/fonts"
 	"github.com/xypwn/filediver/cmd/filediver-gui/imutils"
 )
@@ -41,8 +43,9 @@ func diskUsage(path string) (int64, error) {
 }
 
 type downloaderStateInfo struct {
-	archiveURL  string
-	destBaseDir string
+	archiveURL    string
+	destBaseDir   string
+	stripFirstDir bool
 }
 
 func (info *downloaderStateInfo) hashedURL() string {
@@ -87,12 +90,16 @@ type DownloaderState struct {
 	progress  downloaderStateProgress
 }
 
-// archiveURL can be .RAR, .TAR, .ZIP or .7z
-func NewDownloader(archiveURL, destBaseDir string) *DownloaderState {
+// archiveURL can be .zip, .tar, .tar.{gz,xz,bz2,zst}, .rar, .7z
+// If stripFirstDir is true, the initial folder of the destination directory
+// is removed. This is useful e.g. if all files in the archive are within
+// a folder of the same name.
+func NewDownloader(archiveURL, destBaseDir string, stripFirstDir bool) *DownloaderState {
 	return &DownloaderState{
 		info: downloaderStateInfo{
-			archiveURL:  archiveURL,
-			destBaseDir: destBaseDir,
+			archiveURL:    archiveURL,
+			destBaseDir:   destBaseDir,
+			stripFirstDir: stripFirstDir,
 		},
 	}
 }
@@ -185,21 +192,66 @@ func (ds *DownloaderState) goDownload() {
 			return
 		}
 
-		a, err := unarr.NewArchive(info.tmpArchivePath())
+		var arEx archives.Extractor
+		{
+			var ok bool
+			arFormat, _, err := archives.Identify(context.Background(), info.archiveURL, nil)
+			if err != nil {
+				resErr = err
+				return
+			}
+			arEx, ok = arFormat.(archives.Extractor)
+			if !ok {
+				resErr = errors.New("unable to extract archive")
+				return
+			}
+		}
+
+		arR, err := os.Open(info.tmpArchivePath())
 		if err != nil {
 			resErr = err
 			return
 		}
-		defer a.Close()
-
-		_, err = a.Extract(info.dirPath())
-		if err != nil {
+		defer arR.Close()
+		if err := arEx.Extract(context.Background(), arR, func(ctx context.Context, fInfo archives.FileInfo) error {
+			if !fInfo.Mode().IsRegular() {
+				return nil
+			}
+			f, err := fInfo.Open()
+			if err != nil {
+				return err
+			}
+			defer f.Close()
+			nameInArchive := filepath.Clean(fInfo.NameInArchive)
+			if info.stripFirstDir {
+				i := strings.IndexAny(nameInArchive, "/\\")
+				if i != -1 {
+					nameInArchive = nameInArchive[i+1:]
+				}
+			}
+			dstDir := info.dirPath()
+			dst := filepath.Clean(filepath.Join(dstDir, nameInArchive))
+			if !strings.HasPrefix(dst, dstDir) {
+				return nil
+			}
+			if err := os.MkdirAll(filepath.Dir(dst), os.ModePerm); err != nil {
+				return err
+			}
+			out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, fInfo.Mode())
+			if err != nil {
+				return err
+			}
+			defer out.Close()
+			if _, err := io.Copy(out, f); err != nil {
+				return err
+			}
+			return nil
+		}); err != nil {
 			resErr = err
 			return
 		}
 
-		err = os.WriteFile(info.completeFilePath(), []byte{}, 0666)
-		if err != nil {
+		if err := os.WriteFile(info.completeFilePath(), []byte{}, 0666); err != nil {
 			resErr = err
 			return
 		}

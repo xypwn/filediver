@@ -160,10 +160,11 @@ var downloadScriptsDistURL string
 func init() {
 	switch runtime.GOOS {
 	case "windows":
-		downloadFFmpegURL = "https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-7.1.1-essentials_build.zip"
-		downloadScriptsDistURL = "https://github.com/xypwn/filediver/releases/latest/download/scripts-dist-windows.zip"
+		downloadFFmpegURL = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"
+		downloadScriptsDistURL = "https://github.com/xypwn/filediver/releases/download/v0.5.7/scripts-dist-windows.zip"
 	case "linux":
 		downloadFFmpegURL = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz"
+		downloadScriptsDistURL = "https://github.com/xypwn/filediver/releases/download/v0.5.7/scripts-dist-linux.tar.xz"
 	}
 }
 
@@ -283,8 +284,8 @@ func run(onError func(error)) error {
 	var extractorConfig app.Config
 
 	downloadsDir := filepath.Join(xdg.DataHome, "filediver")
-	ffmpegDownloadState := widgets.NewDownloader(downloadFFmpegURL, downloadsDir)
-	scriptsDistDownloadState := widgets.NewDownloader(downloadScriptsDistURL, downloadsDir)
+	ffmpegDownloadState := widgets.NewDownloader(downloadFFmpegURL, downloadsDir, true)
+	scriptsDistDownloadState := widgets.NewDownloader(downloadScriptsDistURL, downloadsDir, true)
 
 	isPreferencesOpen := false
 	isAboutOpen := false
@@ -611,9 +612,9 @@ func run(onError func(error)) error {
 				imgui.BeginDisabledV(len(filesSelectedForExport) == 0 || gameData == nil)
 				if imgui.ButtonV(fnt.I("File_export")+" Begin export", imgui.NewVec2(-math.SmallestNonzeroFloat32, 0)) && gameData != nil {
 					runner := exec.NewRunner()
-					ffmpegPath := filepath.Join(ffmpegDownloadState.Dir(), "ffmpeg-7.1.1-essentials_build", "bin", "ffmpeg")
+					ffmpegPath := filepath.Join(ffmpegDownloadState.Dir(), "bin", "ffmpeg")
 					ffmpegArgs := []string{"-y", "-hide_banner", "-loglevel", "error"}
-					blenderImporterPath := filepath.Join(scriptsDistDownloadState.Dir(), "scripts_dist", "hd2_accurate_blender_importer", "hd2_accurate_blender_importer")
+					blenderImporterPath := filepath.Join(scriptsDistDownloadState.Dir(), "hd2_accurate_blender_importer", "hd2_accurate_blender_importer")
 					if !runner.Add(ffmpegPath, ffmpegArgs...) {
 						// Try to use a local FFmpeg instance if the extension isn't installed
 						runner.Add("ffmpeg", ffmpegArgs...)
