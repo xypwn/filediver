@@ -129,8 +129,8 @@ jobs:
         files: scripts-dist-windows.zip
 
   release-scripts-dist-linux:
-    name: Release Windows Helper Scripts
-    runs-on: windows-latest
+    name: Release Linux Helper Scripts
+    runs-on: ubuntu-latest
     steps:
     - name: Checkout
       uses: actions/checkout@v4
