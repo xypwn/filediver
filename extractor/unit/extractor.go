@@ -38,36 +38,8 @@ func loadBoneMap(ctx extractor.Context) (*bones.BoneInfo, error) {
 	return boneInfo, err
 }
 
-func remapMeshBones(mesh *unit.Mesh, mapping unit.SkeletonMap) error {
-	var remappedIndices map[uint32]bool = make(map[uint32]bool)
-	for component := range mesh.Indices {
-		for _, index := range mesh.Indices[component] {
-			if _, contains := remappedIndices[index]; contains {
-				continue
-			}
-			layer := 0
-			if len(mesh.BoneIndices) > 0 {
-				for j := range mesh.BoneIndices[layer][index] {
-					boneIndex := mesh.BoneIndices[layer][index][j]
-					remapList := mapping.RemapList[component]
-					if int(boneIndex) >= len(remapList) {
-						if layer > 0 {
-							break
-						}
-						return fmt.Errorf("vertex %v has boneIndex exceeding remapList length", index)
-					}
-					remapIndex := remapList[boneIndex]
-					mesh.BoneIndices[layer][index][j] = uint8(mapping.BoneIndices[remapIndex])
-					remappedIndices[index] = true
-				}
-			}
-		}
-	}
-	return nil
-}
-
 // Adds the unit's skeleton to the gltf document
-func addSkeleton(ctx extractor.Context, doc *gltf.Document, unitInfo *unit.Info, boneInfo *bones.BoneInfo, armorName *string) uint32 {
+func AddSkeleton(ctx extractor.Context, doc *gltf.Document, unitInfo *unit.Info, armorName *string) uint32 {
 	var matrices [][4][4]float32 = make([][4][4]float32, len(unitInfo.JointTransformMatrices))
 	gltfConversionMatrix := mgl32.HomogRotate3DX(mgl32.DegToRad(-90.0)).Mul4(mgl32.HomogRotate3DZ(mgl32.DegToRad(0)))
 	for i := range matrices {
@@ -115,18 +87,22 @@ func addSkeleton(ctx extractor.Context, doc *gltf.Document, unitInfo *unit.Info,
 	for i, bone := range unitInfo.Bones {
 		quat := mgl32.Mat4ToQuat(bone.Transform.Rotation.Mat4())
 		boneName := fmt.Sprintf("Bone_%08x", bone.NameHash.Value)
-		if boneInfo != nil {
-			name, exists := boneInfo.NameMap[bone.NameHash]
-			if exists {
-				boneName = name
-			}
+		// if boneInfo != nil {
+		// 	name, exists := boneInfo.NameMap[bone.NameHash]
+		// 	if exists {
+		// 		boneName = name
+		// 	}
+		// }
+		name, exists := ctx.ThinHashes()[bone.NameHash]
+		if exists {
+			boneName = name
 		}
 		var boneIdx uint32
 		var contains bool = false
 		var parentIndex uint32
 		if boneIdx, contains = nodeNames[boneName+fmt.Sprintf("%08x", skeletonId)]; !contains {
 			parentBone := unitInfo.Bones[bone.ParentIndex]
-			parentName, contains := boneInfo.NameMap[parentBone.NameHash]
+			parentName, contains := ctx.ThinHashes()[parentBone.NameHash]
 			if !contains {
 				parentName = fmt.Sprintf("Bone_%08x", parentBone.NameHash.Value)
 			}
@@ -196,106 +172,52 @@ func addSkeleton(ctx extractor.Context, doc *gltf.Document, unitInfo *unit.Info,
 	return uint32(len(doc.Skins) - 1)
 }
 
-func writeMesh(ctx extractor.Context, doc *gltf.Document, componentName string, indices *uint32, positions uint32, normals uint32, texCoords []uint32, material *uint32, joints *uint32, weights *uint32, skin *uint32, armorSet *string) uint32 {
-	primitive := &gltf.Primitive{
-		Indices: indices,
-		Attributes: map[string]uint32{
-			gltf.POSITION: positions,
-			gltf.NORMAL:   normals,
-		},
-		Material: material,
-	}
+func AddMaterials(ctx extractor.Context, doc *gltf.Document, imgOpts *extr_material.ImageOptions, unitInfo *unit.Info, metadata *dlbin.UnitData) (map[stingray.ThinHash]uint32, error) {
+	materialIdxs := make(map[stingray.ThinHash]uint32)
+	for id, resID := range unitInfo.Materials {
+		matRes, exists := ctx.GetResource(resID, stingray.Sum64([]byte("material")))
+		if !exists || !matRes.Exists(stingray.DataMain) {
+			return nil, fmt.Errorf("referenced material resource %v doesn't exist", resID)
+		}
+		mat, err := func() (*material.Material, error) {
+			f, err := matRes.Open(ctx.Ctx(), stingray.DataMain)
+			if err != nil {
+				return nil, err
+			}
+			defer f.Close()
+			return material.Load(f)
+		}()
+		if err != nil {
+			return nil, err
+		}
 
-	if joints != nil {
-		primitive.Attributes[gltf.JOINTS_0] = *joints
-		primitive.Attributes[gltf.WEIGHTS_0] = *weights
+		matIdx, err := extr_material.AddMaterial(ctx, mat, doc, imgOpts, resID.String(), metadata)
+		if err != nil {
+			return nil, err
+		}
+		materialIdxs[id] = matIdx
 	}
-
-	for j := range texCoords {
-		primitive.Attributes[fmt.Sprintf("TEXCOORD_%v", j)] = texCoords[j]
-	}
-
-	doc.Meshes = append(doc.Meshes, &gltf.Mesh{
-		Name: ctx.File().ID().Name.String(),
-		Primitives: []*gltf.Primitive{
-			primitive,
-		},
-	})
-	idx := len(doc.Nodes)
-	doc.Nodes = append(doc.Nodes, &gltf.Node{
-		Name: componentName,
-		Mesh: gltf.Index(uint32(len(doc.Meshes) - 1)),
-		Skin: skin,
-	})
-	if armorSet != nil {
-		extras := map[string]any{"armorSet": *armorSet}
-		doc.Nodes[idx].Extras = extras
-	}
-	return uint32(idx)
+	return materialIdxs, nil
 }
 
-func addBoundingBox(doc *gltf.Document, name string, mesh unit.Mesh, info *unit.Info, armorSet *string) {
-	var indices []uint32 = []uint32{
-		0, 1,
-		0, 5,
-		0, 3,
-		1, 4,
-		1, 2,
-		5, 4,
-		5, 6,
-		4, 7,
-		3, 2,
-		3, 6,
-		6, 7,
-		2, 7,
+func addPrefabMetadata(ctx extractor.Context, doc *gltf.Document, parent *uint32, skin *uint32, meshNodes []uint32, armorSetName *string) {
+	if armorSetName != nil {
+		extras := map[string]any{"armorSet": *armorSetName}
+		for _, node := range meshNodes {
+			doc.Nodes[node].Extras = extras
+		}
 	}
-
-	vMin := mesh.Info.Header.AABB.Min
-	vMax := mesh.Info.Header.AABB.Max
-
-	var vertices [][3]float32 = [][3]float32{
-		vMin,
-		{vMax[0], vMin[1], vMin[2]},
-		{vMax[0], vMin[1], vMax[2]},
-		{vMin[0], vMin[1], vMax[2]},
-		{vMax[0], vMax[1], vMin[2]},
-		{vMin[0], vMax[1], vMin[2]},
-		{vMin[0], vMax[1], vMax[2]},
-		vMax,
+	extras, ok := doc.Extras.(map[string]map[string]interface{})
+	if !ok {
+		extras = make(map[string]map[string]interface{})
 	}
-
-	boundingBoxTransformIdx := mesh.Info.Header.AABBTransformIndex
-	for i := range vertices {
-		vertices[i] = info.Bones[boundingBoxTransformIdx].Matrix.Mul4x1(mgl32.Vec3(vertices[i]).Vec4(1.0)).Vec3()
-		vertices[i][1], vertices[i][2] = vertices[i][2], -vertices[i][1]
+	extras[ctx.File().ID().Name.String()] = make(map[string]interface{})
+	extras[ctx.File().ID().Name.String()]["parent"] = *parent
+	if skin != nil {
+		extras[ctx.File().ID().Name.String()]["skin"] = *skin
 	}
-
-	positions := modeler.WritePosition(doc, vertices)
-	index := gltf.Index(modeler.WriteIndices(doc, indices))
-
-	primitive := &gltf.Primitive{
-		Indices: index,
-		Attributes: map[string]uint32{
-			gltf.POSITION: positions,
-		},
-		Mode: gltf.PrimitiveLines,
-	}
-
-	doc.Meshes = append(doc.Meshes, &gltf.Mesh{
-		Name: name,
-		Primitives: []*gltf.Primitive{
-			primitive,
-		},
-	})
-	idx := len(doc.Nodes)
-	doc.Nodes = append(doc.Nodes, &gltf.Node{
-		Name: name,
-		Mesh: gltf.Index(uint32(len(doc.Meshes) - 1)),
-	})
-	if armorSet != nil {
-		extras := map[string]any{"armorSet": *armorSet}
-		doc.Nodes[idx].Extras = extras
-	}
+	extras[ctx.File().ID().Name.String()]["objects"] = meshNodes
+	doc.Extras = extras
 }
 
 func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, gltfDoc *gltf.Document) error {
@@ -311,23 +233,6 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 			return err
 		}
 		defer fGPU.Close()
-	}
-
-	boneInfo, _ := loadBoneMap(ctx)
-	if boneInfo == nil {
-		boneInfo, _ = bones.PlayerBones()
-	} else {
-		playerBones, _ := bones.PlayerBones()
-		for k, v := range playerBones.NameMap {
-			if _, contains := boneInfo.NameMap[k]; !contains {
-				boneInfo.NameMap[k] = v
-			}
-		}
-	}
-	for k, v := range ctx.ThinHashes() {
-		if _, contains := boneInfo.NameMap[k]; !contains {
-			boneInfo.NameMap[k] = v
-		}
 	}
 
 	unitInfo, err := unit.LoadInfo(fMain)
@@ -370,58 +275,9 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 	}
 
 	// Load materials
-	materialIdxs := make(map[stingray.ThinHash]uint32)
-	for id, resID := range unitInfo.Materials {
-		matRes, exists := ctx.GetResource(resID, stingray.Sum64([]byte("material")))
-		if !exists || !matRes.Exists(stingray.DataMain) {
-			return fmt.Errorf("referenced material resource %v doesn't exist", resID)
-		}
-		mat, err := func() (*material.Material, error) {
-			f, err := matRes.Open(ctx.Ctx(), stingray.DataMain)
-			if err != nil {
-				return nil, err
-			}
-			defer f.Close()
-			return material.Load(f)
-		}()
-		if err != nil {
-			return err
-		}
-
-		matIdx, err := extr_material.AddMaterial(ctx, mat, doc, imgOpts, resID.String(), metadata)
-		if err != nil {
-			return err
-		}
-		materialIdxs[id] = matIdx
-	}
-
-	// Determine which meshes to convert
-	var meshesToLoad []uint32
-	if ctx.Config()["include_lods"] == "true" {
-		for i := uint32(0); i < unitInfo.NumMeshes; i++ {
-			meshesToLoad = append(meshesToLoad, i)
-		}
-	} else {
-		if len(unitInfo.MeshInfos) > 0 {
-			highestDetailIdx := -1
-			highestDetailCount := -1
-			for i, info := range unitInfo.MeshInfos {
-				for _, group := range info.Groups {
-					if int(group.NumIndices) > highestDetailCount && info.Header.MeshType != unit.MeshTypeUnknown00 {
-						highestDetailIdx = i
-						highestDetailCount = int(group.NumIndices)
-					}
-				}
-			}
-			if highestDetailIdx != -1 {
-				meshesToLoad = []uint32{uint32(highestDetailIdx)}
-			}
-		} else {
-			ctx.Warnf("Adding LODs anyway since no lodgroups in unitInfo?")
-			for i := uint32(0); i < unitInfo.NumMeshes; i++ {
-				meshesToLoad = append(meshesToLoad, i)
-			}
-		}
+	materialIdxs, err := AddMaterials(ctx, doc, imgOpts, unitInfo, metadata)
+	if err != nil {
+		return err
 	}
 
 	bonesEnabled := ctx.Config()["no_bones"] != "true"
@@ -429,7 +285,7 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 	var skin *uint32 = nil
 	var parent *uint32 = nil
 	if bonesEnabled && len(unitInfo.Bones) > 2 {
-		skin = gltf.Index(addSkeleton(ctx, doc, unitInfo, boneInfo, armorSetName))
+		skin = gltf.Index(AddSkeleton(ctx, doc, unitInfo, armorSetName))
 		parent = doc.Skins[*skin].Skeleton
 	} else {
 		parent = gltf.Index(uint32(len(doc.Nodes)))
@@ -466,24 +322,7 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 		}
 	}
 
-	// Add some metadata so prefab loading can find our parent node easily
-	if armorSetName != nil {
-		extras := map[string]any{"armorSet": *armorSetName}
-		for _, node := range meshNodes {
-			doc.Nodes[node].Extras = extras
-		}
-	}
-	extras, ok := doc.Extras.(map[string]map[string]interface{})
-	if !ok {
-		extras = make(map[string]map[string]interface{})
-	}
-	extras[ctx.File().ID().Name.String()] = make(map[string]interface{})
-	extras[ctx.File().ID().Name.String()]["parent"] = *parent
-	if skin != nil {
-		extras[ctx.File().ID().Name.String()]["skin"] = *skin
-	}
-	extras[ctx.File().ID().Name.String()]["objects"] = meshNodes
-	doc.Extras = extras
+	addPrefabMetadata(ctx, doc, parent, skin, meshNodes, armorSetName)
 
 	formatIsBlend := ctx.Config()["format"] == "blend" && ctx.Runner().Has("hd2_accurate_blender_importer")
 	if gltfDoc == nil && !formatIsBlend {

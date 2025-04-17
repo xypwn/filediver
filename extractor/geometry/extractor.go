@@ -519,6 +519,67 @@ func getPadding(offset uint32) uint32 {
 	return 4 - padAlign
 }
 
+func addBoundingBox(doc *gltf.Document, name string, meshHeader unit.MeshHeader, info *unit.Info, meshNodes *[]uint32) {
+	var indices []uint32 = []uint32{
+		0, 1,
+		0, 5,
+		0, 3,
+		1, 4,
+		1, 2,
+		5, 4,
+		5, 6,
+		4, 7,
+		3, 2,
+		3, 6,
+		6, 7,
+		2, 7,
+	}
+
+	vMin := meshHeader.AABB.Min
+	vMax := meshHeader.AABB.Max
+
+	var vertices [][3]float32 = [][3]float32{
+		vMin,
+		{vMax[0], vMin[1], vMin[2]},
+		{vMax[0], vMin[1], vMax[2]},
+		{vMin[0], vMin[1], vMax[2]},
+		{vMax[0], vMax[1], vMin[2]},
+		{vMin[0], vMax[1], vMin[2]},
+		{vMin[0], vMax[1], vMax[2]},
+		vMax,
+	}
+
+	boundingBoxTransformIdx := meshHeader.AABBTransformIndex
+	for i := range vertices {
+		vertices[i] = info.Bones[boundingBoxTransformIdx].Matrix.Mul4x1(mgl32.Vec3(vertices[i]).Vec4(1.0)).Vec3()
+		vertices[i][1], vertices[i][2] = vertices[i][2], -vertices[i][1]
+	}
+
+	positions := modeler.WritePosition(doc, vertices)
+	index := gltf.Index(modeler.WriteIndices(doc, indices))
+
+	primitive := &gltf.Primitive{
+		Indices: index,
+		Attributes: map[string]uint32{
+			gltf.POSITION: positions,
+		},
+		Mode: gltf.PrimitiveLines,
+	}
+
+	doc.Meshes = append(doc.Meshes, &gltf.Mesh{
+		Name: name,
+		Primitives: []*gltf.Primitive{
+			primitive,
+		},
+	})
+	idx := uint32(len(doc.Nodes))
+	doc.Nodes = append(doc.Nodes, &gltf.Node{
+		Name: name,
+		Mesh: gltf.Index(uint32(len(doc.Meshes) - 1)),
+	})
+	*meshNodes = append(*meshNodes, idx)
+}
+
 func LoadGLTF(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, meshInfos []MeshInfo, bones []stingray.ThinHash, meshLayouts []unit.MeshLayout, unitInfo *unit.Info, meshNodes *[]uint32, materialIndices map[stingray.ThinHash]uint32, parent uint32, skin *uint32) error {
 	unitName, contains := ctx.Hashes()[ctx.File().ID().Name]
 	if !contains {
@@ -736,6 +797,10 @@ func LoadGLTF(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, mes
 			}
 			if ctx.Config()["join_components"] == "true" || (ctx.Config()["include_lods"] == "true" && (strings.Contains(groupName, "LOD") || strings.Contains(groupName, "shadow"))) {
 				udimIndexAccessors[0] = *groupIndices
+			}
+
+			if ctx.Config()["bounding_boxes"] == "true" {
+				addBoundingBox(doc, nodeName+" Bounding Box", meshHeader, unitInfo, meshNodes)
 			}
 
 			var material *uint32
