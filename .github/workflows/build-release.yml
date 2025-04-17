@@ -101,7 +101,7 @@ jobs:
         files: filediver-cli-windows-amd64.zip
 
   release-scripts-dist-windows:
-    name: Release Helper Scripts (Windows)
+    name: Release Windows Helper Scripts
     runs-on: windows-latest
     steps:
     - name: Checkout
@@ -127,3 +127,31 @@ jobs:
       if: startsWith(github.ref, 'refs/tags/')
       with:
         files: scripts-dist-windows.zip
+
+  release-scripts-dist-linux:
+    name: Release Linux Helper Scripts
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    - name: Install uv by astral.sh
+      run: curl -LsSf https://astral.sh/uv/install.sh | sh
+    - name: Build hd2_accurate_blender_importer executable
+      run: |
+        uv venv --python 3.11
+        uv pip install -r ./scripts/requirements.txt
+        uv pip install pyinstaller
+        uv run pyinstaller \
+          -D --distpath ./scripts_dist \
+          ./scripts/hd2_accurate_blender_importer.py \
+          --add-data ./scripts/resources:resources \
+          --collect-all bpy \
+          --collect-submodules logging
+    - name: Create scripts_dist archive
+      run: |
+        tar cJf scripts-dist-linux.tar.xz ./scripts_dist
+    - name: Upload archive
+      uses: softprops/action-gh-release@v2
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: scripts-dist-linux.tar.xz
