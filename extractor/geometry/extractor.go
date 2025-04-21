@@ -215,10 +215,15 @@ func remapJoint[E ~[]I, I uint8 | uint32](idxs E, remapList, remappedBoneIndices
 }
 
 func remapJoints(buffer *gltf.Buffer, stride, bufferOffset, vertexCount uint32, indices []uint32, componentType gltf.ComponentType, remapList, remappedBoneIndices []uint32) error {
+	remappedVertices := make(map[uint32]bool)
 	for _, vertex := range indices {
 		if vertex >= vertexCount {
 			continue
 		}
+		if _, contains := remappedVertices[vertex]; contains {
+			continue
+		}
+		remappedVertices[vertex] = true
 		if componentType == gltf.ComponentUbyte {
 			boneIndices := make([]uint8, 4)
 			if _, err := binary.Decode(buffer.Data[stride*vertex+bufferOffset:], binary.LittleEndian, &boneIndices); err != nil {
