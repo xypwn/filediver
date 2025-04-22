@@ -30,30 +30,40 @@ func ConfigEditor(template app.ConfigTemplate, config *app.Config) {
 		if opt.Type == app.ConfigValueEnum {
 			if len(opt.Enum) == 2 && slices.Contains(opt.Enum, "false") && slices.Contains(opt.Enum, "true") {
 				var val bool
+				defaultVal := opt.Enum[0] == "true"
 				if v := (*config)[convName][optName]; v != "" {
 					val = v == "true"
 				} else {
-					val = opt.Enum[0] == "true"
+					val = defaultVal
 				}
 				if imgui.Checkbox(strID, &val) {
-					if val {
-						(*config)[convName][optName] = "true"
+					if val == defaultVal {
+						delete((*config)[convName], optName)
 					} else {
-						(*config)[convName][optName] = "false"
+						if val {
+							(*config)[convName][optName] = "true"
+						} else {
+							(*config)[convName][optName] = "false"
+						}
 					}
 					changed = true
 				}
 			} else {
-				selected := (*config)[convName][optName]
-				if selected == "" {
-					selected = opt.Enum[0]
+				selectedVal := (*config)[convName][optName]
+				defaultVal := opt.Enum[0]
+				if selectedVal == "" {
+					selectedVal = defaultVal
 				}
 
-				if imgui.BeginCombo(strID, selected) {
+				if imgui.BeginCombo(strID, selectedVal) {
 					for _, val := range opt.Enum {
-						isSelected := selected == val
+						isSelected := selectedVal == val
 						if imgui.SelectableBoolPtr(val, &isSelected) {
-							(*config)[convName][optName] = val
+							if val == defaultVal {
+								delete((*config)[convName], optName)
+							} else {
+								(*config)[convName][optName] = val
+							}
 						}
 						if isSelected {
 							imgui.SetItemDefaultFocus()
@@ -87,7 +97,7 @@ func ConfigEditor(template app.ConfigTemplate, config *app.Config) {
 				if enabled {
 					(*config)[convName][optName] = strconv.Itoa(opt.IntRangeMin)
 				} else {
-					(*config)[convName][optName] = ""
+					delete((*config)[convName], optName)
 				}
 			}
 		} else {
