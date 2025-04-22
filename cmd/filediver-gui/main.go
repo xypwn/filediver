@@ -513,6 +513,9 @@ func run(onError func(error)) error {
 							id := gameData.SortedSearchResultFileIDs[row]
 							imgui.PushIDStr(id.Name.String() + id.Type.String()) // might be a bit slow
 
+							// Kind of hacky way to not add to checkbox's tooltip
+							ttExport := false
+
 							imgui.TableNextColumn()
 							_, export := filesSelectedForExport[id]
 							if imgui.Checkbox("", &export) {
@@ -523,10 +526,13 @@ func run(onError func(error)) error {
 								}
 								allSelectedForExport = calcAllSelectedForExport()
 							}
-							if export {
-								imgui.SetItemTooltip("Deselect for export")
-							} else {
-								imgui.SetItemTooltip("Select for export")
+							if imgui.IsItemHovered() {
+								ttExport = true
+								if export {
+									imgui.SetTooltip("Deselect for export")
+								} else {
+									imgui.SetTooltip("Select for export")
+								}
 							}
 
 							imgui.TableNextColumn()
@@ -536,6 +542,16 @@ func run(onError func(error)) error {
 								imgui.SelectableFlagsSpanAllColumns|imgui.SelectableFlags(imgui.SelectableFlagsSelectOnNav),
 								imgui.NewVec2(0, 0),
 							)
+							if !ttExport && imgui.IsItemHovered() {
+								var text strings.Builder
+								if name, ok := gameData.Hashes[id.Name]; ok {
+									fmt.Fprintf(&text, "Name: %v, hash=%v\n", name, id.Name)
+								} else {
+									fmt.Fprintf(&text, "Name: hash=%v\n", id.Name)
+								}
+								fmt.Fprintf(&text, "Type: %v, hash=%v\n", gameData.LookupHash(id.Type), id.Type)
+								imgui.SetTooltip(text.String())
+							}
 							imgui.TableNextColumn()
 
 							imgui.TextUnformatted(gameData.LookupHash(id.Type))
@@ -567,6 +583,9 @@ func run(onError func(error)) error {
 			func(x stingray.Hash) string {
 				return gameData.LookupHash(x)
 			},
+			func(x stingray.Hash) string {
+				return fmt.Sprintf("hash=%v", x)
+			},
 		) {
 			gameData.UpdateSearchQuery(gameFileSearchQuery, allowedGameFileTypes, allowedArchives)
 			allSelectedForExport = calcAllSelectedForExport()
@@ -580,6 +599,9 @@ func run(onError func(error)) error {
 			&allowedArchives,
 			func(x stingray.Hash) string {
 				return gameData.LookupHash(x)
+			},
+			func(x stingray.Hash) string {
+				return fmt.Sprintf("hash=%v", x)
 			},
 		) {
 			gameData.UpdateSearchQuery(gameFileSearchQuery, allowedGameFileTypes, allowedArchives)

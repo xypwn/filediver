@@ -38,7 +38,8 @@ func FilterListButton[T comparable](title string, windowOpen *bool, sel map[T]st
 }
 
 // Returns true if a checkbox was changed.
-func FilterListWindow[T comparable](title string, windowOpen *bool, searchHint string, queryBuf *string, avail []T, headerIndices map[int]string, sel *map[T]struct{}, label func(x T) string) bool {
+// Searches through label and tooltip.
+func FilterListWindow[T comparable](title string, windowOpen *bool, searchHint string, queryBuf *string, avail []T, headerIndices map[int]string, sel *map[T]struct{}, label func(x T) string, tooltip func(x T) string) bool {
 	if !*windowOpen {
 		return false
 	}
@@ -70,7 +71,11 @@ func FilterListWindow[T comparable](title string, windowOpen *bool, searchHint s
 			}
 		}
 		lab := label(k)
-		if *queryBuf == "" || strings.Contains(strings.ToLower(lab), strings.ToLower(*queryBuf)) {
+		var tt string
+		if tooltip != nil {
+			tt = tooltip(k)
+		}
+		if *queryBuf == "" || strings.Contains(strings.ToLower(lab+" "+tt), strings.ToLower(*queryBuf)) {
 			_, checked := (*sel)[k]
 			if imgui.Checkbox(lab, &checked) {
 				if checked {
@@ -79,6 +84,9 @@ func FilterListWindow[T comparable](title string, windowOpen *bool, searchHint s
 					delete(*sel, k)
 				}
 				changed = true
+			}
+			if tt != "" && imgui.IsItemHovered() {
+				imgui.SetTooltip(tt)
 			}
 		}
 	}
