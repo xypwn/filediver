@@ -40,22 +40,35 @@ func NewGameData(a *app.App) *GameData {
 		gd.KnownFileNames[id] = strings.ToLower(gd.LookupHash(id.Name) + "." + gd.LookupHash(id.Type))
 		gd.HashFileNames[id] = id.Name.String() + "." + id.Type.String()
 	}
-	gd.UpdateSearchQuery("", nil)
+	gd.UpdateSearchQuery("", nil, nil)
 	return gd
 }
 
-func (gd *GameData) UpdateSearchQuery(query string, allowedTypes map[stingray.Hash]struct{}) {
+func (gd *GameData) UpdateSearchQuery(query string, allowedTypes map[stingray.Hash]struct{}, allowedArchives map[stingray.Hash]struct{}) {
 	query = strings.ToLower(query)
 
 	gd.SortedSearchResultFileIDs = gd.SortedSearchResultFileIDs[:0]
-	for fileID := range gd.DataDir.Files {
+	maybeAdd := func(fileID stingray.FileID) {
 		if allowedTypes != nil && len(allowedTypes) > 0 {
 			if _, allowed := allowedTypes[fileID.Type]; !allowed {
-				continue
+				return
 			}
 		}
 		if strings.Contains(gd.KnownFileNames[fileID], query) || strings.Contains(gd.HashFileNames[fileID], query) {
 			gd.SortedSearchResultFileIDs = append(gd.SortedSearchResultFileIDs, fileID)
+		}
+	}
+	if allowedArchives == nil || len(allowedArchives) == 0 {
+		for fileID := range gd.DataDir.Files {
+			maybeAdd(fileID)
+		}
+	} else {
+		for archiveID := range allowedArchives {
+			if files, ok := gd.DataDir.FilesByTriad[archiveID]; ok {
+				for fileID := range files {
+					maybeAdd(fileID)
+				}
+			}
 		}
 	}
 	slices.SortFunc(gd.SortedSearchResultFileIDs, func(a, b stingray.FileID) int {
@@ -116,7 +129,7 @@ func (gd *GameDataLoad) loadGameData(ctx context.Context) {
 
 	a, err := app.OpenGameDir(ctx, gameDir, app.ParseHashes(hashes.Hashes), app.ParseHashes(hashes.ThinHashes), nil, stingray.Hash{}, func(curr, total int) {
 		gd.Lock()
-		gd.Progress = float32(curr) / float32(total)
+		gd.Progress = float32(curr+1) / float32(total)
 		gd.Unlock()
 	})
 	if err != nil {
