@@ -268,16 +268,14 @@ func run(onError func(error)) error {
 		}
 	}()
 	var gameFileSearchQuery string
-	var gameFileTypes []stingray.Hash
 	filesSelectedForExport := map[stingray.FileID]struct{}{}
 	allSelectedForExport := false
+	var gameFileTypeSearchQuery string
+	var gameFileTypes []stingray.Hash
 	allowedGameFileTypes := map[stingray.Hash]struct{}{}
-	commonGameFileTypes := map[stingray.Hash]struct{}{
-		stingray.Sum64([]byte("texture")):      {},
-		stingray.Sum64([]byte("unit")):         {},
-		stingray.Sum64([]byte("wwise_bank")):   {},
-		stingray.Sum64([]byte("wwise_stream")): {},
-	}
+	var archiveIDSearchQuery string
+	var archiveIDs []stingray.Hash
+	allowedArchives := map[stingray.Hash]struct{}{}
 
 	exportDir := filepath.Join(xdg.UserDirs.Download, "filediver_exports")
 	exportNotifyWhenDone := true
@@ -292,6 +290,8 @@ func run(onError func(error)) error {
 	isExtensionsOpen := false
 	isExtensionsWarningPopupOpen := !ffmpegDownloadState.Have() || !scriptsDistDownloadState.Have()
 	isWelcomePopupOpen := true
+	isTypeFilterOpen := false
+	isArchiveFilterOpen := false
 
 	preDraw := func() error {
 		if gameData != nil && previewState == nil {
@@ -391,6 +391,25 @@ func run(onError func(error)) error {
 		imgui.End()
 		imgui.PopStyleVar()
 
+		// We use state tracking for allSelectedForExport
+		// since recalculating each frame would eat up
+		// ~5ms (on a good PC!) for nothing.
+		// This function should be used whenever
+		// the status of all items being selected may have
+		// changed.
+		calcAllSelectedForExport := func() bool {
+			if gameData == nil || len(gameData.SortedSearchResultFileIDs) == 0 {
+				return false
+			}
+			for _, id := range gameData.SortedSearchResultFileIDs {
+				_, sel := filesSelectedForExport[id]
+				if !sel {
+					return false
+				}
+			}
+			return true
+		}
+
 		if imgui.Begin("Browser") {
 			if gameData == nil {
 				gameDataLoad.Lock()
@@ -403,6 +422,21 @@ func run(onError func(error)) error {
 								types[f.ID().Type] = struct{}{}
 							}
 							gameFileTypes = slices.SortedFunc(maps.Keys(types), func(h1, h2 stingray.Hash) int {
+								commonTypes := []stingray.Hash{
+									stingray.Sum64([]byte("texture")),
+									stingray.Sum64([]byte("wwise_bank")),
+									stingray.Sum64([]byte("unit")),
+								}
+								h1Common := slices.Contains(commonTypes, h1)
+								h2Common := slices.Contains(commonTypes, h2)
+								if h1Common && !h2Common {
+									return -1
+								} else if !h1Common && h2Common {
+									return 1
+								}
+								return strings.Compare(gameData.LookupHash(h1), gameData.LookupHash(h2))
+							})
+							archiveIDs = slices.SortedFunc(maps.Keys(gameData.DataDir.FilesByTriad), func(h1, h2 stingray.Hash) int {
 								return strings.Compare(gameData.LookupHash(h1), gameData.LookupHash(h2))
 							})
 						}
@@ -410,8 +444,14 @@ func run(onError func(error)) error {
 						imutils.TextError(gameDataLoad.Err)
 					}
 				} else {
-					imutils.Textf(fnt.I("Hourglass_top") + " Loading game data...")
-					imgui.ProgressBar(gameDataLoad.Progress)
+					progress := gameDataLoad.Progress
+					if progress != 1 {
+						imutils.Textf(fnt.I("Hourglass_top") + " Loading game data...")
+					} else {
+						imutils.Textf(fnt.I("Hourglass_top") + " Processing game data...")
+						progress = -float32(imgui.Time())
+					}
+					imgui.ProgressBar(progress)
 				}
 				gameDataLoad.Unlock()
 			} else {
@@ -420,78 +460,19 @@ func run(onError func(error)) error {
 					activeFileID = previewState.ActiveID()
 				}
 
-				// We use state tracking for allSelectedForExport
-				// since recalculating each frame would eat up
-				// ~5ms (on a good PC!) for nothing.
-				// This function should be used whenever
-				// the status of all items being selected may have
-				// changed.
-				calcAllSelectedForExport := func() bool {
-					if len(gameData.SortedSearchResultFileIDs) == 0 {
-						return false
-					}
-					for _, id := range gameData.SortedSearchResultFileIDs {
-						_, sel := filesSelectedForExport[id]
-						if !sel {
-							return false
-						}
-					}
-					return true
+				if imgui.Shortcut(imgui.KeyChord(imgui.ModCtrl | imgui.KeyF)) {
+					imgui.SetKeyboardFocusHere()
 				}
-
-				if imgui.InputTextWithHint("##SearchName", fnt.I("Search")+" Search By File Name...", &gameFileSearchQuery, 0, nil) {
-					gameData.UpdateSearchQuery(gameFileSearchQuery, allowedGameFileTypes)
+				if imgui.InputTextWithHint("##SearchName", fnt.I("Search")+" Filter by file name...", &gameFileSearchQuery, 0, nil) {
+					gameData.UpdateSearchQuery(gameFileSearchQuery, allowedGameFileTypes, allowedArchives)
 					allSelectedForExport = calcAllSelectedForExport()
 				}
+				imgui.SetItemTooltip("Filter by file name (Ctrl+F)")
+
+				widgets.FilterListButton("Types", &isTypeFilterOpen, allowedGameFileTypes)
 				imgui.SameLine()
-				var numTypeFiltersStr string
-				if len(allowedGameFileTypes) > 0 {
-					numTypeFiltersStr = fmt.Sprintf(" (%v)", len(allowedGameFileTypes))
-				}
-				if imgui.Button(fnt.I("Filter_list") + " Types" + numTypeFiltersStr) {
-					imgui.OpenPopupStr("Type Filter")
-				}
-				if imgui.BeginPopup("Type Filter") {
-					makeCheckbox := func(typ stingray.Hash) {
-						_, checked := allowedGameFileTypes[typ]
-						if imgui.Checkbox(gameData.LookupHash(typ), &checked) {
-							if checked {
-								allowedGameFileTypes[typ] = struct{}{}
-							} else {
-								delete(allowedGameFileTypes, typ)
-							}
-							gameData.UpdateSearchQuery(gameFileSearchQuery, allowedGameFileTypes)
-							allSelectedForExport = calcAllSelectedForExport()
-						}
-					}
-					if len(allowedGameFileTypes) > 0 {
-						if imgui.Button("Reset") {
-							for k := range allowedGameFileTypes {
-								delete(allowedGameFileTypes, k)
-								gameData.UpdateSearchQuery(gameFileSearchQuery, allowedGameFileTypes)
-							}
-						}
-						imgui.Separator()
-					}
-					imgui.TextUnformatted("Common Types")
-					for _, typ := range gameFileTypes {
-						if _, ok := commonGameFileTypes[typ]; ok {
-							makeCheckbox(typ)
-						}
-					}
-					if imgui.CollapsingHeaderBoolPtr("Other Types", nil) {
-						imgui.SetNextWindowSize(imgui.NewVec2(0, 400))
-						if imgui.BeginChildStr("Container") {
-							for _, typ := range gameFileTypes {
-								if _, ok := commonGameFileTypes[typ]; !ok {
-									makeCheckbox(typ)
-								}
-							}
-						}
-						imgui.EndChild()
-					}
-					imgui.EndPopup()
-				}
+				widgets.FilterListButton("Archives", &isArchiveFilterOpen, allowedArchives)
+
 				imgui.BeginDisabledV(len(gameData.SortedSearchResultFileIDs) == 0)
 				if imgui.Checkbox("Select all for export", &allSelectedForExport) {
 					if allSelectedForExport {
@@ -572,6 +553,38 @@ func run(onError func(error)) error {
 			}
 		}
 		imgui.End()
+
+		if widgets.FilterListWindow("Type Filter",
+			&isTypeFilterOpen,
+			"Search Types",
+			&gameFileTypeSearchQuery,
+			gameFileTypes,
+			map[int]string{
+				0: "Common types",
+				3: "Other types",
+			},
+			&allowedGameFileTypes,
+			func(x stingray.Hash) string {
+				return gameData.LookupHash(x)
+			},
+		) {
+			gameData.UpdateSearchQuery(gameFileSearchQuery, allowedGameFileTypes, allowedArchives)
+			allSelectedForExport = calcAllSelectedForExport()
+		}
+		if widgets.FilterListWindow("Archive Filter",
+			&isArchiveFilterOpen,
+			"Search Archives",
+			&archiveIDSearchQuery,
+			archiveIDs,
+			nil,
+			&allowedArchives,
+			func(x stingray.Hash) string {
+				return gameData.LookupHash(x)
+			},
+		) {
+			gameData.UpdateSearchQuery(gameFileSearchQuery, allowedGameFileTypes, allowedArchives)
+			allSelectedForExport = calcAllSelectedForExport()
+		}
 
 		if imgui.Begin("Export") {
 			dirName := exportDir
