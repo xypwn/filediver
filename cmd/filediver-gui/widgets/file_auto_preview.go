@@ -13,6 +13,7 @@ import (
 	"github.com/xypwn/filediver/cmd/filediver-gui/imutils"
 	"github.com/xypwn/filediver/dds"
 	"github.com/xypwn/filediver/stingray"
+	stingray_strings "github.com/xypwn/filediver/stingray/strings"
 	"github.com/xypwn/filediver/stingray/unit/texture"
 	stingray_wwise "github.com/xypwn/filediver/stingray/wwise"
 )
@@ -24,6 +25,7 @@ const (
 	FileAutoPreviewUnit
 	FileAutoPreviewAudio
 	FileAutoPreviewTexture
+	FileAutoPreviewStrings
 )
 
 type FileAutoPreviewState struct {
@@ -33,6 +35,7 @@ type FileAutoPreviewState struct {
 		unit    *UnitPreviewState
 		audio   *WwisePreviewState
 		texture *DDSPreviewState
+		strings *StringsPreviewState
 	}
 
 	hashes      map[stingray.Hash]string
@@ -53,6 +56,7 @@ func NewFileAutoPreview(otoCtx *oto.Context, audioSampleRate int, hashes map[sti
 	}
 	pv.state.audio = NewWwisePreview(otoCtx, audioSampleRate)
 	pv.state.texture = NewDDSPreview()
+	pv.state.strings = NewStringsPreview()
 	return pv, nil
 }
 
@@ -64,6 +68,10 @@ func (pv *FileAutoPreviewState) Delete() {
 
 func (pv *FileAutoPreviewState) ActiveID() stingray.FileID {
 	return pv.activeID
+}
+
+func (pv *FileAutoPreviewState) NeedCJKFont() bool {
+	return pv.state.strings.NeedCJKFont()
 }
 
 func (pv *FileAutoPreviewState) LoadFile(ctx context.Context, file *stingray.File) {
@@ -175,6 +183,20 @@ func (pv *FileAutoPreviewState) LoadFile(ctx context.Context, file *stingray.Fil
 			return
 		}
 		pv.state.texture.LoadImage(img)
+	case stingray.Sum64([]byte("strings")):
+		pv.activeType = FileAutoPreviewStrings
+		if err := loadFiles(stingray.DataMain); err != nil {
+			pv.err = err
+			return
+		}
+		data, err := stingray_strings.LoadStingrayStrings(
+			bytes.NewReader(data[stingray.DataMain]),
+		)
+		if err != nil {
+			pv.err = fmt.Errorf("loading DDS image: %w", err)
+			return
+		}
+		pv.state.strings.Load(data)
 	default:
 		pv.activeType = FileAutoPreviewEmpty
 	}
@@ -194,6 +216,8 @@ func FileAutoPreview(name string, pv *FileAutoPreviewState) bool {
 		WwisePreview(name, pv.state.audio)
 	case FileAutoPreviewTexture:
 		DDSPreview(name, pv.state.texture)
+	case FileAutoPreviewStrings:
+		StringsPreview(pv.state.strings)
 	default:
 		panic("unhandled case")
 	}

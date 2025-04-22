@@ -103,48 +103,89 @@ func goWindowRefreshCallback(window *C.GLFWwindow) {
 //go:embed LICENSE
 var license string
 
-var IconsFontRanges = [3]imgui.Wchar{
-	imgui.Wchar(fnt.IconsFontInfo.Min),
-	imgui.Wchar(fnt.IconsFontInfo.Max16),
+var baseGlyphRanges = [...]imgui.Wchar{
+	0x0020, 0x00ff, // basic latin + supplement
+	0x0100, 0x017f, // latin extended-A
+	0x0400, 0x052f, // cyrillic + cyrillic supplement
 	0,
 }
 
-func UpdateGUIScale(guiScale float32) {
+var iconGlyphRanges = [...]imgui.Wchar{
+	imgui.Wchar(fnt.IconFontInfo.Min),
+	imgui.Wchar(fnt.IconFontInfo.Max16),
+	0,
+}
+
+func UpdateGUIScale(guiScale float32, needCJKFonts bool) {
 	io := imgui.CurrentIO()
 	fonts := io.Fonts()
 	fonts.Clear()
 
 	style := imgui.NewStyle()
 
-	fontSize := 15 * guiScale
-	iconsFontSize := fontSize * 1.2
-	{
-		cfg := imgui.NewFontConfig()
-		cfg.SetFontDataOwnedByAtlas(false)
-		fonts.AddFontFromMemoryTTFV(
-			uintptr(unsafe.Pointer(&fnt.TextFont[0])),
-			int32(len(fnt.TextFont)),
-			fontSize,
-			cfg,
-			nil,
-		)
-		cfg.Destroy()
+	fontSize := 16 * guiScale
+	type fontSpec struct {
+		scale       float32
+		glyphRange  *imgui.Wchar
+		ttfData     []byte
+		extraConfig func(*imgui.FontConfig)
 	}
-
-	{
-		cfg := imgui.NewFontConfig()
-		cfg.SetMergeMode(true)
-		cfg.SetGlyphOffset(imgui.NewVec2(0, iconsFontSize-fontSize))
-		cfg.SetGlyphMinAdvanceX(iconsFontSize)
-		cfg.SetFontDataOwnedByAtlas(false)
-		fonts.AddFontFromMemoryTTFV(
-			uintptr(unsafe.Pointer(&fnt.IconsFont[0])),
-			int32(len(fnt.IconsFont)),
-			iconsFontSize,
-			cfg,
-			&IconsFontRanges[0],
+	var fontSpecs []fontSpec
+	// Base font
+	fontSpecs = append(fontSpecs, fontSpec{
+		scale:      1,
+		glyphRange: &baseGlyphRanges[0],
+		ttfData:    fnt.TextFont,
+	})
+	if needCJKFonts {
+		fontSpecs = append(fontSpecs,
+			// Japanese
+			fontSpec{
+				scale:      1.2,
+				glyphRange: (&imgui.FontAtlas{}).GlyphRangesJapanese(),
+				ttfData:    fnt.TextFontJP,
+			},
+			// Korean
+			fontSpec{
+				scale:      1.2,
+				glyphRange: (&imgui.FontAtlas{}).GlyphRangesKorean(),
+				ttfData:    fnt.TextFontKR,
+			},
+			// Chinese
+			fontSpec{
+				scale:      1.2,
+				glyphRange: (&imgui.FontAtlas{}).GlyphRangesChineseFull(),
+				ttfData:    fnt.TextFontCN,
+			},
 		)
-		cfg.Destroy()
+	}
+	// Icons
+	fontSpecs = append(fontSpecs, fontSpec{
+		scale:      1,
+		glyphRange: &iconGlyphRanges[0],
+		ttfData:    fnt.IconFont,
+		extraConfig: func(fc *imgui.FontConfig) {
+			fc.SetGlyphOffset(imgui.NewVec2(0, (0.2)*fontSize))
+			fc.SetGlyphMinAdvanceX(1 * fontSize)
+		},
+	})
+	for i, spec := range fontSpecs {
+		fc := imgui.NewFontConfig()
+		if i != 0 {
+			fc.SetMergeMode(true)
+		}
+		fc.SetFontDataOwnedByAtlas(false)
+		if spec.extraConfig != nil {
+			spec.extraConfig(fc)
+		}
+		fonts.AddFontFromMemoryTTFV(
+			uintptr(unsafe.Pointer(&spec.ttfData[0])),
+			int32(len(spec.ttfData)),
+			fontSize*spec.scale,
+			fc,
+			spec.glyphRange,
+		)
+		fc.Destroy()
 	}
 
 	C.ImGui_ImplOpenGL3_DestroyFontsTexture()
@@ -208,6 +249,7 @@ func run(onError func(error)) error {
 		guiScale = yScale
 	}
 	shouldUpdateGUIScale := true
+	loadCJKFonts := false
 
 	var targetFPS float64
 	{
@@ -317,7 +359,7 @@ func run(onError func(error)) error {
 		}
 
 		if shouldUpdateGUIScale {
-			UpdateGUIScale(guiScale)
+			UpdateGUIScale(guiScale, loadCJKFonts)
 			shouldUpdateGUIScale = false
 		}
 
@@ -422,16 +464,18 @@ func run(onError func(error)) error {
 								types[f.ID().Type] = struct{}{}
 							}
 							gameFileTypes = slices.SortedFunc(maps.Keys(types), func(h1, h2 stingray.Hash) int {
-								commonTypes := []stingray.Hash{
+								previewableTypes := []stingray.Hash{
 									stingray.Sum64([]byte("texture")),
 									stingray.Sum64([]byte("wwise_bank")),
+									stingray.Sum64([]byte("wwise_stream")),
 									stingray.Sum64([]byte("unit")),
+									stingray.Sum64([]byte("strings")),
 								}
-								h1Common := slices.Contains(commonTypes, h1)
-								h2Common := slices.Contains(commonTypes, h2)
-								if h1Common && !h2Common {
+								h1Pv := slices.Contains(previewableTypes, h1)
+								h2Pv := slices.Contains(previewableTypes, h2)
+								if h1Pv && !h2Pv {
 									return -1
-								} else if !h1Common && h2Common {
+								} else if !h1Pv && h2Pv {
 									return 1
 								}
 								return strings.Compare(gameData.LookupHash(h1), gameData.LookupHash(h2))
@@ -576,8 +620,8 @@ func run(onError func(error)) error {
 			&gameFileTypeSearchQuery,
 			gameFileTypes,
 			map[int]string{
-				0: "Common types",
-				3: "Other types",
+				0: "Preview supported types",
+				5: "Other types",
 			},
 			&allowedGameFileTypes,
 			func(x stingray.Hash) string {
@@ -698,9 +742,24 @@ func run(onError func(error)) error {
 		imgui.End()
 
 		if imgui.Begin("Preview") {
-			if previewState == nil || !widgets.FileAutoPreview("Preview", previewState) {
+			if previewState != nil {
+				if !widgets.FileAutoPreview("Preview", previewState) {
+					imgui.PushTextWrapPos()
+					active := previewState.ActiveID()
+					imgui.PushTextWrapPos()
+					if active.Name.Value == 0 {
+						imgui.TextUnformatted("Nothing selected to preview. Select an item from the Browser.")
+					} else if gameData != nil {
+						imutils.Textf("Cannot preview type %v.", gameData.LookupHash(active.Type))
+					}
+				}
+				if previewState.NeedCJKFont() && !loadCJKFonts {
+					loadCJKFonts = true
+					shouldUpdateGUIScale = true
+				}
+			} else {
 				imgui.PushTextWrapPos()
-				imgui.TextUnformatted("Nothing selected to preview. Select an item from the Browser.")
+				imgui.TextUnformatted("Loading game data...")
 			}
 		}
 		imgui.End()
@@ -841,13 +900,13 @@ func run(onError func(error)) error {
 			imgui.Separator()
 			if imgui.CollapsingHeaderBoolPtr("Font Licenses", nil) {
 				imgui.Indent()
-				if imgui.CollapsingHeaderBoolPtr("Roboto", nil) {
+				if imgui.CollapsingHeaderBoolPtr("Noto", nil) {
 					imgui.PushTextWrapPos()
 					imgui.TextUnformatted(fnt.TextFontLicense)
 				}
 				if imgui.CollapsingHeaderBoolPtr("Material Symbols", nil) {
 					imgui.PushTextWrapPos()
-					imgui.TextUnformatted(fnt.IconsFontLicense)
+					imgui.TextUnformatted(fnt.IconFontLicense)
 				}
 				imgui.Unindent()
 			}
