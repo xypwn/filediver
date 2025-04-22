@@ -6,20 +6,37 @@ import (
 	icon_fonts "github.com/juliettef/IconFontCppHeaders"
 )
 
-//go:embed Roboto-Regular.ttf
+//go:embed NotoSans-Medium.ttf
 var TextFont []byte
 
-//go:embed MaterialSymbolsOutlined.ttf
-var IconsFont []byte
+//go:embed NotoSansJP-Regular.ttf
+var TextFontJP []byte
 
-//go:embed RobotoLicense.txt
-var TextFontLicense string
+//go:embed NotoSansSC-Regular.ttf
+var TextFontCN []byte
+
+//go:embed NotoSansKR-Regular.ttf
+var TextFontKR []byte
+
+//go:embed MaterialSymbolsOutlined.ttf
+var IconFont []byte
+
+//go:embed NotoSansLicense.txt
+var textFontNotoLicense string
+
+var TextFontLicense = textFontNotoLicense
+
+var TextFontJPLicense = textFontNotoLicense
+
+var TextFontCNLicense = textFontNotoLicense
+
+var TextFontKRLicense = textFontNotoLicense
 
 //go:embed MaterialSymbolsLicense.txt
-var IconsFontLicense string
+var IconFontLicense string
 
-var IconsFontInfo = icon_fonts.IconsMaterialSymbols
-var Icons = IconsFontInfo.Icons
+var IconFontInfo = icon_fonts.IconsMaterialSymbols
+var Icons = IconFontInfo.Icons
 
 // Returns an icon's utf-8 string given a name, panicking if the icon doesn't exist.
 func I(name string) string {
