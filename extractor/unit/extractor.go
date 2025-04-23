@@ -200,7 +200,7 @@ func AddMaterials(ctx extractor.Context, doc *gltf.Document, imgOpts *extr_mater
 	return materialIdxs, nil
 }
 
-func addPrefabMetadata(ctx extractor.Context, doc *gltf.Document, parent *uint32, skin *uint32, meshNodes []uint32, armorSetName *string) {
+func AddPrefabMetadata(ctx extractor.Context, doc *gltf.Document, parent *uint32, skin *uint32, meshNodes []uint32, armorSetName *string) {
 	if armorSetName != nil {
 		extras := map[string]any{"armorSet": *armorSetName}
 		for _, node := range meshNodes {
@@ -322,7 +322,7 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 		}
 	}
 
-	addPrefabMetadata(ctx, doc, parent, skin, meshNodes, armorSetName)
+	AddPrefabMetadata(ctx, doc, parent, skin, meshNodes, armorSetName)
 
 	formatIsBlend := ctx.Config()["format"] == "blend" && ctx.Runner().Has("hd2_accurate_blender_importer")
 	if gltfDoc == nil && !formatIsBlend {
@@ -390,7 +390,7 @@ func loadGeometryGroupMeshes(ctx extractor.Context, doc *gltf.Document, unitInfo
 	return geometry.LoadGLTF(ctx, gpuR, doc, ctx.File().ID().Name, meshInfos, geoInfo.Bones, geoGroup.MeshLayouts, unitInfo, meshNodes, materialIndices, parent, skin)
 }
 
-func getImgOpts(ctx extractor.Context) (*extr_material.ImageOptions, error) {
+func GetImgOpts(ctx extractor.Context) (*extr_material.ImageOptions, error) {
 	var opts extr_material.ImageOptions
 	if v, ok := ctx.Config()["image_jpeg"]; ok && v == "true" {
 		opts.Jpeg = true
@@ -419,7 +419,7 @@ func getImgOpts(ctx extractor.Context) (*extr_material.ImageOptions, error) {
 
 func Convert(currDoc *gltf.Document) func(ctx extractor.Context) error {
 	return func(ctx extractor.Context) error {
-		opts, err := getImgOpts(ctx)
+		opts, err := GetImgOpts(ctx)
 		if err != nil {
 			return err
 		}
