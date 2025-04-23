@@ -39,7 +39,7 @@ func loadBoneMap(ctx extractor.Context) (*bones.BoneInfo, error) {
 }
 
 // Adds the unit's skeleton to the gltf document
-func AddSkeleton(ctx extractor.Context, doc *gltf.Document, unitInfo *unit.Info, armorName *string) uint32 {
+func AddSkeleton(ctx extractor.Context, doc *gltf.Document, unitInfo *unit.Info, skeletonName stingray.Hash, armorName *string) uint32 {
 	var matrices [][4][4]float32 = make([][4][4]float32, len(unitInfo.JointTransformMatrices))
 	gltfConversionMatrix := mgl32.HomogRotate3DX(mgl32.DegToRad(-90.0)).Mul4(mgl32.HomogRotate3DZ(mgl32.DegToRad(0)))
 	for i := range matrices {
@@ -139,7 +139,7 @@ func AddSkeleton(ctx extractor.Context, doc *gltf.Document, unitInfo *unit.Info,
 			extras = make(map[string]any)
 		}
 		otherIdAny, contains := extras["skeletonId"]
-		if otherId, ok := otherIdAny.(uint32); doc.Skins[skin].Name == ctx.File().ID().Name.String() || (contains && ok && skeletonId == otherId) {
+		if otherId, ok := otherIdAny.(uint32); doc.Skins[skin].Name == skeletonName.String() || (contains && ok && skeletonId == otherId) {
 			skeleton = doc.Skins[skin].Skeleton
 			break
 		}
@@ -148,7 +148,7 @@ func AddSkeleton(ctx extractor.Context, doc *gltf.Document, unitInfo *unit.Info,
 	if skeleton == nil {
 		idx := len(doc.Nodes)
 		doc.Nodes = append(doc.Nodes, &gltf.Node{
-			Name: ctx.File().ID().Name.String(),
+			Name: skeletonName.String(),
 			Children: []uint32{
 				rootNodeIndex,
 			},
@@ -162,7 +162,7 @@ func AddSkeleton(ctx extractor.Context, doc *gltf.Document, unitInfo *unit.Info,
 	}
 
 	doc.Skins = append(doc.Skins, &gltf.Skin{
-		Name:                ctx.File().ID().Name.String(),
+		Name:                skeletonName.String(),
 		InverseBindMatrices: gltf.Index(inverseBindMatrices),
 		Joints:              jointIndices,
 		Skeleton:            skeleton,
@@ -285,7 +285,7 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 	var skin *uint32 = nil
 	var parent *uint32 = nil
 	if bonesEnabled && len(unitInfo.Bones) > 2 {
-		skin = gltf.Index(AddSkeleton(ctx, doc, unitInfo, armorSetName))
+		skin = gltf.Index(AddSkeleton(ctx, doc, unitInfo, ctx.File().ID().Name, armorSetName))
 		parent = doc.Skins[*skin].Skeleton
 	} else {
 		parent = gltf.Index(uint32(len(doc.Nodes)))
@@ -316,7 +316,7 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 			})
 		}
 
-		err := geometry.LoadGLTF(ctx, fGPU, doc, meshInfos, unitInfo.GroupBones, unitInfo.MeshLayouts, unitInfo, &meshNodes, materialIdxs, *parent, skin)
+		err := geometry.LoadGLTF(ctx, fGPU, doc, ctx.File().ID().Name, meshInfos, unitInfo.GroupBones, unitInfo.MeshLayouts, unitInfo, &meshNodes, materialIdxs, *parent, skin)
 		if err != nil {
 			return err
 		}
@@ -387,7 +387,7 @@ func loadGeometryGroupMeshes(ctx extractor.Context, doc *gltf.Document, unitInfo
 		})
 	}
 
-	return geometry.LoadGLTF(ctx, gpuR, doc, meshInfos, geoInfo.Bones, geoGroup.MeshLayouts, unitInfo, meshNodes, materialIndices, parent, skin)
+	return geometry.LoadGLTF(ctx, gpuR, doc, ctx.File().ID().Name, meshInfos, geoInfo.Bones, geoGroup.MeshLayouts, unitInfo, meshNodes, materialIndices, parent, skin)
 }
 
 func getImgOpts(ctx extractor.Context) (*extr_material.ImageOptions, error) {
