@@ -76,6 +76,8 @@ content/fac_cyborgs/cha_conscript_commander/cha_conscript_commander
 content/fac_cyborgs/cha_lieutenant/cha_lieutenant_assault
 content/fac_cyborgs/cha_lieutenant/cha_lieutenant
 content/fac_cyborgs/cha_soldier/cha_soldier_cfd
+content/fac_cyborgs/cha_berserker/cha_berserker_iron_fleet
+content/fac_cyborgs/cha_soldier/cha_soldier_iron_fleet
 content/fac_cyborgs/cha_soldier/cha_soldier_machinegun
 content/fac_cyborgs/cha_soldier_machinegun/cha_soldier_machinegun
 content/fac_cyborgs/turrets/cyborg_tank_turret_rocketlauncher/cyborg_tank_turret_rocketlauncher
@@ -155,6 +157,8 @@ content/fac_helldivers/equipment/throwables/incendiary_mine/incendiary_mine
 content/fac_helldivers/equipment/throwables/contact_mine/contact_mine
 content/fac_helldivers/equipment/throwables/flashbang/flashbang
 content/fac_helldivers/hellpod/hellpod/hellpod
+content/fac_helldivers/hellpod/hellpod_lid/hellpod_lid
+content/fac_helldivers/hellpod/landingzone_beacon/landingzone_beacon
 content/fac_helldivers/hellpod/sos_beacon/sos_beacon
 content/fac_helldivers/hellpod/mine_launcher_tank_mine/mine_launcher_tank_mine
 content/fac_helldivers/hellpod/mine_launcher_gas_mine/mine_launcher_gas_mine
@@ -164,6 +168,7 @@ content/fac_helldivers/hellpod/turret/turret_ammo_box
 content/fac_helldivers/hellpod/turret/turret
 content/fac_helldivers/hellpod/expandable_cover/expandable_cover
 content/fac_helldivers/hellpod/aa_turret/aa_turret
+content/fac_helldivers/hellpod/weapon_rack/weapon_rack
 content/fac_helldivers/vehicles/combat_walker_autocannon/combat_walker_autocannon_left
 content/fac_helldivers/vehicles/combat_walker_autocannon/combat_walker_autocannon_right
 content/fac_helldivers/vehicles/combat_walker_obsidian/combat_walker_obsidian
