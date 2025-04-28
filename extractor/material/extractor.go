@@ -455,7 +455,8 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 			}
 		default:
 			if ctx.Config()["all_textures"] == "true" {
-				fmt.Printf("addMaterial: Unknown/unhandled texture usage %v\n", texUsage.String())
+				t := TextureUsage(texUsage.Value)
+				fmt.Printf("addMaterial: Unknown/unhandled texture usage %v in material %v\n", t.String(), matName)
 				index, err := writeTexture(ctx, doc, mat.Textures[texUsage], postProcess, imgOpts)
 				if err != nil {
 					continue

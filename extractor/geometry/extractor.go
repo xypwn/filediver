@@ -662,10 +662,14 @@ func LoadGLTF(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, nam
 		for j, group := range header.Groups {
 			// Check if this group is a gib, if it is skip it unless include_lods is set
 			var materialName string
-			if _, contains := ctx.ThinHashes()[header.Materials[j]]; contains {
-				materialName = ctx.ThinHashes()[header.Materials[j]]
+			if j < len(header.Materials) {
+				if _, contains := ctx.ThinHashes()[header.Materials[j]]; contains {
+					materialName = ctx.ThinHashes()[header.Materials[j]]
+				} else {
+					materialName = header.Materials[j].String()
+				}
 			} else {
-				materialName = header.Materials[j].String()
+				materialName = "unknown"
 			}
 
 			if strings.Contains(materialName, "gibs") && ctx.Config()["include_lods"] != "true" {
@@ -787,6 +791,7 @@ func LoadGLTF(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, nam
 			udimIndexAccessors := make(map[uint32]uint32)
 			if ctx.Config()["join_components"] != "true" {
 				texcoordIndex, ok := groupAttr[gltf.TEXCOORD_0]
+				// Don't separate udims of LODs or shadow meshes
 				if ok && !strings.Contains(groupName, "LOD") && !strings.Contains(groupName, "shadow") {
 					texcoordAccessor := doc.Accessors[texcoordIndex]
 					groupIndexAccessor := doc.Accessors[*groupIndices]
@@ -809,9 +814,13 @@ func LoadGLTF(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, nam
 			}
 
 			var material *uint32
-			materialVal, ok := materialIndices[header.Materials[j]]
-			if ok {
-				material = &materialVal
+			// There are a couple of models where there are fewer materials than meshes, so this is here
+			// to prevent us from panicking if we're exporting one of those
+			if j < len(header.Materials) {
+				materialVal, ok := materialIndices[header.Materials[j]]
+				if ok {
+					material = &materialVal
+				}
 			}
 
 			for udim, indexAccessor := range udimIndexAccessors {

@@ -352,7 +352,10 @@ def main():
                 print(f"    Found existing material '{key}'")
                 object_mat = bpy.data.materials[key]
 
-            obj.material_slots[primIdx].material = object_mat
+            for i in range(len(obj.material_slots)):
+                if obj.material_slots[i].material.name == material["name"]:
+                    obj.material_slots[i].material = object_mat
+                    break
             shader_module.add_bake_uvs(obj)
             obj.select_set(True)
             try:
