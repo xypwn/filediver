@@ -660,7 +660,7 @@ func LoadGLTF(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, nam
 		remapped := make(map[uint32]bool)
 		var previousPositionAccessor *gltf.Accessor
 		for j, group := range header.Groups {
-			// Check if this group is a gib, if it is skip it unless include_lods is set
+			// Check if this group is a gib or collision mesh, if it is skip it unless include_lods is set
 			var materialName string
 			if j < len(header.Materials) {
 				if _, contains := ctx.ThinHashes()[header.Materials[j]]; contains {
@@ -672,7 +672,7 @@ func LoadGLTF(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, nam
 				materialName = "unknown"
 			}
 
-			if strings.Contains(materialName, "gibs") && ctx.Config()["include_lods"] != "true" {
+			if (strings.Contains(materialName, "gibs") || strings.Contains(materialName, "collis")) && ctx.Config()["include_lods"] != "true" {
 				continue
 			}
 

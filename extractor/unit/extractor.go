@@ -191,7 +191,12 @@ func AddMaterials(ctx extractor.Context, doc *gltf.Document, imgOpts *extr_mater
 			return nil, err
 		}
 
-		matIdx, err := extr_material.AddMaterial(ctx, mat, doc, imgOpts, resID.String(), metadata)
+		matName, ok := ctx.ThinHashes()[id]
+		if !ok {
+			matName = id.String()
+		}
+
+		matIdx, err := extr_material.AddMaterial(ctx, mat, doc, imgOpts, matName+" "+resID.String(), metadata)
 		if err != nil {
 			return nil, err
 		}
