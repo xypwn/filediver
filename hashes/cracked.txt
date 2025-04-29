@@ -100,6 +100,10 @@ content/fac_helldivers/equipment/backpacks/hover_backpack/hover_backpack
 content/fac_helldivers/capes/medium_cape
 content/fac_helldivers/fp_cha_avatar/fp_cha_avatar
 content/fac_helldivers/cha_avatar/avatar_helldiver
+content/fac_helldivers/equipment/melee_weapons/electric_baton/electric_baton
+content/fac_helldivers/equipment/melee_weapons/hand_axe/hand_axe
+content/fac_helldivers/equipment/melee_weapons/survival_shovel/survival_shovel
+content/fac_helldivers/equipment/melee_weapons/stun_spear/stun_spear
 content/fac_helldivers/equipment/primary_weapons/assault_rifle_explosive/assault_rifle_explosive
 content/fac_helldivers/equipment/primary_weapons/assault_rifle_helghast/assault_rifle_helghast
 content/fac_helldivers/equipment/primary_weapons/assault_rifle_patriot/assault_rifle_patriot
@@ -134,6 +138,7 @@ content/fac_helldivers/equipment/primary_weapons/smg_defender/smg_defender
 content/fac_helldivers/equipment/primary_weapons/smg_helghast/smg_helghast
 content/fac_helldivers/equipment/primary_weapons/smg_rhino/smg_rhino
 content/fac_helldivers/equipment/primary_weapons/sniper_rifle_helghast/sniper_rifle_helghast
+content/fac_helldivers/equipment/primary_weapons/triple_barrel_breakshotgun/triple_barrel_breakshotgun
 content/fac_helldivers/equipment/sidearm_weapons/magnum_pistol/magnum_pistol
 content/fac_helldivers/equipment/sidearm_weapons/flamer_pistol/flamer_pistol
 content/fac_helldivers/equipment/sidearm_weapons/plasma_pistol/plasma_pistol
@@ -142,6 +147,7 @@ content/fac_helldivers/equipment/sidearm_weapons/pistol_cricket/pistol_cricket
 content/fac_helldivers/equipment/sidearm_weapons/stim_pistol_01/stim_pistol
 content/fac_helldivers/equipment/sidearm_weapons/energy_revolver/energy_revolver
 content/fac_helldivers/equipment/support_weapons/air_burst_rocket_launcher/air_burst_rocket_launcher
+content/fac_helldivers/equipment/support_weapons/chemgun/chemgun
 content/fac_helldivers/equipment/support_weapons/missile_launcher/missile_launcher
 content/fac_helldivers/equipment/support_weapons/faf_missile_launcher_helghast/faf_missile_launcher_helghast
 content/fac_helldivers/equipment/support_weapons/faf_missile_helghast/faf_missile_helghast
@@ -180,7 +186,15 @@ content/fac_helldivers/vehicles/frv/armaments/frv_mg/frv_mg
 content/fac_helldivers/vehicles/shuttle_transport/shuttle_transport
 content/fac_helldivers/vehicles/shuttle_tanker/shuttle_tanker
 content/fac_helldivers/vehicles/eagle/weapons/eagle_bomb
-content/fac_helldivers/vehicles/eagle/weapons/eagle_500kg
+content/fac_helldivers/vehicles/eagle/weapons/eagle_missile
+content/env_super_earth/vehicles/city_car_01
+content/env_super_earth/vehicles/city_car_02
+content/env_super_earth/vehicles/city_car_03
+content/env_super_earth/vehicles/city_car_04
+content/env_super_earth/vehicles/city_car_05
+content/env_super_earth/vehicles/city_car_06
+content/env_super_earth/vehicles/city_car_07
+content/env_super_earth/vehicles/city_car_08
 content/fac_illuminate/cha_brainwashed/cha_brainwashed
 content/fac_illuminate/cha_corrupted/cha_corrupted
 content/fac_illuminate/cha_corrupted/cha_corrupted_v2
