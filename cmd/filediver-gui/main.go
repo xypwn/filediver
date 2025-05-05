@@ -202,10 +202,10 @@ func init() {
 	switch runtime.GOOS {
 	case "windows":
 		downloadFFmpegURL = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"
-		downloadScriptsDistURL = "https://github.com/xypwn/filediver/releases/download/v0.5.7/scripts-dist-windows.zip"
+		downloadScriptsDistURL = "https://github.com/xypwn/filediver/releases/download/v0.5.15/scripts-dist-windows.zip"
 	case "linux":
 		downloadFFmpegURL = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz"
-		downloadScriptsDistURL = "https://github.com/xypwn/filediver/releases/download/v0.5.7/scripts-dist-linux.tar.xz"
+		downloadScriptsDistURL = "https://github.com/xypwn/filediver/releases/download/v0.5.15/scripts-dist-linux.tar.xz"
 	}
 }
 
