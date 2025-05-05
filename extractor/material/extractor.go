@@ -250,6 +250,8 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 			fallthrough
 		case InputImage:
 			fallthrough
+		case ReticleTexture:
+			fallthrough
 		case Albedo:
 			index, err := writeTexture(ctx, doc, mat.Textures[texUsage], albedoPostProcess, imgOpts)
 			if err != nil {
@@ -267,6 +269,8 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 			normalPostProcess = nil
 			fallthrough
 		case Normal:
+			fallthrough
+		case Normals:
 			fallthrough
 		case NormalMap:
 			fallthrough
@@ -302,6 +306,8 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 			}
 			usedTextures[TextureUsage(texUsage.Value)] = index
 		case EmissiveColor:
+			fallthrough
+		case LensEmissiveTexture:
 			index, err := writeTexture(ctx, doc, mat.Textures[texUsage], postProcess, imgOpts)
 			if err != nil {
 				continue
@@ -449,7 +455,8 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 			}
 		default:
 			if ctx.Config()["all_textures"] == "true" {
-				fmt.Printf("addMaterial: Unknown/unhandled texture usage %v\n", texUsage.String())
+				t := TextureUsage(texUsage.Value)
+				fmt.Printf("addMaterial: Unknown/unhandled texture usage %v in material %v\n", t.String(), matName)
 				index, err := writeTexture(ctx, doc, mat.Textures[texUsage], postProcess, imgOpts)
 				if err != nil {
 					continue

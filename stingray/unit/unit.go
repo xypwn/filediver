@@ -7,6 +7,7 @@ import (
 	"io"
 
 	"github.com/go-gl/mathgl/mgl32"
+	"github.com/qmuntal/gltf"
 
 	"github.com/x448/float16"
 	"github.com/xypwn/filediver/stingray"
@@ -132,6 +133,7 @@ const (
 	FormatVec2F                    MeshLayoutItemFormat = 1
 	FormatVec3F                    MeshLayoutItemFormat = 2
 	FormatVec4F                    MeshLayoutItemFormat = 3
+	FormatS32                      MeshLayoutItemFormat = 4
 	FormatU32                      MeshLayoutItemFormat = 17
 	FormatVec2U32                  MeshLayoutItemFormat = 18
 	FormatVec3U32                  MeshLayoutItemFormat = 19
@@ -158,6 +160,8 @@ func (v MeshLayoutItemFormat) String() string {
 		return "[3]float32"
 	case FormatVec4F:
 		return "[4]float32"
+	case FormatS32:
+		return "int32"
 	case FormatU32:
 		return "uint32"
 	case FormatVec2U32:
@@ -188,6 +192,141 @@ func (v MeshLayoutItemFormat) String() string {
 		return "[4]float16"
 	default:
 		return fmt.Sprint(uint32(v))
+	}
+}
+
+func (v MeshLayoutItemFormat) Size() int {
+	switch v {
+	case FormatF32:
+		return 4
+	case FormatVec2F:
+		return 8
+	case FormatVec3F:
+		return 12
+	case FormatVec4F:
+		return 16
+	case FormatS32:
+		return 4
+	case FormatU32:
+		return 4
+	case FormatVec2U32:
+		return 8
+	case FormatVec3U32:
+		return 12
+	case FormatVec4U32:
+		return 16
+	case FormatS8:
+		return 1
+	case FormatVec2S8:
+		return 2
+	case FormatVec3S8:
+		return 3
+	case FormatVec4S8:
+		return 4
+	case FormatVec4R10G10B10A2_TYPELESS:
+		return 4
+	case FormatVec4R10G10B10A2_UNORM:
+		return 4
+	case FormatF16:
+		return 2
+	case FormatVec2F16:
+		return 4
+	case FormatVec3F16:
+		return 6
+	case FormatVec4F16:
+		return 8
+	default:
+		return -1
+	}
+}
+
+func (v MeshLayoutItemFormat) ComponentType() gltf.ComponentType {
+	switch v {
+	case FormatF32:
+		return gltf.ComponentFloat
+	case FormatVec2F:
+		return gltf.ComponentFloat
+	case FormatVec3F:
+		return gltf.ComponentFloat
+	case FormatVec4F:
+		return gltf.ComponentFloat
+	case FormatS32:
+		return gltf.ComponentUint
+	case FormatU32:
+		return gltf.ComponentUint
+	case FormatVec2U32:
+		return gltf.ComponentUint
+	case FormatVec3U32:
+		return gltf.ComponentUint
+	case FormatVec4U32:
+		return gltf.ComponentUint
+	case FormatS8:
+		return gltf.ComponentUbyte
+	case FormatVec2S8:
+		return gltf.ComponentUbyte
+	case FormatVec3S8:
+		return gltf.ComponentUbyte
+	case FormatVec4S8:
+		return gltf.ComponentUbyte
+	case FormatVec4R10G10B10A2_TYPELESS:
+		return gltf.ComponentUbyte
+	case FormatVec4R10G10B10A2_UNORM:
+		return gltf.ComponentUbyte
+	case FormatF16:
+		return gltf.ComponentUshort
+	case FormatVec2F16:
+		return gltf.ComponentUshort
+	case FormatVec3F16:
+		return gltf.ComponentUshort
+	case FormatVec4F16:
+		return gltf.ComponentUshort
+	default:
+		return gltf.ComponentByte
+	}
+}
+
+func (v MeshLayoutItemFormat) Type() gltf.AccessorType {
+	switch v {
+	case FormatF32:
+		return gltf.AccessorScalar
+	case FormatVec2F:
+		return gltf.AccessorVec2
+	case FormatVec3F:
+		return gltf.AccessorVec3
+	case FormatVec4F:
+		return gltf.AccessorVec4
+	case FormatS32:
+		return gltf.AccessorScalar
+	case FormatU32:
+		return gltf.AccessorScalar
+	case FormatVec2U32:
+		return gltf.AccessorVec2
+	case FormatVec3U32:
+		return gltf.AccessorVec3
+	case FormatVec4U32:
+		return gltf.AccessorVec4
+	case FormatS8:
+		return gltf.AccessorScalar
+	case FormatVec2S8:
+		return gltf.AccessorVec2
+	case FormatVec3S8:
+		return gltf.AccessorVec3
+	case FormatVec4S8:
+		return gltf.AccessorVec4
+	case FormatVec4R10G10B10A2_TYPELESS:
+		return gltf.AccessorVec4
+	case FormatVec4R10G10B10A2_UNORM:
+		return gltf.AccessorVec4
+	case FormatF16:
+		return gltf.AccessorScalar
+	case FormatVec2F16:
+		return gltf.AccessorVec2
+	case FormatVec3F16:
+		return gltf.AccessorVec3
+	case FormatVec4F16:
+		return gltf.AccessorVec4
+	default:
+		return gltf.AccessorScalar
 	}
 }
 
@@ -279,7 +418,7 @@ type MeshInfo struct {
 type Header struct {
 	Unk00                 [8]byte
 	Bones                 stingray.Hash
-	Unk01                 [8]byte
+	GeometryGroup         stingray.Hash
 	UnkHash00             stingray.Hash
 	StateMachine          stingray.Hash
 	Unk02                 [8]byte
@@ -310,6 +449,7 @@ type Mesh struct {
 }
 
 type Info struct {
+	GeometryGroup          stingray.Hash
 	LODGroups              []LODGroup
 	SkeletonMaps           []SkeletonMap
 	Bones                  []Bone
@@ -317,6 +457,7 @@ type Info struct {
 	Materials              map[stingray.ThinHash]stingray.Hash
 	NumMeshes              uint32
 	MeshInfos              []MeshInfo
+	GroupBones             []stingray.ThinHash
 	MeshLayouts            []MeshLayout
 }
 
@@ -746,6 +887,7 @@ func LoadInfo(mainR io.ReadSeeker) (*Info, error) {
 	}
 
 	var meshInfos []MeshInfo
+	var groupBones []stingray.ThinHash
 	if hdr.MeshInfoListOffset != 0 {
 		if _, err := mainR.Seek(int64(hdr.MeshInfoListOffset), io.SeekStart); err != nil {
 			return nil, err
@@ -755,10 +897,12 @@ func LoadInfo(mainR io.ReadSeeker) (*Info, error) {
 			return nil, err
 		}
 		offsets := make([]uint32, count)
-		for i := range offsets {
-			if err := binary.Read(mainR, binary.LittleEndian, &offsets[i]); err != nil {
-				return nil, err
-			}
+		if err := binary.Read(mainR, binary.LittleEndian, &offsets); err != nil {
+			return nil, err
+		}
+		groupBones = make([]stingray.ThinHash, count)
+		if err := binary.Read(mainR, binary.LittleEndian, &groupBones); err != nil {
+			return nil, err
 		}
 		meshInfos = make([]MeshInfo, 0, count)
 		for i := uint32(0); i < count; i++ {
@@ -844,6 +988,7 @@ func LoadInfo(mainR io.ReadSeeker) (*Info, error) {
 	}
 
 	return &Info{
+		GeometryGroup:          hdr.GeometryGroup,
 		LODGroups:              lodGroups,
 		SkeletonMaps:           skeletonMapList,
 		Bones:                  bones,
@@ -851,6 +996,7 @@ func LoadInfo(mainR io.ReadSeeker) (*Info, error) {
 		Materials:              materialMap,
 		NumMeshes:              uint32(len(meshInfos)),
 		MeshInfos:              meshInfos,
+		GroupBones:             groupBones,
 		MeshLayouts:            meshLayouts,
 	}, nil
 }

@@ -17,6 +17,7 @@ import (
 	"github.com/xypwn/filediver/exec"
 	"github.com/xypwn/filediver/extractor"
 	extr_bik "github.com/xypwn/filediver/extractor/bik"
+	extr_geogroup "github.com/xypwn/filediver/extractor/geometry_group"
 	extr_material "github.com/xypwn/filediver/extractor/material"
 	extr_package "github.com/xypwn/filediver/extractor/package"
 	extr_strings "github.com/xypwn/filediver/extractor/strings"
@@ -124,6 +125,48 @@ var ConfigFormat = ConfigTemplate{
 					Enum: []string{"false", "true"},
 				},
 				"single_glb": {
+					Type: ConfigValueEnum,
+					Enum: []string{"false", "true"},
+				},
+				"no_bones": {
+					Type: ConfigValueEnum,
+					Enum: []string{"false", "true"},
+				},
+				"image_jpeg": {
+					Type: ConfigValueEnum,
+					Enum: []string{"false", "true"},
+				},
+				"jpeg_quality": {
+					Type:        ConfigValueIntRange,
+					IntRangeMin: 1,
+					IntRangeMax: 100,
+				},
+				"png_compression": {
+					Type: ConfigValueEnum,
+					Enum: []string{"default", "none", "fast", "best"},
+				},
+				"all_textures": {
+					Type: ConfigValueEnum,
+					Enum: []string{"false", "true"},
+				},
+			},
+		},
+		"geometry_group": {
+			Category: "model",
+			Options: map[string]ConfigTemplateOption{
+				"format": {
+					Type: ConfigValueEnum,
+					Enum: []string{"glb", "blend", "source"},
+				},
+				"include_lods": {
+					Type: ConfigValueEnum,
+					Enum: []string{"false", "true"},
+				},
+				"join_components": {
+					Type: ConfigValueEnum,
+					Enum: []string{"false", "true"},
+				},
+				"bounding_boxes": {
 					Type: ConfigValueEnum,
 					Enum: []string{"false", "true"},
 				},
@@ -647,6 +690,8 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 			extr = extr_material.Convert(gltfDoc)
 		case "unit":
 			extr = extr_unit.Convert(gltfDoc)
+		case "geometry_group":
+			extr = extr_geogroup.Convert(gltfDoc)
 		case "texture":
 			if cfg["format"] == "dds" {
 				extr = extr_texture.ExtractDDS

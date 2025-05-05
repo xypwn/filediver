@@ -298,70 +298,72 @@ def main():
             continue
         mesh = gltf["meshes"][node["mesh"]]
         textures: Dict[str, Image] = {}
-        assert len(mesh["primitives"]) == 1
-        primitive = mesh["primitives"][0]
-        if "material" not in primitive:
-            continue
-        material = gltf["materials"][primitive["material"]]
-        is_pbr = "albedo" in material["extras"] or "albedo_iridescence" in material["extras"] or "normal" in material["extras"]
-        is_tex_array_skin = "color_roughness" in material["extras"] and "normal_specular_ao" in material["extras"] and len(material["extras"]) == 2
-        is_lut_skin = "grayscale_skin" in material["extras"] and "color_roughness_lut" in material["extras"]
-        is_lut = "material_lut" in material["extras"]
-        if primitive["material"] in materialTextures:
-            textures = materialTextures[primitive["material"]]
-        else:
-            if len(material["extras"]) == 0 or not any((is_pbr, is_tex_array_skin, is_lut_skin, is_lut)):
+        for primIdx, primitive in enumerate(mesh["primitives"]):
+            if "material" not in primitive:
                 continue
-            if not args.packall and is_pbr:
-                continue
-            print(f"    Packing textures for material {material['name']}")
-            try:
-                for usage, texIdx in material["extras"].items():
-                    textures[usage] = add_texture(gltf, texIdx, usage)
-                for usage in optional_usages:
-                    if usage not in textures:
-                        textures[usage] = unused_texture
-                materialTextures[primitive["material"]] = textures
-            except AssertionError as e:
-                print(f"Error: {e}")
-                continue
-            if is_pbr:
-                continue
+            material = gltf["materials"][primitive["material"]]
+            is_pbr = "albedo" in material["extras"] or "albedo_iridescence" in material["extras"] or "normal" in material["extras"]
+            is_tex_array_skin = "color_roughness" in material["extras"] and "normal_specular_ao" in material["extras"] and len(material["extras"]) == 2
+            is_lut_skin = "grayscale_skin" in material["extras"] and "color_roughness_lut" in material["extras"]
+            is_lut = "material_lut" in material["extras"]
+            if primitive["material"] in materialTextures:
+                textures = materialTextures[primitive["material"]]
+            else:
+                if len(material["extras"]) == 0 or not any((is_pbr, is_tex_array_skin, is_lut_skin, is_lut)):
+                    continue
+                if not args.packall and is_pbr:
+                    continue
+                print(f"    Packing textures for material {material['name']}")
+                try:
+                    for usage, texIdx in material["extras"].items():
+                        textures[usage] = add_texture(gltf, texIdx, usage)
+                    for usage in optional_usages:
+                        if usage not in textures:
+                            textures[usage] = unused_texture
+                    materialTextures[primitive["material"]] = textures
+                except AssertionError as e:
+                    print(f"Error: {e}")
+                    continue
+                if is_pbr:
+                    continue
 
-        if node["name"] not in bpy.data.objects:
-            for item in bpy.data.objects:
-                if item.active_material and item.active_material.name == material["name"]:
-                    obj: Object = item
+            if node["name"] not in bpy.data.objects:
+                for item in bpy.data.objects:
+                    if item.active_material and item.active_material.name == material["name"]:
+                        obj: Object = item
+                        break
+            else:
+                obj: Object = bpy.data.objects[node["name"]]
+            key = "HD2 Mat " + material["name"]
+            i = 1
+            while key in bpy.data.materials and bpy.data.materials[key]["gltfId"] != primitive["material"]:
+                key = "HD2 Mat " + material["name"] + f".{i:03d}"
+                i += 1
+            if not key in bpy.data.materials:
+                print("    Copying template material")
+                if is_lut:
+                    object_mat = add_accurate_material(shader_mat, material, shader_module, unused_secondary_lut, textures)
+                elif is_tex_array_skin:
+                    object_mat = add_skin_material(skin_mat, material, textures)
+                elif is_lut_skin:
+                    object_mat = add_lut_skin_material(lut_skin_mat, material, textures)
+                object_mat["gltfId"] = primitive["material"]
+            else:
+                print(f"    Found existing material '{key}'")
+                object_mat = bpy.data.materials[key]
+
+            for i in range(len(obj.material_slots)):
+                if obj.material_slots[i].material.name == material["name"]:
+                    obj.material_slots[i].material = object_mat
                     break
-        else:
-            obj: Object = bpy.data.objects[node["name"]]
-        key = "HD2 Mat " + material["name"]
-        i = 1
-        while key in bpy.data.materials and bpy.data.materials[key]["gltfId"] != primitive["material"]:
-            key = "HD2 Mat " + material["name"] + f".{i:03d}"
-            i += 1
-        if not key in bpy.data.materials:
-            print("    Copying template material")
-            if is_lut:
-                object_mat = add_accurate_material(shader_mat, material, shader_module, unused_secondary_lut, textures)
-            elif is_tex_array_skin:
-                object_mat = add_skin_material(skin_mat, material, textures)
-            elif is_lut_skin:
-                object_mat = add_lut_skin_material(lut_skin_mat, material, textures)
-            object_mat["gltfId"] = primitive["material"]
-        else:
-            print(f"    Found existing material '{key}'")
-            object_mat = bpy.data.materials[key]
-
-        obj.material_slots[0].material = object_mat
-        shader_module.add_bake_uvs(obj)
-        obj.select_set(True)
-        try:
-            bpy.ops.object.shade_smooth()
-        except RuntimeError:
-            # Context incorrect? We don't actually need to do this so its okay if it fails
-            pass
-        print(f"Applied material to {node['name']}!")
+            shader_module.add_bake_uvs(obj)
+            obj.select_set(True)
+            try:
+                bpy.ops.object.shade_smooth()
+            except RuntimeError:
+                # Context incorrect? We don't actually need to do this so its okay if it fails
+                pass
+            print(f"Applied material to {node['name']}!")
 
     bpy.ops.wm.save_mainfile(filepath=str(output))
 
