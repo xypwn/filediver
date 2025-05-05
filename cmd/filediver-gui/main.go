@@ -79,6 +79,7 @@ import (
 	"github.com/skratchdot/open-golang/open"
 	"github.com/xypwn/filediver/app"
 	fnt "github.com/xypwn/filediver/cmd/filediver-gui/fonts"
+	"github.com/xypwn/filediver/cmd/filediver-gui/getter"
 	"github.com/xypwn/filediver/cmd/filediver-gui/imutils"
 	"github.com/xypwn/filediver/cmd/filediver-gui/widgets"
 	"github.com/xypwn/filediver/exec"
@@ -193,20 +194,6 @@ func UpdateGUIScale(guiScale float32, needCJKFonts bool) {
 	io.SetFontGlobalScale(1)
 	style.ScaleAllSizes(guiScale)
 	io.Ctx().SetStyle(*style)
-}
-
-var downloadFFmpegURL string
-var downloadScriptsDistURL string
-
-func init() {
-	switch runtime.GOOS {
-	case "windows":
-		downloadFFmpegURL = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"
-		downloadScriptsDistURL = "https://github.com/xypwn/filediver/releases/download/v0.5.7/scripts-dist-windows.zip"
-	case "linux":
-		downloadFFmpegURL = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz"
-		downloadScriptsDistURL = "https://github.com/xypwn/filediver/releases/download/v0.5.7/scripts-dist-linux.tar.xz"
-	}
 }
 
 func run(onError func(error)) error {
@@ -324,8 +311,37 @@ func run(onError func(error)) error {
 	var extractorConfig app.Config
 
 	downloadsDir := filepath.Join(xdg.DataHome, "filediver")
-	ffmpegDownloadState := widgets.NewDownloader(downloadFFmpegURL, downloadsDir, true)
-	scriptsDistDownloadState := widgets.NewDownloader(downloadScriptsDistURL, downloadsDir, true)
+	var ffmpegDownloadState *widgets.DownloaderState
+	var scriptsDistDownloadState *widgets.DownloaderState
+	{
+		ffmpegTarget := getter.Target{
+			SubdirName:        "ffmpeg",
+			GHUser:            "BtbN",
+			GHRepo:            "FFmpeg-Builds",
+			GHFilenameWindows: "ffmpeg-master-latest-win64-gpl.zip",
+			GHFilenameLinux:   "ffmpeg-master-latest-linux64-gpl.tar.xz",
+			StripFirstDir:     true,
+		}
+		ffmpegInfo, err := ffmpegTarget.GetInfo()
+		if err != nil {
+			zenity.Error("Error checking ffmpeg: " + err.Error())
+		}
+		scriptsDistTarget := getter.Target{
+			SubdirName:        "filediver-scripts",
+			GHUser:            "xypwn",
+			GHRepo:            "filediver",
+			GHFilenameWindows: "scripts-dist-windows.zip",
+			GHFilenameLinux:   "scripts-dist-linux.tar.xz",
+			StripFirstDir:     true,
+		}
+		scriptsDistInfo, err := scriptsDistTarget.GetInfo()
+		if err != nil {
+			zenity.Error("Error checking scripts dist: " + err.Error())
+		}
+
+		ffmpegDownloadState = widgets.NewDownloader(downloadsDir, ffmpegInfo)
+		scriptsDistDownloadState = widgets.NewDownloader(downloadsDir, scriptsDistInfo)
+	}
 
 	isPreferencesOpen := false
 	isAboutOpen := false
