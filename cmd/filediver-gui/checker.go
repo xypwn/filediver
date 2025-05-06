@@ -50,8 +50,7 @@ func detectAndMaybeDeleteLegacyExtensions(downloadsDir string) error {
 	return nil
 }
 
-// newVersion is non-empty if a new version is available.
-func checkForUpdates() (newVersion, downloadURL string, err error) {
+func getNewestVersion() (newVersion, downloadURL string, err error) {
 	target := getter.Target{
 		GHUser:            "xypwn",
 		GHRepo:            "filediver",
@@ -62,8 +61,5 @@ func checkForUpdates() (newVersion, downloadURL string, err error) {
 	if err != nil {
 		return "", "", err
 	}
-	if info.ResolvedVersion != version {
-		return info.ResolvedVersion, info.DownloadURL, nil
-	}
-	return "", "", nil
+	return info.ResolvedVersion, info.DownloadURL, nil
 }

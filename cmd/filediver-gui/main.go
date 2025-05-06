@@ -971,7 +971,7 @@ func run(onError func(error)) error {
 			checkUpdatesErr = nil
 			checkUpdatesLock.Unlock()
 			go func() {
-				ver, url, err := checkForUpdates()
+				ver, url, err := getNewestVersion()
 				checkUpdatesLock.Lock()
 				checkUpdatesNewVersion, checkUpdatesDownloadURL, checkUpdatesErr = ver, url, err
 				checkUpdatesLock.Unlock()
