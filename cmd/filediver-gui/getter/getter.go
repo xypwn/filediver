@@ -27,7 +27,8 @@ type Target struct {
 	StripFirstDir     bool // remove first top-level folder from destination directory
 }
 
-func (t Target) GetInfo() (Info, error) {
+// GetInfo will only use the network if allowNetworkVersionResolution is set to true.
+func (t Target) GetInfo(allowNetworkVersionResolution bool) (Info, error) {
 	if runtime.GOARCH != "amd64" {
 		return Info{}, fmt.Errorf("unsupported CPU architecture: %v", runtime.GOARCH)
 	}
@@ -57,6 +58,10 @@ func (t Target) GetInfo() (Info, error) {
 	}
 	if ver, ok := versionFromURL(url); ok {
 		return Info{Target: t, ResolvedVersion: ver, DownloadURL: url}, nil
+	}
+
+	if !allowNetworkVersionResolution {
+		return Info{}, errors.New("network version resolution not allowed")
 	}
 
 	resp, err := (&http.Client{

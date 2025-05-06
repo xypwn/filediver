@@ -112,15 +112,15 @@ func (ds *DownloaderState) Dir() string {
 	return res
 }
 
-// Returns true if already downloaded.
-func (ds *DownloaderState) Have() bool {
+// Returns true if requested version is already downloaded.
+func (ds *DownloaderState) HaveRequestedVersion() bool {
 	ds.lock.Lock()
 	defer ds.lock.Unlock()
 
 	if !ds.checked {
 		ds.check()
 	}
-	return ds.presentVersion != ""
+	return ds.presentVersion == ds.info.ResolvedVersion
 }
 
 func Downloader(title, description string, ds *DownloaderState) {
@@ -137,40 +137,36 @@ func Downloader(title, description string, ds *DownloaderState) {
 		ds.check()
 	}
 	switch ds.progress.State {
-	case getter.Unknown:
-		imutils.Textcf(imgui.NewVec4(0.8, 0.8, 0.8, 1), "Not downloaded")
-		label := fnt.I("Download") + " Download"
-		if ds.err != nil {
-			imutils.TextError(ds.err)
-			label = fnt.I("Download") + " Retry"
+	case getter.Unknown, getter.Done:
+		if ds.presentVersion == "" {
+			imutils.Textcf(imgui.NewVec4(0.8, 0.8, 0.8, 1), "Not downloaded")
+		} else {
+			var prefix string
+			if ds.presentVersion == ds.info.ResolvedVersion {
+				prefix = "Downloaded"
+			} else {
+				prefix = "Out of date"
+			}
+			imutils.Textcf(imgui.NewVec4(0.8, 0.8, 0.8, 1), "%v (version: %v, size: %3.1f MiB)", prefix, ds.presentVersion, float32(ds.diskUsage)/mebi)
 		}
-		if imgui.ButtonV(label, imgui.NewVec2(-math.SmallestNonzeroFloat32, 0)) {
-			ds.goDownload()
+		if ds.presentVersion != ds.info.ResolvedVersion {
+			label := fnt.I("Download") + " Download"
+			if ds.presentVersion != "" {
+				label = fnt.I("Download") + " Update to version " + ds.info.ResolvedVersion
+			}
+			if ds.err != nil {
+				imutils.TextError(ds.err)
+				label = fnt.I("Download") + " Retry"
+			}
+			if imgui.ButtonV(label, imgui.NewVec2(-math.SmallestNonzeroFloat32, 0)) {
+				ds.goDownload()
+			}
 		}
-	case getter.Fetching, getter.Downloading, getter.Extracting:
-		imutils.Textcf(imgui.NewVec4(0.8, 0.8, 0.8, 1), "Downloading")
-		progBarProg := -1 * float32(imgui.Time())
-		var progBarText string
-		switch ds.progress.State {
-		case getter.Fetching:
-			progBarText = "Fetching"
-		case getter.Extracting:
-			progBarText = "Extracting"
-		case getter.Downloading:
-			curr, total := float32(ds.progress.ContentCurrentBytes), float32(ds.progress.ContentTotalBytes)
-			progBarProg = curr / total
-			progBarText = fmt.Sprintf("%3.1f/%3.1f MiB", curr/mebi, total/mebi)
+		if ds.presentVersion != "" {
+			if imgui.ButtonV(fnt.I("Delete")+" Delete", imgui.NewVec2(-math.SmallestNonzeroFloat32, 0)) {
+				imgui.OpenPopupStr("Confirm delete")
+			}
 		}
-		imgui.ProgressBarV(progBarProg, imgui.NewVec2(-math.SmallestNonzeroFloat32, 0), progBarText)
-		if imgui.ButtonV(fnt.I("Cancel")+" Cancel", imgui.NewVec2(-math.SmallestNonzeroFloat32, 0)) {
-			ds.cancel()
-		}
-	case getter.Done:
-		imutils.Textcf(imgui.NewVec4(0.8, 0.8, 0.8, 1), "Downloaded (version: %v, size: %3.1f MiB)", ds.presentVersion, float32(ds.diskUsage)/mebi)
-		if imgui.ButtonV(fnt.I("Delete")+" Delete", imgui.NewVec2(-math.SmallestNonzeroFloat32, 0)) {
-			imgui.OpenPopupStr("Confirm delete")
-		}
-
 		imgui.SetNextWindowPosV(imgui.MainViewport().Center(), imgui.CondAlways, imgui.NewVec2(0.5, 0.5))
 		if imgui.BeginPopupModalV("Confirm delete", nil, imgui.WindowFlagsAlwaysAutoResize) {
 			imutils.Textf("Delete %v?\nYou can always re-download it.", title)
@@ -189,6 +185,24 @@ func Downloader(title, description string, ds *DownloaderState) {
 				imgui.CloseCurrentPopup()
 			}
 			imgui.EndPopup()
+		}
+	case getter.Fetching, getter.Downloading, getter.Extracting:
+		imutils.Textcf(imgui.NewVec4(0.8, 0.8, 0.8, 1), "Downloading")
+		progBarProg := -1 * float32(imgui.Time())
+		var progBarText string
+		switch ds.progress.State {
+		case getter.Fetching:
+			progBarText = "Fetching"
+		case getter.Extracting:
+			progBarText = "Extracting"
+		case getter.Downloading:
+			curr, total := float32(ds.progress.ContentCurrentBytes), float32(ds.progress.ContentTotalBytes)
+			progBarProg = curr / total
+			progBarText = fmt.Sprintf("%3.1f/%3.1f MiB", curr/mebi, total/mebi)
+		}
+		imgui.ProgressBarV(progBarProg, imgui.NewVec2(-math.SmallestNonzeroFloat32, 0), progBarText)
+		if imgui.ButtonV(fnt.I("Cancel")+" Cancel", imgui.NewVec2(-math.SmallestNonzeroFloat32, 0)) {
+			ds.cancel()
 		}
 	default:
 		imutils.TextError(errors.New("unexpected state"))

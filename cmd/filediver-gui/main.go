@@ -66,6 +66,7 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 	"unsafe"
 
@@ -306,6 +307,11 @@ func run(onError func(error)) error {
 	var archiveIDs []stingray.Hash
 	allowedArchives := map[stingray.Hash]struct{}{}
 
+	var checkUpdatesNewVersion string // empty if unknown
+	var checkUpdatesDownloadURL string
+	var checkUpdatesErr error
+	var checkUpdatesLock sync.Mutex
+
 	exportDir := filepath.Join(xdg.UserDirs.Download, "filediver_exports")
 	exportNotifyWhenDone := true
 	var extractorConfig app.Config
@@ -318,35 +324,44 @@ func run(onError func(error)) error {
 			SubdirName:        "ffmpeg",
 			GHUser:            "BtbN",
 			GHRepo:            "FFmpeg-Builds",
+			PinnedVersion:     "latest",
 			GHFilenameWindows: "ffmpeg-master-latest-win64-gpl.zip",
 			GHFilenameLinux:   "ffmpeg-master-latest-linux64-gpl.tar.xz",
 			StripFirstDir:     true,
 		}
-		ffmpegInfo, err := ffmpegTarget.GetInfo()
+		ffmpegInfo, err := ffmpegTarget.GetInfo(false)
 		if err != nil {
-			zenity.Error("Error checking ffmpeg: " + err.Error())
+			onError(err)
 		}
 		scriptsDistTarget := getter.Target{
 			SubdirName:        "filediver-scripts",
 			GHUser:            "xypwn",
 			GHRepo:            "filediver",
+			PinnedVersion:     version,
 			GHFilenameWindows: "scripts-dist-windows.zip",
 			GHFilenameLinux:   "scripts-dist-linux.tar.xz",
 			StripFirstDir:     true,
 		}
-		scriptsDistInfo, err := scriptsDistTarget.GetInfo()
-		if err != nil {
-			zenity.Error("Error checking scripts dist: " + err.Error())
+		var scriptsDistInfo getter.Info
+		if version != "" {
+			var err error
+			scriptsDistInfo, err = scriptsDistTarget.GetInfo(false)
+			if err != nil {
+				onError(err)
+			}
 		}
 
 		ffmpegDownloadState = widgets.NewDownloader(downloadsDir, ffmpegInfo)
 		scriptsDistDownloadState = widgets.NewDownloader(downloadsDir, scriptsDistInfo)
 	}
+	if err := detectAndMaybeDeleteLegacyExtensions(downloadsDir); err != nil {
+		onError(err)
+	}
 
 	isPreferencesOpen := false
 	isAboutOpen := false
 	isExtensionsOpen := false
-	isExtensionsWarningPopupOpen := !ffmpegDownloadState.Have() || !scriptsDistDownloadState.Have()
+	isExtensionsWarningPopupOpen := !ffmpegDownloadState.HaveRequestedVersion() || !scriptsDistDownloadState.HaveRequestedVersion()
 	isWelcomePopupOpen := true
 	isTypeFilterOpen := false
 	isArchiveFilterOpen := false
@@ -383,6 +398,8 @@ func run(onError func(error)) error {
 	}
 
 	draw := func() {
+		openCheckForUpdates := false
+
 		viewport := imgui.MainViewport()
 		imgui.SetNextWindowPos(viewport.Pos())
 		imgui.SetNextWindowSize(imgui.NewVec2(viewport.Size().X, 0))
@@ -410,6 +427,10 @@ func run(onError func(error)) error {
 					imgui.Separator()
 					if imgui.MenuItemBool(fnt.I("Extension") + " Extensions") {
 						isExtensionsOpen = true
+					}
+					imgui.Separator()
+					if imgui.MenuItemBool(fnt.I("Sync") + " Check for updates") {
+						openCheckForUpdates = true
 					}
 					imgui.Separator()
 					if imgui.MenuItemBool(fnt.I("Settings") + " Preferences") {
@@ -801,18 +822,18 @@ func run(onError func(error)) error {
 
 		if !isWelcomePopupOpen {
 			if isExtensionsWarningPopupOpen {
-				imgui.OpenPopupStr("Some optional extensions missing")
+				imgui.OpenPopupStr("Some optional extensions missing or out of date")
 			}
 			imgui.SetNextWindowPosV(viewport.Center(), imgui.CondAlways, imgui.NewVec2(0.5, 0.5))
-			if imgui.BeginPopupModalV("Some optional extensions missing", &isExtensionsWarningPopupOpen, imgui.WindowFlagsAlwaysAutoResize) {
+			if imgui.BeginPopupModalV("Some optional extensions missing or out of date", &isExtensionsWarningPopupOpen, imgui.WindowFlagsAlwaysAutoResize) {
 				imgui.PushTextWrapPos()
-				imgui.TextUnformatted("The following recommended extensions are missing:")
-				if !ffmpegDownloadState.Have() {
+				imgui.TextUnformatted("The following recommended extensions are missing or out of date:")
+				if !ffmpegDownloadState.HaveRequestedVersion() {
 					imgui.Bullet()
 					imgui.PushTextWrapPos()
 					imgui.TextUnformatted("FFmpeg: Without FFmpeg, videos will be saved as BIK and audio will be saved was WAV.")
 				}
-				if !scriptsDistDownloadState.Have() {
+				if !scriptsDistDownloadState.HaveRequestedVersion() {
 					imgui.Bullet()
 					imgui.PushTextWrapPos()
 					imgui.TextUnformatted("ScriptsDist: Without ScriptsDist, exporting directly to .blend is not available. Models will be saved as .glb.")
@@ -909,6 +930,14 @@ func run(onError func(error)) error {
 		}
 		if imgui.BeginPopupModalV("About", &isAboutOpen, imgui.WindowFlagsNoMove) {
 			imgui.TextUnformatted("Filediver GUI")
+			imgui.SameLine()
+			imgui.TextLinkOpenURLV("(GitHub)", "https://github.com/xypwn/filediver")
+			if version != "" {
+				imutils.Textf("version: %v", version)
+			} else {
+				imgui.TextUnformatted("development version")
+			}
+			imgui.Separator()
 			if imgui.CollapsingHeaderBoolPtr("License", nil) {
 				imgui.PushTextWrapPos()
 				imgui.TextUnformatted(license)
@@ -930,6 +959,46 @@ func run(onError func(error)) error {
 			if imgui.ButtonV("Close", imgui.NewVec2(imgui.ContentRegionAvail().X, 0)) {
 				imgui.CloseCurrentPopup()
 				isAboutOpen = false
+			}
+			imgui.EndPopup()
+		}
+
+		if openCheckForUpdates {
+			imgui.OpenPopupStr("Check for updates")
+			checkUpdatesLock.Lock()
+			checkUpdatesNewVersion = ""
+			checkUpdatesDownloadURL = ""
+			checkUpdatesErr = nil
+			checkUpdatesLock.Unlock()
+			go func() {
+				ver, url, err := checkForUpdates()
+				checkUpdatesLock.Lock()
+				checkUpdatesNewVersion, checkUpdatesDownloadURL, checkUpdatesErr = ver, url, err
+				checkUpdatesLock.Unlock()
+			}()
+		}
+		imgui.SetNextWindowPosV(imgui.MainViewport().Center(), imgui.CondAlways, imgui.NewVec2(0.5, 0.5))
+		if imgui.BeginPopupModalV("Check for updates", nil, imgui.WindowFlagsAlwaysAutoResize) {
+			checkUpdatesLock.Lock()
+			if checkUpdatesErr == nil {
+				if checkUpdatesNewVersion == "" {
+					imgui.ProgressBarV(-1*float32(imgui.Time()), imgui.NewVec2(250, 0), "Checking for updates")
+				} else if checkUpdatesNewVersion == version {
+					imutils.Textcf(imgui.NewVec4(0, 0.7, 0, 1), fnt.I("Check")+"Up-to-date (version %v)", version)
+				} else {
+					imutils.Textcf(imgui.NewVec4(0.8, 0.8, 0, 1), fnt.I("Exclamation")+"New version available: %v", checkUpdatesNewVersion)
+					if imgui.ButtonV(fnt.I("Download")+" Download "+checkUpdatesNewVersion, imgui.NewVec2(250, 0)) {
+						open.Start(checkUpdatesDownloadURL)
+					}
+					imgui.SetItemTooltip("Open '" + checkUpdatesDownloadURL + "'")
+				}
+			} else {
+				imutils.TextError(checkUpdatesErr)
+			}
+			checkUpdatesLock.Unlock()
+			imgui.Separator()
+			if imgui.ButtonV("Close", imgui.NewVec2(250, 0)) {
+				imgui.CloseCurrentPopup()
 			}
 			imgui.EndPopup()
 		}

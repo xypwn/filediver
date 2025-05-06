@@ -18,7 +18,7 @@ func TestGetInfo(t *testing.T) {
 			PinnedVersion:     pinnedVersion,
 			GHFilenameWindows: "scripts-dist-windows.zip",
 			GHFilenameLinux:   "scripts-dist-linux.tar.xz",
-		}.GetInfo()
+		}.GetInfo(true)
 		require.NoError(err)
 
 		require.Regexp(`v[0-9]+\.[0-9]+\.[0-9]+`, info.ResolvedVersion)
