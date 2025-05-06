@@ -130,10 +130,6 @@ func (info Info) Download(ctx context.Context, parentDir string, onProgress func
 
 	dir, tmpPath, versionPath := info.Target.Paths(parentDir)
 
-	if err := os.Remove(versionPath); err != nil && !os.IsNotExist(err) {
-		return err
-	}
-
 	req, err := http.NewRequestWithContext(ctx, "GET", info.DownloadURL, nil)
 	if err != nil {
 		return err
@@ -199,6 +195,13 @@ func (info Info) Download(ctx context.Context, parentDir string, onProgress func
 		if !ok {
 			return errors.New("unable to extract archive")
 		}
+	}
+
+	if err := os.Remove(versionPath); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	if err := os.RemoveAll(dir); err != nil && !os.IsNotExist(err) {
+		return err
 	}
 
 	arR, err := os.Open(tmpPath)

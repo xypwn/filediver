@@ -74,6 +74,9 @@ func (ds *DownloaderState) goDownload() {
 			}
 			ds.progress = getter.Progress{}
 		}
+		if ds.progress.State == getter.Done {
+			ds.check()
+		}
 		ds.lock.Unlock()
 	})
 }
