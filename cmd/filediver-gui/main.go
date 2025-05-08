@@ -301,11 +301,11 @@ func run(onError func(error)) error {
 	filesSelectedForExport := map[stingray.FileID]struct{}{}
 	allSelectedForExport := false
 	var gameFileTypeSearchQuery string
-	var gameFileTypes []stingray.Hash
-	allowedGameFileTypes := map[stingray.Hash]struct{}{}
+	var gameFileTypes []widgets.FilterListSection[stingray.Hash]
+	selectedGameFileTypes := map[stingray.Hash]struct{}{}
 	var archiveIDSearchQuery string
-	var archiveIDs []stingray.Hash
-	allowedArchives := map[stingray.Hash]struct{}{}
+	var archiveIDs []widgets.FilterListSection[stingray.Hash]
+	selectedArchives := map[stingray.Hash]struct{}{}
 
 	var checkUpdatesNewVersion string // empty if unknown
 	var checkUpdatesDownloadURL string
@@ -503,26 +503,42 @@ func run(onError func(error)) error {
 							for _, f := range gameData.DataDir.Files {
 								types[f.ID().Type] = struct{}{}
 							}
-							gameFileTypes = slices.SortedFunc(maps.Keys(types), func(h1, h2 stingray.Hash) int {
-								previewableTypes := []stingray.Hash{
+							gameFileTypes = []widgets.FilterListSection[stingray.Hash]{
+								{Title: "Previewable and exportable"},
+								{Title: "Just exportable"},
+								{Title: "Not exportable"},
+							}
+							for _, typ := range slices.SortedFunc(maps.Keys(types), func(h1, h2 stingray.Hash) int {
+								return strings.Compare(gameData.LookupHash(h1), gameData.LookupHash(h2))
+							}) {
+								var sectionIdx int
+								switch typ {
+								case // previewable and exportable
 									stingray.Sum64([]byte("texture")),
 									stingray.Sum64([]byte("wwise_bank")),
 									stingray.Sum64([]byte("wwise_stream")),
 									stingray.Sum64([]byte("unit")),
-									stingray.Sum64([]byte("strings")),
+									stingray.Sum64([]byte("strings")):
+									sectionIdx = 0
+								default:
+									typName := gameData.LookupHash(typ)
+									if _, ok := app.ConfigFormat.Extractors[typName]; ok {
+										// just exportable
+										sectionIdx = 1
+									} else {
+										// not exportable
+										sectionIdx = 2
+									}
 								}
-								h1Pv := slices.Contains(previewableTypes, h1)
-								h2Pv := slices.Contains(previewableTypes, h2)
-								if h1Pv && !h2Pv {
-									return -1
-								} else if !h1Pv && h2Pv {
-									return 1
-								}
-								return strings.Compare(gameData.LookupHash(h1), gameData.LookupHash(h2))
-							})
-							archiveIDs = slices.SortedFunc(maps.Keys(gameData.DataDir.FilesByTriad), func(h1, h2 stingray.Hash) int {
-								return strings.Compare(gameData.LookupHash(h1), gameData.LookupHash(h2))
-							})
+								gameFileTypes[sectionIdx].Items = append(gameFileTypes[sectionIdx].Items, typ)
+							}
+							archiveIDs = []widgets.FilterListSection[stingray.Hash]{
+								{
+									Items: slices.SortedFunc(maps.Keys(gameData.DataDir.FilesByTriad), func(h1, h2 stingray.Hash) int {
+										return strings.Compare(gameData.LookupHash(h1), gameData.LookupHash(h2))
+									}),
+								},
+							}
 						}
 					} else {
 						imutils.TextError(gameDataLoad.Err)
@@ -548,14 +564,14 @@ func run(onError func(error)) error {
 					imgui.SetKeyboardFocusHere()
 				}
 				if imgui.InputTextWithHint("##SearchName", fnt.I("Search")+" Filter by file name...", &gameFileSearchQuery, 0, nil) {
-					gameData.UpdateSearchQuery(gameFileSearchQuery, allowedGameFileTypes, allowedArchives)
+					gameData.UpdateSearchQuery(gameFileSearchQuery, selectedGameFileTypes, selectedArchives)
 					allSelectedForExport = calcAllSelectedForExport()
 				}
 				imgui.SetItemTooltip("Filter by file name (Ctrl+F)")
 
-				widgets.FilterListButton("Types", &isTypeFilterOpen, allowedGameFileTypes)
+				widgets.FilterListButton("Types", &isTypeFilterOpen, selectedGameFileTypes)
 				imgui.SameLine()
-				widgets.FilterListButton("Archives", &isArchiveFilterOpen, allowedArchives)
+				widgets.FilterListButton("Archives", &isArchiveFilterOpen, selectedArchives)
 
 				imgui.BeginDisabledV(len(gameData.SortedSearchResultFileIDs) == 0)
 				if imgui.Checkbox("Select all for export", &allSelectedForExport) {
@@ -659,11 +675,7 @@ func run(onError func(error)) error {
 			"Search Types",
 			&gameFileTypeSearchQuery,
 			gameFileTypes,
-			map[int]string{
-				0: "Preview supported types",
-				5: "Other types",
-			},
-			&allowedGameFileTypes,
+			&selectedGameFileTypes,
 			func(x stingray.Hash) string {
 				return gameData.LookupHash(x)
 			},
@@ -671,7 +683,7 @@ func run(onError func(error)) error {
 				return fmt.Sprintf("hash=%v", x)
 			},
 		) {
-			gameData.UpdateSearchQuery(gameFileSearchQuery, allowedGameFileTypes, allowedArchives)
+			gameData.UpdateSearchQuery(gameFileSearchQuery, selectedGameFileTypes, selectedArchives)
 			allSelectedForExport = calcAllSelectedForExport()
 		}
 		if widgets.FilterListWindow("Archive Filter",
@@ -679,8 +691,7 @@ func run(onError func(error)) error {
 			"Search Archives",
 			&archiveIDSearchQuery,
 			archiveIDs,
-			nil,
-			&allowedArchives,
+			&selectedArchives,
 			func(x stingray.Hash) string {
 				return gameData.LookupHash(x)
 			},
@@ -688,7 +699,7 @@ func run(onError func(error)) error {
 				return fmt.Sprintf("hash=%v", x)
 			},
 		) {
-			gameData.UpdateSearchQuery(gameFileSearchQuery, allowedGameFileTypes, allowedArchives)
+			gameData.UpdateSearchQuery(gameFileSearchQuery, selectedGameFileTypes, selectedArchives)
 			allSelectedForExport = calcAllSelectedForExport()
 		}
 

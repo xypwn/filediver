@@ -37,9 +37,14 @@ func FilterListButton[T comparable](title string, windowOpen *bool, sel map[T]st
 	return pressed
 }
 
+type FilterListSection[T comparable] struct {
+	Title string // empty string for no title
+	Items []T
+}
+
 // Returns true if a checkbox was changed.
 // Searches through label and tooltip.
-func FilterListWindow[T comparable](title string, windowOpen *bool, searchHint string, queryBuf *string, avail []T, headerIndices map[int]string, sel *map[T]struct{}, label func(x T) string, tooltip func(x T) string) bool {
+func FilterListWindow[T comparable](title string, windowOpen *bool, searchHint string, queryBuf *string, sections []FilterListSection[T], sel *map[T]struct{}, label func(x T) string, tooltip func(x T) string) bool {
 	if !*windowOpen {
 		return false
 	}
@@ -63,30 +68,42 @@ func FilterListWindow[T comparable](title string, windowOpen *bool, searchHint s
 	imgui.Separator()
 	imgui.EndDisabled()
 
+	type match struct {
+		item    T
+		label   string
+		tooltip string
+	}
+	var matches []match
+
 	imgui.InputTextWithHint("##search", fnt.I("Search")+" "+searchHint, queryBuf, 0, nil)
-	for i, k := range avail {
-		if headerIndices != nil {
-			if header, ok := headerIndices[i]; ok {
-				imgui.TextUnformatted(header)
+	for _, sec := range sections {
+		matches = matches[:0]
+		for _, item := range sec.Items {
+			lab := label(item)
+			var tt string
+			if tooltip != nil {
+				tt = tooltip(item)
+			}
+			if *queryBuf == "" || strings.Contains(strings.ToLower(lab+" "+tt), strings.ToLower(*queryBuf)) {
+				matches = append(matches, match{item, lab, tt})
 			}
 		}
-		lab := label(k)
-		var tt string
-		if tooltip != nil {
-			tt = tooltip(k)
+
+		if sec.Title != "" && len(matches) > 0 {
+			imgui.TextUnformatted(sec.Title)
 		}
-		if *queryBuf == "" || strings.Contains(strings.ToLower(lab+" "+tt), strings.ToLower(*queryBuf)) {
-			_, checked := (*sel)[k]
-			if imgui.Checkbox(lab, &checked) {
+		for _, item := range matches {
+			_, checked := (*sel)[item.item]
+			if imgui.Checkbox(item.label, &checked) {
 				if checked {
-					(*sel)[k] = struct{}{}
+					(*sel)[item.item] = struct{}{}
 				} else {
-					delete(*sel, k)
+					delete(*sel, item.item)
 				}
 				changed = true
 			}
-			if tt != "" && imgui.IsItemHovered() {
-				imgui.SetTooltip(tt)
+			if item.tooltip != "" && imgui.IsItemHovered() {
+				imgui.SetTooltip(item.tooltip)
 			}
 		}
 	}
