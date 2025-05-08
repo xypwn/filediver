@@ -6,22 +6,31 @@ import (
 	"os"
 )
 
-type Printer struct {
+type Printer interface {
+	Infof(f string, a ...any)
+	Warnf(f string, a ...any)
+	Errorf(f string, a ...any)
+	Fatalf(f string, a ...any)
+	Statusf(f string, a ...any)
+	NoStatus()
+}
+
+type printer struct {
 	color  bool
 	status string
 	stdout io.Writer
 	stderr io.Writer
 }
 
-func NewPrinter(colorOutput bool, stdout io.Writer, stderr io.Writer) *Printer {
-	return &Printer{
+func NewConsolePrinter(colorOutput bool, stdout io.Writer, stderr io.Writer) *printer {
+	return &printer{
 		color:  colorOutput,
 		stdout: stdout,
 		stderr: stderr,
 	}
 }
 
-func (p *Printer) print(w io.Writer, pfx string, f string, a ...any) {
+func (p *printer) print(w io.Writer, pfx string, f string, a ...any) {
 	if p.status != "" && p.color {
 		pfx = "\033[2K\r" + pfx
 	}
@@ -31,7 +40,7 @@ func (p *Printer) print(w io.Writer, pfx string, f string, a ...any) {
 	}
 }
 
-func (p *Printer) Infof(f string, a ...any) {
+func (p *printer) Infof(f string, a ...any) {
 	pfx := "[INFO] "
 	if p.color {
 		pfx = "\033[32mINFO\033[m "
@@ -39,7 +48,7 @@ func (p *Printer) Infof(f string, a ...any) {
 	p.print(p.stdout, pfx, f, a...)
 }
 
-func (p *Printer) Warnf(f string, a ...any) {
+func (p *printer) Warnf(f string, a ...any) {
 	pfx := "[WARNING] "
 	if p.color {
 		pfx = "\033[33mWARNING\033[m "
@@ -47,7 +56,7 @@ func (p *Printer) Warnf(f string, a ...any) {
 	p.print(p.stderr, pfx, f, a...)
 }
 
-func (p *Printer) Errorf(f string, a ...any) {
+func (p *printer) Errorf(f string, a ...any) {
 	pfx := "[ERROR] "
 	if p.color {
 		pfx = "\033[31mERROR\033[m "
@@ -55,7 +64,7 @@ func (p *Printer) Errorf(f string, a ...any) {
 	p.print(p.stderr, pfx, f, a...)
 }
 
-func (p *Printer) Fatalf(f string, a ...any) {
+func (p *printer) Fatalf(f string, a ...any) {
 	p.NoStatus()
 	pfx := "[FATAL ERROR] "
 	if p.color {
@@ -65,7 +74,7 @@ func (p *Printer) Fatalf(f string, a ...any) {
 	os.Exit(1)
 }
 
-func (p *Printer) Statusf(f string, a ...any) {
+func (p *printer) Statusf(f string, a ...any) {
 	pfx := "[STATUS] "
 	if p.color {
 		pfx = "\033[32mSTATUS\033[m "
@@ -80,7 +89,7 @@ func (p *Printer) Statusf(f string, a ...any) {
 	}
 }
 
-func (p *Printer) NoStatus() {
+func (p *printer) NoStatus() {
 	if p.status == "" {
 		return
 	}

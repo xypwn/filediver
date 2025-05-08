@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -76,32 +75,37 @@ func (gd *GameData) UpdateSearchQuery(query string, allowedTypes map[stingray.Ha
 	})
 }
 
-func (gd *GameData) GoExport(extractCtx context.Context, files []stingray.FileID, outDir string, cfg app.Config, runner *exec.Runner) *GameDataExport {
+func (gd *GameData) GoExport(extractCtx context.Context, files []stingray.FileID, outDir string, cfg app.Config, runner *exec.Runner, printer app.Printer) *GameDataExport {
 	ex := &GameDataExport{}
 	ex.NumFiles = len(files)
 	extractCtx, cancel := context.WithCancel(extractCtx)
 	ex.Cancel = cancel
-	prt := app.NewPrinter(false, bytes.NewBuffer(nil), bytes.NewBuffer(nil))
 
 	go func() {
 		for _, fileID := range files {
+			currFileName := gd.LookupHash(fileID.Name) + "." + gd.LookupHash(fileID.Type)
 			ex.Lock()
-			ex.CurrentFileName = gd.LookupHash(fileID.Name) + "." + gd.LookupHash(fileID.Type)
+			ex.CurrentFileName = currFileName
 			ex.Unlock()
+			printer.Statusf("File: %v", currFileName)
 
-			_, err := gd.ExtractFile(extractCtx, fileID, outDir, cfg, runner, nil, prt)
-			if errors.Is(err, context.Canceled) {
-				ex.Lock()
-				ex.Canceled = true
-				ex.Unlock()
-				break
-			} else {
+			_, err := gd.ExtractFile(extractCtx, fileID, outDir, cfg, runner, nil, printer)
+			if err != nil {
+				if errors.Is(err, context.Canceled) {
+					ex.Lock()
+					ex.Canceled = true
+					ex.Unlock()
+					break
+				} else {
+					printer.Errorf("%v", err)
+				}
 			}
 
 			ex.Lock()
 			ex.CurrentFileIndex++
 			ex.Unlock()
 		}
+		printer.NoStatus()
 		ex.Lock()
 		ex.Done = true
 		ex.Unlock()

@@ -9,31 +9,61 @@ import (
 )
 
 func TextError(err error) {
-	ctx := imgui.CurrentContext()
-	imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.8, 0.5, 0.5, 1))
 	imgui.PushTextWrapPos()
+	CopyableTextcfV(
+		imgui.NewVec4(0.8, 0.5, 0.5, 1),
+		"Click to copy error to clipboard",
+		"Error: %v",
+		err,
+	)
+}
+
+func CopyableTextf(format string, args ...any) {
+	CopyableTextcf(imgui.Vec4{}, format, args...)
+}
+
+func CopyableTextcf(color imgui.Vec4, format string, args ...any) {
+	CopyableTextcfV(color, "Click to copy to clipboard", format, args...)
+}
+
+func CopyableTextfV(tooltip string, format string, args ...any) {
+	CopyableTextcfV(imgui.Vec4{}, tooltip, format, args...)
+}
+
+func CopyableTextcfV(color imgui.Vec4, tooltip string, format string, args ...any) {
+	imgui.PushIDStr(format)
+	imgui.PopID()
+
+	ctx := imgui.CurrentContext()
+	if color.Z != 0 {
+		imgui.PushStyleColorVec4(imgui.ColText, color)
+	}
 	textPos := imgui.CursorScreenPos()
-	Textf(fnt.I("Error")+" Error: %v", err)
+	Textf(format, args...)
 	imgui.SetCursorScreenPos(textPos)
 	imgui.SetNextItemAllowOverlap()
-	textBtnID := imgui.IDStr("##Error text")
-	clicked := imgui.InvisibleButton("##Error text", imgui.ItemRectSize())
-	imgui.PopStyleColor()
+	textBtnID := imgui.IDStr("##Copyable text")
+	clicked := imgui.InvisibleButton("##Copyable text", imgui.ItemRectSize())
+	if color.Z != 0 {
+		imgui.PopStyleColor()
+	}
 	if imgui.BeginItemTooltip() {
 		if ctx.LastActiveId() == textBtnID && ctx.LastActiveIdTimer() < 1 {
 			Textf(fnt.I("Check") + " Copied")
 		} else {
-			Textf(fnt.I("Content_copy") + " Click to copy error to clipboard")
+			Textf(fnt.I("Content_copy") + " " + tooltip)
 		}
 		imgui.EndTooltip()
 	}
 	if clicked {
-		imgui.SetClipboardText(fmt.Sprintf("Error: %v", err))
+		imgui.SetClipboardText(fmt.Sprintf(format, args...))
 	}
 }
 
 func Textf(format string, args ...any) {
+	imgui.PushIDStr(format)
 	imgui.TextUnformatted(fmt.Sprintf(format, args...))
+	imgui.PopID()
 }
 
 func Textcf(color imgui.Vec4, format string, args ...any) {
