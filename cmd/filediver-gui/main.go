@@ -316,6 +316,8 @@ func run(onError func(error)) error {
 	exportNotifyWhenDone := true
 	var extractorConfig app.Config
 
+	logger := NewLogger()
+
 	downloadsDir := filepath.Join(xdg.DataHome, "filediver")
 	var ffmpegDownloadState *widgets.DownloaderState
 	var scriptsDistDownloadState *widgets.DownloaderState
@@ -365,6 +367,7 @@ func run(onError func(error)) error {
 	isWelcomePopupOpen := true
 	isTypeFilterOpen := false
 	isArchiveFilterOpen := false
+	isLogsOpen := false
 
 	preDraw := func() error {
 		if gameData != nil && previewState == nil {
@@ -717,6 +720,18 @@ func run(onError func(error)) error {
 
 			imgui.Separator()
 
+			{
+				var openClose string
+				if isLogsOpen {
+					openClose = fnt.I("List") + " Close extractor logs " + fnt.I("Close")
+				} else {
+					openClose = fnt.I("List") + " Open extractor logs " + fnt.I("Open_in_new")
+				}
+				if imgui.ButtonV(openClose, imgui.NewVec2(-math.SmallestNonzeroFloat32, 0)) {
+					isLogsOpen = !isLogsOpen
+				}
+			}
+
 			if imgui.ButtonV(fnt.I("Folder_open")+" Open output folder", imgui.NewVec2(-math.SmallestNonzeroFloat32, 0)) {
 				_ = os.MkdirAll(exportDir, os.ModePerm)
 				open.Start(exportDir)
@@ -736,7 +751,8 @@ func run(onError func(error)) error {
 						runner.Add("ffmpeg", ffmpegArgs...)
 					}
 					runner.Add(blenderImporterPath)
-					gameDataExport = gameData.GoExport(ctx, slices.Collect(maps.Keys(filesSelectedForExport)), exportDir, extractorConfig, runner)
+					logger.Reset()
+					gameDataExport = gameData.GoExport(ctx, slices.Collect(maps.Keys(filesSelectedForExport)), exportDir, extractorConfig, runner, logger)
 					runner.Close()
 				}
 				if gameData == nil {
@@ -778,10 +794,34 @@ func run(onError func(error)) error {
 		}
 		imgui.End()
 
+		if isLogsOpen {
+			imgui.SetNextWindowPosV(viewport.Center(), imgui.CondOnce, imgui.NewVec2(0.5, 0.5))
+			imgui.SetNextWindowSizeV(imgui.NewVec2(400, 400), imgui.CondOnce)
+			if imgui.BeginV("Extractor logs", &isLogsOpen, 0) {
+				avail := imgui.ContentRegionAvail()
+				avail.Y -= imgui.FrameHeightWithSpacing()
+				imgui.SetNextWindowSize(avail)
+				if imgui.BeginChildStr("Log view") {
+					LogView(logger)
+				}
+				imgui.EndChild()
+
+				ctx := imgui.CurrentContext()
+				btnLabel := fnt.I("Content_copy") + " Copy all to clipboard"
+				btnID := imgui.IDStr(btnLabel)
+				if imgui.ButtonV(btnLabel, imgui.NewVec2(-math.SmallestNonzeroFloat32, 0)) {
+					imgui.SetClipboardText(logger.String())
+				}
+				if ctx.LastActiveId() == btnID && ctx.LastActiveIdTimer() < 1 {
+					imgui.SetItemTooltip(fnt.I("Check") + " Copied")
+				}
+			}
+			imgui.End()
+		}
+
 		if imgui.Begin("Preview") {
 			if previewState != nil {
 				if !widgets.FileAutoPreview("Preview", previewState) {
-					imgui.PushTextWrapPos()
 					active := previewState.ActiveID()
 					imgui.PushTextWrapPos()
 					if active.Name.Value == 0 {

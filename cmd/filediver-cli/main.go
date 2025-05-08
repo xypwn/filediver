@@ -28,7 +28,7 @@ import (
 )
 
 func main() {
-	prt := app.NewPrinter(
+	prt := app.NewConsolePrinter(
 		supportscolor.Stderr().SupportsColor,
 		os.Stderr,
 		os.Stderr,

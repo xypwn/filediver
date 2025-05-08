@@ -570,10 +570,10 @@ type extractContext struct {
 	config  map[string]string
 	outPath string
 	files   []string
-	printer *Printer
+	printer Printer
 }
 
-func newExtractContext(ctx context.Context, app *App, file *stingray.File, runner *exec.Runner, config map[string]string, outPath string, printer *Printer) *extractContext {
+func newExtractContext(ctx context.Context, app *App, file *stingray.File, runner *exec.Runner, config map[string]string, outPath string, printer Printer) *extractContext {
 	return &extractContext{
 		ctx:     ctx,
 		app:     app,
@@ -650,7 +650,7 @@ func getSourceExtractFunc(extrCfg Config, typ string) (extr extractor.ExtractFun
 }
 
 // Returns path to extracted file/directory.
-func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string, extrCfg Config, runner *exec.Runner, gltfDoc *gltf.Document, printer *Printer) ([]string, error) {
+func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string, extrCfg Config, runner *exec.Runner, gltfDoc *gltf.Document, printer Printer) ([]string, error) {
 	name, typ := a.LookupHash(id.Name), a.LookupHash(id.Type)
 
 	file, ok := a.DataDir.Files[id]

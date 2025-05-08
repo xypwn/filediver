@@ -24,7 +24,7 @@ func main() {
 	}
 	query, inclGlob := []byte(os.Args[1]), os.Args[2]
 
-	prt := app.NewPrinter(
+	prt := app.NewConsolePrinter(
 		supportscolor.Stderr().SupportsColor,
 		os.Stderr,
 		os.Stderr,
