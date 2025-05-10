@@ -21,20 +21,35 @@ type LODEntry struct {
 	Indices []uint32
 }
 
+type LODFooter struct {
+	MinMax     [6]float32
+	UnkFloat00 float32
+	Unk00      uint32
+	UnkFloat01 float32
+	Unk01      uint32
+}
+
+type LODOther struct {
+	// No idea what these actually represent, maybe offsets or indices into another file?
+	Unk00 uint32
+	Unk01 uint32
+	Unk02 uint32
+	Unk03 uint32
+	Unk04 uint32
+	Unk05 uint32
+	Unk06 uint32
+	Unk07 uint32
+}
+
 type LODGroup struct {
 	Header struct {
 		Unk00     uint32
 		UnkHash00 stingray.ThinHash
 		Unk01     uint32
-		Unk02     uint32
 	}
 	Entries []LODEntry
-	Footer  struct {
-		UnkFloats00 [7]float32
-		Unk00       uint32
-		UnkFloat00  float32
-		Unk01       uint32
-	}
+	Footers []LODFooter
+	Others  []LODOther
 }
 
 type RemapItem struct {
@@ -693,21 +708,37 @@ func LoadInfo(mainR io.ReadSeeker) (*Info, error) {
 			if err := binary.Read(mainR, binary.LittleEndian, &lodGroups[i].Header); err != nil {
 				return nil, err
 			}
-			var count uint32
-			if err := binary.Read(mainR, binary.LittleEndian, &count); err != nil {
+			var footerCount uint32
+			if err := binary.Read(mainR, binary.LittleEndian, &footerCount); err != nil {
 				return nil, err
 			}
-			entryOffsets := make([]uint32, count)
+			var entryCount uint32
+			if err := binary.Read(mainR, binary.LittleEndian, &entryCount); err != nil {
+				return nil, err
+			}
+			var otherCount uint32
+			if err := binary.Read(mainR, binary.LittleEndian, &otherCount); err != nil {
+				return nil, err
+			}
+			entryOffsets := make([]uint32, entryCount)
 			for j := range entryOffsets {
 				if err := binary.Read(mainR, binary.LittleEndian, &entryOffsets[j]); err != nil {
 					return nil, err
 				}
 			}
-			var footerOffset uint32
-			if err := binary.Read(mainR, binary.LittleEndian, &footerOffset); err != nil {
-				return nil, err
+			footerOffsets := make([]uint32, footerCount)
+			for j := range footerOffsets {
+				if err := binary.Read(mainR, binary.LittleEndian, &footerOffsets[j]); err != nil {
+					return nil, err
+				}
 			}
-			lodGroups[i].Entries = make([]LODEntry, count)
+			otherOffsets := make([]uint32, otherCount)
+			for j := range otherOffsets {
+				if err := binary.Read(mainR, binary.LittleEndian, &otherOffsets[j]); err != nil {
+					return nil, err
+				}
+			}
+			lodGroups[i].Entries = make([]LODEntry, entryCount)
 			for j, entryOffset := range entryOffsets {
 				if _, err := mainR.Seek(int64(hdr.LODGroupListOffset+lodGroupOffset+entryOffset), io.SeekStart); err != nil {
 					return nil, err
@@ -727,11 +758,23 @@ func LoadInfo(mainR io.ReadSeeker) (*Info, error) {
 				}
 				lodGroups[i].Entries[j].Indices = data
 			}
-			if _, err := mainR.Seek(int64(hdr.LODGroupListOffset+lodGroupOffset+footerOffset), io.SeekStart); err != nil {
-				return nil, err
+			lodGroups[i].Footers = make([]LODFooter, footerCount)
+			for j, footerOffset := range footerOffsets {
+				if _, err := mainR.Seek(int64(hdr.LODGroupListOffset+lodGroupOffset+footerOffset), io.SeekStart); err != nil {
+					return nil, err
+				}
+				if err := binary.Read(mainR, binary.LittleEndian, &lodGroups[i].Footers[j]); err != nil {
+					return nil, err
+				}
 			}
-			if err := binary.Read(mainR, binary.LittleEndian, &lodGroups[i].Footer); err != nil {
-				return nil, err
+			lodGroups[i].Others = make([]LODOther, otherCount)
+			for j, otherOffset := range otherOffsets {
+				if _, err := mainR.Seek(int64(hdr.LODGroupListOffset+lodGroupOffset+otherOffset), io.SeekStart); err != nil {
+					return nil, err
+				}
+				if err := binary.Read(mainR, binary.LittleEndian, &lodGroups[i].Others[j]); err != nil {
+					return nil, err
+				}
 			}
 		}
 	}
