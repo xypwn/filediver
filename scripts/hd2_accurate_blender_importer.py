@@ -353,7 +353,10 @@ def main():
                 object_mat = bpy.data.materials[key]
 
             for i in range(len(obj.material_slots)):
-                if obj.material_slots[i].material.name == material["name"]:
+                material_name = obj.material_slots[i].material.name
+                if "." in material_name:
+                    material_name = material_name.split(".")[0]
+                if material_name == material["name"]:
                     obj.material_slots[i].material = object_mat
                     break
             shader_module.add_bake_uvs(obj)
