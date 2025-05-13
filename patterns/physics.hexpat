@@ -94,7 +94,8 @@ struct Packet {
 };
 
 struct Header {
-    ThinMurmurHash unkHashes[4];
+    MurmurHash type;
+    MurmurHash filename;
     u32 size;
     std::mem::AlignTo<16> align0;
     char name[];

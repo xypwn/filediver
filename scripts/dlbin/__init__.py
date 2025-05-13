@@ -2,7 +2,8 @@ import struct
 from io import BytesIO, SEEK_CUR
 from enum import IntEnum
 
-from typing import List, Union, Dict
+from typing import List, Union, Dict, Tuple
+from strings import read_cstr
 
 class Slot(IntEnum):
     HELMET = 0
@@ -18,6 +19,8 @@ class Slot(IntEnum):
 
 class DLItemType(IntEnum):
     ArmorCustomization = 0xd9a55aa0
+    UnitCustomization = 0xa2ba274a
+    WeaponCustomization = 0x1e604234
 
 class Kit(IntEnum):
     ARMOR = 0
@@ -51,21 +54,24 @@ class Passive(IntEnum):
     COMBAT_MEDIC = 7
     BATTLE_HARDENED = 8
     HERO = 9
-    FIRE_RESISTANT = 10
-    PEAK_PHYSIQUE = 11
-    GAS_RESISTANT = 12
-    UNFLINCHING = 13
-    ACCLIMATED = 14
-    SIEGE_READY = 15
-    INTEGRATED_EXPLOSIVES = 16
-    GUNSLINGER = 17
+    REINFORCED_EPAULETTES = 10
+    FIRE_RESISTANT = 11
+    PEAK_PHYSIQUE = 12
+    GAS_RESISTANT = 13
+    UNFLINCHING = 14
+    ACCLIMATED = 15
+    SIEGE_READY = 16
+    INTEGRATED_EXPLOSIVES = 17
+    GUNSLINGER = 18
 
 class MurmurHash:
     def __init__(self, value: int):
         self.value = value
-    
+
     def __str__(self):
         return f"0x{self.value:016x}"
+
+ARMOR_SET_OFFSET = 0x3f0000
 
 class Piece:
     def __init__(self,
@@ -138,7 +144,7 @@ class Body:
     def parse(cls, data: BytesIO) -> 'Body':
         bodyType, unk00, offset, unk01, count, unk02 = struct.unpack("<IIIIII", data.read(24))
         prev = data.tell()
-        data.seek((offset&0xfffff)-0x80000)
+        data.seek((offset&0xffffff)-ARMOR_SET_OFFSET)
         pieces = [Piece.parse(data) for _ in range(count)]
         data.seek(prev)
         return cls(BodyType(bodyType), unk00, pieces, unk01, count, unk02)
@@ -173,7 +179,7 @@ class HelldiverCustomizationKit:
         _id, dlc_id, set_id, name_upper, name_cased, description, rarity, passive = struct.unpack("<IIIIIIII", data.read(32))
         triad, kit_type, unk01, offset, unk02, count, unk03 = struct.unpack("<QIIIIII", data.read(32))
         prev = data.tell()
-        data.seek((offset&0xfffff)-0x80000)
+        data.seek((offset&0xffffff)-ARMOR_SET_OFFSET)
         body_types = [Body.parse(data) for _ in range(count)]
         data.seek(prev)
         return cls(_id, dlc_id, set_id, name_upper, name_cased, description, rarity, Passive(passive), MurmurHash(triad), Kit(kit_type), unk01, body_types, unk02, count, unk03)
@@ -199,8 +205,212 @@ class HelldiverCustomizationKit:
         }
         return data
 
+class UIColors:
+    def __init__(self,
+            first: Tuple[float, float, float],
+            second: Tuple[float, float, float],
+            third: Tuple[float, float, float],
+            fourth: Tuple[float, float, float]
+        ):
+        self.first = first
+        self.second = second
+        self.third = third
+        self.fourth = fourth
+
+    def to_json(self):
+        return {
+            "first": self.first,
+            "second": self.second,
+            "third": self.third,
+            "fourth": self.fourth,
+        }
+
+    @classmethod
+    def parse(cls, data: BytesIO) -> 'UIColors':
+        first = struct.unpack("<fff", data.read(12))
+        second = struct.unpack("<fff", data.read(12))
+        third = struct.unpack("<fff", data.read(12))
+        fourth = struct.unpack("<fff", data.read(12))
+        return cls(first, second, third, fourth)
+
+UNIT_CUSTOMIZATION_OFFSET = 0x70000
+
+class UnitCustomizationSkin:
+    def __init__(self, 
+            debug_name: str,
+            unk00: int,
+            id: int,
+            unk01: int,
+            add_path: MurmurHash,
+            name_id: int,
+            unk02: int,
+            thumbnail: MurmurHash,
+            colors: UIColors,
+            unk03: int,
+            unk04: int,
+            unk05: int
+        ):
+        self.debug_name = debug_name
+        self.unk00 = unk00
+        self.id = id
+        self.unk01 = unk01
+        self.add_path = add_path
+        self.name_id = name_id
+        self.unk02 = unk02
+        self.thumbnail = thumbnail
+        self.colors = colors
+        self.unk03 = unk03
+        self.unk04 = unk04
+        self.unk05 = unk05
+
+    def to_json(self) -> dict:
+        return {
+            "debug_name": self.debug_name,
+            "unk00": self.unk00,
+            "id": self.id,
+            "unk01": self.unk01,
+            "add_path": str(self.add_path),
+            "name_id": self.name_id,
+            "unk02": self.unk02,
+            "thumbnail": str(self.thumbnail),
+            "colors": self.colors.to_json(),
+            "unk03": self.unk03,
+            "unk04": self.unk04,
+            "unk05": self.unk05,
+        }
+
+    @classmethod
+    def parse(cls, data: BytesIO) -> 'UnitCustomizationSkin':
+        name_offset, unk00, id, unk01, add_path, name, unk02, thumbnail, colors_offset, unk03, unk04, unk05 = struct.unpack("<IIIIQIIQIIII", data.read(56))
+        curr_offset = data.tell()
+        name_offset &= 0xFFFFF - UNIT_CUSTOMIZATION_OFFSET
+        colors_offset &= 0xFFFFF - UNIT_CUSTOMIZATION_OFFSET
+        if name_offset != 0:
+            data.seek(name_offset)
+            debug_name = read_cstr(data)
+        else:
+            debug_name = ""
+        if colors_offset != 0:
+            data.seek(colors_offset)
+            colors = UIColors.parse(data)
+        else:
+            colors = UIColors((0.0, 0.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, 0.0))
+        data.seek(curr_offset)
+        return cls(debug_name, unk00, id, unk01, MurmurHash(add_path), name, unk02, MurmurHash(thumbnail), colors, unk03, unk04, unk05)
+
+class UnitCustomizationSetting:
+    def __init__(self, 
+                 parent_type: int,
+                 typ: int,
+                 object_name_id: int,
+                 skin_name_id: int,
+                 category_type: int,
+                 unk00: int,
+                 unk01: int,
+                 unk02: int,
+                 showroom_offset: List[float],
+                 showroom_rotation: List[float],
+                 skins: List[UnitCustomizationSkin]
+        ):
+        self.parent_type = parent_type
+        self.type = typ
+        self.object_name_id = object_name_id
+        self.skin_name_id = skin_name_id
+        self.category_type = category_type
+        self.unk00 = unk00
+        self.unk01 = unk01
+        self.unk02 = unk02
+        self.showroom_offset = showroom_offset
+        self.showroom_rotation = showroom_rotation
+        self.skins = skins
+
+    def to_json(self) -> dict:
+        return {
+            "parent_type": self.parent_type,
+            "type": self.type,
+            "object_name_id": self.object_name_id,
+            "skin_name_id": self.skin_name_id,
+            "category_type": self.category_type,
+            "unk00": self.unk00,
+            "unk01": self.unk01,
+            "unk02": self.unk02,
+            "showroom_offset": self.showroom_offset,
+            "showroom_rotation": self.showroom_rotation,
+            "skins": [skin.to_json() for skin in self.skins],
+        }
+
+    @classmethod
+    def parse(cls, data: BytesIO) -> 'UnitCustomizationSetting':
+        parent_type, typ, object_name, skin_name, category_type, unk00, skins_offset, unk01, count, unk02 = struct.unpack("<IIIIIIIIII", data.read(40))
+        showroom_offset = struct.unpack("<fff", data.read(12))
+        showroom_rotation = struct.unpack("<fff", data.read(12))
+        skins_offset &= 0xFFFFF - UNIT_CUSTOMIZATION_OFFSET
+        data.seek(skins_offset)
+        skins = [UnitCustomizationSkin.parse(data) for _ in range(count)]
+        return cls(parent_type, typ, object_name, skin_name, category_type, unk00, unk01, unk02, showroom_offset, showroom_rotation, skins)
+
+
+WEAPON_CUSTOMIZATION_OFFSET = 0x70000
+
+class WeaponCustomizationSlot(IntEnum):
+    NONE = 0
+    UNDERBARREL = 1
+    OPTICS = 2
+    PAINTSCHEME = 3
+    MUZZLE = 4
+    MAGAZINE = 5
+    AMMOTYPE = 6
+    AMMOTYPE_ALT = 7
+    INTERNALS = 8
+    TRIGGER = 9
+
+class WeaponCustomizationSetting:
+    def __init__(self, debug_name: str, id: int, name_upper: int, name_cased: int, description: int, fluff: int, add_path: MurmurHash, slots: List[WeaponCustomizationSlot], unk00, unk01, unk02, unk03):
+        self.debug_name = debug_name
+        self.id = id
+        self.name_upper = name_upper
+        self.name_cased = name_cased
+        self.description = description
+        self.fluff = fluff
+        self.add_path = add_path
+        self.slots = slots
+        self.unk00 = unk00
+        self.unk01 = unk01
+        self.unk02 = unk02
+        self.unk03 = unk03
+
+    def to_json(self, string_mapping: Dict[int, str] = {}) -> dict:
+        def named(name_id: int) -> str|int:
+            if name_id in string_mapping:
+                return string_mapping[name_id]
+            return name_id
+        
+        data = {
+            "id": self.id,
+            "name_upper": named(self.name_upper),
+            "name_cased": named(self.name_cased),
+            "debug_name": self.debug_name,
+            "description": named(self.description),
+            "fluff": named(self.fluff),
+            "add_path": str(self.add_path),
+            "slots": [slot.name for slot in self.slots]
+        }
+        return data
+
+    @classmethod
+    def parse(cls, data: BytesIO) -> 'WeaponCustomizationSetting':
+        nameOffset, unk00, id, name_upper, name_cased, description, fluff, add_path = struct.unpack("<IIIIIIQQ", data.read(40))
+        unk01, slotOffset, unk02, count, unk03 = struct.unpack("<QIIII", data.read(24))
+        prev = data.tell()
+        data.seek((nameOffset & 0xFFFFF) - WEAPON_CUSTOMIZATION_OFFSET)
+        debug_name = read_cstr(data)
+        data.seek((slotOffset & 0xFFFFF) - WEAPON_CUSTOMIZATION_OFFSET)
+        slots = [WeaponCustomizationSlot(val[0]) for val in struct.iter_unpack("<I", data.read(count * 4))]
+        data.seek(prev)
+        return cls(debug_name, id, name_upper, name_cased, description, fluff, MurmurHash(add_path), slots, unk00, unk01, unk02, unk03)
+
 class DlBinItem:
-    def __init__(self, magic: str, unk00: int, kind: DLItemType, size: int, unk02: int, unk03: int, content: Union[bytes, HelldiverCustomizationKit]):
+    def __init__(self, magic: str, unk00: int, kind: DLItemType, size: int, unk02: int, unk03: int, content: Union[bytes, HelldiverCustomizationKit, UnitCustomizationSetting]):
         self.magic = magic
         self.unk00 = unk00
         self.kind = kind
@@ -219,6 +429,16 @@ class DlBinItem:
         if DLItemType(kind) == DLItemType.ArmorCustomization:
             data.seek(contentStart)
             content = HelldiverCustomizationKit.parse(data)
+            data.seek(contentEnd)
+        elif DLItemType(kind) == DLItemType.UnitCustomization:
+            data.seek(contentStart)
+            content = UnitCustomizationSetting.parse(data)
+            data.seek(contentEnd)
+        elif DLItemType(kind) == DLItemType.WeaponCustomization:
+            data.seek(contentStart)
+            offset, unk00, count, unk01 = struct.unpack("<IIII", data.read(16))
+            data.seek((offset & 0xFFFFF) - WEAPON_CUSTOMIZATION_OFFSET)
+            content = [WeaponCustomizationSetting.parse(data) for _ in range(count)]
             data.seek(contentEnd)
         return cls(magic, unk00, DLItemType(kind), size, unk02, unk03, content)
     

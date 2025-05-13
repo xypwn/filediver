@@ -107,10 +107,13 @@ struct LODGroup {
     LODGroupHeader header;
     u32 footerCount;
     u32 entryCount;
-    u32 otherCount;
+    /*u32 otherCount;
+    if(otherCount > 1) {
+        std::print("Other count greater than 1 in LODGroup %d", std::core::array_index());
+    }*/
     LODEntryPtr entryOffsets[entryCount];
     LODGroupFooterPtr footer[footerCount];
-    LODGroupOtherPtr other[otherCount];
+    //LODGroupOtherPtr other[otherCount];
 };
 
 struct LODGroupPtr {

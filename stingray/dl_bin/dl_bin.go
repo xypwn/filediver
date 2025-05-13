@@ -199,13 +199,15 @@ const (
 	PassiveCombatMedic          CustomizationKitPassive = 7
 	PassiveBattleHardened       CustomizationKitPassive = 8
 	PassiveHero                 CustomizationKitPassive = 9
-	PassiveFireResistant        CustomizationKitPassive = 10
-	PassivePeakPhysique         CustomizationKitPassive = 11
-	PassiveGasResistant         CustomizationKitPassive = 12
-	PassiveUnflinching          CustomizationKitPassive = 13
-	PassiveAcclimated           CustomizationKitPassive = 14
-	PassiveSiegeReady           CustomizationKitPassive = 15
-	PassiveIntegratedExplosives CustomizationKitPassive = 16
+	PassiveReinforcedEpaulettes CustomizationKitPassive = 10
+	PassiveFireResistant        CustomizationKitPassive = 11
+	PassivePeakPhysique         CustomizationKitPassive = 12
+	PassiveGasResistant         CustomizationKitPassive = 13
+	PassiveUnflinching          CustomizationKitPassive = 14
+	PassiveAcclimated           CustomizationKitPassive = 15
+	PassiveSiegeReady           CustomizationKitPassive = 16
+	PassiveIntegratedExplosives CustomizationKitPassive = 17
+	PassiveGunslinger           CustomizationKitPassive = 18
 )
 
 func (v CustomizationKitPassive) String() string {
@@ -244,6 +246,10 @@ func (v CustomizationKitPassive) String() string {
 		return "Siege-Ready"
 	case PassiveIntegratedExplosives:
 		return "Integrated Explosives"
+	case PassiveGunslinger:
+		return "Gunslinger"
+	case PassiveReinforcedEpaulettes:
+		return "Reinforced Epaulettes"
 	default:
 		return fmt.Sprint(uint32(v))
 	}
@@ -337,6 +343,7 @@ func LoadArmorSetDefinitions(strings map[uint32]string) (map[stingray.Hash]Armor
 	if err := binary.Read(r, binary.LittleEndian, &count); err != nil {
 		return nil, err
 	}
+	const armorSetOffset = 0x3f0000
 	var offset int = 4
 	for i := uint32(0); i < count; i++ {
 		var item DlItem
@@ -344,7 +351,7 @@ func LoadArmorSetDefinitions(strings map[uint32]string) (map[stingray.Hash]Armor
 			return nil, err
 		}
 
-		r.Seek(int64((item.Kit.BodyArrayAddress&0xfffff)-0x80000), io.SeekStart)
+		r.Seek(int64((item.Kit.BodyArrayAddress&0xffffff)-armorSetOffset), io.SeekStart)
 		var bodies []Body = make([]Body, item.Kit.BodyCount)
 		if err := binary.Read(r, binary.LittleEndian, bodies); err != nil {
 			return nil, err
@@ -359,7 +366,7 @@ func LoadArmorSetDefinitions(strings map[uint32]string) (map[stingray.Hash]Armor
 		}
 
 		for _, body := range bodies {
-			r.Seek(int64((body.PiecesAddress&0xfffff)-0x80000), io.SeekStart)
+			r.Seek(int64((body.PiecesAddress&0xfffff)-armorSetOffset), io.SeekStart)
 			pieces := make([]Piece, body.PiecesCount)
 			if err := binary.Read(r, binary.LittleEndian, pieces); err != nil {
 				return nil, err

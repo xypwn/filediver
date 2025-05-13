@@ -49,7 +49,7 @@ type LODGroup struct {
 	}
 	Entries []LODEntry
 	Footers []LODFooter
-	Others  []LODOther
+	// Others  []LODOther
 }
 
 type RemapItem struct {
@@ -716,10 +716,10 @@ func LoadInfo(mainR io.ReadSeeker) (*Info, error) {
 			if err := binary.Read(mainR, binary.LittleEndian, &entryCount); err != nil {
 				return nil, err
 			}
-			var otherCount uint32
-			if err := binary.Read(mainR, binary.LittleEndian, &otherCount); err != nil {
-				return nil, err
-			}
+			// var otherCount uint32
+			// if err := binary.Read(mainR, binary.LittleEndian, &otherCount); err != nil {
+			// 	return nil, err
+			// }
 			entryOffsets := make([]uint32, entryCount)
 			for j := range entryOffsets {
 				if err := binary.Read(mainR, binary.LittleEndian, &entryOffsets[j]); err != nil {
@@ -732,12 +732,12 @@ func LoadInfo(mainR io.ReadSeeker) (*Info, error) {
 					return nil, err
 				}
 			}
-			otherOffsets := make([]uint32, otherCount)
-			for j := range otherOffsets {
-				if err := binary.Read(mainR, binary.LittleEndian, &otherOffsets[j]); err != nil {
-					return nil, err
-				}
-			}
+			// otherOffsets := make([]uint32, otherCount)
+			// for j := range otherOffsets {
+			// 	if err := binary.Read(mainR, binary.LittleEndian, &otherOffsets[j]); err != nil {
+			// 		return nil, err
+			// 	}
+			// }
 			lodGroups[i].Entries = make([]LODEntry, entryCount)
 			for j, entryOffset := range entryOffsets {
 				if _, err := mainR.Seek(int64(hdr.LODGroupListOffset+lodGroupOffset+entryOffset), io.SeekStart); err != nil {
@@ -767,15 +767,15 @@ func LoadInfo(mainR io.ReadSeeker) (*Info, error) {
 					return nil, err
 				}
 			}
-			lodGroups[i].Others = make([]LODOther, otherCount)
-			for j, otherOffset := range otherOffsets {
-				if _, err := mainR.Seek(int64(hdr.LODGroupListOffset+lodGroupOffset+otherOffset), io.SeekStart); err != nil {
-					return nil, err
-				}
-				if err := binary.Read(mainR, binary.LittleEndian, &lodGroups[i].Others[j]); err != nil {
-					return nil, err
-				}
-			}
+			// lodGroups[i].Others = make([]LODOther, otherCount)
+			// for j, otherOffset := range otherOffsets {
+			// 	if _, err := mainR.Seek(int64(hdr.LODGroupListOffset+lodGroupOffset+otherOffset), io.SeekStart); err != nil {
+			// 		return nil, err
+			// 	}
+			// 	if err := binary.Read(mainR, binary.LittleEndian, &lodGroups[i].Others[j]); err != nil {
+			// 		return nil, err
+			// 	}
+			// }
 		}
 	}
 
