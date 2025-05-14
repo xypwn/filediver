@@ -26,8 +26,8 @@ struct MurmurHash {
 // end stingray.hexpat
 
 #define WEAPON_CUSTOMIZATION_OFFSET 0x70000
-#define UNIT_CUSTOMIZATION_OFFSET 0x60000
-#define HELLDIVER_CUSTOMIZATION_OFFSET 0xa0000
+#define UNIT_CUSTOMIZATION_OFFSET 0x70000
+#define HELLDIVER_CUSTOMIZATION_OFFSET 0x3f0000
 #define ANIMATION_EVENT_TRIGGER_OFFSET 0x60000
 
 fn relative_to_parents_parent(u128 offset) {
@@ -105,7 +105,7 @@ struct Pieces {
 struct Body {
     BodyType type;
     u32 unk01;
-    u32 offset = (std::mem::read_unsigned($, 4) & 0xfffff) - HELLDIVER_CUSTOMIZATION_OFFSET;
+    u32 offset = (std::mem::read_unsigned($, 4) & 0xffffff) - HELLDIVER_CUSTOMIZATION_OFFSET;
     $ += 4;
     u32 unk02;
     u32 count;
@@ -134,6 +134,7 @@ enum Passive : u32 {
     COMBAT_MEDIC,
     BATTLE_HARDENED,
     HERO,
+    REINFORCED_EPAULETTES,
     FIRE_RESISTANT,
     PEAK_PHYSIQUE,
     GAS_RESISTANT,
@@ -164,6 +165,7 @@ fn passiveName(Passive passive) {
         (Passive::SIEGE_READY): return "SIEGE_READY";
         (Passive::INTEGRATED_EXPLOSIVES): return "INTEGRATED_EXPLOSIVES";
         (Passive::GUNSLINGER): return "GUNSLINGER";
+        (Passive::REINFORCED_EPAULETTES): return "REINFORCED_EPAULETTES";
     }
     return "Very unknown!";
 };
@@ -193,14 +195,16 @@ struct HelldiverCustomizationKit {
         passive_bonus != Passive::UNFLINCHING &&
         passive_bonus != Passive::ACCLIMATED &&
         passive_bonus != Passive::SIEGE_READY &&
-        passive_bonus != Passive::INTEGRATED_EXPLOSIVES
+        passive_bonus != Passive::INTEGRATED_EXPLOSIVES &&
+        passive_bonus != Passive::GUNSLINGER &&
+        passive_bonus != Passive::REINFORCED_EPAULETTES
     ) {
         std::print("Unknown passive in element {:d}! {}", std::core::array_index(), u32(passive_bonus));
     }
     MurmurHash triad;
     KitType type;
     u32 unk01;
-    u32 offset = (std::mem::read_unsigned($, 4) & 0xfffff) - HELLDIVER_CUSTOMIZATION_OFFSET;
+    u32 offset = (std::mem::read_unsigned($, 4) & 0xffffff) - HELLDIVER_CUSTOMIZATION_OFFSET;
     $ += 4;
     u32 unk02;
     u32 count;

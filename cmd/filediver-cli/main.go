@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime/pprof"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -25,6 +26,7 @@ import (
 	"github.com/xypwn/filediver/extractor"
 	"github.com/xypwn/filediver/hashes"
 	"github.com/xypwn/filediver/stingray"
+	"github.com/xypwn/filediver/stingray/unit"
 )
 
 func main() {
@@ -58,6 +60,15 @@ extractor config:
 	triads := parser.String("t", "triads", &argparse.Option{Help: "Include comma-separated triad name(s) as found in game data directory (aka Archive ID, eg 0x9ba626afa44a3aa3)"})
 	gameDir := parser.String("g", "gamedir", &argparse.Option{Help: "Helldivers 2 game directory"})
 	modeList := parser.Flag("l", "list", &argparse.Option{Help: "List all files without extracting anything. Format: known_name.known_type, name_hash.type_hash <- archives..."})
+
+	boneListOpts := make([]interface{}, 0)
+	boneListOpts = append(boneListOpts, "none")
+	boneListOpts = append(boneListOpts, "unknown")
+	boneListOpts = append(boneListOpts, "known")
+	boneListOpts = append(boneListOpts, "all")
+
+	boneListMode := parser.String("b", "list-bones", &argparse.Option{Default: "none", Choices: boneListOpts, Help: "If not none, list [option] bones found in included unit files, then exit (default: none)"})
+	boneToFind := parser.String("f", "find-bone", &argparse.Option{Help: "Search for given bone name and print the unit file(s) containing it, then exit"})
 	outDir := parser.String("o", "out", &argparse.Option{Default: "extracted", Help: "Output directory (default: extracted)"})
 	extrCfgStr := parser.String("c", "config", &argparse.Option{Help: "Configure extractors (see \"extractor config\" section)"})
 	extrInclGlob := parser.String("i", "include", &argparse.Option{Help: "Select only matching files (glob syntax, see matching files section)"})
@@ -146,7 +157,7 @@ extractor config:
 	var knownThinHashes []string
 	knownThinHashes = append(knownThinHashes, app.ParseHashes(hashes.ThinHashes)...)
 
-	if !*modeList {
+	if !(*modeList || *boneListMode != "none" || boneToFind != nil) {
 		prt.Infof("Output directory: \"%v\"", *outDir)
 	}
 
@@ -221,13 +232,104 @@ extractor config:
 			triadIDs := a.DataDir.Files[id].TriadIDs()
 			triadIDStrings := make([]string, len(triadIDs))
 			for i := range triadIDs {
-				triadIDStrings[i] = triadIDs[i].String()
+				// Triad/Archive filenames are not 0x prefixed, nor are they left padded with zeroes
+				triadIDStrings[i] = fmt.Sprintf("%x", triadIDs[i].Value)
 			}
 			fmt.Printf("%v.%v, %v.%v <- %v\n",
 				a.Hashes[id.Name], a.Hashes[id.Type],
 				id.Name.String(), id.Type.String(),
 				strings.Join(triadIDStrings, ", "),
 			)
+		}
+	} else if *boneListMode != "none" || (boneToFind != nil && len(*boneToFind) > 0) {
+		known := make(map[string]bool)
+		unknown := make(map[string]bool)
+		unitCount := 0
+		for _, id := range sortedFileIDs {
+			if id.Type != stingray.Sum64([]byte("unit")) {
+				continue
+			}
+			r, err := a.DataDir.Files[id].Open(ctx, stingray.DataMain)
+			if err != nil {
+				prt.Errorf("opening %v.unit's main file: %v", err)
+				continue
+			}
+			defer r.Close()
+
+			unitInfo, err := unit.LoadInfo(r)
+			if err != nil {
+				prt.Errorf("loading info from %v.unit: %v", id.Name.String(), err)
+				continue
+			}
+
+			for _, bone := range unitInfo.Bones {
+				if boneToFind != nil && len(*boneToFind) > 0 && stingray.Sum64([]byte(*boneToFind)).Thin() == bone.NameHash {
+					unitName, exists := a.Hashes[id.Name]
+					if !exists {
+						unitName = id.Name.String()
+					}
+					fmt.Printf("%v.unit\n", unitName)
+					unitCount++
+					break
+				} else if boneToFind != nil && len(*boneToFind) > 0 {
+					continue
+				}
+
+				if name, exists := a.ThinHashes[bone.NameHash]; exists {
+					known[name] = true
+				} else {
+					unknown[bone.NameHash.String()] = true
+				}
+			}
+		}
+
+		knownSorted := make([]string, len(known))
+		i := 0
+		for name := range known {
+			knownSorted[i] = name
+			i++
+		}
+
+		unknownSorted := make([]string, len(unknown))
+		i = 0
+		for name := range unknown {
+			unknownSorted[i] = name
+			i++
+		}
+
+		stdoutStat, _ := os.Stdout.Stat()
+		showRedirectHint := (stdoutStat.Mode() & os.ModeCharDevice) != 0
+		var printed int
+		switch *boneListMode {
+		case "known":
+			slices.Sort(knownSorted)
+			for _, bone := range knownSorted {
+				fmt.Println(bone)
+			}
+			printed = len(known)
+		case "unknown":
+			slices.Sort(unknownSorted)
+			for _, bone := range unknownSorted {
+				fmt.Println(bone)
+			}
+			printed = len(unknown)
+		case "all":
+			slices.Sort(knownSorted)
+			slices.Sort(unknownSorted)
+			for _, bone := range knownSorted {
+				fmt.Println(bone)
+			}
+			for _, bone := range unknownSorted {
+				fmt.Println(bone)
+			}
+			printed = len(unknown) + len(known)
+		}
+
+		if showRedirectHint && printed > 127 {
+			prt.Infof("Listed %v bones (you should probably redirect this to a file)", printed)
+		}
+		if boneToFind != nil && len(*boneToFind) > 0 {
+			prt.Infof("Listed %v units with bone '%v' == 0x%08x", unitCount, *boneToFind, stingray.Sum64([]byte(*boneToFind)).Thin().Value)
 		}
 	} else {
 		prt.Infof("Extracting files...")

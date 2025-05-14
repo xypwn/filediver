@@ -89,12 +89,31 @@ struct LODGroupFooterPtr {
     LODGroupFooter *ptr : u32 [[pointer_base("relative_to_parents_parent"), inline]];
 };
 
+struct LODGroupOther {
+    u32 unk00;
+    u32 unk01; // Might be an (absolute) offset?
+    u32 unk02[2];
+    u32 unk01repeat; // first file I looked at repeated these
+    u32 unk03; // This also looks like it could be an offset, not sure what for though
+    u32 unk04;
+    u32 unk05;
+};
+
+struct LODGroupOtherPtr {
+    LODGroupOther *ptr : u32 [[pointer_base("relative_to_parents_parent"), inline]];
+};
+
 struct LODGroup {
     LODGroupHeader header;
     u32 footerCount;
     u32 entryCount;
+    /*u32 otherCount;
+    if(otherCount > 1) {
+        std::print("Other count greater than 1 in LODGroup %d", std::core::array_index());
+    }*/
     LODEntryPtr entryOffsets[entryCount];
     LODGroupFooterPtr footer[footerCount];
+    //LODGroupOtherPtr other[otherCount];
 };
 
 struct LODGroupPtr {
