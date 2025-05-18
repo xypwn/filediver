@@ -10,7 +10,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 )
 
@@ -109,7 +108,7 @@ func OpenTriad(mainPath string) (*Triad, error) {
 	}
 
 	basename := strings.TrimSuffix(filepath.Base(mainPath), filepath.Ext(mainPath))
-	id, err := strconv.ParseUint(basename, 16, 64)
+	id, err := ParseHash(basename)
 	if err != nil {
 		return nil, err
 	}
@@ -164,7 +163,7 @@ func OpenTriad(mainPath string) (*Triad, error) {
 	defer fGPU.Close()
 
 	return &Triad{
-		ID:         Hash{id},
+		ID:         id,
 		MainPath:   mainPath,
 		StreamPath: streamPath,
 		GPUpath:    gpuPath,

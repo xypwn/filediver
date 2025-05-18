@@ -3,6 +3,9 @@ package stingray
 import (
 	"encoding/binary"
 	"encoding/hex"
+	"fmt"
+	"strconv"
+	"strings"
 )
 
 type Hash struct{ Value uint64 }
@@ -54,6 +57,17 @@ func (h Hash) StringEndian(endian binary.ByteOrder) string {
 
 func (h Hash) String() string {
 	return "0x" + h.StringEndian(binary.BigEndian)
+}
+
+// ParseHash parses a big endian murmur64 hash.
+// Ignores 0x prefix if present.
+func ParseHash(s string) (Hash, error) {
+	s = strings.TrimPrefix(s, "0x")
+	x, err := strconv.ParseUint(s, 16, 64)
+	if err != nil {
+		return Hash{}, fmt.Errorf("parsing hash: %w", err)
+	}
+	return Hash{Value: x}, nil
 }
 
 type ThinHash struct{ Value uint32 }

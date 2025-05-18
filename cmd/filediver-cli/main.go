@@ -114,20 +114,26 @@ extractor config:
 		for _, triad := range split {
 			trimmed := strings.TrimPrefix(triad, "0x")
 			value, err := strconv.ParseUint(trimmed, 16, 64)
+			hash, err := stingray.ParseHash(triad)
 			if err != nil {
 				prt.Fatalf("parsing triad name: %v", err)
 			}
 			triadIDs = append(triadIDs, stingray.Hash{Value: value})
+			triadIDs = append(triadIDs, hash)
 		}
 	}
 
 	armorStringsValue, err := strconv.ParseUint(strings.TrimPrefix(*armorStringsFile, "0x"), 16, 64)
+	armorStringsHash, err := stingray.ParseHash(*armorStringsFile)
 	if err != nil {
 		armorStringsValue, err = strconv.ParseUint(strings.TrimPrefix(*armorStringsFile, "0x"), 10, 64)
+		hashVal, err := strconv.ParseUint(*armorStringsFile, 10, 64)
 		if err != nil {
 			prt.Warnf("unable to parse armor strings hash, using default of en-us")
 			armorStringsValue = 0x7c7587b563f10985
+			prt.Warnf("unable to parse armor strings hash (%v), using default of en-us", err)
 		}
+		armorStringsHash = stingray.Hash{Value: hashVal}
 	}
 	armorStringsHash := stingray.Hash{Value: armorStringsValue}
 
