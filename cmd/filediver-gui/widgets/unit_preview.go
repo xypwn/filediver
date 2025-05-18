@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"image"
 	"io"
+	"math"
 	"slices"
 
 	"github.com/AllenDang/cimgui-go/imgui"
@@ -119,6 +120,8 @@ type UnitPreviewState struct {
 	aabb    [2]mgl32.Vec3
 	aabbMat mgl32.Mat4
 
+	meshPositions [][3]float32 // for fitting mesh to screen
+
 	showWireframe          bool
 	wireframeColor         [4]float32
 	showAABB               bool
@@ -126,7 +129,7 @@ type UnitPreviewState struct {
 	visualizeNormals       bool
 	visualizedNormalsColor [4]float32
 	zoomToFitOnLoad        bool
-	zoomToFitAABB          bool // set view distance to fit AABB next frame
+	zoomToFit              bool // set view distance to fit mesh
 }
 
 func NewUnitPreview() (*UnitPreviewState, error) {
@@ -478,6 +481,8 @@ func (pv *UnitPreviewState) LoadUnit(mainData, gpuData []byte, getResource GetRe
 		gl.BindVertexArray(0)
 	}
 
+	pv.meshPositions = mesh.Positions
+
 	// Upload debug object data
 	{
 		gl.BindVertexArray(pv.dbgObj.vao)
@@ -500,7 +505,7 @@ func (pv *UnitPreviewState) LoadUnit(mainData, gpuData []byte, getResource GetRe
 	pv.model = stingrayToGLCoords
 
 	if pv.zoomToFitOnLoad {
-		pv.zoomToFitAABB = true
+		pv.zoomToFit = true
 	}
 
 	return nil
@@ -648,54 +653,50 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 				gl.UseProgram(0)
 			}
 
-			if pv.zoomToFitAABB {
+			if pv.zoomToFit {
 				pv.viewDistance = 32768
 
 				_, viewPosition, view, projection := pv.computeMVP(size.X / size.Y)
 
-				aabbVerts3 := pv.getAABBVertices()
+				fitVertexCamDistDelta := func(vertex mgl32.Vec3) float32 {
+					v := vertex.Vec4(1.0)
+					v = pv.model.Mul4x1(v)
 
-				var aabbVerts [8]mgl32.Vec4
-				for i := range aabbVerts {
-					p := aabbVerts3[i].Vec4(1.0)
-					p = pv.model.Mul4x1(pv.aabbMat.Mul4x1(p))
-					aabbVerts[i] = p
-				}
+					// NOTE(xypwn): I think the projections are still off, but
+					// this whole code seems to at least do what I wanted it
+					// to now.
+					projV := projection.Mul4x1(view.Mul4x1(v))
+					projV = projV.Mul(1 / projV.W())
 
-				var projAABBVerts [8]mgl32.Vec2
-				for i, p := range aabbVerts {
-					p = projection.Mul4x1(view.Mul4x1(p))
-					p = p.Mul(1 / p.W())
-					projAABBVerts[i] = p.Vec2()
-				}
+					// Component with maximum distance from screen center
+					maxDist := max(mgl32.Abs(projV.X()), mgl32.Abs(projV.Y()))
 
-				// Select max projected coordinate (max distance from screen center)
-				var maxDist float32
-				var maxDistVert mgl32.Vec4
-				for i, p := range projAABBVerts {
-					for _, v := range p {
-						v := mgl32.Abs(v)
-						if v > maxDist {
-							maxDist = v
-							maxDistVert = aabbVerts[i]
-						}
+					// Calculate orthogonal distance from camera to selected vertex
+					var od float32
+					{
+						viewDir := mgl32.Vec3{}.Sub(viewPosition).Normalize()
+						vert := v
+						vert = vert.Mul(1 / vert.W())
+						camToVert := vert.Vec3().Sub(viewPosition)
+						od = viewDir.Dot(camToVert)
 					}
+
+					// Fit model to screen
+					return od * (maxDist - 1)
 				}
 
-				// Calculate orthogonal distance from camera to selected vertex
-				var od float32
-				{
-					viewDir := mgl32.Vec3{}.Sub(viewPosition).Normalize()
-					vert := maxDistVert
-					vert = vert.Mul(1 / vert.W())
-					camToVert := vert.Vec3().Sub(viewPosition)
-					od = viewDir.Dot(camToVert)
+				// NOTE(xypwn): I used to use the AABB vertices for this, but they would often be
+				// wrong. Using all of the mesh positions instead takes no more than ~10ms on
+				// all of the models I've tried.
+				maxCamDistDelta := float32(-math.MaxFloat32)
+				for _, vert := range pv.meshPositions {
+					maxCamDistDelta = max(maxCamDistDelta,
+						fitVertexCamDistDelta(vert))
 				}
+				pv.viewDistance += maxCamDistDelta
+				pv.viewDistance *= 1.02
 
-				// Fit model to screen
-				pv.viewDistance -= od * (1 - maxDist)
-
-				pv.zoomToFitAABB = false
+				pv.zoomToFit = false
 			}
 		},
 		nil,
@@ -744,6 +745,6 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 	}
 	imgui.SameLine()
 	if imgui.Checkbox("Auto-zoom on load", &pv.zoomToFitOnLoad) && pv.zoomToFitOnLoad {
-		pv.zoomToFitAABB = true
+		pv.zoomToFit = true
 	}
 }
