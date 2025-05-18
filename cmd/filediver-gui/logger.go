@@ -17,8 +17,10 @@ type logItem struct {
 
 type Logger struct {
 	sync.Mutex
-	items  []logItem
-	status string
+	items    []logItem
+	status   string
+	numErrs  int
+	numWarns int
 }
 
 var _ = app.Printer(&Logger{})
@@ -39,12 +41,34 @@ func (l *Logger) setStatus(s string) {
 	l.Unlock()
 }
 
+// NOTE: Fatalf isn't really fatal here, since that wouldn't make sense in the context of a GUI.
 func (l *Logger) Infof(f string, a ...any)   { l.add("INFO", 0.8, 0.8, 0.8, f, a...) }
-func (l *Logger) Warnf(f string, a ...any)   { l.add("WARNING", 0.8, 0.8, 0, f, a...) }
-func (l *Logger) Errorf(f string, a ...any)  { l.add("ERROR", 0.8, 0.5, 0.5, f, a...) }
-func (l *Logger) Fatalf(f string, a ...any)  { l.add("FATAL ERROR", 0.9, 0, 0, f, a...) }
+func (l *Logger) Warnf(f string, a ...any)   { l.add("WARNING", 0.8, 0.8, 0, f, a...); l.numWarns++ }
+func (l *Logger) Errorf(f string, a ...any)  { l.add("ERROR", 0.8, 0.5, 0.5, f, a...); l.numErrs++ }
+func (l *Logger) Fatalf(f string, a ...any)  { l.add("FATAL ERROR", 0.9, 0, 0, f, a...); l.numErrs++ }
 func (l *Logger) Statusf(f string, a ...any) { l.setStatus(fmt.Sprintf(f, a...)) }
 func (l *Logger) NoStatus()                  { l.setStatus("") }
+
+func (l *Logger) NumItems() int {
+	l.Lock()
+	defer l.Unlock()
+
+	return len(l.items)
+}
+
+func (l *Logger) NumErrs() int {
+	l.Lock()
+	defer l.Unlock()
+
+	return l.numErrs
+}
+
+func (l *Logger) NumWarns() int {
+	l.Lock()
+	defer l.Unlock()
+
+	return l.numWarns
+}
 
 func (l *Logger) String() string {
 	l.Lock()
@@ -64,6 +88,8 @@ func (l *Logger) Reset() {
 
 	l.items = nil
 	l.status = ""
+	l.numErrs = 0
+	l.numWarns = 0
 }
 
 func LogView(l *Logger) {

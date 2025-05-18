@@ -732,15 +732,28 @@ func run(onError func(error)) error {
 			imgui.Separator()
 
 			{
-				var openClose string
-				if isLogsOpen {
-					openClose = fnt.I("List") + " Close extractor logs " + fnt.I("Close")
-				} else {
-					openClose = fnt.I("List") + " Open extractor logs " + fnt.I("Open_in_new")
+				imgui.PushIDStr("Open/close extractor logs")
+				var numErrsWarnsStr string
+				if logger.NumErrs() > 0 || logger.NumWarns() > 0 {
+					var items []string
+					if logger.NumErrs() > 0 {
+						items = append(items, fmt.Sprintf("%v %v", logger.NumErrs(), fnt.I("Error")))
+					}
+					if logger.NumWarns() > 0 {
+						items = append(items, fmt.Sprintf("%v %v", logger.NumWarns(), fnt.I("Warning")))
+					}
+					numErrsWarnsStr = fmt.Sprintf(" (%v)", strings.Join(items, ","))
 				}
-				if imgui.ButtonV(openClose, imgui.NewVec2(-math.SmallestNonzeroFloat32, 0)) {
+				var label string
+				if isLogsOpen {
+					label = fmt.Sprintf("%v Close extractor logs%v %v", fnt.I("List"), numErrsWarnsStr, fnt.I("Close"))
+				} else {
+					label = fmt.Sprintf("%v Open extractor logs%v %v", fnt.I("List"), numErrsWarnsStr, fnt.I("Open_in_new"))
+				}
+				if imgui.ButtonV(label, imgui.NewVec2(-math.SmallestNonzeroFloat32, 0)) {
 					isLogsOpen = !isLogsOpen
 				}
+				imgui.PopID()
 			}
 
 			if imgui.ButtonV(fnt.I("Folder_open")+" Open output folder", imgui.NewVec2(-math.SmallestNonzeroFloat32, 0)) {
@@ -751,8 +764,10 @@ func run(onError func(error)) error {
 			imgui.Separator()
 
 			if gameDataExport == nil {
+				imgui.PushIDStr("Begin export button")
 				imgui.BeginDisabledV(len(filesSelectedForExport) == 0 || gameData == nil)
-				if imgui.ButtonV(fnt.I("File_export")+" Begin export", imgui.NewVec2(-math.SmallestNonzeroFloat32, 0)) && gameData != nil {
+				label := fmt.Sprintf("%v Begin export (%v)", fnt.I("File_export"), len(filesSelectedForExport))
+				if imgui.ButtonV(label, imgui.NewVec2(-math.SmallestNonzeroFloat32, 0)) && gameData != nil {
 					runner := exec.NewRunner()
 					ffmpegPath := filepath.Join(ffmpegDownloadState.Dir(), "bin", "ffmpeg")
 					ffmpegArgs := []string{"-y", "-hide_banner", "-loglevel", "error"}
@@ -772,6 +787,7 @@ func run(onError func(error)) error {
 					imgui.SetItemTooltip("Nothing selected for export")
 				}
 				imgui.EndDisabled()
+				imgui.PopID()
 			} else {
 				if gameDataExport.Done {
 					if !gameDataExport.Canceled && exportNotifyWhenDone {
@@ -779,7 +795,13 @@ func run(onError func(error)) error {
 						if gameDataExport.NumFiles != 1 {
 							pluralS = "s"
 						}
-						zenity.Notify(fmt.Sprintf("Filediver has finished exporting %v file%v", gameDataExport.NumFiles, pluralS),
+						text := fmt.Sprintf("Filediver has finished exporting %v file%v", gameDataExport.NumFiles, pluralS)
+						if logger.NumErrs() > 0 || logger.NumWarns() > 0 {
+							text += "\n"
+							text += fmt.Sprintf("Errors: %v, Warnings: %v", logger.NumErrs(), logger.NumWarns())
+							text += "\nFor more details, click \"Open extractor logs\" in Filediver"
+						}
+						zenity.Notify(text,
 							zenity.Title("Finished exporting"),
 							zenity.InfoIcon,
 						)
