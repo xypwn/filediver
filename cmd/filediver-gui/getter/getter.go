@@ -184,6 +184,9 @@ func (info Info) Download(ctx context.Context, parentDir string, onProgress func
 		return err
 	}
 
+	progress.State = Fetching
+	onProgress(progress)
+
 	var arEx archives.Extractor
 	{
 		var ok bool

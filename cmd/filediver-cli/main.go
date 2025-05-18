@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"runtime/pprof"
 	"slices"
 	"sort"
@@ -23,7 +22,7 @@ import (
 
 	"github.com/xypwn/filediver/app"
 	"github.com/xypwn/filediver/exec"
-	"github.com/xypwn/filediver/extractor"
+	"github.com/xypwn/filediver/extractor/single_glb_helper"
 	"github.com/xypwn/filediver/hashes"
 	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/stingray/unit"
@@ -112,24 +111,23 @@ extractor config:
 	if *triads != "" {
 		split := strings.Split(*triads, ",")
 		for _, triad := range split {
-			trimmed := strings.TrimPrefix(triad, "0x")
-			value, err := strconv.ParseUint(trimmed, 16, 64)
+			hash, err := stingray.ParseHash(triad)
 			if err != nil {
 				prt.Fatalf("parsing triad name: %v", err)
 			}
-			triadIDs = append(triadIDs, stingray.Hash{Value: value})
+			triadIDs = append(triadIDs, hash)
 		}
 	}
 
-	armorStringsValue, err := strconv.ParseUint(strings.TrimPrefix(*armorStringsFile, "0x"), 16, 64)
+	armorStringsHash, err := stingray.ParseHash(*armorStringsFile)
 	if err != nil {
-		armorStringsValue, err = strconv.ParseUint(strings.TrimPrefix(*armorStringsFile, "0x"), 10, 64)
+		hashVal, err := strconv.ParseUint(*armorStringsFile, 10, 64)
 		if err != nil {
-			prt.Warnf("unable to parse armor strings hash, using default of en-us")
-			armorStringsValue = 0x7c7587b563f10985
+			prt.Warnf("unable to parse armor strings hash (%v), using default of en-us", err)
+			hashVal = 0x7c7587b563f10985
 		}
+		armorStringsHash = stingray.Hash{Value: hashVal}
 	}
-	armorStringsHash := stingray.Hash{Value: armorStringsValue}
 
 	if *gameDir == "" {
 		var err error
@@ -344,7 +342,7 @@ extractor config:
 			if triads != nil && len(*triads) > 0 {
 				name = fmt.Sprintf("%s_%s", strings.ReplaceAll(*triads, ",", "_"), key)
 			}
-			documents[key], closeGLB = createCloseableGltfDocument(*outDir, name, extrCfg[key], runner)
+			documents[key], closeGLB = single_glb_helper.CreateCloseableGltfDocument(*outDir, name, extrCfg[key], runner)
 			defer closeGLB(documents[key])
 		}
 
@@ -376,48 +374,4 @@ extractor config:
 		prt.NoStatus()
 		prt.Infof("Extracted %v/%v matching files", numExtrFiles, len(files))
 	}
-}
-
-func createCloseableGltfDocument(outDir string, triad string, cfg map[string]string, runner *exec.Runner) (*gltf.Document, func(doc *gltf.Document) error) {
-	document := gltf.NewDocument()
-	document.Asset.Generator = "https://github.com/xypwn/filediver"
-	document.Samplers = append(document.Samplers, &gltf.Sampler{
-		MagFilter: gltf.MagLinear,
-		MinFilter: gltf.MinLinear,
-		WrapS:     gltf.WrapRepeat,
-		WrapT:     gltf.WrapRepeat,
-	})
-	closeGLB := func(doc *gltf.Document) error {
-		outPath := filepath.Join(outDir, triad)
-		formatIsBlend := cfg["format"] == "blend" && runner.Has("hd2_accurate_blender_importer")
-		if formatIsBlend {
-			err := extractor.ExportBlend(doc, outPath, runner)
-			if err != nil {
-				return err
-			}
-		} else {
-			err := exportGLB(doc, outPath)
-			if err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-	return document, closeGLB
-}
-
-func exportGLB(doc *gltf.Document, outPath string) error {
-	path := outPath + ".glb"
-	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
-		return err
-	}
-	out, err := os.Create(path)
-	if err != nil {
-		return err
-	}
-	enc := gltf.NewEncoder(out)
-	if err := enc.Encode(doc); err != nil {
-		return err
-	}
-	return nil
 }
