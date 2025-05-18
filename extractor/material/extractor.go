@@ -16,6 +16,7 @@ import (
 
 	"github.com/xypwn/filediver/dds"
 	"github.com/xypwn/filediver/extractor"
+	"github.com/xypwn/filediver/extractor/blend_helper"
 	"github.com/xypwn/filediver/stingray"
 	dlbin "github.com/xypwn/filediver/stingray/dl_bin"
 	"github.com/xypwn/filediver/stingray/unit/material"
@@ -629,7 +630,7 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions, gltfDoc *gltf.Doc
 		if err != nil {
 			return err
 		}
-		err = extractor.ExportBlend(doc, path, ctx.Runner())
+		err = blend_helper.ExportBlend(doc, path, ctx.Runner())
 		if err != nil {
 			return err
 		}

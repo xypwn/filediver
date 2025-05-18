@@ -12,6 +12,7 @@ import (
 	"github.com/go-gl/mathgl/mgl32"
 
 	"github.com/xypwn/filediver/extractor"
+	"github.com/xypwn/filediver/extractor/blend_helper"
 	"github.com/xypwn/filediver/extractor/geometry"
 	extr_material "github.com/xypwn/filediver/extractor/material"
 	"github.com/xypwn/filediver/stingray"
@@ -344,7 +345,7 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 		if err != nil {
 			return err
 		}
-		err = extractor.ExportBlend(doc, path, ctx.Runner())
+		err = blend_helper.ExportBlend(doc, path, ctx.Runner())
 		if err != nil {
 			return err
 		}

@@ -6,6 +6,7 @@ import (
 
 	"github.com/qmuntal/gltf"
 	"github.com/xypwn/filediver/extractor"
+	"github.com/xypwn/filediver/extractor/blend_helper"
 	"github.com/xypwn/filediver/extractor/geometry"
 	extr_material "github.com/xypwn/filediver/extractor/material"
 	extr_unit "github.com/xypwn/filediver/extractor/unit"
@@ -115,7 +116,7 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 		if err != nil {
 			return err
 		}
-		err = extractor.ExportBlend(doc, path, ctx.Runner())
+		err = blend_helper.ExportBlend(doc, path, ctx.Runner())
 		if err != nil {
 			return err
 		}

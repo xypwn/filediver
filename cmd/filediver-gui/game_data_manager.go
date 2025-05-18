@@ -8,8 +8,10 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/qmuntal/gltf"
 	"github.com/xypwn/filediver/app"
 	"github.com/xypwn/filediver/exec"
+	"github.com/xypwn/filediver/extractor/single_glb_helper"
 	"github.com/xypwn/filediver/hashes"
 	"github.com/xypwn/filediver/stingray"
 )
@@ -82,6 +84,12 @@ func (gd *GameData) GoExport(extractCtx context.Context, files []stingray.FileID
 	ex.Cancel = cancel
 
 	go func() {
+		var combinedDoc *gltf.Document
+		var closeCombinedGLB func(*gltf.Document) error
+		if cfg["unit"]["single_glb"] == "true" {
+			combinedDoc, closeCombinedGLB = single_glb_helper.CreateCloseableGltfDocument(outDir, "combined_unit" /* TODO */, cfg["unit"], runner)
+		}
+
 		for _, fileID := range files {
 			currFileName := gd.LookupHash(fileID.Name) + "." + gd.LookupHash(fileID.Type)
 			ex.Lock()
@@ -89,7 +97,11 @@ func (gd *GameData) GoExport(extractCtx context.Context, files []stingray.FileID
 			ex.Unlock()
 			printer.Statusf("File: %v", currFileName)
 
-			_, err := gd.ExtractFile(extractCtx, fileID, outDir, cfg, runner, nil, printer)
+			var gltfDoc *gltf.Document
+			if combinedDoc != nil && fileID.Type == stingray.Sum64([]byte("unit")) {
+				gltfDoc = combinedDoc
+			}
+			_, err := gd.ExtractFile(extractCtx, fileID, outDir, cfg, runner, gltfDoc, printer)
 			if err != nil {
 				if errors.Is(err, context.Canceled) {
 					ex.Lock()
@@ -104,6 +116,12 @@ func (gd *GameData) GoExport(extractCtx context.Context, files []stingray.FileID
 			ex.Lock()
 			ex.CurrentFileIndex++
 			ex.Unlock()
+		}
+		if combinedDoc != nil {
+			printer.Statusf("processing combined GLB")
+			if err := closeCombinedGLB(combinedDoc); err != nil {
+				printer.Errorf("close GLB: %v", err)
+			}
 		}
 		printer.NoStatus()
 		ex.Lock()
