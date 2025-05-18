@@ -1121,6 +1121,12 @@ func run(onError func(error)) error {
 }
 
 func main() {
+	if version == "" || version == "v0.0.0" {
+		fmt.Println(`Development version detected.
+To use blender exporter, please pass a valid version to the build (this is because filediver has to know which version of Blender exporter it wants).
+You can do this via 'go run -ldflags "-X main.version=v0.0.0" ./cmd/filediver-gui' (replace v0.0.0 with a real version).`)
+	}
+
 	clipboardOk := clipboard.Init() == nil
 
 	onError := func(err error) {
