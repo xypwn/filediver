@@ -72,6 +72,8 @@ Extract the Super Earth anthem as mp3:
 Extract the DP-00 Tactical armor set:
 Combine several models into one file, then import into Blender with Thejudsub's accurate shader applied.
 
+See [Links](#links) for a document with known archive IDs.
+
 Requires [Helper Scripts](#helper-scripts-scripts_dist) to be downloaded and unzipped to the same folder filediver is:
 ```sh
 ./filediver -c "unit:single_glb=true,format=blend" -t "0x3d8cf2088ed56091" -i "0x76cf8e26aad1bf7e.unit" -o "extracted/DP-00-Tactical/"
@@ -100,7 +102,11 @@ Planned: animations
 ### Importing Bones
 When importing the .glb into blender, you need to change the "Bone Dir" option from "Blender" to "Temperance", or you will see huge spheres for bones.
 
-## Credits/Links
+## Links
+- [HD 2 Archive Labelling](https://docs.google.com/spreadsheets/d/1oQys_OI5DWou4GeRE3mW56j7BIi4M7KftBIPAl1ULFw) (IDs can be used with -t option)
+- [Helldivers Archive Discord server](https://discord.gg/helldiversarchive)
+
+## Credits
 This app builds on a lot of work from other people. This includes:
 - [Hellextractor by Xaymar](https://github.com/Xaymar/Hellextractor)
 	- Basic binary file structure
