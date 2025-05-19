@@ -416,12 +416,12 @@ type MeshHeader struct {
 }
 
 type MeshGroup struct {
-	GroupIdx       uint32
-	VertexOffset   uint32
-	NumVertices    uint32
-	IndexOffset    uint32
-	NumIndices     uint32
-	RepeatGroupIdx uint32
+	MaterialIdx  uint32
+	VertexOffset uint32
+	NumVertices  uint32
+	IndexOffset  uint32
+	NumIndices   uint32
+	GroupIdx     uint32
 }
 
 type MeshInfo struct {

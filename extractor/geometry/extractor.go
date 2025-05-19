@@ -618,12 +618,27 @@ func LoadGLTF(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, nam
 			groupName = bones[i].String()
 		}
 
+		hasLOD0 := true
+
 		if ctx.Config()["include_lods"] != "true" &&
 			(strings.Contains(groupName, "shadow") ||
 				strings.Contains(groupName, "_LOD") ||
 				strings.Contains(groupName, "cull") ||
 				strings.Contains(groupName, "collision")) {
-			continue
+			if strings.Contains(groupName, "_LOD1") && !strings.Contains(groupName, "shadow") {
+				hasLOD0 = false
+				lod0Name := strings.TrimSuffix(groupName, "_LOD1")
+				lod0Hash := stingray.Sum64([]byte(lod0Name)).Thin()
+				for _, bone := range unitInfo.GroupBones {
+					if lod0Hash == bone {
+						hasLOD0 = true
+						break
+					}
+				}
+			}
+			if hasLOD0 {
+				continue
+			}
 		}
 
 		var fbxConvertIdx, transformBoneIdxGeo int = -1, -1
@@ -662,13 +677,14 @@ func LoadGLTF(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, nam
 		for j, group := range header.Groups {
 			// Check if this group is a gib or collision mesh, if it is skip it unless include_lods is set
 			var materialName string
-			if j < len(header.Materials) {
-				if _, contains := ctx.ThinHashes()[header.Materials[j]]; contains {
-					materialName = ctx.ThinHashes()[header.Materials[j]]
+			if int(group.MaterialIdx) < len(header.Materials) {
+				if _, contains := ctx.ThinHashes()[header.Materials[group.MaterialIdx]]; contains {
+					materialName = ctx.ThinHashes()[header.Materials[group.MaterialIdx]]
 				} else {
-					materialName = header.Materials[j].String()
+					materialName = header.Materials[group.MaterialIdx].String()
 				}
 			} else {
+				fmt.Printf("Unknown material, %v >= %v\n", group.MaterialIdx, len(header.Materials))
 				materialName = "unknown"
 			}
 
@@ -791,8 +807,8 @@ func LoadGLTF(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, nam
 			udimIndexAccessors := make(map[uint32]uint32)
 			if ctx.Config()["join_components"] != "true" {
 				texcoordIndex, ok := groupAttr[gltf.TEXCOORD_0]
-				// Don't separate udims of LODs or shadow meshes
-				if ok && !strings.Contains(groupName, "LOD") && !strings.Contains(groupName, "shadow") {
+				// Don't separate udims of LODs or shadow meshes, unless this is LOD1 and we don't have an LOD0
+				if ok && (!strings.Contains(groupName, "LOD") && !strings.Contains(groupName, "shadow") || (!hasLOD0 && strings.Contains(groupName, "LOD1") && !strings.Contains(groupName, "shadow"))) {
 					texcoordAccessor := doc.Accessors[texcoordIndex]
 					groupIndexAccessor := doc.Accessors[*groupIndices]
 					var UDIMs map[uint32][]uint32
@@ -816,8 +832,8 @@ func LoadGLTF(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, nam
 			var material *uint32
 			// There are a couple of models where there are fewer materials than meshes, so this is here
 			// to prevent us from panicking if we're exporting one of those
-			if j < len(header.Materials) {
-				materialVal, ok := materialIndices[header.Materials[j]]
+			if int(group.MaterialIdx) < len(header.Materials) {
+				materialVal, ok := materialIndices[header.Materials[group.MaterialIdx]]
 				if ok {
 					material = &materialVal
 				}
