@@ -85,3 +85,23 @@ func ComboHeight() float32 {
 	style := imgui.CurrentStyle()
 	return imgui.FrameHeight() + style.ItemSpacing().Y
 }
+
+// ComboChoice creates a combo box where you can choose a value from choices.
+// Uses fmt.Sprint to turn values into strings.
+func ComboChoice[T comparable](label string, selected *T, choices []T) bool {
+	changed := false
+	if imgui.BeginCombo(label, fmt.Sprint(*selected)) {
+		for _, val := range choices {
+			isSelected := val == *selected
+			if imgui.SelectableBoolPtr(fmt.Sprint(val), &isSelected) {
+				*selected = val
+				changed = true
+			}
+			if isSelected {
+				imgui.SetItemDefaultFocus()
+			}
+		}
+		imgui.EndCombo()
+	}
+	return changed
+}

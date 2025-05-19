@@ -55,21 +55,12 @@ func ConfigEditor(template app.ConfigTemplate, config *app.Config) {
 					selectedVal = defaultVal
 				}
 
-				if imgui.BeginCombo(strID, selectedVal) {
-					for _, val := range opt.Enum {
-						isSelected := selectedVal == val
-						if imgui.SelectableBoolPtr(val, &isSelected) {
-							if val == defaultVal {
-								delete((*config)[convName], optName)
-							} else {
-								(*config)[convName][optName] = val
-							}
-						}
-						if isSelected {
-							imgui.SetItemDefaultFocus()
-						}
+				if imutils.ComboChoice(strID, &selectedVal, opt.Enum) {
+					if selectedVal == defaultVal {
+						delete((*config)[convName], optName)
+					} else {
+						(*config)[convName][optName] = selectedVal
 					}
-					imgui.EndCombo()
 				}
 			}
 		} else if opt.Type == app.ConfigValueIntRange {

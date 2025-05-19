@@ -231,20 +231,23 @@ func run(onError func(error)) error {
 	io.SetConfigFlags(flags)
 	io.SetIniFilename("")
 
-	var guiScale float32
+	defaultPreferences := Preferences{}
 	{
 		_, yScale := currentBackend.ContentScale()
-		guiScale = yScale
+		defaultPreferences.GUIScale = yScale
+
+		monitor := C.glfwGetPrimaryMonitor()
+		videoMode := C.glfwGetVideoMode(monitor)
+		defaultPreferences.TargetFPS = float64(videoMode.refreshRate)
 	}
+	preferences := defaultPreferences
+	preferencesPath := filepath.Join(xdg.DataHome, "filediver", "preferences.json")
+	if err := preferences.Load(preferencesPath); err != nil {
+		return fmt.Errorf("loading preferences: %w", err)
+	}
+
 	shouldUpdateGUIScale := true
 	loadCJKFonts := false
-
-	var targetFPS float64
-	{
-		monitor := C.glfwGetPrimaryMonitor()
-		mode := C.glfwGetVideoMode(monitor)
-		targetFPS = float64(mode.refreshRate)
-	}
 
 	if err := gl.Init(); err != nil {
 		return fmt.Errorf("initializing OpenGL: %w", err)
@@ -393,7 +396,7 @@ func run(onError func(error)) error {
 		}
 
 		if shouldUpdateGUIScale {
-			UpdateGUIScale(guiScale, loadCJKFonts)
+			UpdateGUIScale(preferences.GUIScale, loadCJKFonts)
 			shouldUpdateGUIScale = false
 		}
 
@@ -953,41 +956,40 @@ func run(onError func(error)) error {
 		}
 		imgui.SetNextWindowPosV(viewport.Center(), imgui.CondAlways, imgui.NewVec2(0.5, 0.5))
 		if imgui.BeginPopupModalV("Preferences", &isPreferencesOpen, imgui.WindowFlagsAlwaysAutoResize) {
-			valueCombo := func(title string, selected float32, values []float32, onChanged func(v float32)) {
-				if imgui.BeginCombo(title, fmt.Sprint(selected)) {
-					for _, value := range values {
-						if value == selected {
-							imgui.SetItemDefaultFocus()
-						}
-						label := fmt.Sprint(value)
-						if value == selected {
-							label += " (selected)"
-						}
-						if imgui.SelectableBool(label) {
-							onChanged(value)
-						}
-					}
-					imgui.EndCombo()
-				}
-			}
-			valueCombo(
+			prevPrefs := preferences
+			if imutils.ComboChoice(
 				"GUI Scale",
-				guiScale,
+				&preferences.GUIScale,
 				[]float32{0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2, 2.25, 2.5, 2.75, 3},
-				func(v float32) {
-					guiScale = v
-					shouldUpdateGUIScale = true
-				},
-			)
-			valueCombo(
+			) {
+				shouldUpdateGUIScale = true
+			}
+			imutils.ComboChoice(
 				"Target FPS",
-				float32(targetFPS),
-				[]float32{15, 30, 60, 75, 90, 120, 144, 165, 244, 300},
-				func(v float32) {
-					targetFPS = float64(v)
-				},
+				&preferences.TargetFPS,
+				[]float64{15, 30, 60, 75, 90, 120, 144, 165, 244, 300},
 			)
 
+			imgui.BeginDisabledV(preferences == defaultPreferences)
+			if imgui.ButtonV(fnt.I("Undo")+" Reset all", imgui.NewVec2(imgui.ContentRegionAvail().X, 0)) {
+				preferences = defaultPreferences
+			}
+			imgui.EndDisabled()
+
+			if preferences != prevPrefs {
+				shouldUpdateGUIScale = preferences.GUIScale != prevPrefs.GUIScale
+				if err := preferences.Save(preferencesPath); err != nil {
+					onError(err)
+				}
+			}
+
+			imgui.Separator()
+			if imgui.ButtonV(fnt.I("Folder_open")+" Open preferences folder", imgui.NewVec2(imgui.ContentRegionAvail().X, 0)) {
+				dir := filepath.Dir(preferencesPath)
+				_ = os.MkdirAll(dir, os.ModePerm)
+				open.Start(dir)
+			}
+			imgui.Separator()
 			if imgui.ButtonV("Close", imgui.NewVec2(imgui.ContentRegionAvail().X, 0)) {
 				imgui.CloseCurrentPopup()
 				isPreferencesOpen = false
@@ -1099,7 +1101,7 @@ func run(onError func(error)) error {
 
 		C.glfwSwapBuffers(glfwWindow)
 
-		targetFrameTime := time.Duration(float64(time.Second) / targetFPS)
+		targetFrameTime := time.Duration(float64(time.Second) / preferences.TargetFPS)
 		lastDrawTimestamp = lastDrawTimestamp.Add(targetFrameTime)
 	}
 	C.glfwSetWindowSizeCallback(glfwWindow, (*[0]byte)(C.goWindowResizeCallback))
@@ -1117,7 +1119,7 @@ func run(onError func(error)) error {
 		}
 
 		timeToDraw := time.Now().Sub(lastDrawTimestamp)
-		numFramesToDraw := timeToDraw.Seconds() * targetFPS
+		numFramesToDraw := timeToDraw.Seconds() * preferences.TargetFPS
 		if timeToDraw < 0 {
 			// Frame over-draw
 			//log.Printf("Skipped %.5f frames due to over-draw", -numFramesToDraw)
