@@ -40,44 +40,8 @@ Navigate to the `filediver` folder (the one containing `filediver.exe`). `SHIFT`
 
 In PowerShell/Terminal, run `./filediver -h` to get a list of options.
 
-### Here are some example commands:
-
-**(you can use right-click to paste your current clipboard to the PowerShell terminal)**
-
-Simply running the app should automatically detect your installation directory and dump all files into the "extracted" directory in your current folder:
-```sh
-./filediver
-```
-
-Print a detailed description of all command line options:
-```sh
-./filediver -h
-```
-
-Extract the files into a directory called "custom_dir":
-```sh
-./filediver -o "custom_dir"
-```
-
-Extract only video files:
-```sh
-./filediver -c "enable:video"
-```
-
-Extract the Super Earth anthem as mp3:
-```sh
-./filediver -c "enable:wwise_stream wwise_stream:format=mp3" -i "content/audio/291227525.wwise_stream"
-```
-
-Extract the DP-00 Tactical armor set:
-Combine several models into one file, then import into Blender with Thejudsub's accurate shader applied.
-
-See [Links](#links) for a document with known archive IDs.
-
-Requires [Helper Scripts](#helper-scripts-scripts_dist) to be downloaded and unzipped to the same folder filediver is:
-```sh
-./filediver -c "unit:single_glb=true,format=blend" -t "0x3d8cf2088ed56091" -i "0x76cf8e26aad1bf7e.unit" -o "extracted/DP-00-Tactical/"
-```
+### See [Wiki](https://github.com/xypwn/filediver/wiki)
+- [CLI Basics](https://github.com/xypwn/filediver/wiki/10-CLI-Basics)
 
 ## Filediver GUI (experimental)
 An experimental graphical interface for Filediver, WIP.
