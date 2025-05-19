@@ -577,6 +577,8 @@ func run(onError func(error)) error {
 				widgets.FilterListButton("Archives", &isArchiveFilterOpen, selectedArchives)
 
 				imgui.BeginDisabledV(len(gameData.SortedSearchResultFileIDs) == 0)
+				imgui.PushItemFlag(imgui.ItemFlags(imgui.ItemFlagsMixedValue),
+					!allSelectedForExport && len(filesSelectedForExport) > 0)
 				if imgui.Checkbox("Select all for export", &allSelectedForExport) {
 					if allSelectedForExport {
 						for _, id := range gameData.SortedSearchResultFileIDs {
@@ -588,6 +590,7 @@ func run(onError func(error)) error {
 						}
 					}
 				}
+				imgui.PopItemFlag()
 				imgui.EndDisabled()
 				if len(gameData.SortedSearchResultFileIDs) != 0 {
 					if allSelectedForExport {
