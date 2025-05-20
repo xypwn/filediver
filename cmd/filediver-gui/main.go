@@ -231,7 +231,9 @@ func run(onError func(error)) error {
 	io.SetConfigFlags(flags)
 	io.SetIniFilename("")
 
-	defaultPreferences := Preferences{}
+	defaultPreferences := Preferences{
+		AutoCheckForUpdates: true,
+	}
 	{
 		_, yScale := currentBackend.ContentScale()
 		defaultPreferences.GUIScale = yScale
@@ -310,10 +312,36 @@ func run(onError func(error)) error {
 	var archiveIDs []widgets.FilterListSection[stingray.Hash]
 	selectedArchives := map[stingray.Hash]struct{}{}
 
+	var checkUpdatesOnStartupBGDone bool
+	var checkUpdatesOnStartupFGDone bool
+	var checkingForUpdates bool
 	var checkUpdatesNewVersion string // empty if unknown
 	var checkUpdatesDownloadURL string
 	var checkUpdatesErr error
 	var checkUpdatesLock sync.Mutex
+
+	goCheckForUpdates := func(setOnStartupBGDoneWhenDone bool) {
+		checkUpdatesLock.Lock()
+		defer checkUpdatesLock.Unlock()
+		if checkingForUpdates {
+			return
+		}
+		checkingForUpdates = true
+		checkUpdatesNewVersion = ""
+		checkUpdatesDownloadURL = ""
+		checkUpdatesErr = nil
+		go func() {
+			ver, url, err := getNewestVersion()
+			checkUpdatesLock.Lock()
+			defer checkUpdatesLock.Unlock()
+			checkUpdatesNewVersion, checkUpdatesDownloadURL, checkUpdatesErr = ver, url, err
+			if setOnStartupBGDoneWhenDone {
+				checkUpdatesOnStartupBGDone = true
+			}
+			checkingForUpdates = false
+		}()
+	}
+	goCheckForUpdates(true)
 
 	exportDir := filepath.Join(xdg.UserDirs.Download, "filediver_exports")
 	exportNotifyWhenDone := true
@@ -363,11 +391,11 @@ func run(onError func(error)) error {
 		onError(err)
 	}
 
-	isPreferencesOpen := false
-	isAboutOpen := false
-	isExtensionsOpen := false
-	isExtensionsWarningPopupOpen := !ffmpegDownloadState.HaveRequestedVersion() || !scriptsDistDownloadState.HaveRequestedVersion()
-	isWelcomePopupOpen := true
+	popupManager := imutils.NewPopupManager()
+	popupManager.Open["Some optional extensions missing or out of date"] =
+		!ffmpegDownloadState.HaveRequestedVersion() || !scriptsDistDownloadState.HaveRequestedVersion()
+	popupManager.Open["Welcome to Filediver GUI"] = true
+
 	isTypeFilterOpen := false
 	isArchiveFilterOpen := false
 	isLogsOpen := false
@@ -404,8 +432,6 @@ func run(onError func(error)) error {
 	}
 
 	draw := func() {
-		openCheckForUpdates := false
-
 		viewport := imgui.MainViewport()
 		imgui.SetNextWindowPos(viewport.Pos())
 		imgui.SetNextWindowSize(imgui.NewVec2(viewport.Size().X, 0))
@@ -424,7 +450,7 @@ func run(onError func(error)) error {
 				if imgui.BeginMenu("Help") {
 					imgui.Separator()
 					if imgui.MenuItemBool(fnt.I("Info") + " About") {
-						isAboutOpen = true
+						popupManager.Open["About"] = true
 					}
 					imgui.Separator()
 					imgui.EndMenu()
@@ -432,15 +458,16 @@ func run(onError func(error)) error {
 				if imgui.BeginMenu("Settings") {
 					imgui.Separator()
 					if imgui.MenuItemBool(fnt.I("Extension") + " Extensions") {
-						isExtensionsOpen = true
+						popupManager.Open["Extensions"] = true
 					}
 					imgui.Separator()
 					if imgui.MenuItemBool(fnt.I("Sync") + " Check for updates") {
-						openCheckForUpdates = true
+						goCheckForUpdates(false)
+						popupManager.Open["Check for updates"] = true
 					}
 					imgui.Separator()
 					if imgui.MenuItemBool(fnt.I("Settings") + " Preferences") {
-						isPreferencesOpen = true
+						popupManager.Open["Preferences"] = true
 					}
 					imgui.Separator()
 					imgui.EndMenu()
@@ -880,11 +907,42 @@ func run(onError func(error)) error {
 		}
 		imgui.End()
 
-		if isWelcomePopupOpen {
-			imgui.OpenPopupStr("Welcome to Filediver GUI")
+		checkUpdatesLock.Lock()
+		if checkUpdatesOnStartupBGDone && !checkUpdatesOnStartupFGDone {
+			if checkUpdatesErr == nil && checkUpdatesNewVersion != version {
+				popupManager.Open["Check for updates"] = true
+			}
+			checkUpdatesOnStartupFGDone = true
 		}
+		checkUpdatesLock.Unlock()
+
+		imgui.SetNextWindowPosV(imgui.MainViewport().Center(), imgui.CondAlways, imgui.NewVec2(0.5, 0.5))
+		popupManager.Popup("Check for updates", func(close func()) {
+			checkUpdatesLock.Lock()
+			if checkUpdatesErr == nil {
+				if checkingForUpdates {
+					imgui.ProgressBarV(-1*float32(imgui.Time()), imgui.NewVec2(250, 0), "Checking for updates")
+				} else if checkUpdatesNewVersion == version {
+					imutils.Textcf(imgui.NewVec4(0, 0.7, 0, 1), fnt.I("Check")+"Up-to-date (version %v)", version)
+				} else {
+					imutils.Textcf(imgui.NewVec4(0.8, 0.8, 0, 1), fnt.I("Exclamation")+"New version available: %v", checkUpdatesNewVersion)
+					if imgui.ButtonV(fnt.I("Download")+" Download "+checkUpdatesNewVersion, imgui.NewVec2(250, 0)) {
+						open.Start(checkUpdatesDownloadURL)
+					}
+					imgui.SetItemTooltip("Open '" + checkUpdatesDownloadURL + "'")
+				}
+			} else {
+				imutils.TextError(checkUpdatesErr)
+			}
+			checkUpdatesLock.Unlock()
+			imgui.Separator()
+			if imgui.ButtonV("Close", imgui.NewVec2(250, 0)) {
+				close()
+			}
+		}, imgui.WindowFlagsAlwaysAutoResize, true)
+
 		imgui.SetNextWindowPosV(viewport.Center(), imgui.CondAlways, imgui.NewVec2(0.5, 0.5))
-		if imgui.BeginPopupModalV("Welcome to Filediver GUI", &isWelcomePopupOpen, imgui.WindowFlagsAlwaysAutoResize) {
+		popupManager.Popup("Welcome to Filediver GUI", func(close func()) {
 			imgui.PushTextWrapPos()
 			imgui.TextUnformatted("Filediver GUI is still work-in-progress.")
 			imgui.TextUnformatted("If you encounter any bugs, please create an issue on the project's GitHub page.")
@@ -892,52 +950,38 @@ func run(onError func(error)) error {
 			imgui.TextLinkOpenURLV("Filediver Issues", "https://github.com/xypwn/filediver/issues")
 			imgui.Separator()
 			if imgui.ButtonV("OK", imgui.NewVec2(400, 0)) {
-				isWelcomePopupOpen = false
-				imgui.CloseCurrentPopup()
+				close()
 			}
+		}, imgui.WindowFlagsAlwaysAutoResize, true)
 
-			imgui.EndPopup()
-		}
-
-		if !isWelcomePopupOpen {
-			if isExtensionsWarningPopupOpen {
-				imgui.OpenPopupStr("Some optional extensions missing or out of date")
-			}
-			imgui.SetNextWindowPosV(viewport.Center(), imgui.CondAlways, imgui.NewVec2(0.5, 0.5))
-			if imgui.BeginPopupModalV("Some optional extensions missing or out of date", &isExtensionsWarningPopupOpen, imgui.WindowFlagsAlwaysAutoResize) {
-				imgui.PushTextWrapPos()
-				imgui.TextUnformatted("The following recommended extensions are missing or out of date:")
-				if !ffmpegDownloadState.HaveRequestedVersion() {
-					imgui.Bullet()
-					imgui.PushTextWrapPos()
-					imgui.TextUnformatted("FFmpeg: Without FFmpeg, videos will be saved as BIK and audio will be saved was WAV.")
-				}
-				if !scriptsDistDownloadState.HaveRequestedVersion() {
-					imgui.Bullet()
-					imgui.PushTextWrapPos()
-					imgui.TextUnformatted("ScriptsDist: Without ScriptsDist, exporting directly to .blend is not available. Models will be saved as .glb.")
-				}
-				imgui.TextUnformatted("You can download these extensions by clicking \"Manage extensions\", or by going to Settings->Extensions.")
-				imgui.Separator()
-				if imgui.ButtonV("Close", imgui.NewVec2(120, 0)) {
-					isExtensionsWarningPopupOpen = false
-					imgui.CloseCurrentPopup()
-				}
-				imgui.SameLine()
-				if imgui.ButtonV("Manage extensions", imgui.NewVec2(160, 0)) {
-					isExtensionsWarningPopupOpen = false
-					imgui.CloseCurrentPopup()
-					isExtensionsOpen = true
-				}
-				imgui.EndPopup()
-			}
-		}
-
-		if isExtensionsOpen {
-			imgui.OpenPopupStr("Extensions")
-		}
 		imgui.SetNextWindowPosV(viewport.Center(), imgui.CondAlways, imgui.NewVec2(0.5, 0.5))
-		if imgui.BeginPopupModalV("Extensions", &isExtensionsOpen, imgui.WindowFlagsAlwaysAutoResize) {
+		popupManager.Popup("Some optional extensions missing or out of date", func(close func()) {
+			imgui.PushTextWrapPos()
+			imgui.TextUnformatted("The following recommended extensions are missing or out of date:")
+			if !ffmpegDownloadState.HaveRequestedVersion() {
+				imgui.Bullet()
+				imgui.PushTextWrapPos()
+				imgui.TextUnformatted("FFmpeg: Without FFmpeg, videos will be saved as BIK and audio will be saved was WAV.")
+			}
+			if !scriptsDistDownloadState.HaveRequestedVersion() {
+				imgui.Bullet()
+				imgui.PushTextWrapPos()
+				imgui.TextUnformatted("ScriptsDist: Without ScriptsDist, exporting directly to .blend is not available. Models will be saved as .glb.")
+			}
+			imgui.TextUnformatted("You can download these extensions by clicking \"Manage extensions\", or by going to Settings->Extensions.")
+			imgui.Separator()
+			if imgui.ButtonV("Close", imgui.NewVec2(120, 0)) {
+				close()
+			}
+			imgui.SameLine()
+			if imgui.ButtonV("Manage extensions", imgui.NewVec2(160, 0)) {
+				close()
+				popupManager.Open["Extensions"] = true
+			}
+		}, imgui.WindowFlagsAlwaysAutoResize, true)
+
+		imgui.SetNextWindowPosV(viewport.Center(), imgui.CondAlways, imgui.NewVec2(0.5, 0.5))
+		popupManager.Popup("Extensions", func(close func()) {
 			widgets.Downloader("FFmpeg", "Required to extract audio to anything other than wav, and to extract video to MP4.", ffmpegDownloadState)
 			imgui.Separator()
 			widgets.Downloader("ScriptsDist", "Required for exporting to Blender.", scriptsDistDownloadState)
@@ -948,17 +992,12 @@ func run(onError func(error)) error {
 			}
 			imgui.Separator()
 			if imgui.ButtonV("Close", imgui.NewVec2(imgui.ContentRegionAvail().X, 0)) {
-				imgui.CloseCurrentPopup()
-				isExtensionsOpen = false
+				close()
 			}
-			imgui.EndPopup()
-		}
+		}, imgui.WindowFlagsAlwaysAutoResize, true)
 
-		if isPreferencesOpen {
-			imgui.OpenPopupStr("Preferences")
-		}
 		imgui.SetNextWindowPosV(viewport.Center(), imgui.CondAlways, imgui.NewVec2(0.5, 0.5))
-		if imgui.BeginPopupModalV("Preferences", &isPreferencesOpen, imgui.WindowFlagsAlwaysAutoResize) {
+		popupManager.Popup("Preferences", func(close func()) {
 			prevPrefs := preferences
 			if imutils.ComboChoice(
 				"GUI Scale",
@@ -972,6 +1011,7 @@ func run(onError func(error)) error {
 				&preferences.TargetFPS,
 				[]float64{15, 30, 60, 75, 90, 120, 144, 165, 244, 300},
 			)
+			imgui.Checkbox("Check for updates on start", &preferences.AutoCheckForUpdates)
 
 			imgui.BeginDisabledV(preferences == defaultPreferences)
 			if imgui.ButtonV(fnt.I("Undo")+" Reset all", imgui.NewVec2(imgui.ContentRegionAvail().X, 0)) {
@@ -994,19 +1034,14 @@ func run(onError func(error)) error {
 			}
 			imgui.Separator()
 			if imgui.ButtonV("Close", imgui.NewVec2(imgui.ContentRegionAvail().X, 0)) {
-				imgui.CloseCurrentPopup()
-				isPreferencesOpen = false
+				close()
 			}
-			imgui.EndPopup()
-		}
+		}, imgui.WindowFlagsAlwaysAutoResize, true)
 
 		imgui.SetNextWindowSizeV(imgui.NewVec2(500, 400), imgui.CondOnce)
 		imgui.SetNextWindowSizeConstraints(imgui.NewVec2(300, 200), viewport.Size())
 		imgui.SetNextWindowPosV(viewport.Center(), imgui.CondAlways, imgui.NewVec2(0.5, 0.5))
-		if isAboutOpen {
-			imgui.OpenPopupStr("About")
-		}
-		if imgui.BeginPopupModalV("About", &isAboutOpen, imgui.WindowFlagsNoMove) {
+		popupManager.Popup("About", func(close func()) {
 			imgui.TextUnformatted("Filediver GUI")
 			imgui.SameLine()
 			imgui.TextLinkOpenURLV("(GitHub)", "https://github.com/xypwn/filediver")
@@ -1035,51 +1070,9 @@ func run(onError func(error)) error {
 			}
 			imgui.Separator()
 			if imgui.ButtonV("Close", imgui.NewVec2(imgui.ContentRegionAvail().X, 0)) {
-				imgui.CloseCurrentPopup()
-				isAboutOpen = false
+				close()
 			}
-			imgui.EndPopup()
-		}
-
-		if openCheckForUpdates {
-			imgui.OpenPopupStr("Check for updates")
-			checkUpdatesLock.Lock()
-			checkUpdatesNewVersion = ""
-			checkUpdatesDownloadURL = ""
-			checkUpdatesErr = nil
-			checkUpdatesLock.Unlock()
-			go func() {
-				ver, url, err := getNewestVersion()
-				checkUpdatesLock.Lock()
-				checkUpdatesNewVersion, checkUpdatesDownloadURL, checkUpdatesErr = ver, url, err
-				checkUpdatesLock.Unlock()
-			}()
-		}
-		imgui.SetNextWindowPosV(imgui.MainViewport().Center(), imgui.CondAlways, imgui.NewVec2(0.5, 0.5))
-		if imgui.BeginPopupModalV("Check for updates", nil, imgui.WindowFlagsAlwaysAutoResize) {
-			checkUpdatesLock.Lock()
-			if checkUpdatesErr == nil {
-				if checkUpdatesNewVersion == "" {
-					imgui.ProgressBarV(-1*float32(imgui.Time()), imgui.NewVec2(250, 0), "Checking for updates")
-				} else if checkUpdatesNewVersion == version {
-					imutils.Textcf(imgui.NewVec4(0, 0.7, 0, 1), fnt.I("Check")+"Up-to-date (version %v)", version)
-				} else {
-					imutils.Textcf(imgui.NewVec4(0.8, 0.8, 0, 1), fnt.I("Exclamation")+"New version available: %v", checkUpdatesNewVersion)
-					if imgui.ButtonV(fnt.I("Download")+" Download "+checkUpdatesNewVersion, imgui.NewVec2(250, 0)) {
-						open.Start(checkUpdatesDownloadURL)
-					}
-					imgui.SetItemTooltip("Open '" + checkUpdatesDownloadURL + "'")
-				}
-			} else {
-				imutils.TextError(checkUpdatesErr)
-			}
-			checkUpdatesLock.Unlock()
-			imgui.Separator()
-			if imgui.ButtonV("Close", imgui.NewVec2(250, 0)) {
-				imgui.CloseCurrentPopup()
-			}
-			imgui.EndPopup()
-		}
+		}, imgui.WindowFlagsNoMove, true)
 	}
 
 	lastDrawTimestamp := time.Now()

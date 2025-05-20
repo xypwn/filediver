@@ -105,3 +105,67 @@ func ComboChoice[T comparable](label string, selected *T, choices []T) bool {
 	}
 	return changed
 }
+
+// PopupManager is for when you want the next popup to only open
+// after the previous one is closed.
+// Popup order is determined by the order [PopupManager.Popup]()
+// initially is called in.
+type PopupManager struct {
+	// Name to whether open. Values may be freely
+	// modified. Values may also be set before
+	// the corresponding call to Popup() is made
+	// without effecting popup order.
+	Open map[string]bool
+
+	order        map[string]int // name to position in order
+	orderCounter int
+}
+
+func NewPopupManager() *PopupManager {
+	return &PopupManager{
+		Open:  map[string]bool{},
+		order: map[string]int{},
+	}
+}
+
+// Popup draws a popup window with the given name.
+// Internally uses BeginPopupModal.
+// Put content drawing code into the body() function body.
+// Call close() to close the current popup.
+func (m *PopupManager) Popup(name string, content func(close func()), flags imgui.WindowFlags, closeBtn bool) {
+	if _, ok := m.order[name]; !ok {
+		m.order[name] = m.orderCounter
+		m.orderCounter++
+	}
+
+	if !m.Open[name] {
+		return
+	}
+
+	selfPos := m.order[name]
+	for n, pos := range m.order {
+		if n != name && m.Open[n] && pos < selfPos {
+			// If there's already a different popup with
+			// a lower position open, don't show this one.
+			return
+		}
+	}
+
+	imgui.OpenPopupStr(name)
+	isOpen := true
+	var pOpen *bool
+	if closeBtn {
+		pOpen = &isOpen
+	}
+	if imgui.BeginPopupModalV(name, pOpen, flags) {
+		close := func() {
+			imgui.CloseCurrentPopup()
+			m.Open[name] = false
+		}
+		content(close)
+		imgui.EndPopup()
+	}
+	if !isOpen {
+		m.Open[name] = false
+	}
+}
