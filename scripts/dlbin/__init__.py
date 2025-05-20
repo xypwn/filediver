@@ -365,7 +365,7 @@ class WeaponCustomizationSlot(IntEnum):
     TRIGGER = 9
 
 class WeaponCustomizationSetting:
-    def __init__(self, debug_name: str, id: int, name_upper: int, name_cased: int, description: int, fluff: int, add_path: MurmurHash, slots: List[WeaponCustomizationSlot], unk00, unk01, unk02, unk03):
+    def __init__(self, debug_name: str, id: int, name_upper: int, name_cased: int, description: int, fluff: int, add_path: MurmurHash, slots: List[WeaponCustomizationSlot], unk00, unk01, unk02, unk03, unk04):
         self.debug_name = debug_name
         self.id = id
         self.name_upper = name_upper
@@ -378,6 +378,7 @@ class WeaponCustomizationSetting:
         self.unk01 = unk01
         self.unk02 = unk02
         self.unk03 = unk03
+        self.unk04 = unk04
 
     def to_json(self, string_mapping: Dict[int, str] = {}) -> dict:
         def named(name_id: int) -> str|int:
@@ -401,13 +402,14 @@ class WeaponCustomizationSetting:
     def parse(cls, data: BytesIO) -> 'WeaponCustomizationSetting':
         nameOffset, unk00, id, name_upper, name_cased, description, fluff, add_path = struct.unpack("<IIIIIIQQ", data.read(40))
         unk01, slotOffset, unk02, count, unk03 = struct.unpack("<QIIII", data.read(24))
+        unk04 = struct.unpack("<IIIIII", data.read(24))
         prev = data.tell()
-        data.seek((nameOffset & 0xFFFFF) - WEAPON_CUSTOMIZATION_OFFSET)
+        data.seek((nameOffset & 0xFFFF))
         debug_name = read_cstr(data)
-        data.seek((slotOffset & 0xFFFFF) - WEAPON_CUSTOMIZATION_OFFSET)
+        data.seek((slotOffset & 0xFFFF))
         slots = [WeaponCustomizationSlot(val[0]) for val in struct.iter_unpack("<I", data.read(count * 4))]
         data.seek(prev)
-        return cls(debug_name, id, name_upper, name_cased, description, fluff, MurmurHash(add_path), slots, unk00, unk01, unk02, unk03)
+        return cls(debug_name, id, name_upper, name_cased, description, fluff, MurmurHash(add_path), slots, unk00, unk01, unk02, unk03, unk04)
 
 class DlBinItem:
     def __init__(self, magic: str, unk00: int, kind: DLItemType, size: int, unk02: int, unk03: int, content: Union[bytes, HelldiverCustomizationKit, UnitCustomizationSetting]):
@@ -437,7 +439,7 @@ class DlBinItem:
         elif DLItemType(kind) == DLItemType.WeaponCustomization:
             data.seek(contentStart)
             offset, unk00, count, unk01 = struct.unpack("<IIII", data.read(16))
-            data.seek((offset & 0xFFFFF) - WEAPON_CUSTOMIZATION_OFFSET)
+            data.seek((offset & 0xFFFF))
             content = [WeaponCustomizationSetting.parse(data) for _ in range(count)]
             data.seek(contentEnd)
         return cls(magic, unk00, DLItemType(kind), size, unk02, unk03, content)
