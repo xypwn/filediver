@@ -35,7 +35,7 @@ func CopyableTextcfV(color imgui.Vec4, tooltip string, format string, args ...an
 	imgui.PopID()
 
 	ctx := imgui.CurrentContext()
-	if color.Z != 0 {
+	if color.W != 0 {
 		imgui.PushStyleColorVec4(imgui.ColText, color)
 	}
 	textPos := imgui.CursorScreenPos()
@@ -44,7 +44,7 @@ func CopyableTextcfV(color imgui.Vec4, tooltip string, format string, args ...an
 	imgui.SetNextItemAllowOverlap()
 	textBtnID := imgui.IDStr("##Copyable text")
 	clicked := imgui.InvisibleButton("##Copyable text", imgui.ItemRectSize())
-	if color.Z != 0 {
+	if color.W != 0 {
 		imgui.PopStyleColor()
 	}
 	if imgui.BeginItemTooltip() {

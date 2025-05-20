@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"math"
+	"runtime/debug"
 	"strings"
 	"sync"
 
@@ -17,10 +19,13 @@ type logItem struct {
 
 type Logger struct {
 	sync.Mutex
-	items    []logItem
-	status   string
-	numErrs  int
-	numWarns int
+	items        []logItem
+	status       string
+	numErrs      int
+	numWarns     int
+	haveFatalErr bool
+
+	scrollToBottom bool
 }
 
 var _ = app.Printer(&Logger{})
@@ -41,11 +46,17 @@ func (l *Logger) setStatus(s string) {
 	l.Unlock()
 }
 
-// NOTE: Fatalf isn't really fatal here, since that wouldn't make sense in the context of a GUI.
-func (l *Logger) Infof(f string, a ...any)   { l.add("INFO", 0.8, 0.8, 0.8, f, a...) }
-func (l *Logger) Warnf(f string, a ...any)   { l.add("WARNING", 0.8, 0.8, 0, f, a...); l.numWarns++ }
-func (l *Logger) Errorf(f string, a ...any)  { l.add("ERROR", 0.8, 0.5, 0.5, f, a...); l.numErrs++ }
-func (l *Logger) Fatalf(f string, a ...any)  { l.add("FATAL ERROR", 0.9, 0, 0, f, a...); l.numErrs++ }
+// NOTE: Fatalf can't stop control flow by itself here. That has to be done externally.
+// Fatalf will also print a stack trace.
+func (l *Logger) Infof(f string, a ...any)  { l.add("INFO", 0.8, 0.8, 0.8, f, a...) }
+func (l *Logger) Warnf(f string, a ...any)  { l.add("WARNING", 0.8, 0.8, 0, f, a...); l.numWarns++ }
+func (l *Logger) Errorf(f string, a ...any) { l.add("ERROR", 0.8, 0.5, 0.5, f, a...); l.numErrs++ }
+func (l *Logger) Fatalf(f string, a ...any) {
+	l.add("FATAL ERROR", 0.9, 0.3, 0.3, f, a...)
+	l.add("STACK TRACE", 0.9, 0.3, 0.3, "%s", debug.Stack())
+	l.numErrs++
+	l.haveFatalErr = true
+}
 func (l *Logger) Statusf(f string, a ...any) { l.setStatus(fmt.Sprintf(f, a...)) }
 func (l *Logger) NoStatus()                  { l.setStatus("") }
 
@@ -70,6 +81,13 @@ func (l *Logger) NumWarns() int {
 	return l.numWarns
 }
 
+func (l *Logger) HaveFatalErr() bool {
+	l.Lock()
+	defer l.Unlock()
+
+	return l.haveFatalErr
+}
+
 func (l *Logger) String() string {
 	l.Lock()
 	defer l.Unlock()
@@ -90,6 +108,7 @@ func (l *Logger) Reset() {
 	l.status = ""
 	l.numErrs = 0
 	l.numWarns = 0
+	l.haveFatalErr = false
 }
 
 func LogView(l *Logger) {
@@ -103,13 +122,16 @@ func LogView(l *Logger) {
 		statusText = "STATUS: " + l.status
 	}
 
-	if l.status != "" {
+	{
 		style := imgui.CurrentStyle()
-		statusSize := imgui.CalcTextSizeV(statusText, false, avail.X)
-		statusSize.Y += style.ItemSpacing().Y
-		statusSize.Y += 1 // separator
-		statusSize.Y += style.ItemSpacing().Y
-		avail.Y -= statusSize.Y
+		avail.Y -= 1 // separator
+		avail.Y -= style.ItemSpacing().Y
+		if l.status != "" {
+			avail.Y -= imgui.CalcTextSizeV(statusText, false, avail.X).Y
+			avail.Y -= style.ItemSpacing().Y
+		}
+		avail.Y -= imgui.FrameHeight()
+		avail.Y -= style.ItemSpacing().Y
 	}
 	imgui.SetNextWindowSize(avail)
 	if imgui.BeginChildStr("Logs") {
@@ -122,12 +144,37 @@ func LogView(l *Logger) {
 		if len(l.items) == 0 {
 			imutils.Textcf(imgui.NewVec4(0.8, 0.8, 0.8, 1), "Nothing here yet")
 		}
+		if imgui.ScrollY() == imgui.ScrollMaxY() {
+			l.scrollToBottom = true
+		}
+		{
+			scrolledUp := imgui.IsWindowHovered() && imgui.CurrentIO().MouseWheel() > 0
+			win := imgui.InternalCurrentWindow()
+			activeID := imgui.InternalActiveID()
+			scrollbarActive := activeID != 0 && activeID == imgui.InternalWindowScrollbarID(win, imgui.AxisY)
+			if scrolledUp || scrollbarActive {
+				l.scrollToBottom = false
+			}
+		}
+		if l.scrollToBottom {
+			imgui.SetScrollYFloat(imgui.ScrollMaxY())
+		}
 	}
 	imgui.EndChild()
 
+	imgui.Separator()
 	if l.status != "" {
-		imgui.Separator()
 		imgui.PushTextWrapPos()
 		imgui.TextUnformatted(statusText)
 	}
+	imgui.BeginDisabledV(l.scrollToBottom)
+	if imgui.ButtonV("Scroll to bottom", imgui.NewVec2(-math.SmallestNonzeroFloat32, 0)) {
+		l.scrollToBottom = true
+	}
+	if l.scrollToBottom {
+		imgui.SetItemTooltip("(scroll up in the logs to stop auto-scrolling)")
+	} else {
+		imgui.SetItemTooltip("Click to scroll to bottom and keep auto-scrolling")
+	}
+	imgui.EndDisabled()
 }
