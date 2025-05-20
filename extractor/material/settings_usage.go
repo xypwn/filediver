@@ -889,6 +889,11 @@ const (
 	SettingUseVetexColor                        SettingsUsage = 0xbdb70075
 	SettingUseHitData                           SettingsUsage = 0xf1ff10ad
 	SettingWpoDistance01                        SettingsUsage = 0x7d438d95
+	SettingZero                                 SettingsUsage = 0x447a01fc
+	SettingBdataOffset                          SettingsUsage = 0x51b10677
+	SettingBdataOffsetLast                      SettingsUsage = 0x3662b116
+	SettingMetallic                             SettingsUsage = 0x7da4d360
+	SettingVisibilityMask                       SettingsUsage = 0xcb029df0
 )
 
 func (usage *SettingsUsage) String() string {
@@ -2665,6 +2670,16 @@ func (usage *SettingsUsage) String() string {
 		return "UseHitData"
 	case SettingWpoDistance01:
 		return "WpoDistance01"
+	case SettingZero:
+		return "Zero"
+	case SettingBdataOffset:
+		return "BdataOffset"
+	case SettingBdataOffsetLast:
+		return "BdataOffsetLast"
+	case SettingMetallic:
+		return "Metallic"
+	case SettingVisibilityMask:
+		return "VisibilityMask"
 	default:
 		return "Unknown setting usage!"
 	}
