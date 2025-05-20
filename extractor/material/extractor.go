@@ -9,7 +9,9 @@ import (
 	"image/png"
 	"io"
 	"math"
+	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/qmuntal/gltf"
 	"github.com/qmuntal/gltf/modeler"
@@ -17,6 +19,7 @@ import (
 	"github.com/xypwn/filediver/dds"
 	"github.com/xypwn/filediver/extractor"
 	"github.com/xypwn/filediver/extractor/blend_helper"
+	extr_texture "github.com/xypwn/filediver/extractor/texture"
 	"github.com/xypwn/filediver/stingray"
 	dlbin "github.com/xypwn/filediver/stingray/dl_bin"
 	"github.com/xypwn/filediver/stingray/unit/material"
@@ -69,12 +72,62 @@ func postProcessToOpaque(img image.Image) error {
 	}
 }
 
+// Returns a function that uses the alpha of an emissive map and an emissive color to create
+// a gltf emissive map
+func createPostProcessEmissiveColor(color []float32) (func(image.Image) error, error) {
+	if len(color) < 3 {
+		return nil, fmt.Errorf("createPostProcessEmissiveColor: color %v does not have enough entries", color)
+	}
+	return func(img image.Image) error {
+		switch img := img.(type) {
+		case *image.NRGBA:
+			for iY := img.Rect.Min.Y; iY < img.Rect.Max.Y; iY++ {
+				for iX := img.Rect.Min.X; iX < img.Rect.Max.X; iX++ {
+					idx := img.PixOffset(iX, iY)
+					alphaPct := float32(img.Pix[idx+3]) / 255.0
+					img.Pix[idx] = uint8(color[0] * 255.0 * alphaPct)
+					img.Pix[idx+1] = uint8(color[1] * 255.0 * alphaPct)
+					img.Pix[idx+2] = uint8(color[2] * 255.0 * alphaPct)
+					img.Pix[idx+3] = 255
+				}
+			}
+			return nil
+		default:
+			return errors.New("postProcessEmissiveColor: unsupported image type")
+		}
+	}, nil
+}
+
+// Moves the clearcoat data to the location expected by the gltf materials
+func postProcessIlluminateClearcoat(img image.Image) error {
+	/**
+	 * illuminate_data:
+	 *	R - coat roughness
+	 *	G - metallic
+	 *	B - coat weight
+	 *	A - unknown
+	 */
+	switch img := img.(type) {
+	case *image.NRGBA:
+		for iY := img.Rect.Min.Y; iY < img.Rect.Max.Y; iY++ {
+			for iX := img.Rect.Min.X; iX < img.Rect.Max.X; iX++ {
+				idx := img.PixOffset(iX, iY)
+				img.Pix[idx+1] = img.Pix[idx]
+				img.Pix[idx] = img.Pix[idx+2]
+			}
+		}
+		return nil
+	default:
+		return errors.New("postProcessIlluminateClearcoat: unsupported image type")
+	}
+}
+
 // Adds a texture to doc. Returns new texture ID if err != nil.
 // postProcess optionally applies image post-processing.
-func writeTexture(ctx extractor.Context, doc *gltf.Document, id stingray.Hash, postProcess func(image.Image) error, imgOpts *ImageOptions) (uint32, error) {
+func writeTexture(ctx extractor.Context, doc *gltf.Document, id stingray.Hash, postProcess func(image.Image) error, imgOpts *ImageOptions, suffix string) (uint32, error) {
 	// Check if we've already added this texture
 	for j, texture := range doc.Textures {
-		if doc.Images[*texture.Source].Name == id.String() {
+		if doc.Images[*texture.Source].Name == (id.String() + suffix) {
 			return uint32(j), nil
 		}
 	}
@@ -121,7 +174,7 @@ func writeTexture(ctx extractor.Context, doc *gltf.Document, id stingray.Hash, p
 		}
 		mimeType = "image/png"
 	}
-	imgIdx, err := modeler.WriteImage(doc, id.String(), mimeType, &encData)
+	imgIdx, err := modeler.WriteImage(doc, id.String()+suffix, mimeType, &encData)
 	if err != nil {
 		return 0, err
 	}
@@ -142,7 +195,7 @@ func writeTexture(ctx extractor.Context, doc *gltf.Document, id stingray.Hash, p
 			return texIdx, nil
 		}
 		mimeType = "image/vnd-ms.dds"
-		imgIdx, err = modeler.WriteImage(doc, id.String()+".dds", mimeType, reader)
+		imgIdx, err = modeler.WriteImage(doc, id.String()+suffix+".dds", mimeType, reader)
 		if err != nil {
 			fmt.Printf("writeTexture: Failed to write dds image to document\n")
 			return texIdx, nil
@@ -162,6 +215,122 @@ func writeTexture(ctx extractor.Context, doc *gltf.Document, id stingray.Hash, p
 			doc.ExtensionsUsed = append(doc.ExtensionsUsed, "MSFT_texture_dds")
 		}
 	}
+	return texIdx, nil
+}
+
+func combineIlluminateOcclusionMetallicRoughness(narImg, dataImg image.Image) error {
+	narToDataX := float32(dataImg.Bounds().Size().X) / float32(narImg.Bounds().Size().X)
+	narToDataY := float32(dataImg.Bounds().Size().Y) / float32(narImg.Bounds().Size().Y)
+
+	narImgNRGBA, ok := narImg.(*image.NRGBA)
+	if !ok {
+		return fmt.Errorf("combineIlluminateOcclusionMetallicRoughness: unsupported NAR image type")
+	}
+	dataImgNRGBA, ok := dataImg.(*image.NRGBA)
+	if !ok {
+		return fmt.Errorf("combineIlluminateOcclusionMetallicRoughness: unsupported illuminate data image type")
+	}
+
+	/**
+	 * NAR:
+	 *	R - normal X
+	 *	G - normal Y
+	 *	B - ambient occlusion
+	 *	A - roughness
+	 */
+	/**
+	 * illuminate_data:
+	 *	R - coat roughness
+	 *	G - metallic
+	 *	B - coat weight
+	 *	A - unknown
+	 */
+
+	for iY := narImgNRGBA.Rect.Min.Y; iY < narImgNRGBA.Rect.Max.Y; iY++ {
+		for iX := narImgNRGBA.Rect.Min.X; iX < narImgNRGBA.Rect.Max.X; iX++ {
+			narIdx := narImgNRGBA.PixOffset(iX, iY)
+			dataIdx := dataImgNRGBA.PixOffset(min(int(float32(iX)*narToDataX), dataImgNRGBA.Rect.Max.X-1), min(int(float32(iY)*narToDataY), dataImgNRGBA.Rect.Max.Y-1))
+			// Move NAR ambient occlusion to red channel
+			narImgNRGBA.Pix[narIdx] = narImgNRGBA.Pix[narIdx+2]
+			// Move NAR roughness to green channel
+			narImgNRGBA.Pix[narIdx+1] = narImgNRGBA.Pix[narIdx+3]
+			// Move illuminate data metallic to blue channel
+			narImgNRGBA.Pix[narIdx+2] = dataImgNRGBA.Pix[dataIdx+1]
+		}
+	}
+	return nil
+}
+
+// Combines illuminate data and NAR into a gltf compliant ao, metallic, roughness map and returns the index
+func writeIlluminateOcclusionMetallicRoughnessTexture(ctx extractor.Context, doc *gltf.Document, narId, ilDataId stingray.Hash, imgOpts *ImageOptions) (uint32, error) {
+	// Check if we've already added this texture
+	textureName := narId.String() + "_" + ilDataId.String() + "_orm"
+	for j, texture := range doc.Textures {
+		if doc.Images[*texture.Source].Name == textureName {
+			return uint32(j), nil
+		}
+	}
+
+	narFile, exists := ctx.GetResource(narId, stingray.Sum64([]byte("texture")))
+	if !exists || !narFile.Exists(stingray.DataMain) {
+		return 0, fmt.Errorf("texture resource %v doesn't exist", narId)
+	}
+
+	ilDataFile, exists := ctx.GetResource(ilDataId, stingray.Sum64([]byte("texture")))
+	if !exists || !ilDataFile.Exists(stingray.DataMain) {
+		return 0, fmt.Errorf("texture resource %v doesn't exist", ilDataId)
+	}
+
+	narTex, err := texture.Decode(ctx.Ctx(), narFile, false)
+	if err != nil {
+		return 0, err
+	}
+
+	ilDataTex, err := texture.Decode(ctx.Ctx(), ilDataFile, false)
+	if err != nil {
+		return 0, err
+	}
+
+	if len(narTex.Images) > 1 || len(ilDataTex.Images) > 1 {
+		return 0, fmt.Errorf("NAR or illuminate data are texture arrays, not sure how to handle")
+	}
+
+	if err := combineIlluminateOcclusionMetallicRoughness(narTex.Image, ilDataTex.Image); err != nil {
+		return 0, err
+	}
+
+	var encData bytes.Buffer
+	var mimeType string
+	if imgOpts != nil && imgOpts.Jpeg {
+		quality := jpeg.DefaultQuality
+		if imgOpts.JpegQuality != 0 {
+			quality = imgOpts.JpegQuality
+		}
+		if err := jpeg.Encode(&encData, narTex, &jpeg.Options{Quality: quality}); err != nil {
+			return 0, err
+		}
+		mimeType = "image/jpeg"
+	} else {
+		compression := png.DefaultCompression
+		if imgOpts != nil {
+			compression = imgOpts.PngCompression
+		}
+		if err := (&png.Encoder{
+			CompressionLevel: compression,
+		}).Encode(&encData, narTex); err != nil {
+			return 0, err
+		}
+		mimeType = "image/png"
+	}
+	imgIdx, err := modeler.WriteImage(doc, textureName, mimeType, &encData)
+	if err != nil {
+		return 0, err
+	}
+	doc.Textures = append(doc.Textures, &gltf.Texture{
+		Sampler: gltf.Index(0),
+		Source:  gltf.Index(imgIdx),
+	})
+	texIdx := uint32(len(doc.Textures) - 1)
 	return texIdx, nil
 }
 
@@ -227,10 +396,13 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 	var metallicRoughnessTexture *gltf.TextureInfo
 	var emissiveTexture *gltf.TextureInfo
 	var normalTexture *gltf.NormalTexture
+	var occlusionTexture *gltf.OcclusionTexture
+	var coatTexture *gltf.TextureInfo
 	var postProcess func(image.Image) error
 	var albedoPostProcess func(image.Image) error = postProcessToOpaque
 	var normalPostProcess func(image.Image) error = postProcessReconstructNormalZ
 	var emissiveFactor [3]float32
+	var emissiveStrength float32 = 1.0
 	origImgOpts := imgOpts
 	lutImgOpts := &ImageOptions{
 		Jpeg:           imgOpts.Jpeg,
@@ -254,7 +426,7 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 		case ReticleTexture:
 			fallthrough
 		case Albedo:
-			index, err := writeTexture(ctx, doc, mat.Textures[texUsage], albedoPostProcess, imgOpts)
+			index, err := writeTexture(ctx, doc, mat.Textures[texUsage], albedoPostProcess, imgOpts, "")
 			if err != nil {
 				continue
 				return 0, err
@@ -264,6 +436,42 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 			}
 			usedTextures[TextureUsage(texUsage.Value)] = index
 			albedoPostProcess = postProcessToOpaque
+		case AlbedoEmissive:
+			index, err := writeTexture(ctx, doc, mat.Textures[texUsage], postProcessToOpaque, imgOpts, "")
+			if err != nil {
+				continue
+			}
+			baseColorTexture = &gltf.TextureInfo{
+				Index: index,
+			}
+			emissiveColorSetting, ok := mat.Settings[stingray.ThinHash{Value: uint32(SettingEmissiveColor)}]
+			if !ok {
+				fmt.Printf("warning: Material %v has AlbedoEmissive texture but no emissive_color\n", matName)
+				continue
+			}
+			postProcessEmissiveColor, err := createPostProcessEmissiveColor(emissiveColorSetting)
+			if err != nil {
+				fmt.Printf("warning: %v\n", err)
+				continue
+			}
+			emissiveIndex, err := writeTexture(ctx, doc, mat.Textures[texUsage], postProcessEmissiveColor, imgOpts, "_emissive")
+			emissiveTexture = &gltf.TextureInfo{
+				Index: emissiveIndex,
+			}
+			emissiveFactor[0] = 1.0
+			emissiveFactor[1] = 1.0
+			emissiveFactor[2] = 1.0
+			emissiveStrengthSetting, ok := mat.Settings[stingray.ThinHash{Value: uint32(SettingEmissiveIntensity)}]
+			if !ok {
+				emissiveStrengthSetting, ok = mat.Settings[stingray.ThinHash{Value: uint32(SettingEmissiveMult)}]
+			}
+			if !ok {
+				emissiveStrengthSetting, ok = mat.Settings[stingray.ThinHash{Value: uint32(SettingEmissiveStrength)}]
+			}
+			if !ok || len(emissiveStrengthSetting) == 0 {
+				continue
+			}
+			emissiveStrength = emissiveStrengthSetting[0]
 		case NormalSpecularAO:
 			// GLTF normals will look wonky, but our own material will be able to use the specular+ao in this map
 			// in blender
@@ -279,14 +487,12 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 			fallthrough
 		case NAC:
 			fallthrough
-		case NAR:
-			fallthrough
 		case BaseData:
 			hash := mat.Textures[texUsage]
 			if unitData != nil && TextureUsage(texUsage.Value) == BaseData && unitData.BaseData.Value != 0 {
 				hash = unitData.BaseData
 			}
-			index, err := writeTexture(ctx, doc, hash, normalPostProcess, imgOpts)
+			index, err := writeTexture(ctx, doc, hash, normalPostProcess, imgOpts, "")
 			if err != nil {
 				continue
 				return 0, err
@@ -296,8 +502,64 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 			}
 			usedTextures[TextureUsage(texUsage.Value)] = index
 			normalPostProcess = postProcessReconstructNormalZ
+		case NAR:
+			hash := mat.Textures[texUsage]
+			index, err := writeTexture(ctx, doc, hash, postProcessReconstructNormalZ, imgOpts, "")
+			if err != nil {
+				continue
+			}
+			normalTexture = &gltf.NormalTexture{
+				Index: gltf.Index(index),
+			}
+			illuminateDataHash, ok := mat.Textures[stingray.Sum64([]byte("illuminate_data")).Thin()]
+			if metallicRoughnessTexture == nil && ok {
+				metallicRoughnessIndex, err := writeIlluminateOcclusionMetallicRoughnessTexture(ctx, doc, hash, illuminateDataHash, imgOpts)
+				if err != nil {
+					continue
+				}
+				metallicRoughnessTexture = &gltf.TextureInfo{
+					Index: metallicRoughnessIndex,
+				}
+			}
+			if occlusionTexture == nil && ok {
+				occlusionIndex, err := writeIlluminateOcclusionMetallicRoughnessTexture(ctx, doc, hash, illuminateDataHash, imgOpts)
+				if err != nil {
+					continue
+				}
+				occlusionTexture = &gltf.OcclusionTexture{
+					Index: gltf.Index(occlusionIndex),
+				}
+			}
+		case IlluminateData:
+			hash := mat.Textures[texUsage]
+			index, err := writeTexture(ctx, doc, hash, postProcessIlluminateClearcoat, imgOpts, "")
+			if err != nil {
+				continue
+			}
+			coatTexture = &gltf.TextureInfo{
+				Index: index,
+			}
+			narHash, ok := mat.Textures[stingray.Sum64([]byte("NAR")).Thin()]
+			if metallicRoughnessTexture == nil && ok {
+				metallicRoughnessIndex, err := writeIlluminateOcclusionMetallicRoughnessTexture(ctx, doc, narHash, hash, imgOpts)
+				if err != nil {
+					continue
+				}
+				metallicRoughnessTexture = &gltf.TextureInfo{
+					Index: metallicRoughnessIndex,
+				}
+			}
+			if occlusionTexture == nil && ok {
+				occlusionIndex, err := writeIlluminateOcclusionMetallicRoughnessTexture(ctx, doc, narHash, hash, imgOpts)
+				if err != nil {
+					continue
+				}
+				occlusionTexture = &gltf.OcclusionTexture{
+					Index: gltf.Index(occlusionIndex),
+				}
+			}
 		case MRA:
-			index, err := writeTexture(ctx, doc, mat.Textures[texUsage], postProcess, imgOpts)
+			index, err := writeTexture(ctx, doc, mat.Textures[texUsage], postProcess, imgOpts, "")
 			if err != nil {
 				continue
 				return 0, err
@@ -309,7 +571,7 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 		case EmissiveColor:
 			fallthrough
 		case LensEmissiveTexture:
-			index, err := writeTexture(ctx, doc, mat.Textures[texUsage], postProcess, imgOpts)
+			index, err := writeTexture(ctx, doc, mat.Textures[texUsage], postProcess, imgOpts, "")
 			if err != nil {
 				continue
 				return 0, err
@@ -374,7 +636,7 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 			} else if unitData != nil && TextureUsage(texUsage.Value) == CapeLUT && unitData.CapeLut.Value != 0 {
 				hash = unitData.CapeLut
 			}
-			index, err := writeTexture(ctx, doc, hash, postProcess, imgOpts)
+			index, err := writeTexture(ctx, doc, hash, postProcess, imgOpts, "")
 			if err != nil {
 				continue
 				return 0, err
@@ -404,7 +666,7 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 			if unitData != nil && TextureUsage(texUsage.Value) == DecalSheet && unitData.DecalSheet.Value != 0 {
 				hash = unitData.DecalSheet
 			}
-			index, err := writeTexture(ctx, doc, hash, postProcess, imgOpts)
+			index, err := writeTexture(ctx, doc, hash, postProcess, imgOpts, "")
 			if err != nil {
 				continue
 				return 0, err
@@ -438,7 +700,7 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 			fallthrough
 		case WoundDerivative:
 			if ctx.Config()["all_textures"] == "true" {
-				index, err := writeTexture(ctx, doc, mat.Textures[texUsage], postProcess, imgOpts)
+				index, err := writeTexture(ctx, doc, mat.Textures[texUsage], postProcess, imgOpts, "")
 				if err != nil {
 					continue
 					return 0, err
@@ -447,7 +709,7 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 			}
 		case WoundNormal:
 			if ctx.Config()["all_textures"] == "true" {
-				index, err := writeTexture(ctx, doc, mat.Textures[texUsage], postProcessReconstructNormalZ, imgOpts)
+				index, err := writeTexture(ctx, doc, mat.Textures[texUsage], postProcessReconstructNormalZ, imgOpts, "")
 				if err != nil {
 					continue
 					return 0, err
@@ -458,7 +720,7 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 			if ctx.Config()["all_textures"] == "true" {
 				t := TextureUsage(texUsage.Value)
 				fmt.Printf("addMaterial: Unknown/unhandled texture usage %v in material %v\n", t.String(), matName)
-				index, err := writeTexture(ctx, doc, mat.Textures[texUsage], postProcess, imgOpts)
+				index, err := writeTexture(ctx, doc, mat.Textures[texUsage], postProcess, imgOpts, "")
 				if err != nil {
 					continue
 					return 0, err
@@ -468,9 +730,14 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 		}
 	}
 
-	usagesToTextureIndices := make(map[string]uint32)
+	usagesToTextureIndices := make(map[string]interface{})
 	for usage, texIdx := range usedTextures {
 		usagesToTextureIndices[usage.String()] = texIdx
+	}
+
+	for setting, value := range mat.Settings {
+		usage := SettingsUsage(setting.Value)
+		usagesToTextureIndices[usage.String()] = value
 	}
 
 	doc.Materials = append(doc.Materials, &gltf.Material{
@@ -479,11 +746,34 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 			BaseColorTexture:         baseColorTexture,
 			MetallicRoughnessTexture: metallicRoughnessTexture,
 		},
-		EmissiveTexture: emissiveTexture,
-		EmissiveFactor:  emissiveFactor,
-		NormalTexture:   normalTexture,
-		Extras:          usagesToTextureIndices,
+		EmissiveTexture:  emissiveTexture,
+		EmissiveFactor:   emissiveFactor,
+		NormalTexture:    normalTexture,
+		OcclusionTexture: occlusionTexture,
+		Extras:           usagesToTextureIndices,
 	})
+	if coatTexture != nil {
+		clearcoat := make(map[string]interface{})
+		clearcoat["clearcoatTexture"] = coatTexture
+		clearcoat["clearcoatRoughnessTexture"] = coatTexture
+		clearcoat["clearcoatNormalTexture"] = normalTexture
+		if doc.Materials[len(doc.Materials)-1].Extensions == nil {
+			doc.Materials[len(doc.Materials)-1].Extensions = make(map[string]interface{})
+		}
+		doc.Materials[len(doc.Materials)-1].Extensions["KHR_materials_clearcoat"] = clearcoat
+	}
+	if emissiveStrength != 1.0 {
+		if doc.Materials[len(doc.Materials)-1].Extensions == nil {
+			doc.Materials[len(doc.Materials)-1].Extensions = make(map[string]interface{})
+		}
+		strength := make(map[string]interface{})
+		if emissiveStrength > 1.0 {
+			strength["emissiveStrength"] = emissiveStrength
+		} else if emissiveStrength != 0.0 {
+			strength["emissiveStrength"] = 1.0 / emissiveStrength
+		}
+		doc.Materials[len(doc.Materials)-1].Extensions["KHR_materials_emissive_strength"] = strength
+	}
 	return uint32(len(doc.Materials) - 1), nil
 }
 
@@ -673,4 +963,64 @@ func Convert(currDoc *gltf.Document) func(ctx extractor.Context) error {
 		}
 		return ConvertOpts(ctx, opts, currDoc)
 	}
+}
+
+func ConvertTextures(ctx extractor.Context) error {
+	fMain, err := ctx.File().Open(ctx.Ctx(), stingray.DataMain)
+	if err != nil {
+		return err
+	}
+	defer fMain.Close()
+
+	mat, err := material.Load(fMain)
+	if err != nil {
+		return err
+	}
+
+	matName, ok := ctx.Hashes()[ctx.File().ID().Name]
+	if !ok {
+		matName = ctx.File().ID().Name.String()
+	}
+	splitDir := strings.Split(matName, "/")
+	for i := range splitDir {
+		splitDir[i] = ".."
+	}
+
+	for _, texture := range mat.Textures {
+		texFile, ok := ctx.GetResource(texture, stingray.Sum64([]byte("texture")))
+		if !ok {
+			continue
+		}
+
+		texName, ok := ctx.Hashes()[texture]
+		if !ok {
+			texName = texture.String()
+		}
+		outFilePathList := make([]string, 0)
+		outFilePathList = append(outFilePathList, splitDir...)
+		outFilePathList = append(outFilePathList, texName)
+		outFilePath := strings.Join(outFilePathList, string(filepath.Separator))
+
+		out, err := ctx.CreateFile(string(filepath.Separator) + outFilePath + "." + ctx.Config()["textureFormat"])
+		if err != nil {
+			return err
+		}
+		defer out.Close()
+
+		var buf *bytes.Buffer
+		if ctx.Config()["textureFormat"] == "dds" {
+			buf, err = extr_texture.ExtractDDSBuffer(ctx.Ctx(), texFile)
+		} else {
+			buf, err = extr_texture.ConvertToPNGBuffer(ctx.Ctx(), texFile)
+		}
+		if err != nil {
+			return err
+		}
+		_, err = out.Write(buf.Bytes())
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

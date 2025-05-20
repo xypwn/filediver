@@ -68,7 +68,7 @@ var ConfigFormat = ConfigTemplate{
 			Options: map[string]ConfigTemplateOption{
 				"format": {
 					Type: ConfigValueEnum,
-					Enum: []string{"glb", "blend", "source"},
+					Enum: []string{"glb", "blend", "textures", "source"},
 				},
 				"single_glb": {
 					Type: ConfigValueEnum,
@@ -697,7 +697,20 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 				extr = extr_wwise.ConvertBnk
 			}
 		case "material":
-			extr = extr_material.Convert(gltfDoc)
+			if cfg["format"] == "textures" {
+				textureCfg, ok := extrCfg["texture"]
+				if !ok {
+					textureCfg = make(map[string]string)
+				}
+				textureFmt, ok := textureCfg["format"]
+				if !ok {
+					textureFmt = "png"
+				}
+				cfg["textureFormat"] = textureFmt
+				extr = extr_material.ConvertTextures
+			} else {
+				extr = extr_material.Convert(gltfDoc)
+			}
 		case "unit":
 			extr = extr_unit.Convert(gltfDoc)
 		case "geometry_group":

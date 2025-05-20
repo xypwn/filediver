@@ -1,6 +1,9 @@
 package texture
 
 import (
+	"bufio"
+	"bytes"
+	"context"
 	"errors"
 	"image/png"
 	"io"
@@ -11,33 +14,49 @@ import (
 	"github.com/xypwn/filediver/stingray/unit/texture"
 )
 
-func ExtractDDS(ctx extractor.Context) error {
-	if !ctx.File().Exists(stingray.DataMain) {
-		return errors.New("no main data")
+func ExtractDDSBuffer(ctx context.Context, file *stingray.File) (*bytes.Buffer, error) {
+	if !file.Exists(stingray.DataMain) {
+		return nil, errors.New("no main data")
 	}
-	r, err := ctx.File().OpenMulti(ctx.Ctx(), stingray.DataMain, stingray.DataStream, stingray.DataGPU)
+	r, err := file.OpenMulti(ctx, stingray.DataMain, stingray.DataStream, stingray.DataGPU)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer r.Close()
 	if _, err := texture.DecodeInfo(r); err != nil {
+		return nil, err
+	}
+
+	var buf bytes.Buffer
+	out := bufio.NewWriter(&buf)
+
+	if _, err := io.Copy(out, r); err != nil {
+		return nil, err
+	}
+
+	return &buf, nil
+}
+
+func ExtractDDS(ctx extractor.Context) error {
+	buf, err := ExtractDDSBuffer(ctx.Ctx(), ctx.File())
+	if err != nil {
 		return err
 	}
+
 	out, err := ctx.CreateFile(".dds")
 	if err != nil {
 		return err
 	}
 	defer out.Close()
-	if _, err := io.Copy(out, r); err != nil {
-		return err
-	}
-	return nil
+
+	_, err = out.Write(buf.Bytes())
+	return err
 }
 
-func ConvertToPNG(ctx extractor.Context) error {
-	origTex, err := texture.Decode(ctx.Ctx(), ctx.File(), false)
+func ConvertToPNGBuffer(ctx context.Context, file *stingray.File) (*bytes.Buffer, error) {
+	origTex, err := texture.Decode(ctx, file, false)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	tex := origTex
@@ -45,10 +64,23 @@ func ConvertToPNG(ctx extractor.Context) error {
 		tex = dds.StackLayers(origTex)
 	}
 
+	var buf bytes.Buffer
+	err = png.Encode(&buf, tex)
+	return &buf, err
+}
+
+func ConvertToPNG(ctx extractor.Context) error {
+	buf, err := ConvertToPNGBuffer(ctx.Ctx(), ctx.File())
+	if err != nil {
+		return err
+	}
+
 	out, err := ctx.CreateFile(".png")
 	if err != nil {
 		return err
 	}
 	defer out.Close()
-	return png.Encode(out, tex)
+
+	_, err = out.Write(buf.Bytes())
+	return err
 }

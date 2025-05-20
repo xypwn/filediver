@@ -524,6 +524,64 @@ enum ImageUsage : u32 {
 };
 
 enum SettingsUsage : u32 {
+    Alpha = 0x3f697354,
+    EnvironmentLuminosity = 0xeee59e17,
+    SineAmplitude01 = 0x3e7b097e,
+    SineFrequency = 0xb7088fa1,
+    SineSecondaryAmplitude = 0xfcae94d5,
+    SineSecondaryFrequency = 0xca7baccd,
+    SineSecondarySpeed = 0xc487fba8,
+    SineSpeed = 0x25db2966,
+    TimeWorldPosOffset = 0x877d9a68,
+    UseDirectionFromCenter = 0x4b9f425e,
+    UseUvVertexMaskVExp = 0x796f72b1,
+    UvMask = 0x2a8279db,
+    UvUMask = 0x7b95f38e,
+    UvUMaskMax = 0xe67e858c,
+    UvUMaskMin = 0x5f4dd44b,
+    UvUMultiplier = 0x45b397bb,
+    UvVMask = 0x41b2516d,
+    UvVMaskMax = 0x9e70de9e,
+    UvVMaskMin = 0xa9221b63,
+    UvVertexMask = 0x7cbf0b6d,
+    UvVertexMaskMax = 0x40d08754,
+    UvVertexMaskMin = 0xf589acc8,
+    UvVertexMaskVExp = 0x279f6869,
+    CameraFadeDistance01 = 0x3e604f2a,
+    ColorDamaged = 0xf7a19ea6,
+    ColorDamagedMult = 0x351553a7,
+    ColorOuter = 0x5a22c0ca,
+    DevSelectionColor = 0x588e5a30,
+    DevSelectionMask = 0x425efe3d,
+    DistFadeOffset01 = 0x4ad6b4b8,
+    DotsMult = 0x0a32bc84,
+    EnergyLinesSpeed = 0x60843c26,
+    FarFadeDistance01 = 0x4e3ab5db,
+    FarFadeOffset01 = 0x1e43da40,
+    FarFadeOpacity01 = 0xc19eda3a,
+    FresnelPower = 0xec00ece8,
+    HitExp01 = 0xcd508b25,
+    HitIntensity = 0xda09185c,
+    IlluminateDotsTile = 0xda6187c3,
+    InteresectDistance = 0xa7a3f6a7,
+    InteresectDistanceMult = 0x7a817610,
+    InteresectExp = 0x9db9a243,
+    LowHealth = 0xa99194f9,
+    LumMin02 = 0x95a0c459,
+    LuminocityExp02 = 0x8991fe16,
+    MaxOpac = 0x9b9b4ba4,
+    MinOpac = 0x8ac92075,
+    NoiseFresnelExp = 0xf13a78c8,
+    NoiseFresnelMin = 0xe0a06d64,
+    OpacityMult01 = 0x0198c936,
+    Power01 = 0x39d2fc5a,
+    SpeedLinesMult = 0x2b79ec65,
+    SpeedLinesTile = 0x39b35d0e,
+    TopGlowMult = 0xc5b203a2,
+    TopGlowTighten = 0xeb848c1a,
+    UseVetexColor = 0xbdb70075,
+    UseHitData = 0xf1ff10ad,
+    WpoDistance01 = 0x7d438d95,
     AaMultiplier = 0x90ed0fa2,
     AberrateBlue = 0xc329914f,
     AberrateGreen = 0xe7e5149d,
@@ -1371,13 +1429,17 @@ enum SettingsType : u32 {
     Other = 12,
 };
 
+fn formatSettingsListItem(auto item) {
+    return item.setting;
+};
+
 struct SettingsListItem {
     SettingsType type;
     u32 count;
     SettingsUsage setting;
     u32 offset;
     u32 stride;
-};
+} [[format("formatSettingsListItem")]];
 
 struct SettingsValue {
     $ = parent.base + parent.items[std::core::array_index()].offset;
