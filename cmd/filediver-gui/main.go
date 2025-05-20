@@ -341,7 +341,9 @@ func run(onError func(error)) error {
 			checkingForUpdates = false
 		}()
 	}
-	goCheckForUpdates(true)
+	if version != "" {
+		goCheckForUpdates(true)
+	}
 
 	exportDir := filepath.Join(xdg.UserDirs.Download, "filediver_exports")
 	exportNotifyWhenDone := true
@@ -392,9 +394,11 @@ func run(onError func(error)) error {
 	}
 
 	popupManager := imutils.NewPopupManager()
-	popupManager.Open["Some optional extensions missing or out of date"] =
-		!ffmpegDownloadState.HaveRequestedVersion() || !scriptsDistDownloadState.HaveRequestedVersion()
-	popupManager.Open["Welcome to Filediver GUI"] = true
+	if version != "" {
+		popupManager.Open["Some optional extensions missing or out of date"] =
+			!ffmpegDownloadState.HaveRequestedVersion() || !scriptsDistDownloadState.HaveRequestedVersion()
+		popupManager.Open["Welcome to Filediver GUI"] = true
+	}
 
 	isTypeFilterOpen := false
 	isArchiveFilterOpen := false
