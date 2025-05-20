@@ -21,7 +21,6 @@ import (
 	extr_geogroup "github.com/xypwn/filediver/extractor/geometry_group"
 	extr_material "github.com/xypwn/filediver/extractor/material"
 	extr_package "github.com/xypwn/filediver/extractor/package"
-	extr_physics "github.com/xypwn/filediver/extractor/physics"
 	extr_strings "github.com/xypwn/filediver/extractor/strings"
 	extr_texture "github.com/xypwn/filediver/extractor/texture"
 	extr_unit "github.com/xypwn/filediver/extractor/unit"
@@ -210,15 +209,6 @@ var ConfigFormat = ConfigTemplate{
 				"format": {
 					Type: ConfigValueEnum,
 					Enum: []string{"json", "source"},
-				},
-			},
-		},
-		"physics": {
-			Category: "text",
-			Options: map[string]ConfigTemplateOption{
-				"format": {
-					Type: ConfigValueEnum,
-					Enum: []string{"name", "source"},
 				},
 			},
 		},
@@ -722,8 +712,6 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 			extr = extr_strings.ExtractStringsJSON
 		case "package":
 			extr = extr_package.ExtractPackageJSON
-		case "physics":
-			extr = extr_physics.ExtractPhysicsNames
 		case "bones":
 			extr = extr_bones.ExtractBonesJSON
 		default:
