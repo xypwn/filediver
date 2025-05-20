@@ -64,10 +64,12 @@ extractor config:
 	boneListOpts = append(boneListOpts, "none")
 	boneListOpts = append(boneListOpts, "unknown")
 	boneListOpts = append(boneListOpts, "known")
+	boneListOpts = append(boneListOpts, "bone")
+	boneListOpts = append(boneListOpts, "material")
 	boneListOpts = append(boneListOpts, "all")
 
-	boneListMode := parser.String("b", "list-bones", &argparse.Option{Default: "none", Choices: boneListOpts, Help: "If not none, list [option] bones found in included unit files, then exit (default: none)"})
-	boneToFind := parser.String("f", "find-bone", &argparse.Option{Help: "Search for given bone name and print the unit file(s) containing it, then exit"})
+	boneListMode := parser.String("b", "list-thins", &argparse.Option{Default: "none", Choices: boneListOpts, Help: "If not none, list [option] bones found in included unit files, then exit (default: none)"})
+	thinToFind := parser.String("f", "find-thin", &argparse.Option{Help: "Search for given thinhash (bone or material) name and print the unit file(s) containing it, then exit"})
 	outDir := parser.String("o", "out", &argparse.Option{Default: "extracted", Help: "Output directory (default: extracted)"})
 	extrCfgStr := parser.String("c", "config", &argparse.Option{Help: "Configure extractors (see \"extractor config\" section)"})
 	extrInclGlob := parser.String("i", "include", &argparse.Option{Help: "Select only matching files (glob syntax, see matching files section)"})
@@ -155,7 +157,7 @@ extractor config:
 	var knownThinHashes []string
 	knownThinHashes = append(knownThinHashes, app.ParseHashes(hashes.ThinHashes)...)
 
-	if !(*modeList || *boneListMode != "none" || boneToFind != nil) {
+	if !(*modeList || *boneListMode != "none" || thinToFind != nil) {
 		prt.Infof("Output directory: \"%v\"", *outDir)
 	}
 
@@ -239,9 +241,11 @@ extractor config:
 				strings.Join(triadIDStrings, ", "),
 			)
 		}
-	} else if *boneListMode != "none" || (boneToFind != nil && len(*boneToFind) > 0) {
-		known := make(map[string]bool)
-		unknown := make(map[string]bool)
+	} else if *boneListMode != "none" || (thinToFind != nil && len(*thinToFind) > 0) {
+		knownBone := make(map[string]bool)
+		knownMat := make(map[string]bool)
+		unknownBone := make(map[string]bool)
+		unknownMat := make(map[string]bool)
 		unitCount := 0
 		for _, id := range sortedFileIDs {
 			if id.Type != stingray.Sum64([]byte("unit")) {
@@ -261,7 +265,7 @@ extractor config:
 			}
 
 			for _, bone := range unitInfo.Bones {
-				if boneToFind != nil && len(*boneToFind) > 0 && stingray.Sum64([]byte(*boneToFind)).Thin() == bone.NameHash {
+				if thinToFind != nil && len(*thinToFind) > 0 && stingray.Sum64([]byte(*thinToFind)).Thin() == bone.NameHash {
 					unitName, exists := a.Hashes[id.Name]
 					if !exists {
 						unitName = id.Name.String()
@@ -269,28 +273,55 @@ extractor config:
 					fmt.Printf("%v.unit\n", unitName)
 					unitCount++
 					break
-				} else if boneToFind != nil && len(*boneToFind) > 0 {
+				} else if thinToFind != nil && len(*thinToFind) > 0 {
 					continue
 				}
 
 				if name, exists := a.ThinHashes[bone.NameHash]; exists {
-					known[name] = true
+					knownBone[name] = true
 				} else {
-					unknown[bone.NameHash.String()] = true
+					unknownBone[bone.NameHash.String()] = true
+				}
+			}
+			for mat := range unitInfo.Materials {
+				if thinToFind != nil && len(*thinToFind) > 0 && stingray.Sum64([]byte(*thinToFind)).Thin() == mat {
+					unitName, exists := a.Hashes[id.Name]
+					if !exists {
+						unitName = id.Name.String()
+					}
+					fmt.Printf("%v.unit\n", unitName)
+					unitCount++
+					break
+				} else if thinToFind != nil && len(*thinToFind) > 0 {
+					continue
+				}
+
+				if name, exists := a.ThinHashes[mat]; exists {
+					knownMat[name] = true
+				} else {
+					unknownMat[mat.String()] = true
 				}
 			}
 		}
 
-		knownSorted := make([]string, len(known))
+		knownSorted := make([]string, len(knownBone)+len(knownMat))
 		i := 0
-		for name := range known {
+		for name := range knownBone {
+			knownSorted[i] = name
+			i++
+		}
+		for name := range knownMat {
 			knownSorted[i] = name
 			i++
 		}
 
-		unknownSorted := make([]string, len(unknown))
+		unknownSorted := make([]string, len(unknownBone)+len(unknownMat))
 		i = 0
-		for name := range unknown {
+		for name := range unknownBone {
+			unknownSorted[i] = name
+			i++
+		}
+		for name := range unknownMat {
 			unknownSorted[i] = name
 			i++
 		}
@@ -304,13 +335,33 @@ extractor config:
 			for _, bone := range knownSorted {
 				fmt.Println(bone)
 			}
-			printed = len(known)
+			printed = len(knownSorted)
 		case "unknown":
 			slices.Sort(unknownSorted)
 			for _, bone := range unknownSorted {
 				fmt.Println(bone)
 			}
-			printed = len(unknown)
+			printed = len(unknownSorted)
+		case "bone":
+			slices.Sort(knownSorted[:len(knownBone)])
+			slices.Sort(unknownSorted[:len(unknownBone)])
+			for _, bone := range knownSorted[:len(knownBone)] {
+				fmt.Println(bone)
+			}
+			for _, bone := range unknownSorted[:len(unknownBone)] {
+				fmt.Println(bone)
+			}
+			printed = len(unknownBone) + len(knownBone)
+		case "material":
+			slices.Sort(knownSorted[len(knownBone):])
+			slices.Sort(unknownSorted[len(unknownBone):])
+			for _, mat := range knownSorted[len(knownBone):] {
+				fmt.Println(mat)
+			}
+			for _, mat := range unknownSorted[len(unknownBone):] {
+				fmt.Println(mat)
+			}
+			printed = len(unknownMat) + len(knownMat)
 		case "all":
 			slices.Sort(knownSorted)
 			slices.Sort(unknownSorted)
@@ -320,14 +371,14 @@ extractor config:
 			for _, bone := range unknownSorted {
 				fmt.Println(bone)
 			}
-			printed = len(unknown) + len(known)
+			printed = len(unknownSorted) + len(knownSorted)
 		}
 
 		if showRedirectHint && printed > 127 {
-			prt.Infof("Listed %v bones (you should probably redirect this to a file)", printed)
+			prt.Infof("Listed %v bones or materials (you should probably redirect this to a file)", printed)
 		}
-		if boneToFind != nil && len(*boneToFind) > 0 {
-			prt.Infof("Listed %v units with bone '%v' == 0x%08x", unitCount, *boneToFind, stingray.Sum64([]byte(*boneToFind)).Thin().Value)
+		if thinToFind != nil && len(*thinToFind) > 0 {
+			prt.Infof("Listed %v units with bone or material '%v' == 0x%08x", unitCount, *thinToFind, stingray.Sum64([]byte(*thinToFind)).Thin().Value)
 		}
 	} else {
 		prt.Infof("Extracting files...")

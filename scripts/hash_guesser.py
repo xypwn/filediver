@@ -209,6 +209,17 @@ def main():
                         if split[-1] == split[-2]:
                             continue
                         suffixes.append(f"/{split[-1]}/{split[-1]}")
+                        if "n_units" in split[-2]:
+                            suffixes.append(f"/terrain_units/{split[-1]}")
+                            suffixes.append(f"terrain_units/{split[-1]}")
+                            suffixes.append(f"_terrain_units/{split[-1]}")
+                        split2 = split[-1].split("_")
+                        if split2[-1].isnumeric():
+                            suffixes.append(f"/{'_'.join(split2[:-1])}/{split[-1]}")
+                        if split2[0] == "cy":
+                            suffixes.append(f"/{'_'.join(['cyborg'] + split2[1:])}/{split[-1]}")
+                        if split2[0] == "il":
+                            suffixes.append(f"/{'_'.join(['illuminate'] + split2[1:])}/{split[-1]}")
                     else:
                         suffixes.append(f"/{line.strip()}/{line.strip()}")
 

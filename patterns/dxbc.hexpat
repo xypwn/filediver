@@ -1,5 +1,9 @@
 #include <std/ptr.pat>
 
+fn relative_to_parents_parents_parents_parent(u128 offset) {
+    return addressof(parent.parent.parent.parent.parent);
+};
+
 fn relative_to_parents_parents_parent(u128 offset) {
     return addressof(parent.parent.parent.parent);
 };
@@ -26,26 +30,26 @@ struct string {
 };
 
 struct Variable {
-    string *name : u32 [[pointer_base("relative_to_parents_parents_parent")]];
+    string *name : u32 [[pointer_base("relative_to_parents_parents_parents_parent")]];
     u32 cb_offset;
     u32 size;
     u32 flags;
-    string *type : u32 [[pointer_base("relative_to_parents_parents_parent")]];
+    string *type : u32 [[pointer_base("relative_to_parents_parents_parents_parent")]];
     u32 default_value_offset;
     u32 unk[4];
 };
 
 struct ConstantBuffer {
-    string *name : u32 [[pointer_base("relative_to_parents_parent")]];
+    string *name : u32 [[pointer_base("relative_to_parents_parents_parent")]];
     u32 variable_count;
-    Variable *variables[variable_count] : u32 [[pointer_base("relative_to_parents_parent")]];
+    Variable *variables[variable_count] : u32 [[pointer_base("relative_to_parents_parents_parent")]];
     u32 size;
     u32 flags;
     u32 type;
 };
 
 struct ResourceBinding {
-    string *name : u32 [[pointer_base("relative_to_parents_parent")]];
+    string *name : u32 [[pointer_base("relative_to_parents_parents_parent")]];
     u32 input_type;
     u32 return_type;
     u32 view_dimension;
@@ -55,11 +59,15 @@ struct ResourceBinding {
     u32 flags;
 };
 
+struct List<T, auto count> {
+    T data[count] [[inline]];
+};
+
 struct RDEF {
     u32 cbuf_count;
-    ConstantBuffer *cbuf : u32 [[pointer_base("relative_to_parent")]];
+    List<ConstantBuffer, cbuf_count> *cbuf : u32 [[pointer_base("relative_to_parent")]];
     u32 rbind_count;
-    ResourceBinding *rbind : u32 [[pointer_base("relative_to_parent")]];
+    List<ResourceBinding, rbind_count> *rbind : u32 [[pointer_base("relative_to_parent")]];
     u8 minor;
     u8 major;
     u16 program_type;
