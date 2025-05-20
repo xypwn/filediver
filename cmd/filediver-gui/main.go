@@ -836,11 +836,19 @@ func run(onError func(error)) error {
 						if gameDataExport.NumFiles != 1 {
 							pluralS = "s"
 						}
-						text := fmt.Sprintf("Filediver has finished exporting %v file%v", gameDataExport.NumFiles, pluralS)
+						var text string
+						if !logger.HaveFatalErr() {
+							text = fmt.Sprintf("Filediver has finished exporting %v file%v", gameDataExport.NumFiles, pluralS)
+						} else {
+							text = "An internal error occurred during exporting. Please create an issue on GitHub."
+						}
 						if logger.NumErrs() > 0 || logger.NumWarns() > 0 {
 							text += "\n"
 							text += fmt.Sprintf("Errors: %v, Warnings: %v", logger.NumErrs(), logger.NumWarns())
-							text += "\nFor more details, click \"Open extractor logs\" in Filediver"
+							text += "\nSee logs."
+						}
+						if logger.NumErrs() > 0 {
+							isLogsOpen = true
 						}
 						zenity.Notify(text,
 							zenity.Title("Finished exporting"),

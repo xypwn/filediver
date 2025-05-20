@@ -84,10 +84,24 @@ func (gd *GameData) GoExport(extractCtx context.Context, files []stingray.FileID
 	ex.Cancel = cancel
 
 	go func() {
+		defer func() {
+			if err := recover(); err != nil {
+				printer.Fatalf("%v", err)
+			}
+
+			printer.NoStatus()
+			ex.Lock()
+			ex.Done = true
+			ex.Unlock()
+		}()
+
 		var combinedDoc *gltf.Document
 		var closeCombinedGLB func(*gltf.Document) error
 		if cfg["unit"]["single_glb"] == "true" {
 			combinedDoc, closeCombinedGLB = single_glb_helper.CreateCloseableGltfDocument(outDir, "combined_unit" /* TODO */, cfg["unit"], runner)
+			ex.Lock()
+			ex.NumFiles++
+			ex.Unlock()
 		}
 
 		for _, fileID := range files {
@@ -123,10 +137,6 @@ func (gd *GameData) GoExport(extractCtx context.Context, files []stingray.FileID
 				printer.Errorf("close GLB: %v", err)
 			}
 		}
-		printer.NoStatus()
-		ex.Lock()
-		ex.Done = true
-		ex.Unlock()
 	}()
 	return ex
 }
