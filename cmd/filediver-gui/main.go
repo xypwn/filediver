@@ -435,6 +435,9 @@ func run(onError func(error)) error {
 		return nil
 	}
 
+	lastBrowserItemCopiedIndex := int32(-1)
+	lastBrowserItemCopiedTime := -math.MaxFloat64
+
 	draw := func() {
 		viewport := imgui.MainViewport()
 		imgui.SetNextWindowPos(viewport.Pos())
@@ -496,10 +499,10 @@ func run(onError func(error)) error {
 				var leftID, topLeftID, bottomLeftID, rightID imgui.ID
 				imgui.InternalDockBuilderSplitNode(id, imgui.DirLeft, 0.5, &leftID, &rightID)
 				imgui.InternalDockBuilderSplitNode(leftID, imgui.DirDown, 0.4, &bottomLeftID, &topLeftID)
-				imgui.InternalDockBuilderDockWindow("Browser", topLeftID)
-				imgui.InternalDockBuilderDockWindow("Export", bottomLeftID)
-				imgui.InternalDockBuilderDockWindow("Extractor config", bottomLeftID)
-				imgui.InternalDockBuilderDockWindow("Preview", rightID)
+				imgui.InternalDockBuilderDockWindow(fnt.I("View_list")+" Browser", topLeftID)
+				imgui.InternalDockBuilderDockWindow(fnt.I("File_export")+" Export", bottomLeftID)
+				imgui.InternalDockBuilderDockWindow(fnt.I("Settings_applications")+" Extractor config", bottomLeftID)
+				imgui.InternalDockBuilderDockWindow(fnt.I("Preview")+" Preview", rightID)
 				imgui.InternalDockBuilderFinish(id)
 			}
 			imgui.DockSpaceV(id, imgui.NewVec2(0, 0), 0, winClass)
@@ -526,7 +529,7 @@ func run(onError func(error)) error {
 			return true
 		}
 
-		if imgui.Begin("Browser") {
+		if imgui.Begin(fnt.I("View_list") + " Browser") {
 			if gameData == nil {
 				gameDataLoad.Lock()
 				if gameDataLoad.Done {
@@ -649,7 +652,7 @@ func run(onError func(error)) error {
 					for clipper.Step() {
 						for row := clipper.DisplayStart(); row < clipper.DisplayEnd(); row++ {
 							id := gameData.SortedSearchResultFileIDs[row]
-							imgui.PushIDStr(id.Name.String() + id.Type.String()) // might be a bit slow
+							imgui.PushIDStr(id.Name.String() + id.Type.String())
 
 							// Kind of hacky way to not add to checkbox's tooltip
 							ttExport := false
@@ -680,14 +683,34 @@ func run(onError func(error)) error {
 								imgui.SelectableFlagsSpanAllColumns|imgui.SelectableFlags(imgui.SelectableFlagsSelectOnNav),
 								imgui.NewVec2(0, 0),
 							)
+							copied := false
+							if id == activeFileID && imgui.Shortcut(imgui.KeyChord(imgui.ModCtrl|imgui.KeyC)) {
+								copied = true
+							}
+							if imgui.IsItemClickedV(imgui.MouseButtonRight) {
+								copied = true
+							}
+							if copied {
+								lastBrowserItemCopiedIndex = row
+								lastBrowserItemCopiedTime = imgui.Time()
+								imgui.SetClipboardText(id.Name.String())
+							}
 							if !ttExport && imgui.IsItemHovered() {
 								var text strings.Builder
-								if name, ok := gameData.Hashes[id.Name]; ok {
-									fmt.Fprintf(&text, "Name: %v, hash=%v\n", name, id.Name)
+								if lastBrowserItemCopiedIndex == row &&
+									imgui.Time()-lastBrowserItemCopiedTime < 1 {
+									fmt.Fprintf(&text, "%v Copied '%v'\n", fnt.I("Check"), id.Name.String())
 								} else {
-									fmt.Fprintf(&text, "Name: hash=%v\n", id.Name)
+									if name, ok := gameData.Hashes[id.Name]; ok {
+										fmt.Fprintf(&text, "Name: %v, hash=%v\n", name, id.Name)
+									} else {
+										fmt.Fprintf(&text, "Name: hash=%v\n", id.Name)
+									}
+									fmt.Fprintf(&text, "Type: %v, hash=%v\n", gameData.LookupHash(id.Type), id.Type)
+									fmt.Fprintf(&text, "%v Left-click to preview\n", fnt.I("Preview"))
+									fmt.Fprintf(&text, "%v Right-click or Ctrl+C to copy name hash to clipboard\n", fnt.I("Content_copy"))
+									fmt.Fprintf(&text, "%v Down/up arrow keys to select next/previous\n", fnt.I("Unfold_more"))
 								}
-								fmt.Fprintf(&text, "Type: %v, hash=%v\n", gameData.LookupHash(id.Type), id.Type)
 								imgui.SetTooltip(text.String())
 							}
 							imgui.TableNextColumn()
@@ -744,7 +767,7 @@ func run(onError func(error)) error {
 			allSelectedForExport = calcAllSelectedForExport()
 		}
 
-		if imgui.Begin("Export") {
+		if imgui.Begin(fnt.I("File_export") + " Export") {
 			dirName := exportDir
 			if after, ok := strings.CutPrefix(dirName, xdg.Home); ok {
 				dirName = "~" + after
@@ -871,7 +894,7 @@ func run(onError func(error)) error {
 		}
 		imgui.End()
 
-		if imgui.Begin("Extractor config") {
+		if imgui.Begin(fnt.I("Settings_applications") + " Extractor config") {
 			widgets.ConfigEditor(app.ConfigFormat, &extractorConfig)
 		}
 		imgui.End()
@@ -901,7 +924,7 @@ func run(onError func(error)) error {
 			imgui.End()
 		}
 
-		if imgui.Begin("Preview") {
+		if imgui.Begin(fnt.I("Preview") + " Preview") {
 			if previewState != nil {
 				if !widgets.FileAutoPreview("Preview", previewState) {
 					active := previewState.ActiveID()
