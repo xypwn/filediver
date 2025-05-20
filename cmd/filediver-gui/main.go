@@ -708,6 +708,7 @@ func run(onError func(error)) error {
 		}
 		imgui.End()
 
+		imgui.SetNextWindowSizeV(imgui.NewVec2(300, 600), imgui.CondOnce)
 		if widgets.FilterListWindow("Type Filter",
 			&isTypeFilterOpen,
 			"Search Types",
@@ -724,6 +725,8 @@ func run(onError func(error)) error {
 			gameData.UpdateSearchQuery(gameFileSearchQuery, selectedGameFileTypes, selectedArchives)
 			allSelectedForExport = calcAllSelectedForExport()
 		}
+
+		imgui.SetNextWindowSizeV(imgui.NewVec2(300, 600), imgui.CondOnce)
 		if widgets.FilterListWindow("Archive Filter",
 			&isArchiveFilterOpen,
 			"Search Archives",

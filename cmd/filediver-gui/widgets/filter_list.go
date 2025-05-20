@@ -43,15 +43,18 @@ type FilterListSection[T comparable] struct {
 	Items []T
 }
 
+// FilterListWindow shows a searchable list
+// of items with checkboxes and a "deselect all"
+// button.
+// You may use NextWindowXXX before this function.
 // Returns true if a checkbox was changed.
 // Searches through label and tooltip.
 func FilterListWindow[T comparable](title string, windowOpen *bool, searchHint string, queryBuf *string, sections []FilterListSection[T], sel *map[T]struct{}, label func(x T) string, tooltip func(x T) string) bool {
 	if !*windowOpen {
+		imgui.CurrentContext().NextWindowData().SetHasFlags(0)
 		return false
 	}
 
-	maxHeight := imgui.MainViewport().Size().Y
-	imgui.SetNextWindowSizeV(imgui.NewVec2(0, maxHeight), imgui.CondOnce)
 	defer imgui.End()
 	if !imgui.BeginV(title, windowOpen, 0) {
 		return false
