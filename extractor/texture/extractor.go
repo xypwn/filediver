@@ -1,7 +1,6 @@
 package texture
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"errors"
@@ -14,7 +13,7 @@ import (
 	"github.com/xypwn/filediver/stingray/unit/texture"
 )
 
-func ExtractDDSBuffer(ctx context.Context, file *stingray.File) (*bytes.Buffer, error) {
+func ExtractDDSData(ctx context.Context, file *stingray.File) ([]byte, error) {
 	if !file.Exists(stingray.DataMain) {
 		return nil, errors.New("no main data")
 	}
@@ -28,17 +27,15 @@ func ExtractDDSBuffer(ctx context.Context, file *stingray.File) (*bytes.Buffer, 
 	}
 
 	var buf bytes.Buffer
-	out := bufio.NewWriter(&buf)
-
-	if _, err := io.Copy(out, r); err != nil {
+	if _, err := io.Copy(&buf, r); err != nil {
 		return nil, err
 	}
 
-	return &buf, nil
+	return buf.Bytes(), nil
 }
 
 func ExtractDDS(ctx extractor.Context) error {
-	buf, err := ExtractDDSBuffer(ctx.Ctx(), ctx.File())
+	data, err := ExtractDDSData(ctx.Ctx(), ctx.File())
 	if err != nil {
 		return err
 	}
@@ -49,11 +46,11 @@ func ExtractDDS(ctx extractor.Context) error {
 	}
 	defer out.Close()
 
-	_, err = out.Write(buf.Bytes())
+	_, err = out.Write(data)
 	return err
 }
 
-func ConvertToPNGBuffer(ctx context.Context, file *stingray.File) (*bytes.Buffer, error) {
+func ConvertToPNGData(ctx context.Context, file *stingray.File) ([]byte, error) {
 	origTex, err := texture.Decode(ctx, file, false)
 	if err != nil {
 		return nil, err
@@ -66,11 +63,11 @@ func ConvertToPNGBuffer(ctx context.Context, file *stingray.File) (*bytes.Buffer
 
 	var buf bytes.Buffer
 	err = png.Encode(&buf, tex)
-	return &buf, err
+	return buf.Bytes(), err
 }
 
 func ConvertToPNG(ctx extractor.Context) error {
-	buf, err := ConvertToPNGBuffer(ctx.Ctx(), ctx.File())
+	data, err := ConvertToPNGData(ctx.Ctx(), ctx.File())
 	if err != nil {
 		return err
 	}
@@ -81,6 +78,6 @@ func ConvertToPNG(ctx extractor.Context) error {
 	}
 	defer out.Close()
 
-	_, err = out.Write(buf.Bytes())
+	_, err = out.Write(data)
 	return err
 }

@@ -1,4 +1,4 @@
-package stingray_bones
+package bones
 
 import (
 	"encoding/json"

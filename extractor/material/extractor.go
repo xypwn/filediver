@@ -1007,16 +1007,16 @@ func ConvertTextures(ctx extractor.Context) error {
 		}
 		defer out.Close()
 
-		var buf *bytes.Buffer
+		var data []byte
 		if ctx.Config()["textureFormat"] == "dds" {
-			buf, err = extr_texture.ExtractDDSBuffer(ctx.Ctx(), texFile)
+			data, err = extr_texture.ExtractDDSData(ctx.Ctx(), texFile)
 		} else {
-			buf, err = extr_texture.ConvertToPNGBuffer(ctx.Ctx(), texFile)
+			data, err = extr_texture.ConvertToPNGData(ctx.Ctx(), texFile)
 		}
 		if err != nil {
 			return err
 		}
-		_, err = out.Write(buf.Bytes())
+		_, err = out.Write(data)
 		if err != nil {
 			return err
 		}
