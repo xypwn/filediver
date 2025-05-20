@@ -569,12 +569,11 @@ type extractContext struct {
 	runner  *exec.Runner
 	config  map[string]string
 	outPath string
-	outDir  string
 	files   []string
 	printer Printer
 }
 
-func newExtractContext(ctx context.Context, app *App, file *stingray.File, runner *exec.Runner, config map[string]string, outPath, outDir string, printer Printer) *extractContext {
+func newExtractContext(ctx context.Context, app *App, file *stingray.File, runner *exec.Runner, config map[string]string, outPath string, printer Printer) *extractContext {
 	return &extractContext{
 		ctx:     ctx,
 		app:     app,
@@ -582,13 +581,11 @@ func newExtractContext(ctx context.Context, app *App, file *stingray.File, runne
 		runner:  runner,
 		config:  config,
 		outPath: outPath,
-		outDir:  outDir,
 		printer: printer,
 	}
 }
 
 func (c *extractContext) OutPath() (string, error)  { return c.outPath, nil }
-func (c *extractContext) OutDir() (string, error)   { return c.outDir, nil }
 func (c *extractContext) File() *stingray.File      { return c.file }
 func (c *extractContext) Runner() *exec.Runner      { return c.runner }
 func (c *extractContext) Config() map[string]string { return c.config }
@@ -608,11 +605,8 @@ func (c *extractContext) AllocateFile(suffix string) (string, error) {
 	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
 		return "", err
 	}
-	c.AddFile(path)
-	return path, nil
-}
-func (c *extractContext) AddFile(path string) {
 	c.files = append(c.files, path)
+	return path, nil
 }
 func (c *extractContext) Ctx() context.Context { return c.ctx }
 func (c *extractContext) Files() []string {
@@ -737,7 +731,6 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 		runner,
 		cfg,
 		outPath,
-		outDir,
 		printer,
 	)
 	if err := extr(extrCtx); err != nil {

@@ -9,9 +9,9 @@ import (
 	"image/png"
 	"io"
 	"math"
-	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/qmuntal/gltf"
 	"github.com/qmuntal/gltf/modeler"
@@ -965,32 +965,6 @@ func Convert(currDoc *gltf.Document) func(ctx extractor.Context) error {
 	}
 }
 
-type textureContext struct {
-	extractor.Context
-	file    *stingray.File
-	outPath string
-}
-
-func (c *textureContext) File() *stingray.File {
-	return c.file
-}
-
-func (c *textureContext) CreateFile(suffix string) (io.WriteCloser, error) {
-	path, err := c.AllocateFile(suffix)
-	if err != nil {
-		return nil, err
-	}
-	return os.Create(path)
-}
-func (c *textureContext) AllocateFile(suffix string) (string, error) {
-	path := c.outPath + suffix
-	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
-		return "", err
-	}
-	c.AddFile(path)
-	return path, nil
-}
-
 func ConvertTextures(ctx extractor.Context) error {
 	fMain, err := ctx.File().Open(ctx.Ctx(), stingray.DataMain)
 	if err != nil {
@@ -1003,6 +977,15 @@ func ConvertTextures(ctx extractor.Context) error {
 		return err
 	}
 
+	matName, ok := ctx.Hashes()[ctx.File().ID().Name]
+	if !ok {
+		matName = ctx.File().ID().Name.String()
+	}
+	splitDir := strings.Split(matName, "/")
+	for i := range splitDir {
+		splitDir[i] = ".."
+	}
+
 	for _, texture := range mat.Textures {
 		texFile, ok := ctx.GetResource(texture, stingray.Sum64([]byte("texture")))
 		if !ok {
@@ -1013,22 +996,29 @@ func ConvertTextures(ctx extractor.Context) error {
 		if !ok {
 			texName = texture.String()
 		}
-		outDir, _ := ctx.OutDir()
-		outPath := filepath.Join(outDir, texName)
+		outFilePathList := make([]string, 0)
+		outFilePathList = append(outFilePathList, splitDir...)
+		outFilePathList = append(outFilePathList, texName)
+		outFilePath := strings.Join(outFilePathList, string(filepath.Separator))
 
-		textureCtx := &textureContext{
-			Context: ctx,
-			file:    texFile,
-			outPath: outPath,
+		out, err := ctx.CreateFile(string(filepath.Separator) + outFilePath + "." + ctx.Config()["textureFormat"])
+		if err != nil {
+			return err
 		}
+		defer out.Close()
+
+		var buf *bytes.Buffer
 		if ctx.Config()["textureFormat"] == "dds" {
-			if err := extr_texture.ExtractDDS(textureCtx); err != nil {
-				return err
-			}
+			buf, err = extr_texture.ExtractDDSBuffer(ctx.Ctx(), texFile)
 		} else {
-			if err := extr_texture.ConvertToPNG(textureCtx); err != nil {
-				return err
-			}
+			buf, err = extr_texture.ConvertToPNGBuffer(ctx.Ctx(), texFile)
+		}
+		if err != nil {
+			return err
+		}
+		_, err = out.Write(buf.Bytes())
+		if err != nil {
+			return err
 		}
 	}
 

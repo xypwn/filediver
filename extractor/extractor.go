@@ -27,9 +27,6 @@ type Context interface {
 	ArmorSets() map[stingray.Hash]dlbin.ArmorSet
 	// Prints a warning message.
 	Warnf(f string, a ...any)
-	OutPath() (string, error)
-	OutDir() (string, error)
-	AddFile(path string)
 }
 
 type ExtractFunc func(ctx Context) error
