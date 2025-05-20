@@ -9,6 +9,8 @@ import (
 	"image/png"
 	"io"
 	"math"
+	"os"
+	"path/filepath"
 	"strconv"
 
 	"github.com/qmuntal/gltf"
@@ -17,6 +19,7 @@ import (
 	"github.com/xypwn/filediver/dds"
 	"github.com/xypwn/filediver/extractor"
 	"github.com/xypwn/filediver/extractor/blend_helper"
+	extr_texture "github.com/xypwn/filediver/extractor/texture"
 	"github.com/xypwn/filediver/stingray"
 	dlbin "github.com/xypwn/filediver/stingray/dl_bin"
 	"github.com/xypwn/filediver/stingray/unit/material"
@@ -960,4 +963,74 @@ func Convert(currDoc *gltf.Document) func(ctx extractor.Context) error {
 		}
 		return ConvertOpts(ctx, opts, currDoc)
 	}
+}
+
+type textureContext struct {
+	extractor.Context
+	file    *stingray.File
+	outPath string
+}
+
+func (c *textureContext) File() *stingray.File {
+	return c.file
+}
+
+func (c *textureContext) CreateFile(suffix string) (io.WriteCloser, error) {
+	path, err := c.AllocateFile(suffix)
+	if err != nil {
+		return nil, err
+	}
+	return os.Create(path)
+}
+func (c *textureContext) AllocateFile(suffix string) (string, error) {
+	path := c.outPath + suffix
+	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
+		return "", err
+	}
+	c.AddFile(path)
+	return path, nil
+}
+
+func ConvertTextures(ctx extractor.Context) error {
+	fMain, err := ctx.File().Open(ctx.Ctx(), stingray.DataMain)
+	if err != nil {
+		return err
+	}
+	defer fMain.Close()
+
+	mat, err := material.Load(fMain)
+	if err != nil {
+		return err
+	}
+
+	for _, texture := range mat.Textures {
+		texFile, ok := ctx.GetResource(texture, stingray.Sum64([]byte("texture")))
+		if !ok {
+			continue
+		}
+
+		texName, ok := ctx.Hashes()[texture]
+		if !ok {
+			texName = texture.String()
+		}
+		outDir, _ := ctx.OutDir()
+		outPath := filepath.Join(outDir, texName)
+
+		textureCtx := &textureContext{
+			Context: ctx,
+			file:    texFile,
+			outPath: outPath,
+		}
+		if ctx.Config()["textureFormat"] == "dds" {
+			if err := extr_texture.ExtractDDS(textureCtx); err != nil {
+				return err
+			}
+		} else {
+			if err := extr_texture.ConvertToPNG(textureCtx); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
