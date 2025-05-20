@@ -2,6 +2,7 @@ package widgets
 
 import (
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/AllenDang/cimgui-go/imgui"
@@ -59,7 +60,7 @@ func FilterListWindow[T comparable](title string, windowOpen *bool, searchHint s
 	changed := false
 
 	imgui.BeginDisabledV(len(*sel) == 0)
-	if imgui.Button("Reset") {
+	if imgui.Button("Deselect all") {
 		for k := range *sel {
 			delete(*sel, k)
 		}
@@ -75,7 +76,14 @@ func FilterListWindow[T comparable](title string, windowOpen *bool, searchHint s
 	}
 	var matches []match
 
+	imgui.SetNextItemWidth(-math.SmallestNonzeroFloat32)
 	imgui.InputTextWithHint("##search", fnt.I("Search")+" "+searchHint, queryBuf, 0, nil)
+
+	defer imgui.EndChild()
+	if !imgui.BeginChildStr("##list") {
+		return false
+	}
+
 	for _, sec := range sections {
 		matches = matches[:0]
 		for _, item := range sec.Items {
