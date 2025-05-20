@@ -594,6 +594,7 @@ func run(onError func(error)) error {
 					activeFileID = previewState.ActiveID()
 				}
 
+				imgui.SetNextItemWidth(-math.SmallestNonzeroFloat32)
 				if imgui.Shortcut(imgui.KeyChord(imgui.ModCtrl | imgui.KeyF)) {
 					imgui.SetKeyboardFocusHere()
 				}
