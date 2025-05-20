@@ -209,6 +209,10 @@ def main():
                         if split[-1] == split[-2]:
                             continue
                         suffixes.append(f"/{split[-1]}/{split[-1]}")
+                        if "n_units" in split[-2]:
+                            suffixes.append(f"/terrain_units/{split[-1]}")
+                            suffixes.append(f"terrain_units/{split[-1]}")
+                            suffixes.append(f"_terrain_units/{split[-1]}")
                         split2 = split[-1].split("_")
                         if split2[-1].isnumeric():
                             suffixes.append(f"/{'_'.join(split2[:-1])}/{split[-1]}")
