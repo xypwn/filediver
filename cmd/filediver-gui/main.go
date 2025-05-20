@@ -341,7 +341,7 @@ func run(onError func(error)) error {
 			checkingForUpdates = false
 		}()
 	}
-	if version != "" {
+	if preferences.AutoCheckForUpdates && version != "" {
 		goCheckForUpdates(true)
 	}
 
