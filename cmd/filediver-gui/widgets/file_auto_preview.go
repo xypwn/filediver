@@ -3,6 +3,7 @@ package widgets
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"maps"
@@ -12,6 +13,7 @@ import (
 	"github.com/ebitengine/oto/v3"
 	"github.com/xypwn/filediver/cmd/filediver-gui/imutils"
 	"github.com/xypwn/filediver/dds"
+	"github.com/xypwn/filediver/exec"
 	"github.com/xypwn/filediver/stingray"
 	stingray_strings "github.com/xypwn/filediver/stingray/strings"
 	"github.com/xypwn/filediver/stingray/unit/texture"
@@ -24,6 +26,7 @@ const (
 	FileAutoPreviewEmpty FileAutoPreviewType = iota
 	FileAutoPreviewUnit
 	FileAutoPreviewAudio
+	FileAutoPreviewVideo
 	FileAutoPreviewTexture
 	FileAutoPreviewStrings
 )
@@ -34,6 +37,7 @@ type FileAutoPreviewState struct {
 	state      struct {
 		unit    *UnitPreviewState
 		audio   *WwisePreviewState
+		video   *BikPreviewState
 		texture *DDSPreviewState
 		strings *StringsPreviewState
 	}
@@ -44,7 +48,7 @@ type FileAutoPreviewState struct {
 	err error
 }
 
-func NewFileAutoPreview(otoCtx *oto.Context, audioSampleRate int, hashes map[stingray.Hash]string, getResource GetResourceFunc) (*FileAutoPreviewState, error) {
+func NewFileAutoPreview(otoCtx *oto.Context, audioSampleRate int, hashes map[stingray.Hash]string, getResource GetResourceFunc, runner *exec.Runner) (*FileAutoPreviewState, error) {
 	var err error
 	pv := &FileAutoPreviewState{
 		hashes:      hashes,
@@ -55,6 +59,7 @@ func NewFileAutoPreview(otoCtx *oto.Context, audioSampleRate int, hashes map[sti
 		return nil, err
 	}
 	pv.state.audio = NewWwisePreview(otoCtx, audioSampleRate)
+	pv.state.video = NewBikPreview(runner)
 	pv.state.texture = NewDDSPreview()
 	pv.state.strings = NewStringsPreview()
 	return pv, nil
@@ -63,6 +68,7 @@ func NewFileAutoPreview(otoCtx *oto.Context, audioSampleRate int, hashes map[sti
 func (pv *FileAutoPreviewState) Delete() {
 	pv.state.unit.Delete()
 	pv.state.audio.Delete()
+	pv.state.video.Delete()
 	pv.state.texture.Delete()
 }
 
@@ -74,7 +80,7 @@ func (pv *FileAutoPreviewState) NeedCJKFont() bool {
 	return pv.state.strings.NeedCJKFont()
 }
 
-func (pv *FileAutoPreviewState) LoadFile(ctx context.Context, file *stingray.File) {
+func (pv *FileAutoPreviewState) LoadFile(ctx context.Context, file *stingray.File, maxVideoVerticalResolution int) {
 	if file == nil {
 		pv.activeID.Name.Value = 0
 		pv.activeID.Type.Value = 0
@@ -162,6 +168,35 @@ func (pv *FileAutoPreviewState) LoadFile(ctx context.Context, file *stingray.Fil
 			stream := streams[id]
 			pv.state.audio.LoadStream(fmt.Sprint(id), stream, false)
 		}
+	case stingray.Sum64([]byte("bik")):
+		pv.activeType = FileAutoPreviewVideo
+		if err := loadFiles(stingray.DataMain, stingray.DataStream, stingray.DataGPU); err != nil {
+			pv.err = err
+			return
+		}
+		rs := []io.Reader{bytes.NewReader(data[stingray.DataMain])}
+		if data[stingray.DataStream] != nil {
+			rs = append(rs, bytes.NewReader(data[stingray.DataStream]))
+		} else {
+			rs = append(rs, bytes.NewReader(data[stingray.DataGPU]))
+		}
+		r := io.MultiReader(rs...)
+
+		// Skip stingray header
+		if _, err := io.ReadFull(r, make([]byte, 16)); err != nil {
+			pv.err = err
+			return
+		}
+
+		if err := pv.state.video.Load(r, maxVideoVerticalResolution); err != nil {
+			cmdNotRegisteredErr := &exec.CommandNotRegisteredError{}
+			if errors.As(err, &cmdNotRegisteredErr) {
+				pv.err = errors.New(`FFmpeg not found; go to Settings->Extensions to install FFmpeg`)
+			} else {
+				pv.err = err
+			}
+			return
+		}
 	case stingray.Sum64([]byte("texture")):
 		pv.activeType = FileAutoPreviewTexture
 		if err := loadFiles(stingray.DataMain, stingray.DataStream, stingray.DataGPU); err != nil {
@@ -214,6 +249,8 @@ func FileAutoPreview(name string, pv *FileAutoPreviewState) bool {
 		UnitPreview(name, pv.state.unit)
 	case FileAutoPreviewAudio:
 		WwisePreview(name, pv.state.audio)
+	case FileAutoPreviewVideo:
+		BikPreview(pv.state.video)
 	case FileAutoPreviewTexture:
 		DDSPreview(name, pv.state.texture)
 	case FileAutoPreviewStrings:

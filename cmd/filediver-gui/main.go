@@ -232,7 +232,8 @@ func run(onError func(error)) error {
 	io.SetIniFilename("")
 
 	defaultPreferences := Preferences{
-		AutoCheckForUpdates: true,
+		AutoCheckForUpdates:            true,
+		PreviewVideoVerticalResolution: 720,
 	}
 	{
 		_, yScale := currentBackend.ContentScale()
@@ -351,6 +352,12 @@ func run(onError func(error)) error {
 
 	logger := NewLogger()
 
+	const ffmpegFeatures = `- Preview video
+- Convert audio to OGG/AAC/MP3
+- Convert video to MP4`
+
+	const scriptsDistFeatures = `- Export models (units)/materials/geometry groups to .blend (Blender)`
+
 	downloadsDir := filepath.Join(xdg.DataHome, "filediver")
 	var ffmpegDownloadState *widgets.DownloaderState
 	var scriptsDistDownloadState *widgets.DownloaderState
@@ -393,6 +400,28 @@ func run(onError func(error)) error {
 		onError(err)
 	}
 
+	prevFfmpegDownloaded := ffmpegDownloadState.HaveRequestedVersion()
+	prevScriptsDistDownloaded := scriptsDistDownloadState.HaveRequestedVersion()
+
+	runner := exec.NewRunner()
+	redetectRunnerProgs := func() {
+		ffmpegPath := filepath.Join(ffmpegDownloadState.Dir(), "bin", "ffmpeg")
+		ffmpegArgs := []string{"-y", "-hide_banner", "-loglevel", "error"}
+		if !runner.Add(ffmpegPath, ffmpegArgs...) {
+			// Try to use a local FFmpeg instance if the extension isn't installed
+			//runner.Add("ffmpeg", ffmpegArgs...)
+		}
+		ffprobePath := filepath.Join(ffmpegDownloadState.Dir(), "bin", "ffprobe")
+		ffprobeArgs := []string{"-hide_banner", "-loglevel", "error"}
+		if !runner.Add(ffprobePath, ffprobeArgs...) {
+			// Try to use a local FFprobe instance if the extension isn't installed
+			//runner.Add("ffprobe", ffprobeArgs...)
+		}
+		blenderImporterPath := filepath.Join(scriptsDistDownloadState.Dir(), "hd2_accurate_blender_importer", "hd2_accurate_blender_importer")
+		runner.Add(blenderImporterPath)
+	}
+	redetectRunnerProgs()
+
 	popupManager := imutils.NewPopupManager()
 	if version != "" {
 		popupManager.Open["Some optional extensions missing or out of date"] =
@@ -421,9 +450,10 @@ func run(onError func(error)) error {
 					}
 					return data, true, nil
 				},
+				runner,
 			)
 			if err != nil {
-				return fmt.Errorf("creating unit preview: %w", err)
+				return fmt.Errorf("creating preview: %w", err)
 			}
 		}
 
@@ -551,6 +581,7 @@ func run(onError func(error)) error {
 								var sectionIdx int
 								switch typ {
 								case // previewable and exportable
+									stingray.Sum64([]byte("bik")),
 									stingray.Sum64([]byte("texture")),
 									stingray.Sum64([]byte("wwise_bank")),
 									stingray.Sum64([]byte("wwise_stream")),
@@ -719,7 +750,7 @@ func run(onError func(error)) error {
 							imgui.PopID()
 
 							if selected {
-								previewState.LoadFile(ctx, gameData.DataDir.Files[id])
+								previewState.LoadFile(ctx, gameData.DataDir.Files[id], preferences.PreviewVideoVerticalResolution)
 							}
 						}
 					}
@@ -832,18 +863,15 @@ func run(onError func(error)) error {
 				imgui.BeginDisabledV(len(filesSelectedForExport) == 0 || gameData == nil)
 				label := fmt.Sprintf("%v Begin export (%v)", fnt.I("File_export"), len(filesSelectedForExport))
 				if imgui.ButtonV(label, imgui.NewVec2(-math.SmallestNonzeroFloat32, 0)) && gameData != nil {
-					runner := exec.NewRunner()
-					ffmpegPath := filepath.Join(ffmpegDownloadState.Dir(), "bin", "ffmpeg")
-					ffmpegArgs := []string{"-y", "-hide_banner", "-loglevel", "error"}
-					blenderImporterPath := filepath.Join(scriptsDistDownloadState.Dir(), "hd2_accurate_blender_importer", "hd2_accurate_blender_importer")
-					if !runner.Add(ffmpegPath, ffmpegArgs...) {
-						// Try to use a local FFmpeg instance if the extension isn't installed
-						runner.Add("ffmpeg", ffmpegArgs...)
-					}
-					runner.Add(blenderImporterPath)
 					logger.Reset()
-					gameDataExport = gameData.GoExport(ctx, slices.Collect(maps.Keys(filesSelectedForExport)), exportDir, extractorConfig, runner, logger)
-					runner.Close()
+					gameDataExport = gameData.GoExport(
+						ctx,
+						slices.Collect(maps.Keys(filesSelectedForExport)),
+						exportDir,
+						extractorConfig,
+						runner,
+						logger,
+					)
 				}
 				if gameData == nil {
 					imgui.SetItemTooltip("Game data not loaded")
@@ -998,14 +1026,16 @@ func run(onError func(error)) error {
 			imgui.PushTextWrapPos()
 			imgui.TextUnformatted("The following recommended extensions are missing or out of date:")
 			if !ffmpegDownloadState.HaveRequestedVersion() {
-				imgui.Bullet()
-				imgui.PushTextWrapPos()
-				imgui.TextUnformatted("FFmpeg: Without FFmpeg, videos will be saved as BIK and audio will be saved was WAV.")
+				imgui.TextWrapped("FFmpeg")
+				imgui.Indent()
+				imgui.TextWrapped(ffmpegFeatures)
+				imgui.Unindent()
 			}
 			if !scriptsDistDownloadState.HaveRequestedVersion() {
-				imgui.Bullet()
-				imgui.PushTextWrapPos()
-				imgui.TextUnformatted("ScriptsDist: Without ScriptsDist, exporting directly to .blend is not available. Models will be saved as .glb.")
+				imgui.TextWrapped("ScriptsDist")
+				imgui.Indent()
+				imgui.TextWrapped(scriptsDistFeatures)
+				imgui.Unindent()
 			}
 			imgui.TextUnformatted("You can download these extensions by clicking \"Manage extensions\", or by going to Settings->Extensions.")
 			imgui.Separator()
@@ -1019,11 +1049,20 @@ func run(onError func(error)) error {
 			}
 		}, imgui.WindowFlagsAlwaysAutoResize, true)
 
+		if have := ffmpegDownloadState.HaveRequestedVersion(); prevFfmpegDownloaded != have {
+			redetectRunnerProgs()
+			prevFfmpegDownloaded = have
+		}
+		if have := scriptsDistDownloadState.HaveRequestedVersion(); prevScriptsDistDownloaded != have {
+			redetectRunnerProgs()
+			prevScriptsDistDownloaded = have
+		}
+
 		imgui.SetNextWindowPosV(viewport.Center(), imgui.CondAlways, imgui.NewVec2(0.5, 0.5))
 		popupManager.Popup("Extensions", func(close func()) {
-			widgets.Downloader("FFmpeg", "Required to extract audio to anything other than wav, and to extract video to MP4.", ffmpegDownloadState)
+			widgets.Downloader("FFmpeg", ffmpegFeatures, ffmpegDownloadState)
 			imgui.Separator()
-			widgets.Downloader("ScriptsDist", "Required for exporting to Blender.", scriptsDistDownloadState)
+			widgets.Downloader("ScriptsDist", scriptsDistFeatures, scriptsDistDownloadState)
 			imgui.Separator()
 			if imgui.ButtonV(fnt.I("Folder_open")+" Open extensions folder", imgui.NewVec2(imgui.ContentRegionAvail().X, 0)) {
 				_ = os.MkdirAll(downloadsDir, os.ModePerm)
@@ -1050,6 +1089,14 @@ func run(onError func(error)) error {
 				&preferences.TargetFPS,
 				[]float64{15, 30, 60, 75, 90, 120, 144, 165, 244, 300},
 			)
+			imutils.ComboChoiceAny(
+				"Video Preview Resolution",
+				&preferences.PreviewVideoVerticalResolution,
+				[]int{160, 240, 360, 480, 720, 1080, 1440, 2160},
+				func(a, b int) bool { return a == b },
+				func(x int) string { return fmt.Sprintf("%vp", x) },
+			)
+			imgui.SetItemTooltip(fnt.I("Info") + " The preview player isn't very well optimized, so high resolutions may cause low frame rates.")
 			imgui.Checkbox("Check for updates on start", &preferences.AutoCheckForUpdates)
 
 			imgui.BeginDisabledV(preferences == defaultPreferences)

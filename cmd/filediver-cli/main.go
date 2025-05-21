@@ -107,7 +107,6 @@ extractor config:
 	if ok := runner.Add("scripts_dist/hd2_accurate_blender_importer/hd2_accurate_blender_importer"); !ok {
 		prt.Warnf("Blender importer not found. Exporting directly to .blend is not available. Please download the scripts_dist archive and place its contents into the same folder as filediver (see https://github.com/xypwn/filediver?tab=readme-ov-file#helper-scripts-scripts_dist). Without blender importer, models will be saved as GLB.")
 	}
-	defer runner.Close()
 
 	triadIDs := make([]stingray.Hash, 0)
 	if *triads != "" {

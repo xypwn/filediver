@@ -5,7 +5,6 @@ go 1.24.0
 require (
 	github.com/AllenDang/cimgui-go v1.3.1
 	github.com/adrg/xdg v0.4.0
-	github.com/amenzhinsky/go-memexec v0.7.1
 	github.com/andygrunwald/vdf v1.1.0
 	github.com/ebitengine/oto/v3 v3.3.2
 	github.com/go-audio/audio v1.0.0
