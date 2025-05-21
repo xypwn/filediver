@@ -663,7 +663,7 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 				gl.UseProgram(pv.objectNormalVisProgram)
 				gl.BindVertexArray(pv.object.vao)
 				gl.UniformMatrix4fv(pv.objectNormalVisUniforms["mvp"], 1, false, &mvp[0])
-				gl.Uniform1f(pv.objectNormalVisUniforms["len"], 0.2)
+				gl.Uniform1f(pv.objectNormalVisUniforms["len"], pv.viewDistance*0.02)
 				gl.Uniform4fv(pv.objectNormalVisUniforms["color"], 1, &pv.visualizedNormalsColor[0])
 				gl.DrawElements(gl.TRIANGLES, pv.object.numIndices, gl.UNSIGNED_INT, nil)
 				gl.BindVertexArray(0)
