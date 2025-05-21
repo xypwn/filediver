@@ -340,9 +340,13 @@ func compareMaterials(doc *gltf.Document, mat *material.Material, matIdx uint32,
 	}
 	for texUsage := range mat.Textures {
 		usage := TextureUsage(texUsage.Value)
-		extras := doc.Materials[matIdx].Extras.(map[string]uint32)
-		texIdx, contains := extras[usage.String()]
+		extras := doc.Materials[matIdx].Extras.(map[string]interface{})
+		texIdxInterface, contains := extras[usage.String()]
 		if !contains {
+			continue
+		}
+		texIdx, ok := texIdxInterface.(uint32)
+		if !ok {
 			continue
 		}
 		texture := doc.Textures[texIdx]
