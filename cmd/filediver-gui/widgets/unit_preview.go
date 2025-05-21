@@ -663,7 +663,7 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 				gl.UseProgram(pv.objectNormalVisProgram)
 				gl.BindVertexArray(pv.object.vao)
 				gl.UniformMatrix4fv(pv.objectNormalVisUniforms["mvp"], 1, false, &mvp[0])
-				gl.Uniform1f(pv.objectNormalVisUniforms["len"], 0.2)
+				gl.Uniform1f(pv.objectNormalVisUniforms["len"], pv.viewDistance*0.02)
 				gl.Uniform4fv(pv.objectNormalVisUniforms["color"], 1, &pv.visualizedNormalsColor[0])
 				gl.DrawElements(gl.TRIANGLES, pv.object.numIndices, gl.UNSIGNED_INT, nil)
 				gl.BindVertexArray(0)
@@ -752,7 +752,7 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 					)
 					indicatorWidthInWorld = order * float32(math.Floor(float64(indicatorWidthInWorld/order)))
 				}
-				indicatorColor := imgui.ColorU32Vec4(imgui.NewVec4(0.35, 0.6, 1, 1))
+				indicatorColor := imgui.ColorU32Col(imgui.ColText)
 
 				indicatorWidth := size.X * indicatorWidthInWorld / screenWidthInWorld
 				indicatorPos := pos.Add(imgui.NewVec2(10, 10))
@@ -798,8 +798,14 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 					dimPrefix,
 				)
 				textSize := imgui.CalcTextSize(text)
+				textPos := indicatorPos.Add(imgui.NewVec2(indicatorWidth/2-textSize.X/2, 12))
+				dl.AddRectFilled(
+					textPos.Add(imgui.NewVec2(-4, 0)),
+					textPos.Add(textSize).Add(imgui.NewVec2(4, 0)),
+					imgui.ColorU32Vec4(imgui.NewVec4(0, 0, 0, 0.5)),
+				)
 				dl.AddTextVec2(
-					indicatorPos.Add(imgui.NewVec2(indicatorWidth/2-textSize.X/2, 12)),
+					textPos,
 					indicatorColor,
 					text,
 				)
