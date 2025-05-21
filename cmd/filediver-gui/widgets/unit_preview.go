@@ -9,6 +9,7 @@ import (
 	"io"
 	"math"
 	"slices"
+	"strings"
 
 	"github.com/AllenDang/cimgui-go/imgui"
 	"github.com/go-gl/gl/v3.2-core/gl"
@@ -120,7 +121,9 @@ type UnitPreviewState struct {
 	aabb    [2]mgl32.Vec3
 	aabbMat mgl32.Mat4
 
-	meshPositions [][3]float32 // for fitting mesh to screen
+	meshPositions [][3]float32 // for fitting mesh to screen and calculating maxViewDistance
+
+	maxViewDistance float32
 
 	showWireframe          bool
 	wireframeColor         [4]float32
@@ -281,6 +284,9 @@ func (pv *UnitPreviewState) LoadUnit(mainData, gpuData []byte, getResource GetRe
 				return stingray.Hash{}, false, stingray.Hash{}, fmt.Errorf("load material %v.material does not exist", matFileName)
 			}
 			mat, err := material.Load(bytes.NewReader(matData))
+			if err != nil {
+				return stingray.Hash{}, false, stingray.Hash{}, fmt.Errorf("load material %v.material: %w", matFileName, err)
+			}
 			// TODO: Use all textures somehow. Currently, simply the first one
 			// found is used.
 			for texUsage, texFileName := range mat.Textures {
@@ -508,6 +514,27 @@ func (pv *UnitPreviewState) LoadUnit(mainData, gpuData []byte, getResource GetRe
 		pv.zoomToFit = true
 	}
 
+	// Calculate max zoom out distance
+	{
+		// Get origin sphere around mesh
+		var maxDistSqrFromOrigin float32
+		for _, p := range pv.meshPositions {
+			maxDistSqrFromOrigin = max(maxDistSqrFromOrigin,
+				mgl32.Vec3(p).LenSqr())
+		}
+		maxDistFromOrigin := float32(math.Sqrt(float64(maxDistSqrFromOrigin)))
+
+		// Calculate camera distance to fit vertical frustum into disk orthogonal
+		// to view direction with radius of the sphere. Ideally, we'd want
+		// to fit the sphere into the frustum, but the disk should be close
+		// enough.
+		// tan(vfov/2) = maxDistFromOrigin/viewDistance
+		pv.maxViewDistance = float32(float64(maxDistFromOrigin) / math.Tan(float64(pv.vfov/2)))
+
+		// We want to be able to zoom out a bit further.
+		pv.maxViewDistance *= 2
+	}
+
 	return nil
 }
 
@@ -588,8 +615,13 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 			}
 			if imgui.IsItemHovered() {
 				scroll := io.MouseWheel()
-				pv.viewDistance = mgl32.Clamp(pv.viewDistance-(0.1*pv.viewDistance*scroll), 0.1, 1000)
+				pv.viewDistance -= 0.1 * pv.viewDistance * scroll
 			}
+			pv.viewDistance = mgl32.Clamp(
+				pv.viewDistance,
+				0.001,
+				pv.maxViewDistance,
+			)
 		},
 		func(pos, size imgui.Vec2) {
 			gl.ClearColor(0.2, 0.2, 0.2, 1)
@@ -654,7 +686,7 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 			}
 
 			if pv.zoomToFit {
-				pv.viewDistance = 32768
+				pv.viewDistance = pv.maxViewDistance
 
 				_, viewPosition, view, projection := pv.computeMVP(size.X / size.Y)
 
@@ -699,12 +731,85 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 				pv.zoomToFit = false
 			}
 		},
-		nil,
+		func(pos, size imgui.Vec2) {
+			dl := imgui.WindowDrawList()
+
+			// Scale indicator
+			{
+				// Screen size in world here refers to how large the screen
+				// content rectangle would be if it intersected
+				// the origin.
+				// tan(vfov/2) = screenHeightInWorld/camDist
+				screenHeightInWorld := float32(math.Tan(float64(pv.vfov/2)) * float64(pv.viewDistance))
+				screenWidthInWorld := screenHeightInWorld / size.Y * size.X
+				indicatorWidthInWorld := screenWidthInWorld / 2
+				{
+					order := float32(
+						math.Pow(
+							10,
+							math.Floor(math.Log10(float64(indicatorWidthInWorld)))-1,
+						),
+					)
+					indicatorWidthInWorld = order * float32(math.Floor(float64(indicatorWidthInWorld/order)))
+				}
+				indicatorColor := imgui.ColorU32Vec4(imgui.NewVec4(0.35, 0.6, 1, 1))
+
+				indicatorWidth := size.X * indicatorWidthInWorld / screenWidthInWorld
+				indicatorPos := pos.Add(imgui.NewVec2(10, 10))
+				dl.AddRectFilled(
+					indicatorPos.Add(imgui.NewVec2(0, 0)),
+					indicatorPos.Add(imgui.NewVec2(2, 10)),
+					indicatorColor,
+				)
+				dl.AddRectFilled(
+					indicatorPos.Add(imgui.NewVec2(0, 4)),
+					indicatorPos.Add(imgui.NewVec2(indicatorWidth, 6)),
+					indicatorColor,
+				)
+				dl.AddRectFilled(
+					indicatorPos.Add(imgui.NewVec2(indicatorWidth-2, 0)),
+					indicatorPos.Add(imgui.NewVec2(indicatorWidth, 10)),
+					indicatorColor,
+				)
+
+				var dimPrefix string
+				var dim float32
+				if indicatorWidthInWorld >= 1e3 {
+					dimPrefix = "k"
+					dim = 1e3
+				} else if indicatorWidthInWorld >= 1 {
+					dimPrefix = ""
+					dim = 1
+				} else if indicatorWidthInWorld >= 1e-2 {
+					dimPrefix = "c"
+					dim = 1e-2
+				} else if indicatorWidthInWorld >= 1e-3 {
+					dimPrefix = "m"
+					dim = 1e-3
+				} else {
+					dimPrefix = "µ"
+					dim = 1e-6
+				}
+				text := fmt.Sprintf(
+					"%v%vm",
+					strings.TrimRight(strings.TrimRight(
+						fmt.Sprintf("%.3f", indicatorWidthInWorld/dim),
+						"0"), "."),
+					dimPrefix,
+				)
+				textSize := imgui.CalcTextSize(text)
+				dl.AddTextVec2(
+					indicatorPos.Add(imgui.NewVec2(indicatorWidth/2-textSize.X/2, 12)),
+					indicatorColor,
+					text,
+				)
+			}
+		},
 	)
 
 	if imgui.Button(fnt.I("Home")) {
 		pv.viewRotation = mgl32.Vec2{}
-		pv.viewDistance = 25
+		pv.zoomToFit = true
 	}
 	imgui.SetItemTooltip("Reset view")
 	imgui.SameLine()
