@@ -313,6 +313,23 @@ func run(onError func(error)) error {
 	var archiveIDs []widgets.FilterListSection[stingray.Hash]
 	selectedArchives := map[stingray.Hash]struct{}{}
 
+	gameFileTypeDescriptions := map[stingray.Hash]string{
+		stingray.Sum64([]byte("bik")):            "video",
+		stingray.Sum64([]byte("wwise_bank")):     "audio bank",
+		stingray.Sum64([]byte("wwise_stream")):   "loose audio",
+		stingray.Sum64([]byte("texture")):        "image/texture",
+		stingray.Sum64([]byte("unit")):           "3D model",
+		stingray.Sum64([]byte("strings")):        "text table",
+		stingray.Sum64([]byte("package")):        "file bundle",
+		stingray.Sum64([]byte("bones")):          "unit bones",
+		stingray.Sum64([]byte("physics")):        "unit physics",
+		stingray.Sum64([]byte("geometry_group")): "group of 3D models",
+	}
+	gameFileTypeTooltipsExtra := map[stingray.Hash]string{
+		stingray.Sum64([]byte("wwise_stream")): "All wwise_streams are also contained in a wwise_bank.\nYou probably want to use wwise_bank instead.",
+		stingray.Sum64([]byte("package")):      "A package contains references to a bunch of other files.",
+	}
+
 	var checkUpdatesOnStartupBGDone bool
 	var checkUpdatesOnStartupFGDone bool
 	var checkingForUpdates bool
@@ -770,10 +787,21 @@ func run(onError func(error)) error {
 			gameFileTypes,
 			&selectedGameFileTypes,
 			func(x stingray.Hash) string {
-				return gameData.LookupHash(x)
+				s := gameData.LookupHash(x)
+				if desc, ok := gameFileTypeDescriptions[x]; ok {
+					s += " (" + desc + ")"
+				}
+				if _, ok := gameFileTypeTooltipsExtra[x]; ok {
+					s += " " + fnt.I("Info")
+				}
+				return s
 			},
 			func(x stingray.Hash) string {
-				return fmt.Sprintf("hash=%v", x)
+				s := fmt.Sprintf("hash=%v", x)
+				if ttExtra, ok := gameFileTypeTooltipsExtra[x]; ok {
+					s += "\n" + ttExtra
+				}
+				return s
 			},
 		) {
 			gameData.UpdateSearchQuery(gameFileSearchQuery, selectedGameFileTypes, selectedArchives)
