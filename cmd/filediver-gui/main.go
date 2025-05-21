@@ -409,13 +409,13 @@ func run(onError func(error)) error {
 		ffmpegArgs := []string{"-y", "-hide_banner", "-loglevel", "error"}
 		if !runner.Add(ffmpegPath, ffmpegArgs...) {
 			// Try to use a local FFmpeg instance if the extension isn't installed
-			//runner.Add("ffmpeg", ffmpegArgs...)
+			runner.Add("ffmpeg", ffmpegArgs...)
 		}
 		ffprobePath := filepath.Join(ffmpegDownloadState.Dir(), "bin", "ffprobe")
 		ffprobeArgs := []string{"-hide_banner", "-loglevel", "error"}
 		if !runner.Add(ffprobePath, ffprobeArgs...) {
 			// Try to use a local FFprobe instance if the extension isn't installed
-			//runner.Add("ffprobe", ffprobeArgs...)
+			runner.Add("ffprobe", ffprobeArgs...)
 		}
 		blenderImporterPath := filepath.Join(scriptsDistDownloadState.Dir(), "hd2_accurate_blender_importer", "hd2_accurate_blender_importer")
 		runner.Add(blenderImporterPath)
@@ -1096,7 +1096,8 @@ func run(onError func(error)) error {
 				func(a, b int) bool { return a == b },
 				func(x int) string { return fmt.Sprintf("%vp", x) },
 			)
-			imgui.SetItemTooltip(fnt.I("Info") + " The preview player isn't very well optimized, so high resolutions may cause low frame rates.")
+			imgui.SetItemTooltip(fnt.I("Info") + ` The preview player isn't very well optimized, so higher
+resolutions may cause low frame rates and poor responsiveness.`)
 			imgui.Checkbox("Check for updates on start", &preferences.AutoCheckForUpdates)
 
 			imgui.BeginDisabledV(preferences == defaultPreferences)
