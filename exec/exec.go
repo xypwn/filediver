@@ -2,17 +2,23 @@ package exec
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"os/exec"
 	"path/filepath"
 	"strings"
-
-	"github.com/amenzhinsky/go-memexec"
 )
 
+type CommandNotRegisteredError struct {
+	CommandName string
+}
+
+func (e *CommandNotRegisteredError) Error() string {
+	return fmt.Sprintf("exec: command \"%v\" not registered", e.CommandName)
+}
+
 type entry struct {
-	MemCmd      *memexec.Exec
 	Path        string
 	DefaultArgs []string
 }
@@ -31,35 +37,10 @@ type Runner struct {
 	progs map[string]entry
 }
 
-// Call Close() when done.
 func NewRunner() *Runner {
 	return &Runner{
 		progs: make(map[string]entry),
 	}
-}
-
-func (r *Runner) Close() error {
-	var err error
-	for _, p := range r.progs {
-		if p.MemCmd != nil {
-			if e := p.MemCmd.Close(); e != nil && err != nil {
-				err = e
-			}
-		}
-	}
-	return err
-}
-
-func (r *Runner) AddMem(name string, data []byte, defaultArgs ...string) error {
-	cmd, err := memexec.New(data)
-	if err != nil {
-		return err
-	}
-	r.progs[name] = entry{
-		MemCmd:      cmd,
-		DefaultArgs: defaultArgs,
-	}
-	return nil
 }
 
 func (r *Runner) Add(name string, defaultArgs ...string) (found bool) {
@@ -79,19 +60,19 @@ func (r *Runner) Has(name string) bool {
 	return ok
 }
 
-func (r *Runner) prepareCommand(name string, stdout io.Writer, stdin io.Reader, args ...string) (*exec.Cmd, error) {
+func (r *Runner) prepareCommand(ctx context.Context, name string, stdout io.Writer, stdin io.Reader, args ...string) (*exec.Cmd, error) {
 	entry, ok := r.progs[name]
 	if !ok {
-		return nil, fmt.Errorf("exec: command \"%v\" not registered", name)
+		return nil, &CommandNotRegisteredError{CommandName: name}
 	}
 
 	fullArgs := append(entry.DefaultArgs, args...)
 
 	var cmd *exec.Cmd
-	if entry.MemCmd != nil {
-		cmd = entry.MemCmd.Command(fullArgs...)
-	} else {
+	if ctx == nil {
 		cmd = exec.Command(entry.Path, fullArgs...)
+	} else {
+		cmd = exec.CommandContext(ctx, entry.Path, fullArgs...)
 	}
 	applyOSSpecificCmdOpts(cmd)
 
@@ -105,8 +86,16 @@ func (r *Runner) prepareCommand(name string, stdout io.Writer, stdin io.Reader, 
 	return cmd, nil
 }
 
+func (r *Runner) Cmd(ctx context.Context, name string, args ...string) (*exec.Cmd, error) {
+	cmd, err := r.prepareCommand(ctx, name, nil, nil, args...)
+	if err != nil {
+		return nil, err
+	}
+	return cmd, nil
+}
+
 func (r *Runner) Run(name string, stdout io.Writer, stdin io.Reader, args ...string) error {
-	cmd, err := r.prepareCommand(name, stdout, stdin, args...)
+	cmd, err := r.prepareCommand(nil, name, stdout, stdin, args...)
 	if err != nil {
 		return err
 	}
@@ -126,7 +115,7 @@ func (r *Runner) Run(name string, stdout io.Writer, stdin io.Reader, args ...str
 }
 
 func (r *Runner) Start(name string, stdout io.Writer, stderr io.Writer, stdin io.Reader, args ...string) (*exec.Cmd, error) {
-	cmd, err := r.prepareCommand(name, stdout, stdin, args...)
+	cmd, err := r.prepareCommand(nil, name, stdout, stdin, args...)
 	if err != nil {
 		return nil, err
 	}

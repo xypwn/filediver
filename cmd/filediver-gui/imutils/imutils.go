@@ -89,11 +89,23 @@ func ComboHeight() float32 {
 // ComboChoice creates a combo box where you can choose a value from choices.
 // Uses fmt.Sprint to turn values into strings.
 func ComboChoice[T comparable](label string, selected *T, choices []T) bool {
+	return ComboChoiceAny(
+		label,
+		selected,
+		choices,
+		func(a, b T) bool { return a == b },
+		func(x T) string { return fmt.Sprint(x) },
+	)
+}
+
+// ComboChoiceAny is like [ComboChoice], but it uses user-supplied isEqual and
+// toString functions and therefore accepts arbitrary types.
+func ComboChoiceAny[T any](label string, selected *T, choices []T, isEqual func(a, b T) bool, toString func(T) string) bool {
 	changed := false
-	if imgui.BeginCombo(label, fmt.Sprint(*selected)) {
+	if imgui.BeginCombo(label, toString(*selected)) {
 		for _, val := range choices {
-			isSelected := val == *selected
-			if imgui.SelectableBoolPtr(fmt.Sprint(val), &isSelected) {
+			isSelected := isEqual(val, *selected)
+			if imgui.SelectableBoolPtr(toString(val), &isSelected) {
 				*selected = val
 				changed = true
 			}

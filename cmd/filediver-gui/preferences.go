@@ -9,9 +9,10 @@ import (
 )
 
 type Preferences struct {
-	GUIScale            float32
-	TargetFPS           float64
-	AutoCheckForUpdates bool
+	GUIScale                       float32
+	TargetFPS                      float64
+	AutoCheckForUpdates            bool
+	PreviewVideoVerticalResolution int
 }
 
 type _assert_comparable[T comparable] = struct{}
