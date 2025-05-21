@@ -316,6 +316,8 @@ def main():
                 print(f"    Packing textures for material {material['name']}")
                 try:
                     for usage, texIdx in material["extras"].items():
+                        if type(texIdx) != int:
+                            continue
                         textures[usage] = add_texture(gltf, texIdx, usage)
                     for usage in optional_usages:
                         if usage not in textures:
