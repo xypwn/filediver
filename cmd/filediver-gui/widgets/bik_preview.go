@@ -242,23 +242,10 @@ func (pv *BikPreviewState) reloadVideoStream(seekFrames int) error {
 	totalFrames := pv.vidTotalFrames
 
 	go func() {
-		vidRBuffered := bufio.NewReaderSize(vidR, bytesPerFrame)
+		vidRBuffered := bufio.NewReaderSize(vidR, bytesPerFrame*2)
 
 		for range time.Tick(frameTime) {
 			if ctx.Err() != nil {
-				break
-			}
-
-			// We want the io.ReadFull call in the
-			// mutex-guarded block below to be fast,
-			// so we pre-read.
-			_, err := vidRBuffered.Peek(bytesPerFrame)
-			if err != nil {
-				if err == io.EOF {
-					pv.vidFrame.index = -1
-				} else {
-					pv.vidFrame.err = err
-				}
 				break
 			}
 
@@ -268,6 +255,19 @@ func (pv *BikPreviewState) reloadVideoStream(seekFrames int) error {
 				pv.vidFrame.buffering = vidRBuffered.Buffered() < bytesPerFrame && framesLeft > 0
 			}
 			pv.vidFrame.Unlock()
+
+			// We want the io.ReadFull call in the
+			// mutex-guarded block below to be fast,
+			// so we pre-read.
+			_, err := vidRBuffered.Peek(bytesPerFrame * 2)
+			if err != nil {
+				if err == io.EOF {
+					pv.vidFrame.index = -1
+				} else {
+					pv.vidFrame.err = err
+				}
+				break
+			}
 
 			pv.vidFrame.Lock()
 			if (pv.vidFrame.paused || pv.vidFrame.sliderActive) && isFirstFrameRead {
