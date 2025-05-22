@@ -1,53 +1,69 @@
 import std.mem;
+import type.float16;
 
-// import stingray; // Not sure where to put custom library files yet =/
-// stingray.hexpat
-import std.io;
 
-using ThinMurmurHash;
-using MurmurHash;
-
-fn formatThinHash(ThinMurmurHash hash) {
-    return std::format("{:08X}", hash.value);
+struct Position {
+    u16 x;
+    u16 y;
+    u16 z;
 };
 
-fn formatHash(MurmurHash hash) {
-    return std::format("{:016X}", hash.value);
+bitfield PackedQuat {
+    first : 10;
+    second : 10;
+    third : 10;
+    largest : 2;
 };
 
-struct ThinMurmurHash {
-    u32 value;
-} [[format("formatThinHash")]];
-
-struct MurmurHash {
-    u64 value;
-} [[format("formatHash")]];
-// end stingray.hexpat
-
-bitfield BoneData {
-    u8 ItemType : 2;
-    u16 BoneId : 10;
-    u32 TimeCode : 20;
-    u48 data : 32;
+bitfield EntryHeader {
+    type : 2;
+    bone : 10;
+    time : 20;
 };
 
-struct AnimationData {
+struct Rotation {
+    PackedQuat data [[inline]];
+};
+
+// Relative to starting scale? Or maybe not float16 but some other format?
+struct Scale {
+    type::float16 x;
+    type::float16 y;
+    type::float16 z;
+};
+
+struct BoneInit {
+    Position pos;
+    Rotation rot;
+    Scale scale;
+};
+
+struct Entry {
+    EntryHeader header;
+    if(header.type == 0) {
+        Rotation data;
+    } else {
+        Position data;
+    }
+};
+
+struct AnimationHeader {
     u32 unk00;
-    u32 channels;
-    float duration;
-    u32 totalSize;
-    BoneData data[10];
-} [[inline]];
-
-s64 offset;
-struct Animation {
-    $ = offset;
-    u32 size;
-    offset = offset - size;
-    $ = offset;
-    AnimationData animData;
-    offset = offset - 4;
+    u32 boneCount;
+    float animationLength;
+    u32 sizeBytes;
+    u32 unk01[2];
+    u16 unk02;
+    u8 varbits[while(std::mem::read_unsigned($, 1) & 0x80 != 0x0)];
+    u8 varbits_end;
+    BoneInit initialTransforms[boneCount];
 };
 
-offset = std::mem::size() - 4;
-Animation animation[while(offset > 0)] @0x00;
+struct Animation {
+    AnimationHeader header;
+    Entry entries[while(std::mem::read_unsigned($, 2) != 0x0003)];
+    u16 end;
+    u32 size;
+};
+
+Animation directions[while(!std::mem::eof())] @0x00;

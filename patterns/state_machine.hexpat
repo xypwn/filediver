@@ -40,12 +40,16 @@ fn relative_to_parent(u128 offset) {
     return addressof(parent.parent);
 };
 
+fn absolute(u128 offset) {
+    return 0;
+};
+
 struct RebasedNullablePtr<T, P, auto base_fn_name> {
     P val = std::mem::read_unsigned($, sizeof(P));
     if(val == 0x0) {
         padding[sizeof(P)];
     } else {
-        T* data : P [[pointer_base(base_fn_name)]];
+        T* data : P [[pointer_base(base_fn_name), inline]];
     }
 };
 
@@ -54,7 +58,7 @@ struct PtrList<T, auto base> {
     RebasedNullablePtr<T, u32, base> ptrs[count];
 };
 
-struct HashList {
+struct AnimationHashList {
     MurmurHash data[parent.parent.hashCount];
 };
 
@@ -116,10 +120,10 @@ struct UnknownVectorList {
 };
 
 struct Animation {
-    MurmurHash path;
+    MurmurHash add_path;
     u32 unk00;
     u32 hashCount;
-    RebasedNullablePtr<HashList, u32, "relative_to_parents_parent"> hashes;
+    RebasedNullablePtr<AnimationHashList, u32, "relative_to_parents_parent"> hashes;
     u32 floatCount;
     RebasedNullablePtr<FloatList, u32, "relative_to_parents_parent"> floats;
     u32 unk01;
@@ -151,15 +155,48 @@ struct AnimationGroup {
     PtrList<Animation, "relative_to_parents_parents_parent"> animations;
 };
 
+struct ThinHashList {
+    ThinMurmurHash items[parent.parent.thinHashCount] [[inline]];
+};
+
+struct ThinHashFloatsList {
+    ThinMurmurHash keys[parent.parent.thinHashFloatsCount];
+    float values[parent.parent.thinHashFloatsCount];
+};
+
+struct UnkFloatArray {
+    u32 count;
+    float unkFloats[count];
+};
+
+struct UnkFLoatArrayList {
+    PtrList<UnkFloatArray, "relative_to_parents_parent"> list;
+};
+
+struct ShortList {
+    u16 items[parent.parent.shortCount];
+};
+
+struct ByteList {
+    u8 items[parent.parent.byteCount];
+};
+
 struct StateMachine {
     u32 unk00;
     u32 count;
     PtrList<AnimationGroup, "relative_to_parents_parent"> *groups : u32;
+    u32 thinHashCount;
+    RebasedNullablePtr<ThinHashList, u32, "absolute"> thinHashes;
+    u32 thinHashFloatsCount;
+    RebasedNullablePtr<ThinHashFloatsList, u32, "absolute"> thinHashFloats;
+    u32 unkIntFloatDataCount;
+    RebasedNullablePtr<UnkFLoatArrayList, u32, "absolute"> unkIntFloatData;
+    u32 unkCount;
+    RebasedNullablePtr<u8, u32, "absolute"> unkData;
+    u32 shortCount;
+    RebasedNullablePtr<ShortList, u32, "absolute"> unkShorts;
+    u32 byteCount;
+    RebasedNullablePtr<ByteList, u32, "absolute"> unkBytes;
 };
-
-u8 *offset1 : u32 @0x10;
-u8 *offset2 : u32 @0x18;
-u8 *offset3 : u32 @0x20;
-u8 *offset4 : u32 @0x28;
 
 StateMachine stateMachine @0x00;
