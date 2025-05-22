@@ -1,5 +1,6 @@
 import std.mem;
 import type.float16;
+import std.core;
 
 
 struct Position {
@@ -9,16 +10,17 @@ struct Position {
 };
 
 bitfield PackedQuat {
-    first : 10;
-    second : 10;
-    third : 10;
-    largest : 2;
-};
+    first   : 10;
+    second  : 10;
+    third   : 10;
+    largest :  2;
+} [[bitfield_order(std::core::BitfieldOrder::MostToLeastSignificant, 32)]];
 
-bitfield EntryHeader {
-    type : 2;
-    bone : 10;
-    time : 20;
+struct EntryHeader {
+    u8 data[4] [[hidden]];
+    u8 type = (data[1] & 0xC0) >> 6 [[export]];
+    u16 bone = ((data[0] & 0xf0) >> 4) | ((data[1] & 0x3f) << 4)  [[export]];
+    u24 timeMs = ((data[0] & 0xf) << 16) | (data[3] << 8) | data[2] [[export]];
 };
 
 struct Rotation {
@@ -40,7 +42,7 @@ struct BoneInit {
 
 struct Entry {
     EntryHeader header;
-    if(header.type == 0) {
+    if(header.type == 3) {
         Rotation data;
     } else {
         Position data;
