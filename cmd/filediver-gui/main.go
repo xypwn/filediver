@@ -705,16 +705,23 @@ func run(onError func(error)) error {
 							// Kind of hacky way to not add to checkbox's tooltip
 							ttExport := false
 
-							imgui.TableNextColumn()
-							_, export := filesSelectedForExport[id]
-							if imgui.Checkbox("", &export) {
+							toggleExport := func(id stingray.FileID) {
+								_, export := filesSelectedForExport[id]
 								if export {
-									filesSelectedForExport[id] = struct{}{}
-								} else {
 									delete(filesSelectedForExport, id)
+								} else {
+									filesSelectedForExport[id] = struct{}{}
 								}
 								allSelectedForExport = calcAllSelectedForExport()
 							}
+
+							imgui.TableNextColumn()
+							imgui.PushItemFlag(imgui.ItemFlagsNoNav, true)
+							_, export := filesSelectedForExport[id]
+							if imgui.Checkbox("", &export) {
+								toggleExport(id)
+							}
+							imgui.PopItemFlag()
 							if imgui.IsItemHovered() {
 								ttExport = true
 								if export {
@@ -734,6 +741,9 @@ func run(onError func(error)) error {
 							copied := false
 							if id == activeFileID && imgui.Shortcut(imgui.KeyChord(imgui.ModCtrl|imgui.KeyC)) {
 								copied = true
+							}
+							if id == activeFileID && imgui.Shortcut(imgui.KeyChord(imgui.KeySpace)) {
+								toggleExport(id)
 							}
 							if imgui.IsItemClickedV(imgui.MouseButtonRight) {
 								copied = true
@@ -758,6 +768,7 @@ func run(onError func(error)) error {
 									fmt.Fprintf(&text, "%v Left-click to preview\n", fnt.I("Preview"))
 									fmt.Fprintf(&text, "%v Right-click or Ctrl+C to copy name hash to clipboard\n", fnt.I("Content_copy"))
 									fmt.Fprintf(&text, "%v Down/up arrow keys to select next/previous\n", fnt.I("Unfold_more"))
+									fmt.Fprintf(&text, "%v Use the checkbox or space key to select/deselect for export\n", fnt.I("File_export"))
 								}
 								imgui.SetTooltip(text.String())
 							}
