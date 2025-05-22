@@ -56833,6 +56833,7 @@ content/fac_helldivers/equipment/primary_weapons/arc_shotgun/textures/arc_shotgu
 content/fac_helldivers/equipment/primary_weapons/assault_rifle/animation/fire
 content/fac_helldivers/equipment/primary_weapons/assault_rifle/animation/idle
 content/fac_helldivers/equipment/primary_weapons/assault_rifle/animation/reload
+content/fac_helldivers/equipment/primary_weapons/assault_rifle/animation/reload_fast
 content/fac_helldivers/equipment/primary_weapons/assault_rifle/assault_rifle
 content/fac_helldivers/equipment/primary_weapons/assault_rifle_explosive/assault_rifle_explosive
 content/fac_helldivers/equipment/primary_weapons/assault_rifle_helghast/animation/fire
@@ -56851,6 +56852,7 @@ content/fac_helldivers/equipment/primary_weapons/assault_rifle_rico/assault_rifl
 content/fac_helldivers/equipment/primary_weapons/assault_shotgun/animation/auto
 content/fac_helldivers/equipment/primary_weapons/assault_shotgun/animation/fire
 content/fac_helldivers/equipment/primary_weapons/assault_shotgun/animation/reload
+content/fac_helldivers/equipment/primary_weapons/assault_shotgun/animation/reload_fast
 content/fac_helldivers/equipment/primary_weapons/assault_shotgun/animation/safe
 content/fac_helldivers/equipment/primary_weapons/assault_shotgun/animation/semi
 content/fac_helldivers/equipment/primary_weapons/assault_shotgun/assault_shotgun
@@ -56860,6 +56862,7 @@ content/fac_helldivers/equipment/primary_weapons/assault_shotgun_sprayandpray/as
 content/fac_helldivers/equipment/primary_weapons/battle_rifle/animations/fire
 content/fac_helldivers/equipment/primary_weapons/battle_rifle/animations/idle
 content/fac_helldivers/equipment/primary_weapons/battle_rifle/animations/reload
+content/fac_helldivers/equipment/primary_weapons/battle_rifle/animations/reload_fast
 content/fac_helldivers/equipment/primary_weapons/battle_rifle/battle_rifle
 content/fac_helldivers/equipment/primary_weapons/battle_rifle/textures/battle_rifle_nac
 content/fac_helldivers/equipment/primary_weapons/battle_rifle_ceremonial/animations/fire
@@ -56881,6 +56884,7 @@ content/fac_helldivers/equipment/primary_weapons/flamethrower_ripley/flamethrowe
 content/fac_helldivers/equipment/primary_weapons/jet_rifle/animation/fire
 content/fac_helldivers/equipment/primary_weapons/jet_rifle/animation/idle
 content/fac_helldivers/equipment/primary_weapons/jet_rifle/animation/reload
+content/fac_helldivers/equipment/primary_weapons/jet_rifle/animation/reload_fast
 content/fac_helldivers/equipment/primary_weapons/jet_rifle/jet_rifle
 content/fac_helldivers/equipment/primary_weapons/jet_rifle/textures/jet_rifle_nac
 content/fac_helldivers/equipment/primary_weapons/jet_rifle_phoenix/animations/cycle
@@ -56902,6 +56906,7 @@ content/fac_helldivers/equipment/primary_weapons/lever_action_rifle_01/lever_act
 content/fac_helldivers/equipment/primary_weapons/lmg_stalwart/animations/fire
 content/fac_helldivers/equipment/primary_weapons/lmg_stalwart/animations/idle
 content/fac_helldivers/equipment/primary_weapons/lmg_stalwart/animations/reload
+content/fac_helldivers/equipment/primary_weapons/lmg_stalwart/animations/reload_fast
 content/fac_helldivers/equipment/primary_weapons/lmg_stalwart/lmg_stalwart
 content/fac_helldivers/equipment/primary_weapons/lmg_stalwart/textures/lmg_stalwart_nac
 content/fac_helldivers/equipment/primary_weapons/marksman_rifle/marksman_rifle
@@ -56941,16 +56946,19 @@ content/fac_helldivers/equipment/primary_weapons/pump_shotgun_slug/pump_shotgun_
 content/fac_helldivers/equipment/primary_weapons/smg_defender/animations/fire
 content/fac_helldivers/equipment/primary_weapons/smg_defender/animations/idle
 content/fac_helldivers/equipment/primary_weapons/smg_defender/animations/reload
+content/fac_helldivers/equipment/primary_weapons/smg_defender/animations/reload_fast
 content/fac_helldivers/equipment/primary_weapons/smg_defender/smg_defender
 content/fac_helldivers/equipment/primary_weapons/smg_defender/textures/smg_defender_nac
 content/fac_helldivers/equipment/primary_weapons/smg_helghast/animation/fire
 content/fac_helldivers/equipment/primary_weapons/smg_helghast/animation/idle
 content/fac_helldivers/equipment/primary_weapons/smg_helghast/animation/reload
+content/fac_helldivers/equipment/primary_weapons/smg_helghast/animation/reload_fast
 content/fac_helldivers/equipment/primary_weapons/smg_helghast/smg_helghast
 content/fac_helldivers/equipment/primary_weapons/smg_helghast/textures/smg_helghast_nac
 content/fac_helldivers/equipment/primary_weapons/smg_rhino/animation/fire
 content/fac_helldivers/equipment/primary_weapons/smg_rhino/animation/idle
 content/fac_helldivers/equipment/primary_weapons/smg_rhino/animation/reload
+content/fac_helldivers/equipment/primary_weapons/smg_rhino/animation/reload_fast
 content/fac_helldivers/equipment/primary_weapons/smg_rhino/smg_rhino
 content/fac_helldivers/equipment/primary_weapons/smg_rhino/textures/smg_rhino_nac
 content/fac_helldivers/equipment/primary_weapons/sniper_rifle_helghast/animations/fire
@@ -56984,6 +56992,7 @@ content/fac_helldivers/equipment/sidearm_weapons/laser_pistol/textures/laser_pis
 content/fac_helldivers/equipment/sidearm_weapons/magnum_pistol/animation/fire
 content/fac_helldivers/equipment/sidearm_weapons/magnum_pistol/animation/idle
 content/fac_helldivers/equipment/sidearm_weapons/magnum_pistol/animation/reload
+content/fac_helldivers/equipment/sidearm_weapons/magnum_pistol/animation/reload_fast
 content/fac_helldivers/equipment/sidearm_weapons/magnum_pistol/magnum_pistol
 content/fac_helldivers/equipment/sidearm_weapons/magnum_pistol/textures/magnum_pistol_nac
 content/fac_helldivers/equipment/sidearm_weapons/pistol_cricket/animation/idle
@@ -56998,11 +57007,13 @@ content/fac_helldivers/equipment/sidearm_weapons/revolver_pistol/animation/fire
 content/fac_helldivers/equipment/sidearm_weapons/revolver_pistol/animation/idle
 content/fac_helldivers/equipment/sidearm_weapons/revolver_pistol/animation/open
 content/fac_helldivers/equipment/sidearm_weapons/revolver_pistol/animation/reload
+content/fac_helldivers/equipment/sidearm_weapons/revolver_pistol/animation/reload_fast
 content/fac_helldivers/equipment/sidearm_weapons/revolver_pistol/revolver_pistol
 content/fac_helldivers/equipment/sidearm_weapons/revolver_pistol/textures/revolver_pistol_nac
 content/fac_helldivers/equipment/sidearm_weapons/standard_pistol/animation/fire
 content/fac_helldivers/equipment/sidearm_weapons/standard_pistol/animation/idle
 content/fac_helldivers/equipment/sidearm_weapons/standard_pistol/animation/reload
+content/fac_helldivers/equipment/sidearm_weapons/standard_pistol/animation/reload_fast
 content/fac_helldivers/equipment/sidearm_weapons/standard_pistol/standard_pistol
 content/fac_helldivers/equipment/sidearm_weapons/standard_pistol/textures/standard_pistol_nac
 content/fac_helldivers/equipment/sidearm_weapons/stim_pistol_01/animation/cylinder
@@ -57010,6 +57021,7 @@ content/fac_helldivers/equipment/sidearm_weapons/stim_pistol_01/animation/fire
 content/fac_helldivers/equipment/sidearm_weapons/stim_pistol_01/animation/idle
 content/fac_helldivers/equipment/sidearm_weapons/stim_pistol_01/animation/open
 content/fac_helldivers/equipment/sidearm_weapons/stim_pistol_01/animation/reload
+content/fac_helldivers/equipment/sidearm_weapons/stim_pistol_01/animation/reload_fast
 content/fac_helldivers/equipment/sidearm_weapons/stim_pistol_01/stim_pistol
 content/fac_helldivers/equipment/support_weapons/air_burst_rocket_launcher/air_burst_rocket_launcher
 content/fac_helldivers/equipment/support_weapons/air_burst_rocket_launcher/animation/assisted_reload
@@ -57054,6 +57066,7 @@ content/fac_helldivers/equipment/support_weapons/grenade_launcher/grenade_launch
 content/fac_helldivers/equipment/support_weapons/heavy_mg/animations/fire
 content/fac_helldivers/equipment/support_weapons/heavy_mg/animations/idle
 content/fac_helldivers/equipment/support_weapons/heavy_mg/animations/reload
+content/fac_helldivers/equipment/support_weapons/heavy_mg/animations/reload_fast
 content/fac_helldivers/equipment/support_weapons/heavy_mg/heavy_mg
 content/fac_helldivers/equipment/support_weapons/heavy_mg/textures/heavy_mg_nac
 content/fac_helldivers/equipment/support_weapons/laser_cannon/animation/overload
@@ -57069,6 +57082,7 @@ content/fac_helldivers/equipment/support_weapons/machinegun/animation/draw
 content/fac_helldivers/equipment/support_weapons/machinegun/animation/fire
 content/fac_helldivers/equipment/support_weapons/machinegun/animation/idle
 content/fac_helldivers/equipment/support_weapons/machinegun/animation/reload
+content/fac_helldivers/equipment/support_weapons/machinegun/animation/reload_fast
 content/fac_helldivers/equipment/support_weapons/machinegun/machinegun
 content/fac_helldivers/equipment/support_weapons/machinegun/textures/machinegun_nac
 content/fac_helldivers/equipment/support_weapons/missile_launcher/missile_launcher
@@ -57087,6 +57101,7 @@ content/fac_helldivers/equipment/support_weapons/recoilless_rifle/recoilless_rif
 content/fac_helldivers/equipment/support_weapons/sniper_rifle/animation/fire
 content/fac_helldivers/equipment/support_weapons/sniper_rifle/animation/idle
 content/fac_helldivers/equipment/support_weapons/sniper_rifle/animation/reload
+content/fac_helldivers/equipment/support_weapons/sniper_rifle/animation/reload_fast
 content/fac_helldivers/equipment/support_weapons/sniper_rifle/materials/m_sniper_rifle
 content/fac_helldivers/equipment/support_weapons/sniper_rifle/sniper_rifle
 content/fac_helldivers/equipment/support_weapons/sniper_rifle/textures/sniper_rifle_nac
@@ -57308,6 +57323,7 @@ content/fac_helldivers/vehicles/frv/animation/steering_wheel
 content/fac_helldivers/vehicles/frv/animation/suspension
 content/fac_helldivers/vehicles/frv/armaments/frv_mg/animations/fire
 content/fac_helldivers/vehicles/frv/armaments/frv_mg/animations/reload
+content/fac_helldivers/vehicles/frv/armaments/frv_mg/animations/reload_fast
 content/fac_helldivers/vehicles/frv/armaments/frv_mg/frv_mg
 content/fac_helldivers/vehicles/frv/frv
 content/fac_helldivers/vehicles/lav/lav
@@ -57368,6 +57384,7 @@ content/fac_illuminate/cha_tripod/cha_tripod
 content/fac_illuminate/cha_tripod/cha_tripod_tier_2
 content/fac_illuminate/cha_tripod_tier_2/cha_tripod_tier_2
 content/fac_illuminate/equipment/illuminate_adept_circle/illuminate_adept_circle
+content/fac_illuminate/equipment/illuminate_warmachine_bombball/illuminate_warmachine_bombball
 content/fac_illuminate/equipment/shield_forcefield/hexagon_shield
 content/fac_illuminate/equipment/shield_forcefield/shield_forcefield_outcast
 content/fac_illuminate/equipment/weapons/beamer_champion_gun/beamer_champion_gun
@@ -57383,6 +57400,7 @@ content/fac_illuminate/vehicles/illuminate_attack_ship/animation/shake
 content/fac_illuminate/vehicles/illuminate_attack_ship/illuminate_attack_ship
 content/fac_illuminate/vehicles/illuminate_attack_ship_destroyed
 content/fac_illuminate/vehicles/illuminate_dropship/illuminate_dropship
+content/fac_illuminate/vehicles/illuminate_war_machine/illuminate_war_machine
 content/fac_super_earth/bridge_personnel/cha_admiral_male/cha_admiral_male
 content/fac_super_earth/bridge_personnel/cha_personnel/cha_admiral_m
 content/fac_super_earth/bridge_personnel/cha_personnel/cha_deckofficer_f_00
