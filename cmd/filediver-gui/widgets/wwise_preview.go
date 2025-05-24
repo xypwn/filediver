@@ -279,7 +279,7 @@ func WwisePreview(name string, pv *WwisePreviewState) {
 			for i, stream := range pv.streams {
 				imgui.PushIDInt(int32(i))
 				imgui.TableNextColumn()
-				imgui.TextUnformatted(stream.title)
+				imutils.CopyableTextf("%v", stream.title)
 				imgui.TableNextColumn()
 				if stream.loaded.Load() {
 					if stream.err == nil {

@@ -53,6 +53,7 @@ func (pv *StringsPreviewState) updateShownIDs() {
 }
 
 func StringsPreview(pv *StringsPreviewState) {
+	imgui.SetNextItemWidth(imgui.ContentRegionAvail().X)
 	if imgui.InputTextWithHint("##Search Strings", fnt.I("Search")+" Filter by ID or string...", &pv.queryBuf, 0, nil) {
 		pv.updateShownIDs()
 	}
@@ -68,10 +69,10 @@ func StringsPreview(pv *StringsPreviewState) {
 			value := pv.strings[key]
 			imgui.PushIDInt(int32(key))
 			imgui.TableNextColumn()
-			imutils.Textf("%v", key)
+			imutils.CopyableTextf("%v##key", key)
 			imgui.TableNextColumn()
 			imgui.PushTextWrapPos()
-			imgui.TextUnformatted(value)
+			imutils.CopyableTextf("%v##value", value)
 			imgui.PopID()
 		}
 		imgui.EndTable()

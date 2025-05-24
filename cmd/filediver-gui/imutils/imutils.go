@@ -3,6 +3,7 @@ package imutils
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/AllenDang/cimgui-go/imgui"
 	fnt "github.com/xypwn/filediver/cmd/filediver-gui/fonts"
@@ -32,7 +33,11 @@ func CopyableTextfV(tooltip string, format string, args ...any) {
 
 func CopyableTextcfV(color imgui.Vec4, tooltip string, format string, args ...any) {
 	imgui.PushIDStr(format)
-	imgui.PopID()
+	defer imgui.PopID()
+
+	if i := strings.Index(format, "##"); i != -1 {
+		format = format[:i]
+	}
 
 	ctx := imgui.CurrentContext()
 	if color.W != 0 {
@@ -43,7 +48,11 @@ func CopyableTextcfV(color imgui.Vec4, tooltip string, format string, args ...an
 	imgui.SetCursorScreenPos(textPos)
 	imgui.SetNextItemAllowOverlap()
 	textBtnID := imgui.IDStr("##Copyable text")
-	clicked := imgui.InvisibleButton("##Copyable text", imgui.ItemRectSize())
+	size := imgui.ItemRectSize()
+	var clicked bool
+	if size.X > 0 && size.Y > 0 { // prevent crash in case of empty label
+		clicked = imgui.InvisibleButton("##Copyable text", size)
+	}
 	if color.W != 0 {
 		imgui.PopStyleColor()
 	}
@@ -62,8 +71,11 @@ func CopyableTextcfV(color imgui.Vec4, tooltip string, format string, args ...an
 
 func Textf(format string, args ...any) {
 	imgui.PushIDStr(format)
+	defer imgui.PopID()
+	if i := strings.Index(format, "##"); i != -1 {
+		format = format[:i]
+	}
 	imgui.TextUnformatted(fmt.Sprintf(format, args...))
-	imgui.PopID()
 }
 
 func Textcf(color imgui.Vec4, format string, args ...any) {
