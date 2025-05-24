@@ -684,7 +684,7 @@ func LoadGLTF(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, nam
 					materialName = header.Materials[group.MaterialIdx].String()
 				}
 			} else {
-				fmt.Printf("Unknown material, %v >= %v\n", group.MaterialIdx, len(header.Materials))
+				ctx.Warnf("unknown material, %v >= %v", group.MaterialIdx, len(header.Materials))
 				materialName = "unknown"
 			}
 
@@ -813,7 +813,7 @@ func LoadGLTF(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, nam
 					groupIndexAccessor := doc.Accessors[*groupIndices]
 					var UDIMs map[uint32][]uint32
 					if UDIMs, err = separateUDims(doc, groupIndexAccessor, texcoordAccessor); err != nil {
-						fmt.Printf("Error: %v\n", err)
+						ctx.Warnf("separateUDims: %v", err)
 					} else {
 						for udim, indices := range UDIMs {
 							udimIndexAccessors[udim] = modeler.WriteIndices(doc, indices)

@@ -186,18 +186,18 @@ func writeTexture(ctx extractor.Context, doc *gltf.Document, id stingray.Hash, p
 	if imgOpts != nil && imgOpts.Raw {
 		reader, err := file.OpenMulti(ctx.Ctx(), stingray.DataMain, stingray.DataStream, stingray.DataGPU)
 		if err != nil {
-			fmt.Printf("writeTexture: Failed to open multireader for raw dds\n")
+			ctx.Warnf("writeTexture: failed to open multireader for raw dds")
 			return texIdx, nil
 		}
 		defer reader.Close()
 		if _, err := texture.DecodeInfo(reader); err != nil {
-			fmt.Printf("writeTexture: Failed to decode stingray texture info\n")
+			ctx.Warnf("writeTexture: failed to decode stingray texture info")
 			return texIdx, nil
 		}
 		mimeType = "image/vnd-ms.dds"
 		imgIdx, err = modeler.WriteImage(doc, id.String()+suffix+".dds", mimeType, reader)
 		if err != nil {
-			fmt.Printf("writeTexture: Failed to write dds image to document\n")
+			ctx.Warnf("writeTexture: failed to write dds image to document")
 			return texIdx, nil
 		}
 		doc.Textures[texIdx].Extensions = make(gltf.Extensions)
@@ -450,15 +450,18 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 			}
 			emissiveColorSetting, ok := mat.Settings[stingray.ThinHash{Value: uint32(SettingEmissiveColor)}]
 			if !ok {
-				fmt.Printf("warning: Material %v has AlbedoEmissive texture but no emissive_color\n", matName)
+				ctx.Warnf("material %v has AlbedoEmissive texture but no emissive_color", matName)
 				continue
 			}
 			postProcessEmissiveColor, err := createPostProcessEmissiveColor(emissiveColorSetting)
 			if err != nil {
-				fmt.Printf("warning: %v\n", err)
+				ctx.Warnf("%v", err)
 				continue
 			}
 			emissiveIndex, err := writeTexture(ctx, doc, mat.Textures[texUsage], postProcessEmissiveColor, imgOpts, "_emissive")
+			if err != nil {
+				return 0, err
+			}
 			emissiveTexture = &gltf.TextureInfo{
 				Index: emissiveIndex,
 			}
@@ -723,7 +726,7 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 		default:
 			if ctx.Config()["all_textures"] == "true" {
 				t := TextureUsage(texUsage.Value)
-				fmt.Printf("addMaterial: Unknown/unhandled texture usage %v in material %v\n", t.String(), matName)
+				ctx.Warnf("addMaterial: unknown/unhandled texture usage %v in material %v", t.String(), matName)
 				index, err := writeTexture(ctx, doc, mat.Textures[texUsage], postProcess, imgOpts, "")
 				if err != nil {
 					continue
