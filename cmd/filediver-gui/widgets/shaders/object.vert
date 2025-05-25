@@ -18,8 +18,15 @@ uniform mat4 mvp; // projection*view*model
 uniform mat4 model;
 uniform mat3 normalMat; // normal matrix = transpose(inverse(model))
 uniform vec3 viewPosition;
+uniform bool udimShown[64];
+
+bool isShown() {
+    int udim = int(inUV.x) | int(1-inUV.y)<<5;
+    return udim < 64 && udimShown[udim];
+}
 
 void main() {
+    if (!isShown()) return;
     gl_Position = mvp * vec4(inPosition, 1.0);
     fragPosition = vec3(model * vec4(inPosition, 1.0));
     fragUV = inUV;

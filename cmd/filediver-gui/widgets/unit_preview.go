@@ -125,6 +125,14 @@ type UnitPreviewState struct {
 
 	maxViewDistance float32
 
+	numUdims      uint32
+	udimsSelected [64]bool  // udims persistently selected
+	udimsShown    [64]int32 // udims visually selected 1 (shown) or 0 (hidden)
+
+	// For dragging selection
+	activeUDimListItem  int32
+	hoveredUDimListItem int32
+
 	showWireframe          bool
 	wireframeColor         [4]float32
 	showAABB               bool
@@ -153,7 +161,7 @@ func NewUnitPreview() (*UnitPreviewState, error) {
 	if err != nil {
 		return nil, err
 	}
-	pv.objectUniforms.generate(pv.objectProgram, "mvp", "model", "normalMat", "viewPosition", "texAlbedo", "texNormal", "shouldReconstructNormalZ")
+	pv.objectUniforms.generate(pv.objectProgram, "mvp", "model", "normalMat", "viewPosition", "texAlbedo", "texNormal", "shouldReconstructNormalZ", "udimShown")
 
 	pv.objectWireframeProgram, err = glutils.CreateProgramFromSources(unitPreviewShaderCode,
 		"shaders/object_wireframe.vert",
@@ -163,7 +171,7 @@ func NewUnitPreview() (*UnitPreviewState, error) {
 	if err != nil {
 		return nil, err
 	}
-	pv.objectWireframeUniforms.generate(pv.objectWireframeProgram, "mvp", "color")
+	pv.objectWireframeUniforms.generate(pv.objectWireframeProgram, "mvp", "color", "udimShown")
 
 	pv.objectNormalVisProgram, err = glutils.CreateProgramFromSources(unitPreviewShaderCode,
 		"shaders/object_normal_vis.vert",
@@ -173,7 +181,7 @@ func NewUnitPreview() (*UnitPreviewState, error) {
 	if err != nil {
 		return nil, err
 	}
-	pv.objectNormalVisUniforms.generate(pv.objectNormalVisProgram, "mvp", "len", "color")
+	pv.objectNormalVisUniforms.generate(pv.objectNormalVisProgram, "mvp", "len", "color", "udimShown")
 
 	pv.dbgObj.genObjects(false)
 	pv.dbgObjProgram, err = glutils.CreateProgramFromSources(unitPreviewShaderCode,
@@ -220,6 +228,10 @@ func (pv *UnitPreviewState) Delete() {
 }
 
 func (pv *UnitPreviewState) LoadUnit(mainData, gpuData []byte, getResource GetResourceFunc) error {
+	for i := range pv.udimsSelected {
+		pv.udimsSelected[i] = true
+	}
+
 	info, err := unit.LoadInfo(bytes.NewReader(mainData))
 	if err != nil {
 		return err
@@ -466,6 +478,15 @@ func (pv *UnitPreviewState) LoadUnit(mainData, gpuData []byte, getResource GetRe
 		normals[i] = mgl32.Vec3(normals[i]).Sub(mgl32.Vec3{0.5, 0.5, 0.5})
 	}*/
 
+	pv.numUdims = 0
+	for _, uv := range mesh.UVCoords[0] {
+		udim := uint32(uv[0]) | uint32(1-uv[1])<<5
+		pv.numUdims = max(pv.numUdims, udim+1)
+	}
+	if pv.numUdims >= 64 {
+		return fmt.Errorf("expected at most 64 udims, but got %v", pv.numUdims)
+	}
+
 	// Upload object data
 	{
 		gl.BindVertexArray(pv.object.vao)
@@ -625,6 +646,7 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 	imgui.PushIDStr(name)
 	defer imgui.PopID()
 
+	viewPos := imgui.CursorScreenPos()
 	viewSize := imgui.ContentRegionAvail()
 	viewSize.Y -= imutils.CheckboxHeight()
 
@@ -667,6 +689,7 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 				gl.UniformMatrix4fv(pv.objectUniforms["model"], 1, false, &pv.model[0])
 				gl.UniformMatrix3fv(pv.objectUniforms["normalMat"], 1, false, &normal[0])
 				gl.Uniform3fv(pv.objectUniforms["viewPosition"], 1, &viewPosition[0])
+				gl.Uniform1iv(pv.objectUniforms["udimShown"], 64, &pv.udimsShown[0])
 				gl.ActiveTexture(gl.TEXTURE0)
 				gl.BindTexture(gl.TEXTURE_2D, pv.object.texAlbedo)
 				gl.ActiveTexture(gl.TEXTURE1)
@@ -674,6 +697,7 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 			} else {
 				gl.UniformMatrix4fv(pv.objectWireframeUniforms["mvp"], 1, false, &mvp[0])
 				gl.Uniform4fv(pv.objectWireframeUniforms["color"], 1, &pv.wireframeColor[0])
+				gl.Uniform1iv(pv.objectWireframeUniforms["udimShown"], 64, &pv.udimsShown[0])
 			}
 			gl.DrawElements(gl.TRIANGLES, pv.object.numIndices, gl.UNSIGNED_INT, nil)
 			gl.ActiveTexture(gl.TEXTURE0)
@@ -689,6 +713,7 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 				gl.UniformMatrix4fv(pv.objectNormalVisUniforms["mvp"], 1, false, &mvp[0])
 				gl.Uniform1f(pv.objectNormalVisUniforms["len"], pv.viewDistance*0.02)
 				gl.Uniform4fv(pv.objectNormalVisUniforms["color"], 1, &pv.visualizedNormalsColor[0])
+				gl.Uniform1iv(pv.objectNormalVisUniforms["udimShown"], 64, &pv.udimsShown[0])
 				gl.DrawElements(gl.TRIANGLES, pv.object.numIndices, gl.UNSIGNED_INT, nil)
 				gl.BindVertexArray(0)
 				gl.UseProgram(0)
@@ -882,4 +907,104 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 	if imgui.Checkbox("Auto-zoom on load", &pv.zoomToFitOnLoad) && pv.zoomToFitOnLoad {
 		pv.zoomToFit = true
 	}
+	imgui.SameLine()
+	// UDim selection
+	nextActiveUDimListItem := int32(-1)
+	nextHoveredUDimListItem := int32(-1)
+	imgui.BeginDisabledV(pv.numUdims <= 1)
+	if imgui.Button("UDims Selection") {
+		imgui.OpenPopupStr("UDims")
+		imgui.SetNextWindowPos(viewPos.Sub(imgui.NewVec2(150, 0)))
+	}
+	if pv.numUdims <= 1 {
+		imgui.SetItemTooltip("Mesh has no UDims")
+	}
+	imgui.EndDisabled()
+	imgui.SetNextWindowSize(imgui.NewVec2(150, viewSize.Y))
+	if imgui.BeginPopup("UDims") {
+		if imgui.Button("Reset") {
+			for i := range pv.udimsSelected {
+				pv.udimsSelected[i] = true
+			}
+		}
+		imgui.Separator()
+		imgui.PushStyleVarVec2(imgui.StyleVarItemSpacing,
+			imgui.NewVec2(imgui.CurrentStyle().ItemSpacing().X, 0))
+		dragging := pv.activeUDimListItem != -1 && pv.hoveredUDimListItem != -1
+		var draggingMin, draggingMax int32
+		if dragging {
+			draggingMin = min(pv.activeUDimListItem, pv.hoveredUDimListItem)
+			draggingMax = max(pv.activeUDimListItem, pv.hoveredUDimListItem)
+		}
+		var draggingMinPos, draggingMaxPos imgui.Vec2
+		for i := range int32(pv.numUdims) {
+			selected := pv.udimsSelected[i]
+			if dragging {
+				if i >= draggingMin && i <= draggingMax {
+					selected = !selected
+				}
+				if imgui.IsMouseClickedBool(imgui.MouseButtonRight) {
+					imgui.CurrentContext().SetActiveId(0)
+				}
+			}
+			if selected {
+				pv.udimsShown[i] = 1
+			} else {
+				pv.udimsShown[i] = 0
+			}
+			if imgui.IsMouseReleased(imgui.MouseButtonLeft) {
+				pv.udimsSelected[i] = selected
+			}
+			var icon string
+			if selected {
+				icon = fnt.I("Visibility")
+			} else {
+				icon = fnt.I("Visibility_off")
+			}
+			imgui.PushIDInt(i)
+			pos := imgui.CursorScreenPos()
+			size := imgui.NewVec2(imgui.ContentRegionAvail().X, imgui.FontSize())
+			if dragging {
+				if i == draggingMin {
+					draggingMinPos = pos
+				}
+				if i == draggingMax {
+					draggingMaxPos = pos.Add(size)
+				}
+			}
+			if selected {
+				imgui.WindowDrawList().AddRectFilled(pos, pos.Add(size), imgui.ColorU32Col(imgui.ColButton))
+			}
+			imutils.Textf(fmt.Sprintf("%v %v", icon, i))
+			imgui.SetCursorScreenPos(pos)
+			imgui.SetNextItemAllowOverlap()
+			imgui.InvisibleButton("btn", size)
+			if imgui.IsItemActive() {
+				nextActiveUDimListItem = i
+			}
+			hovered := imgui.ItemStatusFlags(imgui.CurrentContext().LastItemData().CData.StatusFlags)&imgui.ItemStatusFlagsHoveredRect != 0
+			if hovered {
+				nextHoveredUDimListItem = i
+			}
+			imgui.SetItemTooltip(`Click to toggle item visibility
+Drag to toggle multiple items (right-click to cancel)`)
+			imgui.PopID()
+		}
+		imgui.PopStyleVar()
+		if dragging {
+			imgui.WindowDrawList().AddRectV(draggingMinPos, draggingMaxPos, imgui.ColorU32Col(imgui.ColButtonActive), 0, 0, 2)
+		}
+		imgui.EndPopup()
+	} else {
+		for i := range pv.udimsShown {
+			if pv.udimsSelected[i] {
+				pv.udimsShown[i] = 1
+			} else {
+				pv.udimsShown[i] = 0
+			}
+		}
+	}
+	pv.activeUDimListItem = nextActiveUDimListItem
+	pv.hoveredUDimListItem = nextHoveredUDimListItem
+
 }
