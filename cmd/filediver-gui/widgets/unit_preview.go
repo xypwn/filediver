@@ -153,7 +153,7 @@ func NewUnitPreview() (*UnitPreviewState, error) {
 	if err != nil {
 		return nil, err
 	}
-	pv.objectUniforms.generate(pv.objectProgram, "mvp", "model", "normalMat", "viewPosition", "texAlbedo", "texNormal")
+	pv.objectUniforms.generate(pv.objectProgram, "mvp", "model", "normalMat", "viewPosition", "texAlbedo", "texNormal", "shouldReconstructNormalZ")
 
 	pv.objectWireframeProgram, err = glutils.CreateProgramFromSources(unitPreviewShaderCode,
 		"shaders/object_wireframe.vert",
@@ -268,7 +268,7 @@ func (pv *UnitPreviewState) LoadUnit(mainData, gpuData []byte, getResource GetRe
 	}
 
 	// Upload object texture
-	albedoTexFileName, albedoRemoveAlpha, normalTexFileName, err := func() (albedoFileName stingray.Hash, albedoRemoveAlpha bool, normalFileName stingray.Hash, err error) {
+	albedoTexFileName, albedoRemoveAlpha, normalTexFileName, reconstructNormalZ, err := func() (albedoFileName stingray.Hash, albedoRemoveAlpha bool, normalFileName stingray.Hash, reconstructNormalZ bool, err error) {
 		for matID, matFileName := range info.Materials {
 			if !slices.Contains(mesh.Info.Materials, matID) {
 				continue
@@ -278,14 +278,14 @@ func (pv *UnitPreviewState) LoadUnit(mainData, gpuData []byte, getResource GetRe
 				Type: stingray.Sum64([]byte("material")),
 			}, stingray.DataMain)
 			if err != nil {
-				return stingray.Hash{}, false, stingray.Hash{}, fmt.Errorf("load material %v.material: %w", matFileName, err)
+				return stingray.Hash{}, false, stingray.Hash{}, false, fmt.Errorf("load material %v.material: %w", matFileName, err)
 			}
 			if !ok {
-				return stingray.Hash{}, false, stingray.Hash{}, fmt.Errorf("load material %v.material does not exist", matFileName)
+				return stingray.Hash{}, false, stingray.Hash{}, false, fmt.Errorf("load material %v.material does not exist", matFileName)
 			}
 			mat, err := material.Load(bytes.NewReader(matData))
 			if err != nil {
-				return stingray.Hash{}, false, stingray.Hash{}, fmt.Errorf("load material %v.material: %w", matFileName, err)
+				return stingray.Hash{}, false, stingray.Hash{}, false, fmt.Errorf("load material %v.material: %w", matFileName, err)
 			}
 			// TODO: Use all textures somehow. Currently, simply the first one
 			// found is used.
@@ -298,8 +298,12 @@ func (pv *UnitPreviewState) LoadUnit(mainData, gpuData []byte, getResource GetRe
 				case extr_material.CoveringAlbedo, extr_material.InputImage, extr_material.Albedo:
 					albedoFileName = texFileName
 					albedoRemoveAlpha = removeAlpha
-				case extr_material.NormalSpecularAO, extr_material.Normal, extr_material.NormalMap, extr_material.CoveringNormal, extr_material.NAC, extr_material.NAR, extr_material.BaseData:
+				case extr_material.NormalSpecularAO:
 					normalFileName = texFileName
+					reconstructNormalZ = false
+				case extr_material.Normal, extr_material.Normals, extr_material.NormalMap, extr_material.CoveringNormal, extr_material.NAC, extr_material.BaseData, extr_material.NAR:
+					normalFileName = texFileName
+					reconstructNormalZ = true
 				}
 			}
 		}
@@ -358,11 +362,20 @@ func (pv *UnitPreviewState) LoadUnit(mainData, gpuData []byte, getResource GetRe
 			return err
 		}
 	} else {
-		data := []byte{0, 0, 255, 0}
+		data := []byte{128, 128, 255, 128}
 		gl.BindTexture(gl.TEXTURE_2D, pv.object.texNormal)
 		gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, gl.Ptr(data))
 		gl.BindTexture(gl.TEXTURE_2D, 0)
+		reconstructNormalZ = false
 	}
+
+	gl.UseProgram(pv.objectProgram)
+	if reconstructNormalZ {
+		gl.Uniform1i(pv.objectUniforms["shouldReconstructNormalZ"], 1)
+	} else {
+		gl.Uniform1i(pv.objectUniforms["shouldReconstructNormalZ"], 0)
+	}
+	gl.UseProgram(0)
 
 	// Flatten indices
 	var indices []uint32
@@ -388,6 +401,7 @@ func (pv *UnitPreviewState) LoadUnit(mainData, gpuData []byte, getResource GetRe
 	normals := make([][3]float32, len(mesh.Positions))
 	tangents := make([][3]float32, len(mesh.Positions))
 	bitangents := make([][3]float32, len(mesh.Positions))
+	nIndicesPerPos := make([]int, len(mesh.Positions))
 	for i := 0; i < len(indices); i += 3 {
 		i1 := indices[i+0]
 		i2 := indices[i+1]
@@ -420,15 +434,25 @@ func (pv *UnitPreviewState) LoadUnit(mainData, gpuData []byte, getResource GetRe
 		tangent = tangent.Normalize()
 		bitangent = bitangent.Normalize()
 
-		normals[i1] = normal
-		normals[i2] = normal
-		normals[i3] = normal
-		tangents[i1] = tangent
-		tangents[i2] = tangent
-		tangents[i3] = tangent
-		bitangents[i1] = bitangent
-		bitangents[i2] = bitangent
-		bitangents[i3] = bitangent
+		// Accumulate
+		normals[i1] = mgl32.Vec3(normals[i1]).Add(normal)
+		normals[i2] = mgl32.Vec3(normals[i2]).Add(normal)
+		normals[i3] = mgl32.Vec3(normals[i3]).Add(normal)
+		tangents[i1] = mgl32.Vec3(tangents[i1]).Add(tangent)
+		tangents[i2] = mgl32.Vec3(tangents[i2]).Add(tangent)
+		tangents[i3] = mgl32.Vec3(tangents[i3]).Add(tangent)
+		bitangents[i1] = mgl32.Vec3(bitangents[i1]).Add(bitangent)
+		bitangents[i2] = mgl32.Vec3(bitangents[i2]).Add(bitangent)
+		bitangents[i3] = mgl32.Vec3(bitangents[i3]).Add(bitangent)
+		nIndicesPerPos[i1]++
+		nIndicesPerPos[i2]++
+		nIndicesPerPos[i3]++
+	}
+	for _, i := range indices {
+		// Average
+		normals[i] = mgl32.Vec3(normals[i]).Mul(1 / float32(nIndicesPerPos[i])).Normalize()
+		tangents[i] = mgl32.Vec3(tangents[i]).Mul(1 / float32(nIndicesPerPos[i])).Normalize()
+		bitangents[i] = mgl32.Vec3(bitangents[i]).Mul(1 / float32(nIndicesPerPos[i])).Normalize()
 	}
 
 	// NOTE(xypwn): These mesh.Normals don't seem quite right

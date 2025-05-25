@@ -1,8 +1,5 @@
 #version 330 core
 
-precision mediump float;
-precision mediump int;
-
 layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec3 inNormal;
 layout(location = 2) in vec2 inUV;
@@ -30,12 +27,12 @@ void main() {
     {
         vec3 t = normalize(normalMat * inTangent);
         vec3 n = normalize(normalMat * inNormal);
-        //vec3 b = normalize(normalMat * inBitangent);
-        t = normalize(t - dot(t, n) * n);
-        vec3 b = cross(n, t);
+        vec3 b = normalize(normalMat * inBitangent);
+        //t = normalize(t - dot(t, n) * n);
+        //vec3 b = cross(n, t);
 
         mat3 tbn = mat3(t, b, n);
-        mat3 itbn = transpose(tbn); // == inverse, because orthogonal matrix
+        mat3 itbn = inverse(tbn);
 
         dbg_fragTBN = tbn;
         dbg_fragITBN = itbn;

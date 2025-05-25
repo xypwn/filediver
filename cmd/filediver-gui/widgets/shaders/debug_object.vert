@@ -1,7 +1,5 @@
 #version 330 core
 
-precision mediump float;
-
 layout(location = 0) in vec3 inPosition;
 
 uniform mat4 mvp; // projection*view*model

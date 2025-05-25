@@ -1,8 +1,5 @@
 #version 330 core
 
-precision mediump float;
-precision mediump int;
-
 layout (triangles) in;
 layout (line_strip, max_vertices = 4) out;
 

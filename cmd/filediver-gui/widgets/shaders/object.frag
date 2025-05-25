@@ -1,8 +1,5 @@
 #version 330 core
 
-precision mediump float;
-precision mediump int;
-
 out vec4 fragColor;
 
 in vec3 fragPosition;
@@ -15,18 +12,22 @@ in mat3 dbg_fragITBN;
 
 uniform sampler2D texAlbedo;
 uniform sampler2D texNormal;
+uniform bool shouldReconstructNormalZ;
 
-// Returns the Z value if truncated from a normalized XY.
+// Reconstructs the Z value if Z was truncated from XYZ.
 float reconstructNormalZ(vec2 xy) {
     return sqrt(1.0 - xy.x*xy.x - xy.y*xy.y);
 }
 
 void main() {
     vec3 normal = texture(texNormal, fragUV).xyz;
-    //fragColor = vec4(normal, 1.0);
+
+    //fragColor = vec4(normal, 1.0); return;
 
     normal = normalize(normal * 2.0 - 1.0); // in tangent space
-    normal.z = reconstructNormalZ(normal.xy);
+    if (shouldReconstructNormalZ) {
+        normal.z = reconstructNormalZ(normal.xy);
+    }
     normal.x = -normal.x;
 
     vec3 albedo = texture(texAlbedo, fragUV).xyz;
