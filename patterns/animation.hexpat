@@ -10,9 +10,9 @@ struct Position {
 };
 
 bitfield PackedQuat {
-    first   : 10;
-    second  : 10;
     third   : 10;
+    second  : 10;
+    first   : 10;
     largest :  2;
 } [[bitfield_order(std::core::BitfieldOrder::MostToLeastSignificant, 32)]];
 
@@ -44,8 +44,12 @@ struct Entry {
     EntryHeader header;
     if(header.type == 3) {
         Rotation data;
-    } else {
+    } else if(header.type == 2) {
         Position data;
+    } else if(header.type == 1) {
+        Scale data;
+    } else {
+        break;
     }
 };
 

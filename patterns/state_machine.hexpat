@@ -169,7 +169,7 @@ struct UnkFloatArray {
     float unkFloats[count];
 };
 
-struct UnkFLoatArrayList {
+struct UnkFloatArrayList {
     PtrList<UnkFloatArray, "relative_to_parents_parent"> list;
 };
 
@@ -190,7 +190,7 @@ struct StateMachine {
     u32 thinHashFloatsCount;
     RebasedNullablePtr<ThinHashFloatsList, u32, "absolute"> thinHashFloats;
     u32 unkIntFloatDataCount;
-    RebasedNullablePtr<UnkFLoatArrayList, u32, "absolute"> unkIntFloatData;
+    RebasedNullablePtr<UnkFloatArrayList, u32, "absolute"> unkIntFloatData;
     u32 unkCount;
     RebasedNullablePtr<u8, u32, "absolute"> unkData;
     u32 shortCount;
