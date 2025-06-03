@@ -16,11 +16,13 @@ import (
 	"github.com/qmuntal/gltf"
 	"github.com/xypwn/filediver/exec"
 	"github.com/xypwn/filediver/extractor"
+	extr_animation "github.com/xypwn/filediver/extractor/animation"
 	extr_bik "github.com/xypwn/filediver/extractor/bik"
 	extr_bones "github.com/xypwn/filediver/extractor/bones"
 	extr_geogroup "github.com/xypwn/filediver/extractor/geometry_group"
 	extr_material "github.com/xypwn/filediver/extractor/material"
 	extr_package "github.com/xypwn/filediver/extractor/package"
+	extr_state_machine "github.com/xypwn/filediver/extractor/state_machine"
 	extr_strings "github.com/xypwn/filediver/extractor/strings"
 	extr_texture "github.com/xypwn/filediver/extractor/texture"
 	extr_unit "github.com/xypwn/filediver/extractor/unit"
@@ -191,6 +193,24 @@ var ConfigFormat = ConfigTemplate{
 				"all_textures": {
 					Type: ConfigValueEnum,
 					Enum: []string{"false", "true"},
+				},
+			},
+		},
+		"state_machine": {
+			Category: "animations",
+			Options: map[string]ConfigTemplateOption{
+				"format": {
+					Type: ConfigValueEnum,
+					Enum: []string{"json", "source"},
+				},
+			},
+		},
+		"animation": {
+			Category: "animations",
+			Options: map[string]ConfigTemplateOption{
+				"format": {
+					Type: ConfigValueEnum,
+					Enum: []string{"json", "source"},
 				},
 			},
 		},
@@ -678,6 +698,8 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 		extr = getSourceExtractFunc(extrCfg, typ)
 	} else {
 		switch typ {
+		case "animation":
+			extr = extr_animation.ExtractAnimationJson
 		case "bik":
 			if cfg["format"] == "bik" {
 				extr = extr_bik.ExtractBik
@@ -721,6 +743,8 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 			} else {
 				extr = extr_texture.ConvertToPNG
 			}
+		case "state_machine":
+			extr = extr_state_machine.ExtractStateMachineJson
 		case "strings":
 			extr = extr_strings.ExtractStringsJSON
 		case "package":

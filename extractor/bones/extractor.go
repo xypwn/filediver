@@ -10,7 +10,7 @@ import (
 	"github.com/xypwn/filediver/stingray/bones"
 )
 
-func loadBoneMap(ctx extractor.Context) (*bones.BoneInfo, error) {
+func loadBoneMap(ctx extractor.Context) (*bones.Info, error) {
 	bonesId := ctx.File().ID()
 	bonesId.Type = stingray.Sum64([]byte("bones"))
 	bonesFile, exists := ctx.GetResource(bonesId.Name, bonesId.Type)
@@ -39,10 +39,19 @@ func ExtractBonesJSON(ctx extractor.Context) error {
 	if err != nil {
 		return err
 	}
-	outData := make(map[string]string)
+	outMap := make(map[string]string)
+	outArray := make([]string, 0)
 	for hash, name := range boneInfo.NameMap {
-		outData[hash.String()] = name
+		outMap[hash.String()] = name
 	}
+	for _, name := range boneInfo.Hashes {
+		outArray = append(outArray, boneInfo.NameMap[name])
+	}
+
+	outData := make(map[string]interface{})
+	outData["map"] = outMap
+	outData["array"] = outArray
+
 	out, err := ctx.CreateFile(".bones.json")
 	if err != nil {
 		return err
