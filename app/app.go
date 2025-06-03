@@ -119,6 +119,10 @@ var ConfigFormat = ConfigTemplate{
 					Type: ConfigValueEnum,
 					Enum: []string{"false", "true"},
 				},
+				"enable_animations": {
+					Type: ConfigValueEnum,
+					Enum: []string{"false", "true"},
+				},
 				"join_components": {
 					Type: ConfigValueEnum,
 					Enum: []string{"false", "true"},
@@ -162,6 +166,10 @@ var ConfigFormat = ConfigTemplate{
 					Enum: []string{"glb", "blend", "source"},
 				},
 				"include_lods": {
+					Type: ConfigValueEnum,
+					Enum: []string{"false", "true"},
+				},
+				"enable_animations": {
 					Type: ConfigValueEnum,
 					Enum: []string{"false", "true"},
 				},
@@ -390,26 +398,26 @@ func getWwiseHashes(ctx context.Context, dataDir *stingray.DataDir) (map[stingra
 }
 
 // Open game dir and read metadata.
-func OpenGameDir(ctx context.Context, gameDir string, hashes []string, thinhashes []string, triadIDs []stingray.Hash, armorStrings stingray.Hash, onProgress func(curr, total int)) (*App, error) {
+func OpenGameDir(ctx context.Context, gameDir string, hashStrings []string, thinhashes []string, triadIDs []stingray.Hash, armorStrings stingray.Hash, onProgress func(curr, total int)) (*App, error) {
 	dataDir, err := stingray.OpenDataDir(ctx, filepath.Join(gameDir, "data"), onProgress)
 	if err != nil {
 		return nil, err
 	}
 
-	hashesMap := make(map[stingray.Hash]string)
+	stingray.HashesMap = make(map[stingray.Hash]string)
 	if wwiseHashes, err := getWwiseHashes(ctx, dataDir); err == nil {
 		for h, n := range wwiseHashes {
-			hashesMap[h] = n
+			stingray.HashesMap[h] = n
 		}
 	} else {
 		return nil, err
 	}
-	for _, h := range hashes {
-		hashesMap[stingray.Sum64([]byte(h))] = h
+	for _, h := range hashStrings {
+		stingray.HashesMap[stingray.Sum64([]byte(h))] = h
 	}
-	thinHashesMap := make(map[stingray.ThinHash]string)
+	stingray.ThinHashesMap = make(map[stingray.ThinHash]string)
 	for _, h := range thinhashes {
-		thinHashesMap[stingray.Sum64([]byte(h)).Thin()] = h
+		stingray.ThinHashesMap[stingray.Sum64([]byte(h)).Thin()] = h
 	}
 
 	stringsFile, ok := dataDir.Files[stingray.FileID{
@@ -440,8 +448,8 @@ func OpenGameDir(ctx context.Context, gameDir string, hashes []string, thinhashe
 	}
 
 	return &App{
-		Hashes:     hashesMap,
-		ThinHashes: thinHashesMap,
+		Hashes:     stingray.HashesMap,
+		ThinHashes: stingray.ThinHashesMap,
 		TriadIDs:   triadIDs,
 		ArmorSets:  armorSets,
 		DataDir:    dataDir,
@@ -592,6 +600,14 @@ func (a *App) LookupHash(hash stingray.Hash) string {
 	return hash.String()
 }
 
+// Prints hash if human-readable name is unknown.
+func (a *App) LookupThinHash(hash stingray.ThinHash) string {
+	if name, ok := a.ThinHashes[hash]; ok {
+		return name
+	}
+	return hash.String()
+}
+
 type extractContext struct {
 	ctx     context.Context
 	app     *App
@@ -657,6 +673,12 @@ func (c *extractContext) ArmorSets() map[stingray.Hash]dlbin.ArmorSet {
 func (c *extractContext) Warnf(f string, a ...any) {
 	name, typ := c.app.LookupHash(c.file.ID().Name), c.app.LookupHash(c.file.ID().Type)
 	c.printer.Warnf("extract %v.%v: %v", name, typ, fmt.Sprintf(f, a...))
+}
+func (c *extractContext) LookupHash(hash stingray.Hash) string {
+	return c.app.LookupHash(hash)
+}
+func (c *extractContext) LookupThinHash(hash stingray.ThinHash) string {
+	return c.app.LookupThinHash(hash)
 }
 
 func getSourceExtractFunc(extrCfg Config, typ string) (extr extractor.ExtractFunc) {

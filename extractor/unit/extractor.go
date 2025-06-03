@@ -15,6 +15,7 @@ import (
 	"github.com/xypwn/filediver/extractor/blend_helper"
 	"github.com/xypwn/filediver/extractor/geometry"
 	extr_material "github.com/xypwn/filediver/extractor/material"
+	"github.com/xypwn/filediver/extractor/state_machine"
 	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/stingray/bones"
 	dlbin "github.com/xypwn/filediver/stingray/dl_bin"
@@ -290,12 +291,16 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 	}
 
 	bonesEnabled := ctx.Config()["no_bones"] != "true"
+	animationsEnabled := ctx.Config()["enable_animations"] == "true"
 
 	var skin *uint32 = nil
 	var parent *uint32 = nil
 	if bonesEnabled && len(unitInfo.Bones) > 2 {
 		skin = gltf.Index(AddSkeleton(ctx, doc, unitInfo, ctx.File().ID().Name, armorSetName))
 		parent = doc.Skins[*skin].Skeleton
+		if animationsEnabled {
+			state_machine.AddAnimationSet(ctx, doc, unitInfo)
+		}
 	} else {
 		parent = gltf.Index(uint32(len(doc.Nodes)))
 		doc.Nodes = append(doc.Nodes, &gltf.Node{

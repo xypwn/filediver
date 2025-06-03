@@ -27,6 +27,7 @@ type Context interface {
 	ArmorSets() map[stingray.Hash]dlbin.ArmorSet
 	// Prints a warning message.
 	Warnf(f string, a ...any)
+	LookupHash(hash stingray.Hash) string
 }
 
 type ExtractFunc func(ctx Context) error
