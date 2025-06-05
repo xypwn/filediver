@@ -96,6 +96,7 @@ func AddAnimation(ctx extractor.Context, doc *gltf.Document, boneInfo *bones.Inf
 		bonePositions := make([][]positionKeyframe, animInfo.Header.BoneCount)
 		boneRotations := make([][]rotationKeyframe, animInfo.Header.BoneCount)
 		boneScales := make([][]scaleKeyframe, animInfo.Header.BoneCount)
+		additive := make([]bool, animInfo.Header.BoneCount)
 
 		for i, initialTransform := range animInfo.Header.InitialTransforms {
 			bonePositions[i] = make([]positionKeyframe, 0)
@@ -115,6 +116,8 @@ func AddAnimation(ctx extractor.Context, doc *gltf.Document, boneInfo *bones.Inf
 				Time:  0.0,
 				Scale: initialTransform.Scale(),
 			})
+
+			additive[i] = initialTransform.IsAdditive()
 		}
 
 		for i, entry := range animInfo.Entries {
@@ -149,6 +152,9 @@ func AddAnimation(ctx extractor.Context, doc *gltf.Document, boneInfo *bones.Inf
 					Time:  float32(entry.Header.TimeMS()) / 1000.0,
 					Scale: value,
 				})
+			case animation.EntryTypeUnknown:
+				// Not sure how this entry type works, skip it for now
+				break
 			default:
 				return fmt.Errorf("adding entry %v to animation %v: unimplemented entry type %v", i, path.String(), entry.Header.Type().String())
 			}
@@ -172,9 +178,19 @@ func AddAnimation(ctx extractor.Context, doc *gltf.Document, boneInfo *bones.Inf
 			positions := make([][3]float32, 0)
 			for _, position := range bonePositions[boneIdx] {
 				times = append(times, position.Time)
-				positions = append(positions, position.Position)
+				translation := position.Position
+				if additive[boneIdx] {
+					// This doesn't *really* work unfortunately - diver/the .cast blender plugin modifies the
+					// basis matrix of the bone rather than modifying the translation, but I don't know if that's
+					// feasible with GLTF - maybe theres an extension for additive animations?
+					translation = translation.Add(doc.Nodes[targetNode].Translation)
+				}
+				positions = append(positions, translation)
 			}
 
+			// TODO: Hermite/catmull-rom curve interpolation, sampled at a consistent framerate
+			// rather than just dumping the animation in as is (though tbh that pretty much works
+			// thanks to how hermite curves pass through each control point)
 			positionTimesAccessor := modeler.WriteAccessor(doc, gltf.TargetNone, times)
 			doc.Accessors[positionTimesAccessor].Min = []float32{0.0}
 			doc.Accessors[positionTimesAccessor].Max = []float32{animInfo.Header.AnimationLength}
@@ -198,16 +214,24 @@ func AddAnimation(ctx extractor.Context, doc *gltf.Document, boneInfo *bones.Inf
 			for _, rotation := range boneRotations[boneIdx] {
 				times = append(times, rotation.Time)
 				data := rotation.Rotation.V.Vec4(rotation.Rotation.W)
+				if additive[boneIdx] {
+					// Same comment as for translation above - this doesn't seem to quite work, though the animation
+					// at least looks sensible rather than just a pile of body parts writhing around, so I'll take
+					// the wins where I can get them lol
+					vec := mgl32.Vec4(doc.Nodes[targetNode].Rotation)
+					addRot := vec.Quat().Mul(rotation.Rotation)
+					data = addRot.V.Vec4(addRot.W)
+				}
 				rotations = append(rotations, data)
 			}
 
+			// TODO: Hermite curve interpolation
 			rotationTimesAccessor := modeler.WriteAccessor(doc, gltf.TargetNone, times)
 			doc.Accessors[rotationTimesAccessor].Min = []float32{0.0}
 			doc.Accessors[rotationTimesAccessor].Max = []float32{animInfo.Header.AnimationLength}
 			rotationsAccessor := modeler.WriteAccessor(doc, gltf.TargetNone, rotations)
 			rotationSampler := &gltf.AnimationSampler{
-				Input: rotationTimesAccessor,
-				//Interpolation: gltf.InterpolationStep,
+				Input:  rotationTimesAccessor,
 				Output: rotationsAccessor,
 			}
 			rotationChannel := &gltf.Channel{

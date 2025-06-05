@@ -120,7 +120,10 @@ struct UnknownVectorList {
 };
 
 struct Animation {
-    MurmurHash add_path;
+    // This is the hash of a string like "Reload" or "reload_fast"
+    // It can have Title_Case, underscores, and multiple words per name
+    // It'll describe the animation(s) represented here
+    MurmurHash name;
     u32 unk00;
     u32 hashCount;
     RebasedNullablePtr<AnimationHashList, u32, "relative_to_parents_parent"> hashes;
@@ -173,12 +176,16 @@ struct UnkFloatArrayList {
     PtrList<UnkFloatArray, "relative_to_parents_parent"> list;
 };
 
-struct ShortList {
-    u16 items[parent.parent.shortCount];
+struct UnkData00List {
+    u8 items[parent.parent.unkData00Size];
 };
 
-struct ByteList {
-    u8 items[parent.parent.byteCount];
+struct UnkData01List {
+    u8 items[parent.parent.unkData01Size];
+};
+
+struct UnkData02List {
+    u8 items[parent.parent.unkData02Size];
 };
 
 struct StateMachine {
@@ -191,12 +198,12 @@ struct StateMachine {
     RebasedNullablePtr<ThinHashFloatsList, u32, "absolute"> thinHashFloats;
     u32 unkIntFloatDataCount;
     RebasedNullablePtr<UnkFloatArrayList, u32, "absolute"> unkIntFloatData;
-    u32 unkCount;
-    RebasedNullablePtr<u8, u32, "absolute"> unkData;
-    u32 shortCount;
-    RebasedNullablePtr<ShortList, u32, "absolute"> unkShorts;
-    u32 byteCount;
-    RebasedNullablePtr<ByteList, u32, "absolute"> unkBytes;
+    u32 unkData00Size;
+    RebasedNullablePtr<UnkData00List, u32, "absolute"> unkData;
+    u32 unkData01Size;
+    RebasedNullablePtr<UnkData01List, u32, "absolute"> unkShorts;
+    u32 unkData02Size;
+    RebasedNullablePtr<UnkData02List, u32, "absolute"> unkBytes;
 };
 
 StateMachine stateMachine @0x00;

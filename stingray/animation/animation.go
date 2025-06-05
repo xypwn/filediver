@@ -103,16 +103,30 @@ func decompressPosition(compressed [3]uint16) mgl32.Vec3 {
 func decompressScale(compressed [3]float16.Float16) mgl32.Vec3 {
 	scale := mgl32.Vec3{}
 	for i, val := range compressed {
-		scale[i] = 1.0 + val.Float32()
+		if val.IsNaN() {
+			scale[i] = 1.0
+		} else {
+			scale[i] = 1.0 + val.Float32()
+		}
 	}
 	return scale
 	//return gltfConversionMatrix.Mul4x1(scale.Vec4(1)).Vec3()
 }
 
+type InitialCompression struct {
+	Position bool `json:"position"`
+	Rotation bool `json:"rotation"`
+	Scale    bool `json:"scale"`
+}
+
 type BoneInitialState struct {
-	Pos [3]uint16
-	Rot PackedQuaternion
-	Scl [3]float16.Float16
+	cmpPos [3]uint16
+	decPos [3]float32
+	cmpRot PackedQuaternion
+	decRot [4]float32
+	cmpScl [3]float16.Float16
+	decScl [3]float32
+	InitialCompression
 }
 
 type jsonBoneInitialState struct {
@@ -125,53 +139,80 @@ type jsonBoneInitialState struct {
 }
 
 func (b *BoneInitialState) Position() mgl32.Vec3 {
-	return decompressPosition(b.Pos)
+	if b.InitialCompression.Position {
+		return decompressPosition(b.cmpPos)
+	}
+	return mgl32.Vec3(b.decPos)
 }
 
 func (b *BoneInitialState) Rotation() mgl32.Quat {
-	return b.Rot.Quaternion()
+	if b.InitialCompression.Rotation {
+		return b.cmpRot.Quaternion()
+	}
+	return mgl32.Vec4(b.decRot).Quat()
 }
 
 func (b *BoneInitialState) Scale() mgl32.Vec3 {
-	scale := mgl32.Vec3{}
-	for i, val := range b.Scl {
-		scale[i] = 1.0 + val.Float32()
+	if b.InitialCompression.Scale {
+		scale := mgl32.Vec3{}
+		for i, val := range b.cmpScl {
+			if val.IsNaN() {
+				scale[i] = 1.0
+			} else {
+				scale[i] = 1.0 + val.Float32()
+			}
+		}
+		return scale
 	}
-	return scale
+	scale := b.decScl
+	for i, val := range scale {
+		if math.IsNaN(float64(val)) {
+			scale[i] = 1.0
+		}
+	}
+	return mgl32.Vec3(scale)
+}
+
+func (b *BoneInitialState) IsAdditive() bool {
+	if b.InitialCompression.Scale {
+		return b.cmpScl[0].IsNaN() || b.cmpScl[1].IsNaN() || b.cmpScl[2].IsNaN()
+	} else {
+		return math.IsNaN(float64(b.decScl[0])) || math.IsNaN(float64(b.decScl[1])) || math.IsNaN(float64(b.decScl[2]))
+	}
 }
 
 func (b BoneInitialState) MarshalJSON() ([]byte, error) {
 	scale := [3]float32{
-		b.Scl[0].Float32(),
-		b.Scl[1].Float32(),
-		b.Scl[2].Float32(),
+		b.cmpScl[0].Float32(),
+		b.cmpScl[1].Float32(),
+		b.cmpScl[2].Float32(),
 	}
 	rot := b.Rotation()
 	return json.Marshal(jsonBoneInitialState{
 		Position:    b.Position(),
-		RawPosition: b.Pos,
+		RawPosition: b.cmpPos,
 		Rotation:    rot.V.Vec4(rot.W),
-		RawRotation: b.Rot,
+		RawRotation: b.cmpRot,
 		Scale:       b.Scale(),
 		RawScale:    scale,
 	})
 }
 
 type AnimationHeader struct {
-	Unk00             uint32             `json:"-"`
-	BoneCount         uint32             `json:"boneCount"`
-	AnimationLength   float32            `json:"length"`
-	Size              uint32             `json:"-"`
-	Unk01             [2]uint32          `json:"-"`
-	Unk02             uint16             `json:"unk02"`
-	VariableBits      []uint16           `json:"variableBits"`
-	InitialTransforms []BoneInitialState `json:"initialTransforms"`
+	Unk00                 uint32               `json:"-"`
+	BoneCount             uint32               `json:"boneCount"`
+	AnimationLength       float32              `json:"length"`
+	Size                  uint32               `json:"-"`
+	Unk01                 [2]uint32            `json:"-"`
+	Unk02                 uint16               `json:"unk02"`
+	TransformCompressions []InitialCompression `json:"transformCompressions"`
+	InitialTransforms     []BoneInitialState   `json:"initialTransforms"`
 }
 
 type EntryType uint8
 
 const (
-	EntryTypeUnknown0 EntryType = 0
+	EntryTypeUnknown  EntryType = 0
 	EntryTypeScale    EntryType = 1
 	EntryTypePosition EntryType = 2
 	EntryTypeRotation EntryType = 3
@@ -185,8 +226,8 @@ func (t EntryType) String() string {
 		return "rotation"
 	case EntryTypeScale:
 		return "scale"
-	case EntryTypeUnknown0:
-		return "unknown0"
+	case EntryTypeUnknown:
+		return "unknown 6 byte field"
 	}
 	return "invalid entry type"
 }
@@ -329,29 +370,73 @@ func loadAnimationHeader(r io.Reader) (*AnimationHeader, error) {
 		return nil, err
 	}
 
-	varBits := make([]uint16, 0)
-	var val uint16 = 0xffff
-	for val&0x8000 != 0 {
-		if err := binary.Read(r, binary.LittleEndian, &val); err != nil {
-			return nil, err
-		}
-		varBits = append(varBits, val)
+	totalBits := boneCount * 3
+	bytesToRead := int(math.Ceil(float64(totalBits) / 8))
+	if bytesToRead%2 == 1 {
+		bytesToRead += 1
+	}
+	compressionData := make([]uint8, bytesToRead)
+	if err := binary.Read(r, binary.BigEndian, &compressionData); err != nil {
+		return nil, err
+	}
+	transformCompressions := make([]InitialCompression, boneCount)
+	for bone := uint32(0); bone < boneCount; bone += 1 {
+		bit := bone * 3
+		posByteIdx := bit / 8
+		posBitIdx := bit % 8
+		rotByteIdx := (bit + 1) / 8
+		rotBitIdx := (bit + 1) % 8
+		sclByteIdx := (bit + 2) / 8
+		sclBitIdx := (bit + 2) % 8
+
+		transformCompressions[bone].Position = (compressionData[posByteIdx] & (1 << posBitIdx)) != 0
+		transformCompressions[bone].Rotation = (compressionData[rotByteIdx] & (1 << rotBitIdx)) != 0
+		transformCompressions[bone].Scale = (compressionData[sclByteIdx] & (1 << sclBitIdx)) != 0
 	}
 
-	initialTransforms := make([]BoneInitialState, boneCount)
-	if err := binary.Read(r, binary.LittleEndian, &initialTransforms); err != nil {
-		return nil, err
+	initialTransforms := make([]BoneInitialState, 0)
+	for bone := uint32(0); bone < boneCount; bone += 1 {
+		var initialTransform BoneInitialState
+		var err error
+		if transformCompressions[bone].Position {
+			err = binary.Read(r, binary.LittleEndian, &initialTransform.cmpPos)
+		} else {
+			err = binary.Read(r, binary.LittleEndian, &initialTransform.decPos)
+		}
+		if err != nil {
+			return nil, err
+		}
+
+		if transformCompressions[bone].Rotation {
+			err = binary.Read(r, binary.LittleEndian, &initialTransform.cmpRot)
+		} else {
+			err = binary.Read(r, binary.LittleEndian, &initialTransform.decRot)
+		}
+		if err != nil {
+			return nil, err
+		}
+
+		if transformCompressions[bone].Scale {
+			err = binary.Read(r, binary.LittleEndian, &initialTransform.cmpScl)
+		} else {
+			err = binary.Read(r, binary.LittleEndian, &initialTransform.decScl)
+		}
+		if err != nil {
+			return nil, err
+		}
+		initialTransform.InitialCompression = transformCompressions[bone]
+		initialTransforms = append(initialTransforms, initialTransform)
 	}
 
 	return &AnimationHeader{
-		Unk00:             unk00,
-		BoneCount:         boneCount,
-		AnimationLength:   animationLength,
-		Size:              size,
-		Unk01:             unk01,
-		Unk02:             unk02,
-		VariableBits:      varBits,
-		InitialTransforms: initialTransforms,
+		Unk00:                 unk00,
+		BoneCount:             boneCount,
+		AnimationLength:       animationLength,
+		Size:                  size,
+		Unk01:                 unk01,
+		Unk02:                 unk02,
+		TransformCompressions: transformCompressions,
+		InitialTransforms:     initialTransforms,
 	}, nil
 }
 
@@ -395,6 +480,12 @@ func LoadAnimation(r io.ReadSeeker) (*Animation, error) {
 			}
 			entry.Data = data
 		case EntryTypeScale:
+			var data [3]float16.Float16
+			if err := binary.Read(r, binary.LittleEndian, &data); err != nil {
+				return nil, err
+			}
+			entry.Data = data
+		case EntryTypeUnknown:
 			var data [3]float16.Float16
 			if err := binary.Read(r, binary.LittleEndian, &data); err != nil {
 				return nil, err

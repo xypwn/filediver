@@ -7,7 +7,7 @@ struct Position {
     u16 x;
     u16 y;
     u16 z;
-};
+} [[color("0000FF")]];
 
 bitfield PackedQuat {
     third   : 10;
@@ -25,19 +25,25 @@ struct EntryHeader {
 
 struct Rotation {
     PackedQuat data [[inline]];
-};
+} [[color("FF0000")]];
 
 // Relative to starting scale? Or maybe not float16 but some other format?
-struct Scale {
-    type::float16 x;
-    type::float16 y;
-    type::float16 z;
-};
+struct Scale<auto cmp> {
+    if (cmp) {
+        type::float16 x;
+        type::float16 y;
+        type::float16 z;
+    } else {
+        float x;
+        float y;
+        float z;
+    }
+} [[color("00FF00")]];
 
 struct BoneInit {
     Position pos;
     Rotation rot;
-    Scale scale;
+    Scale<parent.compressions[std::core::array_index()].scl> scale;
 };
 
 struct Entry {
@@ -47,10 +53,16 @@ struct Entry {
     } else if(header.type == 2) {
         Position data;
     } else if(header.type == 1) {
-        Scale data;
+        Scale<1> data;
     } else {
-        break;
+        Scale<1> data;
     }
+};
+
+bitfield boneCompression {
+    pos : 1;
+    rot : 1;
+    scl : 1;
 };
 
 struct AnimationHeader {
@@ -60,8 +72,11 @@ struct AnimationHeader {
     u32 sizeBytes;
     u32 unk01[2];
     u16 unk02;
-    u8 varbits[while(std::mem::read_unsigned($, 1) & 0x80 != 0x0)];
-    u8 varbits_end;
+    be boneCompression compressions[boneCount];
+    if ($ % 2 != 0) {
+        // Realign to 2 byte addr
+        padding[1];
+    }
     BoneInit initialTransforms[boneCount];
 };
 
