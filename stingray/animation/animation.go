@@ -216,7 +216,7 @@ type AnimationHeader struct {
 type EntryType uint8
 
 const (
-	EntryTypeUnknown  EntryType = 0
+	EntryTypeExtended EntryType = 0
 	EntryTypeScale    EntryType = 1
 	EntryTypePosition EntryType = 2
 	EntryTypeRotation EntryType = 3
@@ -230,8 +230,8 @@ func (t EntryType) String() string {
 		return "rotation"
 	case EntryTypeScale:
 		return "scale"
-	case EntryTypeUnknown:
-		return "unknown 6 byte field"
+	case EntryTypeExtended:
+		return "extended"
 	}
 	return "invalid entry type"
 }
@@ -240,24 +240,70 @@ func (t EntryType) MarshalText() ([]byte, error) {
 	return []byte(t.String()), nil
 }
 
-type EntryHeader uint32
+type EntrySubtype uint16
 
-func (e *EntryHeader) Type() EntryType {
-	return EntryType((*e & 0x0000C000) >> 14)
+const (
+	EntrySubtypeTimestamp  EntrySubtype = 0x0002
+	EntrySubtypeTerminator EntrySubtype = 0x0003
+	EntrySubtypePosition   EntrySubtype = 0x0004
+	EntrySubtypeRotation   EntrySubtype = 0x0005
+)
+
+type EntryHeaderType uint16
+
+func (e *EntryHeaderType) Type() EntryType {
+	return EntryType((*e & 0xC000) >> 14)
 }
 
-func (e *EntryHeader) Bone() uint16 {
-	return uint16((*e & 0x00003FF0) >> 4)
+func (e *EntryHeaderType) Bone() uint16 {
+	return uint16((*e & 0x3FF0) >> 4)
 }
 
-func (e *EntryHeader) TimeMS() uint32 {
-	return uint32(((*e & 0x0000000F) << 16) | (*e >> 16))
+func (e *EntryHeaderType) TimeMS(bottom16 uint16) uint32 {
+	return (uint32(*e&0x000F) << 16) | uint32(bottom16)
 }
 
 type jsonEntryHeader struct {
 	Type EntryType `json:"type"`
 	Bone uint16    `json:"bone"`
 	Time float32   `json:"time"`
+}
+
+type EntryHeader struct {
+	Kind                  EntryHeaderType
+	CompressedTimestamp   uint16
+	UncompressedBone      uint32
+	UncompressedTimestamp float32
+}
+
+func (e *EntryHeader) Type() EntryType {
+	return e.Kind.Type()
+}
+
+func (e *EntryHeader) Bone() uint16 {
+	if e.Kind.Type() != EntryTypeExtended {
+		return e.Kind.Bone()
+	}
+	switch EntrySubtype(e.Kind) {
+	case EntrySubtypePosition:
+		return uint16(e.UncompressedBone)
+	default:
+		return 0
+	}
+}
+
+func (e *EntryHeader) TimeMS() uint32 {
+	if e.Kind.Type() != EntryTypeExtended {
+		return e.Kind.TimeMS(e.CompressedTimestamp)
+	}
+	return uint32(1000 * e.UncompressedTimestamp)
+}
+
+func (e *EntryHeader) Subtype() EntrySubtype {
+	if e.Kind.Type() != EntryTypeExtended {
+		return EntrySubtype(0)
+	}
+	return EntrySubtype(e.Kind)
 }
 
 func (e EntryHeader) MarshalJSON() ([]byte, error) {
@@ -268,27 +314,60 @@ func (e EntryHeader) MarshalJSON() ([]byte, error) {
 	})
 }
 
+func ReadEntryHeader(r io.Reader) (*EntryHeader, error) {
+	var kind EntryHeaderType
+	if err := binary.Read(r, binary.LittleEndian, &kind); err != nil {
+		return nil, err
+	}
+	header := &EntryHeader{
+		Kind:                  kind,
+		CompressedTimestamp:   0xffff,
+		UncompressedTimestamp: -1.0,
+		UncompressedBone:      0xffffffff,
+	}
+	switch kind.Type() {
+	case EntryTypeExtended:
+		if EntrySubtype(kind) != EntrySubtypeTerminator {
+			if err := binary.Read(r, binary.LittleEndian, &header.UncompressedBone); err != nil {
+				return nil, err
+			}
+			if err := binary.Read(r, binary.LittleEndian, &header.UncompressedTimestamp); err != nil {
+				return nil, err
+			}
+		}
+	default:
+		if err := binary.Read(r, binary.LittleEndian, &header.CompressedTimestamp); err != nil {
+			return nil, err
+		}
+	}
+	return header, nil
+}
+
 type Entry struct {
-	Header EntryHeader
+	Header *EntryHeader
 	Data   interface{}
 }
 
 type jsonPositionEntry struct {
-	Header EntryHeader `json:"header"`
-	Data   mgl32.Vec3  `json:"position"`
+	Header *EntryHeader `json:"header"`
+	Data   mgl32.Vec3   `json:"position"`
 }
 
 type jsonRotationEntry struct {
-	Header EntryHeader `json:"header"`
-	Data   mgl32.Vec4  `json:"rotation"`
+	Header *EntryHeader `json:"header"`
+	Data   mgl32.Vec4   `json:"rotation"`
 }
 
 type jsonScaleEntry struct {
-	Header EntryHeader `json:"header"`
-	Data   mgl32.Vec3  `json:"scale"`
+	Header *EntryHeader `json:"header"`
+	Data   mgl32.Vec3   `json:"scale"`
 }
 
 func (e *Entry) Position() (mgl32.Vec3, error) {
+	if e.Header.Type() == EntryTypeExtended && e.Header.Subtype() == EntrySubtypePosition {
+		raw := e.Data.([3]float32)
+		return mgl32.Vec3(raw), nil
+	}
 	if e.Header.Type() != EntryTypePosition {
 		return mgl32.Vec3{}, fmt.Errorf("not a position entry")
 	}
@@ -297,6 +376,10 @@ func (e *Entry) Position() (mgl32.Vec3, error) {
 }
 
 func (e *Entry) Rotation() (mgl32.Quat, error) {
+	if e.Header.Type() == EntryTypeExtended && e.Header.Subtype() == EntrySubtypeRotation {
+		raw := e.Data.([4]float32)
+		return mgl32.Vec4(raw).Quat(), nil
+	}
 	if e.Header.Type() != EntryTypeRotation {
 		return mgl32.Quat{}, fmt.Errorf("not a rotation entry")
 	}
@@ -473,8 +556,6 @@ func loadAnimationHeader(r io.ReadSeeker) (*AnimationHeader, error) {
 	}, nil
 }
 
-const EntryTerminator uint16 = 0x0003
-
 func LoadAnimation(r io.ReadSeeker) (*Animation, error) {
 	animationHeader, err := loadAnimationHeader(r)
 	if err != nil {
@@ -483,20 +564,13 @@ func LoadAnimation(r io.ReadSeeker) (*Animation, error) {
 
 	entries := make([]Entry, 0)
 	for {
-		var peek uint16
-		if err := binary.Read(r, binary.LittleEndian, &peek); err != nil {
-			return nil, err
-		}
-		if peek == EntryTerminator {
-			break
-		}
-		if _, err := r.Seek(-2, io.SeekCurrent); err != nil {
-			return nil, err
-		}
-
 		var entry Entry
-		if err := binary.Read(r, binary.LittleEndian, &entry.Header); err != nil {
+		entry.Header, err = ReadEntryHeader(r)
+		if err != nil {
 			return nil, err
+		}
+		if entry.Header.Type() == EntryTypeExtended && EntrySubtype(entry.Header.Kind) == EntrySubtypeTerminator {
+			break
 		}
 
 		switch entry.Header.Type() {
@@ -518,12 +592,21 @@ func LoadAnimation(r io.ReadSeeker) (*Animation, error) {
 				return nil, err
 			}
 			entry.Data = data
-		case EntryTypeUnknown:
-			var data [3]float16.Float16
-			if err := binary.Read(r, binary.LittleEndian, &data); err != nil {
-				return nil, err
+		case EntryTypeExtended:
+			// Only EntrySubtypePosition and EntrySubtypeRotation are currently observed to have extra data
+			if entry.Header.Subtype() == EntrySubtypePosition {
+				var data [3]float32
+				if err := binary.Read(r, binary.LittleEndian, &data); err != nil {
+					return nil, err
+				}
+				entry.Data = data
+			} else if entry.Header.Subtype() == EntrySubtypeRotation {
+				var data [4]float32
+				if err := binary.Read(r, binary.LittleEndian, &data); err != nil {
+					return nil, err
+				}
+				entry.Data = data
 			}
-			entry.Data = data
 		default:
 			return nil, fmt.Errorf("unimplemented EntryType %v\n", entry.Header.Type())
 		}

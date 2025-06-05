@@ -152,9 +152,26 @@ func AddAnimation(ctx extractor.Context, doc *gltf.Document, boneInfo *bones.Inf
 					Time:  float32(entry.Header.TimeMS()) / 1000.0,
 					Scale: value,
 				})
-			case animation.EntryTypeUnknown:
-				// Not sure how this entry type works, skip it for now
-				break
+			case animation.EntryTypeExtended:
+				if entry.Header.Subtype() == animation.EntrySubtypePosition {
+					value, err := entry.Position()
+					if err != nil {
+						return fmt.Errorf("adding entry %v to animation %v: %v", i, path.String(), err)
+					}
+					bonePositions[entry.Header.Bone()] = append(bonePositions[entry.Header.Bone()], positionKeyframe{
+						Time:     float32(entry.Header.TimeMS()) / 1000.0,
+						Position: value,
+					})
+				} else if entry.Header.Subtype() == animation.EntrySubtypeRotation {
+					value, err := entry.Rotation()
+					if err != nil {
+						return fmt.Errorf("adding entry %v to animation %v: %v", i, path.String(), err)
+					}
+					boneRotations[entry.Header.Bone()] = append(boneRotations[entry.Header.Bone()], rotationKeyframe{
+						Time:     float32(entry.Header.TimeMS()) / 1000.0,
+						Rotation: value,
+					})
+				}
 			default:
 				return fmt.Errorf("adding entry %v to animation %v: unimplemented entry type %v", i, path.String(), entry.Header.Type().String())
 			}

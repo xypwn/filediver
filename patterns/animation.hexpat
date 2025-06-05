@@ -28,12 +28,9 @@ struct EntryHeader {
     if (type == 0) {
         $ -= 4;
         u16 subtype;
-        if (subtype == 4) {
+        if (subtype != 3) {
             u32 bone;
             float time;
-        } else if (subtype == 2) {
-            u8 bone;
-            u8 time;
         }
     } else {
         u16 bone = ((data[0] & 0xf0) >> 4) | ((data[1] & 0x3f) << 4)  [[export]];
@@ -41,8 +38,15 @@ struct EntryHeader {
     }
 };
 
-struct Rotation {
-    PackedQuat data [[inline]];
+struct Rotation<auto cmp> {
+    if(cmp) {
+        PackedQuat data [[inline]];
+    } else {
+        float x;
+        float y;
+        float z;
+        float w;
+    }
 } [[color("FF0000")]];
 
 // Relative to starting scale? Or maybe not float16 but some other format?
@@ -60,24 +64,23 @@ struct Scale<auto cmp> {
 
 struct BoneInit {
     Position<parent.compressions[std::core::array_index()].pos> pos;
-    Rotation rot;
+    Rotation<parent.compressions[std::core::array_index()].rot> rot;
     Scale<parent.compressions[std::core::array_index()].scl> scale;
 };
 
 struct Entry {
     EntryHeader header;
     if(header.type == 3) {
-        Rotation data;
+        Rotation<1> data;
     } else if(header.type == 2) {
         Position<1> data;
     } else if(header.type == 1) {
         Scale<1> data;
     } else {
-        if (header.subtype == 2) {
-            u16 unk00;
-            float time;
-        } else if (header.subtype == 4) {
+        if (header.subtype == 4) {
             Position<0> data;
+        } else if (header.subtype == 5) {
+            Rotation<0> data;
         } else {
             break;
         }
