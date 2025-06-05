@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-gl/mathgl/mgl32"
 	"github.com/x448/float16"
+	"github.com/xypwn/filediver/stingray"
 )
 
 type PackedQuaternion uint32
@@ -203,7 +204,10 @@ type AnimationHeader struct {
 	BoneCount             uint32               `json:"boneCount"`
 	AnimationLength       float32              `json:"length"`
 	Size                  uint32               `json:"-"`
-	Unk01                 [2]uint32            `json:"-"`
+	HashesCount           uint32               `json:"-"`      // These may or may not be hashes
+	Hashes2Count          uint32               `json:"-"`      // but they're definitely 8 bytes
+	Hashes                []stingray.Hash      `json:"hashes"` // wide as far as I've seen
+	Hashes2               []stingray.Hash      `json:"hashes2"`
 	Unk02                 uint16               `json:"unk02"`
 	TransformCompressions []InitialCompression `json:"transformCompressions"`
 	InitialTransforms     []BoneInitialState   `json:"initialTransforms"`
@@ -340,9 +344,8 @@ type Animation struct {
 	Size    uint32          `json:"-"`
 }
 
-func loadAnimationHeader(r io.Reader) (*AnimationHeader, error) {
-	var unk00, boneCount, size uint32
-	var unk01 [2]uint32
+func loadAnimationHeader(r io.ReadSeeker) (*AnimationHeader, error) {
+	var unk00, boneCount, size, hashesCount, hashes2Count uint32
 	var animationLength float32
 	var unk02 uint16
 
@@ -362,7 +365,21 @@ func loadAnimationHeader(r io.Reader) (*AnimationHeader, error) {
 		return nil, err
 	}
 
-	if err := binary.Read(r, binary.LittleEndian, &unk01); err != nil {
+	if err := binary.Read(r, binary.LittleEndian, &hashesCount); err != nil {
+		return nil, err
+	}
+
+	if err := binary.Read(r, binary.LittleEndian, &hashes2Count); err != nil {
+		return nil, err
+	}
+
+	hashes := make([]stingray.Hash, hashesCount)
+	if err := binary.Read(r, binary.LittleEndian, &hashes); err != nil {
+		return nil, err
+	}
+
+	hashes2 := make([]stingray.Hash, hashes2Count)
+	if err := binary.Read(r, binary.LittleEndian, &hashes2); err != nil {
 		return nil, err
 	}
 
@@ -428,12 +445,28 @@ func loadAnimationHeader(r io.Reader) (*AnimationHeader, error) {
 		initialTransforms = append(initialTransforms, initialTransform)
 	}
 
+	var zero uint8
+	for {
+		// There can be some trailing zeroes in the animation files after
+		// the initial transforms - skip them using this
+		if err := binary.Read(r, binary.BigEndian, &zero); err != nil {
+			return nil, err
+		}
+		if zero != 0x00 {
+			r.Seek(-1, io.SeekCurrent)
+			break
+		}
+	}
+
 	return &AnimationHeader{
 		Unk00:                 unk00,
 		BoneCount:             boneCount,
 		AnimationLength:       animationLength,
 		Size:                  size,
-		Unk01:                 unk01,
+		HashesCount:           hashesCount,
+		Hashes2Count:          hashes2Count,
+		Hashes:                hashes,
+		Hashes2:               hashes2,
 		Unk02:                 unk02,
 		TransformCompressions: transformCompressions,
 		InitialTransforms:     initialTransforms,
