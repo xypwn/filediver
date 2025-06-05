@@ -81,7 +81,9 @@ struct Entry {
             Position<0> data;
         } else if (header.subtype == 5) {
             Rotation<0> data;
-        } else {
+        } else if (header.subtype == 6) {
+            Scale<0> data;
+        } else if (header.subtype != 2) {
             break;
         }
     }
@@ -109,7 +111,7 @@ struct AnimationHeader {
         padding[1];
     }
     BoneInit initialTransforms[boneCount];
-    padding[while(std::mem::read_unsigned($, 1) == 0x00)];
+    padding[while(std::mem::read_unsigned($, 2) == 0x0000)];
 };
 
 struct Animation {

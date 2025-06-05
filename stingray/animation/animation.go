@@ -247,6 +247,7 @@ const (
 	EntrySubtypeTerminator EntrySubtype = 0x0003
 	EntrySubtypePosition   EntrySubtype = 0x0004
 	EntrySubtypeRotation   EntrySubtype = 0x0005
+	EntrySubtypeScale      EntrySubtype = 0x0006
 )
 
 type EntryHeaderType uint16
@@ -388,6 +389,10 @@ func (e *Entry) Rotation() (mgl32.Quat, error) {
 }
 
 func (e *Entry) Scale() (mgl32.Vec3, error) {
+	if e.Header.Type() == EntryTypeExtended && e.Header.Subtype() == EntrySubtypeScale {
+		raw := e.Data.([3]float32)
+		return mgl32.Vec3(raw), nil
+	}
 	if e.Header.Type() != EntryTypeScale {
 		return mgl32.Vec3{}, fmt.Errorf("not a scale entry")
 	}
@@ -528,15 +533,15 @@ func loadAnimationHeader(r io.ReadSeeker) (*AnimationHeader, error) {
 		initialTransforms = append(initialTransforms, initialTransform)
 	}
 
-	var zero uint8
+	var zero uint16
 	for {
 		// There can be some trailing zeroes in the animation files after
 		// the initial transforms - skip them using this
 		if err := binary.Read(r, binary.BigEndian, &zero); err != nil {
 			return nil, err
 		}
-		if zero != 0x00 {
-			r.Seek(-1, io.SeekCurrent)
+		if zero != 0x0000 {
+			r.Seek(-2, io.SeekCurrent)
 			break
 		}
 	}
@@ -593,7 +598,6 @@ func LoadAnimation(r io.ReadSeeker) (*Animation, error) {
 			}
 			entry.Data = data
 		case EntryTypeExtended:
-			// Only EntrySubtypePosition and EntrySubtypeRotation are currently observed to have extra data
 			if entry.Header.Subtype() == EntrySubtypePosition {
 				var data [3]float32
 				if err := binary.Read(r, binary.LittleEndian, &data); err != nil {
@@ -602,6 +606,12 @@ func LoadAnimation(r io.ReadSeeker) (*Animation, error) {
 				entry.Data = data
 			} else if entry.Header.Subtype() == EntrySubtypeRotation {
 				var data [4]float32
+				if err := binary.Read(r, binary.LittleEndian, &data); err != nil {
+					return nil, err
+				}
+				entry.Data = data
+			} else if entry.Header.Subtype() == EntrySubtypeScale {
+				var data [3]float32
 				if err := binary.Read(r, binary.LittleEndian, &data); err != nil {
 					return nil, err
 				}

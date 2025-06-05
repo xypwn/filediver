@@ -171,6 +171,15 @@ func AddAnimation(ctx extractor.Context, doc *gltf.Document, boneInfo *bones.Inf
 						Time:     float32(entry.Header.TimeMS()) / 1000.0,
 						Rotation: value,
 					})
+				} else if entry.Header.Subtype() == animation.EntrySubtypeScale {
+					value, err := entry.Scale()
+					if err != nil {
+						return fmt.Errorf("adding entry %v to animation %v: %v", i, path.String(), err)
+					}
+					boneScales[entry.Header.Bone()] = append(boneScales[entry.Header.Bone()], scaleKeyframe{
+						Time:  float32(entry.Header.TimeMS()) / 1000.0,
+						Scale: value,
+					})
 				}
 			default:
 				return fmt.Errorf("adding entry %v to animation %v: unimplemented entry type %v", i, path.String(), entry.Header.Type().String())
@@ -179,7 +188,7 @@ func AddAnimation(ctx extractor.Context, doc *gltf.Document, boneInfo *bones.Inf
 
 		samplers := make([]*gltf.AnimationSampler, 0)
 		channels := make([]*gltf.Channel, 0)
-		for boneIdx := uint32(1); boneIdx < animInfo.Header.BoneCount; boneIdx += 1 {
+		for boneIdx := uint32(0); boneIdx < animInfo.Header.BoneCount; boneIdx += 1 {
 			var targetNode uint32 = 0xffffffff
 			for nodeIdx := range doc.Nodes {
 				if doc.Nodes[nodeIdx].Name == boneInfo.NameMap[boneInfo.Hashes[boneIdx]] {
