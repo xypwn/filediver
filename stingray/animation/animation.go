@@ -211,6 +211,7 @@ type AnimationHeader struct {
 	Unk02                 uint16               `json:"unk02"`
 	TransformCompressions []InitialCompression `json:"transformCompressions"`
 	InitialTransforms     []BoneInitialState   `json:"initialTransforms"`
+	HashFloats            []float32            `json:"hashFloats"`
 }
 
 type EntryType uint8
@@ -286,7 +287,7 @@ func (e *EntryHeader) Bone() uint16 {
 		return e.Kind.Bone()
 	}
 	switch EntrySubtype(e.Kind) {
-	case EntrySubtypePosition:
+	case EntrySubtypePosition, EntrySubtypeRotation, EntrySubtypeScale:
 		return uint16(e.UncompressedBone)
 	default:
 		return 0
@@ -364,6 +365,15 @@ type jsonScaleEntry struct {
 	Data   mgl32.Vec3   `json:"scale"`
 }
 
+type jsonTimestampEntry struct {
+	Header    *EntryHeader `json:"header"`
+	Timestamp float32      `json:"timestamp"`
+}
+
+type jsonTerminatorEntry struct {
+	Terminator string `json:"terminator"`
+}
+
 func (e *Entry) Position() (mgl32.Vec3, error) {
 	if e.Header.Type() == EntryTypeExtended && e.Header.Subtype() == EntrySubtypePosition {
 		raw := e.Data.([3]float32)
@@ -421,6 +431,47 @@ func (e *Entry) MarshalJSON() ([]byte, error) {
 			Header: e.Header,
 			Data:   decompressScale(raw),
 		})
+	case EntryTypeExtended:
+		switch EntrySubtype(e.Header.Kind) {
+		case EntrySubtypeTimestamp:
+			return json.Marshal(jsonTimestampEntry{
+				Header:    e.Header,
+				Timestamp: e.Header.UncompressedTimestamp,
+			})
+		case EntrySubtypePosition:
+			pos, err := e.Position()
+			if err != nil {
+				return nil, err
+			}
+			return json.Marshal(jsonPositionEntry{
+				Header: e.Header,
+				Data:   pos,
+			})
+		case EntrySubtypeRotation:
+			rot, err := e.Rotation()
+			if err != nil {
+				return nil, err
+			}
+			return json.Marshal(jsonRotationEntry{
+				Header: e.Header,
+				Data:   rot.V.Vec4(rot.W),
+			})
+		case EntrySubtypeScale:
+			scale, err := e.Scale()
+			if err != nil {
+				return nil, err
+			}
+			return json.Marshal(jsonScaleEntry{
+				Header: e.Header,
+				Data:   scale,
+			})
+		case EntrySubtypeTerminator:
+			return json.Marshal(jsonTerminatorEntry{
+				Terminator: "I'll be back",
+			})
+		default:
+			return nil, fmt.Errorf("unimplemented entry subtype %v", e.Header.Kind)
+		}
 	default:
 		return nil, fmt.Errorf("unimplemented entry type %v", e.Header.Type())
 	}
@@ -533,17 +584,9 @@ func loadAnimationHeader(r io.ReadSeeker) (*AnimationHeader, error) {
 		initialTransforms = append(initialTransforms, initialTransform)
 	}
 
-	var zero uint16
-	for {
-		// There can be some trailing zeroes in the animation files after
-		// the initial transforms - skip them using this
-		if err := binary.Read(r, binary.BigEndian, &zero); err != nil {
-			return nil, err
-		}
-		if zero != 0x0000 {
-			r.Seek(-2, io.SeekCurrent)
-			break
-		}
+	hashFloats := make([]float32, hashesCount)
+	if err := binary.Read(r, binary.LittleEndian, &hashFloats); err != nil {
+		return nil, err
 	}
 
 	return &AnimationHeader{
@@ -558,6 +601,7 @@ func loadAnimationHeader(r io.ReadSeeker) (*AnimationHeader, error) {
 		Unk02:                 unk02,
 		TransformCompressions: transformCompressions,
 		InitialTransforms:     initialTransforms,
+		HashFloats:            hashFloats,
 	}, nil
 }
 
