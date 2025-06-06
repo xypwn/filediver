@@ -204,10 +204,12 @@ type AnimationHeader struct {
 	BoneCount             uint32               `json:"boneCount"`
 	AnimationLength       float32              `json:"length"`
 	Size                  uint32               `json:"-"`
-	HashesCount           uint32               `json:"-"`      // These may or may not be hashes
-	Hashes2Count          uint32               `json:"-"`      // but they're definitely 8 bytes
-	Hashes                []stingray.Hash      `json:"hashes"` // wide as far as I've seen
-	Hashes2               []stingray.Hash      `json:"hashes2"`
+	HashesCount           uint32               `json:"-"` // These may or may not be hashes
+	Hashes2Count          uint32               `json:"-"` // but they're definitely 8 bytes
+	Hashes                []stingray.Hash      `json:"-"` // wide as far as I've seen
+	ResolvedHashes        []string             `json:"hashes"`
+	Hashes2               []stingray.Hash      `json:"-"`
+	ResolvedHashes2       []string             `json:"hashes2"`
 	Unk02                 uint16               `json:"unk02"`
 	TransformCompressions []InitialCompression `json:"transformCompressions"`
 	InitialTransforms     []BoneInitialState   `json:"initialTransforms"`

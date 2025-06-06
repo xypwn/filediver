@@ -77,6 +77,7 @@ func (c *stateMachineContext) Warnf(f string, a ...any) {
 	name, typ := c.app.LookupHash(c.file.ID().Name), c.app.LookupHash(c.file.ID().Type)
 	c.printer.Warnf("dump %v.%v: %v", name, typ, fmt.Sprintf(f, a...))
 }
+func (c *stateMachineContext) LookupHash(hash stingray.Hash) string { return c.LookupHash(hash) }
 
 var physicsConfigFormat = app.ConfigTemplate{
 	Extractors: map[string]app.ConfigTemplateExtractor{

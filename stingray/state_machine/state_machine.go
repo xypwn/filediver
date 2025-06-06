@@ -59,16 +59,22 @@ type rawStateMachine struct {
 	UnkData02Offset         uint32
 }
 
+type rawBoneChannel struct {
+	Name  stingray.ThinHash
+	Index int32
+}
+
 type BoneChannel struct {
-	Name  stingray.ThinHash `json:"name"`
-	Index int32             `json:"index"`
+	Name         stingray.ThinHash `json:"-"`
+	ResolvedName string            `json:"name"`
+	Index        int32             `json:"index"`
 }
 
 type Link struct {
 	Index  uint32            `json:"index"`
 	Weight float32           `json:"weight"`
 	Unk00  uint32            `json:"-"`
-	Name   stingray.ThinHash `json:"name"`
+	Name   stingray.ThinHash `json:"-"`
 }
 
 type IndexedVector struct {
@@ -85,12 +91,14 @@ type Vectors struct {
 }
 
 type Animation struct {
-	Name            stingray.Hash   `json:"name"`
-	AnimationHashes []stingray.Hash `json:"paths,omitempty"`
-	FloatList       []float32       `json:"floats,omitempty"`
-	BoneList        []BoneChannel   `json:"bones,omitempty"`
-	LinkList        []Link          `json:"links,omitempty"`
-	VectorList      []Vectors       `json:"vectors,omitempty"`
+	Name                    stingray.Hash   `json:"-"`
+	ResolvedName            string          `json:"name"`
+	AnimationHashes         []stingray.Hash `json:"-"`
+	ResolvedAnimationHashes []string        `json:"paths,omitempty"`
+	FloatList               []float32       `json:"floats,omitempty"`
+	BoneList                []BoneChannel   `json:"bones,omitempty"`
+	LinkList                []Link          `json:"links,omitempty"`
+	VectorList              []Vectors       `json:"vectors,omitempty"`
 }
 
 type AnimationGroup struct {
@@ -99,14 +107,16 @@ type AnimationGroup struct {
 }
 
 type StateMachine struct {
-	Unk00                uint32                        `json:"unk00"`
-	Groups               []AnimationGroup              `json:"groups,omitempty"`
-	ThinHashes           []stingray.ThinHash           `json:"thinhashes,omitempty"`
-	ThinHashFloatsMap    map[stingray.ThinHash]float32 `json:"boneWeightsMap,omitempty"`
-	BoneOpacityArrayList [][]float32                   `json:"boneOpacities,omitempty"`
-	UnkData00            []uint8                       `json:"unkData00,omitempty"`
-	UnkData01            []uint8                       `json:"unkData01,omitempty"`
-	UnkData02            []uint8                       `json:"unkData02,omitempty"`
+	Unk00                     uint32                        `json:"unk00"`
+	Groups                    []AnimationGroup              `json:"groups,omitempty"`
+	ThinHashes                []stingray.ThinHash           `json:"-"`
+	ResolvedThinHashes        []string                      `json:"thinhashes,omitempty"`
+	ThinHashFloatsMap         map[stingray.ThinHash]float32 `json:"-"`
+	ResolvedThinHashFloatsMap map[string]float32            `json:"boneWeightsMap,omitempty"`
+	BoneOpacityArrayList      [][]float32                   `json:"boneOpacities,omitempty"`
+	UnkData00                 []uint8                       `json:"unkData00,omitempty"`
+	UnkData01                 []uint8                       `json:"unkData01,omitempty"`
+	UnkData02                 []uint8                       `json:"unkData02,omitempty"`
 }
 
 func loadOffsetList(r io.Reader) ([]uint32, error) {
@@ -193,13 +203,20 @@ func LoadStateMachine(r io.ReadSeeker) (*StateMachine, error) {
 					}
 				}
 
-				anim.BoneList = make([]BoneChannel, rawAnim.BoneCount)
+				anim.BoneList = make([]BoneChannel, 0)
 				if rawAnim.BoneListOffset != 0 {
 					if _, err := r.Seek(int64(rawSM.AnimationGroupsOffset+groupOffset+animationOffset+rawAnim.BoneListOffset), io.SeekStart); err != nil {
 						return nil, fmt.Errorf("seek animation bone list %08x: %v", rawSM.AnimationGroupsOffset+groupOffset+animationOffset+rawAnim.BoneListOffset, err)
 					}
-					if err := binary.Read(r, binary.LittleEndian, &anim.BoneList); err != nil {
-						return nil, fmt.Errorf("read animation bone list %08x: %v", rawSM.AnimationGroupsOffset+groupOffset+animationOffset+rawAnim.BoneListOffset, err)
+					for i := uint32(0); i < rawAnim.BoneCount; i++ {
+						var rawChannel rawBoneChannel
+						if err := binary.Read(r, binary.LittleEndian, &rawChannel); err != nil {
+							return nil, fmt.Errorf("read animation bone list %08x: %v", rawSM.AnimationGroupsOffset+groupOffset+animationOffset+rawAnim.BoneListOffset, err)
+						}
+						anim.BoneList = append(anim.BoneList, BoneChannel{
+							Name:  rawChannel.Name,
+							Index: rawChannel.Index,
+						})
 					}
 				}
 

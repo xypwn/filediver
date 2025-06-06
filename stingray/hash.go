@@ -8,10 +8,6 @@ import (
 	"strings"
 )
 
-var HashesMap map[Hash]string
-
-var ThinHashesMap map[ThinHash]string
-
 type Hash struct{ Value uint64 }
 
 // Murmur64a hash
@@ -63,6 +59,10 @@ func (h Hash) String() string {
 	return "0x" + h.StringEndian(binary.BigEndian)
 }
 
+func (h Hash) MarshalText() ([]byte, error) {
+	return []byte(h.String()), nil
+}
+
 // ParseHash parses a big endian murmur64 hash.
 // Ignores 0x prefix if present.
 func ParseHash(s string) (Hash, error) {
@@ -72,17 +72,6 @@ func ParseHash(s string) (Hash, error) {
 		return Hash{}, fmt.Errorf("parsing hash: %w", err)
 	}
 	return Hash{Value: x}, nil
-}
-
-func (h Hash) lookupString() string {
-	if val, ok := HashesMap[h]; ok {
-		return val
-	}
-	return h.String()
-}
-
-func (h Hash) MarshalText() ([]byte, error) {
-	return []byte(h.lookupString()), nil
 }
 
 type ThinHash struct{ Value uint32 }
@@ -97,13 +86,6 @@ func (h ThinHash) String() string {
 	return "0x" + h.StringEndian(binary.BigEndian)
 }
 
-func (h ThinHash) lookupString() string {
-	if val, ok := ThinHashesMap[h]; ok {
-		return val
-	}
-	return h.String()
-}
-
 func (h ThinHash) MarshalText() ([]byte, error) {
-	return []byte(h.lookupString()), nil
+	return []byte(h.String()), nil
 }

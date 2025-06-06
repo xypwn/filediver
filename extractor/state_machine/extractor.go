@@ -29,7 +29,43 @@ func ExtractStateMachineJson(ctx extractor.Context) error {
 		return err
 	}
 
-	text, err := json.Marshal(stateMachine)
+	stateMachine.ResolvedThinHashes = make([]string, 0)
+	for _, hash := range stateMachine.ThinHashes {
+		str, ok := ctx.ThinHashes()[hash]
+		if !ok {
+			str = hash.String()
+		}
+		stateMachine.ResolvedThinHashes = append(stateMachine.ResolvedThinHashes, str)
+	}
+
+	stateMachine.ResolvedThinHashFloatsMap = make(map[string]float32)
+	for hash, float := range stateMachine.ThinHashFloatsMap {
+		str, ok := ctx.ThinHashes()[hash]
+		if !ok {
+			str = hash.String()
+		}
+		stateMachine.ResolvedThinHashFloatsMap[str] = float
+	}
+
+	for groupIdx, group := range stateMachine.Groups {
+		for animIdx, animation := range group.Animations {
+			stateMachine.Groups[groupIdx].Animations[animIdx].ResolvedName = ctx.LookupHash(animation.Name)
+			resolvedAnimationHashes := make([]string, 0)
+			for _, hash := range animation.AnimationHashes {
+				resolvedAnimationHashes = append(resolvedAnimationHashes, ctx.LookupHash(hash))
+			}
+			stateMachine.Groups[groupIdx].Animations[animIdx].ResolvedAnimationHashes = resolvedAnimationHashes
+			for chIdx, channel := range animation.BoneList {
+				str, ok := ctx.ThinHashes()[channel.Name]
+				if !ok {
+					str = channel.Name.String()
+				}
+				stateMachine.Groups[groupIdx].Animations[animIdx].BoneList[chIdx].ResolvedName = str
+			}
+		}
+	}
+
+	text, err := json.MarshalIndent(stateMachine, "", "    ")
 	if err != nil {
 		return err
 	}

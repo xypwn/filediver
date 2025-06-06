@@ -404,20 +404,20 @@ func OpenGameDir(ctx context.Context, gameDir string, hashStrings []string, thin
 		return nil, err
 	}
 
-	stingray.HashesMap = make(map[stingray.Hash]string)
+	hashesMap := make(map[stingray.Hash]string)
 	if wwiseHashes, err := getWwiseHashes(ctx, dataDir); err == nil {
 		for h, n := range wwiseHashes {
-			stingray.HashesMap[h] = n
+			hashesMap[h] = n
 		}
 	} else {
 		return nil, err
 	}
 	for _, h := range hashStrings {
-		stingray.HashesMap[stingray.Sum64([]byte(h))] = h
+		hashesMap[stingray.Sum64([]byte(h))] = h
 	}
-	stingray.ThinHashesMap = make(map[stingray.ThinHash]string)
+	thinHashesMap := make(map[stingray.ThinHash]string)
 	for _, h := range thinhashes {
-		stingray.ThinHashesMap[stingray.Sum64([]byte(h)).Thin()] = h
+		thinHashesMap[stingray.Sum64([]byte(h)).Thin()] = h
 	}
 
 	stringsFile, ok := dataDir.Files[stingray.FileID{
@@ -448,8 +448,8 @@ func OpenGameDir(ctx context.Context, gameDir string, hashStrings []string, thin
 	}
 
 	return &App{
-		Hashes:     stingray.HashesMap,
-		ThinHashes: stingray.ThinHashesMap,
+		Hashes:     hashesMap,
+		ThinHashes: thinHashesMap,
 		TriadIDs:   triadIDs,
 		ArmorSets:  armorSets,
 		DataDir:    dataDir,

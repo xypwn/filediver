@@ -32,6 +32,15 @@ func ExtractAnimationJson(ctx extractor.Context) error {
 	if err != nil {
 		return fmt.Errorf("extract animation json: loading animation failed: %v", err)
 	}
+	anim.Header.ResolvedHashes = make([]string, 0)
+	for _, hash := range anim.Header.Hashes {
+		anim.Header.ResolvedHashes = append(anim.Header.ResolvedHashes, ctx.LookupHash(hash))
+	}
+
+	anim.Header.ResolvedHashes2 = make([]string, 0)
+	for _, hash := range anim.Header.Hashes2 {
+		anim.Header.ResolvedHashes2 = append(anim.Header.ResolvedHashes2, ctx.LookupHash(hash))
+	}
 
 	text, err := json.Marshal(anim)
 	if err != nil {
