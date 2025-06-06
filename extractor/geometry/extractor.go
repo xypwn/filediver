@@ -620,17 +620,27 @@ func LoadGLTF(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, nam
 
 		hasLOD0 := true
 
-		if ctx.Config()["include_lods"] != "true" &&
-			(strings.Contains(groupName, "shadow") ||
-				strings.Contains(groupName, "_LOD") ||
-				strings.Contains(groupName, "cull") ||
-				strings.Contains(groupName, "collision")) {
+		isLOD := func(name string, onlyModelAndShadow bool) bool {
+			if strings.Contains(name, "shadow") {
+				return true
+			}
+			if strings.Contains(name, "_LOD") && !strings.Contains(name, "_LOD0") {
+				return true
+			}
+			if strings.Contains(name, "cull") || strings.Contains(name, "collision") {
+				return true && !onlyModelAndShadow
+			}
+			return false
+		}
+
+		if ctx.Config()["include_lods"] != "true" && isLOD(groupName, false) {
 			if strings.Contains(groupName, "_LOD1") && !strings.Contains(groupName, "shadow") {
 				hasLOD0 = false
 				lod0Name := strings.TrimSuffix(groupName, "_LOD1")
-				lod0Hash := stingray.Sum64([]byte(lod0Name)).Thin()
+				lod0Hash1 := stingray.Sum64([]byte(lod0Name)).Thin()
+				lod0Hash2 := stingray.Sum64([]byte(lod0Name + "_LOD0")).Thin()
 				for _, bone := range unitInfo.GroupBones {
-					if lod0Hash == bone {
+					if lod0Hash1 == bone || lod0Hash2 == bone {
 						hasLOD0 = true
 						break
 					}
@@ -808,7 +818,7 @@ func LoadGLTF(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, nam
 			if ctx.Config()["join_components"] != "true" {
 				texcoordIndex, ok := groupAttr[gltf.TEXCOORD_0]
 				// Don't separate udims of LODs or shadow meshes, unless this is LOD1 and we don't have an LOD0
-				if ok && (!strings.Contains(groupName, "LOD") && !strings.Contains(groupName, "shadow") || (!hasLOD0 && strings.Contains(groupName, "LOD1") && !strings.Contains(groupName, "shadow"))) {
+				if ok && (!isLOD(groupName, true) || (!hasLOD0 && strings.Contains(groupName, "LOD1") && !strings.Contains(groupName, "shadow"))) {
 					texcoordAccessor := doc.Accessors[texcoordIndex]
 					groupIndexAccessor := doc.Accessors[*groupIndices]
 					var UDIMs map[uint32][]uint32
@@ -821,7 +831,7 @@ func LoadGLTF(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, nam
 					}
 				}
 			}
-			if ctx.Config()["join_components"] == "true" || (ctx.Config()["include_lods"] == "true" && (strings.Contains(groupName, "LOD") || strings.Contains(groupName, "shadow"))) {
+			if ctx.Config()["join_components"] == "true" || (ctx.Config()["include_lods"] == "true" && (isLOD(groupName, true))) {
 				udimIndexAccessors[0] = *groupIndices
 			}
 
