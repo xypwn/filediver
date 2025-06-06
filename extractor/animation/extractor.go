@@ -186,6 +186,7 @@ func AddAnimation(ctx extractor.Context, doc *gltf.Document, boneInfo *bones.Inf
 			}
 		}
 
+		gltfConvertQuat := mgl32.QuatRotate(mgl32.DegToRad(-90), mgl32.Vec3([3]float32{1, 0, 0}))
 		samplers := make([]*gltf.AnimationSampler, 0)
 		channels := make([]*gltf.Channel, 0)
 		for boneIdx := uint32(0); boneIdx < animInfo.Header.BoneCount; boneIdx += 1 {
@@ -210,6 +211,8 @@ func AddAnimation(ctx extractor.Context, doc *gltf.Document, boneInfo *bones.Inf
 					// basis matrix of the bone rather than modifying the translation, but I don't know if that's
 					// feasible with GLTF - maybe theres an extension for additive animations?
 					translation = translation.Add(doc.Nodes[targetNode].Translation)
+				} else if doc.Nodes[targetNode].Name == "StingrayEntityRoot" {
+					translation = gltfConvertQuat.Rotate(translation)
 				}
 				positions = append(positions, translation)
 			}
@@ -247,6 +250,9 @@ func AddAnimation(ctx extractor.Context, doc *gltf.Document, boneInfo *bones.Inf
 					vec := mgl32.Vec4(doc.Nodes[targetNode].Rotation)
 					addRot := vec.Quat().Mul(rotation.Rotation)
 					data = addRot.V.Vec4(addRot.W)
+				} else if doc.Nodes[targetNode].Name == "StingrayEntityRoot" {
+					gltfConvertedRot := gltfConvertQuat.Mul(rotation.Rotation)
+					data = gltfConvertedRot.V.Vec4(gltfConvertedRot.W)
 				}
 				rotations = append(rotations, data)
 			}
