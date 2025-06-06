@@ -111,7 +111,7 @@ struct AnimationHeader {
         padding[1];
     }
     BoneInit initialTransforms[boneCount];
-    padding[while(std::mem::read_unsigned($, 2) == 0x0000)];
+    float hashesFloats[hashesCount];
 };
 
 struct Animation {
