@@ -16,11 +16,13 @@ import (
 	"github.com/qmuntal/gltf"
 	"github.com/xypwn/filediver/exec"
 	"github.com/xypwn/filediver/extractor"
+	extr_animation "github.com/xypwn/filediver/extractor/animation"
 	extr_bik "github.com/xypwn/filediver/extractor/bik"
 	extr_bones "github.com/xypwn/filediver/extractor/bones"
 	extr_geogroup "github.com/xypwn/filediver/extractor/geometry_group"
 	extr_material "github.com/xypwn/filediver/extractor/material"
 	extr_package "github.com/xypwn/filediver/extractor/package"
+	extr_state_machine "github.com/xypwn/filediver/extractor/state_machine"
 	extr_strings "github.com/xypwn/filediver/extractor/strings"
 	extr_texture "github.com/xypwn/filediver/extractor/texture"
 	extr_unit "github.com/xypwn/filediver/extractor/unit"
@@ -117,6 +119,10 @@ var ConfigFormat = ConfigTemplate{
 					Type: ConfigValueEnum,
 					Enum: []string{"false", "true"},
 				},
+				"enable_animations": {
+					Type: ConfigValueEnum,
+					Enum: []string{"false", "true"},
+				},
 				"join_components": {
 					Type: ConfigValueEnum,
 					Enum: []string{"false", "true"},
@@ -163,6 +169,10 @@ var ConfigFormat = ConfigTemplate{
 					Type: ConfigValueEnum,
 					Enum: []string{"false", "true"},
 				},
+				"enable_animations": {
+					Type: ConfigValueEnum,
+					Enum: []string{"false", "true"},
+				},
 				"join_components": {
 					Type: ConfigValueEnum,
 					Enum: []string{"false", "true"},
@@ -191,6 +201,24 @@ var ConfigFormat = ConfigTemplate{
 				"all_textures": {
 					Type: ConfigValueEnum,
 					Enum: []string{"false", "true"},
+				},
+			},
+		},
+		"state_machine": {
+			Category: "animations",
+			Options: map[string]ConfigTemplateOption{
+				"format": {
+					Type: ConfigValueEnum,
+					Enum: []string{"json", "source"},
+				},
+			},
+		},
+		"animation": {
+			Category: "animations",
+			Options: map[string]ConfigTemplateOption{
+				"format": {
+					Type: ConfigValueEnum,
+					Enum: []string{"json", "source"},
 				},
 			},
 		},
@@ -370,7 +398,7 @@ func getWwiseHashes(ctx context.Context, dataDir *stingray.DataDir) (map[stingra
 }
 
 // Open game dir and read metadata.
-func OpenGameDir(ctx context.Context, gameDir string, hashes []string, thinhashes []string, triadIDs []stingray.Hash, armorStrings stingray.Hash, onProgress func(curr, total int)) (*App, error) {
+func OpenGameDir(ctx context.Context, gameDir string, hashStrings []string, thinhashes []string, triadIDs []stingray.Hash, armorStrings stingray.Hash, onProgress func(curr, total int)) (*App, error) {
 	dataDir, err := stingray.OpenDataDir(ctx, filepath.Join(gameDir, "data"), onProgress)
 	if err != nil {
 		return nil, err
@@ -384,7 +412,7 @@ func OpenGameDir(ctx context.Context, gameDir string, hashes []string, thinhashe
 	} else {
 		return nil, err
 	}
-	for _, h := range hashes {
+	for _, h := range hashStrings {
 		hashesMap[stingray.Sum64([]byte(h))] = h
 	}
 	thinHashesMap := make(map[stingray.ThinHash]string)
@@ -572,6 +600,14 @@ func (a *App) LookupHash(hash stingray.Hash) string {
 	return hash.String()
 }
 
+// Prints hash if human-readable name is unknown.
+func (a *App) LookupThinHash(hash stingray.ThinHash) string {
+	if name, ok := a.ThinHashes[hash]; ok {
+		return name
+	}
+	return hash.String()
+}
+
 type extractContext struct {
 	ctx     context.Context
 	app     *App
@@ -638,6 +674,12 @@ func (c *extractContext) Warnf(f string, a ...any) {
 	name, typ := c.app.LookupHash(c.file.ID().Name), c.app.LookupHash(c.file.ID().Type)
 	c.printer.Warnf("extract %v.%v: %v", name, typ, fmt.Sprintf(f, a...))
 }
+func (c *extractContext) LookupHash(hash stingray.Hash) string {
+	return c.app.LookupHash(hash)
+}
+func (c *extractContext) LookupThinHash(hash stingray.ThinHash) string {
+	return c.app.LookupThinHash(hash)
+}
 
 func getSourceExtractFunc(extrCfg Config, typ string) (extr extractor.ExtractFunc) {
 	rawCfg := extrCfg["raw"]
@@ -678,6 +720,8 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 		extr = getSourceExtractFunc(extrCfg, typ)
 	} else {
 		switch typ {
+		case "animation":
+			extr = extr_animation.ExtractAnimationJson
 		case "bik":
 			if cfg["format"] == "bik" {
 				extr = extr_bik.ExtractBik
@@ -721,6 +765,8 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 			} else {
 				extr = extr_texture.ConvertToPNG
 			}
+		case "state_machine":
+			extr = extr_state_machine.ExtractStateMachineJson
 		case "strings":
 			extr = extr_strings.ExtractStringsJSON
 		case "package":

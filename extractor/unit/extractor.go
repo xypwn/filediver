@@ -15,6 +15,7 @@ import (
 	"github.com/xypwn/filediver/extractor/blend_helper"
 	"github.com/xypwn/filediver/extractor/geometry"
 	extr_material "github.com/xypwn/filediver/extractor/material"
+	"github.com/xypwn/filediver/extractor/state_machine"
 	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/stingray/bones"
 	dlbin "github.com/xypwn/filediver/stingray/dl_bin"
@@ -23,10 +24,11 @@ import (
 	"github.com/xypwn/filediver/stingray/unit/material"
 )
 
-func loadBoneMap(ctx extractor.Context) (*bones.BoneInfo, error) {
-	bonesId := ctx.File().ID()
-	bonesId.Type = stingray.Sum64([]byte("bones"))
-	bonesFile, exists := ctx.GetResource(bonesId.Name, bonesId.Type)
+func LoadBoneMap(ctx extractor.Context, unitInfo *unit.Info) (*bones.Info, error) {
+	if unitInfo.BonesHash.Value == 0x0 {
+		return nil, nil
+	}
+	bonesFile, exists := ctx.GetResource(unitInfo.BonesHash, stingray.Sum64([]byte("bones")))
 	if !exists {
 		return nil, fmt.Errorf("loadBoneMap: bones file does not exist")
 	}
@@ -41,6 +43,17 @@ func loadBoneMap(ctx extractor.Context) (*bones.BoneInfo, error) {
 
 // Adds the unit's skeleton to the gltf document
 func AddSkeleton(ctx extractor.Context, doc *gltf.Document, unitInfo *unit.Info, skeletonName stingray.Hash, armorName *string) uint32 {
+	boneInfo, err := LoadBoneMap(ctx, unitInfo)
+	if err != nil {
+		ctx.Warnf("addSkeleton: %v", err)
+	}
+
+	if boneInfo != nil {
+		for bone, name := range boneInfo.NameMap {
+			ctx.ThinHashes()[bone] = name
+		}
+	}
+
 	var matrices [][4][4]float32 = make([][4][4]float32, len(unitInfo.JointTransformMatrices))
 	gltfConversionMatrix := mgl32.HomogRotate3DX(mgl32.DegToRad(-90.0)).Mul4(mgl32.HomogRotate3DZ(mgl32.DegToRad(0)))
 	for i := range matrices {
@@ -88,12 +101,6 @@ func AddSkeleton(ctx extractor.Context, doc *gltf.Document, unitInfo *unit.Info,
 	for i, bone := range unitInfo.Bones {
 		quat := mgl32.Mat4ToQuat(bone.Transform.Rotation.Mat4())
 		boneName := fmt.Sprintf("Bone_%08x", bone.NameHash.Value)
-		// if boneInfo != nil {
-		// 	name, exists := boneInfo.NameMap[bone.NameHash]
-		// 	if exists {
-		// 		boneName = name
-		// 	}
-		// }
 		name, exists := ctx.ThinHashes()[bone.NameHash]
 		if exists {
 			boneName = name
@@ -287,12 +294,16 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 	}
 
 	bonesEnabled := ctx.Config()["no_bones"] != "true"
+	animationsEnabled := ctx.Config()["enable_animations"] == "true"
 
 	var skin *uint32 = nil
 	var parent *uint32 = nil
 	if bonesEnabled && len(unitInfo.Bones) > 2 {
 		skin = gltf.Index(AddSkeleton(ctx, doc, unitInfo, ctx.File().ID().Name, armorSetName))
 		parent = doc.Skins[*skin].Skeleton
+		if animationsEnabled {
+			state_machine.AddAnimationSet(ctx, doc, unitInfo)
+		}
 	} else {
 		parent = gltf.Index(uint32(len(doc.Nodes)))
 		doc.Nodes = append(doc.Nodes, &gltf.Node{

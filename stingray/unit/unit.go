@@ -464,6 +464,8 @@ type Mesh struct {
 }
 
 type Info struct {
+	BonesHash              stingray.Hash
+	StateMachine           stingray.Hash
 	GeometryGroup          stingray.Hash
 	LODGroups              []LODGroup
 	SkeletonMaps           []SkeletonMap
@@ -1031,6 +1033,8 @@ func LoadInfo(mainR io.ReadSeeker) (*Info, error) {
 	}
 
 	return &Info{
+		BonesHash:              hdr.Bones,
+		StateMachine:           hdr.StateMachine,
 		GeometryGroup:          hdr.GeometryGroup,
 		LODGroups:              lodGroups,
 		SkeletonMaps:           skeletonMapList,

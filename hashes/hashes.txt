@@ -284,14 +284,18 @@ AO_MID_QUALITY
 AO_VISUALIZATION
 APPLY_BLOOM)
 ASCENDING_DIAGONAL_PASS
+Add_Shoot
 Aentity
+Aim
 Android
 AnimationFlowCallbacks
 Application
 Arendering/components/hologram_settings
+Arm_Missiles
 Array
 Asset Color Grading
 Atmosphere
+Attach_Holster
 Auto Exp
 Auto Exposure
 Aux_Bus
@@ -306,13 +310,21 @@ BINORMAL
 BLEND_ADDITIVE
 BLEND_TRANSPARENT
 BOX_FILTER
+Backpack
+Backpack_Crouch
+Base
+Base_Crouch
+Base_null
 Basic_Floor
 Basic_Floor1
 Basic_project
 Bff-C
 Bff-Cm
 Bloom
+Bolt_Open
 Box_Scale
+Bridge_idle
+Broken
 C#:hE
 CALCULATE_LIGHTING)
 CAMERA_TRANSLATION_LOCK
@@ -338,6 +350,9 @@ ChamfBox1
 ChamfBox2
 ChamfBox_01
 Clears
+Clip_State
+Close_Lock
+Cocked
 Color
 Color Grading
 Color Tint Indices
@@ -387,6 +402,14 @@ DX11_0))
 DXT1a
 DXT5n
 DataComponent
+Dead
+Dead_1
+Dead_Null
+Death_Powered
+Default
+Deploy
+Deploy_Revert
+Deployed
 Depth
 Depth of Field
 Depth of Field Circular
@@ -394,6 +417,8 @@ Desaturate Highlight
 Dg}Za[
 Di
 Directional Light 2
+Dormant
+Drift
 E
 EBR	
 EDGE_AA
@@ -407,12 +432,18 @@ ETC2_RGB8A1
 ETC2_RGBA8
 EXPLICIT
 EXTERNAL_ROTATION
+Elevation
 Emissive
+Empty
+Empty_State
 Entity
 EntityManager
 Event_Name
 Existing_Source_Id
 Exposure
+Extended
+Extra_Death
+Eye_Tracking
 F%5>
 FBX_EMISSIVE
 FILL)
@@ -430,14 +461,27 @@ FT#3C}
 FUR_MATERIAL
 F[T1BW
 F[T1Z-
+Fans_Idle
 Far Scatter Control
 FbxAxisSystem_ConvertNode
+Feed
+Feed_shells
+Feeding
 Ff&:Cf&:Cf&:Cf&:Cf&:Cf&:Cf&:Cf&:Cf&:Cf&:Cf&:Cf&:Cf&:Cf&:Cf&:Cf&:Cf&:Cf&:Cf&:Cf&:Cf&:Cf&:Cf&:Cf&:Cf&:Cf&:Cf&:Cf&:Cf&:Cf&:C
 Fff-Cm
 Fff`C
 Film Grain
 Final
+Fire
+Fire_Selector
+Fire_cover
+Fixed
+Flight_Drift
+Flight_Loco
 Floor
+Fold
+Follower
+Force_Ragdoll
 Forward Opaque
 Fvm3
 Fvq[>
@@ -488,24 +532,34 @@ HAS_VECTOR_DISPLACEMENT
 HAS_VERTEX_OFFSET
 HI1f
 HORIZONTAL_PASS
+Hammer_down
 Heat Haze
 HeightField
 Hologram Drop Select Variables
 Hologram Settings
 Hologram Variables
+Holster
+Hover
 I0MNh~
 INSTANCED
 INTERLEAVE_BUFFER)
 IO{"
 I^-V
 IcQ1Y`
+Idle
+Idle_Docked
+Idle_Empty
+Idle_Ready
 IndexedMesh
+Initial
 Intersect
 J
 J8u/
 J8{! 
 JOES
+Jump
 J|xL
+Kinematic
 KopE
 L(C^
 L>33
@@ -538,6 +592,8 @@ LW0C
 LYjt
 L[C/
 LabSample
+Land
+Layer_Disabled
 Lens Flares Global
 Lens Quality
 Level Generation Render Settings
@@ -607,6 +663,7 @@ N\;!#nf
 NavGenProj
 Nav_Marker
 Normals
+Null
 O
 OA$]
 OES2)
@@ -622,8 +679,12 @@ OP_OR
 OP_SMALLER
 OP_SMALLEREQUAL
 Object001
+Off
 OneShot
 Opaque Lighting
+Open_Close
+Open_Locks
+Overload
 PAV*
 PCF_5X5
 PIXEL_COORDINATES
@@ -642,6 +703,7 @@ Parameter_Namew
 Parametr
 Parametric Color Grading
 Physical Light
+Pitch
 Plane_Primitive
 Planet Atmosphere
 Playing_Id
@@ -651,7 +713,9 @@ Position	node
 Positioning
 Post Effects
 Post Processing
+Power_Up
 Present
+Prone
 Q&wZ
 Q/-c
 Q8>ff
@@ -673,12 +737,22 @@ ROUGHNESS_VISUALIZATION
 RPP
 RR
 R_
+Ragdoll
+Ragdoll_1
+Raised_Idle
+Recoil_Accumulator
+Recoil_Wobble
 Reference_Count
 Reflection Probe Behavior
 Reflection Probe Settings
 Reflection Probes
 ReflectionProbe
+Reload
+Reload_Fast
+Remove_Card
 Render Utility
+Right_Mag
+Root_Position
 Rotation
 SAMPLE
 SAMPLE_BASED) && !defined(SAMPLE_HEIGHT) && !defined(FLATTEN)
@@ -711,6 +785,7 @@ STENCIL
 SUN_SHADOW_VISUALIZATION
 SURFACE
 SYpLf(
+Safe
 Scaleform Studio
 Screen-Space Ambient Occlusion
 Screen-Space Indirect Lighting
@@ -720,6 +795,7 @@ Seconds
 Selection
 Shadow Casters
 Shape	unit	Unit
+Shortcut_State
 Skydome
 Snow Control
 Snow Resources
@@ -727,11 +803,21 @@ Source_Id
 Sphere Push/Pull
 Sphere_Primitive
 Sphere_Radius
+Spin
+Spin_Loop
+Spin_Melee
+Spin_Start
+Spin_Stop
+Spindle
 Stair_CollisionMesh
 Stair_Primitive
+Stand
 State
 StingrayEntityRoot
+Stop
+Stunned
 Sun Light
+Supervising_Work
 TAA_ENABLED)
 TAG0
 TANGENT
@@ -750,15 +836,22 @@ TRANSPARENT_FADE_ADDITIVE
 TRANSPARENT_PASS)
 TXT
 Terrain Deformation Settings
+Time_State
+Timer_Off
 Tone Mapping
 Transform
 TransformComponent
+Translation
 Transparency
+Traversal
+Traverse
 Trigger_Range
 U5
 USE_FBX_PERMUTATIONS
 USE_GATHER
 UVER
+Unfold
+Unfolded
 UnitUtils
 Unit_Node
 VC_COMPRESSED
@@ -795,6 +888,8 @@ Weathering Resources
 Whirl
 Wind Shader Settings
 Windows
+Wings_Variation
+Working_Idle
 World
 Wv"{
 Wwise
@@ -816,6 +911,7 @@ YK=[
 YQw"
 YUV_VIDEO)
 YaZBW
+Yaw
 ZEQ|
 Z]o;+
 Zd;>U
@@ -854,6 +950,9 @@ absolute
 accumulation_uav
 action
 actions
+activate
+activated
+active
 active_banks
 active_banks(core/wwise/lua/wwise_bank_reference
 active_banksm
@@ -871,6 +970,7 @@ add_box
 add_f1f1
 add_f2f2
 add_f3f3
+add_idle
 add_line
 add_soundscape_unit
 add_soundscape_unit	unit	Unit
@@ -887,6 +987,9 @@ address_wrap
 ae2127d0-1158-4cca-aaf8-9d543d7e9062
 ah_bin
 ai_properties
+aim_driver
+aim_joystick
+aiming
 akd
 albedo
 albedo_opacity
@@ -903,7 +1006,10 @@ alpha_specular
 alpha_to_coverage_enable
 always
 ambient
+ambient_movement
 ambient_occlusion
+ammo_wiggle
+anchor_lock
 android
 android_caps
 angle
@@ -949,13 +1055,18 @@ apx
 ar_main
 ar_resolution
 ar_supported
+arm_timer
+armed
+arming
 array_index
 artist_hud
+ascend
 assert
 assert!
 assert>
 assert@
 assertD
+assisted_reload
 atan2
 atlased_shadow_mapping
 atlased_shadow_mapping_modifier
@@ -974,8 +1085,11 @@ b8a571f0-a90a-4bf0-b04a-cb1b717332ed
 b948f9fb-8447-491e-ab0f-f559cd2ac427
 bV` 
 ba9a25db-83a5-472f-a093-3c01d61292e9
+back
 back_buffer
 back_buffer_size
+back_left
+back_right
 bake_compute
 bake_compute:default:PLATFORM_WIN32:RENDERER_D3D11
 bake_target
@@ -1004,9 +1118,12 @@ baker_material_transfer_albedo
 baker_material_transfer_emissive
 baker_materials_visualization
 baker_skylight_intensity
+bang
+bang_add
 bank_name
 bank_resource_name
 banks
+barrel_spin
 base
 base:DIFFUSE_MAP
 base:DOUBLE_SIDED
@@ -1024,8 +1141,10 @@ base:shadow_caster:VC_COMPRESSED:VC_TINT_RGB:PLATFORM_WIN32:RENDERER_D3D11
 base:vc_compressed:vc_tint_rgb
 base_color
 base_color_opacity
+base_loop
 base_map_scale
 behavior
+belt_remove
 bf6881aa-a409-4a85-9bbb-ba7b80f9736b
 bf7803e8-b330-488d-a2d4-fe68d46e6a0c
 bfe407a6-2932-4aa3-bb97-806ade7fea58
@@ -1116,6 +1235,8 @@ blue_maps_scale
 blue_specular
 bmp
 bnk
+bolt_closed
+bolt_open
 bones
 bool_to_numeric
 bool_to_string
@@ -1147,6 +1268,7 @@ box_wtm
 branch
 brdf_lut
 brdf_lut:default:PLATFORM_WIN32:RENDERER_D3D11
+bridge_idle
 bright_pass
 bright_pass:default:PLATFORM_WIN32:RENDERER_D3D11
 broad_phase_aabb
@@ -1166,6 +1288,9 @@ bump_f3f1f3f3
 bump_map
 bump_scale
 buses
+button_hold
+button_push
+button_release
 bvec_block
 c2188ca4-a81f-447d-9ce1-97a187aa2bde
 c3c0ad1b-2896-46cf-971b-8387c011ecd6
@@ -1231,6 +1356,7 @@ channel_smoothing_angle
 channels_referenced
 character
 character_trigger
+charge
 chart_id_texture
 chart_max_time
 chm
@@ -1247,6 +1373,13 @@ clear
 clear selection
 clear_flags
 clears
+close
+close_1
+close_idle
+closed
+closed_hatch
+closed_idle
+closed_state
 closest
 closest_reflection_map
 cloth
@@ -1256,8 +1389,10 @@ clustered_shading
 clustered_shading_data
 clustered_shading_modifier
 cmd
+cockpit
 code_debug
 coffee
+collapsed
 collider_collector
 color
 color0
@@ -55409,6 +55544,8 @@ content/env_ship/hangar/props/textures/counter_door_01_nar
 content/env_ship/hangar/props/textures/counter_straight_01_emissive
 content/env_ship/hangar/props/textures/counter_straight_01_nar
 content/env_ship/hangar/robotic_arm_01/robotic_arm_01
+content/env_ship/hangar/robotic_arm_01/robotic_arm_02
+content/env_ship/hangar/robotic_arm_01/robotic_arm_03
 content/env_ship/hangar/robotics_module_hellpods/robotics_module_hellpods
 content/env_ship/hangar/se_destroyer_shiphub
 content/env_ship/hangar/se_destroyer_supportcannon_missile_launcher
@@ -57402,6 +57539,7 @@ content/fac_illuminate/vehicles/illuminate_attack_ship_destroyed
 content/fac_illuminate/vehicles/illuminate_dropship/illuminate_dropship
 content/fac_illuminate/vehicles/illuminate_war_machine/illuminate_war_machine
 content/fac_super_earth/bridge_personnel/cha_admiral_male/cha_admiral_male
+content/fac_super_earth/bridge_personnel/cha_logistic_officer_female/cha_logistic_officer_female
 content/fac_super_earth/bridge_personnel/cha_personnel/cha_admiral_m
 content/fac_super_earth/bridge_personnel/cha_personnel/cha_deckofficer_f_00
 content/fac_super_earth/bridge_personnel/cha_personnel/cha_deckofficer_f_01
@@ -57466,6 +57604,7 @@ content/fac_super_earth/bridge_personnel/cha_personnel/cha_servicetech_f_01
 content/fac_super_earth/bridge_personnel/cha_personnel/cha_servicetech_f_02
 content/fac_super_earth/bridge_personnel/cha_personnel/cha_servicetech_f_03
 content/fac_super_earth/bridge_personnel/cha_personnel/cha_servicetech_f_04
+content/fac_super_earth/bridge_personnel/cha_science_officer_female/cha_science_officer_female
 content/fac_super_earth/bridge_personnel/generic_human/generic_human
 content/fac_super_earth/cha_civilian/cha_civilian_base_01
 content/fac_super_earth/cha_civilian/cha_civilian_base_female_01
@@ -57984,6 +58123,7 @@ content/objectives/obj_common/power_station/materials/m_power_station
 content/objectives/obj_common/power_station/materials/m_power_station_emissive
 content/objectives/obj_common/power_station/power_station
 content/objectives/obj_common/power_station/power_station_horde
+content/objectives/obj_common/power_station/power_station_non_interactive
 content/objectives/obj_common/power_station/power_station_prime
 content/objectives/obj_common/power_station/textures/power_station_nac
 content/objectives/obj_common/prospecting_drill/animation/deploy
@@ -60552,6 +60692,10 @@ count
 counter
 counters
 cpp
+crank_0
+crash
+crashed_idle
+crawl
 create_bot
 create_unit_actor
 creature
@@ -60588,6 +60732,9 @@ current_exposure
 current_exposure_pos
 custom_script_node
 cutter_material
+cw
+cw_release
+cylinder
 d
 d00c595d-c744-4ea3-96ef-2d272214a570
 d0e00b69-b0ed-4dc9-b21e-b51b086182b3
@@ -60612,6 +60759,10 @@ dd1dccf2-6f2f-4b8c-9199-290c069ab62b
 dds
 de0ee8dc-d58a-4e79-b4fe-450d14ea706a
 de35a809-c7e7-4052-b51a-ad0c53d7b077
+deactivate
+deactivate_1
+dead
+death
 debug
 debug_atlases
 debug_baker
@@ -60648,6 +60799,9 @@ delta_rotation
 delta_time
 dependency_database
 depends_on
+deploy
+deploy_drill
+deployed
 depth
 depth_bias
 depth_bias_clamp
@@ -60740,10 +60894,13 @@ dof_visualization
 dot_product
 down_up
 downsample_material_transfer
+draw
 draw_add
 draw_as_quad
 draw_order
 draw_sub
+driver_idle
+drop_backpack
 dummy_camera
 duration
 duration_max
@@ -60781,17 +60938,28 @@ edl
 ef6ed6a2-ea03-4750-836b-e7463d144b82
 effect
 effect_resource_string
+elevate
+elevated_idle
+elevation
+elevation_reset
 emissive
 emissive_intensity
 emissive_map
 emissive_particle_intensity
+empty
 enable
 enable_crowd_dispersion
 enable_force_passage
 enable_slowing_down
 enable_stop
 enabled
+engine
+engine_turnover
 ent/levels/ship_hub-cubemaps/reflection_probe_diffuse_bake
+enter
+enter_add
+enter_driver
+enter_gunner
 entities
 entity
 entity_data
@@ -60801,6 +60969,7 @@ entity_spawned
 entity_spawned_editor
 entity_unspawned
 entity_unspawned_editor
+entry
 eot
 equal
 eslintignore
@@ -60814,7 +60983,12 @@ events
 exe
 existing_source_id
 exists
+exit
+exit_add
+exit_driver
+exit_gunner
 exp
+expand
 exploded_database
 exploded_database_builder
 expose_bias
@@ -60836,6 +61010,9 @@ exposure_maximum
 exposure_min_log_luma
 exposure_minimum
 exposure_target
+extend
+extended
+extended_idle
 extension_insertion_point
 external_event
 external_input_actor
@@ -60867,8 +61044,10 @@ external_output_quaternion
 external_output_string
 external_output_unit
 external_output_vector3
+extract
 eye_vector
 eyeheight
+eyes_random
 f1e31eb5-cc63-4438-a888-669d453af23e
 f6747d7e-5ebd-40c6-ac1f7b6afe7bada8
 f9183790-ef48-44c7-8666-4ab127da8fe0
@@ -60887,6 +61066,14 @@ fbxsdk_plugin
 fd8320a2-1bf3-45b0-a003-524fa0f06892
 fd909d00-3e4d-4339-b1a9-784c7d6a60ad
 feature_level
+feed_1
+feed_2
+feed_3
+feed_4
+feed_5
+feed_6
+feed_7
+feed_8
 ff
 ff"B
 ff&@
@@ -60930,8 +61117,15 @@ filter_cubemap:specular
 filter_lightmap
 final
 find_global_light
+fire
+fire_add
+fire_idle
+fire_lock
+firemode
 first
 first_blend_diffuse_map
+fixed
+flag_out
 flatten
 float4 dir = center - in
 float4 full_dir = radius * normalize(dir);
@@ -60939,7 +61133,9 @@ float4 position : CHANNEL0;
 float4 pull_dir = dir * pull_speed * (whirl_speed*0
 float4 whirl_dir = dir * whirl_speed;
 float4 wind : CHANNEL1;
+float_idle
 float_index
+float_sway
 float_value
 floor
 floor_f2
@@ -60949,11 +61145,15 @@ flow_callback_context_unit
 flow_editor
 flow_node_definitions
 flow_subroutine
+flyby
+flyby_idle
 fmod_f2f2
 fog_color
 fog_depth_range
 fog_enabled
 fog_sun_blend
+fold
+folded
 font
 font_atlas
 font_material
@@ -60996,10 +61196,15 @@ from_outside_navmesh_distance
 from_quaternion_position
 front_counter_clock_wise
 frustum_lights
+frv
+frv_releases
 fs
 full_dir = radius * normalize(dir);
 fullscreen_pass
 fur_length
+fwd
+fwd_lft
+fwd_right
 fxaa:default:PLATFORM_WIN32:RENDERER_D3D11
 fxaa_enabled
 f}qd
@@ -61288,6 +61493,7 @@ gui:depth_test_enabled:diffuse_map:median_bit_alpha:edge_aa
 gui:depth_test_enabled:diffuse_map:one_bit_alpha
 gui:diffuse_map
 gui:diffuse_map:one_bit_alpha
+gunner_aim
 gwnav/boot
 gwnav/flow/gwnav
 gwnav/flow/gwnav_create_bot
@@ -61337,11 +61543,14 @@ hW
 h_scale
 habs/containers/case_02
 half_height
+hammer_back
 has_constant_color
 has_data
 has_event
 has_source flow_callback_context_world
 hash_lookup
+hatch_close
+hatch_open
 havok_ai
 havok_ai_properties
 havok_ais
@@ -61383,11 +61592,15 @@ height
 height_sample
 hidden
 hide_helper_mesh
+high_height
 highlight_color
+hinge_open
 hint_needs_clearing
 histogram
 hiz_depth
 hkp_raycast_batch
+holster
+hose_cooldown
 htm
 html
 i"
@@ -61401,6 +61614,15 @@ id_data
 id_to_string
 idata
 identity
+idle
+idle_01
+idle_02
+idle_03
+idle_add
+idle_engine
+idle_fired
+idle_folded
+idle_lowered
 ies
 ies_atlas
 ies_atlas_size
@@ -61410,9 +61632,11 @@ if_f1f3f1f3_026a775f
 if_f1f3f1f3_fef3119d
 ik_skeleton
 image_dimension_below
+impact
 import_options
 import_scene_lod_presets
 in
+inactive
 includes
 independent_blend_enable
 index
@@ -61423,6 +61647,7 @@ indoor_environment
 inf
 information_database
 ini
+initialize
 inl
 input
 input0_inv_size
@@ -61482,6 +61707,7 @@ ivf
 ivg
 j
 j0)k$
+jammed
 jar
 join_foreground
 join_outline
@@ -61508,6 +61734,10 @@ last_clip_position
 last_clip_position_right
 last_selected_object
 last_world
+launch
+launcher_pitch
+lav
+lav_release
 layer_config
 layer_configs
 layer_cost_multiplier
@@ -61541,6 +61771,7 @@ level_sound
 level_story
 level_unit
 level_update
+lft
 lib
 light
 light_baking
@@ -61635,6 +61866,7 @@ linux
 linux_caps
 listener
 load_bank
+loadin
 loading_screen
 local_lights
 local_lights_shadow_atlas
@@ -61645,9 +61877,13 @@ local_position
 local_rotation
 local_shadows
 locator1
+loco
+loco_backwards
 log
+look_at
 lookup_tables
 lower
+lowered_idle
 lua
 lua_hud
 luac
@@ -61724,6 +61960,7 @@ metadata
 metallib
 metallic
 metallic_map
+mid_height
 min_distance_between_gates
 min_height
 min_linear_mag_mip_point
@@ -61759,6 +61996,9 @@ modified_files/3
 modifiers
 modulus
 motion vectors
+motion_01
+motion_02
+motion_03
 motion_blur
 motion_blur_amount
 motion_blur_enabled
@@ -61767,6 +62007,7 @@ mouse_axis
 mouse_button_input
 mouse_cursor
 mouse_pos
+move
 move_camera
 move_light
 move_mover
@@ -61800,12 +62041,16 @@ network_config
 network_hud
 never
 nib
+no_anim
+no_bang
+no_target
 nodes
 noise
 noise_map
 non_collider
 non_instanced_modifiers
 normal
+normal_height
 normal_map
 normal_scale
 normalize
@@ -61815,6 +62060,7 @@ normals
 not_equal
 npmignore
 nsquare
+null
 num_background_units
 num_samples_uav
 num_skin_weights() == 4
@@ -61847,8 +62093,10 @@ object_creator_item
 object_filter
 object_to_world
 objects
+off
 offset
 omni_light
+on
 on_animation_controller_flow_events
 on_platform
 on_renderer
@@ -61859,7 +62107,16 @@ opacity_mul
 opacity_stencil_reject_msb
 opacity_threshold
 opaque
+open
+open_destroyed
+open_door
+open_enter
+open_hatch
+open_idle
+open_revert
 open_sans_16
+open_state
+opened_idle
 options_foreground
 options_outline
 orange
@@ -61877,13 +62134,16 @@ output_rt
 output_target
 output_target_base_size
 output_velocity
+overload
 override
 ozl
 p
 pCube1
 pCube2
 package
+package_deploy
 package_first_level
+package_retract
 packages/boot
 packages/content/ui
 packages/fallback_resources
@@ -61911,6 +62171,7 @@ particles_receive_shadows
 particles_tessellation
 passes
 passes_sort_mode
+passive
 patch
 patch_interpolators
 path_tracing
@@ -61940,10 +62201,15 @@ physics_property
 physics_trigger
 physx_metadata
 picking
+pickup_backpack
+piston_l
+piston_r
 pit
+pitch
 pixel_depth) || defined(FORWARD_SHADING) || defined(FUR_MATERIAL)
 pixel_formats
 pixel_position_0_c323d347
+plant_flag
 platform
 platforms
 play_event
@@ -61955,6 +62221,7 @@ png
 point
 points
 pos
+pose_01
 position
 position_type
 positioning
@@ -61971,9 +62238,18 @@ post_processing_scene_combine
 post_processing_taa
 post_trigger flow_callback_context_world
 power
+power_down
+powered_minimal
+powered_strong
+powered_weak
 pre_boot
 prefab
+prepare_loop
+prepare_open
+prepare_ready
 present
+press
+pressed
 preview_behaviors/preview-animation-clip
 preview_behaviors/preview-animation-controller
 preview_behaviors/preview-base
@@ -62015,6 +62291,7 @@ probe
 profiling_scope
 projection_type
 propagation_box_extent
+propellers
 property_types/all_properties
 prototype
 prototypes
@@ -62026,7 +62303,9 @@ ps4_caps
 ps_axis
 ps_button
 pull_dir = dir * pull_speed * (whirl_speed*0
+pull_lever
 pull_speed 
+pump
 push_actor
 put_actor_to_sleep
 pwV>
@@ -62055,9 +62334,13 @@ radiance_cube
 radiance_filter
 radius
 radius	pose
+ragdoll
 ragdoll_actor
+ragdoll_fixed
 ragdoll_profile
 ragdoll_proxy
+raise
+raised_idle
 random around listener'POSITIONING_RANDOM_AROUND_LISTENER
 random in shape POSITIONING_RANDOM_IN_SHAPE
 random_numeric
@@ -62068,9 +62351,13 @@ rawget
 ray_box
 ray_sphere
 raycast
+ready_idle
+ready_open
+recoil_accumulator
 red_glossiness
 red_maps_scale
 red_specular
+reel
 references
 referencesE
 reflection_map
@@ -62084,6 +62371,15 @@ registry_name
 relay
 relay_unit
 release
+reload
+reload_detach
+reload_fast
+reload_left
+reload_right
+reload_shield
+reload_standing
+reload_standing_assisted
+reload_warheads
 remove
 remove_soundscape_source flow_callback_context_world
 render
@@ -62141,6 +62437,7 @@ replay_brush_pos
 replay_layer_value
 repopulate_hiz
 require
+reset
 reset_environment flow_callback_context_world
 resolve
 resource
@@ -62153,9 +62450,17 @@ resources
 respect_dest_viewport
 respect_src_viewport
 resume_event flow_callback_context_world
+retract
+retract_warheads
+retracted
+retracted_idle
+right
 rma_map
+rom
 rot
+rotate
 rotate_unit
+rotating
 rotation
 rotation_axis_and_angle
 rotation_components
@@ -62168,6 +62473,7 @@ rotation_plus_rotation
 rotation_times_numeric
 rotation_times_rotation
 rotation_to_string
+rotator_idle
 roughness
 roughness_map
 round
@@ -62193,6 +62499,7 @@ s2dscene
 s>s	
 sBB 
 sCx
+safe
 sample_count
 sample_height
 sample_mask
@@ -62263,6 +62570,7 @@ selection_effect:default:PLATFORM_WIN32:RENDERER_D3D11:USE_GATHER
 selection_effect:lens_distort
 selection_enabled
 selection_lens_distort
+sensor
 separate_alpha_blend_enable
 separate_alpha_blend_enable0
 separate_alpha_blend_enable1
@@ -62416,6 +62724,7 @@ shadow_scale_slice2
 shadow_scale_slice3
 shape
 shape_template
+sheath
 shell_direction
 shell_layer_0
 shell_layer_length
@@ -62436,8 +62745,10 @@ skydome_intensity
 skydome_intensity_
 skydome_map
 skydome_unit
+sleeping
 slices
 slope_scale_depth_bias
+slope_timer
 slug
 slug_album
 smartobject
@@ -62471,6 +62782,8 @@ speedtree_resources
 speedtrees
 sphere
 sphere_radius
+spin
+spinning
 spline_distance_to_borders
 spline_length
 spline_recomputation_distance_ratio
@@ -62565,6 +62878,7 @@ stabilize_and_linearize_depth
 stable_depth_stencil_buffer
 stable_depth_stencil_buffer_alias
 stage_conditions
+start
 state
 state_groups
 state_machine
@@ -62593,8 +62907,10 @@ stencil_ref
 stencil_write_mask
 stencil_z_fail
 stencil_z_fail_back_side
+steps_timer
 stereo
 stereo_render_mode
+still
 stingray
 stingray	zero
 stingray-asset-server-directory
@@ -62602,6 +62918,9 @@ stingray_debug
 stingray_plugin
 stingray_plugin_disabled
 stingray_project
+stock_closed
+stock_open
+stomp
 stop_all_events
 stop_event
 stop_event flow_callback_context_world
@@ -62668,12 +62987,15 @@ taa_history_copy
 taa_offsets
 taa_stable_depth_visualization
 table
+tablet_idle
 tag0
 tangent_to_world_f3000
 tangent_to_world_f3000_4782e91b
 target_exposure_pos
 target_on_spline_distances
 tcm0
+teleport
+telescope
 temp_byte_count
 temp_byte_count(
 template
@@ -62759,8 +63081,10 @@ thumbnail_foreground
 thumbnail_over
 thumbnail_press
 thumbnail_slot
+thump
 tiff
 tile_samples
+timer
 timer_node
 timestamp
 timpani_bank
@@ -62774,6 +63098,8 @@ toggle
 tolerances
 tome
 tone_mapping_enabled
+top_extend
+top_retracted
 total_passes
 touch_axis
 touch_contact
@@ -62790,6 +63116,7 @@ transparent
 transparent_base
 transparent_double_sided_ccw
 transparent_double_sided_cw
+traverse
 tri_soup_indices
 tri_soup_instances
 tri_soup_vertices
@@ -62802,6 +63129,10 @@ triggers
 ts
 ttf
 turn_sampling_angle
+turret_pitch
+turret_yaw
+twist_left
+twist_right
 txt
 type
 type_name
@@ -62812,6 +63143,9 @@ u>core/stingray_renderer/shading_environment_components/weathering_resources
 ugg
 unbox
 uncompressed
+undeploy
+undeployed
+unfold_antenna
 unit
 unit_anim
 unit_flow_event
@@ -62828,10 +63162,12 @@ units
 unknown
 unlink_source flow_callback_context_world
 unlit
+unload
 unload_bank
 unscaled_box
 unspawn_unit
 unspawned
+unwind
 up_down
 upb
 update
@@ -62963,6 +63299,7 @@ w7
 w8
 w_right
 w_scale
+wait
 wait_passage_time_limit_s
 wake_up_actor
 wall_mat
@@ -62970,6 +63307,7 @@ warning
 wasm
 wav
 wcmdline
+weapon
 web_caps
 webp
 while_loop
@@ -62977,6 +63315,7 @@ whirl_dir = dir * whirl_speed;
 whirl_speed 
 white
 width
+wiggle
 win32
 win64
 win_caps
@@ -63079,6 +63418,7 @@ xp
 xsd
 y%[L*
 yHgQ
+yaw
 yml
 z	
 z6k>

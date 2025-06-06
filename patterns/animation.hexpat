@@ -1,50 +1,98 @@
 import std.mem;
 import type.float16;
+import std.core;
 
 
-struct Position {
-    u16 x;
-    u16 y;
-    u16 z;
-};
+struct Position<auto cmp> {
+    if (cmp) {
+        u16 x;
+        u16 y;
+        u16 z;
+    } else {
+        float x;
+        float y;
+        float z;
+    }
+} [[color("0000FF")]];
 
 bitfield PackedQuat {
-    first : 10;
-    second : 10;
-    third : 10;
-    largest : 2;
+    third   : 10;
+    second  : 10;
+    first   : 10;
+    largest :  2;
+} [[bitfield_order(std::core::BitfieldOrder::MostToLeastSignificant, 32)]];
+
+struct EntryHeader {
+    u8 data[4] [[hidden]];
+    u8 type = (data[1] & 0xC0) >> 6 [[export]];
+    if (type == 0) {
+        $ -= 4;
+        u16 subtype;
+        if (subtype != 3) {
+            u32 bone;
+            float time;
+        }
+    } else {
+        u16 bone = ((data[0] & 0xf0) >> 4) | ((data[1] & 0x3f) << 4)  [[export]];
+        u24 timeMs = ((data[0] & 0xf) << 16) | (data[3] << 8) | data[2] [[export]];
+    }
 };
 
-bitfield EntryHeader {
-    type : 2;
-    bone : 10;
-    time : 20;
-};
-
-struct Rotation {
-    PackedQuat data [[inline]];
-};
+struct Rotation<auto cmp> {
+    if(cmp) {
+        PackedQuat data [[inline]];
+    } else {
+        float x;
+        float y;
+        float z;
+        float w;
+    }
+} [[color("FF0000")]];
 
 // Relative to starting scale? Or maybe not float16 but some other format?
-struct Scale {
-    type::float16 x;
-    type::float16 y;
-    type::float16 z;
-};
+struct Scale<auto cmp> {
+    if (cmp) {
+        type::float16 x;
+        type::float16 y;
+        type::float16 z;
+    } else {
+        float x;
+        float y;
+        float z;
+    }
+} [[color("00FF00")]];
 
 struct BoneInit {
-    Position pos;
-    Rotation rot;
-    Scale scale;
+    Position<parent.compressions[std::core::array_index()].pos> pos;
+    Rotation<parent.compressions[std::core::array_index()].rot> rot;
+    Scale<parent.compressions[std::core::array_index()].scl> scale;
 };
 
 struct Entry {
     EntryHeader header;
-    if(header.type == 0) {
-        Rotation data;
+    if(header.type == 3) {
+        Rotation<1> data;
+    } else if(header.type == 2) {
+        Position<1> data;
+    } else if(header.type == 1) {
+        Scale<1> data;
     } else {
-        Position data;
+        if (header.subtype == 4) {
+            Position<0> data;
+        } else if (header.subtype == 5) {
+            Rotation<0> data;
+        } else if (header.subtype == 6) {
+            Scale<0> data;
+        } else if (header.subtype != 2) {
+            break;
+        }
     }
+};
+
+bitfield boneCompression {
+    pos : 1;
+    rot : 1;
+    scl : 1;
 };
 
 struct AnimationHeader {
@@ -52,18 +100,26 @@ struct AnimationHeader {
     u32 boneCount;
     float animationLength;
     u32 sizeBytes;
-    u32 unk01[2];
+    u32 hashesCount;
+    u32 hashes2Count;
+    u64 hashes[hashesCount];
+    u64 hashes2[hashes2Count];
     u16 unk02;
-    u8 varbits[while(std::mem::read_unsigned($, 1) & 0x80 != 0x0)];
-    u8 varbits_end;
+    be boneCompression compressions[boneCount];
+    if ($ % 2 != 0) {
+        // Realign to 2 byte addr
+        padding[1];
+    }
     BoneInit initialTransforms[boneCount];
+    float hashesFloats[hashesCount];
 };
 
 struct Animation {
     AnimationHeader header;
-    Entry entries[while(std::mem::read_unsigned($, 2) != 0x0003)];
+    u32 entryStart = $;
+    Entry entries[while(std::mem::read_unsigned($, 2) != 0x0003 && ($ - entryStart) < (header.sizeBytes / 2) - sizeof(header) - 6)];
     u16 end;
     u32 size;
 };
 
-Animation directions[while(!std::mem::eof())] @0x00;
+Animation animation @0x00;

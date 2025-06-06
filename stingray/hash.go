@@ -59,6 +59,10 @@ func (h Hash) String() string {
 	return "0x" + h.StringEndian(binary.BigEndian)
 }
 
+func (h Hash) MarshalText() ([]byte, error) {
+	return []byte(h.String()), nil
+}
+
 // ParseHash parses a big endian murmur64 hash.
 // Ignores 0x prefix if present.
 func ParseHash(s string) (Hash, error) {
@@ -80,4 +84,8 @@ func (h ThinHash) StringEndian(endian binary.ByteOrder) string {
 
 func (h ThinHash) String() string {
 	return "0x" + h.StringEndian(binary.BigEndian)
+}
+
+func (h ThinHash) MarshalText() ([]byte, error) {
+	return []byte(h.String()), nil
 }
