@@ -25,6 +25,9 @@ import (
 )
 
 func LoadBoneMap(ctx extractor.Context, unitInfo *unit.Info) (*bones.Info, error) {
+	if unitInfo.BonesHash.Value == 0x0 {
+		return nil, nil
+	}
 	bonesFile, exists := ctx.GetResource(unitInfo.BonesHash, stingray.Sum64([]byte("bones")))
 	if !exists {
 		return nil, fmt.Errorf("loadBoneMap: bones file does not exist")
