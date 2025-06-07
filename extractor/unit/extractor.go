@@ -220,16 +220,17 @@ func AddPrefabMetadata(ctx extractor.Context, doc *gltf.Document, parent *uint32
 			doc.Nodes[node].Extras = extras
 		}
 	}
-	extras, ok := doc.Extras.(map[string]map[string]interface{})
+	extras, ok := doc.Extras.(map[string]any)
 	if !ok {
-		extras = make(map[string]map[string]interface{})
+		extras = make(map[string]any)
 	}
-	extras[ctx.File().ID().Name.String()] = make(map[string]interface{})
-	extras[ctx.File().ID().Name.String()]["parent"] = *parent
+	prefabMetadata := make(map[string]any)
+	prefabMetadata["parent"] = *parent
 	if skin != nil {
-		extras[ctx.File().ID().Name.String()]["skin"] = *skin
+		prefabMetadata["skin"] = *skin
 	}
-	extras[ctx.File().ID().Name.String()]["objects"] = meshNodes
+	prefabMetadata["objects"] = meshNodes
+	extras[ctx.File().ID().Name.String()] = prefabMetadata
 	doc.Extras = extras
 }
 

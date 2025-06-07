@@ -244,6 +244,9 @@ def main():
         if str(path) == "-":
             path = Path("tmp.glb")
             write_glb(path, gltf)
+        if "extras" in gltf and "frameRate" in gltf["extras"]:
+            print(f'Setting FPS to {gltf["extras"]["frameRate"]}')
+            bpy.context.scene.render.fps = gltf["extras"]["frameRate"]
         bpy.ops.import_scene.gltf(filepath=str(path), import_shading="SMOOTH", bone_heuristic="TEMPERANCE")
     finally:
         if str(input_model) == "-":
