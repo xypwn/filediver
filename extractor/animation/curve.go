@@ -34,6 +34,7 @@ func (c *VectorCurve) ShiftFrame() {
 }
 
 // Samples the curve into duration * framerate keyframes, spaced evenly along the curve
+// ref: https://www.cubic.org/docs/hermite.htm
 func (c *VectorCurve) Sample(framerate int) []VectorKeyframe {
 	toReturn := make([]VectorKeyframe, 0)
 	toReturn = append(toReturn, c.Keyframes[0])
@@ -108,6 +109,7 @@ func (c *QuaternionCurve) ShiftFrame() {
 }
 
 // Samples the curve into duration * framerate keyframes, spaced evenly along the curve
+// ref: https://www.cubic.org/docs/hermite.htm
 func (c *QuaternionCurve) Sample(framerate int) []QuaternionKeyframe {
 	toReturn := make([]QuaternionKeyframe, 0)
 	toReturn = append(toReturn, c.Keyframes[0])
