@@ -16,20 +16,6 @@ type QuaternionKeyframe struct {
 	Quaternion mgl32.Quat
 }
 
-type GLTFVectorCubicSplineKeyframe struct {
-	Time       float32
-	InTangent  mgl32.Vec3
-	Vector     mgl32.Vec3
-	OutTangent mgl32.Vec3
-}
-
-type GLTFQuaternionCubicSplineKeyframe struct {
-	Time       float32
-	InTangent  mgl32.Quat
-	Quaternion mgl32.Quat
-	OutTangent mgl32.Quat
-}
-
 type VectorCurve struct {
 	Keyframes     []VectorKeyframe
 	Duration      float32
