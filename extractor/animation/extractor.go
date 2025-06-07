@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/go-gl/mathgl/mgl32"
@@ -62,21 +63,6 @@ func ExtractAnimationJson(ctx extractor.Context) error {
 	return err
 }
 
-type positionKeyframe struct {
-	Time     float32
-	Position mgl32.Vec3
-}
-
-type rotationKeyframe struct {
-	Time     float32
-	Rotation mgl32.Quat
-}
-
-type scaleKeyframe struct {
-	Time  float32
-	Scale mgl32.Vec3
-}
-
 func AddAnimation(ctx extractor.Context, doc *gltf.Document, boneInfo *bones.Info, anim state_machine.Animation) error {
 	//boneIndexMap := make(map[stingray.ThinHash]uint32)
 	var makeMapRecursive func(*gltf.Document, uint32, map[stingray.ThinHash]uint32)
@@ -102,28 +88,31 @@ func AddAnimation(ctx extractor.Context, doc *gltf.Document, boneInfo *bones.Inf
 			return fmt.Errorf("could not parse animation file %v: %v", path.String(), err)
 		}
 
-		bonePositions := make([][]positionKeyframe, animInfo.Header.BoneCount)
-		boneRotations := make([][]rotationKeyframe, animInfo.Header.BoneCount)
-		boneScales := make([][]scaleKeyframe, animInfo.Header.BoneCount)
+		bonePositions := make([]VectorCurve, animInfo.Header.BoneCount)
+		boneRotations := make([]QuaternionCurve, animInfo.Header.BoneCount)
+		boneScales := make([]VectorCurve, animInfo.Header.BoneCount)
 		additive := make([]bool, animInfo.Header.BoneCount)
 
 		for i, initialTransform := range animInfo.Header.InitialTransforms {
-			bonePositions[i] = make([]positionKeyframe, 0)
-			bonePositions[i] = append(bonePositions[i], positionKeyframe{
-				Time:     0.0,
-				Position: initialTransform.Position(),
+			bonePositions[i].Duration = animInfo.Header.AnimationLength
+			bonePositions[i].Keyframes = make([]VectorKeyframe, 0)
+			bonePositions[i].Keyframes = append(bonePositions[i].Keyframes, VectorKeyframe{
+				Time:   0.0,
+				Vector: initialTransform.Position(),
 			})
 
-			boneRotations[i] = make([]rotationKeyframe, 0)
-			boneRotations[i] = append(boneRotations[i], rotationKeyframe{
-				Time:     0.0,
-				Rotation: initialTransform.Rotation(),
+			boneRotations[i].Duration = animInfo.Header.AnimationLength
+			boneRotations[i].Keyframes = make([]QuaternionKeyframe, 0)
+			boneRotations[i].Keyframes = append(boneRotations[i].Keyframes, QuaternionKeyframe{
+				Time:       0.0,
+				Quaternion: initialTransform.Rotation(),
 			})
 
-			boneScales[i] = make([]scaleKeyframe, 0)
-			boneScales[i] = append(boneScales[i], scaleKeyframe{
-				Time:  0.0,
-				Scale: initialTransform.Scale(),
+			boneScales[i].Duration = animInfo.Header.AnimationLength
+			boneScales[i].Keyframes = make([]VectorKeyframe, 0)
+			boneScales[i].Keyframes = append(boneScales[i].Keyframes, VectorKeyframe{
+				Time:   0.0,
+				Vector: initialTransform.Scale(),
 			})
 
 			additive[i] = initialTransform.IsAdditive()
@@ -139,27 +128,27 @@ func AddAnimation(ctx extractor.Context, doc *gltf.Document, boneInfo *bones.Inf
 				if err != nil {
 					return fmt.Errorf("adding entry %v to animation %v: %v", i, path.String(), err)
 				}
-				bonePositions[entry.Header.Bone()] = append(bonePositions[entry.Header.Bone()], positionKeyframe{
-					Time:     float32(entry.Header.TimeMS()) / 1000.0,
-					Position: value,
+				bonePositions[entry.Header.Bone()].Keyframes = append(bonePositions[entry.Header.Bone()].Keyframes, VectorKeyframe{
+					Time:   float32(entry.Header.TimeMS()) / 1000.0,
+					Vector: value,
 				})
 			case animation.EntryTypeRotation:
 				value, err := entry.Rotation()
 				if err != nil {
 					return fmt.Errorf("adding entry %v to animation %v: %v", i, path.String(), err)
 				}
-				boneRotations[entry.Header.Bone()] = append(boneRotations[entry.Header.Bone()], rotationKeyframe{
-					Time:     float32(entry.Header.TimeMS()) / 1000.0,
-					Rotation: value,
+				boneRotations[entry.Header.Bone()].Keyframes = append(boneRotations[entry.Header.Bone()].Keyframes, QuaternionKeyframe{
+					Time:       float32(entry.Header.TimeMS()) / 1000.0,
+					Quaternion: value,
 				})
 			case animation.EntryTypeScale:
 				value, err := entry.Scale()
 				if err != nil {
 					return fmt.Errorf("adding entry %v to animation %v: %v", i, path.String(), err)
 				}
-				boneScales[entry.Header.Bone()] = append(boneScales[entry.Header.Bone()], scaleKeyframe{
-					Time:  float32(entry.Header.TimeMS()) / 1000.0,
-					Scale: value,
+				boneScales[entry.Header.Bone()].Keyframes = append(boneScales[entry.Header.Bone()].Keyframes, VectorKeyframe{
+					Time:   float32(entry.Header.TimeMS()) / 1000.0,
+					Vector: value,
 				})
 			case animation.EntryTypeExtended:
 				if entry.Header.Subtype() == animation.EntrySubtypePosition {
@@ -167,31 +156,47 @@ func AddAnimation(ctx extractor.Context, doc *gltf.Document, boneInfo *bones.Inf
 					if err != nil {
 						return fmt.Errorf("adding entry %v to animation %v: %v", i, path.String(), err)
 					}
-					bonePositions[entry.Header.Bone()] = append(bonePositions[entry.Header.Bone()], positionKeyframe{
-						Time:     float32(entry.Header.TimeMS()) / 1000.0,
-						Position: value,
+					bonePositions[entry.Header.Bone()].Keyframes = append(bonePositions[entry.Header.Bone()].Keyframes, VectorKeyframe{
+						Time:   float32(entry.Header.TimeMS()) / 1000.0,
+						Vector: value,
 					})
 				} else if entry.Header.Subtype() == animation.EntrySubtypeRotation {
 					value, err := entry.Rotation()
 					if err != nil {
 						return fmt.Errorf("adding entry %v to animation %v: %v", i, path.String(), err)
 					}
-					boneRotations[entry.Header.Bone()] = append(boneRotations[entry.Header.Bone()], rotationKeyframe{
-						Time:     float32(entry.Header.TimeMS()) / 1000.0,
-						Rotation: value,
+					boneRotations[entry.Header.Bone()].Keyframes = append(boneRotations[entry.Header.Bone()].Keyframes, QuaternionKeyframe{
+						Time:       float32(entry.Header.TimeMS()) / 1000.0,
+						Quaternion: value,
 					})
 				} else if entry.Header.Subtype() == animation.EntrySubtypeScale {
 					value, err := entry.Scale()
 					if err != nil {
 						return fmt.Errorf("adding entry %v to animation %v: %v", i, path.String(), err)
 					}
-					boneScales[entry.Header.Bone()] = append(boneScales[entry.Header.Bone()], scaleKeyframe{
-						Time:  float32(entry.Header.TimeMS()) / 1000.0,
-						Scale: value,
+					boneScales[entry.Header.Bone()].Keyframes = append(boneScales[entry.Header.Bone()].Keyframes, VectorKeyframe{
+						Time:   float32(entry.Header.TimeMS()) / 1000.0,
+						Vector: value,
 					})
 				}
 			default:
 				return fmt.Errorf("adding entry %v to animation %v: unimplemented entry type %v", i, path.String(), entry.Header.Type().String())
+			}
+		}
+
+		sampleRateStr, sampled := ctx.Config()["sample_rate"]
+		var sampleRate int
+		if sampled {
+			sampleRate, err = strconv.Atoi(sampleRateStr)
+			if err != nil {
+				sampled = false
+			} else {
+				extras, ok := doc.Extras.(map[string]any)
+				if !ok {
+					extras = make(map[string]any)
+				}
+				extras["frameRate"] = sampleRate
+				doc.Extras = extras
 			}
 		}
 
@@ -210,11 +215,23 @@ func AddAnimation(ctx extractor.Context, doc *gltf.Document, boneInfo *bones.Inf
 				return fmt.Errorf("writing gltf animation %v: could not find bone %v in document", path.String(), boneInfo.NameMap[boneInfo.Hashes[boneIdx]])
 			}
 
+			var posKeyframes, scaleKeyframes []VectorKeyframe
+			var rotKeyframes []QuaternionKeyframe
+			if sampled {
+				posKeyframes = bonePositions[boneIdx].Sample(sampleRate)
+				rotKeyframes = boneRotations[boneIdx].Sample(sampleRate)
+				scaleKeyframes = boneScales[boneIdx].Sample(sampleRate)
+			} else {
+				posKeyframes = bonePositions[boneIdx].Keyframes
+				rotKeyframes = boneRotations[boneIdx].Keyframes
+				scaleKeyframes = boneScales[boneIdx].Keyframes
+			}
+
 			times := make([]float32, 0)
 			positions := make([][3]float32, 0)
-			for _, position := range bonePositions[boneIdx] {
+			for _, position := range posKeyframes {
 				times = append(times, position.Time)
-				translation := position.Position
+				translation := position.Vector
 				if additive[boneIdx] {
 					// This doesn't *really* work unfortunately - diver/the .cast blender plugin modifies the
 					// basis matrix of the bone rather than modifying the translation, but I don't know if that's
@@ -226,9 +243,6 @@ func AddAnimation(ctx extractor.Context, doc *gltf.Document, boneInfo *bones.Inf
 				positions = append(positions, translation)
 			}
 
-			// TODO: Hermite/catmull-rom curve interpolation, sampled at a consistent framerate
-			// rather than just dumping the animation in as is (though tbh that pretty much works
-			// thanks to how hermite curves pass through each control point)
 			positionTimesAccessor := modeler.WriteAccessor(doc, gltf.TargetNone, times)
 			doc.Accessors[positionTimesAccessor].Min = []float32{0.0}
 			doc.Accessors[positionTimesAccessor].Max = []float32{animInfo.Header.AnimationLength}
@@ -249,24 +263,23 @@ func AddAnimation(ctx extractor.Context, doc *gltf.Document, boneInfo *bones.Inf
 
 			times = make([]float32, 0)
 			rotations := make([][4]float32, 0)
-			for _, rotation := range boneRotations[boneIdx] {
+			for _, rotation := range rotKeyframes {
 				times = append(times, rotation.Time)
-				data := rotation.Rotation.V.Vec4(rotation.Rotation.W)
+				data := rotation.Quaternion.V.Vec4(rotation.Quaternion.W)
 				if additive[boneIdx] {
 					// Same comment as for translation above - this doesn't seem to quite work, though the animation
 					// at least looks sensible rather than just a pile of body parts writhing around, so I'll take
 					// the wins where I can get them lol
 					vec := mgl32.Vec4(doc.Nodes[targetNode].Rotation)
-					addRot := vec.Quat().Mul(rotation.Rotation)
+					addRot := vec.Quat().Mul(rotation.Quaternion)
 					data = addRot.V.Vec4(addRot.W)
 				} else if doc.Nodes[targetNode].Name == "StingrayEntityRoot" {
-					gltfConvertedRot := gltfConvertQuat.Mul(rotation.Rotation)
+					gltfConvertedRot := gltfConvertQuat.Mul(rotation.Quaternion)
 					data = gltfConvertedRot.V.Vec4(gltfConvertedRot.W)
 				}
 				rotations = append(rotations, data)
 			}
 
-			// TODO: Hermite curve interpolation
 			rotationTimesAccessor := modeler.WriteAccessor(doc, gltf.TargetNone, times)
 			doc.Accessors[rotationTimesAccessor].Min = []float32{0.0}
 			doc.Accessors[rotationTimesAccessor].Max = []float32{animInfo.Header.AnimationLength}
@@ -287,9 +300,9 @@ func AddAnimation(ctx extractor.Context, doc *gltf.Document, boneInfo *bones.Inf
 
 			times = make([]float32, 0)
 			scales := make([][3]float32, 0)
-			for _, scale := range boneScales[boneIdx] {
+			for _, scale := range scaleKeyframes {
 				times = append(times, scale.Time)
-				scales = append(scales, scale.Scale)
+				scales = append(scales, scale.Vector)
 			}
 
 			scaleTimesAccessor := modeler.WriteAccessor(doc, gltf.TargetNone, times)

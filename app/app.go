@@ -218,7 +218,12 @@ var ConfigFormat = ConfigTemplate{
 			Options: map[string]ConfigTemplateOption{
 				"format": {
 					Type: ConfigValueEnum,
-					Enum: []string{"json", "source"},
+					Enum: []string{"json", "source", "sampled"},
+				},
+				"sample_rate": {
+					Type:        ConfigValueIntRange,
+					IntRangeMin: 12,
+					IntRangeMax: 120,
 				},
 			},
 		},
@@ -757,8 +762,22 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 			}
 		case "unit":
 			extr = extr_unit.Convert(gltfDoc)
+			fallthrough
 		case "geometry_group":
-			extr = extr_geogroup.Convert(gltfDoc)
+			if extr == nil {
+				extr = extr_geogroup.Convert(gltfDoc)
+			}
+			animCfg, contains := extrCfg["animation"]
+			if cfg["enable_animations"] == "true" && contains && animCfg["format"] == "sampled" {
+				sampleRate, contains := animCfg["sample_rate"]
+				if !contains {
+					// Blender default framerate is 24, so this will produce
+					// a sampled animation that will have nicely consistent keyframes
+					// when imported without changing the framerate
+					sampleRate = "24"
+				}
+				cfg["sample_rate"] = sampleRate
+			}
 		case "texture":
 			if cfg["format"] == "dds" {
 				extr = extr_texture.ExtractDDS
