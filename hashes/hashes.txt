@@ -1647,10 +1647,18 @@ WRITE_MASK)
 WWISE_3D_SOUND
 Water Surface
 Weapon_Add/Drop_Support
+Weapon_Add/fire_AssaultShotgun
+Weapon_Add/fire_MG
+Weapon_Add/fire_Pistol
+Weapon_Add/fire_Revolver
 Weapon_Add/fire_arc_shotgun
+Weapon_Add/fire_autocannon
 Weapon_Add/fire_grenade_launcher
 Weapon_Add/fire_laser
 Weapon_Add/fire_lat
+Weapon_Add/fire_marksmanrifle
+Weapon_Add/fire_pumpshotgun
+Weapon_Add/fire_railgun
 Weapon_Add/firemode
 Weapon_Add/firemode_switch_l
 Weapon_Add/firemode_switch_r
@@ -1747,8 +1755,10 @@ action/Melee_Front
 action/Melee_Front_1
 action/Melee_Left
 action/Melee_Left_1
+action/Melee_Prone_Knife_Stab
 action/Melee_Prone_Punch
 action/Melee_Prone_Punch_Right
+action/Melee_Prone_Sticky_Bonk
 action/Melee_Right
 action/Melee_Right_1
 action/Stunned
@@ -1981,6 +1991,8 @@ base/Idle
 base/Prep
 base/Retract
 base/Thump
+base/attack_moving_combo
+base/attack_stationary_spin
 base/death_fire
 base/death_gas
 base/death_shoot
