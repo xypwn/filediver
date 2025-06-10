@@ -208,6 +208,7 @@ const (
 	PassiveSiegeReady           CustomizationKitPassive = 16
 	PassiveIntegratedExplosives CustomizationKitPassive = 17
 	PassiveGunslinger           CustomizationKitPassive = 18
+	PassiveBallisticPadding     CustomizationKitPassive = 20
 )
 
 func (v CustomizationKitPassive) String() string {
@@ -250,6 +251,8 @@ func (v CustomizationKitPassive) String() string {
 		return "Gunslinger"
 	case PassiveReinforcedEpaulettes:
 		return "Reinforced Epaulettes"
+	case PassiveBallisticPadding:
+		return "Ballistic Padding"
 	default:
 		return fmt.Sprint(uint32(v))
 	}
@@ -343,7 +346,7 @@ func LoadArmorSetDefinitions(strings map[uint32]string) (map[stingray.Hash]Armor
 	if err := binary.Read(r, binary.LittleEndian, &count); err != nil {
 		return nil, err
 	}
-	const armorSetOffset = 0x3f0000
+	const armorSetOffset = 0x870000
 	var offset int = 4
 	for i := uint32(0); i < count; i++ {
 		var item DlItem

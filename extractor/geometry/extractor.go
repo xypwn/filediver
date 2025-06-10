@@ -63,7 +63,7 @@ func convertVertices(gpuR io.ReadSeeker, layout unit.MeshLayout) ([]byte, []Acce
 				var val [4]float32
 				var err error
 				if err = binary.Read(gpuR, binary.LittleEndian, &tmp); err != nil {
-					return nil, nil, err
+					return nil, nil, fmt.Errorf("reading gpu data: %v", err)
 				}
 				val[0] = float32(tmp&0x3ff) / 1023.0
 				val[1] = float32((tmp>>10)&0x3ff) / 1023.0
@@ -71,7 +71,7 @@ func convertVertices(gpuR io.ReadSeeker, layout unit.MeshLayout) ([]byte, []Acce
 				val[3] = 0.0 // float32((tmp>>30)&0x3) / 3.0 // This causes issues with incorrect bone weights
 				data, err = binary.Append(data, binary.LittleEndian, val)
 				if err != nil {
-					return nil, nil, err
+					return nil, nil, fmt.Errorf("adding packed vec4 typeless to data: %v", err)
 				}
 				if vertex == 0 {
 					accessorStructure = append(accessorStructure, AccessorInfo{
@@ -85,14 +85,14 @@ func convertVertices(gpuR io.ReadSeeker, layout unit.MeshLayout) ([]byte, []Acce
 				var val [3]float32
 				var err error
 				if err = binary.Read(gpuR, binary.LittleEndian, &tmp); err != nil {
-					return nil, nil, err
+					return nil, nil, fmt.Errorf("reading gpu data: %v", err)
 				}
 				val[0] = float32(tmp&0x3ff) / 1023.0
 				val[1] = float32((tmp>>10)&0x3ff) / 1023.0
 				val[2] = float32((tmp>>20)&0x3ff) / 1023.0
 				data, err = binary.Append(data, binary.LittleEndian, val)
 				if err != nil {
-					return nil, nil, err
+					return nil, nil, fmt.Errorf("adding packed vec4 unorm to data: %v", err)
 				}
 				if vertex == 0 {
 					accessorStructure = append(accessorStructure, AccessorInfo{
@@ -118,7 +118,7 @@ func convertVertices(gpuR io.ReadSeeker, layout unit.MeshLayout) ([]byte, []Acce
 				}
 				data, size, err = convertFloat16Slice(gpuR, data, tmpArr, extra)
 				if err != nil {
-					return nil, nil, err
+					return nil, nil, fmt.Errorf("converting float16 slice: %v", err)
 				}
 				if vertex == 0 {
 					accessorStructure = append(accessorStructure, AccessorInfo{
@@ -154,13 +154,13 @@ func convertVertices(gpuR io.ReadSeeker, layout unit.MeshLayout) ([]byte, []Acce
 			case unit.FormatVec4U32:
 				data = append(data, make([]byte, item.Format.Size())...)
 				if _, err := gpuR.Read(data[dataLen:]); err != nil {
-					return nil, nil, err
+					return nil, nil, fmt.Errorf("reading gpu data: %v", err)
 				}
 				if item.Type == unit.ItemBoneWeight && item.Format == unit.FormatF32 {
 					var err error
 					data, err = binary.Append(data, binary.LittleEndian, [3]float32{})
 					if err != nil {
-						return nil, nil, err
+						return nil, nil, fmt.Errorf("adding bone weight: %v", err)
 					}
 					item.Format = unit.FormatVec4F
 				}
@@ -172,7 +172,7 @@ func convertVertices(gpuR io.ReadSeeker, layout unit.MeshLayout) ([]byte, []Acce
 					})
 				}
 			default:
-				return nil, nil, fmt.Errorf("Unknown format %v for type %v\n", item.Format.String(), item.Type.String())
+				return nil, nil, fmt.Errorf("Unknown format %v for type %v", item.Format.String(), item.Type.String())
 			}
 			dataLen = len(data)
 		}
@@ -217,7 +217,14 @@ func remapJoint[E ~[]I, I uint8 | uint32](idxs E, remapList, remappedBoneIndices
 func remapJoints(buffer *gltf.Buffer, stride, bufferOffset, vertexCount uint32, indices []uint32, componentType gltf.ComponentType, remapList, remappedBoneIndices []uint32) error {
 	remappedVertices := make(map[uint32]bool)
 	for _, vertex := range indices {
-		if vertex >= vertexCount {
+		var size uint32 = 4
+		if componentType != gltf.ComponentUbyte {
+			size = 16
+		}
+		if vertex >= vertexCount && stride*vertex+bufferOffset+size >= buffer.ByteLength {
+			// Skip the vertex if its both larger than the vertex count _and_ would cause an error if we modified it
+			// cause apparently stingray doesn't respect the bounds it imposes on the number of vertices a mesh contains
+			// (╯°□°)╯︵ ┻━┻
 			continue
 		}
 		if _, contains := remappedVertices[vertex]; contains {
