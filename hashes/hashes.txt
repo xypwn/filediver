@@ -306,8 +306,12 @@ Action/task_eating
 Action_Group/Attention_Enter
 Action_Group/Attention_Exit
 Action_Group/Attention_Loop
+Action_Group/Attention_Salute_Loop
 Action_Group/Break_Coffee
 Action_Group/Empty_State
+Action_Group/Generic_Victory_Cheer
+Action_Group/Salute_Enter_1
+Action_Group/Salute_Exit_1
 Action_Group/Salute_Loop
 Action_Group/Supervising_Work
 Action_Group/call_over
@@ -323,6 +327,7 @@ Actions/Aim_Rocket_Loop
 Actions/Alarm_Enter
 Actions/Alert_Leader
 Actions/Attack_down
+Actions/Bark_New_Target
 Actions/Bark_Suspicious
 Actions/Bark_Target_Aquired
 Actions/Butt_Turn
@@ -501,8 +506,10 @@ Base/turn_loop_dialogue
 Base/turn_loop_idle
 Base/unreachable_taunts
 Base_Crouch
+Base_Group/Close_Floor_Hatch
 Base_Group/Deploy
 Base_Group/Deploy_Revert
+Base_Group/Open_Floor_Hatch
 Base_Group/Raised_Idle
 Base_Group/weapon
 Base_Guarding/digging
@@ -619,11 +626,20 @@ DataComponent
 Dead
 Dead_1
 Dead_Null
+Death_Default/Death_Sequence_1
+Death_Default/Death_Sequence_2
+Death_Default/Death_Sequence_3
+Death_Default/Death_Sequence_4
 Death_Default/Default
 Death_Default/Default_Animated_Death
 Death_Default/Kinematic
 Death_Default/Ragdoll
 Death_Powered
+Deaths/Death_Body_Front
+Deaths/Death_Body_Left
+Deaths/Death_Body_Right
+Deaths/Death_Leg_Back
+Deaths/Death_Leg_Left
 Deaths/Null
 Default
 Default/idle
@@ -720,13 +736,17 @@ Global Utility
 Group
 Group_State/Admiral_Intro
 Group_State/Agro_Variation
+Group_State/Agro_Variation_1
 Group_State/Arms_Activate
 Group_State/Arms_Activated
 Group_State/Arms_Deactivate
 Group_State/Attack
 Group_State/Attack_execute
+Group_State/Charge_Impact_Null
 Group_State/Claws
 Group_State/Clip_State
+Group_State/Clip_State_1
+Group_State/Clip_State_2
 Group_State/Close
 Group_State/Close_Iris
 Group_State/Close_Iris_alt
@@ -734,6 +754,10 @@ Group_State/Close_Valve
 Group_State/Closed_Idle
 Group_State/Dead
 Group_State/Dead_Null
+Group_State/Death_Body_Back
+Group_State/Death_Body_Front
+Group_State/Death_Body_Left
+Group_State/Death_Body_Right
 Group_State/Death_Head
 Group_State/Default
 Group_State/Default_dead
@@ -745,6 +769,9 @@ Group_State/Doors_Open
 Group_State/Doors_Opened
 Group_State/Dormant
 Group_State/Drill_Prepared
+Group_State/Drill_Sequence_1
+Group_State/Drill_Sequence_2
+Group_State/Drill_Sequence_3
 Group_State/Emerge
 Group_State/Empty
 Group_State/Empty_State
@@ -763,9 +790,12 @@ Group_State/Fire_Both
 Group_State/Fire_Left
 Group_State/Fire_Right
 Group_State/Foliage_Add
+Group_State/Foliage_Add_Exit
 Group_State/Full_Rev
 Group_State/Guarding
+Group_State/Guarding_Head_Variation
 Group_State/Head
+Group_State/Head_Aggro_1
 Group_State/Head_Angry
 Group_State/Head_Concerned
 Group_State/Head_Eager
@@ -790,6 +820,7 @@ Group_State/Minor_Taunt
 Group_State/Move
 Group_State/Neutral
 Group_State/Nod_Talking
+Group_State/Nod_Talking_01
 Group_State/Normal_Loop
 Group_State/Null
 Group_State/Off
@@ -810,13 +841,18 @@ Group_State/Ragdoll_landed
 Group_State/Reload
 Group_State/Reload_Fast
 Group_State/Rotator_Loop
+Group_State/Rotator_Stop_0
 Group_State/Stagger_Back
 Group_State/Stagger_Forward
 Group_State/Stagger_Left
 Group_State/Stagger_Right
 Group_State/Start_Rotator
+Group_State/Stomp_Left_0
+Group_State/Stomp_Right_0
 Group_State/Tail
 Group_State/Tail_Aggro
+Group_State/Tail_Idle_1
+Group_State/Tail_Idle_2
 Group_State/Tail_Shake
 Group_State/Turn_Off
 Group_State/Turn_On
@@ -1201,6 +1237,10 @@ HORIZONTAL_PASS
 Hammer_down
 Heat Haze
 HeightField
+Hit_React/Hit_Small_Back
+Hit_React/Hit_Small_Front
+Hit_React/Hit_Small_Left
+Hit_React/Hit_Small_Right
 Hit_React/Legs_Disabled
 Hit_React/Null
 Hit_React/arm_l_01
@@ -1323,6 +1363,8 @@ Material #26
 Material_Sphere
 Matrix4x4
 Matrix4x4	Math
+Miss_Staggers/Miss_Stagger_Left
+Miss_Staggers/Miss_Stagger_Right
 Miss_Staggers/Null
 Motion Blur
 N-8C
@@ -1405,6 +1447,7 @@ Phonemes/tsh
 Phonemes/u
 Physical Light
 Pitch
+Pitch_Group/Empty_State_1
 Pitch_Group/pitch
 Plane_Primitive
 Planet Atmosphere
@@ -1460,6 +1503,9 @@ Ragdoll/Vehicle
 Ragdoll/Vehicle_aim
 Ragdoll/fixed
 Ragdoll_1
+Ragdoll_States/Death_Powered_Medium
+Ragdoll_States/Death_Powered_Strong
+Ragdoll_States/Death_Powered_Weak
 Ragdoll_States/Default
 Ragdoll_States/Ragdoll
 Ragdoll_States/fixed
