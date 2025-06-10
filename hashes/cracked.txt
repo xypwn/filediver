@@ -4598,3 +4598,5 @@ Weapon_Add/fire_lat
 Weapon_Add/fire_marksmanrifle
 Weapon_Add/fire_pumpshotgun
 Weapon_Add/fire_railgun
+guard/move_to_idle
+limp/move_to_idle

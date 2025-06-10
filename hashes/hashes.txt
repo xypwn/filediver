@@ -75153,6 +75153,7 @@ group
 guard/Empty_State
 guard/guard_idle
 guard/idle_turn
+guard/move_to_idle
 guard/stagger_back
 guard/stagger_front
 guard/stagger_left
@@ -75550,6 +75551,7 @@ lights
 limp/guard_idle
 limp/idle_turn
 limp/idle_turn_still
+limp/move_to_idle
 limp/stagger_back
 limp/stagger_front
 limp/stagger_left
