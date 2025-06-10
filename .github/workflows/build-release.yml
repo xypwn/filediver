@@ -22,7 +22,7 @@ jobs:
     - name: Build executable
       run: go build -ldflags="-s -w -X main.version=${{github.ref_name}}" -o filediver-gui/filediver-gui-linux ./cmd/filediver-gui
     - name: Upload archive
-      uses: softprops/action-gh-release@v2
+      uses: softprops/action-gh-release@v2.2.2
       if: startsWith(github.ref, 'refs/tags/')
       with:
         files: filediver-gui/filediver-gui-linux
@@ -40,7 +40,7 @@ jobs:
     - name: Build executable
       run: go build -ldflags="-s -w -X main.version=${{github.ref_name}} -H=windowsgui -extldflags=-static" -o filediver-gui/filediver-gui-windows.exe ./cmd/filediver-gui
     - name: Upload executable
-      uses: softprops/action-gh-release@v2
+      uses: softprops/action-gh-release@v2.2.2
       if: startsWith(github.ref, 'refs/tags/')
       with:
         files: filediver-gui/filediver-gui-windows.exe
@@ -64,7 +64,7 @@ jobs:
     - name: Create archive
       run: zip -r filediver-cli-linux.zip filediver-cli/
     - name: Upload archive
-      uses: softprops/action-gh-release@v2
+      uses: softprops/action-gh-release@v2.2.2
       if: startsWith(github.ref, 'refs/tags/')
       with:
         files: filediver-cli-linux.zip
@@ -93,7 +93,7 @@ jobs:
     - name: Create archive
       run: zip -r filediver-cli-windows.zip filediver-cli/
     - name: Upload archive
-      uses: softprops/action-gh-release@v2
+      uses: softprops/action-gh-release@v2.2.2
       if: startsWith(github.ref, 'refs/tags/')
       with:
         files: filediver-cli-windows.zip
@@ -121,7 +121,7 @@ jobs:
       run: |
         7z a scripts-dist-windows.zip ./scripts_dist
     - name: Upload archive
-      uses: softprops/action-gh-release@v2
+      uses: softprops/action-gh-release@v2.2.2
       if: startsWith(github.ref, 'refs/tags/')
       with:
         files: scripts-dist-windows.zip
@@ -149,7 +149,7 @@ jobs:
       run: |
         tar cJf scripts-dist-linux.tar.xz ./scripts_dist
     - name: Upload archive
-      uses: softprops/action-gh-release@v2
+      uses: softprops/action-gh-release@v2.2.2
       if: startsWith(github.ref, 'refs/tags/')
       with:
         files: scripts-dist-linux.tar.xz
