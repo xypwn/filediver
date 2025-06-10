@@ -64,15 +64,6 @@ func ExtractAnimationJson(ctx extractor.Context) error {
 }
 
 func AddAnimation(ctx extractor.Context, doc *gltf.Document, boneInfo *bones.Info, anim state_machine.Animation) error {
-	//boneIndexMap := make(map[stingray.ThinHash]uint32)
-	var makeMapRecursive func(*gltf.Document, uint32, map[stingray.ThinHash]uint32)
-	makeMapRecursive = func(doc *gltf.Document, nodeIdx uint32, boneMap map[stingray.ThinHash]uint32) {
-		boneMap[stingray.Sum64([]byte(doc.Nodes[nodeIdx].Name)).Thin()] = nodeIdx
-		for childIdx := range doc.Nodes[nodeIdx].Children {
-			makeMapRecursive(doc, uint32(childIdx), boneMap)
-		}
-	}
-
 	for _, path := range anim.AnimationHashes {
 		animationFile, ok := ctx.GetResource(path, stingray.Sum64([]byte("animation")))
 		if !ok {
@@ -325,9 +316,6 @@ func AddAnimation(ctx extractor.Context, doc *gltf.Document, boneInfo *bones.Inf
 		}
 		animationName := ctx.LookupHash(anim.Name)
 		pathName := ctx.LookupHash(path)
-		if strings.Contains(animationName, "/") {
-			animationName = filepath.Base(animationName)
-		}
 		if strings.Contains(pathName, "/") {
 			pathName = filepath.Base(pathName)
 		}
