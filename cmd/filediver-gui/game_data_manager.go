@@ -52,7 +52,7 @@ func (gd *GameData) UpdateSearchQuery(query string, allowedTypes map[stingray.Ha
 
 	gd.SortedSearchResultFileIDs = gd.SortedSearchResultFileIDs[:0]
 	maybeAdd := func(fileID stingray.FileID) {
-		if allowedTypes != nil && len(allowedTypes) > 0 {
+		if len(allowedTypes) > 0 {
 			if _, allowed := allowedTypes[fileID.Type]; !allowed {
 				return
 			}
@@ -61,7 +61,7 @@ func (gd *GameData) UpdateSearchQuery(query string, allowedTypes map[stingray.Ha
 			gd.SortedSearchResultFileIDs = append(gd.SortedSearchResultFileIDs, fileID)
 		}
 	}
-	if allowedArchives == nil || len(allowedArchives) == 0 {
+	if len(allowedArchives) == 0 {
 		for fileID := range gd.DataDir.Files {
 			maybeAdd(fileID)
 		}

@@ -294,7 +294,7 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 		return err
 	}
 
-	bonesEnabled := cfg.Model.NoBones
+	bonesEnabled := !cfg.Model.NoBones
 	animationsEnabled := cfg.Model.EnableAnimations
 
 	var skin *uint32 = nil

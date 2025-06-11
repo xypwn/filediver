@@ -30,8 +30,8 @@ type Config struct {
 		JpegQuality         int    `cfg:"tags=advanced depends=Unit.ImageFormat=jpeg range=1...100 default=90"`
 		AllTextures         bool   `cfg:"tags=advanced help='include all referenced textures, including wounds, marks etc. and unknown ones'"`
 		AccurateOnly        bool   `cfg:"tags=advanced"`
-		SampleAnimations    bool   `cfg:"help='more accurate, as glb doesn\\'t support the interpolation modes used by HD2'"`
-		AnimationSampleRate int    `cfg:"depends=Unit.SampleAnimations range=12...120 default=24"`
+		SampleAnimations    bool   `cfg:"help='more accurate for now, as spline interpolation conversion isn\\'t implemented yet'"`
+		AnimationSampleRate int    `cfg:"depends=Unit.SampleAnimations range=12...144 default=24"`
 	} `cfg:"help='general unit settings, affects materials, models and animations'"`
 	Material struct {
 		Format         string `cfg:"options=blend,glb,textures,raw help='material export format; textures dumps all referenced textures into a folder'"`
