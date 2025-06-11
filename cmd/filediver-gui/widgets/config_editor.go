@@ -70,7 +70,12 @@ func ConfigEditor(cfg *appconfig.Config, showAdvanced *bool) (changed bool) {
 		if field.IsCategory {
 			category = field.Name
 			imgui.SeparatorText(category)
-			imgui.SetItemTooltip(tooltip)
+			pos := imgui.CursorScreenPos()
+			pos.Y -= imgui.CurrentStyle().ItemSpacing().Y
+			imgui.SetCursorScreenPos(pos)
+			imgui.PushTextWrapPos()
+			imutils.Textcf(imgui.NewVec4(0.8, 0.8, 0.8, 1), "%v", tooltip)
+			imgui.Spacing()
 			continue
 		} else if category == "" {
 			category = "General"
