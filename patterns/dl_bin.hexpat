@@ -25,9 +25,9 @@ struct MurmurHash {
 } [[format("formatHash")]];
 // end stingray.hexpat
 
-#define WEAPON_CUSTOMIZATION_OFFSET 0x70000
-#define UNIT_CUSTOMIZATION_OFFSET 0x70000
-#define HELLDIVER_CUSTOMIZATION_OFFSET 0x3f0000
+#define WEAPON_CUSTOMIZATION_OFFSET 0x00000
+#define UNIT_CUSTOMIZATION_OFFSET 0xf0000
+#define HELLDIVER_CUSTOMIZATION_OFFSET 0x870000
 #define ANIMATION_EVENT_TRIGGER_OFFSET 0x60000
 
 fn relative_to_parents_parent(u128 offset) {
@@ -143,6 +143,8 @@ enum Passive : u32 {
     SIEGE_READY,
     INTEGRATED_EXPLOSIVES,
     GUNSLINGER,
+    UNK02,
+    BALLISTIC_PADDING,
 };
 
 fn passiveName(Passive passive) {
@@ -166,6 +168,7 @@ fn passiveName(Passive passive) {
         (Passive::INTEGRATED_EXPLOSIVES): return "INTEGRATED_EXPLOSIVES";
         (Passive::GUNSLINGER): return "GUNSLINGER";
         (Passive::REINFORCED_EPAULETTES): return "REINFORCED_EPAULETTES";
+        (Passive::BALLISTIC_PADDING): return "BALLISTIC_PADDING";
     }
     return "Very unknown!";
 };
@@ -197,7 +200,8 @@ struct HelldiverCustomizationKit {
         passive_bonus != Passive::SIEGE_READY &&
         passive_bonus != Passive::INTEGRATED_EXPLOSIVES &&
         passive_bonus != Passive::GUNSLINGER &&
-        passive_bonus != Passive::REINFORCED_EPAULETTES
+        passive_bonus != Passive::REINFORCED_EPAULETTES &&
+        passive_bonus != Passive::BALLISTIC_PADDING
     ) {
         std::print("Unknown passive in element {:d}! {}", std::core::array_index(), u32(passive_bonus));
     }
@@ -300,6 +304,7 @@ struct WeaponCustomizationSetting {
     u32 unk02;
     u32 count;
     u32 unk03;
+    u32 unk04[6];
     if (slotOffset != 0) {
         WeaponCustomizationSlot slots[count] @slotOffset;
     }
