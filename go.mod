@@ -2,8 +2,8 @@ module github.com/xypwn/filediver
 
 go 1.24.0
 
-// Using my fork, because hellflame/argparse handles terminal size and line breaking incorrectly.
-replace github.com/hellflame/argparse => github.com/xypwn/argparse v0.0.0-20250610194700-e46ca25c147e
+// Using my fork, because hellflame/argparse handles incorrectly as long as my PR isn't merged.
+replace github.com/hellflame/argparse => github.com/xypwn/argparse v0.0.0-20250611190808-2dfb002f1ad9
 
 require (
 	github.com/AllenDang/cimgui-go v1.3.1
