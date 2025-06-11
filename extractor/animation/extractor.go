@@ -203,7 +203,8 @@ func AddAnimation(ctx extractor.Context, doc *gltf.Document, boneInfo *bones.Inf
 				}
 			}
 			if targetNode == 0xffffffff {
-				return fmt.Errorf("writing gltf animation %v: could not find bone %v in document", path.String(), boneInfo.NameMap[boneInfo.Hashes[boneIdx]])
+				ctx.Warnf("writing gltf animation %v: could not find bone %v in document", path.String(), boneInfo.NameMap[boneInfo.Hashes[boneIdx]])
+				continue
 			}
 
 			var posKeyframes, scaleKeyframes []VectorKeyframe
