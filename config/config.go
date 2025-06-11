@@ -466,10 +466,7 @@ func (err *MarshalErr) Unwrap() error {
 // pointer to a struct).
 // getField should return the string-representation of the requested
 // value, or return ok as false if the field doesn't exist. If the field
-// doesn't exist, the following default values will be tried:
-// - If a valid default value exists, that will be used.
-// - If the field is of type option, the first option will be used.
-// - Otherwise, the zero value for the type will be used.
+// doesn't exist, the default value will be used (see [Field.DefaultValue])
 // If the returned error relates to a specific field, it will
 // be of type MarshalErr.
 func MarshalFunc(structure any, getField func(name string) (value string, ok bool)) (err error) {
@@ -502,12 +499,8 @@ func MarshalFunc(structure any, getField func(name string) (value string, ok boo
 						Err: fmt.Errorf("must be any of %v", strings.Join(f.Options, "|"))}
 				}
 			}
-		} else if len(f.Default) > 0 {
-			value = f.Default[0]
-		} else if len(f.Options) > 0 {
-			value = f.Options[0]
 		} else {
-			value = reflect.Zero(f.Type).Interface()
+			value = f.DefaultValue()
 		}
 		if f.RangeMin != nil && compareValues(value, f.RangeMin) < 0 {
 			return &MarshalErr{Field: f.Name,
@@ -526,6 +519,53 @@ func MarshalFunc(structure any, getField func(name string) (value string, ok boo
 		fV.Set(valueV)
 	}
 	return nil
+}
+
+// InitDefault initializes the given structure (which
+// must be a pointer to a struct) to its actual default
+// value specified in the struct definition (note that
+// this is distinct from the zero value).
+// Panicks if the struct definition contains any errors.
+func InitDefault(structure any) {
+	v := reflect.ValueOf(structure)
+	vTyp := v.Type()
+	if vTyp.Kind() != reflect.Pointer || vTyp.Elem().Kind() != reflect.Struct {
+		panic("InitDefault: expected structure to be a pointer to a struct")
+	}
+	v = v.Elem()
+
+	fields, err := parseStruct(v.Type())
+	if err != nil {
+		panic("InitDefault: " + err.Error())
+	}
+	for _, f := range fields {
+		if f.IsCategory {
+			continue
+		}
+		fV := v
+		for name := range strings.SplitSeq(f.Name, ".") {
+			fV = fV.FieldByName(name)
+		}
+		fV.Set(reflect.ValueOf(f.DefaultValue()))
+	}
+}
+
+// FieldDefault returns the computed default
+// value for the field.
+// The following default values will be tried:
+// - If a valid default value exists, that will be used.
+// - If the field is of type option, the first option will be used.
+// - Otherwise, the zero value for the type will be used.
+func (f Field) DefaultValue() any {
+	var value any
+	if len(f.Default) > 0 {
+		value = f.Default[0]
+	} else if len(f.Options) > 0 {
+		value = f.Options[0]
+	} else {
+		value = reflect.Zero(f.Type).Interface()
+	}
+	return value
 }
 
 // FieldFormatHint returns a text describing a field's tag.
@@ -549,10 +589,9 @@ func (fs *FieldSet) FieldFormatHint(
 	if f.RangeMin != nil || f.RangeMax != nil {
 		items = append(items, fmt.Sprintf("range: %v...%v", f.RangeMin, f.RangeMax))
 	}
-	if len(f.Default) > 0 {
-		items = append(items, fmt.Sprintf("default: %v", f.Default[0]))
-	} else if len(f.Options) > 0 {
-		items = append(items, fmt.Sprintf("default: %v", f.Options[0]))
+	defaultVal := f.DefaultValue()
+	if !reflect.ValueOf(defaultVal).IsZero() {
+		items = append(items, fmt.Sprintf("default: %v", defaultVal))
 	}
 	{
 		var depItems []string

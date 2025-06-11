@@ -39,21 +39,6 @@ import (
 	"github.com/xypwn/filediver/wwise"
 )
 
-var Extractors = map[string]bool{
-	"wwise_stream":   true,
-	"wwise_bank":     true,
-	"bik":            true,
-	"material":       true,
-	"texture":        true,
-	"unit":           true,
-	"geometry_group": true,
-	"state_machine":  true,
-	"animation":      true,
-	"strings":        true,
-	"package":        true,
-	"bones":          true,
-}
-
 func parseWwiseDep(ctx context.Context, f *stingray.File) (string, error) {
 	r, err := f.Open(ctx, stingray.DataMain)
 	if err != nil {

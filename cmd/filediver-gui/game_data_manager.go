@@ -10,6 +10,8 @@ import (
 
 	"github.com/qmuntal/gltf"
 	"github.com/xypwn/filediver/app"
+	"github.com/xypwn/filediver/app/appconfig"
+	fnt "github.com/xypwn/filediver/cmd/filediver-gui/fonts"
 	"github.com/xypwn/filediver/exec"
 	"github.com/xypwn/filediver/extractor/single_glb_helper"
 	"github.com/xypwn/filediver/hashes"
@@ -77,7 +79,7 @@ func (gd *GameData) UpdateSearchQuery(query string, allowedTypes map[stingray.Ha
 	})
 }
 
-func (gd *GameData) GoExport(extractCtx context.Context, files []stingray.FileID, outDir string, cfg app.Config, runner *exec.Runner, printer app.Printer) *GameDataExport {
+func (gd *GameData) GoExport(extractCtx context.Context, files []stingray.FileID, outDir string, cfg appconfig.Config, runner *exec.Runner, printer app.Printer) *GameDataExport {
 	ex := &GameDataExport{}
 	ex.NumFiles = len(files)
 	extractCtx, cancel := context.WithCancel(extractCtx)
@@ -95,13 +97,24 @@ func (gd *GameData) GoExport(extractCtx context.Context, files []stingray.FileID
 			ex.Unlock()
 		}()
 
-		var combinedDoc *gltf.Document
-		var closeCombinedGLB func(*gltf.Document) error
-		if cfg["unit"]["single_glb"] == "true" {
-			combinedDoc, closeCombinedGLB = single_glb_helper.CreateCloseableGltfDocument(outDir, "combined_unit" /* TODO */, cfg["unit"], runner)
-			ex.Lock()
-			ex.NumFiles++
-			ex.Unlock()
+		var documents map[string]*gltf.Document = make(map[string]*gltf.Document)
+		var documentsToClose []func() error
+		if cfg.Unit.SingleFile {
+			for _, key := range []string{"unit", "geometry_group", "material"} {
+				name := "combined_" + key
+				var formatBlend bool
+				switch key {
+				case "unit", "geometry_group":
+					formatBlend = cfg.Model.Format == "blend"
+				case "material":
+					formatBlend = cfg.Material.Format == "blend"
+				default:
+					panic("unknown format: " + key)
+				}
+				doc, close := single_glb_helper.CreateCloseableGltfDocument(outDir, name, formatBlend, runner)
+				documents[key] = doc
+				documentsToClose = append(documentsToClose, func() error { return close(doc) })
+			}
 		}
 
 		for _, fileID := range files {
@@ -112,8 +125,8 @@ func (gd *GameData) GoExport(extractCtx context.Context, files []stingray.FileID
 			printer.Statusf("File: %v", currFileName)
 
 			var gltfDoc *gltf.Document
-			if combinedDoc != nil && fileID.Type == stingray.Sum64([]byte("unit")) {
-				gltfDoc = combinedDoc
+			if doc, ok := documents[gd.LookupHash(fileID.Type)]; ok {
+				gltfDoc = doc
 			}
 			_, err := gd.ExtractFile(extractCtx, fileID, outDir, cfg, runner, gltfDoc, printer)
 			if err != nil {
@@ -131,10 +144,12 @@ func (gd *GameData) GoExport(extractCtx context.Context, files []stingray.FileID
 			ex.CurrentFileIndex++
 			ex.Unlock()
 		}
-		if combinedDoc != nil {
-			printer.Statusf("processing combined GLB")
-			if err := closeCombinedGLB(combinedDoc); err != nil {
-				printer.Errorf("close GLB: %v", err)
+		if len(documentsToClose) > 0 {
+			printer.Statusf("processing combined documents")
+		}
+		for _, close := range documentsToClose {
+			if err := close(); err != nil {
+				printer.Errorf("%v", err)
 			}
 		}
 	}()
@@ -149,14 +164,17 @@ type GameDataLoad struct {
 	Done     bool
 }
 
-func (gd *GameDataLoad) loadGameData(ctx context.Context) {
-	gameDir, err := app.DetectGameDir()
-	if err != nil {
-		gd.Lock()
-		gd.Err = fmt.Errorf("Helldivers 2 Steam installation path not found: %w", err)
-		gd.Done = true
-		gd.Unlock()
-		return
+func (gd *GameDataLoad) loadGameData(ctx context.Context, gameDir string) {
+	if gameDir == "" {
+		var err error
+		gameDir, err = app.DetectGameDir()
+		if err != nil {
+			gd.Lock()
+			gd.Err = fmt.Errorf("Helldivers 2 Steam installation path not found: %w, please select the game directory manually under \"%v Extractor config\"", err, fnt.I("Settings_applications"))
+			gd.Done = true
+			gd.Unlock()
+			return
+		}
 	}
 
 	a, err := app.OpenGameDir(ctx, gameDir, app.ParseHashes(hashes.Hashes), app.ParseHashes(hashes.ThinHashes), nil, stingray.Hash{}, func(curr, total int) {
@@ -178,6 +196,12 @@ func (gd *GameDataLoad) loadGameData(ctx context.Context) {
 	gd.Unlock()
 }
 
-func (gd *GameDataLoad) GoLoadGameData(ctx context.Context) {
-	go gd.loadGameData(ctx)
+// GoLoadGameData asynchronously loads the game data.
+// Pass empty string to gameDir to auto-detect.
+func (gd *GameDataLoad) GoLoadGameData(ctx context.Context, gameDir string) {
+	gd.Progress = 0
+	gd.Result = nil
+	gd.Err = nil
+	gd.Done = false
+	go gd.loadGameData(ctx, gameDir)
 }

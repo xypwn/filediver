@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"github.com/AllenDang/cimgui-go/imgui"
+	"github.com/adrg/xdg"
+	"github.com/ncruces/zenity"
 	fnt "github.com/xypwn/filediver/cmd/filediver-gui/fonts"
 )
 
@@ -192,4 +194,45 @@ func (m *PopupManager) Popup(name string, content func(close func()), flags imgu
 	if !isOpen {
 		m.Open[name] = false
 	}
+}
+
+func FilePicker(label string, path *string, directory bool) (changed bool) {
+	imgui.PushIDStr(label)
+	defer imgui.PopID()
+
+	pathName := *path
+	if after, ok := strings.CutPrefix(pathName, xdg.Home); ok {
+		pathName = "~" + after
+	}
+
+	var icon, tooltip string
+	if directory {
+		icon = fnt.I("Folder_open")
+		tooltip = icon + " Choose folder"
+	} else {
+		icon = fnt.I("File_open")
+		tooltip = icon + " Choose file"
+	}
+
+	imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.9, 0.9, 0.9, 1))
+	if imgui.Button(icon + " " + pathName) {
+		opts := []zenity.Option{
+			zenity.Filename(*path),
+		}
+		if directory {
+			opts = append(opts, zenity.Directory())
+		}
+		if newPath, err := zenity.SelectFile(opts...); err == nil {
+			*path = newPath
+			changed = true
+		} else if err != zenity.ErrCanceled {
+			panic("error creating file picker: " + err.Error())
+		}
+	}
+	imgui.SetItemTooltip(tooltip)
+	imgui.PopStyleColor()
+	imgui.SameLine()
+	imgui.TextUnformatted(label)
+
+	return
 }

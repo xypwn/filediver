@@ -56,6 +56,21 @@ type Config struct {
 	} `cfg:"help='applies to any file without an available extractor or \"raw\" as the selected format'"`
 }
 
+var Extractable = map[string]bool{
+	"wwise_stream":   true,
+	"wwise_bank":     true,
+	"bik":            true,
+	"material":       true,
+	"texture":        true,
+	"unit":           true,
+	"geometry_group": true,
+	"state_machine":  true,
+	"animation":      true,
+	"strings":        true,
+	"package":        true,
+	"bones":          true,
+}
+
 var ConfigFields = config.MustFields(Config{})
 var _ = GetTypeFormats(Config{}) // config sanity check (see GetTypeFormats)
 
