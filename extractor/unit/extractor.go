@@ -2,9 +2,7 @@ package unit
 
 import (
 	"fmt"
-	"image/png"
 	"io"
-	"strconv"
 
 	"github.com/qmuntal/gltf"
 	"github.com/qmuntal/gltf/modeler"
@@ -235,6 +233,8 @@ func AddPrefabMetadata(ctx extractor.Context, doc *gltf.Document, parent *uint32
 }
 
 func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, gltfDoc *gltf.Document) error {
+	cfg := ctx.Config()
+
 	fMain, err := ctx.File().Open(ctx.Ctx(), stingray.DataMain)
 	if err != nil {
 		return err
@@ -294,8 +294,8 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 		return err
 	}
 
-	bonesEnabled := ctx.Config()["no_bones"] != "true"
-	animationsEnabled := ctx.Config()["enable_animations"] == "true"
+	bonesEnabled := cfg.Model.NoBones
+	animationsEnabled := cfg.Model.EnableAnimations
 
 	var skin *uint32 = nil
 	var parent *uint32 = nil
@@ -342,7 +342,7 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 
 	AddPrefabMetadata(ctx, doc, parent, skin, meshNodes, armorSetName)
 
-	formatIsBlend := ctx.Config()["format"] == "blend" && ctx.Runner().Has("hd2_accurate_blender_importer")
+	formatIsBlend := cfg.Model.Format == "blend"
 	if gltfDoc == nil && !formatIsBlend {
 		out, err := ctx.CreateFile(".glb")
 		if err != nil {
@@ -408,36 +408,9 @@ func loadGeometryGroupMeshes(ctx extractor.Context, doc *gltf.Document, unitInfo
 	return geometry.LoadGLTF(ctx, gpuR, doc, ctx.File().ID().Name, meshInfos, geoInfo.Bones, geoGroup.MeshLayouts, unitInfo, meshNodes, materialIndices, parent, skin)
 }
 
-func GetImgOpts(ctx extractor.Context) (*extr_material.ImageOptions, error) {
-	var opts extr_material.ImageOptions
-	if v, ok := ctx.Config()["image_jpeg"]; ok && v == "true" {
-		opts.Jpeg = true
-	}
-	if v, ok := ctx.Config()["jpeg_quality"]; ok {
-		quality, err := strconv.Atoi(v)
-		if err != nil {
-			return nil, err
-		}
-		opts.JpegQuality = quality
-	}
-	if v, ok := ctx.Config()["png_compression"]; ok {
-		switch v {
-		case "default":
-			opts.PngCompression = png.DefaultCompression
-		case "none":
-			opts.PngCompression = png.NoCompression
-		case "fast":
-			opts.PngCompression = png.BestSpeed
-		case "best":
-			opts.PngCompression = png.BestCompression
-		}
-	}
-	return &opts, nil
-}
-
 func Convert(currDoc *gltf.Document) func(ctx extractor.Context) error {
 	return func(ctx extractor.Context) error {
-		opts, err := GetImgOpts(ctx)
+		opts, err := extr_material.GetImageOpts(ctx)
 		if err != nil {
 			return err
 		}

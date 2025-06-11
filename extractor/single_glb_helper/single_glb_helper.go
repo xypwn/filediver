@@ -9,7 +9,7 @@ import (
 	"github.com/xypwn/filediver/extractor/blend_helper"
 )
 
-func CreateCloseableGltfDocument(outDir string, triad string, cfg map[string]string, runner *exec.Runner) (*gltf.Document, func(doc *gltf.Document) error) {
+func CreateCloseableGltfDocument(outDir string, triad string, formatBlend bool, runner *exec.Runner) (*gltf.Document, func(doc *gltf.Document) error) {
 	document := gltf.NewDocument()
 	document.Asset.Generator = "https://github.com/xypwn/filediver"
 	document.Samplers = append(document.Samplers, &gltf.Sampler{
@@ -20,8 +20,7 @@ func CreateCloseableGltfDocument(outDir string, triad string, cfg map[string]str
 	})
 	closeGLB := func(doc *gltf.Document) error {
 		outPath := filepath.Join(outDir, triad)
-		formatIsBlend := cfg["format"] == "blend" && runner.Has("hd2_accurate_blender_importer")
-		if formatIsBlend {
+		if formatBlend {
 			err := blend_helper.ExportBlend(doc, outPath, runner)
 			if err != nil {
 				return err

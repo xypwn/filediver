@@ -10,7 +10,6 @@ import (
 	"io"
 	"math"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/qmuntal/gltf"
@@ -389,6 +388,8 @@ func compareMaterials(doc *gltf.Document, mat *material.Material, matIdx uint32,
 }
 
 func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Document, imgOpts *ImageOptions, matName string, unitData *dlbin.UnitData) (uint32, error) {
+	cfg := ctx.Config()
+
 	// Avoid duplicating material if it already is added to document
 	for i := range doc.Materials {
 		if compareMaterials(doc, mat, uint32(i), matName, unitData) {
@@ -433,7 +434,6 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 			index, err := writeTexture(ctx, doc, mat.Textures[texUsage], albedoPostProcess, imgOpts, "")
 			if err != nil {
 				continue
-				return 0, err
 			}
 			baseColorTexture = &gltf.TextureInfo{
 				Index: index,
@@ -502,7 +502,6 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 			index, err := writeTexture(ctx, doc, hash, normalPostProcess, imgOpts, "")
 			if err != nil {
 				continue
-				return 0, err
 			}
 			normalTexture = &gltf.NormalTexture{
 				Index: gltf.Index(index),
@@ -569,7 +568,6 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 			index, err := writeTexture(ctx, doc, mat.Textures[texUsage], postProcess, imgOpts, "")
 			if err != nil {
 				continue
-				return 0, err
 			}
 			metallicRoughnessTexture = &gltf.TextureInfo{
 				Index: index,
@@ -581,7 +579,6 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 			index, err := writeTexture(ctx, doc, mat.Textures[texUsage], postProcess, imgOpts, "")
 			if err != nil {
 				continue
-				return 0, err
 			}
 			emissiveTexture = &gltf.TextureInfo{
 				Index: index,
@@ -646,7 +643,6 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 			index, err := writeTexture(ctx, doc, hash, postProcess, imgOpts, "")
 			if err != nil {
 				continue
-				return 0, err
 			}
 			usedTextures[TextureUsage(texUsage.Value)] = index
 			imgOpts = origImgOpts
@@ -676,7 +672,6 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 			index, err := writeTexture(ctx, doc, hash, postProcess, imgOpts, "")
 			if err != nil {
 				continue
-				return 0, err
 			}
 			usedTextures[TextureUsage(texUsage.Value)] = index
 		case BloodSplatterTiler:
@@ -706,31 +701,28 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 		case WoundData:
 			fallthrough
 		case WoundDerivative:
-			if ctx.Config()["all_textures"] == "true" {
+			if cfg.Unit.AllTextures {
 				index, err := writeTexture(ctx, doc, mat.Textures[texUsage], postProcess, imgOpts, "")
 				if err != nil {
 					continue
-					return 0, err
 				}
 				usedTextures[TextureUsage(texUsage.Value)] = index
 			}
 		case WoundNormal:
-			if ctx.Config()["all_textures"] == "true" {
+			if cfg.Unit.AllTextures {
 				index, err := writeTexture(ctx, doc, mat.Textures[texUsage], postProcessReconstructNormalZ, imgOpts, "")
 				if err != nil {
 					continue
-					return 0, err
 				}
 				usedTextures[TextureUsage(texUsage.Value)] = index
 			}
 		default:
-			if ctx.Config()["all_textures"] == "true" {
+			if cfg.Unit.AllTextures {
 				t := TextureUsage(texUsage.Value)
 				ctx.Warnf("addMaterial: unknown/unhandled texture usage %v in material %v", t.String(), matName)
 				index, err := writeTexture(ctx, doc, mat.Textures[texUsage], postProcess, imgOpts, "")
 				if err != nil {
 					continue
-					return 0, err
 				}
 				usedTextures[TextureUsage(texUsage.Value)] = index
 			}
@@ -784,7 +776,11 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 	return uint32(len(doc.Materials) - 1), nil
 }
 
-func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions, gltfDoc *gltf.Document) error {
+// Uses ctx.Config().Material.Format as format! Add an extra parameter for
+// format if this is made public!
+func convertOpts(ctx extractor.Context, imgOpts *ImageOptions, gltfDoc *gltf.Document) error {
+	cfg := ctx.Config()
+
 	fMain, err := ctx.File().Open(ctx.Ctx(), stingray.DataMain)
 	if err != nil {
 		return err
@@ -852,7 +848,7 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions, gltfDoc *gltf.Doc
 	}
 
 	_, containsIdMasks := mat.Textures[stingray.ThinHash{Value: uint32(IdMasksArray)}]
-	if gltfDoc != nil && ctx.Config()["accurate_only"] == "true" && !containsIdMasks {
+	if gltfDoc != nil && cfg.Unit.AccurateOnly && !containsIdMasks {
 		return nil
 	}
 
@@ -912,7 +908,7 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions, gltfDoc *gltf.Doc
 	})
 	doc.Scenes[0].Nodes = append(doc.Scenes[0].Nodes, uint32(len(doc.Nodes)-1))
 
-	formatIsBlend := ctx.Config()["format"] == "blend" && ctx.Runner().Has("hd2_accurate_blender_importer")
+	formatIsBlend := cfg.Material.Format == "blend"
 	if gltfDoc == nil && !formatIsBlend {
 		out, err := ctx.CreateFile(".glb")
 		if err != nil {
@@ -935,44 +931,40 @@ func ConvertOpts(ctx extractor.Context, imgOpts *ImageOptions, gltfDoc *gltf.Doc
 	return nil
 }
 
-func getImgOpts(ctx extractor.Context) (*ImageOptions, error) {
+func GetImageOpts(ctx extractor.Context) (*ImageOptions, error) {
+	cfg := ctx.Config()
+
 	var opts ImageOptions
-	if v, ok := ctx.Config()["image_jpeg"]; ok && v == "true" {
-		opts.Jpeg = true
-	}
-	if v, ok := ctx.Config()["jpeg_quality"]; ok {
-		quality, err := strconv.Atoi(v)
-		if err != nil {
-			return nil, err
-		}
-		opts.JpegQuality = quality
-	}
-	if v, ok := ctx.Config()["png_compression"]; ok {
-		switch v {
-		case "default":
-			opts.PngCompression = png.DefaultCompression
-		case "none":
-			opts.PngCompression = png.NoCompression
-		case "fast":
-			opts.PngCompression = png.BestSpeed
-		case "best":
-			opts.PngCompression = png.BestCompression
-		}
+	opts.Jpeg = cfg.Unit.ImageFormat == "jpeg"
+	opts.JpegQuality = cfg.Unit.JpegQuality
+	switch cfg.Unit.PngCompression {
+	case "default":
+		opts.PngCompression = png.DefaultCompression
+	case "none":
+		opts.PngCompression = png.NoCompression
+	case "fast":
+		opts.PngCompression = png.BestSpeed
+	case "best":
+		opts.PngCompression = png.BestCompression
 	}
 	return &opts, nil
 }
 
 func Convert(currDoc *gltf.Document) func(ctx extractor.Context) error {
 	return func(ctx extractor.Context) error {
-		opts, err := getImgOpts(ctx)
+		opts, err := GetImageOpts(ctx)
 		if err != nil {
 			return err
 		}
-		return ConvertOpts(ctx, opts, currDoc)
+		return convertOpts(ctx, opts, currDoc)
 	}
 }
 
+// Uses ctx.Config().Material.TexturesFormat as format for individual textures!
+// Add an extra parameter for format when this is used by another extractor.
 func ConvertTextures(ctx extractor.Context) error {
+	cfg := ctx.Config()
+
 	fMain, err := ctx.File().Open(ctx.Ctx(), stingray.DataMain)
 	if err != nil {
 		return err
@@ -984,15 +976,6 @@ func ConvertTextures(ctx extractor.Context) error {
 		return err
 	}
 
-	matName, ok := ctx.Hashes()[ctx.File().ID().Name]
-	if !ok {
-		matName = ctx.File().ID().Name.String()
-	}
-	splitDir := strings.Split(matName, "/")
-	for i := range splitDir {
-		splitDir[i] = ".."
-	}
-
 	for _, texture := range mat.Textures {
 		texFile, ok := ctx.GetResource(texture, stingray.Sum64([]byte("texture")))
 		if !ok {
@@ -1000,22 +983,24 @@ func ConvertTextures(ctx extractor.Context) error {
 		}
 
 		texName, ok := ctx.Hashes()[texture]
-		if !ok {
+		if ok {
+			// textures are usually in the format
+			// [...]/textures/[texName]
+			if idx := strings.Index(texName, "/textures/"); idx != -1 {
+				texName = texName[idx+len("/textures/"):]
+			}
+		} else {
 			texName = texture.String()
 		}
-		outFilePathList := make([]string, 0)
-		outFilePathList = append(outFilePathList, splitDir...)
-		outFilePathList = append(outFilePathList, texName)
-		outFilePath := strings.Join(outFilePathList, string(filepath.Separator))
 
-		out, err := ctx.CreateFile(string(filepath.Separator) + outFilePath + "." + ctx.Config()["textureFormat"])
+		out, err := ctx.CreateFile(filepath.Join(".dir", texName+"."+cfg.Material.TexturesFormat))
 		if err != nil {
 			return err
 		}
 		defer out.Close()
 
 		var data []byte
-		if ctx.Config()["textureFormat"] == "dds" {
+		if cfg.Material.TexturesFormat == "dds" {
 			data, err = extr_texture.ExtractDDSData(ctx.Ctx(), texFile)
 		} else {
 			data, err = extr_texture.ConvertToPNGData(ctx.Ctx(), texFile)

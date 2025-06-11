@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/xypwn/filediver/app/appconfig"
 	"github.com/xypwn/filediver/exec"
 	"github.com/xypwn/filediver/stingray"
 	dlbin "github.com/xypwn/filediver/stingray/dl_bin"
@@ -14,7 +15,7 @@ type Context interface {
 	Ctx() context.Context
 	File() *stingray.File
 	Runner() *exec.Runner
-	Config() map[string]string
+	Config() appconfig.Config
 	GetResource(name, typ stingray.Hash) (file *stingray.File, exists bool)
 	// Call WriteCloser.Close() when done.
 	CreateFile(suffix string) (io.WriteCloser, error)

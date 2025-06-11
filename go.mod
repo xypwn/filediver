@@ -2,6 +2,9 @@ module github.com/xypwn/filediver
 
 go 1.24.0
 
+// Using my fork, because hellflame/argparse handles terminal size and line breaking incorrectly.
+replace github.com/hellflame/argparse => github.com/xypwn/argparse v0.0.0-20250610194700-e46ca25c147e
+
 require (
 	github.com/AllenDang/cimgui-go v1.3.1
 	github.com/adrg/xdg v0.4.0
@@ -13,6 +16,7 @@ require (
 	github.com/go-gl/mathgl v1.2.0
 	github.com/gobwas/glob v0.2.3
 	github.com/hellflame/argparse v1.12.0
+	github.com/iancoleman/strcase v0.3.0
 	github.com/jfreymuth/vorbis v1.0.2
 	github.com/juliettef/IconFontCppHeaders v0.0.0-20250310113834-3eac3a08c436
 	github.com/jwalton/go-supportscolor v1.2.0

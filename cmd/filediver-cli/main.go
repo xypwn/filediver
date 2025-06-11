@@ -5,6 +5,7 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"os/signal"
 	"runtime/pprof"
@@ -21,6 +22,7 @@ import (
 	"github.com/qmuntal/gltf"
 
 	"github.com/xypwn/filediver/app"
+	"github.com/xypwn/filediver/app/appconfig"
 	"github.com/xypwn/filediver/exec"
 	"github.com/xypwn/filediver/extractor/single_glb_helper"
 	"github.com/xypwn/filediver/hashes"
@@ -35,53 +37,60 @@ func main() {
 		os.Stderr,
 	)
 
-	parser := argparse.NewParser("filediver", "An unofficial Helldivers 2 game asset extractor.", &argparse.ParserConfig{
-		EpiLog: `matching files:
-  Syntax is Glob (meaning * is supported)
-  Basic format being matched is: file_path.file_type .
-  file_path is the file path, or the file hash and
-  file_type is the data type (see "extractors" section for a list of data types).
-  examples:
-    filediver -i "content/audio/*.wwise_stream"            extract all wwise_stream files in content/audio, or any subfolders
-    filediver -i "{*.bik,*.wwise_stream,*.wwise_bank}"     extract all video and audio files (though easier with extractor config)
-    filediver -i "content/audio/us/303183090.wwise_stream" extract one particular audio file
+	// CLI options
+	var optList *bool
+	var optThinToFind *string
+	var optOutDir *string
+	var optInclGlob *string
+	var optExclGlob *string
+	var optInclOnlyTypes *string
+	var optInclTriads *string
+	var optArmorStringsFile *string
+	var optKnownHashesPath *string
+	var optThinHashListMode *string
+	// Config common to CLI and GUI
+	cfg := appconfig.Config{}
 
-extractor config:
-  basic format: filediver -c "key1:opt1=val1,opt2=val2 key2:opt1,opt2"
-  examples:
-    filediver -c "enable:all"                extract ALL files, including raw files (i.e. files that can't be converted)
-    filediver -c "enable:audio"              only extract audio
-    filediver -c "enable:bik bik:format=bik" only extract bik files, but don't convert them to mp4
-    filediver -c "audio:format=wav"          convert audio to wav
-` + app.ExtractorConfigHelpMessage(app.ConfigFormat),
-		DisableDefaultShowHelp: true,
-	})
-	triads := parser.String("t", "triads", &argparse.Option{Help: "Include comma-separated triad name(s) as found in game data directory (aka Archive ID, eg 0x9ba626afa44a3aa3)"})
-	gameDir := parser.String("g", "gamedir", &argparse.Option{Help: "Helldivers 2 game directory"})
-	modeList := parser.Flag("l", "list", &argparse.Option{Help: "List all files without extracting anything. Format: known_name.known_type, name_hash.type_hash <- archives..."})
-
-	boneListOpts := make([]interface{}, 0)
-	boneListOpts = append(boneListOpts, "none")
-	boneListOpts = append(boneListOpts, "unknown")
-	boneListOpts = append(boneListOpts, "known")
-	boneListOpts = append(boneListOpts, "bone")
-	boneListOpts = append(boneListOpts, "material")
-	boneListOpts = append(boneListOpts, "all")
-
-	boneListMode := parser.String("b", "list-thins", &argparse.Option{Default: "none", Choices: boneListOpts, Help: "If not none, list [option] bones found in included unit files, then exit (default: none)"})
-	thinToFind := parser.String("f", "find-thin", &argparse.Option{Help: "Search for given thinhash (bone or material) name and print the unit file(s) containing it, then exit"})
-	outDir := parser.String("o", "out", &argparse.Option{Default: "extracted", Help: "Output directory (default: extracted)"})
-	extrCfgStr := parser.String("c", "config", &argparse.Option{Help: "Configure extractors (see \"extractor config\" section)"})
-	extrInclGlob := parser.String("i", "include", &argparse.Option{Help: "Select only matching files (glob syntax, see matching files section)"})
-	extrExclGlob := parser.String("x", "exclude", &argparse.Option{Help: "Exclude matching files from selection (glob syntax, can be mixed with --include, see matching files section)"})
-	armorStringsFile := parser.String("s", "strings", &argparse.Option{Default: "0x7c7587b563f10985", Help: "Strings file to use to map armor set string IDs to names (default: \"0x7c7587b563f10985\" - en-us)"})
-	//verbose := parser.Flag("v", "verbose", &argparse.Option{Help: "Provide more detailed status output"})
-	knownHashesPath := parser.String("", "hashes_file", &argparse.Option{Help: "Path to a text file containing known file and type names"})
-	if err := parser.Parse(nil); err != nil {
-		if err == argparse.BreakAfterHelpError {
-			os.Exit(0)
-		}
-		prt.Fatalf("%v", err)
+	if dontExit, err := cliHandleArgs(&cfg, func(argp *argparse.Parser) {
+		optList = argp.Flag("l", "list", &argparse.Option{
+			Help: "list all files without extracting anything; format: known_name.known_type, name_hash.type_hash <- archives...",
+		})
+		optThinToFind = argp.String("f", "find-thin", &argparse.Option{
+			Help: "search for given thinhash (bone or material) name and print the unit file(s) containing it, then exit",
+		})
+		optOutDir = argp.String("o", "out", &argparse.Option{
+			Default: "extracted",
+			Help:    "output directory",
+		})
+		optInclGlob = argp.String("i", "include", &argparse.Option{
+			Help: "select only matching files (glob syntax)",
+		})
+		optExclGlob = argp.String("x", "exclude", &argparse.Option{
+			Help: "exclude matching files from selection (glob syntax, can be mixed with --include)",
+		})
+		optInclOnlyTypes = argp.String("T", "types", &argparse.Option{
+			Default: "all",
+			Help:    "only include comma-separated type name(s)",
+		})
+		optInclTriads = argp.String("t", "triads", &argparse.Option{
+			Help: "include comma-separated triad name(s) as found in game data directory; aka Archive ID, e.g. 0x9ba626afa44a3aa3",
+		})
+		optArmorStringsFile = argp.String("s", "strings", &argparse.Option{
+			Default: "0x7c7587b563f10985",
+			Help:    `strings file to use to map armor set string IDs to names (default: "0x7c7587b563f10985" - en-us)`,
+		})
+		optKnownHashesPath = argp.String("", "hashes-file", &argparse.Option{
+			Help: "path to a text file containing known file and type names, will use built-in hash list if none is given",
+		})
+		optThinHashListMode = argp.String("b", "list-thins", &argparse.Option{
+			Default: "none",
+			Choices: []any{"none", "unknown", "known", "bone", "material", "all"},
+			Help:    "if not none, list [option] thin hashes referenced in included unit files, then exit"},
+		)
+	}); err != nil {
+		log.Fatal(err)
+	} else if !dontExit {
+		os.Exit(0)
 	}
 
 	if value, ok := os.LookupEnv("FILEDIVER_CPU_PROFILE"); ok && value != "" && value != "0" {
@@ -95,34 +104,45 @@ extractor config:
 		defer pprof.StopCPUProfile()
 	}
 
-	extrCfg, err := app.ParseExtractorConfig(app.ConfigFormat, *extrCfgStr)
-	if err != nil {
-		prt.Fatalf("%v", err)
-	}
-
 	runner := exec.NewRunner()
 	if ok := runner.Add("ffmpeg", "-y", "-hide_banner", "-loglevel", "error"); !ok {
+		if cfg.Video.Format != "bik" && cfg.Video.Format != "raw" {
+			cfg.Video.Format = "bik"
+		}
+		if cfg.Audio.Format != "wav" && cfg.Audio.Format != "raw" {
+			cfg.Video.Format = "wav"
+		}
 		prt.Warnf("FFmpeg not installed or found locally. Please install FFmpeg, or place ffmpeg.exe in the current folder to convert videos to MP4 and audio to a variety of formats. Without FFmpeg, videos will be saved as BIK and audio will be saved was WAV.")
 	}
 	if ok := runner.Add("scripts_dist/hd2_accurate_blender_importer/hd2_accurate_blender_importer"); !ok {
+		if cfg.Model.Format == "blend" {
+			cfg.Model.Format = "glb"
+		}
+		if cfg.Material.Format == "blend" {
+			cfg.Material.Format = "glb"
+		}
 		prt.Warnf("Blender importer not found. Exporting directly to .blend is not available. Please download the scripts_dist archive and place its contents into the same folder as filediver (see https://github.com/xypwn/filediver?tab=readme-ov-file#helper-scripts-scripts_dist). Without blender importer, models will be saved as GLB.")
 	}
 
-	triadIDs := make([]stingray.Hash, 0)
-	if *triads != "" {
-		split := strings.Split(*triads, ",")
+	var inclOnlyTypes []string
+	if *optInclOnlyTypes != "all" {
+		inclOnlyTypes = strings.Split(*optInclOnlyTypes, ",")
+	}
+	var inclTriadIDs []stingray.Hash
+	if *optInclTriads != "" {
+		split := strings.Split(*optInclTriads, ",")
 		for _, triad := range split {
 			hash, err := stingray.ParseHash(triad)
 			if err != nil {
 				prt.Fatalf("parsing triad name: %v", err)
 			}
-			triadIDs = append(triadIDs, hash)
+			inclTriadIDs = append(inclTriadIDs, hash)
 		}
 	}
 
-	armorStringsHash, err := stingray.ParseHash(*armorStringsFile)
+	armorStringsHash, err := stingray.ParseHash(*optArmorStringsFile)
 	if err != nil {
-		hashVal, err := strconv.ParseUint(*armorStringsFile, 10, 64)
+		hashVal, err := strconv.ParseUint(*optArmorStringsFile, 10, 64)
 		if err != nil {
 			prt.Warnf("unable to parse armor strings hash (%v), using default of en-us", err)
 			hashVal = 0x7c7587b563f10985
@@ -130,23 +150,25 @@ extractor config:
 		armorStringsHash = stingray.Hash{Value: hashVal}
 	}
 
-	if *gameDir == "" {
+	var gamedir string
+	if cfg.Gamedir == "<auto-detect>" {
 		var err error
-		*gameDir, err = app.DetectGameDir()
+		gamedir, err = app.DetectGameDir()
 		if err == nil {
-			prt.Infof("Using game found at: \"%v\"", *gameDir)
+			prt.Infof("Using game found at: \"%v\"", gamedir)
 		} else {
 			prt.Errorf("Helldivers 2 Steam installation path not found: %v", err)
 			prt.Fatalf("Unable to detect game install directory. Please specify the game directory manually using the '-g' option.")
 		}
 	} else {
-		prt.Infof("Game directory: \"%v\"", *gameDir)
+		gamedir = cfg.Gamedir
+		prt.Infof("Game directory: \"%v\"", gamedir)
 	}
 
 	var knownHashes []string
 	knownHashes = append(knownHashes, app.ParseHashes(hashes.Hashes)...)
-	if *knownHashesPath != "" {
-		b, err := os.ReadFile(*knownHashesPath)
+	if *optKnownHashesPath != "" {
+		b, err := os.ReadFile(*optKnownHashesPath)
 		if err != nil {
 			prt.Fatalf("%v", err)
 		}
@@ -156,8 +178,8 @@ extractor config:
 	var knownThinHashes []string
 	knownThinHashes = append(knownThinHashes, app.ParseHashes(hashes.ThinHashes)...)
 
-	if !(*modeList || *boneListMode != "none" || thinToFind != nil) {
-		prt.Infof("Output directory: \"%v\"", *outDir)
+	if !(*optList || *optThinHashListMode != "none" || *optThinToFind != "") {
+		prt.Infof("Output directory: \"%v\"", *optOutDir)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -169,7 +191,7 @@ extractor config:
 		cancel()
 	}()
 
-	a, err := app.OpenGameDir(ctx, *gameDir, knownHashes, knownThinHashes, triadIDs, armorStringsHash, func(curr, total int) {
+	a, err := app.OpenGameDir(ctx, gamedir, knownHashes, knownThinHashes, inclTriadIDs, armorStringsHash, func(curr, total int) {
 		prt.Statusf("Reading metadata %.0f%%", float64(curr)/float64(total)*100)
 	})
 	if err != nil {
@@ -183,7 +205,7 @@ extractor config:
 	}
 	prt.NoStatus()
 
-	files, err := a.MatchingFiles(*extrInclGlob, *extrExclGlob, triadIDs, app.ConfigFormat, extrCfg)
+	files, err := a.MatchingFiles(*optInclGlob, *optExclGlob, inclOnlyTypes, inclTriadIDs)
 	if err != nil {
 		prt.Fatalf("%v", err)
 	}
@@ -226,7 +248,7 @@ extractor config:
 		)
 	}
 
-	if *modeList {
+	if *optList {
 		for _, id := range sortedFileIDs {
 			triadIDs := a.DataDir.Files[id].TriadIDs()
 			triadIDStrings := make([]string, len(triadIDs))
@@ -240,7 +262,7 @@ extractor config:
 				strings.Join(triadIDStrings, ", "),
 			)
 		}
-	} else if *boneListMode != "none" || (thinToFind != nil && len(*thinToFind) > 0) {
+	} else if *optThinHashListMode != "none" || *optThinToFind != "" {
 		knownBone := make(map[string]bool)
 		knownMat := make(map[string]bool)
 		unknownBone := make(map[string]bool)
@@ -264,7 +286,7 @@ extractor config:
 			}
 
 			for _, bone := range unitInfo.Bones {
-				if thinToFind != nil && len(*thinToFind) > 0 && stingray.Sum64([]byte(*thinToFind)).Thin() == bone.NameHash {
+				if *optThinToFind != "" && stingray.Sum64([]byte(*optThinToFind)).Thin() == bone.NameHash {
 					unitName, exists := a.Hashes[id.Name]
 					if !exists {
 						unitName = id.Name.String()
@@ -272,7 +294,7 @@ extractor config:
 					fmt.Printf("%v.unit\n", unitName)
 					unitCount++
 					break
-				} else if thinToFind != nil && len(*thinToFind) > 0 {
+				} else if *optThinToFind != "" {
 					continue
 				}
 
@@ -283,7 +305,7 @@ extractor config:
 				}
 			}
 			for mat := range unitInfo.Materials {
-				if thinToFind != nil && len(*thinToFind) > 0 && stingray.Sum64([]byte(*thinToFind)).Thin() == mat {
+				if *optThinToFind != "" && stingray.Sum64([]byte(*optThinToFind)).Thin() == mat {
 					unitName, exists := a.Hashes[id.Name]
 					if !exists {
 						unitName = id.Name.String()
@@ -291,7 +313,7 @@ extractor config:
 					fmt.Printf("%v.unit\n", unitName)
 					unitCount++
 					break
-				} else if thinToFind != nil && len(*thinToFind) > 0 {
+				} else if *optThinToFind != "" {
 					continue
 				}
 
@@ -328,7 +350,7 @@ extractor config:
 		stdoutStat, _ := os.Stdout.Stat()
 		showRedirectHint := (stdoutStat.Mode() & os.ModeCharDevice) != 0
 		var printed int
-		switch *boneListMode {
+		switch *optThinHashListMode {
 		case "known":
 			slices.Sort(knownSorted)
 			for _, bone := range knownSorted {
@@ -376,24 +398,33 @@ extractor config:
 		if showRedirectHint && printed > 127 {
 			prt.Infof("Listed %v bones or materials (you should probably redirect this to a file)", printed)
 		}
-		if thinToFind != nil && len(*thinToFind) > 0 {
-			prt.Infof("Listed %v units with bone or material '%v' == 0x%08x", unitCount, *thinToFind, stingray.Sum64([]byte(*thinToFind)).Thin().Value)
+		if *optThinToFind != "" {
+			prt.Infof("Listed %v units with bone or material '%v' == 0x%08x", unitCount, *optThinToFind, stingray.Sum64([]byte(*optThinToFind)).Thin().Value)
 		}
 	} else {
 		prt.Infof("Extracting files...")
 
 		var documents map[string]*gltf.Document = make(map[string]*gltf.Document)
-		for key := range extrCfg {
-			if value, contains := extrCfg[key]["single_glb"]; !contains || value == "false" {
-				continue
+		var documentsToClose []func() error
+		if cfg.Unit.SingleFile {
+			for _, key := range []string{"unit", "geometry_group", "material"} {
+				name := "combined_" + key
+				if optInclTriads != nil && len(*optInclTriads) > 0 {
+					name = fmt.Sprintf("%s_%s", strings.ReplaceAll(*optInclTriads, ",", "_"), key)
+				}
+				var formatBlend bool
+				switch key {
+				case "unit", "geometry_group":
+					formatBlend = cfg.Model.Format == "blend"
+				case "material":
+					formatBlend = cfg.Material.Format == "blend"
+				default:
+					panic("unknown format: " + key)
+				}
+				doc, close := single_glb_helper.CreateCloseableGltfDocument(*optOutDir, name, formatBlend, runner)
+				documents[key] = doc
+				documentsToClose = append(documentsToClose, func() error { return close(doc) })
 			}
-			var closeGLB func(doc *gltf.Document) error
-			name := "combined_" + key
-			if triads != nil && len(*triads) > 0 {
-				name = fmt.Sprintf("%s_%s", strings.ReplaceAll(*triads, ",", "_"), key)
-			}
-			documents[key], closeGLB = single_glb_helper.CreateCloseableGltfDocument(*outDir, name, extrCfg[key], runner)
-			defer closeGLB(documents[key])
 		}
 
 		numExtrFiles := 0
@@ -408,7 +439,7 @@ extractor config:
 			}
 			prt.Statusf("File %v/%v: %v", i+1, len(files), truncName)
 			document := documents[typ]
-			if _, err := a.ExtractFile(ctx, id, *outDir, extrCfg, runner, document, prt); err == nil {
+			if _, err := a.ExtractFile(ctx, id, *optOutDir, cfg, runner, document, prt); err == nil {
 				numExtrFiles++
 			} else {
 				if errors.Is(err, context.Canceled) {
@@ -418,6 +449,12 @@ extractor config:
 				} else {
 					prt.Errorf("%v", err)
 				}
+			}
+		}
+
+		for _, close := range documentsToClose {
+			if err := close(); err != nil {
+				prt.Errorf("%v", err)
 			}
 		}
 

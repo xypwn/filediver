@@ -165,12 +165,10 @@ func convertWemStream(ctx extractor.Context, outName string, in io.ReadSeeker, f
 	return nil
 }
 
-func getFormat(config map[string]string) (format, error) {
-	f, ok := config["format"]
-	if !ok {
-		return formatOgg, nil
-	}
-	switch f {
+func getFormat(ctx extractor.Context) (format, error) {
+	cfg := ctx.Config()
+
+	switch cfg.Audio.Format {
 	case "wav":
 		return formatWav, nil
 	case "mp3":
@@ -180,7 +178,7 @@ func getFormat(config map[string]string) (format, error) {
 	case "aac":
 		return formatAac, nil
 	default:
-		return 0, fmt.Errorf("invalid audio output format: \"%v\"", f)
+		return 0, fmt.Errorf("invalid audio output format: \"%v\"", cfg.Audio.Format)
 	}
 }
 
@@ -202,7 +200,7 @@ func ExtractWem(ctx extractor.Context) error {
 }
 
 func ConvertWem(ctx extractor.Context) error {
-	format, err := getFormat(ctx.Config())
+	format, err := getFormat(ctx)
 	if err != nil {
 		return err
 	}
@@ -240,7 +238,7 @@ func ExtractBnk(ctx extractor.Context) error {
 }
 
 func ConvertBnk(ctx extractor.Context) error {
-	format, err := getFormat(ctx.Config())
+	format, err := getFormat(ctx)
 	if err != nil {
 		return err
 	}
