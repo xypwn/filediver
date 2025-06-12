@@ -44,11 +44,15 @@ func NewRunner() *Runner {
 }
 
 func (r *Runner) Add(name string, defaultArgs ...string) (found bool) {
-	path, ok := LookPath(name)
+	return r.AddWithName(filepath.Base(name), name, defaultArgs...)
+}
+
+func (r *Runner) AddWithName(registryName string, executableName string, defaultArgs ...string) (found bool) {
+	path, ok := LookPath(executableName)
 	if !ok {
 		return false
 	}
-	r.progs[filepath.Base(name)] = entry{
+	r.progs[registryName] = entry{
 		Path:        path,
 		DefaultArgs: defaultArgs,
 	}
