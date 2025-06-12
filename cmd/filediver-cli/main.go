@@ -169,7 +169,7 @@ extractor config:
 		cancel()
 	}()
 
-	a, err := app.OpenGameDir(ctx, *gameDir, knownHashes, knownThinHashes, triadIDs, armorStringsHash, func(curr, total int) {
+	a, err := app.OpenGameDir(ctx, *gameDir, knownHashes, knownThinHashes, armorStringsHash, func(curr, total int) {
 		prt.Statusf("Reading metadata %.0f%%", float64(curr)/float64(total)*100)
 	})
 	if err != nil {
@@ -408,7 +408,7 @@ extractor config:
 			}
 			prt.Statusf("File %v/%v: %v", i+1, len(files), truncName)
 			document := documents[typ]
-			if _, err := a.ExtractFile(ctx, id, *outDir, extrCfg, runner, document, prt); err == nil {
+			if _, err := a.ExtractFile(ctx, id, *outDir, extrCfg, runner, document, triadIDs, prt); err == nil {
 				numExtrFiles++
 			} else {
 				if errors.Is(err, context.Canceled) {

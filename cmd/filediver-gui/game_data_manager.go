@@ -77,7 +77,7 @@ func (gd *GameData) UpdateSearchQuery(query string, allowedTypes map[stingray.Ha
 	})
 }
 
-func (gd *GameData) GoExport(extractCtx context.Context, files []stingray.FileID, outDir string, cfg app.Config, runner *exec.Runner, printer app.Printer) *GameDataExport {
+func (gd *GameData) GoExport(extractCtx context.Context, files []stingray.FileID, outDir string, cfg app.Config, runner *exec.Runner, archiveIDs []stingray.Hash, printer app.Printer) *GameDataExport {
 	ex := &GameDataExport{}
 	ex.NumFiles = len(files)
 	extractCtx, cancel := context.WithCancel(extractCtx)
@@ -115,7 +115,7 @@ func (gd *GameData) GoExport(extractCtx context.Context, files []stingray.FileID
 			if combinedDoc != nil && fileID.Type == stingray.Sum64([]byte("unit")) {
 				gltfDoc = combinedDoc
 			}
-			_, err := gd.ExtractFile(extractCtx, fileID, outDir, cfg, runner, gltfDoc, printer)
+			_, err := gd.ExtractFile(extractCtx, fileID, outDir, cfg, runner, gltfDoc, archiveIDs, printer)
 			if err != nil {
 				if errors.Is(err, context.Canceled) {
 					ex.Lock()
@@ -159,7 +159,7 @@ func (gd *GameDataLoad) loadGameData(ctx context.Context) {
 		return
 	}
 
-	a, err := app.OpenGameDir(ctx, gameDir, app.ParseHashes(hashes.Hashes), app.ParseHashes(hashes.ThinHashes), nil, stingray.Hash{}, func(curr, total int) {
+	a, err := app.OpenGameDir(ctx, gameDir, app.ParseHashes(hashes.Hashes), app.ParseHashes(hashes.ThinHashes), stingray.Hash{}, func(curr, total int) {
 		gd.Lock()
 		gd.Progress = float32(curr+1) / float32(total)
 		gd.Unlock()

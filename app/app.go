@@ -325,10 +325,8 @@ func ParseHashes(str string) []string {
 type App struct {
 	Hashes     map[stingray.Hash]string
 	ThinHashes map[stingray.ThinHash]string
-	// Passed triad ID (-t option).
-	TriadIDs  []stingray.Hash
-	ArmorSets map[stingray.Hash]dlbin.ArmorSet
-	DataDir   *stingray.DataDir
+	ArmorSets  map[stingray.Hash]dlbin.ArmorSet
+	DataDir    *stingray.DataDir
 }
 
 // Automatically gets most wwise-related hashes by reading the game files
@@ -403,7 +401,7 @@ func getWwiseHashes(ctx context.Context, dataDir *stingray.DataDir) (map[stingra
 }
 
 // Open game dir and read metadata.
-func OpenGameDir(ctx context.Context, gameDir string, hashStrings []string, thinhashes []string, triadIDs []stingray.Hash, armorStrings stingray.Hash, onProgress func(curr, total int)) (*App, error) {
+func OpenGameDir(ctx context.Context, gameDir string, hashStrings []string, thinhashes []string, armorStrings stingray.Hash, onProgress func(curr, total int)) (*App, error) {
 	dataDir, err := stingray.OpenDataDir(ctx, filepath.Join(gameDir, "data"), onProgress)
 	if err != nil {
 		return nil, err
@@ -455,7 +453,6 @@ func OpenGameDir(ctx context.Context, gameDir string, hashStrings []string, thin
 	return &App{
 		Hashes:     hashesMap,
 		ThinHashes: thinHashesMap,
-		TriadIDs:   triadIDs,
 		ArmorSets:  armorSets,
 		DataDir:    dataDir,
 	}, nil
@@ -614,25 +611,27 @@ func (a *App) LookupThinHash(hash stingray.ThinHash) string {
 }
 
 type extractContext struct {
-	ctx     context.Context
-	app     *App
-	file    *stingray.File
-	runner  *exec.Runner
-	config  map[string]string
-	outPath string
-	files   []string
-	printer Printer
+	ctx      context.Context
+	app      *App
+	file     *stingray.File
+	runner   *exec.Runner
+	config   map[string]string
+	outPath  string
+	files    []string
+	triadIDs []stingray.Hash
+	printer  Printer
 }
 
-func newExtractContext(ctx context.Context, app *App, file *stingray.File, runner *exec.Runner, config map[string]string, outPath string, printer Printer) *extractContext {
+func newExtractContext(ctx context.Context, app *App, file *stingray.File, runner *exec.Runner, config map[string]string, outPath string, triadIDs []stingray.Hash, printer Printer) *extractContext {
 	return &extractContext{
-		ctx:     ctx,
-		app:     app,
-		file:    file,
-		runner:  runner,
-		config:  config,
-		outPath: outPath,
-		printer: printer,
+		ctx:      ctx,
+		app:      app,
+		file:     file,
+		runner:   runner,
+		config:   config,
+		outPath:  outPath,
+		triadIDs: triadIDs,
+		printer:  printer,
 	}
 }
 
@@ -670,7 +669,7 @@ func (c *extractContext) ThinHashes() map[stingray.ThinHash]string {
 	return c.app.ThinHashes
 }
 func (c *extractContext) TriadIDs() []stingray.Hash {
-	return c.app.TriadIDs
+	return c.triadIDs
 }
 func (c *extractContext) ArmorSets() map[stingray.Hash]dlbin.ArmorSet {
 	return c.app.ArmorSets
@@ -707,7 +706,7 @@ func getSourceExtractFunc(extrCfg Config, typ string) (extr extractor.ExtractFun
 }
 
 // Returns path to extracted file/directory.
-func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string, extrCfg Config, runner *exec.Runner, gltfDoc *gltf.Document, printer Printer) ([]string, error) {
+func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string, extrCfg Config, runner *exec.Runner, gltfDoc *gltf.Document, triadIDs []stingray.Hash, printer Printer) ([]string, error) {
 	name, typ := a.LookupHash(id.Name), a.LookupHash(id.Type)
 
 	file, ok := a.DataDir.Files[id]
@@ -808,8 +807,10 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 		runner,
 		cfg,
 		outPath,
+		triadIDs,
 		printer,
 	)
+	extrCtx.TriadIDs()
 	if err := extr(extrCtx); err != nil {
 		{
 			var err error
