@@ -19,6 +19,7 @@ import (
 
 	"github.com/hellflame/argparse"
 	"github.com/jwalton/go-supportscolor"
+	"github.com/mattn/go-shellwords"
 	"github.com/qmuntal/gltf"
 
 	"github.com/xypwn/filediver/app"
@@ -114,8 +115,15 @@ func main() {
 		}
 		prt.Warnf("FFmpeg not installed or found locally. Please install FFmpeg, or place ffmpeg.exe in the current folder to convert videos to MP4 and audio to a variety of formats. Without FFmpeg, videos will be saved as BIK and audio will be saved was WAV.")
 	}
-	if ok := runner.Add("scripts_dist/hd2_accurate_blender_importer/hd2_accurate_blender_importer"); !ok {
-		if cfg.Model.Format == "blend" {
+	blenderImporterCommand := []string{"scripts_dist/hd2_accurate_blender_importer/hd2_accurate_blender_importer"}
+	if value := os.Getenv("FILEDIVER_BLENDER_IMPORTER_COMMAND"); value != "" {
+		if args, err := shellwords.Parse(value); err == nil && len(args) >= 1 {
+			prt.Infof("Using blender importer command: %v", args)
+			blenderImporterCommand = args
+		}
+	}
+	if ok := runner.AddWithName("hd2_accurate_blender_importer", blenderImporterCommand[0], blenderImporterCommand[1:]...); !ok {
+ 		if cfg.Model.Format == "blend" {
 			cfg.Model.Format = "glb"
 		}
 		if cfg.Material.Format == "blend" {

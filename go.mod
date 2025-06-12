@@ -20,6 +20,7 @@ require (
 	github.com/jfreymuth/vorbis v1.0.2
 	github.com/juliettef/IconFontCppHeaders v0.0.0-20250310113834-3eac3a08c436
 	github.com/jwalton/go-supportscolor v1.2.0
+	github.com/mattn/go-shellwords v1.0.12
 	github.com/mholt/archives v0.1.1
 	github.com/ncruces/zenity v0.10.14
 	github.com/oov/audio v0.0.0-20171004131523-88a2be6dbe38
