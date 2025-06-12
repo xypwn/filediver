@@ -53,6 +53,14 @@ type FileID struct {
 	Type Hash
 }
 
+// Cmp compares two file IDs with order: name > type.
+func (id FileID) Cmp(other FileID) int {
+	if r := id.Name.Cmp(other.Name); r != 0 {
+		return r
+	}
+	return id.Type.Cmp(other.Type)
+}
+
 // Unk means the data's purpose is unknown.
 type HeaderData struct {
 	MagicNum [4]byte // 0x11 0x00 0x00 0xF0
