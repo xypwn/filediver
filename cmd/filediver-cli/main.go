@@ -104,7 +104,14 @@ extractor config:
 	if ok := runner.Add("ffmpeg", "-y", "-hide_banner", "-loglevel", "error"); !ok {
 		prt.Warnf("FFmpeg not installed or found locally. Please install FFmpeg, or place ffmpeg.exe in the current folder to convert videos to MP4 and audio to a variety of formats. Without FFmpeg, videos will be saved as BIK and audio will be saved was WAV.")
 	}
-	if ok := runner.Add("scripts_dist/hd2_accurate_blender_importer/hd2_accurate_blender_importer"); !ok {
+	blenderImporterCommand := []string{"scripts_dist/hd2_accurate_blender_importer/hd2_accurate_blender_importer"}
+	if value := os.Getenv("FILEDIVER_BLENDER_IMPORTER_COMMAND"); value != "" {
+		if args := strings.Fields(value); len(args) >= 1 {
+			prt.Infof("Using blender importer command: %v", args)
+			blenderImporterCommand = args
+		}
+	}
+	if ok := runner.AddWithName("hd2_accurate_blender_importer", blenderImporterCommand[0], blenderImporterCommand[1:]...); !ok {
 		prt.Warnf("Blender importer not found. Exporting directly to .blend is not available. Please download the scripts_dist archive and place its contents into the same folder as filediver (see https://github.com/xypwn/filediver?tab=readme-ov-file#helper-scripts-scripts_dist). Without blender importer, models will be saved as GLB.")
 	}
 
