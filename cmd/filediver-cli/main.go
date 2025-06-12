@@ -18,6 +18,7 @@ import (
 
 	"github.com/hellflame/argparse"
 	"github.com/jwalton/go-supportscolor"
+	"github.com/mattn/go-shellwords"
 	"github.com/qmuntal/gltf"
 
 	"github.com/xypwn/filediver/app"
@@ -106,7 +107,7 @@ extractor config:
 	}
 	blenderImporterCommand := []string{"scripts_dist/hd2_accurate_blender_importer/hd2_accurate_blender_importer"}
 	if value := os.Getenv("FILEDIVER_BLENDER_IMPORTER_COMMAND"); value != "" {
-		if args := strings.Fields(value); len(args) >= 1 {
+		if args, err := shellwords.Parse(value); err == nil && len(args) >= 1 {
 			prt.Infof("Using blender importer command: %v", args)
 			blenderImporterCommand = args
 		}
