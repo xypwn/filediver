@@ -77,7 +77,7 @@ func (gd *GameData) UpdateSearchQuery(query string, allowedTypes map[stingray.Ha
 	})
 }
 
-func (gd *GameData) GoExport(extractCtx context.Context, files []stingray.FileID, outDir string, cfg app.Config, runner *exec.Runner, printer app.Printer) *GameDataExport {
+func (gd *GameData) GoExport(extractCtx context.Context, files []stingray.FileID, outDir string, cfg app.Config, runner *exec.Runner, printer app.Printer, archives map[stingray.Hash]struct{}) *GameDataExport {
 	ex := &GameDataExport{}
 	ex.NumFiles = len(files)
 	extractCtx, cancel := context.WithCancel(extractCtx)
@@ -94,6 +94,13 @@ func (gd *GameData) GoExport(extractCtx context.Context, files []stingray.FileID
 			ex.Done = true
 			ex.Unlock()
 		}()
+
+		if len(archives) > 0 {
+			gd.TriadIDs = make([]stingray.Hash, 0, len(archives))
+			for triadID := range archives {
+				gd.TriadIDs = append(gd.TriadIDs, triadID)
+			}
+		}
 
 		var combinedDoc *gltf.Document
 		var closeCombinedGLB func(*gltf.Document) error
@@ -159,7 +166,7 @@ func (gd *GameDataLoad) loadGameData(ctx context.Context) {
 		return
 	}
 
-	a, err := app.OpenGameDir(ctx, gameDir, app.ParseHashes(hashes.Hashes), app.ParseHashes(hashes.ThinHashes), nil, stingray.Hash{}, func(curr, total int) {
+	a, err := app.OpenGameDir(ctx, gameDir, app.ParseHashes(hashes.Hashes), app.ParseHashes(hashes.ThinHashes), nil, stingray.Hash{Value: 0x7c7587b563f10985}, func(curr, total int) {
 		gd.Lock()
 		gd.Progress = float32(curr+1) / float32(total)
 		gd.Unlock()

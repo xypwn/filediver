@@ -910,6 +910,7 @@ func run(onError func(error)) error {
 						extractorConfig,
 						runner,
 						logger,
+						selectedArchives,
 					)
 				}
 				if gameData == nil {
