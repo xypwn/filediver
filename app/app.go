@@ -810,7 +810,6 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 		triadIDs,
 		printer,
 	)
-	extrCtx.TriadIDs()
 	if err := extr(extrCtx); err != nil {
 		{
 			var err error
