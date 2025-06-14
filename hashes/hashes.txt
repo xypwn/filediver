@@ -2388,12 +2388,15 @@ constant_color
 construct_vector3_f1f1f1
 content
 content/
+content/art_shared/base_shaders/character
 content/art_shared/base_shaders/m_character_shadow
 content/art_shared/base_shaders/m_collision
 content/art_shared/base_shaders/m_shadow
 content/art_shared/base_shaders/nature/terrain_parent_material
 content/art_shared/base_shaders/nature/water
+content/art_shared/base_shaders/poster
 content/art_shared/base_shaders/unique/casing
+content/art_shared/base_shaders/video
 content/art_shared/materials/placeholder
 content/art_shared/meshes/cube_navmesh_cutter
 content/art_shared/meshes/cube_navmesh_volume
@@ -67943,6 +67946,7 @@ content/effects/textures/smoke/fog_volume_02
 content/effects/textures/smoke/fog_volume_03
 content/effects/textures/smoke/fog_volume_04
 content/effects/wind/default
+content/entities/dummy
 content/entities/navmeshseedpoint
 content/entities/ship_cutscene_unit
 content/env_bugs/assets/bug_corpses/bug_corpse_charger_01
@@ -69218,6 +69222,7 @@ content/env_ship/customization/hangar_basic_customisation
 content/env_ship/generic/debug_store_screen
 content/env_ship/generic/galactic_campaign_interact_point/galactic_campaign_interact_point
 content/env_ship/generic/teleporter
+content/env_ship/hangar/airlock
 content/env_ship/hangar/airlock_floor
 content/env_ship/hangar/backwall
 content/env_ship/hangar/backwall_details
@@ -69328,6 +69333,7 @@ content/env_ship/props/textures/hangar_crate_large_01_nar
 content/env_ship/props/textures/hangar_crate_medium_01_nar
 content/env_ship/props/textures/hangar_crate_small_01_nar
 content/env_ship/props/textures/hangar_crate_small_02_nar
+content/env_ship/shiplight
 content/env_ship/upgrade_modules/box_hangar_01
 content/env_ship/upgrade_modules/ceiling_lamp_long_02
 content/env_ship/upgrade_modules/computer_hub_01
@@ -70295,6 +70301,7 @@ content/fac_bugs/cha_boomer/animations/alarm
 content/fac_bugs/cha_boomer/animations/burrow
 content/fac_bugs/cha_boomer/animations/explode
 content/fac_bugs/cha_boomer/animations/idle
+content/fac_bugs/cha_boomer/animations/unburrow
 content/fac_bugs/cha_boomer/cha_boomer
 content/fac_bugs/cha_boomer/cha_boomer_bci
 content/fac_bugs/cha_boomer/cha_boomer_ccras
@@ -70308,6 +70315,7 @@ content/fac_bugs/cha_boomer/cha_boomer_tier_2_sss
 content/fac_bugs/cha_boomer_nurser/cha_boomer_nurser
 content/fac_bugs/cha_boomer_nurser/cha_boomer_nurser_02
 content/fac_bugs/cha_boomer_tier_2/cha_boomer_tier_2
+content/fac_bugs/cha_charger/animations/idle/burrow
 content/fac_bugs/cha_charger/animations/idle/death
 content/fac_bugs/cha_charger/animations/idle/idle_01
 content/fac_bugs/cha_charger/animations/tasks/sleeping
@@ -70368,6 +70376,7 @@ content/fac_bugs/cha_stalker/animation/leap
 content/fac_bugs/cha_stalker/animation/locomotion/crawl
 content/fac_bugs/cha_stalker/animation/locomotion/idle
 content/fac_bugs/cha_stalker/animation/timer
+content/fac_bugs/cha_stalker/animation/unburrow
 content/fac_bugs/cha_stalker/cha_stalker
 content/fac_bugs/cha_stalker/cha_stalker_albedo
 content/fac_bugs/cha_stalker/cha_stalker_ccras
@@ -70430,6 +70439,7 @@ content/fac_cyborgs/cha_conscript_tier_2/cha_conscript_tier_2
 content/fac_cyborgs/cha_illusionist/cha_illusionist
 content/fac_cyborgs/cha_lieutenant/animations/death
 content/fac_cyborgs/cha_lieutenant/animations/idle
+content/fac_cyborgs/cha_lieutenant/animations/jump/initiate
 content/fac_cyborgs/cha_lieutenant/animations/jump/land
 content/fac_cyborgs/cha_lieutenant/animations/jump/launch
 content/fac_cyborgs/cha_lieutenant/cha_lieutenant
@@ -71172,6 +71182,7 @@ content/fac_helldivers/hellpod/energy_shield/materials/energy_shield
 content/fac_helldivers/hellpod/energy_shield/textures/energy_shield_nac
 content/fac_helldivers/hellpod/expandable_cover/animations/deploy
 content/fac_helldivers/hellpod/expandable_cover/animations/deployed
+content/fac_helldivers/hellpod/expandable_cover/animations/dwn
 content/fac_helldivers/hellpod/expandable_cover/animations/expand
 content/fac_helldivers/hellpod/expandable_cover/animations/idle
 content/fac_helldivers/hellpod/expandable_cover/animations/mid
@@ -71199,6 +71210,8 @@ content/fac_helldivers/hellpod/hellbomb_defunct/hellbomb_defunct
 content/fac_helldivers/hellpod/hellbomb_defunct/m_shadow
 content/fac_helldivers/hellpod/hellpod/animation/base/deploy
 content/fac_helldivers/hellpod/hellpod/animation/base/deployed
+content/fac_helldivers/hellpod/hellpod/animation/base/opened
+content/fac_helldivers/hellpod/hellpod/animation/base/unopened
 content/fac_helldivers/hellpod/hellpod/animation/undeploy
 content/fac_helldivers/hellpod/hellpod/animation/undeployed
 content/fac_helldivers/hellpod/hellpod/hellpod
@@ -71271,6 +71284,7 @@ content/fac_helldivers/hellpod/tesla_turret/animation/undeployed
 content/fac_helldivers/hellpod/tesla_turret/tesla_turret
 content/fac_helldivers/hellpod/tesla_turret/textures/tesla_turret_nac
 content/fac_helldivers/hellpod/turret/animation/bridge_idle
+content/fac_helldivers/hellpod/turret/animation/despawn
 content/fac_helldivers/hellpod/turret/animation/dormant
 content/fac_helldivers/hellpod/turret/animation/pitch
 content/fac_helldivers/hellpod/turret/animation/sensor
@@ -71282,6 +71296,7 @@ content/fac_helldivers/hellpod/turret/turret_ammo_box
 content/fac_helldivers/hellpod/turret/turret_prop
 content/fac_helldivers/hellpod/turret/tutorial_turret
 content/fac_helldivers/hellpod/turret_machinegun_gpmg/animation/bridge_idle
+content/fac_helldivers/hellpod/turret_machinegun_gpmg/animation/despawn
 content/fac_helldivers/hellpod/turret_machinegun_gpmg/animation/dormant
 content/fac_helldivers/hellpod/turret_machinegun_gpmg/animation/pitch
 content/fac_helldivers/hellpod/turret_machinegun_gpmg/animation/sensor
@@ -72068,6 +72083,7 @@ content/objectives/obj_common/radar_wagon
 content/objectives/obj_common/raise_flag/animation/deploy
 content/objectives/obj_common/raise_flag/animation/deployed
 content/objectives/obj_common/raise_flag/animation/plant_flag
+content/objectives/obj_common/raise_flag/animation/predeploy
 content/objectives/obj_common/raise_flag/animation/raise
 content/objectives/obj_common/raise_flag/animation/undeployed
 content/objectives/obj_common/raise_flag/carry_flag
@@ -76170,8 +76186,12 @@ package_first_level
 package_retract
 packages/boot
 packages/content/ui
+packages/debug
 packages/fallback_resources
+packages/foundation
 packages/pre_boot
+packages/splash
+packages/terrain
 padding
 pairs
 pak
