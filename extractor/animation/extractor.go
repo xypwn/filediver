@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/go-gl/mathgl/mgl32"
@@ -64,6 +63,8 @@ func ExtractAnimationJson(ctx extractor.Context) error {
 }
 
 func AddAnimation(ctx extractor.Context, doc *gltf.Document, boneInfo *bones.Info, anim state_machine.Animation) error {
+	cfg := ctx.Config()
+
 	for _, path := range anim.AnimationHashes {
 		animationFile, ok := ctx.GetResource(path, stingray.Sum64([]byte("animation")))
 		if !ok {
@@ -175,20 +176,13 @@ func AddAnimation(ctx extractor.Context, doc *gltf.Document, boneInfo *bones.Inf
 			}
 		}
 
-		sampleRateStr, sampled := ctx.Config()["sample_rate"]
-		var sampleRate int
-		if sampled {
-			sampleRate, err = strconv.Atoi(sampleRateStr)
-			if err != nil {
-				sampled = false
-			} else {
-				extras, ok := doc.Extras.(map[string]any)
-				if !ok {
-					extras = make(map[string]any)
-				}
-				extras["frameRate"] = sampleRate
-				doc.Extras = extras
+		if cfg.Unit.SampleAnimations {
+			extras, ok := doc.Extras.(map[string]any)
+			if !ok {
+				extras = make(map[string]any)
 			}
+			extras["frameRate"] = cfg.Unit.AnimationSampleRate
+			doc.Extras = extras
 		}
 
 		gltfConvertQuat := mgl32.QuatRotate(mgl32.DegToRad(-90), mgl32.Vec3([3]float32{1, 0, 0}))
@@ -209,10 +203,10 @@ func AddAnimation(ctx extractor.Context, doc *gltf.Document, boneInfo *bones.Inf
 
 			var posKeyframes, scaleKeyframes []VectorKeyframe
 			var rotKeyframes []QuaternionKeyframe
-			if sampled {
-				posKeyframes = bonePositions[boneIdx].Sample(sampleRate)
-				rotKeyframes = boneRotations[boneIdx].Sample(sampleRate)
-				scaleKeyframes = boneScales[boneIdx].Sample(sampleRate)
+			if cfg.Unit.SampleAnimations {
+				posKeyframes = bonePositions[boneIdx].Sample(cfg.Unit.AnimationSampleRate)
+				rotKeyframes = boneRotations[boneIdx].Sample(cfg.Unit.AnimationSampleRate)
+				scaleKeyframes = boneScales[boneIdx].Sample(cfg.Unit.AnimationSampleRate)
 			} else {
 				posKeyframes = bonePositions[boneIdx].Keyframes
 				rotKeyframes = boneRotations[boneIdx].Keyframes

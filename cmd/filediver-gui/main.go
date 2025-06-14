@@ -64,6 +64,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"slices"
 	"strings"
 	"sync"
@@ -78,11 +79,12 @@ import (
 	"github.com/go-gl/gl/v3.2-core/gl"
 	"github.com/ncruces/zenity"
 	"github.com/skratchdot/open-golang/open"
-	"github.com/xypwn/filediver/app"
+	"github.com/xypwn/filediver/app/appconfig"
 	fnt "github.com/xypwn/filediver/cmd/filediver-gui/fonts"
 	"github.com/xypwn/filediver/cmd/filediver-gui/getter"
 	"github.com/xypwn/filediver/cmd/filediver-gui/imutils"
 	"github.com/xypwn/filediver/cmd/filediver-gui/widgets"
+	"github.com/xypwn/filediver/config"
 	"github.com/xypwn/filediver/exec"
 	"github.com/xypwn/filediver/stingray"
 	"golang.design/x/clipboard"
@@ -295,7 +297,7 @@ func run(onError func(error)) error {
 	var gameDataExport *GameDataExport
 	var gameData *GameData
 
-	gameDataLoad.GoLoadGameData(ctx)
+	gameDataLoad.GoLoadGameData(ctx, "")
 
 	var previewState *widgets.FileAutoPreviewState
 	defer func() {
@@ -365,7 +367,10 @@ func run(onError func(error)) error {
 
 	exportDir := filepath.Join(xdg.UserDirs.Download, "filediver_exports")
 	exportNotifyWhenDone := true
-	var extractorConfig app.Config
+	var extractorConfig appconfig.Config
+	config.InitDefault(&extractorConfig)
+	prevExtractorConfig := extractorConfig
+	var extractorConfigShowAdvanced bool
 
 	logger := NewLogger()
 
@@ -607,7 +612,7 @@ func run(onError func(error)) error {
 									sectionIdx = 0
 								default:
 									typName := gameData.LookupHash(typ)
-									if _, ok := app.ConfigFormat.Extractors[typName]; ok {
+									if appconfig.Extractable[typName] {
 										// just exportable
 										sectionIdx = 1
 									} else {
@@ -872,27 +877,8 @@ func run(onError func(error)) error {
 		}
 
 		if imgui.Begin(fnt.I("File_export") + " Export") {
-			dirName := exportDir
-			if after, ok := strings.CutPrefix(dirName, xdg.Home); ok {
-				dirName = "~" + after
-			}
-
 			imgui.BeginDisabledV(gameDataExport != nil)
-			imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.9, 0.9, 0.9, 1))
-			if imgui.Button(fnt.I("Folder_open") + " " + dirName) {
-				if dir, err := zenity.SelectFile(
-					zenity.Filename(exportDir),
-					zenity.Directory(),
-				); err == nil {
-					exportDir = dir
-				} else if err != zenity.ErrCanceled {
-					onError(err)
-				}
-			}
-			imgui.SetItemTooltip(fnt.I("Folder") + " Choose output folder")
-			imgui.PopStyleColor()
-			imgui.SameLine()
-			imutils.Textf("Output directory")
+			imutils.FilePicker("Output directory", &exportDir, true)
 			imgui.EndDisabled()
 
 			imgui.Checkbox(fnt.I("Notifications")+" Notify when done", &exportNotifyWhenDone)
@@ -997,7 +983,13 @@ func run(onError func(error)) error {
 		imgui.End()
 
 		if imgui.Begin(fnt.I("Settings_applications") + " Extractor config") {
-			widgets.ConfigEditor(app.ConfigFormat, &extractorConfig)
+			if widgets.ConfigEditor(&extractorConfig, &extractorConfigShowAdvanced) {
+				if extractorConfig.Gamedir != prevExtractorConfig.Gamedir {
+					gameData = nil
+					gameDataLoad.GoLoadGameData(ctx, extractorConfig.Gamedir)
+				}
+				prevExtractorConfig = extractorConfig
+			}
 		}
 		imgui.End()
 
@@ -1321,6 +1313,12 @@ You can do this via 'go run -ldflags "-X main.version=v0.0.0" ./cmd/filediver-gu
 			zenity.ErrorIcon,
 		)
 	}
+
+	defer func() {
+		if err := recover(); err != nil {
+			onError(fmt.Errorf("panic: %v\nstack trace: %s", err, debug.Stack()))
+		}
+	}()
 
 	if err := run(onError); err != nil {
 		onError(err)

@@ -10,10 +10,14 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
+
+	"maps"
 
 	"github.com/gobwas/glob"
 	"github.com/qmuntal/gltf"
+	"github.com/xypwn/filediver/app/appconfig"
 	"github.com/xypwn/filediver/exec"
 	"github.com/xypwn/filediver/extractor"
 	extr_animation "github.com/xypwn/filediver/extractor/animation"
@@ -34,239 +38,6 @@ import (
 	stingray_wwise "github.com/xypwn/filediver/stingray/wwise"
 	"github.com/xypwn/filediver/wwise"
 )
-
-var ConfigFormat = ConfigTemplate{
-	Extractors: map[string]ConfigTemplateExtractor{
-		"wwise_stream": {
-			Category: "loose_audio",
-			Options: map[string]ConfigTemplateOption{
-				"format": {
-					Type: ConfigValueEnum,
-					Enum: []string{"ogg", "wav", "aac", "mp3", "wem", "source"},
-				},
-			},
-			DefaultDisabled: true,
-		},
-		"wwise_bank": {
-			Category: "audio",
-			Options: map[string]ConfigTemplateOption{
-				"format": {
-					Type: ConfigValueEnum,
-					Enum: []string{"ogg", "wav", "aac", "mp3", "bnk", "source"},
-				},
-			},
-		},
-		"bik": {
-			Category: "video",
-			Options: map[string]ConfigTemplateOption{
-				"format": {
-					Type: ConfigValueEnum,
-					Enum: []string{"mp4", "bik", "source"},
-				},
-			},
-		},
-		"material": {
-			Category: "shader",
-			Options: map[string]ConfigTemplateOption{
-				"format": {
-					Type: ConfigValueEnum,
-					Enum: []string{"glb", "blend", "textures", "source"},
-				},
-				"single_glb": {
-					Type: ConfigValueEnum,
-					Enum: []string{"false", "true"},
-				},
-				"image_jpeg": {
-					Type: ConfigValueEnum,
-					Enum: []string{"false", "true"},
-				},
-				"jpeg_quality": {
-					Type:        ConfigValueIntRange,
-					IntRangeMin: 1,
-					IntRangeMax: 100,
-				},
-				"png_compression": {
-					Type: ConfigValueEnum,
-					Enum: []string{"default", "none", "fast", "best"},
-				},
-				"all_textures": {
-					Type: ConfigValueEnum,
-					Enum: []string{"false", "true"},
-				},
-				"accurate_only": {
-					Type: ConfigValueEnum,
-					Enum: []string{"false", "true"},
-				},
-			},
-		},
-		"texture": {
-			Category: "image",
-			Options: map[string]ConfigTemplateOption{
-				"format": {
-					Type: ConfigValueEnum,
-					Enum: []string{"png", "dds", "source"},
-				},
-			},
-		},
-		"unit": {
-			Category: "model",
-			Options: map[string]ConfigTemplateOption{
-				"format": {
-					Type: ConfigValueEnum,
-					Enum: []string{"glb", "blend", "source"},
-				},
-				"include_lods": {
-					Type: ConfigValueEnum,
-					Enum: []string{"false", "true"},
-				},
-				"enable_animations": {
-					Type: ConfigValueEnum,
-					Enum: []string{"false", "true"},
-				},
-				"join_components": {
-					Type: ConfigValueEnum,
-					Enum: []string{"false", "true"},
-				},
-				"bounding_boxes": {
-					Type: ConfigValueEnum,
-					Enum: []string{"false", "true"},
-				},
-				"single_glb": {
-					Type: ConfigValueEnum,
-					Enum: []string{"false", "true"},
-				},
-				"no_bones": {
-					Type: ConfigValueEnum,
-					Enum: []string{"false", "true"},
-				},
-				"image_jpeg": {
-					Type: ConfigValueEnum,
-					Enum: []string{"false", "true"},
-				},
-				"jpeg_quality": {
-					Type:        ConfigValueIntRange,
-					IntRangeMin: 1,
-					IntRangeMax: 100,
-				},
-				"png_compression": {
-					Type: ConfigValueEnum,
-					Enum: []string{"default", "none", "fast", "best"},
-				},
-				"all_textures": {
-					Type: ConfigValueEnum,
-					Enum: []string{"false", "true"},
-				},
-			},
-		},
-		"geometry_group": {
-			Category: "model",
-			Options: map[string]ConfigTemplateOption{
-				"format": {
-					Type: ConfigValueEnum,
-					Enum: []string{"glb", "blend", "source"},
-				},
-				"include_lods": {
-					Type: ConfigValueEnum,
-					Enum: []string{"false", "true"},
-				},
-				"enable_animations": {
-					Type: ConfigValueEnum,
-					Enum: []string{"false", "true"},
-				},
-				"join_components": {
-					Type: ConfigValueEnum,
-					Enum: []string{"false", "true"},
-				},
-				"bounding_boxes": {
-					Type: ConfigValueEnum,
-					Enum: []string{"false", "true"},
-				},
-				"no_bones": {
-					Type: ConfigValueEnum,
-					Enum: []string{"false", "true"},
-				},
-				"image_jpeg": {
-					Type: ConfigValueEnum,
-					Enum: []string{"false", "true"},
-				},
-				"jpeg_quality": {
-					Type:        ConfigValueIntRange,
-					IntRangeMin: 1,
-					IntRangeMax: 100,
-				},
-				"png_compression": {
-					Type: ConfigValueEnum,
-					Enum: []string{"default", "none", "fast", "best"},
-				},
-				"all_textures": {
-					Type: ConfigValueEnum,
-					Enum: []string{"false", "true"},
-				},
-			},
-		},
-		"state_machine": {
-			Category: "animations",
-			Options: map[string]ConfigTemplateOption{
-				"format": {
-					Type: ConfigValueEnum,
-					Enum: []string{"json", "source"},
-				},
-			},
-		},
-		"animation": {
-			Category: "animations",
-			Options: map[string]ConfigTemplateOption{
-				"format": {
-					Type: ConfigValueEnum,
-					Enum: []string{"json", "source", "sampled"},
-				},
-				"sample_rate": {
-					Type:        ConfigValueIntRange,
-					IntRangeMin: 12,
-					IntRangeMax: 120,
-				},
-			},
-		},
-		"strings": {
-			Category: "text",
-			Options: map[string]ConfigTemplateOption{
-				"format": {
-					Type: ConfigValueEnum,
-					Enum: []string{"json", "source"},
-				},
-			},
-		},
-		"package": {
-			Category: "text",
-			Options: map[string]ConfigTemplateOption{
-				"format": {
-					Type: ConfigValueEnum,
-					Enum: []string{"json", "source"},
-				},
-			},
-		},
-		"bones": {
-			Category: "text",
-			Options: map[string]ConfigTemplateOption{
-				"format": {
-					Type: ConfigValueEnum,
-					Enum: []string{"json", "source"},
-				},
-			},
-		},
-		"raw": {
-			Category: "",
-			Options: map[string]ConfigTemplateOption{
-				"format": {
-					Type: ConfigValueEnum,
-					Enum: []string{"source", "main", "stream", "gpu", "combined"},
-				},
-			},
-			DefaultDisabled: true,
-		},
-	},
-	Fallback: "raw",
-}
 
 func parseWwiseDep(ctx context.Context, f *stingray.File) (string, error) {
 	r, err := f.Open(ctx, stingray.DataMain)
@@ -458,31 +229,29 @@ func OpenGameDir(ctx context.Context, gameDir string, hashStrings []string, thin
 	}, nil
 }
 
-func (a *App) matchFileID(id stingray.FileID, glb glob.Glob, nameOnly bool) bool {
-	hashVariations := func(h stingray.Hash) []string {
-		return []string{
-			h.StringEndian(binary.LittleEndian),
-			h.StringEndian(binary.BigEndian),
-			"0x" + h.StringEndian(binary.BigEndian),
-			"0x" + strings.TrimLeft(h.StringEndian(binary.BigEndian), "0"),
-			strings.ToUpper(h.StringEndian(binary.LittleEndian)),
-			strings.ToUpper(h.StringEndian(binary.BigEndian)),
-			"0x" + strings.ToUpper(h.StringEndian(binary.BigEndian)),
-			"0x" + strings.ToUpper(strings.TrimLeft(h.StringEndian(binary.BigEndian), "0")),
-		}
+func (a *App) hashNameVariationsForMatch(h stingray.Hash) []string {
+	res := []string{
+		h.StringEndian(binary.LittleEndian),
+		h.StringEndian(binary.BigEndian),
+		"0x" + h.StringEndian(binary.BigEndian),
+		"0x" + strings.TrimLeft(h.StringEndian(binary.BigEndian), "0"),
+		strings.ToUpper(h.StringEndian(binary.LittleEndian)),
+		strings.ToUpper(h.StringEndian(binary.BigEndian)),
+		"0x" + strings.ToUpper(h.StringEndian(binary.BigEndian)),
+		"0x" + strings.ToUpper(strings.TrimLeft(h.StringEndian(binary.BigEndian), "0")),
 	}
+	if name, ok := a.Hashes[h]; ok {
+		res = append(res, name)
+	}
+	return res
+}
 
-	nameVariations := hashVariations(id.Name)
-	if name, ok := a.Hashes[id.Name]; ok {
-		nameVariations = append(nameVariations, name)
-	}
+func (a *App) matchFileID(id stingray.FileID, glb glob.Glob, nameOnly bool) bool {
+	nameVariations := a.hashNameVariationsForMatch(id.Name)
 
 	var typeVariations []string
 	if !nameOnly {
-		typeVariations = hashVariations(id.Type)
-		if typ, ok := a.Hashes[id.Type]; ok {
-			typeVariations = append(typeVariations, typ)
-		}
+		typeVariations = a.hashNameVariationsForMatch(id.Type)
 	}
 
 	for _, name := range nameVariations {
@@ -505,9 +274,8 @@ func (a *App) matchFileID(id stingray.FileID, glb glob.Glob, nameOnly bool) bool
 func (a *App) MatchingFiles(
 	includeGlob string,
 	excludeGlob string,
+	includeOnlyTypes []string,
 	includeTriadIDs []stingray.Hash,
-	cfgTemplate ConfigTemplate,
-	cfg map[string]map[string]string,
 ) (
 	map[stingray.FileID]*stingray.File,
 	error,
@@ -537,9 +305,7 @@ func (a *App) MatchingFiles(
 		if !ok {
 			return nil, fmt.Errorf("triad %v does not exist", includeTriadID.String())
 		}
-		for id, file := range files {
-			includeTriadFiles[id] = file
-		}
+		maps.Copy(includeTriadFiles, files)
 	}
 
 	res := make(map[stingray.FileID]*stingray.File)
@@ -548,6 +314,14 @@ func (a *App) MatchingFiles(
 		if len(includeTriadIDs) != 0 {
 			if _, ok := includeTriadFiles[id]; !ok {
 				shouldIncl = false
+			}
+		}
+		if len(includeOnlyTypes) != 0 {
+			typeVariations := a.hashNameVariationsForMatch(id.Type)
+			if slices.ContainsFunc(includeOnlyTypes, func(includedType string) bool {
+				return !slices.Contains(typeVariations, includedType)
+			}) {
+				continue
 			}
 		}
 		if includeGlob != "" {
@@ -560,31 +334,6 @@ func (a *App) MatchingFiles(
 			}
 		}
 		if !shouldIncl {
-			continue
-		}
-
-		typ, ok := a.Hashes[id.Type]
-		if !ok {
-			typ = id.Type.String()
-		}
-		_, knownType := cfgTemplate.Extractors[typ]
-		if !knownType {
-			typ = cfgTemplate.Fallback
-		}
-
-		shouldExtract := true
-		if extrTempl, ok := cfgTemplate.Extractors[typ]; ok {
-			shouldExtract = !extrTempl.DefaultDisabled
-		}
-		if cfg["enable"] != nil {
-			shouldExtract = cfg["enable"][typ] == "true"
-		}
-		if cfg["disable"] != nil {
-			if cfg["disable"][typ] == "true" {
-				shouldExtract = false
-			}
-		}
-		if !shouldExtract {
 			continue
 		}
 
@@ -615,14 +364,14 @@ type extractContext struct {
 	app      *App
 	file     *stingray.File
 	runner   *exec.Runner
-	config   map[string]string
+	config   appconfig.Config
 	outPath  string
 	files    []string
 	triadIDs []stingray.Hash
 	printer  Printer
 }
 
-func newExtractContext(ctx context.Context, app *App, file *stingray.File, runner *exec.Runner, config map[string]string, outPath string, triadIDs []stingray.Hash, printer Printer) *extractContext {
+func newExtractContext(ctx context.Context, app *App, file *stingray.File, runner *exec.Runner, config appconfig.Config, outPath string, triadIDs []stingray.Hash, printer Printer) *extractContext {
 	return &extractContext{
 		ctx:      ctx,
 		app:      app,
@@ -635,10 +384,10 @@ func newExtractContext(ctx context.Context, app *App, file *stingray.File, runne
 	}
 }
 
-func (c *extractContext) OutPath() (string, error)  { return c.outPath, nil }
-func (c *extractContext) File() *stingray.File      { return c.file }
-func (c *extractContext) Runner() *exec.Runner      { return c.runner }
-func (c *extractContext) Config() map[string]string { return c.config }
+func (c *extractContext) OutPath() (string, error) { return c.outPath, nil }
+func (c *extractContext) File() *stingray.File     { return c.file }
+func (c *extractContext) Runner() *exec.Runner     { return c.runner }
+func (c *extractContext) Config() appconfig.Config { return c.config }
 func (c *extractContext) GetResource(name, typ stingray.Hash) (file *stingray.File, exists bool) {
 	file, exists = c.app.DataDir.Files[stingray.FileID{Name: name, Type: typ}]
 	return
@@ -685,12 +434,8 @@ func (c *extractContext) LookupThinHash(hash stingray.ThinHash) string {
 	return c.app.LookupThinHash(hash)
 }
 
-func getSourceExtractFunc(extrCfg Config, typ string) (extr extractor.ExtractFunc) {
-	rawCfg := extrCfg["raw"]
-	if rawCfg == nil {
-		rawCfg = make(map[string]string)
-	}
-	switch rawCfg["format"] {
+func getSourceExtractFunc(extrCfg appconfig.Config, typ string) (extr extractor.ExtractFunc) {
+	switch extrCfg.Raw.Format {
 	case "main":
 		extr = extractor.ExtractFuncRawSingleType(typ, stingray.DataMain)
 	case "stream":
@@ -706,7 +451,7 @@ func getSourceExtractFunc(extrCfg Config, typ string) (extr extractor.ExtractFun
 }
 
 // Returns path to extracted file/directory.
-func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string, extrCfg Config, runner *exec.Runner, gltfDoc *gltf.Document, triadIDs []stingray.Hash, printer Printer) ([]string, error) {
+func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string, extrCfg appconfig.Config, runner *exec.Runner, gltfDoc *gltf.Document, triadIDs []stingray.Hash, printer Printer) ([]string, error) {
 	name, typ := a.LookupHash(id.Name), a.LookupHash(id.Type)
 
 	file, ok := a.DataDir.Files[id]
@@ -714,71 +459,46 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 		return nil, fmt.Errorf("extract %v.%v: file does not exist", name, typ)
 	}
 
-	cfg := extrCfg[typ]
-	if cfg == nil {
-		cfg = make(map[string]string)
-	}
+	typeFormats := appconfig.GetTypeFormats(extrCfg)
+	extrFormat := typeFormats[typ]
 
 	var extr extractor.ExtractFunc
-	if cfg["format"] == "source" {
+	if extrFormat == "raw" {
 		extr = getSourceExtractFunc(extrCfg, typ)
 	} else {
 		switch typ {
 		case "animation":
 			extr = extr_animation.ExtractAnimationJson
 		case "bik":
-			if cfg["format"] == "bik" {
+			if extrFormat == "bik" {
 				extr = extr_bik.ExtractBik
 			} else {
 				extr = extr_bik.ConvertToMP4
 			}
 		case "wwise_stream":
-			if cfg["format"] == "wem" {
+			if extrFormat == "wwise" {
 				extr = extr_wwise.ExtractWem
 			} else {
 				extr = extr_wwise.ConvertWem
 			}
 		case "wwise_bank":
-			if cfg["format"] == "bnk" {
+			if extrFormat == "wwise" {
 				extr = extr_wwise.ExtractBnk
 			} else {
 				extr = extr_wwise.ConvertBnk
 			}
 		case "material":
-			if cfg["format"] == "textures" {
-				textureCfg, ok := extrCfg["texture"]
-				if !ok {
-					textureCfg = make(map[string]string)
-				}
-				textureFmt, ok := textureCfg["format"]
-				if !ok {
-					textureFmt = "png"
-				}
-				cfg["textureFormat"] = textureFmt
+			if extrFormat == "textures" {
 				extr = extr_material.ConvertTextures
 			} else {
 				extr = extr_material.Convert(gltfDoc)
 			}
 		case "unit":
 			extr = extr_unit.Convert(gltfDoc)
-			fallthrough
 		case "geometry_group":
-			if extr == nil {
-				extr = extr_geogroup.Convert(gltfDoc)
-			}
-			animCfg, contains := extrCfg["animation"]
-			if cfg["enable_animations"] == "true" && contains && animCfg["format"] == "sampled" {
-				sampleRate, contains := animCfg["sample_rate"]
-				if !contains {
-					// Blender default framerate is 24, so this will produce
-					// a sampled animation that will have nicely consistent keyframes
-					// when imported without changing the framerate
-					sampleRate = "24"
-				}
-				cfg["sample_rate"] = sampleRate
-			}
+			extr = extr_geogroup.Convert(gltfDoc)
 		case "texture":
-			if cfg["format"] == "dds" {
+			if extrFormat == "dds" {
 				extr = extr_texture.ExtractDDS
 			} else {
 				extr = extr_texture.ConvertToPNG
@@ -805,7 +525,7 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 		a,
 		file,
 		runner,
-		cfg,
+		extrCfg,
 		outPath,
 		triadIDs,
 		printer,

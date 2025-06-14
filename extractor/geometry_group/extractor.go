@@ -16,6 +16,8 @@ import (
 )
 
 func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, gltfDoc *gltf.Document) error {
+	cfg := ctx.Config()
+
 	fMain, err := ctx.File().Open(ctx.Ctx(), stingray.DataMain)
 	if err != nil {
 		return err
@@ -69,7 +71,7 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 			return err
 		}
 
-		bonesEnabled := ctx.Config()["no_bones"] != "true"
+		bonesEnabled := !cfg.Model.NoBones
 
 		var skin *uint32 = nil
 		var parent *uint32 = nil
@@ -101,7 +103,7 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 		extr_unit.AddPrefabMetadata(ctx, doc, parent, skin, meshNodes, nil)
 	}
 
-	formatIsBlend := ctx.Config()["format"] == "blend" && ctx.Runner().Has("hd2_accurate_blender_importer")
+	formatIsBlend := cfg.Model.Format == "blend"
 	if gltfDoc == nil && !formatIsBlend {
 		out, err := ctx.CreateFile(".glb")
 		if err != nil {
@@ -127,7 +129,7 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 
 func Convert(currDoc *gltf.Document) func(ctx extractor.Context) error {
 	return func(ctx extractor.Context) error {
-		opts, err := extr_unit.GetImgOpts(ctx)
+		opts, err := extr_material.GetImageOpts(ctx)
 		if err != nil {
 			return err
 		}
