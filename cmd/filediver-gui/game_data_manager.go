@@ -159,7 +159,7 @@ func (gd *GameDataLoad) loadGameData(ctx context.Context) {
 		return
 	}
 
-	a, err := app.OpenGameDir(ctx, gameDir, app.ParseHashes(hashes.Hashes), app.ParseHashes(hashes.ThinHashes), stingray.Hash{}, func(curr, total int) {
+	a, err := app.OpenGameDir(ctx, gameDir, app.ParseHashes(hashes.Hashes), app.ParseHashes(hashes.ThinHashes), stingray.Hash{Value: 0x7c7587b563f10985}, func(curr, total int) {
 		gd.Lock()
 		gd.Progress = float32(curr+1) / float32(total)
 		gd.Unlock()
