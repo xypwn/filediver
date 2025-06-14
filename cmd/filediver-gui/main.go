@@ -891,10 +891,11 @@ func run(onError func(error)) error {
 					logger.Reset()
 					gameDataExport = gameData.GoExport(
 						ctx,
-						slices.Collect(maps.Keys(filesSelectedForExport)),
+						slices.SortedFunc(maps.Keys(filesSelectedForExport), (stingray.FileID).Cmp),
 						exportDir,
 						extractorConfig,
 						runner,
+						slices.SortedFunc(maps.Keys(selectedArchives), (stingray.Hash).Cmp),
 						logger,
 					)
 				}

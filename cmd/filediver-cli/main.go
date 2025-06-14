@@ -123,7 +123,7 @@ func main() {
 		}
 	}
 	if ok := runner.AddWithName("hd2_accurate_blender_importer", blenderImporterCommand[0], blenderImporterCommand[1:]...); !ok {
- 		if cfg.Model.Format == "blend" {
+		if cfg.Model.Format == "blend" {
 			cfg.Model.Format = "glb"
 		}
 		if cfg.Material.Format == "blend" {
@@ -199,7 +199,7 @@ func main() {
 		cancel()
 	}()
 
-	a, err := app.OpenGameDir(ctx, gamedir, knownHashes, knownThinHashes, inclTriadIDs, armorStringsHash, func(curr, total int) {
+	a, err := app.OpenGameDir(ctx, gamedir, knownHashes, knownThinHashes, armorStringsHash, func(curr, total int) {
 		prt.Statusf("Reading metadata %.0f%%", float64(curr)/float64(total)*100)
 	})
 	if err != nil {
@@ -447,7 +447,7 @@ func main() {
 			}
 			prt.Statusf("File %v/%v: %v", i+1, len(files), truncName)
 			document := documents[typ]
-			if _, err := a.ExtractFile(ctx, id, *optOutDir, cfg, runner, document, prt); err == nil {
+			if _, err := a.ExtractFile(ctx, id, *optOutDir, cfg, runner, document, inclTriadIDs, prt); err == nil {
 				numExtrFiles++
 			} else {
 				if errors.Is(err, context.Canceled) {

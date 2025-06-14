@@ -1,6 +1,7 @@
 package stingray
 
 import (
+	"cmp"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
@@ -63,6 +64,10 @@ func (h Hash) MarshalText() ([]byte, error) {
 	return []byte(h.String()), nil
 }
 
+func (h Hash) Cmp(other Hash) int {
+	return cmp.Compare(h.Value, other.Value)
+}
+
 // ParseHash parses a big endian murmur64 hash.
 // Ignores 0x prefix if present.
 func ParseHash(s string) (Hash, error) {
@@ -88,4 +93,8 @@ func (h ThinHash) String() string {
 
 func (h ThinHash) MarshalText() ([]byte, error) {
 	return []byte(h.String()), nil
+}
+
+func (h ThinHash) Cmp(other ThinHash) int {
+	return cmp.Compare(h.Value, other.Value)
 }
