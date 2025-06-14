@@ -790,6 +790,19 @@ func run(onError func(error)) error {
 		}
 		imgui.End()
 
+		gameFileTypeLabel := func(x stingray.Hash) string {
+			items := make([]string, 0, 3)
+			if name, ok := gameData.Hashes[x]; ok {
+				items = append(items, name)
+			}
+			if desc, ok := gameFileTypeDescriptions[x]; ok {
+				items = append(items, "("+desc+")")
+			}
+			if _, ok := gameFileTypeTooltipsExtra[x]; ok {
+				items = append(items, fnt.I("Info"))
+			}
+			return strings.Join(items, " ")
+		}
 		imgui.SetNextWindowSizeV(imgui.NewVec2(300, 600), imgui.CondOnce)
 		if widgets.FilterListWindow("Type Filter",
 			&isTypeFilterOpen,
@@ -797,22 +810,15 @@ func run(onError func(error)) error {
 			&gameFileTypeSearchQuery,
 			gameFileTypes,
 			&selectedGameFileTypes,
-			func(x stingray.Hash) string {
-				s := gameData.LookupHash(x)
-				if desc, ok := gameFileTypeDescriptions[x]; ok {
-					s += " (" + desc + ")"
-				}
-				if _, ok := gameFileTypeTooltipsExtra[x]; ok {
-					s += " " + fnt.I("Info")
-				}
-				return s
-			},
-			func(x stingray.Hash) string {
-				s := fmt.Sprintf("hash=%v", x)
+			gameFileTypeLabel,
+			func(x stingray.Hash, checked *bool) {
+				label := gameFileTypeLabel(x)
+				imgui.Checkbox(label, checked)
+				tt := fmt.Sprintf("hash=%v", x)
 				if ttExtra, ok := gameFileTypeTooltipsExtra[x]; ok {
-					s += "\n" + ttExtra
+					tt += "\n" + ttExtra
 				}
-				return s
+				imgui.SetItemTooltip(tt)
 			},
 		) {
 			gameData.UpdateSearchQuery(gameFileSearchQuery, selectedGameFileTypes, selectedArchives)
@@ -827,10 +833,38 @@ func run(onError func(error)) error {
 			archiveIDs,
 			&selectedArchives,
 			func(x stingray.Hash) string {
-				return gameData.LookupHash(x)
+				items := make([]string, 0, 3)
+				if as, ok := gameData.ArmorSets[x]; ok {
+					items = append(items, as.Name)
+				}
+				if name, ok := gameData.Hashes[x]; ok {
+					items = append(items, name)
+				}
+				items = append(items, x.String())
+				return strings.Join(items, " ")
 			},
-			func(x stingray.Hash) string {
-				return fmt.Sprintf("hash=%v", x)
+			func(x stingray.Hash, checked *bool) {
+				var label string
+				if armorSet, ok := gameData.ArmorSets[x]; ok {
+					label = x.String() + " (" + armorSet.Name + ")"
+				} else {
+					label, ok = gameData.Hashes[x]
+					if !ok {
+						label = x.String()
+					}
+				}
+				imgui.Checkbox("##"+label, checked)
+				imgui.SameLine()
+				imutils.CopyableTextfV(imutils.CopyableTextOptions{
+					TooltipHovered: fmt.Sprintf("hash=%v, right-click to copy hash", x),
+					TooltipCopied:  fnt.I("Check") + " Hash copied",
+					Btn:            imgui.MouseButtonRight,
+					ClipboardText:  x.String(),
+				}, "%v", label)
+				if imgui.IsItemClicked() {
+					*checked = !*checked
+				}
+				imgui.Spacing()
 			},
 		) {
 			gameData.UpdateSearchQuery(gameFileSearchQuery, selectedGameFileTypes, selectedArchives)
