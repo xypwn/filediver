@@ -13,27 +13,42 @@ import (
 
 func TextError(err error) {
 	imgui.PushTextWrapPos()
-	CopyableTextcfV(
-		imgui.NewVec4(0.8, 0.5, 0.5, 1),
-		"Click to copy error to clipboard",
+	imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.8, 0.5, 0.5, 1))
+	CopyableTextfV(
+		CopyableTextOptions{
+			TooltipHovered: fnt.I("Content_copy") + "Click to copy error to clipboard",
+		},
 		"Error: %v",
 		err,
 	)
+	imgui.PopStyleColor()
 }
 
+type CopyableTextOptions struct {
+	// Tooltip shown when hovering normally.
+	// Default: fonts.I("Content_copy") + " Click to copy to clipboard"
+	TooltipHovered string
+	// Tooltip shown for 1s after copying to clipboard.
+	// Default: fonts.I("Check") + " Copied"
+	TooltipCopied string
+	// Mouse button to copy to clipboard.
+	// Default: left mouse button
+	Btn imgui.MouseButton
+	// Text to be copied into clipboard.
+	// Default: Formatted text passed in.
+	ClipboardText string
+}
+
+// CopyableTextf is the same as [CopyableTextfV]
+// with default options.
 func CopyableTextf(format string, args ...any) {
-	CopyableTextcf(imgui.Vec4{}, format, args...)
+	CopyableTextfV(CopyableTextOptions{}, format, args...)
 }
 
-func CopyableTextcf(color imgui.Vec4, format string, args ...any) {
-	CopyableTextcfV(color, "Click to copy to clipboard", format, args...)
-}
-
-func CopyableTextfV(tooltip string, format string, args ...any) {
-	CopyableTextcfV(imgui.Vec4{}, tooltip, format, args...)
-}
-
-func CopyableTextcfV(color imgui.Vec4, tooltip string, format string, args ...any) {
+// CopyableTextfV creates a text item, which can be clicked
+// to copy to clipboard.
+// Pass zero value into opts for default.
+func CopyableTextfV(opts CopyableTextOptions, format string, args ...any) {
 	imgui.PushIDStr(format)
 	defer imgui.PopID()
 
@@ -42,32 +57,47 @@ func CopyableTextcfV(color imgui.Vec4, tooltip string, format string, args ...an
 	}
 
 	ctx := imgui.CurrentContext()
-	if color.W != 0 {
-		imgui.PushStyleColorVec4(imgui.ColText, color)
-	}
 	textPos := imgui.CursorScreenPos()
-	Textf(format, args...)
+	imgui.TextUnformatted(fmt.Sprintf(format, args...))
 	imgui.SetCursorScreenPos(textPos)
 	imgui.SetNextItemAllowOverlap()
-	textBtnID := imgui.IDStr("##Copyable text")
+	textBtnID := imgui.IDStr("##_copyableText")
 	size := imgui.ItemRectSize()
 	var clicked bool
 	if size.X > 0 && size.Y > 0 { // prevent crash in case of empty label
-		clicked = imgui.InvisibleButton("##Copyable text", size)
-	}
-	if color.W != 0 {
-		imgui.PopStyleColor()
+		var flags imgui.ButtonFlags
+		switch opts.Btn {
+		case imgui.MouseButtonLeft:
+			flags |= imgui.ButtonFlagsMouseButtonLeft
+		case imgui.MouseButtonMiddle:
+			flags |= imgui.ButtonFlagsMouseButtonMiddle
+		case imgui.MouseButtonRight:
+			flags |= imgui.ButtonFlagsMouseButtonRight
+		}
+		clicked = imgui.InvisibleButtonV("##_copyableText", size, flags)
 	}
 	if imgui.BeginItemTooltip() {
 		if ctx.LastActiveId() == textBtnID && ctx.LastActiveIdTimer() < 1 {
-			Textf(fnt.I("Check") + " Copied")
+			s := opts.TooltipCopied
+			if opts.TooltipCopied == "" {
+				s = fnt.I("Check") + " Copied"
+			}
+			Textf("%v", s)
 		} else {
-			Textf(fnt.I("Content_copy") + " " + tooltip)
+			s := opts.TooltipHovered
+			if opts.TooltipHovered == "" {
+				s = fnt.I("Content_copy") + " Click to copy to clipboard"
+			}
+			Textf("%v", s)
 		}
 		imgui.EndTooltip()
 	}
 	if clicked {
-		imgui.SetClipboardText(fmt.Sprintf(format, args...))
+		s := opts.ClipboardText
+		if s == "" {
+			s = fmt.Sprintf(format, args...)
+		}
+		imgui.SetClipboardText(s)
 	}
 }
 

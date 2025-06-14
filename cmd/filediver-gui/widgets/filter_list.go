@@ -47,9 +47,12 @@ type FilterListSection[T comparable] struct {
 // of items with checkboxes and a "deselect all"
 // button.
 // You may use NextWindowXXX before this function.
-// Returns true if a checkbox was changed.
-// Searches through label and tooltip.
-func FilterListWindow[T comparable](title string, windowOpen *bool, searchHint string, queryBuf *string, sections []FilterListSection[T], sel *map[T]struct{}, label func(x T) string, tooltip func(x T) string) bool {
+// Returns true if a selection was changed.
+// Searches through searchText for each item.
+// drawItem should draw an item using selected
+// as selection state and modifying selected
+// if the selection state was changed.
+func FilterListWindow[T comparable](title string, windowOpen *bool, searchHint string, queryBuf *string, sections []FilterListSection[T], sel *map[T]struct{}, searchText func(x T) string, drawItem func(x T, selected *bool)) bool {
 	if !*windowOpen {
 		imgui.CurrentContext().NextWindowData().SetHasFlags(0)
 		return false
@@ -73,9 +76,8 @@ func FilterListWindow[T comparable](title string, windowOpen *bool, searchHint s
 	imgui.EndDisabled()
 
 	type match struct {
-		item    T
-		label   string
-		tooltip string
+		item   T
+		drawFn func(x T, selected *bool)
 	}
 	var matches []match
 
@@ -90,31 +92,27 @@ func FilterListWindow[T comparable](title string, windowOpen *bool, searchHint s
 	for _, sec := range sections {
 		matches = matches[:0]
 		for _, item := range sec.Items {
-			lab := label(item)
-			var tt string
-			if tooltip != nil {
-				tt = tooltip(item)
-			}
-			if *queryBuf == "" || strings.Contains(strings.ToLower(lab+" "+tt), strings.ToLower(*queryBuf)) {
-				matches = append(matches, match{item, lab, tt})
+			if *queryBuf == "" || strings.Contains(strings.ToLower(searchText(item)), strings.ToLower(*queryBuf)) {
+				matches = append(matches, match{item, drawItem})
 			}
 		}
 
 		if sec.Title != "" && len(matches) > 0 {
 			imgui.TextUnformatted(sec.Title)
 		}
-		for _, item := range matches {
+		for i, item := range matches {
 			_, checked := (*sel)[item.item]
-			if imgui.Checkbox(item.label, &checked) {
+			prevChecked := checked
+			imgui.PushIDInt(int32(i))
+			drawItem(item.item, &checked)
+			imgui.PopID()
+			if checked != prevChecked {
 				if checked {
 					(*sel)[item.item] = struct{}{}
 				} else {
 					delete(*sel, item.item)
 				}
 				changed = true
-			}
-			if item.tooltip != "" && imgui.IsItemHovered() {
-				imgui.SetTooltip(item.tooltip)
 			}
 		}
 	}

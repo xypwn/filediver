@@ -9,6 +9,7 @@ import (
 
 	"github.com/AllenDang/cimgui-go/imgui"
 	"github.com/xypwn/filediver/app"
+	fnt "github.com/xypwn/filediver/cmd/filediver-gui/fonts"
 	"github.com/xypwn/filediver/cmd/filediver-gui/imutils"
 )
 
@@ -138,7 +139,11 @@ func LogView(l *Logger) {
 		for i, item := range l.items {
 			imgui.PushIDInt(int32(i))
 			imgui.PushTextWrapPos()
-			imutils.CopyableTextcfV(item.Color, "Click to copy this item to clipboard", "%v", item.Text)
+			imgui.PushStyleColorVec4(imgui.ColText, item.Color)
+			imutils.CopyableTextfV(imutils.CopyableTextOptions{
+				TooltipHovered: fnt.I("Content_copy") + " Click to copy this item to clipboard",
+			}, "%v", item.Text)
+			imgui.PopStyleColor()
 			imgui.PopID()
 		}
 		if len(l.items) == 0 {
