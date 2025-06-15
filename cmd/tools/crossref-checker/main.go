@@ -200,16 +200,11 @@ func main() {
 
 	ctx := context.Background() // no need to exit cleanly since we're only reading
 	knownHashes := app.ParseHashes(hashes.Hashes)
-	a, err := app.OpenGameDir(ctx, gameDir, knownHashes, []string{}, nil, stingray.Hash{}, func(curr, total int) {
+	a, err := app.OpenGameDir(ctx, gameDir, knownHashes, []string{}, stingray.Hash{}, func(curr, total int) {
 		prt.Statusf("Reading metadata %.0f%%", float64(curr)/float64(total)*100)
 	})
 	if err != nil {
 		prt.Fatalf("Error opening game dir: %v", err)
-	}
-
-	appConfig, err := app.ParseExtractorConfig(app.ConfigFormat, "enable:all")
-	if err != nil {
-		panic(err) // should never fail
 	}
 
 	searchForHashesAsBytes := make(map[[8]byte]struct{})
@@ -226,7 +221,7 @@ func main() {
 	}
 	searchForThinHashesAsBytes := specifiedThinHashesAsBytes
 
-	files, err := a.MatchingFiles(inclGlob, "", nil, app.ConfigFormat, appConfig)
+	files, err := a.MatchingFiles(inclGlob, "", nil, nil)
 	if err != nil {
 		prt.Fatalf("Error matching files: %v", err)
 	}

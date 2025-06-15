@@ -11,6 +11,8 @@ import (
 
 	"github.com/jwalton/go-supportscolor"
 	"github.com/xypwn/filediver/app"
+	"github.com/xypwn/filediver/app/appconfig"
+	"github.com/xypwn/filediver/config"
 	"github.com/xypwn/filediver/exec"
 	"github.com/xypwn/filediver/extractor"
 	"github.com/xypwn/filediver/hashes"
@@ -50,14 +52,15 @@ type stateMachineContext struct {
 	file    *stingray.File
 	app     *app.App
 	printer app.Printer
+	cfg     appconfig.Config
 }
 
-func (c *stateMachineContext) OutPath() (string, error)  { return "", nil }
-func (c *stateMachineContext) OutDir() (string, error)   { return "", nil }
-func (c *stateMachineContext) AddFile()                  {}
-func (c *stateMachineContext) File() *stingray.File      { return c.file }
-func (c *stateMachineContext) Runner() *exec.Runner      { return nil }
-func (c *stateMachineContext) Config() map[string]string { return nil }
+func (c *stateMachineContext) OutPath() (string, error) { return "", nil }
+func (c *stateMachineContext) OutDir() (string, error)  { return "", nil }
+func (c *stateMachineContext) AddFile()                 {}
+func (c *stateMachineContext) File() *stingray.File     { return c.file }
+func (c *stateMachineContext) Runner() *exec.Runner     { return nil }
+func (c *stateMachineContext) Config() appconfig.Config { return c.cfg }
 func (c *stateMachineContext) GetResource(_, _ stingray.Hash) (*stingray.File, bool) {
 	return nil, false
 }
@@ -71,28 +74,13 @@ func (c *stateMachineContext) Ctx() context.Context                        { ret
 func (c *stateMachineContext) Files() []string                             { return nil }
 func (c *stateMachineContext) Hashes() map[stingray.Hash]string            { return c.app.Hashes }
 func (c *stateMachineContext) ThinHashes() map[stingray.ThinHash]string    { return c.app.ThinHashes }
-func (c *stateMachineContext) TriadIDs() []stingray.Hash                   { return c.app.TriadIDs }
+func (c *stateMachineContext) TriadIDs() []stingray.Hash                   { return nil }
 func (c *stateMachineContext) ArmorSets() map[stingray.Hash]dlbin.ArmorSet { return c.app.ArmorSets }
 func (c *stateMachineContext) Warnf(f string, a ...any) {
 	name, typ := c.app.LookupHash(c.file.ID().Name), c.app.LookupHash(c.file.ID().Type)
 	c.printer.Warnf("dump %v.%v: %v", name, typ, fmt.Sprintf(f, a...))
 }
-func (c *stateMachineContext) LookupHash(hash stingray.Hash) string { return c.LookupHash(hash) }
-
-var physicsConfigFormat = app.ConfigTemplate{
-	Extractors: map[string]app.ConfigTemplateExtractor{
-		"state_machine": {
-			Category: "animations",
-			Options: map[string]app.ConfigTemplateOption{
-				"format": {
-					Type: app.ConfigValueEnum,
-					Enum: []string{"json", "source"},
-				},
-			},
-		},
-	},
-	Fallback: "raw",
-}
+func (c *stateMachineContext) LookupHash(hash stingray.Hash) string { return c.app.LookupHash(hash) }
 
 func main() {
 	prt := app.NewConsolePrinter(
@@ -100,6 +88,7 @@ func main() {
 		os.Stderr,
 		os.Stderr,
 	)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
@@ -116,7 +105,7 @@ func main() {
 	knownHashes := app.ParseHashes(hashes.Hashes)
 	knownThinHashes := app.ParseHashes(hashes.ThinHashes)
 
-	a, err := app.OpenGameDir(ctx, gameDir, knownHashes, knownThinHashes, make([]stingray.Hash, 0), stingray.Hash{Value: 0x0}, func(curr int, total int) {
+	a, err := app.OpenGameDir(ctx, gameDir, knownHashes, knownThinHashes, stingray.Hash{}, func(curr int, total int) {
 		prt.Statusf("Opening game directory %.0f%%", float64(curr)/float64(total)*100)
 	})
 	if err != nil {
@@ -130,17 +119,20 @@ func main() {
 	}
 	prt.NoStatus()
 
-	files, err := a.MatchingFiles("*.state_machine", "", a.TriadIDs, physicsConfigFormat, map[string]map[string]string{})
+	files, err := a.MatchingFiles("", "", []string{"state_machine"}, nil)
 	if err != nil {
 		prt.Fatalf("%v", err)
 	}
 
 	for _, file := range files {
+		var cfg appconfig.Config
+		config.InitDefault(&cfg)
 		dumpCtx := &stateMachineContext{
 			ctx:     ctx,
 			file:    file,
 			app:     a,
 			printer: prt,
+			cfg:     cfg,
 		}
 		if err := dumpAnimationNames(dumpCtx); err != nil {
 			if errors.Is(err, context.Canceled) {

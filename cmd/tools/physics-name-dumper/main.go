@@ -11,6 +11,8 @@ import (
 
 	"github.com/jwalton/go-supportscolor"
 	"github.com/xypwn/filediver/app"
+	"github.com/xypwn/filediver/app/appconfig"
+	"github.com/xypwn/filediver/config"
 	"github.com/xypwn/filediver/exec"
 	"github.com/xypwn/filediver/extractor"
 	"github.com/xypwn/filediver/hashes"
@@ -47,6 +49,7 @@ type physicsContext struct {
 	file    *stingray.File
 	app     *app.App
 	printer app.Printer
+	cfg     appconfig.Config
 }
 
 func (c *physicsContext) OutPath() (string, error)                              { return "", nil }
@@ -54,7 +57,7 @@ func (c *physicsContext) OutDir() (string, error)                               
 func (c *physicsContext) AddFile()                                              {}
 func (c *physicsContext) File() *stingray.File                                  { return c.file }
 func (c *physicsContext) Runner() *exec.Runner                                  { return nil }
-func (c *physicsContext) Config() map[string]string                             { return nil }
+func (c *physicsContext) Config() appconfig.Config                              { return c.cfg }
 func (c *physicsContext) GetResource(_, _ stingray.Hash) (*stingray.File, bool) { return nil, false }
 func (c *physicsContext) CreateFile(_ string) (io.WriteCloser, error) {
 	return nil, fmt.Errorf("not implemented")
@@ -66,22 +69,13 @@ func (c *physicsContext) Ctx() context.Context                        { return c
 func (c *physicsContext) Files() []string                             { return nil }
 func (c *physicsContext) Hashes() map[stingray.Hash]string            { return c.app.Hashes }
 func (c *physicsContext) ThinHashes() map[stingray.ThinHash]string    { return c.app.ThinHashes }
-func (c *physicsContext) TriadIDs() []stingray.Hash                   { return c.app.TriadIDs }
+func (c *physicsContext) TriadIDs() []stingray.Hash                   { return nil }
 func (c *physicsContext) ArmorSets() map[stingray.Hash]dlbin.ArmorSet { return c.app.ArmorSets }
 func (c *physicsContext) Warnf(f string, a ...any) {
 	name, typ := c.app.LookupHash(c.file.ID().Name), c.app.LookupHash(c.file.ID().Type)
 	c.printer.Warnf("dump %v.%v: %v", name, typ, fmt.Sprintf(f, a...))
 }
 func (c *physicsContext) LookupHash(hash stingray.Hash) string { return c.LookupHash(hash) }
-
-var physicsConfigFormat = app.ConfigTemplate{
-	Extractors: map[string]app.ConfigTemplateExtractor{
-		"physics": {
-			Category: "text",
-		},
-	},
-	Fallback: "raw",
-}
 
 func main() {
 	prt := app.NewConsolePrinter(
@@ -105,7 +99,7 @@ func main() {
 	knownHashes := app.ParseHashes(hashes.Hashes)
 	knownThinHashes := app.ParseHashes(hashes.ThinHashes)
 
-	a, err := app.OpenGameDir(ctx, gameDir, knownHashes, knownThinHashes, make([]stingray.Hash, 0), stingray.Hash{Value: 0x0}, func(curr int, total int) {
+	a, err := app.OpenGameDir(ctx, gameDir, knownHashes, knownThinHashes, stingray.Hash{}, func(curr int, total int) {
 		prt.Statusf("Opening game directory %.0f%%", float64(curr)/float64(total)*100)
 	})
 	if err != nil {
@@ -119,17 +113,20 @@ func main() {
 	}
 	prt.NoStatus()
 
-	files, err := a.MatchingFiles("*.physics", "", a.TriadIDs, physicsConfigFormat, map[string]map[string]string{})
+	files, err := a.MatchingFiles("", "", []string{"physics"}, nil)
 	if err != nil {
 		prt.Fatalf("%v", err)
 	}
 
 	for _, file := range files {
+		var cfg appconfig.Config
+		config.InitDefault(&cfg)
 		dumpCtx := &physicsContext{
 			ctx:     ctx,
 			file:    file,
 			app:     a,
 			printer: prt,
+			cfg:     cfg,
 		}
 		if err := dumpPhysicsNames(dumpCtx); err != nil {
 			if errors.Is(err, context.Canceled) {
