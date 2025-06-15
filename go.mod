@@ -12,7 +12,8 @@ require (
 	github.com/go-gl/gl v0.0.0-20231021071112-07e5d0ea2e71
 	github.com/go-gl/mathgl v1.2.0
 	github.com/gobwas/glob v0.2.3
-	github.com/hellflame/argparse v1.12.0
+	github.com/hellflame/argparse v1.12.2
+	github.com/iancoleman/strcase v0.3.0
 	github.com/jfreymuth/vorbis v1.0.2
 	github.com/juliettef/IconFontCppHeaders v0.0.0-20250310113834-3eac3a08c436
 	github.com/jwalton/go-supportscolor v1.2.0

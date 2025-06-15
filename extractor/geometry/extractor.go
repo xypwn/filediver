@@ -593,6 +593,8 @@ func addBoundingBox(doc *gltf.Document, name string, meshHeader unit.MeshHeader,
 }
 
 func LoadGLTF(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, name stingray.Hash, meshInfos []MeshInfo, bones []stingray.ThinHash, meshLayouts []unit.MeshLayout, unitInfo *unit.Info, meshNodes *[]uint32, materialIndices map[stingray.ThinHash]uint32, parent uint32, skin *uint32) error {
+	cfg := ctx.Config()
+
 	unitName, contains := ctx.Hashes()[name]
 	if !contains {
 		unitName = name.String()
@@ -640,7 +642,7 @@ func LoadGLTF(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, nam
 			return false
 		}
 
-		if ctx.Config()["include_lods"] != "true" && isLOD(groupName, false) {
+		if cfg.Model.IncludeLODS && isLOD(groupName, false) {
 			if strings.Contains(groupName, "_LOD1") && !strings.Contains(groupName, "shadow") {
 				hasLOD0 = false
 				lod0Name := strings.TrimSuffix(groupName, "_LOD1")
@@ -705,7 +707,7 @@ func LoadGLTF(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, nam
 				materialName = "unknown"
 			}
 
-			if (strings.Contains(materialName, "gibs") || strings.Contains(materialName, "collis")) && ctx.Config()["include_lods"] != "true" {
+			if (strings.Contains(materialName, "gibs") || strings.Contains(materialName, "collis")) && cfg.Model.IncludeLODS {
 				continue
 			}
 
@@ -822,7 +824,7 @@ func LoadGLTF(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, nam
 			}
 
 			udimIndexAccessors := make(map[uint32]uint32)
-			if ctx.Config()["join_components"] != "true" {
+			if cfg.Model.JoinComponents {
 				texcoordIndex, ok := groupAttr[gltf.TEXCOORD_0]
 				// Don't separate udims of LODs or shadow meshes, unless this is LOD1 and we don't have an LOD0
 				if ok && (!isLOD(groupName, true) || (!hasLOD0 && strings.Contains(groupName, "LOD1") && !strings.Contains(groupName, "shadow"))) {
@@ -838,11 +840,11 @@ func LoadGLTF(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, nam
 					}
 				}
 			}
-			if ctx.Config()["join_components"] == "true" || (ctx.Config()["include_lods"] == "true" && (isLOD(groupName, true))) {
+			if cfg.Model.JoinComponents || (cfg.Model.IncludeLODS && (isLOD(groupName, true))) {
 				udimIndexAccessors[0] = *groupIndices
 			}
 
-			if ctx.Config()["bounding_boxes"] == "true" {
+			if cfg.Model.BoundingBoxes {
 				addBoundingBox(doc, nodeName+" Bounding Box", meshHeader, unitInfo, meshNodes)
 			}
 
