@@ -1,4 +1,4 @@
-package widgets
+package previews
 
 import (
 	"bytes"
@@ -17,6 +17,7 @@ import (
 	fnt "github.com/xypwn/filediver/cmd/filediver-gui/fonts"
 	"github.com/xypwn/filediver/cmd/filediver-gui/glutils"
 	"github.com/xypwn/filediver/cmd/filediver-gui/imutils"
+	"github.com/xypwn/filediver/cmd/filediver-gui/widgets"
 	"github.com/xypwn/filediver/dds"
 	extr_material "github.com/xypwn/filediver/extractor/material"
 	"github.com/xypwn/filediver/stingray"
@@ -96,7 +97,7 @@ func (obj unitPreviewObject) deleteObjects() {
 }
 
 type UnitPreviewState struct {
-	fb *GLViewState
+	fb *widgets.GLViewState
 
 	object                  unitPreviewObject
 	objectProgram           uint32
@@ -148,7 +149,7 @@ func NewUnitPreview() (*UnitPreviewState, error) {
 
 	pv := &UnitPreviewState{}
 
-	pv.fb, err = NewGLView()
+	pv.fb, err = widgets.NewGLView()
 	if err != nil {
 		return nil, err
 	}
@@ -650,7 +651,7 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 	viewSize := imgui.ContentRegionAvail()
 	viewSize.Y -= imutils.CheckboxHeight()
 
-	GLView(name, pv.fb, viewSize,
+	widgets.GLView(name, pv.fb, viewSize,
 		func() {
 			io := imgui.CurrentIO()
 

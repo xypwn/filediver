@@ -1,4 +1,4 @@
-package widgets
+package previews
 
 import "github.com/xypwn/filediver/stingray"
 

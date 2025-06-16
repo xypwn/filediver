@@ -84,6 +84,7 @@ import (
 	"github.com/xypwn/filediver/cmd/filediver-gui/getter"
 	"github.com/xypwn/filediver/cmd/filediver-gui/imutils"
 	"github.com/xypwn/filediver/cmd/filediver-gui/widgets"
+	"github.com/xypwn/filediver/cmd/filediver-gui/widgets/previews"
 	"github.com/xypwn/filediver/config"
 	"github.com/xypwn/filediver/exec"
 	"github.com/xypwn/filediver/stingray"
@@ -299,7 +300,7 @@ func run(onError func(error)) error {
 
 	gameDataLoad.GoLoadGameData(ctx, "")
 
-	var previewState *widgets.FileAutoPreviewState
+	var previewState *previews.AutoPreviewState
 	defer func() {
 		if previewState != nil {
 			previewState.Delete()
@@ -458,7 +459,7 @@ func run(onError func(error)) error {
 	preDraw := func() error {
 		if gameData != nil && previewState == nil {
 			var err error
-			previewState, err = widgets.NewFileAutoPreview(
+			previewState, err = previews.NewAutoPreview(
 				otoCtx, audioSampleRate,
 				gameData.Hashes,
 				func(id stingray.FileID, typ stingray.DataType) (data []byte, exists bool, err error) {
@@ -1020,7 +1021,7 @@ func run(onError func(error)) error {
 
 		if imgui.Begin(fnt.I("Preview") + " Preview") {
 			if previewState != nil {
-				if !widgets.FileAutoPreview("Preview", previewState) {
+				if !previews.AutoPreview("Preview", previewState) {
 					active := previewState.ActiveID()
 					imgui.PushTextWrapPos()
 					if active.Name.Value == 0 {

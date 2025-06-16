@@ -1,4 +1,4 @@
-package widgets
+package previews
 
 import (
 	"bytes"
@@ -22,7 +22,6 @@ import (
 const wwisePlayerBytesPerSample = 4 * 2 // sizeof(float32) * 2 channels
 
 type wwiseStream struct {
-	wem                  *wwise.Wem
 	err                  error
 	title                string
 	pcmBuf               []byte
