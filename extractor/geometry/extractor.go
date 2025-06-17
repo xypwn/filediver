@@ -642,7 +642,7 @@ func LoadGLTF(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, nam
 			return false
 		}
 
-		if cfg.Model.IncludeLODS && isLOD(groupName, false) {
+		if !cfg.Model.IncludeLODS && isLOD(groupName, false) {
 			if strings.Contains(groupName, "_LOD1") && !strings.Contains(groupName, "shadow") {
 				hasLOD0 = false
 				lod0Name := strings.TrimSuffix(groupName, "_LOD1")
@@ -707,7 +707,7 @@ func LoadGLTF(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, nam
 				materialName = "unknown"
 			}
 
-			if (strings.Contains(materialName, "gibs") || strings.Contains(materialName, "collis")) && cfg.Model.IncludeLODS {
+			if (strings.Contains(materialName, "gibs") || strings.Contains(materialName, "collis")) && !cfg.Model.IncludeLODS {
 				continue
 			}
 
@@ -824,7 +824,7 @@ func LoadGLTF(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, nam
 			}
 
 			udimIndexAccessors := make(map[uint32]uint32)
-			if cfg.Model.JoinComponents {
+			if !cfg.Model.JoinComponents {
 				texcoordIndex, ok := groupAttr[gltf.TEXCOORD_0]
 				// Don't separate udims of LODs or shadow meshes, unless this is LOD1 and we don't have an LOD0
 				if ok && (!isLOD(groupName, true) || (!hasLOD0 && strings.Contains(groupName, "LOD1") && !strings.Contains(groupName, "shadow"))) {
