@@ -1,87 +1,27 @@
 package main
 
-/*
-// GLFW
-typedef struct GLFWwindow GLFWwindow;
-typedef struct GLFWmonitor GLFWmonitor;
-typedef struct GLFWvidmode {
-	int width;
-	int height;
-	int redBits;
-	int greenBits;
-	int blueBits;
-	int refreshRate;
-} GLFWvidmode;
-typedef void (*GLFWwindowsizefun)(GLFWwindow* window, int width, int height);
-typedef void (*GLFWwindowrefreshfun)(GLFWwindow* window);
-int glfwWindowShouldClose(GLFWwindow *window);
-void glfwPollEvents();
-void glfwGetFramebufferSize(GLFWwindow *window, int *width, int *height);
-void glfwSwapInterval(int interval);
-GLFWwindow *glfwGetCurrentContext();
-void glfwMakeContextCurrent(GLFWwindow *window);
-void *glfwGetWindowUserPointer(GLFWwindow *window);
-void glfwSetWindowUserPointer(GLFWwindow *window, void *pointer);
-GLFWmonitor *glfwGetPrimaryMonitor();
-GLFWvidmode *glfwGetVideoMode(GLFWmonitor *monitor);
-void glfwSwapBuffers(GLFWwindow *window);
-void glfwDestroyWindow(GLFWwindow *window);
-void glfwTerminate();
-GLFWwindowsizefun glfwSetWindowSizeCallback(GLFWwindow *window, GLFWwindowsizefun callback);
-GLFWwindowrefreshfun glfwSetWindowRefreshCallback(GLFWwindow* window, GLFWwindowrefreshfun callback);
-
-// cimgui
-typedef struct ImGuiContext ImGuiContext;
-typedef struct ImDrawData ImDrawData;
-void igNewFrame();
-ImDrawData* igGetDrawData();
-
-// ImGui implementation
-void ImGui_ImplOpenGL3_NewFrame();
-void ImGui_ImplGlfw_NewFrame();
-void ImGui_ImplOpenGL3_RenderDrawData(ImDrawData* draw_data);
-void ImGui_ImplOpenGL3_DestroyFontsTexture();
-void ImGui_ImplOpenGL3_Shutdown();
-void ImGui_ImplGlfw_Shutdown();
-
-// cimgui-go C++ wrapper stuff
-typedef void (*VoidCallback)();
-void glfw_render(GLFWwindow *window, VoidCallback renderLoop);
-
-// custom functions
-void goWindowResizeCallback(GLFWwindow* window, int height, int width);
-void goWindowRefreshCallback(GLFWwindow* window);
-*/
-import "C"
-
 import (
 	"context"
 	_ "embed"
 	"fmt"
-	"log"
 	"maps"
 	"math"
 	"os"
 	"path/filepath"
-	"runtime"
 	"runtime/debug"
 	"slices"
 	"strings"
 	"sync"
-	"time"
-	"unsafe"
 
-	"github.com/AllenDang/cimgui-go/backend"
-	"github.com/AllenDang/cimgui-go/backend/glfwbackend"
 	"github.com/AllenDang/cimgui-go/imgui"
 	"github.com/adrg/xdg"
 	"github.com/ebitengine/oto/v3"
-	"github.com/go-gl/gl/v3.2-core/gl"
 	"github.com/ncruces/zenity"
 	"github.com/skratchdot/open-golang/open"
 	"github.com/xypwn/filediver/app/appconfig"
 	fnt "github.com/xypwn/filediver/cmd/filediver-gui/fonts"
 	"github.com/xypwn/filediver/cmd/filediver-gui/getter"
+	"github.com/xypwn/filediver/cmd/filediver-gui/imgui_wrapper"
 	"github.com/xypwn/filediver/cmd/filediver-gui/imutils"
 	"github.com/xypwn/filediver/cmd/filediver-gui/widgets"
 	"github.com/xypwn/filediver/cmd/filediver-gui/widgets/previews"
@@ -91,193 +31,19 @@ import (
 	"golang.design/x/clipboard"
 )
 
-var OnWindowResize func(window *C.GLFWwindow, width int32, height int32)
-
-//export goWindowResizeCallback
-func goWindowResizeCallback(window *C.GLFWwindow, width C.int, height C.int) {
-	OnWindowResize(window, int32(width), int32(height))
-}
-
-var OnWindowRefresh func(window *C.GLFWwindow)
-
-//export goWindowRefreshCallback
-func goWindowRefreshCallback(window *C.GLFWwindow) {
-	OnWindowRefresh(window)
-}
-
 //go:embed LICENSE
 var license string
 
-var baseGlyphRanges = [...]imgui.Wchar{
-	0x0020, 0x00ff, // basic latin + supplement
-	0x0100, 0x017f, // latin extended-A
-	0x0400, 0x052f, // cyrillic + cyrillic supplement
-	0,
-}
-
-var iconGlyphRanges = [...]imgui.Wchar{
-	imgui.Wchar(fnt.IconFontInfo.Min),
-	imgui.Wchar(fnt.IconFontInfo.Max16),
-	0,
-}
-
-func UpdateGUIScale(guiScale float32, needCJKFonts bool) {
-	io := imgui.CurrentIO()
-	fonts := io.Fonts()
-	fonts.Clear()
-
-	style := imgui.NewStyle()
-
-	fontSize := 16 * guiScale
-	type fontSpec struct {
-		scale       float32
-		glyphRange  *imgui.Wchar
-		ttfData     []byte
-		extraConfig func(*imgui.FontConfig)
-	}
-	var fontSpecs []fontSpec
-	// Base font
-	fontSpecs = append(fontSpecs, fontSpec{
-		scale:      1,
-		glyphRange: &baseGlyphRanges[0],
-		ttfData:    fnt.TextFont,
-	})
-	if needCJKFonts {
-		fontSpecs = append(fontSpecs,
-			// Japanese
-			fontSpec{
-				scale:      1.2,
-				glyphRange: (&imgui.FontAtlas{}).GlyphRangesJapanese(),
-				ttfData:    fnt.TextFontJP,
-			},
-			// Korean
-			fontSpec{
-				scale:      1.2,
-				glyphRange: (&imgui.FontAtlas{}).GlyphRangesKorean(),
-				ttfData:    fnt.TextFontKR,
-			},
-			// Chinese
-			fontSpec{
-				scale:      1.2,
-				glyphRange: (&imgui.FontAtlas{}).GlyphRangesChineseFull(),
-				ttfData:    fnt.TextFontCN,
-			},
-		)
-	}
-	// Icons
-	fontSpecs = append(fontSpecs, fontSpec{
-		scale:      1,
-		glyphRange: &iconGlyphRanges[0],
-		ttfData:    fnt.IconFont,
-		extraConfig: func(fc *imgui.FontConfig) {
-			fc.SetGlyphOffset(imgui.NewVec2(0, (0.2)*fontSize))
-			fc.SetGlyphMinAdvanceX(1 * fontSize)
-		},
-	})
-	for i, spec := range fontSpecs {
-		fc := imgui.NewFontConfig()
-		if i != 0 {
-			fc.SetMergeMode(true)
-		}
-		fc.SetFontDataOwnedByAtlas(false)
-		if spec.extraConfig != nil {
-			spec.extraConfig(fc)
-		}
-		fonts.AddFontFromMemoryTTFV(
-			uintptr(unsafe.Pointer(&spec.ttfData[0])),
-			int32(len(spec.ttfData)),
-			fontSize*spec.scale,
-			fc,
-			spec.glyphRange,
-		)
-		fc.Destroy()
-	}
-
-	C.ImGui_ImplOpenGL3_DestroyFontsTexture()
-
-	io.SetFontGlobalScale(1)
-	style.ScaleAllSizes(guiScale)
-	io.Ctx().SetStyle(*style)
-}
-
 func run(onError func(error)) error {
-	runtime.LockOSThread()
-
-	var glfwWindow *C.GLFWwindow
-
-	currentBackend, err := backend.CreateBackend(glfwbackend.NewGLFWBackend())
-	if err != nil {
-		return fmt.Errorf("creating backend: %w", err)
-	}
-	currentBackend.SetAfterCreateContextHook(func() {
-		glfwWindow = C.glfwGetCurrentContext()
-	})
-
-	{
-		const GLFW_CONTEXT_DEBUG = 0x00022007
-		currentBackend.SetWindowFlags(GLFW_CONTEXT_DEBUG, 1)
-	}
-	currentBackend.SetWindowFlags(glfwbackend.GLFWWindowFlagsResizable, 1)
-	currentBackend.CreateWindow("Filediver GUI", 800, 700)
-	currentBackend.SetWindowSizeLimits(250, 150, -1, -1)
-
-	C.glfwMakeContextCurrent(glfwWindow)
-	C.glfwSwapInterval(0)
-
-	currentBackend.SetDropCallback(func(paths []string) {
-		log.Println("drop:", paths)
-	})
-
-	io := imgui.CurrentIO()
-	flags := io.ConfigFlags()
-	flags |= imgui.ConfigFlagsDockingEnable | imgui.ConfigFlagsViewportsEnable
-	io.SetConfigFlags(flags)
-	io.SetIniFilename("")
-
-	defaultPreferences := Preferences{
-		AutoCheckForUpdates:            true,
-		PreviewVideoVerticalResolution: 720,
-	}
-	{
-		_, yScale := currentBackend.ContentScale()
-		defaultPreferences.GUIScale = yScale
-
-		monitor := C.glfwGetPrimaryMonitor()
-		videoMode := C.glfwGetVideoMode(monitor)
-		defaultPreferences.TargetFPS = float64(videoMode.refreshRate)
-	}
-	preferences := defaultPreferences
 	preferencesPath := filepath.Join(xdg.DataHome, "filediver", "preferences.json")
-	if err := preferences.Load(preferencesPath); err != nil {
-		return fmt.Errorf("loading preferences: %w", err)
-	}
-
-	shouldUpdateGUIScale := true
-	loadCJKFonts := false
-
-	if err := gl.Init(); err != nil {
-		return fmt.Errorf("initializing OpenGL: %w", err)
-	}
-	gl.Enable(gl.DEPTH_TEST)
-	gl.DepthFunc(gl.LESS)
-	gl.Enable(gl.BLEND)
-	gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
-	gl.Disable(gl.CULL_FACE)
-	gl.FrontFace(gl.CW)
-
-	gl.Enable(gl.DEBUG_OUTPUT)
-	gl.DebugMessageCallback(func(source, gltype, id, severity uint32, length int32, message string, userParam unsafe.Pointer) {
-		var typStr string
-		if gltype == gl.DEBUG_TYPE_ERROR {
-			typStr = "error: "
-		}
-		log.Printf("GL: %v%v\n", typStr, message)
-	}, nil)
+	// Populated in onInitWindow
+	var preferences, defaultPreferences Preferences
 
 	const audioSampleRate = 48000
 	var otoCtx *oto.Context
 	{
 		var readyChan chan struct{}
+		var err error
 		otoCtx, readyChan, err = oto.NewContext(&oto.NewContextOptions{
 			SampleRate:   audioSampleRate,
 			ChannelCount: 2,
@@ -361,9 +127,6 @@ func run(onError func(error)) error {
 			}
 			checkingForUpdates = false
 		}()
-	}
-	if preferences.AutoCheckForUpdates && version != "" {
-		goCheckForUpdates(true)
 	}
 
 	exportDir := filepath.Join(xdg.UserDirs.Download, "filediver_exports")
@@ -456,7 +219,30 @@ func run(onError func(error)) error {
 	isArchiveFilterOpen := false
 	isLogsOpen := false
 
-	preDraw := func() error {
+	onInitWindow := func(state *imgui_wrapper.State) error {
+		{
+			defaultPreferences = Preferences{
+				AutoCheckForUpdates:            true,
+				PreviewVideoVerticalResolution: 720,
+			}
+
+			defaultPreferences.GUIScale = state.GUIScale
+			defaultPreferences.TargetFPS = state.FrameRate
+
+			preferences = defaultPreferences
+			if err := preferences.Load(preferencesPath); err != nil {
+				return fmt.Errorf("loading preferences: %w", err)
+			}
+		}
+
+		if preferences.AutoCheckForUpdates && version != "" {
+			goCheckForUpdates(true)
+		}
+
+		return nil
+	}
+
+	onPreDraw := func(state *imgui_wrapper.State) error {
 		if gameData != nil && previewState == nil {
 			var err error
 			previewState, err = previews.NewAutoPreview(
@@ -480,18 +266,12 @@ func run(onError func(error)) error {
 			}
 		}
 
-		if shouldUpdateGUIScale {
-			UpdateGUIScale(preferences.GUIScale, loadCJKFonts)
-			shouldUpdateGUIScale = false
-		}
-
 		return nil
 	}
 
 	lastBrowserItemCopiedIndex := int32(-1)
 	lastBrowserItemCopiedTime := -math.MaxFloat64
-
-	draw := func() {
+	onDraw := func(state *imgui_wrapper.State) {
 		viewport := imgui.MainViewport()
 		imgui.SetNextWindowPos(viewport.Pos())
 		imgui.SetNextWindowSize(imgui.NewVec2(viewport.Size().X, 0))
@@ -1030,9 +810,8 @@ func run(onError func(error)) error {
 						imutils.Textf("Cannot preview type %v.", gameData.LookupHash(active.Type))
 					}
 				}
-				if previewState.NeedCJKFont() && !loadCJKFonts {
-					loadCJKFonts = true
-					shouldUpdateGUIScale = true
+				if previewState.NeedCJKFont() && !state.LoadCJKFonts {
+					state.LoadCJKFonts = true
 				}
 			} else {
 				imgui.PushTextWrapPos()
@@ -1144,13 +923,11 @@ func run(onError func(error)) error {
 		imgui.SetNextWindowPosV(viewport.Center(), imgui.CondAlways, imgui.NewVec2(0.5, 0.5))
 		popupManager.Popup("Preferences", func(close func()) {
 			prevPrefs := preferences
-			if imutils.ComboChoice(
+			imutils.ComboChoice(
 				"GUI Scale",
 				&preferences.GUIScale,
 				[]float32{0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2, 2.25, 2.5, 2.75, 3},
-			) {
-				shouldUpdateGUIScale = true
-			}
+			)
 			imutils.ComboChoice(
 				"Target FPS",
 				&preferences.TargetFPS,
@@ -1174,7 +951,7 @@ resolutions may cause low frame rates and poor responsiveness.`)
 			imgui.EndDisabled()
 
 			if preferences != prevPrefs {
-				shouldUpdateGUIScale = preferences.GUIScale != prevPrefs.GUIScale
+				state.GUIScale = preferences.GUIScale
 				if err := preferences.Save(preferencesPath); err != nil {
 					onError(err)
 				}
@@ -1229,69 +1006,14 @@ resolutions may cause low frame rates and poor responsiveness.`)
 		}, imgui.WindowFlagsNoMove, true)
 	}
 
-	lastDrawTimestamp := time.Now()
-	drawAndPresentFrame := func() {
-		C.ImGui_ImplGlfw_NewFrame()
-		C.ImGui_ImplOpenGL3_NewFrame()
-		C.igNewFrame()
-		gl.ClearColor(0.2, 0.2, 0.2, 1)
-		gl.Clear(gl.COLOR_BUFFER_BIT)
-
-		draw()
-
-		imgui.Render()
-		C.ImGui_ImplOpenGL3_RenderDrawData(C.igGetDrawData())
-
-		if imgui.CurrentIO().ConfigFlags()&imgui.ConfigFlagsViewportsEnable != 0 {
-			prevContext := C.glfwGetCurrentContext()
-			imgui.UpdatePlatformWindows()
-			imgui.RenderPlatformWindowsDefault()
-			C.glfwMakeContextCurrent(prevContext)
-		}
-
-		C.glfwSwapBuffers(glfwWindow)
-
-		targetFrameTime := time.Duration(float64(time.Second) / preferences.TargetFPS)
-		lastDrawTimestamp = lastDrawTimestamp.Add(targetFrameTime)
-	}
-	C.glfwSetWindowSizeCallback(glfwWindow, (*[0]byte)(C.goWindowResizeCallback))
-	OnWindowResize = func(window *C.GLFWwindow, width, height int32) {
-		gl.Viewport(0, 0, width, height)
-		//drawAndPresentFrame()
-	}
-	C.glfwSetWindowRefreshCallback(glfwWindow, (*[0]byte)(C.goWindowRefreshCallback))
-	OnWindowRefresh = func(window *C.GLFWwindow) {
-		drawAndPresentFrame()
-	}
-	for C.glfwWindowShouldClose(glfwWindow) == 0 {
-		if err := preDraw(); err != nil {
-			return err
-		}
-
-		timeToDraw := time.Now().Sub(lastDrawTimestamp)
-		numFramesToDraw := timeToDraw.Seconds() * preferences.TargetFPS
-		if timeToDraw < 0 {
-			// Frame over-draw
-			//log.Printf("Skipped %.5f frames due to over-draw", -numFramesToDraw)
-			lastDrawTimestamp = time.Now()
-		} else if timeToDraw >= time.Second {
-			// Frame under-draw
-			//log.Printf("Dropped %.5f frames due to lag", numFramesToDraw)
-			lastDrawTimestamp = time.Now()
-		} else if numFramesToDraw >= 1 {
-			C.glfwPollEvents()
-			drawAndPresentFrame()
-		} else {
-			time.Sleep(timeToDraw)
-		}
-	}
-	C.ImGui_ImplOpenGL3_Shutdown()
-	C.ImGui_ImplGlfw_Shutdown()
-	imgui.DestroyContext()
-	C.glfwDestroyWindow(glfwWindow)
-	C.glfwTerminate()
-
-	return nil
+	return imgui_wrapper.Main("Filediver GUI", imgui_wrapper.Options{
+		WindowSize:     imgui.NewVec2(800, 700),
+		WindowMinSize:  imgui.NewVec2(250, 150),
+		OnInitWindow:   onInitWindow,
+		OnPreDraw:      onPreDraw,
+		OnDraw:         onDraw,
+		GLDebugContext: true,
+	})
 }
 
 func main() {
