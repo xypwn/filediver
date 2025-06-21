@@ -1,4 +1,4 @@
-package widgets
+package previews
 
 import (
 	"bytes"
@@ -20,19 +20,19 @@ import (
 	stingray_wwise "github.com/xypwn/filediver/stingray/wwise"
 )
 
-type FileAutoPreviewType int
+type AutoPreviewType int
 
 const (
-	FileAutoPreviewEmpty FileAutoPreviewType = iota
-	FileAutoPreviewUnit
-	FileAutoPreviewAudio
-	FileAutoPreviewVideo
-	FileAutoPreviewTexture
-	FileAutoPreviewStrings
+	AutoPreviewEmpty AutoPreviewType = iota
+	AutoPreviewUnit
+	AutoPreviewAudio
+	AutoPreviewVideo
+	AutoPreviewTexture
+	AutoPreviewStrings
 )
 
-type FileAutoPreviewState struct {
-	activeType FileAutoPreviewType
+type AutoPreviewState struct {
+	activeType AutoPreviewType
 	activeID   stingray.FileID
 	state      struct {
 		unit    *UnitPreviewState
@@ -48,9 +48,9 @@ type FileAutoPreviewState struct {
 	err error
 }
 
-func NewFileAutoPreview(otoCtx *oto.Context, audioSampleRate int, hashes map[stingray.Hash]string, getResource GetResourceFunc, runner *exec.Runner) (*FileAutoPreviewState, error) {
+func NewAutoPreview(otoCtx *oto.Context, audioSampleRate int, hashes map[stingray.Hash]string, getResource GetResourceFunc, runner *exec.Runner) (*AutoPreviewState, error) {
 	var err error
-	pv := &FileAutoPreviewState{
+	pv := &AutoPreviewState{
 		hashes:      hashes,
 		getResource: getResource,
 	}
@@ -65,26 +65,26 @@ func NewFileAutoPreview(otoCtx *oto.Context, audioSampleRate int, hashes map[sti
 	return pv, nil
 }
 
-func (pv *FileAutoPreviewState) Delete() {
+func (pv *AutoPreviewState) Delete() {
 	pv.state.unit.Delete()
 	pv.state.audio.Delete()
 	pv.state.video.Delete()
 	pv.state.texture.Delete()
 }
 
-func (pv *FileAutoPreviewState) ActiveID() stingray.FileID {
+func (pv *AutoPreviewState) ActiveID() stingray.FileID {
 	return pv.activeID
 }
 
-func (pv *FileAutoPreviewState) NeedCJKFont() bool {
+func (pv *AutoPreviewState) NeedCJKFont() bool {
 	return pv.state.strings.NeedCJKFont()
 }
 
-func (pv *FileAutoPreviewState) LoadFile(ctx context.Context, file *stingray.File, maxVideoVerticalResolution int) {
+func (pv *AutoPreviewState) LoadFile(ctx context.Context, file *stingray.File, maxVideoVerticalResolution int) {
 	if file == nil {
 		pv.activeID.Name.Value = 0
 		pv.activeID.Type.Value = 0
-		pv.activeType = FileAutoPreviewEmpty
+		pv.activeType = AutoPreviewEmpty
 		return
 	}
 
@@ -114,7 +114,7 @@ func (pv *FileAutoPreviewState) LoadFile(ctx context.Context, file *stingray.Fil
 
 	switch file.ID().Type {
 	case stingray.Sum64([]byte("unit")):
-		pv.activeType = FileAutoPreviewUnit
+		pv.activeType = AutoPreviewUnit
 		if err := loadFiles(stingray.DataMain, stingray.DataGPU); err != nil {
 			pv.err = err
 			return
@@ -129,7 +129,7 @@ func (pv *FileAutoPreviewState) LoadFile(ctx context.Context, file *stingray.Fil
 		}
 	case stingray.Sum64([]byte("wwise_stream")):
 		pv.state.audio.ClearStreams()
-		pv.activeType = FileAutoPreviewAudio
+		pv.activeType = AutoPreviewAudio
 		if err := loadFiles(stingray.DataStream); err != nil {
 			pv.err = err
 			return
@@ -138,7 +138,7 @@ func (pv *FileAutoPreviewState) LoadFile(ctx context.Context, file *stingray.Fil
 		pv.state.audio.LoadStream(file.ID().Name.String(), data[stingray.DataStream], true)
 	case stingray.Sum64([]byte("wwise_bank")):
 		pv.state.audio.ClearStreams()
-		pv.activeType = FileAutoPreviewAudio
+		pv.activeType = AutoPreviewAudio
 		if err := loadFiles(stingray.DataMain); err != nil {
 			pv.err = err
 			return
@@ -169,7 +169,7 @@ func (pv *FileAutoPreviewState) LoadFile(ctx context.Context, file *stingray.Fil
 			pv.state.audio.LoadStream(fmt.Sprint(id), stream, false)
 		}
 	case stingray.Sum64([]byte("bik")):
-		pv.activeType = FileAutoPreviewVideo
+		pv.activeType = AutoPreviewVideo
 		if err := loadFiles(stingray.DataMain, stingray.DataStream, stingray.DataGPU); err != nil {
 			pv.err = err
 			return
@@ -198,7 +198,7 @@ func (pv *FileAutoPreviewState) LoadFile(ctx context.Context, file *stingray.Fil
 			return
 		}
 	case stingray.Sum64([]byte("texture")):
-		pv.activeType = FileAutoPreviewTexture
+		pv.activeType = AutoPreviewTexture
 		if err := loadFiles(stingray.DataMain, stingray.DataStream, stingray.DataGPU); err != nil {
 			pv.err = err
 			return
@@ -219,7 +219,7 @@ func (pv *FileAutoPreviewState) LoadFile(ctx context.Context, file *stingray.Fil
 		}
 		pv.state.texture.LoadImage(img)
 	case stingray.Sum64([]byte("strings")):
-		pv.activeType = FileAutoPreviewStrings
+		pv.activeType = AutoPreviewStrings
 		if err := loadFiles(stingray.DataMain); err != nil {
 			pv.err = err
 			return
@@ -233,27 +233,27 @@ func (pv *FileAutoPreviewState) LoadFile(ctx context.Context, file *stingray.Fil
 		}
 		pv.state.strings.Load(data)
 	default:
-		pv.activeType = FileAutoPreviewEmpty
+		pv.activeType = AutoPreviewEmpty
 	}
 }
 
-func FileAutoPreview(name string, pv *FileAutoPreviewState) bool {
+func AutoPreview(name string, pv *AutoPreviewState) bool {
 	if pv.err != nil {
 		imutils.TextError(pv.err)
 		return true
 	}
 	switch pv.activeType {
-	case FileAutoPreviewEmpty:
+	case AutoPreviewEmpty:
 		return false
-	case FileAutoPreviewUnit:
+	case AutoPreviewUnit:
 		UnitPreview(name, pv.state.unit)
-	case FileAutoPreviewAudio:
+	case AutoPreviewAudio:
 		WwisePreview(name, pv.state.audio)
-	case FileAutoPreviewVideo:
+	case AutoPreviewVideo:
 		BikPreview(pv.state.video)
-	case FileAutoPreviewTexture:
+	case AutoPreviewTexture:
 		DDSPreview(name, pv.state.texture)
-	case FileAutoPreviewStrings:
+	case AutoPreviewStrings:
 		StringsPreview(pv.state.strings)
 	default:
 		panic("unhandled case")

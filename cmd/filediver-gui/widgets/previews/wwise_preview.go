@@ -1,4 +1,4 @@
-package widgets
+package previews
 
 import (
 	"bytes"
@@ -22,13 +22,14 @@ import (
 const wwisePlayerBytesPerSample = 4 * 2 // sizeof(float32) * 2 channels
 
 type wwiseStream struct {
-	wem                  *wwise.Wem
 	err                  error
 	title                string
 	pcmBuf               []byte
 	bytesPerSecond       float64
 	paused               bool
 	playbackPosition     *atomic.Int64 // in bytes
+	playbackSliderPos    float32
+	playbackSliderActive bool
 	startPlaying         bool
 	qualityInfoTextItems []string
 }
@@ -249,7 +250,9 @@ func (pv *WwisePreviewState) playStreamIndex(idx int) {
 }
 
 func (pv *WwisePreviewState) pause() {
-	pv.otoPlayer.Pause()
+	if pv.otoPlayer != nil {
+		pv.otoPlayer.Pause()
+	}
 	if stream := pv.currentStream(); stream != nil {
 		stream.paused = true
 	}
@@ -289,14 +292,33 @@ func WwisePreview(name string, pv *WwisePreviewState) {
 						}
 
 						isActionPlay := pv.currentStreamIdx != i || stream.paused // play or pause
+						var (
+							playIcon  = fnt.I("Play_arrow")
+							pauseIcon = fnt.I("Pause")
+						)
+						var (
+							playBtnID  = imgui.IDStr(playIcon)
+							pauseBtnID = imgui.IDStr(playIcon)
+						)
 						var playPauseIcon string
 						if isActionPlay {
-							playPauseIcon = fnt.I("Play_arrow")
+							playPauseIcon = playIcon
 						} else {
-							playPauseIcon = fnt.I("Pause")
+							playPauseIcon = pauseIcon
+						}
+						ctx := imgui.CurrentContext()
+						if pv.currentStreamIdx == i &&
+							(!ctx.NavCursorVisible() || ctx.NavId() == playBtnID || ctx.NavId() == pauseBtnID) {
+							imgui.SetNextItemShortcut(imgui.KeyChord(imgui.KeySpace))
 						}
 						if imgui.Button(playPauseIcon) {
 							if isActionPlay {
+								if pv.currentStreamIdx != i && pv.otoPlayer != nil {
+									_, err := pv.otoPlayer.Seek(0, io.SeekStart)
+									if err != nil {
+										log.Println("Error seeking to start position:", err)
+									}
+								}
 								pv.playStreamIndex(i)
 							} else {
 								pv.pause()
@@ -304,7 +326,9 @@ func WwisePreview(name string, pv *WwisePreviewState) {
 						}
 						imgui.SameLine()
 						var playTime float32
-						if i == pv.currentStreamIdx {
+						if stream.playbackSliderActive {
+							playTime = stream.playbackSliderPos
+						} else if i == pv.currentStreamIdx {
 							pos := float64(stream.playbackPosition.Load())
 							pos -= float64(pv.otoPlayer.BufferedSize())
 							playTime = float32(pos / stream.bytesPerSecond)
@@ -323,16 +347,21 @@ func WwisePreview(name string, pv *WwisePreviewState) {
 						}
 						imgui.SetNextItemWidth(playbackSliderWidth)
 						if imgui.SliderFloatV("##Time", &playTime, 0, duration, "", 0) {
-							if i != pv.currentStreamIdx {
-								pv.playStreamIndex(i)
-							}
+							stream.playbackSliderPos = playTime
+						}
+						stream.playbackSliderActive = imgui.IsItemActive()
+						if imgui.IsItemActivated() {
+							pv.pause()
+						}
+						if imgui.IsItemDeactivated() {
+							pv.playStreamIndex(i)
 
-							pos := int64(float64(playTime) * stream.bytesPerSecond)
+							pos := int64(float64(stream.playbackSliderPos) * stream.bytesPerSecond)
 
 							// Truncate to an actual valid sample position
 							pos = pos / wwisePlayerBytesPerSample * wwisePlayerBytesPerSample
 
-							_, err := pv.otoPlayer.Seek(pos, io.SeekStart)
+							_, err := pv.otoPlayer.Seek(max(0, pos), io.SeekStart)
 							if err != nil {
 								log.Println("Error seeking to playback position:", err)
 							}
@@ -351,21 +380,11 @@ func WwisePreview(name string, pv *WwisePreviewState) {
 								imgui.EndTooltip()
 							}
 						}
-						if i == pv.currentStreamIdx {
-							// Pause/unpause silently when dragging
-							if imgui.IsItemActivated() {
-								pv.otoPlayer.Pause()
-							}
-							if imgui.IsItemDeactivated() && !stream.paused {
-								pv.playStreamIndex(i)
-							}
-
-							if playTime >= duration {
-								pv.pause()
-								_, err := pv.otoPlayer.Seek(0, io.SeekStart)
-								if err != nil {
-									log.Println("Error seeking to start position:", err)
-								}
+						if i == pv.currentStreamIdx && playTime >= duration {
+							pv.pause()
+							_, err := pv.otoPlayer.Seek(0, io.SeekStart)
+							if err != nil {
+								log.Println("Error seeking to start position:", err)
 							}
 						}
 					} else {
