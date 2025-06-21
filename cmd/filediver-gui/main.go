@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"maps"
 	"math"
+	"net/http"
 	"os"
 	"path/filepath"
 	"runtime/debug"
@@ -342,14 +343,33 @@ func (a *guiApp) goCheckForUpdates(isOnStartup bool) {
 	a.checkUpdatesDownloadURL = ""
 	a.checkUpdatesErr = nil
 	go func() {
+		defer func() {
+			a.checkUpdatesLock.Lock()
+			if isOnStartup {
+				a.checkUpdatesOnStartupBGDone = true
+			}
+			a.checkingForUpdates = false
+			a.checkUpdatesLock.Unlock()
+		}()
+
 		ver, url, err := getNewestVersion()
-		a.checkUpdatesLock.Lock()
-		defer a.checkUpdatesLock.Unlock()
-		a.checkUpdatesNewVersion, a.checkUpdatesDownloadURL, a.checkUpdatesErr = ver, url, err
-		if isOnStartup {
-			a.checkUpdatesOnStartupBGDone = true
+		if err == nil { // check for 404 response -> specific binary not yet available -> build not done yet
+			resp, err := http.Get(url)
+			if err != nil {
+				a.checkUpdatesLock.Lock()
+				a.checkUpdatesErr = err
+				a.checkUpdatesLock.Unlock()
+				return
+			}
+			resp.Body.Close()
+			if resp.StatusCode == 404 {
+				return
+			}
 		}
-		a.checkingForUpdates = false
+
+		a.checkUpdatesLock.Lock()
+		a.checkUpdatesNewVersion, a.checkUpdatesDownloadURL, a.checkUpdatesErr = ver, url, err
+		a.checkUpdatesLock.Unlock()
 	}()
 }
 
