@@ -1,7 +1,6 @@
 package imgui_wrapper
 
 import (
-	"C"
 	"unsafe"
 
 	"github.com/AllenDang/cimgui-go/imgui"

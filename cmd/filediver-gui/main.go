@@ -124,7 +124,7 @@ type guiApp struct {
 // Call Delete() when done.
 // showErrorPopup should show an error popup without
 // changing control flow, i.e. without exiting.
-func newGUIApp(showErrorPopup func(error)) (*guiApp, error) {
+func newGUIApp(showErrorPopup func(error)) *guiApp {
 	var extractorConfig appconfig.Config
 	config.InitDefault(&extractorConfig)
 
@@ -146,7 +146,7 @@ func newGUIApp(showErrorPopup func(error)) (*guiApp, error) {
 		popupManager:               imutils.NewPopupManager(),
 		lastBrowserItemCopiedIndex: -1,
 		lastBrowserItemCopiedTime:  -math.MaxFloat64,
-	}, nil
+	}
 }
 
 func (a *guiApp) Delete() {
@@ -1140,11 +1140,8 @@ You can do this via 'go run -ldflags "-X main.version=v0.0.0" ./cmd/filediver-gu
 		}
 	}()
 
-	app, err := newGUIApp(onError)
-	if err != nil {
-		onError(err)
-		return
-	}
+	app := newGUIApp(onError)
+	defer app.Delete()
 	if err := imgui_wrapper.Main("Filediver GUI", imgui_wrapper.Options{
 		WindowSize:     imgui.NewVec2(800, 700),
 		WindowMinSize:  imgui.NewVec2(250, 150),
