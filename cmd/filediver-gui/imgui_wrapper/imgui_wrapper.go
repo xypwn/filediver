@@ -109,7 +109,7 @@ type Options struct {
 	WindowMinSize imgui.Vec2
 	// Called once, after the initial
 	// state is determined and before any
-	// drawing takes pace. May be nil.
+	// drawing takes place. May be nil.
 	OnInitWindow func(state *State) error
 	// Called to do various pre-frame setup.
 	// If anything can err, it should happen

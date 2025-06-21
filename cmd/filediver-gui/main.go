@@ -156,11 +156,10 @@ func (a *guiApp) Delete() {
 }
 
 func (a *guiApp) onInitWindow(state *imgui_wrapper.State) error {
-	var otoCtx *oto.Context
 	{
 		var readyChan chan struct{}
 		var err error
-		otoCtx, readyChan, err = oto.NewContext(&oto.NewContextOptions{
+		a.otoCtx, readyChan, err = oto.NewContext(&oto.NewContextOptions{
 			SampleRate:   a.audioSampleRate,
 			ChannelCount: 2,
 			Format:       oto.FormatFloat32LE,
@@ -170,7 +169,7 @@ func (a *guiApp) onInitWindow(state *imgui_wrapper.State) error {
 		}
 		<-readyChan
 	}
-	if err := otoCtx.Err(); err != nil {
+	if err := a.otoCtx.Err(); err != nil {
 		return fmt.Errorf("audio context: %w", err)
 	}
 
