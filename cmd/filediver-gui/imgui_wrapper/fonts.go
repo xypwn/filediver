@@ -11,6 +11,7 @@ import (
 var baseGlyphRanges = [...]imgui.Wchar{
 	0x0020, 0x00ff, // basic latin + supplement
 	0x0100, 0x017f, // latin extended-A
+	0x2000, 0x206f, // general punctuation
 	0x0400, 0x052f, // cyrillic + cyrillic supplement
 	0,
 }
