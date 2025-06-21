@@ -343,31 +343,24 @@ func (a *guiApp) goCheckForUpdates(isOnStartup bool) {
 	a.checkUpdatesDownloadURL = ""
 	a.checkUpdatesErr = nil
 	go func() {
-		defer func() {
-			a.checkUpdatesLock.Lock()
-			if isOnStartup {
-				a.checkUpdatesOnStartupBGDone = true
-			}
-			a.checkingForUpdates = false
-			a.checkUpdatesLock.Unlock()
-		}()
-
 		ver, url, err := getNewestVersion()
 		if err == nil { // check for 404 response -> specific binary not yet available -> build not done yet
-			resp, err := http.Get(url)
-			if err != nil {
-				a.checkUpdatesLock.Lock()
-				a.checkUpdatesErr = err
-				a.checkUpdatesLock.Unlock()
-				return
-			}
-			resp.Body.Close()
-			if resp.StatusCode == 404 {
-				return
+			resp, rErr := http.Get(url)
+			if rErr != nil {
+				err = rErr
+			} else {
+				resp.Body.Close()
+				if resp.StatusCode == 404 {
+					ver, url = version, ""
+				}
 			}
 		}
 
 		a.checkUpdatesLock.Lock()
+		if isOnStartup {
+			a.checkUpdatesOnStartupBGDone = true
+		}
+		a.checkingForUpdates = false
 		a.checkUpdatesNewVersion, a.checkUpdatesDownloadURL, a.checkUpdatesErr = ver, url, err
 		a.checkUpdatesLock.Unlock()
 	}()
