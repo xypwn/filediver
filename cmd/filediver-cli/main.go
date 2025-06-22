@@ -31,6 +31,17 @@ import (
 	"github.com/xypwn/filediver/stingray/unit"
 )
 
+// Aliases available in -T option.
+var typeAliases = []string{
+	"audio_stream", "wwise_stream",
+	"audio_bank", "wwise_bank",
+	"video", "bik",
+	"model", "unit,geometry_group",
+	"text", "strings,package,bones",
+	"image", "texture",
+	"animation_set", "state_machine",
+}
+
 func main() {
 	prt := app.NewConsolePrinter(
 		supportscolor.Stderr().SupportsColor,
@@ -69,9 +80,18 @@ func main() {
 		optExclGlob = argp.String("x", "exclude", &argparse.Option{
 			Help: "exclude matching files from selection (glob syntax, can be mixed with --include)",
 		})
+		if len(typeAliases)%2 != 0 {
+			panic("expected typeAliases to be in chunks of 2")
+		}
+		var typeAliasStrs []string
+		for i := 0; i < len(typeAliases); i += 2 {
+			typeAliasStrs = append(typeAliasStrs,
+				typeAliases[i+0]+"->"+typeAliases[i+1],
+			)
+		}
 		optInclOnlyTypes = argp.String("T", "types", &argparse.Option{
 			Default: "all",
-			Help:    "only include comma-separated type name(s)",
+			Help:    "only include comma-separated type name(s) (aliases: " + strings.Join(typeAliasStrs, ", ") + ")",
 		})
 		optInclTriads = argp.String("t", "triads", &argparse.Option{
 			Help: "include comma-separated triad name(s) as found in game data directory; aka Archive ID, e.g. 0x9ba626afa44a3aa3",
@@ -134,7 +154,9 @@ func main() {
 
 	var inclOnlyTypes []string
 	if *optInclOnlyTypes != "all" {
-		inclOnlyTypes = strings.Split(*optInclOnlyTypes, ",")
+		types := strings.NewReplacer(typeAliases...).
+			Replace(*optInclOnlyTypes)
+		inclOnlyTypes = strings.Split(types, ",")
 	}
 	var inclTriadIDs []stingray.Hash
 	if *optInclTriads != "" {
