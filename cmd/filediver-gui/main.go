@@ -728,18 +728,31 @@ func (a *guiApp) drawArchiveFilterWindow() {
 					label = x.String()
 				}
 			}
-			imgui.Checkbox("##"+label, checked)
-			imgui.SameLine()
-			imutils.CopyableTextfV(imutils.CopyableTextOptions{
-				TooltipHovered: fmt.Sprintf("hash=%v, right-click to copy hash", x),
-				TooltipCopied:  fnt.I("Check") + " Hash copied",
-				Btn:            imgui.MouseButtonRight,
-				ClipboardText:  x.String(),
-			}, "%v", label)
-			if imgui.IsItemClicked() {
-				*checked = !*checked
+			imgui.Checkbox(label, checked)
+			copied := imgui.IsItemClickedV(imgui.MouseButtonRight)
+			if imgui.IsItemFocused() && imgui.Shortcut(imgui.KeyChord(imgui.ModCtrl|imgui.KeyC)) {
+				copied = true
 			}
-			imgui.Spacing()
+			if imutils.StickyActivate(copied, 1) {
+				imgui.SetItemTooltip(fmt.Sprintf("%v Copied '%v'", fnt.I("Check"), x))
+			} else {
+				var tt strings.Builder
+				if name, ok := a.gameData.Hashes[x]; ok {
+					fmt.Fprintf(&tt, "Archive: %v, hash=%v\n", name, x)
+				} else {
+					fmt.Fprintf(&tt, "Archive: hash=%v\n", x)
+				}
+				if armorSet, ok := a.gameData.ArmorSets[x]; ok {
+					fmt.Fprintf(&tt, "Armor set: %v\n", armorSet.Name)
+				}
+				fmt.Fprintf(&tt, "Contains %v files\n", len(a.gameData.DataDir.FilesByTriad[x]))
+				fmt.Fprintf(&tt, "%v Left-click or Space to select/deselect\n", fnt.I("Left_click"))
+				fmt.Fprintf(&tt, "%v Right-click or Ctrl+C to copy name hash to clipboard\n", fnt.I("Content_copy"))
+				imgui.SetItemTooltip(tt.String())
+			}
+			if copied {
+				imgui.SetClipboardText(x.String())
+			}
 		},
 	) {
 		a.gameData.UpdateSearchQuery(a.gameFileSearchQuery, a.selectedGameFileTypes, a.selectedArchives)

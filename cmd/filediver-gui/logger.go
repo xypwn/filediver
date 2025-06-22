@@ -139,11 +139,10 @@ func LogView(l *Logger) {
 		for i, item := range l.items {
 			imgui.PushIDInt(int32(i))
 			imgui.PushTextWrapPos()
-			imgui.PushStyleColorVec4(imgui.ColText, item.Color)
 			imutils.CopyableTextfV(imutils.CopyableTextOptions{
 				TooltipHovered: fnt.I("Content_copy") + " Click to copy this item to clipboard",
+				Color:          item.Color,
 			}, "%v", item.Text)
-			imgui.PopStyleColor()
 			imgui.PopID()
 		}
 		if len(l.items) == 0 {
