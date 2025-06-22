@@ -13,15 +13,14 @@ import (
 
 func TextError(err error) {
 	imgui.PushTextWrapPos()
-	imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(0.8, 0.5, 0.5, 1))
 	CopyableTextfV(
 		CopyableTextOptions{
 			TooltipHovered: fnt.I("Content_copy") + "Click to copy error to clipboard",
+			Color:          imgui.NewVec4(0.8, 0.5, 0.5, 1),
 		},
 		"Error: %v",
 		err,
 	)
-	imgui.PopStyleColor()
 }
 
 type CopyableTextOptions struct {
@@ -37,6 +36,9 @@ type CopyableTextOptions struct {
 	// Text to be copied into clipboard.
 	// Default: Formatted text passed in.
 	ClipboardText string
+	// Text color. Zero-value (default)
+	// indicates default text color.
+	Color imgui.Vec4
 }
 
 // CopyableTextf is the same as [CopyableTextfV]
@@ -49,35 +51,18 @@ func CopyableTextf(format string, args ...any) {
 // to copy to clipboard.
 // Pass zero value into opts for default.
 func CopyableTextfV(opts CopyableTextOptions, format string, args ...any) {
-	imgui.PushIDStr(format)
-	defer imgui.PopID()
-
-	if i := strings.Index(format, "##"); i != -1 {
-		format = format[:i]
+	if opts.Color != (imgui.Vec4{}) {
+		imgui.PushStyleColorVec4(imgui.ColText, opts.Color)
+	}
+	Textf(format, args...)
+	if opts.Color != (imgui.Vec4{}) {
+		imgui.PopStyleColor()
 	}
 
-	ctx := imgui.CurrentContext()
-	textPos := imgui.CursorScreenPos()
-	imgui.TextUnformatted(fmt.Sprintf(format, args...))
-	imgui.SetCursorScreenPos(textPos)
-	imgui.SetNextItemAllowOverlap()
-	textBtnID := imgui.IDStr("##_copyableText")
-	size := imgui.ItemRectSize()
-	var clicked bool
-	if size.X > 0 && size.Y > 0 { // prevent crash in case of empty label
-		var flags imgui.ButtonFlags
-		switch opts.Btn {
-		case imgui.MouseButtonLeft:
-			flags |= imgui.ButtonFlagsMouseButtonLeft
-		case imgui.MouseButtonMiddle:
-			flags |= imgui.ButtonFlagsMouseButtonMiddle
-		case imgui.MouseButtonRight:
-			flags |= imgui.ButtonFlagsMouseButtonRight
-		}
-		clicked = imgui.InvisibleButtonV("##_copyableText", size, flags)
-	}
+	clicked := imgui.IsItemClickedV(opts.Btn)
+	copied := StickyActivateID(imgui.IDStr(format), clicked, 1)
 	if imgui.BeginItemTooltip() {
-		if ctx.LastActiveId() == textBtnID && ctx.LastActiveIdTimer() < 1 {
+		if copied {
 			s := opts.TooltipCopied
 			if opts.TooltipCopied == "" {
 				s = fnt.I("Check") + " Copied"
@@ -92,18 +77,49 @@ func CopyableTextfV(opts CopyableTextOptions, format string, args ...any) {
 		}
 		imgui.EndTooltip()
 	}
+
 	if clicked {
 		s := opts.ClipboardText
 		if s == "" {
+			if i := strings.Index(format, "##"); i != -1 {
+				format = format[:i]
+			}
 			s = fmt.Sprintf(format, args...)
 		}
 		imgui.SetClipboardText(s)
 	}
 }
 
+var stickyActivateItem = struct {
+	ID   imgui.ID
+	Time float64
+}{}
+
+// StickyActivateID will set the given ID to be sticky-active. The ID doesn't
+// have to belong to an existing item.
+// (Note that this is different from ImGUI's builtin concept of activation.)
+// Once activate is true, this function will keep returning true for the given
+// time, or until a different item is sticky-activated.
+func StickyActivateID(id imgui.ID, activate bool, time float64) (active bool) {
+	if activate {
+		stickyActivateItem.ID = id
+		stickyActivateItem.Time = imgui.Time()
+		return true
+	} else if stickyActivateItem.ID == id &&
+		imgui.Time()-stickyActivateItem.Time < time {
+		return true
+	}
+	return false
+}
+
+// StickyActivate is like [StickyActivateID], but will automatically use
+// the last item's ID.
+func StickyActivate(activate bool, time float64) (active bool) {
+	lastID := imgui.ID(imgui.CurrentContext().LastItemData().CData.ID)
+	return StickyActivateID(lastID, activate, time)
+}
+
 func Textf(format string, args ...any) {
-	imgui.PushIDStr(format)
-	defer imgui.PopID()
 	if i := strings.Index(format, "##"); i != -1 {
 		format = format[:i]
 	}
