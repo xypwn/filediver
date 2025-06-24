@@ -103,9 +103,15 @@ func (pv *MaterialPreviewState) LoadMaterial(mat *material.Material, getResource
 		}
 	}
 
+	unknownUsage := extr_material.SettingsUsage(0x0)
+	unknownUsageStr := unknownUsage.String()
+
 	for key, value := range mat.Settings {
 		usage := extr_material.SettingsUsage(key.Value)
 		keyName := usage.String()
+		if keyName == unknownUsageStr {
+			keyName += " (" + key.String() + ")"
+		}
 		pv.settings[keyName] = value
 		pv.settingKeys = append(pv.settingKeys, keyName)
 	}
@@ -237,15 +243,7 @@ func MaterialPreview(name string, pv *MaterialPreviewState) {
 				imgui.TextUnformatted(id)
 
 				imgui.TableNextColumn()
-				var color imgui.Vec4 = imgui.NewVec4(1, 1, 1, 1)
 				settingValue := pv.settings[id]
-				// switch len(settingValue) {
-				// case 3, 4:
-				// 	color.X = settingValue[0]
-				// 	color.Y = settingValue[1]
-				// 	color.Z = settingValue[2]
-				// 	fallthrough
-				// default:
 				formatted := make([]string, len(settingValue))
 				for i := range settingValue {
 					formatted[i] = fmt.Sprintf("%.3f", settingValue[i])
@@ -254,10 +252,7 @@ func MaterialPreview(name string, pv *MaterialPreviewState) {
 				if len(settingValue) > 1 {
 					settingString = "(" + settingString + ")"
 				}
-				imgui.PushStyleColorVec4(imgui.ColText, color)
 				imgui.Text(settingString)
-				imgui.PopStyleColor()
-				//}
 				imgui.PopID()
 			}
 		}

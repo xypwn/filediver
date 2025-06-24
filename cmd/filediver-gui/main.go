@@ -47,6 +47,7 @@ var (
 		stingray.Sum64([]byte("bones")):          "unit bones",
 		stingray.Sum64([]byte("physics")):        "unit physics",
 		stingray.Sum64([]byte("geometry_group")): "group of 3D models",
+		stingray.Sum64([]byte("material")):       "shader settings",
 	}
 	gameFileTypeTooltipsExtra = map[stingray.Hash]string{
 		stingray.Sum64([]byte("wwise_stream")): "All wwise_streams are also contained in a wwise_bank.\nYou probably want to use wwise_bank instead.",
@@ -472,6 +473,7 @@ func (a *guiApp) drawBrowserWindow() {
 							case // previewable and exportable
 								stingray.Sum64([]byte("bik")),
 								stingray.Sum64([]byte("texture")),
+								stingray.Sum64([]byte("material")),
 								stingray.Sum64([]byte("wwise_bank")),
 								stingray.Sum64([]byte("wwise_stream")),
 								stingray.Sum64([]byte("unit")),
