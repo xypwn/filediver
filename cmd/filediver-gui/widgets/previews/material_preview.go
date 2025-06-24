@@ -27,6 +27,7 @@ type MaterialPreviewState struct {
 	offset          imgui.Vec2
 	zoom            float32
 	linearFiltering bool
+	ignoreAlpha     bool
 	err             error
 }
 
@@ -130,6 +131,7 @@ func MaterialPreview(name string, pv *MaterialPreviewState) {
 
 	var ddsPv *DDSPreviewState
 	var textureUsage, texturePath string
+	currTexture := pv.activeTexture
 	if pv.activeTexture >= 0 && pv.activeTexture < len(pv.textureKeys) {
 		textureUsage = pv.textureKeys[pv.activeTexture][0]
 		texturePath = pv.textureKeys[pv.activeTexture][1]
@@ -139,6 +141,10 @@ func MaterialPreview(name string, pv *MaterialPreviewState) {
 		imutils.Textf("Usage=%v (%v/%v)\nSize=(%v,%v)\nFormat=%v\nPath=%v\nNum Settings=%v", textureUsage, pv.activeTexture+1, len(pv.textures), ddsPv.imageSize.X, ddsPv.imageSize.Y, ddsPv.ddsInfo.DXT10Header.DXGIFormat, texturePath, len(pv.settings))
 		ddsPv.offset = pv.offset
 		ddsPv.zoom = pv.zoom
+		ddsPv.linearFiltering = pv.linearFiltering
+		if ddsPv.imageHasAlpha {
+			ddsPv.ignoreAlpha = pv.ignoreAlpha
+		}
 	} else {
 		imutils.Textf("Usage=N/A (0/0)\nSize=N/A\nFormat=N/A\nPath=N/A\nNum Settings=%v", len(pv.settings))
 	}
@@ -181,6 +187,27 @@ func MaterialPreview(name string, pv *MaterialPreviewState) {
 			}
 		}
 		imgui.EndDisabled()
+
+		if pv.activeTexture != currTexture {
+			// Swapping textures, make sure they use the correct ignore alpha & linear filtering
+			// values
+			textureUsage = pv.textureKeys[pv.activeTexture][0]
+			nextDdsPv := pv.textures[textureUsage]
+			filter := int32(gl.NEAREST)
+			swizzleA := int32(gl.ALPHA)
+			if pv.linearFiltering {
+				filter = gl.LINEAR
+			}
+			if pv.ignoreAlpha {
+				swizzleA = gl.ONE
+			}
+			gl.BindTexture(gl.TEXTURE_2D, nextDdsPv.textureID)
+			gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter)
+			if nextDdsPv.imageHasAlpha {
+				gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_SWIZZLE_A, swizzleA)
+			}
+			gl.BindTexture(gl.TEXTURE_2D, 0)
+		}
 	}
 	imgui.EndChild()
 
@@ -204,14 +231,9 @@ func MaterialPreview(name string, pv *MaterialPreviewState) {
 	imgui.SetItemTooltip("Linear filtering \"blurs\" pixels when zooming in. Disable to view individual pixels more clearly.")
 	imgui.SameLine()
 	imgui.BeginDisabledV(ddsPv == nil || !ddsPv.imageHasAlpha)
-	var ignoreAlphaProxy bool
-	if ddsPv != nil {
-		ignoreAlphaProxy = ddsPv.ignoreAlpha
-	}
-	if imgui.Checkbox("Ignore alpha", &ignoreAlphaProxy) && ddsPv != nil {
-		ddsPv.ignoreAlpha = ignoreAlphaProxy
+	if imgui.Checkbox("Ignore alpha", &pv.ignoreAlpha) && ddsPv != nil {
 		swizzleA := int32(gl.ALPHA)
-		if ddsPv.ignoreAlpha {
+		if pv.ignoreAlpha {
 			swizzleA = gl.ONE
 		}
 		gl.BindTexture(gl.TEXTURE_2D, ddsPv.textureID)
