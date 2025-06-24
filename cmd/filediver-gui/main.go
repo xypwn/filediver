@@ -255,6 +255,7 @@ func (a *guiApp) onPreDraw(state *imgui_wrapper.State) error {
 		a.previewState, err = previews.NewAutoPreview(
 			a.otoCtx, a.audioSampleRate,
 			a.gameData.Hashes,
+			a.gameData.ThinHashes,
 			func(id stingray.FileID, typ stingray.DataType) (data []byte, exists bool, err error) {
 				file, ok := a.gameData.DataDir.Files[id]
 				if !ok {

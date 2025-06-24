@@ -16,6 +16,7 @@ import (
 	"github.com/xypwn/filediver/exec"
 	"github.com/xypwn/filediver/stingray"
 	stingray_strings "github.com/xypwn/filediver/stingray/strings"
+	"github.com/xypwn/filediver/stingray/unit/material"
 	"github.com/xypwn/filediver/stingray/unit/texture"
 	stingray_wwise "github.com/xypwn/filediver/stingray/wwise"
 )
@@ -29,29 +30,33 @@ const (
 	AutoPreviewVideo
 	AutoPreviewTexture
 	AutoPreviewStrings
+	AutoPreviewMaterial
 )
 
 type AutoPreviewState struct {
 	activeType AutoPreviewType
 	activeID   stingray.FileID
 	state      struct {
-		unit    *UnitPreviewState
-		audio   *WwisePreviewState
-		video   *BikPreviewState
-		texture *DDSPreviewState
-		strings *StringsPreviewState
+		unit     *UnitPreviewState
+		audio    *WwisePreviewState
+		video    *BikPreviewState
+		texture  *DDSPreviewState
+		strings  *StringsPreviewState
+		material *MaterialPreviewState
 	}
 
 	hashes      map[stingray.Hash]string
+	thinhashes  map[stingray.ThinHash]string
 	getResource GetResourceFunc
 
 	err error
 }
 
-func NewAutoPreview(otoCtx *oto.Context, audioSampleRate int, hashes map[stingray.Hash]string, getResource GetResourceFunc, runner *exec.Runner) (*AutoPreviewState, error) {
+func NewAutoPreview(otoCtx *oto.Context, audioSampleRate int, hashes map[stingray.Hash]string, thinhashes map[stingray.ThinHash]string, getResource GetResourceFunc, runner *exec.Runner) (*AutoPreviewState, error) {
 	var err error
 	pv := &AutoPreviewState{
 		hashes:      hashes,
+		thinhashes:  thinhashes,
 		getResource: getResource,
 	}
 	pv.state.unit, err = NewUnitPreview()
@@ -62,6 +67,7 @@ func NewAutoPreview(otoCtx *oto.Context, audioSampleRate int, hashes map[stingra
 	pv.state.video = NewBikPreview(runner)
 	pv.state.texture = NewDDSPreview()
 	pv.state.strings = NewStringsPreview()
+	pv.state.material = NewMaterialPreview()
 	return pv, nil
 }
 
@@ -232,6 +238,23 @@ func (pv *AutoPreviewState) LoadFile(ctx context.Context, file *stingray.File, m
 			return
 		}
 		pv.state.strings.Load(data)
+	case stingray.Sum64([]byte("material")):
+		pv.activeType = AutoPreviewMaterial
+		if err := loadFiles(stingray.DataMain); err != nil {
+			pv.err = err
+			return
+		}
+		data, err := material.Load(bytes.NewReader(data[stingray.DataMain]))
+		if err != nil {
+			pv.err = fmt.Errorf("loading material: %w", err)
+			return
+		}
+
+		err = pv.state.material.LoadMaterial(data, pv.getResource, pv.hashes, pv.thinhashes)
+		if err != nil {
+			pv.err = fmt.Errorf("loading material state: %w", err)
+			return
+		}
 	default:
 		pv.activeType = AutoPreviewEmpty
 	}
@@ -255,6 +278,8 @@ func AutoPreview(name string, pv *AutoPreviewState) bool {
 		DDSPreview(name, pv.state.texture)
 	case AutoPreviewStrings:
 		StringsPreview(pv.state.strings)
+	case AutoPreviewMaterial:
+		MaterialPreview(name, pv.state.material)
 	default:
 		panic("unhandled case")
 	}
