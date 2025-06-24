@@ -116,6 +116,7 @@ func BuildImagePreviewArea(pv *DDSPreviewState, pos, area imgui.Vec2) {
 		imgPos := pos.Sub(scaledImageSize.Div(2)).Add(area.Div(2)).Add(offsetPx)
 		imgui.WindowDrawList().AddImage(imgui.TextureID(pv.textureID), imgPos, imgPos.Add(scaledImageSize))
 	}
+	imgui.SetNextItemAllowOverlap()
 	imgui.InvisibleButton("##overlay", area)
 	io := imgui.CurrentIO()
 	if imgui.IsItemActive() && pv != nil {

@@ -199,6 +199,9 @@ func MaterialPreview(name string, pv *MaterialPreviewState) {
 	imgui.SameLine()
 	imgui.BeginDisabledV(ddsPv == nil || !ddsPv.imageHasAlpha)
 	var ignoreAlphaProxy bool
+	if ddsPv != nil {
+		ignoreAlphaProxy = ddsPv.ignoreAlpha
+	}
 	if imgui.Checkbox("Ignore alpha", &ignoreAlphaProxy) && ddsPv != nil {
 		ddsPv.ignoreAlpha = ignoreAlphaProxy
 		swizzleA := int32(gl.ALPHA)
