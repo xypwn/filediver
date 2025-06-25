@@ -2,8 +2,11 @@ package previews
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/AllenDang/cimgui-go/imgui"
@@ -18,7 +21,7 @@ import (
 )
 
 type MaterialPreviewState struct {
-	textures      map[string]*DDSPreviewState
+	textures      map[string]*DDSPreviewState // nil preview state represents null texture
 	textureKeys   [][2]string
 	activeTexture int
 	settings      map[string][]float32
@@ -34,15 +37,16 @@ type MaterialPreviewState struct {
 func NewMaterialPreview() *MaterialPreviewState {
 	return &MaterialPreviewState{
 		textures:      make(map[string]*DDSPreviewState),
-		textureKeys:   make([][2]string, 0),
 		activeTexture: -1,
 		settings:      make(map[string][]float32),
 	}
 }
 
 func (pv *MaterialPreviewState) Delete() {
-	for key := range pv.textures {
-		pv.textures[key].Delete()
+	for _, state := range pv.textures {
+		if state != nil {
+			state.Delete()
+		}
 	}
 }
 
@@ -50,37 +54,54 @@ func (pv *MaterialPreviewState) LoadMaterial(mat *material.Material, getResource
 	if mat == nil {
 		return fmt.Errorf("attempted to load nil material")
 	}
-	if len(pv.textures) > 0 {
-		pv.Delete()
-		pv.textures = make(map[string]*DDSPreviewState)
-		pv.textureKeys = make([][2]string, 0)
-		pv.activeTexture = -1
-	}
-	if len(pv.settings) > 0 {
-		pv.settingKeys = make([]string, 0)
-		pv.settings = make(map[string][]float32)
-	}
-	for key, path := range mat.Textures {
+
+	pv.Delete()
+	clear(pv.textures)
+	pv.textureKeys = nil
+	pv.activeTexture = -1
+	clear(pv.settings)
+	pv.settingKeys = nil
+
+	sortedTextureUsages := slices.SortedFunc(maps.Keys(mat.Textures), stingray.ThinHash.Cmp)
+	for _, key := range sortedTextureUsages {
+		path := mat.Textures[key]
 		var imageName, pathName string
 		var ok bool
 		usage := extr_material.TextureUsage(key.Value)
 		imageName = usage.String()
+		unknownUsage := extr_material.TextureUsage(0)
+		if imageName == (&unknownUsage).String() {
+			imageName += " (" + key.String() + ")"
+		}
 		if pathName, ok = hashes[path]; !ok {
 			pathName = path.String()
 		}
-		dataMain, _, err := getResource(stingray.FileID{Name: path, Type: stingray.Sum64([]byte("texture"))}, stingray.DataMain)
+
+		textureKey := [2]string{imageName, pathName}
+
+		if path.Value == 0 {
+			// Zero texture
+			pv.textureKeys = append(pv.textureKeys, textureKey)
+			pv.textures[imageName] = nil
+			continue
+		}
+
+		dataMain, fileExists, err := getResource(stingray.FileID{Name: path, Type: stingray.Sum64([]byte("texture"))}, stingray.DataMain)
 		if err != nil {
-			return fmt.Errorf("material texture %v: loading main data: %w", pathName, err)
+			return fmt.Errorf("material texture %v: %w", pathName, err)
+		}
+		if !fileExists {
+			return fmt.Errorf("material texture %v: referenced texture does not exist", pathName)
 		}
 
 		dataGPU, _, err := getResource(stingray.FileID{Name: path, Type: stingray.Sum64([]byte("texture"))}, stingray.DataGPU)
 		if err != nil {
-			return fmt.Errorf("material texture %v: loading gpu data: %w", pathName, err)
+			return fmt.Errorf("material texture %v: %w", pathName, err)
 		}
 
 		dataStream, _, err := getResource(stingray.FileID{Name: path, Type: stingray.Sum64([]byte("texture"))}, stingray.DataStream)
-		if err != nil {
-			dataStream = make([]byte, 0)
+		if err != nil && !errors.Is(err, stingray.ErrFileDataTypeNotExist) {
+			return fmt.Errorf("material texture %v: %w", pathName, err)
 		}
 
 		r := io.MultiReader(
@@ -96,12 +117,13 @@ func (pv *MaterialPreviewState) LoadMaterial(mat *material.Material, getResource
 			return fmt.Errorf("material texture %v: loading DDS image: %w", pathName, err)
 		}
 
-		pv.textureKeys = append(pv.textureKeys, [2]string{imageName, pathName})
+		pv.textureKeys = append(pv.textureKeys, textureKey)
 		pv.textures[imageName] = NewDDSPreview()
 		pv.textures[imageName].LoadImage(img)
-		if pv.activeTexture == -1 {
-			pv.activeTexture = 0
-		}
+	}
+
+	if len(pv.textureKeys) > 0 && pv.activeTexture == -1 {
+		pv.activeTexture = 0
 	}
 
 	unknownUsage := extr_material.SettingsUsage(0x0)
@@ -137,17 +159,25 @@ func MaterialPreview(name string, pv *MaterialPreviewState) {
 		texturePath = pv.textureKeys[pv.activeTexture][1]
 		ddsPv = pv.textures[textureUsage]
 	}
-	if ddsPv != nil {
-		imutils.Textf("Usage=%v (%v/%v)\nSize=(%v,%v)\nFormat=%v\nPath=%v\nNum Settings=%v", textureUsage, pv.activeTexture+1, len(pv.textures), ddsPv.imageSize.X, ddsPv.imageSize.Y, ddsPv.ddsInfo.DXT10Header.DXGIFormat, texturePath, len(pv.settings))
-		ddsPv.offset = pv.offset
-		ddsPv.zoom = pv.zoom
-		ddsPv.linearFiltering = pv.linearFiltering
-		if ddsPv.imageHasAlpha {
-			ddsPv.ignoreAlpha = pv.ignoreAlpha
+	var infoB strings.Builder
+	if currTexture != -1 {
+		fmt.Fprintf(&infoB, "Usage=%v (%v/%v)\n", textureUsage, pv.activeTexture+1, len(pv.textures))
+		if ddsPv != nil {
+			fmt.Fprintf(&infoB, "Size=(%v,%v)\nFormat=%v\nPath=%v\n", ddsPv.imageSize.X, ddsPv.imageSize.Y, ddsPv.ddsInfo.DXT10Header.DXGIFormat, texturePath)
+			ddsPv.offset = pv.offset
+			ddsPv.zoom = pv.zoom
+			ddsPv.linearFiltering = pv.linearFiltering
+			if ddsPv.imageHasAlpha {
+				ddsPv.ignoreAlpha = pv.ignoreAlpha
+			}
+		} else {
+			fmt.Fprintf(&infoB, "Usage=N/A (0/0)\nSize=N/A\nFormat=N/A\nPath=N/A\n")
 		}
 	} else {
-		imutils.Textf("Usage=N/A (0/0)\nSize=N/A\nFormat=N/A\nPath=N/A\nNum Settings=%v", len(pv.settings))
+		fmt.Fprintf(&infoB, "Usage=N/A (0/0)\nSize=N/A\nFormat=N/A\nPath=N/A\n")
 	}
+	fmt.Fprintf(&infoB, "Num Settings=%v\n", len(pv.settings))
+	imgui.TextUnformatted(infoB.String())
 
 	{
 		size := imgui.ContentRegionAvail()
@@ -158,7 +188,16 @@ func MaterialPreview(name string, pv *MaterialPreviewState) {
 		imgui.SetNextWindowSize(size)
 	}
 
-	if imgui.BeginChildStr("##DDS image preview") {
+	cycleTexDelta := 0
+
+	if imgui.Shortcut(imgui.KeyChord(imgui.KeyLeftArrow)) {
+		cycleTexDelta--
+	}
+	if imgui.Shortcut(imgui.KeyChord(imgui.KeyRightArrow)) {
+		cycleTexDelta++
+	}
+
+	if imgui.BeginChildStrV("##DDS image preview", imgui.NewVec2(0, 0), 0, 0) {
 		pos := imgui.CursorScreenPos()
 		area := imgui.ContentRegionAvail()
 		BuildImagePreviewArea(ddsPv, pos, area)
@@ -169,26 +208,26 @@ func MaterialPreview(name string, pv *MaterialPreviewState) {
 			pv.zoom = ddsPv.zoom
 		}
 		style := imgui.CurrentStyle()
+		imgui.BeginDisabledV(len(pv.textureKeys) < 2)
+		imgui.PushItemFlag(imgui.ItemFlagsNoNav, true)
 		imgui.SetCursorScreenPos(imgui.NewVec2(pos.X+style.ItemSpacing().X, pos.Y+area.Y/2))
-		imgui.BeginDisabledV(len(pv.textureKeys) < 2)
 		if imgui.Button(fnt.I("Arrow_left")) {
-			pv.activeTexture = pv.activeTexture - 1
-			if pv.activeTexture < 0 {
-				pv.activeTexture = len(pv.textureKeys) - 1
-			}
+			cycleTexDelta--
 		}
-		imgui.EndDisabled()
 		imgui.SetCursorScreenPos(imgui.NewVec2(pos.X+area.X-imgui.FrameHeightWithSpacing()-style.ItemSpacing().X, pos.Y+area.Y/2))
-		imgui.BeginDisabledV(len(pv.textureKeys) < 2)
 		if imgui.Button(fnt.I("Arrow_right")) {
-			pv.activeTexture = pv.activeTexture + 1
-			if pv.activeTexture >= len(pv.textureKeys) {
-				pv.activeTexture = 0
-			}
+			cycleTexDelta++
 		}
+		imgui.PopItemFlag()
 		imgui.EndDisabled()
 
-		if pv.activeTexture != currTexture {
+		if ddsPv == nil {
+			text := "<nil texture>"
+			textSize := imgui.CalcTextSize(text)
+			textPos := pos.Add(area.Div(2)).Sub(textSize.Div(2))
+			imgui.SetCursorScreenPos(textPos)
+			imgui.TextUnformatted(text)
+		} else if pv.activeTexture != currTexture {
 			// Swapping textures, make sure they use the correct ignore alpha & linear filtering
 			// values
 			textureUsage = pv.textureKeys[pv.activeTexture][0]
@@ -210,6 +249,13 @@ func MaterialPreview(name string, pv *MaterialPreviewState) {
 		}
 	}
 	imgui.EndChild()
+
+	if len(pv.textureKeys) > 0 {
+		mod := func(a, b int) int { // python-like modulo
+			return (a%b + b) % b
+		}
+		pv.activeTexture = mod(pv.activeTexture+cycleTexDelta, len(pv.textureKeys))
+	}
 
 	if imgui.Button(fnt.I("Home")) {
 		pv.offset = imgui.NewVec2(0, 0)
@@ -254,29 +300,25 @@ func MaterialPreview(name string, pv *MaterialPreviewState) {
 		imgui.TableSetupScrollFreeze(0, 1)
 		imgui.TableHeadersRow()
 
-		clipper := imgui.NewListClipper()
-		clipper.Begin(int32(len(pv.settingKeys)))
-		for clipper.Step() {
-			for row := clipper.DisplayStart(); row < clipper.DisplayEnd(); row++ {
-				id := pv.settingKeys[row]
-				imgui.PushIDStr(id)
+		for _, id := range pv.settingKeys {
+			imgui.PushIDStr(id)
 
-				imgui.TableNextColumn()
-				imgui.TextUnformatted(id)
+			imgui.TableNextColumn()
+			imutils.CopyableTextf("%v", id)
 
-				imgui.TableNextColumn()
-				settingValue := pv.settings[id]
-				formatted := make([]string, len(settingValue))
-				for i := range settingValue {
-					formatted[i] = fmt.Sprintf("%.3f", settingValue[i])
-				}
-				settingString := strings.Join(formatted, ", ")
-				if len(settingValue) > 1 {
-					settingString = "(" + settingString + ")"
-				}
-				imgui.Text(settingString)
-				imgui.PopID()
+			imgui.TableNextColumn()
+			settingValue := pv.settings[id]
+			formatted := make([]string, len(settingValue))
+			for i := range settingValue {
+				formatted[i] = fmt.Sprintf("%.3f", settingValue[i])
 			}
+			settingString := strings.Join(formatted, ", ")
+			if len(settingValue) > 1 {
+				settingString = "(" + settingString + ")"
+			}
+			imgui.TextUnformatted(settingString)
+
+			imgui.PopID()
 		}
 		imgui.EndTable()
 	}
