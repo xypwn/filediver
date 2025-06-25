@@ -320,7 +320,7 @@ func Decode(r io.Reader, readMipMaps bool) (*DDS, error) {
 				return nil, errors.New("invalid color model passed by info structure")
 			}
 			if err := info.Decompress(buf, r, width, height, info); err != nil {
-				return nil, err
+				return nil, fmt.Errorf("decode image %v mip %v: %w", i, j, err)
 			}
 			mipMaps = append(mipMaps, &DDSMipMap{
 				Image:  img,
