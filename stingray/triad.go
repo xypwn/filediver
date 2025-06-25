@@ -13,6 +13,12 @@ import (
 	"strings"
 )
 
+var (
+	// Returned when the file exists, but doesn't have the
+	// requested data type.
+	ErrFileDataTypeNotExist = errors.New("requested file data type doesn't exist")
+)
+
 type DataType int
 
 const (
@@ -196,7 +202,7 @@ func (tr *Triad) HasDataType(typ DataType) bool {
 
 func (tr *Triad) fileInfo(fileIndex int, typ DataType) (path string, offset uint64, size uint32, err error) {
 	if !tr.HasDataType(typ) {
-		return "", 0, 0, fmt.Errorf("don't have %v file type", typ)
+		return "", 0, 0, fmt.Errorf("%v data: %w", typ, ErrFileDataTypeNotExist)
 	}
 
 	if fileIndex >= len(tr.Files) {
@@ -246,6 +252,9 @@ func (f *containedFile) Close() error {
 	return f.f.Close()
 }
 
+// OpenFile attempts to open
+// Returns a wrapped version of ErrFileDataTypeNotExist when the file exists,
+// but doesn't have the requested data type.
 // Call Close() on returned reader when done.
 func (tr *Triad) OpenFile(fileIndex int, typ DataType) (io.ReadSeekCloser, error) {
 	path, offset, size, err := tr.fileInfo(fileIndex, typ)
@@ -254,7 +263,7 @@ func (tr *Triad) OpenFile(fileIndex int, typ DataType) (io.ReadSeekCloser, error
 	}
 
 	if size == 0 {
-		return nil, errors.New("contained file does not exist")
+		return nil, fmt.Errorf("%v data: %w", typ, ErrFileDataTypeNotExist)
 	}
 
 	f, err := os.Open(path)
