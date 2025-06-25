@@ -252,7 +252,8 @@ func (f *containedFile) Close() error {
 	return f.f.Close()
 }
 
-// OpenFile attempts to open
+// OpenFile attempts to open the file with the given index and type
+// within the Triad.
 // Returns a wrapped version of ErrFileDataTypeNotExist when the file exists,
 // but doesn't have the requested data type.
 // Call Close() on returned reader when done.
