@@ -12,8 +12,78 @@ import (
 	"github.com/xypwn/filediver/app/appconfig"
 	fnt "github.com/xypwn/filediver/cmd/filediver-gui/fonts"
 	"github.com/xypwn/filediver/cmd/filediver-gui/imutils"
+	"github.com/xypwn/filediver/cmd/filediver-gui/textutils"
 	"github.com/xypwn/filediver/config"
 )
+
+func configEditorFieldFullHelp(field *config.Field) string {
+	var affectedTypes []string
+	for _, tag := range field.Tags {
+		if after, ok := strings.CutPrefix(tag, "t:"); ok {
+			affectedTypes = append(affectedTypes, after)
+		}
+	}
+	help := field.Help
+	if len(affectedTypes) != 0 {
+		if help != "" {
+			help += ", "
+		}
+		help += "affects: " + strings.Join(affectedTypes, ", ")
+	}
+	if help == "" {
+		help = strcase.ToDelimited(field.Name, ' ')
+	}
+	return help
+}
+
+func configEditorShownFields(query string, showAdvanced bool) map[string]bool {
+	// Fully show matching categories.
+	fullyShownCategories := map[string]bool{}
+	for _, field := range appconfig.ConfigFields.Fields {
+		if !field.IsCategory {
+			continue
+		}
+		fullyShownCategories[field.Name] = textutils.QueryMatchesAny(query,
+			field.Name, configEditorFieldFullHelp(field))
+	}
+
+	// Show regular fields if they are part of
+	// a fully shown category or any of their strings
+	// match the query.
+	shownRegularFields := map[string]bool{}
+	{
+		var category string
+		for _, field := range appconfig.ConfigFields.Fields {
+			if field.IsCategory {
+				category = field.Name
+				continue
+			}
+			isAdvanced := slices.Contains(field.Tags, "advanced")
+			if isAdvanced && !showAdvanced {
+				continue
+			}
+			shownRegularFields[field.Name] =
+				fullyShownCategories[category] ||
+					textutils.QueryMatchesAny(query, field.Name, configEditorFieldFullHelp(field)) ||
+					textutils.QueryMatchesAny(query, field.Options...)
+		}
+	}
+
+	shownFields := map[string]bool{}
+	{
+		var category string
+		for _, field := range appconfig.ConfigFields.Fields {
+			if field.IsCategory {
+				category = field.Name
+			}
+			if shownRegularFields[field.Name] {
+				shownFields[field.Name] = true
+				shownFields[category] = true
+			}
+		}
+	}
+	return shownFields
+}
 
 func ConfigEditor(cfg *appconfig.Config, showAdvanced *bool, queryBuf *string) (changed bool) {
 	imgui.PushIDStr("##config editor")
@@ -34,62 +104,19 @@ func ConfigEditor(cfg *appconfig.Config, showAdvanced *bool, queryBuf *string) (
 		return
 	}
 
+	shownFields := configEditorShownFields(*queryBuf, *showAdvanced)
+
 	configV := reflect.ValueOf(cfg).Elem()
 	category := ""
 
-	isFieldShown := func(field *config.Field) bool {
-		if field.IsCategory {
-			return false
-		}
-		isAdvanced := slices.Contains(field.Tags, "advanced")
-		if isAdvanced && !*showAdvanced {
-			return false
-		}
-		match := func(s string) bool {
-			return strings.Contains(
-				strings.ToLower(s),
-				strings.ToLower(*queryBuf),
-			)
-		}
-		matchesQuery := *queryBuf == "" ||
-			match(field.Name) ||
-			slices.ContainsFunc(field.Options, match)
-		return matchesQuery
-	}
-
-	// Show a category if any of its children are shown
-	shownCategories := map[string]bool{}
 	for _, field := range appconfig.ConfigFields.Fields {
-		category, _, ok := strings.Cut(field.Name, ".")
-		if ok && isFieldShown(field) {
-			shownCategories[category] = true
-		}
-	}
-
-	for _, field := range appconfig.ConfigFields.Fields {
-		if !isFieldShown(field) && !(field.IsCategory && shownCategories[field.Name]) {
+		if !shownFields[field.Name] {
 			continue
 		}
 
 		var tooltip string
 		if dependsSatisfied[field.Name] {
-			var affectedTypes []string
-			for _, tag := range field.Tags {
-				if after, ok := strings.CutPrefix(tag, "t:"); ok {
-					affectedTypes = append(affectedTypes, after)
-				}
-			}
-			help := field.Help
-			if len(affectedTypes) != 0 {
-				if help != "" {
-					help += ", "
-				}
-				help += "affects: " + strings.Join(affectedTypes, ", ")
-			}
-			if help == "" {
-				help = strcase.ToDelimited(field.Name, ' ')
-			}
-			tooltip = help
+			tooltip = configEditorFieldFullHelp(field)
 			switch field.Type.Kind() {
 			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
 				reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
