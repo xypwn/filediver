@@ -7,6 +7,7 @@ import (
 
 	"github.com/AllenDang/cimgui-go/imgui"
 	fnt "github.com/xypwn/filediver/cmd/filediver-gui/fonts"
+	"github.com/xypwn/filediver/cmd/filediver-gui/textutils"
 )
 
 func FilterListButton[T comparable](title string, windowOpen *bool, sel map[T]struct{}) bool {
@@ -92,7 +93,7 @@ func FilterListWindow[T comparable](title string, windowOpen *bool, searchHint s
 	for _, sec := range sections {
 		matches = matches[:0]
 		for _, item := range sec.Items {
-			if *queryBuf == "" || strings.Contains(strings.ToLower(searchText(item)), strings.ToLower(*queryBuf)) {
+			if textutils.QueryMatchesAny(*queryBuf, searchText(item)) {
 				matches = append(matches, match{item, drawItem})
 			}
 		}

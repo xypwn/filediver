@@ -10,6 +10,7 @@ import (
 	"github.com/AllenDang/cimgui-go/imgui"
 	fnt "github.com/xypwn/filediver/cmd/filediver-gui/fonts"
 	"github.com/xypwn/filediver/cmd/filediver-gui/imutils"
+	"github.com/xypwn/filediver/cmd/filediver-gui/textutils"
 	stingray_strings "github.com/xypwn/filediver/stingray/strings"
 )
 
@@ -45,8 +46,8 @@ func (pv *StringsPreviewState) NeedCJKFont() bool {
 func (pv *StringsPreviewState) updateShownIDs() {
 	pv.shownIDs = pv.shownIDs[:0]
 	for _, id := range slices.Sorted(maps.Keys(pv.strings)) {
-		match := fmt.Sprintf("%v %v", id, pv.strings[id])
-		if strings.Contains(strings.ToLower(match), strings.ToLower(pv.queryBuf)) {
+		if textutils.QueryMatchesAny(pv.queryBuf,
+			fmt.Sprint(id), pv.strings[id]) {
 			pv.shownIDs = append(pv.shownIDs, id)
 		}
 	}

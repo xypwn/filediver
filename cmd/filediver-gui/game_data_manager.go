@@ -12,6 +12,7 @@ import (
 	"github.com/xypwn/filediver/app"
 	"github.com/xypwn/filediver/app/appconfig"
 	fnt "github.com/xypwn/filediver/cmd/filediver-gui/fonts"
+	"github.com/xypwn/filediver/cmd/filediver-gui/textutils"
 	"github.com/xypwn/filediver/exec"
 	"github.com/xypwn/filediver/extractor/single_glb_helper"
 	"github.com/xypwn/filediver/hashes"
@@ -57,7 +58,7 @@ func (gd *GameData) UpdateSearchQuery(query string, allowedTypes map[stingray.Ha
 				return
 			}
 		}
-		if strings.Contains(gd.KnownFileNames[fileID], query) || strings.Contains(gd.HashFileNames[fileID], query) {
+		if textutils.QueryMatchesAny(query, gd.KnownFileNames[fileID], gd.HashFileNames[fileID]) {
 			gd.SortedSearchResultFileIDs = append(gd.SortedSearchResultFileIDs, fileID)
 		}
 	}
