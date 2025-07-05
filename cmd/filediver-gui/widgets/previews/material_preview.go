@@ -138,6 +138,7 @@ func (pv *MaterialPreviewState) LoadMaterial(mat *material.Material, getResource
 		pv.settings[keyName] = value
 		pv.settingKeys = append(pv.settingKeys, keyName)
 	}
+	slices.Sort(pv.settingKeys)
 
 	return nil
 }
