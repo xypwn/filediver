@@ -1,6 +1,11 @@
 package appconfig
 
 import (
+	"encoding/json"
+	"errors"
+	"io/fs"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 
@@ -54,6 +59,40 @@ type Config struct {
 	Raw struct {
 		Format string `cfg:"options=separate,combined,main,stream,gpu help='how to handle the different file sub-types (each file may have a main, stream and GPU file)'"`
 	} `cfg:"help='applies to any file without an available extractor or \"raw\" as the selected format'"`
+}
+
+// Config must be comparable
+var _ = Config{} == Config{}
+
+// Replaces c with preferences in JSON file specified by path.
+// Leaves p unchanged if an error occurs. If the file isn't present,
+// attempts to write the current state of p to the file.
+func (c *Config) Load(path string) error {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return c.Save(path)
+		}
+		return err
+	}
+	newC := *c
+	if err := json.Unmarshal(b, &newC); err != nil {
+		return err
+	}
+	*c = newC
+	return nil
+}
+
+func (c *Config) Save(path string) error {
+	if err := os.MkdirAll(filepath.Dir(path),
+		os.ModePerm); err != nil {
+		return err
+	}
+	b, err := json.Marshal(c)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, b, 0666)
 }
 
 var Extractable = map[string]bool{

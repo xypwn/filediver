@@ -100,8 +100,8 @@ type guiApp struct {
 	exportDir                   string
 	exportNotifyWhenDone        bool
 	extractorConfig             appconfig.Config
-	prevExtractorConfig         appconfig.Config
 	extractorConfigShowAdvanced bool
+	extractorConfigPath         string
 
 	logger *Logger
 
@@ -141,7 +141,7 @@ func newGUIApp(showErrorPopup func(error)) *guiApp {
 		exportDir:                  filepath.Join(xdg.UserDirs.Download, "filediver_exports"),
 		exportNotifyWhenDone:       true,
 		extractorConfig:            extractorConfig,
-		prevExtractorConfig:        extractorConfig,
+		extractorConfigPath:        filepath.Join(xdg.DataHome, "filediver", "extractor_config.json"),
 		logger:                     NewLogger(),
 		downloadsDir:               filepath.Join(xdg.DataHome, "filediver"),
 		runner:                     exec.NewRunner(),
@@ -174,8 +174,6 @@ func (a *guiApp) onInitWindow(state *imgui_wrapper.State) error {
 	if err := a.otoCtx.Err(); err != nil {
 		return fmt.Errorf("audio context: %w", err)
 	}
-
-	a.gameDataLoad.GoLoadGameData(a.ctx, "")
 
 	{
 		ffmpegTarget := getter.Target{
@@ -243,9 +241,17 @@ func (a *guiApp) onInitWindow(state *imgui_wrapper.State) error {
 		}
 	}
 
+	{
+		if err := a.extractorConfig.Load(a.extractorConfigPath); err != nil {
+			return fmt.Errorf("loading extractor config: %w", err)
+		}
+	}
+
 	if a.preferences.AutoCheckForUpdates && version != "" {
 		a.goCheckForUpdates(true)
 	}
+
+	a.gameDataLoad.GoLoadGameData(a.ctx, "")
 
 	return nil
 }
@@ -873,8 +879,9 @@ func (a *guiApp) drawExportWindow() {
 
 func (a *guiApp) drawExtractorConfigWindow() {
 	if imgui.Begin(fnt.I("Settings_applications") + " Extractor config") {
+		prevExtrCfg := a.extractorConfig
 		if widgets.ConfigEditor(&a.extractorConfig, &a.extractorConfigShowAdvanced) {
-			if a.extractorConfig.Gamedir != a.prevExtractorConfig.Gamedir {
+			if a.extractorConfig.Gamedir != prevExtrCfg.Gamedir {
 				a.gameData = nil
 				gameDir := ""
 				if a.extractorConfig.Gamedir != "<auto-detect>" {
@@ -882,7 +889,11 @@ func (a *guiApp) drawExtractorConfigWindow() {
 				}
 				a.gameDataLoad.GoLoadGameData(a.ctx, gameDir)
 			}
-			a.prevExtractorConfig = a.extractorConfig
+			if a.extractorConfig != prevExtrCfg {
+				if err := a.extractorConfig.Save(a.extractorConfigPath); err != nil {
+					a.showErrorPopup(err)
+				}
+			}
 		}
 	}
 	imgui.End()
