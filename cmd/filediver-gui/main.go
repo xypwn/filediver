@@ -102,6 +102,7 @@ type guiApp struct {
 	extractorConfig             appconfig.Config
 	extractorConfigShowAdvanced bool
 	extractorConfigPath         string
+	extractorConfigSearchQuery  string
 
 	logger *Logger
 
@@ -880,8 +881,8 @@ func (a *guiApp) drawExportWindow() {
 func (a *guiApp) drawExtractorConfigWindow() {
 	if imgui.Begin(fnt.I("Settings_applications") + " Extractor config") {
 		prevExtrCfg := a.extractorConfig
-		if widgets.ConfigEditor(&a.extractorConfig, &a.extractorConfigShowAdvanced) {
-			if a.extractorConfig.Gamedir != prevExtrCfg.Gamedir {
+		if widgets.ConfigEditor(&a.extractorConfig, &a.extractorConfigShowAdvanced, &a.extractorConfigSearchQuery) {
+			if a.extractorConfig.Gamedir != a.prevExtractorConfig.Gamedir {
 				a.gameData = nil
 				gameDir := ""
 				if a.extractorConfig.Gamedir != "<auto-detect>" {

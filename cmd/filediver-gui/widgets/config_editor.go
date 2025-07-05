@@ -2,6 +2,7 @@ package widgets
 
 import (
 	"fmt"
+	"math"
 	"reflect"
 	"slices"
 	"strings"
@@ -11,41 +12,111 @@ import (
 	"github.com/xypwn/filediver/app/appconfig"
 	fnt "github.com/xypwn/filediver/cmd/filediver-gui/fonts"
 	"github.com/xypwn/filediver/cmd/filediver-gui/imutils"
+	"github.com/xypwn/filediver/cmd/filediver-gui/textutils"
 	"github.com/xypwn/filediver/config"
 )
 
-func ConfigEditor(cfg *appconfig.Config, showAdvanced *bool) (changed bool) {
+func configEditorFieldFullHelp(field *config.Field) string {
+	var affectedTypes []string
+	for _, tag := range field.Tags {
+		if after, ok := strings.CutPrefix(tag, "t:"); ok {
+			affectedTypes = append(affectedTypes, after)
+		}
+	}
+	help := field.Help
+	if len(affectedTypes) != 0 {
+		if help != "" {
+			help += ", "
+		}
+		help += "affects: " + strings.Join(affectedTypes, ", ")
+	}
+	if help == "" {
+		help = strcase.ToDelimited(field.Name, ' ')
+	}
+	return help
+}
+
+func configEditorShownFields(query string, showAdvanced bool) map[string]bool {
+	// Fully show matching categories.
+	fullyShownCategories := map[string]bool{}
+	for _, field := range appconfig.ConfigFields.Fields {
+		if !field.IsCategory {
+			continue
+		}
+		fullyShownCategories[field.Name] = textutils.QueryMatchesAny(query,
+			field.Name, configEditorFieldFullHelp(field))
+	}
+
+	// Show regular fields if they are part of
+	// a fully shown category or any of their strings
+	// match the query.
+	shownRegularFields := map[string]bool{}
+	{
+		var category string
+		for _, field := range appconfig.ConfigFields.Fields {
+			if field.IsCategory {
+				category = field.Name
+				continue
+			}
+			isAdvanced := slices.Contains(field.Tags, "advanced")
+			if isAdvanced && !showAdvanced {
+				continue
+			}
+			shownRegularFields[field.Name] =
+				fullyShownCategories[category] ||
+					textutils.QueryMatchesAny(query, field.Name, configEditorFieldFullHelp(field)) ||
+					textutils.QueryMatchesAny(query, field.Options...)
+		}
+	}
+
+	shownFields := map[string]bool{}
+	{
+		var category string
+		for _, field := range appconfig.ConfigFields.Fields {
+			if field.IsCategory {
+				category = field.Name
+			}
+			if shownRegularFields[field.Name] {
+				shownFields[field.Name] = true
+				shownFields[category] = true
+			}
+		}
+	}
+	return shownFields
+}
+
+func ConfigEditor(cfg *appconfig.Config, showAdvanced *bool, queryBuf *string) (changed bool) {
+	imgui.PushIDStr("##config editor")
+	defer imgui.PopID()
+
+	imgui.SetNextItemWidth(-math.SmallestNonzeroFloat32)
+	imgui.InputTextWithHint("##search", fnt.I("Search")+" Filter options...", queryBuf, 0, nil)
+	imgui.Checkbox("Show advanced options", showAdvanced)
+
+	defer imgui.EndChild()
+	if !imgui.BeginChildStr("##options") {
+		return false
+	}
+
 	dependsSatisfied, err := config.DependsSatisfied(cfg)
 	if err != nil {
 		imutils.TextError(err)
 		return
 	}
 
+	shownFields := configEditorShownFields(*queryBuf, *showAdvanced)
+
 	configV := reflect.ValueOf(cfg).Elem()
 	category := ""
 
-	imgui.Checkbox("Show advanced options", showAdvanced)
-
 	for _, field := range appconfig.ConfigFields.Fields {
+		if !shownFields[field.Name] {
+			continue
+		}
+
 		var tooltip string
 		if dependsSatisfied[field.Name] {
-			var affectedTypes []string
-			for _, tag := range field.Tags {
-				if after, ok := strings.CutPrefix(tag, "t:"); ok {
-					affectedTypes = append(affectedTypes, after)
-				}
-			}
-			help := field.Help
-			if len(affectedTypes) != 0 {
-				if help != "" {
-					help += ", "
-				}
-				help += "affects: " + strings.Join(affectedTypes, ", ")
-			}
-			if help == "" {
-				help = strcase.ToDelimited(field.Name, ' ')
-			}
-			tooltip = help
+			tooltip = configEditorFieldFullHelp(field)
 			switch field.Type.Kind() {
 			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
 				reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
@@ -80,10 +151,6 @@ func ConfigEditor(cfg *appconfig.Config, showAdvanced *bool) (changed bool) {
 		} else if category == "" {
 			category = "General"
 			imgui.SeparatorText(category)
-		}
-		isAdvanced := slices.Contains(field.Tags, "advanced")
-		if isAdvanced && !*showAdvanced {
-			continue
 		}
 
 		imgui.PushIDStr(field.Name)
@@ -172,127 +239,4 @@ func ConfigEditor(cfg *appconfig.Config, showAdvanced *bool) (changed bool) {
 	}
 
 	return
-
-	/*reset := func() {
-		*config = app.Config{}
-		for extrName := range template.Extractors {
-			(*config)[extrName] = map[string]string{}
-		}
-	}
-	if *config == nil {
-		reset()
-	}
-
-	editOption := func(convName, optName string) bool {
-		changed := false
-		strID := "##" + convName + optName
-		opt := template.Extractors[convName].Options[optName]
-		if opt.Type == app.ConfigValueEnum {
-			if len(opt.Enum) == 2 && slices.Contains(opt.Enum, "false") && slices.Contains(opt.Enum, "true") {
-				var val bool
-				defaultVal := opt.Enum[0] == "true"
-				if v := (*config)[convName][optName]; v != "" {
-					val = v == "true"
-				} else {
-					val = defaultVal
-				}
-				if imgui.Checkbox(strID, &val) {
-					if val == defaultVal {
-						delete((*config)[convName], optName)
-					} else {
-						if val {
-							(*config)[convName][optName] = "true"
-						} else {
-							(*config)[convName][optName] = "false"
-						}
-					}
-					changed = true
-				}
-			} else {
-				selectedVal := (*config)[convName][optName]
-				defaultVal := opt.Enum[0]
-				if selectedVal == "" {
-					selectedVal = defaultVal
-				}
-
-				if imutils.ComboChoice(strID, &selectedVal, opt.Enum) {
-					if selectedVal == defaultVal {
-						delete((*config)[convName], optName)
-					} else {
-						(*config)[convName][optName] = selectedVal
-					}
-				}
-			}
-		} else if opt.Type == app.ConfigValueIntRange {
-			enabled := (*config)[convName][optName] != ""
-			imgui.BeginDisabledV(!enabled)
-			var val int32
-			sliderFormat := "no value"
-			if enabled {
-				i, _ := strconv.Atoi((*config)[convName][optName])
-				val = int32(i)
-				sliderFormat = "%d"
-			}
-			if imgui.SliderIntV(strID+" slider", &val, int32(opt.IntRangeMin), int32(opt.IntRangeMax), sliderFormat, imgui.SliderFlagsAlwaysClamp) {
-				(*config)[convName][optName] = strconv.Itoa(int(val))
-			}
-			if enabled {
-				imgui.SetItemTooltip(fnt.I("Lightbulb_2") + " Use Ctrl+Click to type in a value")
-			} else {
-				imgui.SetItemTooltip("Enable the checkbox first to set a value")
-			}
-			imgui.EndDisabled()
-
-			imgui.SameLine()
-			if imgui.Checkbox(strID+" check", &enabled) {
-				if enabled {
-					(*config)[convName][optName] = strconv.Itoa(opt.IntRangeMin)
-				} else {
-					delete((*config)[convName], optName)
-				}
-			}
-		} else {
-			imutils.TextError(errors.New("unsupported option type"))
-		}
-
-		return changed
-	}
-
-	if imgui.Button("Reset config##Config editor") {
-		reset()
-	}
-	const tableFlags = imgui.TableFlagsResizable | imgui.TableFlagsBorders | imgui.TableFlagsRowBg
-	if imgui.BeginTableV("##Config editor", 3, tableFlags, imgui.NewVec2(0, 0), 0) {
-		imgui.TableSetupColumn("Option")
-		imgui.TableSetupColumn("Value")
-		imgui.TableSetupColumnV("", imgui.TableColumnFlagsNoResize|imgui.TableColumnFlagsWidthFixed,
-			imgui.CalcTextSize(fnt.I("Undo")).X+imgui.CurrentStyle().ItemSpacing().X,
-			0)
-		imgui.TableHeadersRow()
-
-		for _, convName := range slices.Sorted(maps.Keys(template.Extractors)) {
-			conv := template.Extractors[convName]
-			imgui.TableNextColumn()
-			open := imgui.TreeNodeExStrV(convName, imgui.TreeNodeFlagsSpanFullWidth|imgui.TreeNodeFlagsSpanAllColumns)
-			imgui.TableNextColumn()
-			imgui.TableNextColumn()
-			if open {
-				for _, optName := range slices.Sorted(maps.Keys(conv.Options)) {
-					imgui.TableNextColumn()
-					imgui.TreeNodeExStrV(optName, imgui.TreeNodeFlagsLeaf|imgui.TreeNodeFlagsNoTreePushOnOpen)
-					imgui.TableNextColumn()
-					editOption(convName, optName)
-					imgui.TableNextColumn()
-					if (*config)[convName][optName] != "" {
-						if imgui.Button(fnt.I("Undo") + "##" + convName + " " + optName) {
-							(*config)[convName][optName] = ""
-						}
-						imgui.SetItemTooltip("Reset")
-					}
-				}
-				imgui.TreePop()
-			}
-		}
-		imgui.EndTable()
-	}*/
 }
