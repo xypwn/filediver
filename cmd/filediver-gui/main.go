@@ -882,7 +882,7 @@ func (a *guiApp) drawExtractorConfigWindow() {
 	if imgui.Begin(fnt.I("Settings_applications") + " Extractor config") {
 		prevExtrCfg := a.extractorConfig
 		if widgets.ConfigEditor(&a.extractorConfig, &a.extractorConfigShowAdvanced, &a.extractorConfigSearchQuery) {
-			if a.extractorConfig.Gamedir != a.prevExtractorConfig.Gamedir {
+			if a.extractorConfig.Gamedir != prevExtrCfg.Gamedir {
 				a.gameData = nil
 				gameDir := ""
 				if a.extractorConfig.Gamedir != "<auto-detect>" {
