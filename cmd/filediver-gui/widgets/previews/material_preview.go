@@ -13,6 +13,7 @@ import (
 	"github.com/go-gl/gl/v3.2-core/gl"
 	fnt "github.com/xypwn/filediver/cmd/filediver-gui/fonts"
 	"github.com/xypwn/filediver/cmd/filediver-gui/imutils"
+	"github.com/xypwn/filediver/cmd/filediver-gui/widgets"
 	"github.com/xypwn/filediver/dds"
 	extr_material "github.com/xypwn/filediver/extractor/material"
 	"github.com/xypwn/filediver/stingray"
@@ -21,11 +22,13 @@ import (
 )
 
 type MaterialPreviewState struct {
-	textures      map[string]*DDSPreviewState // nil preview state represents null texture
-	textureKeys   [][2]string
-	activeTexture int
-	settings      map[string][]float32
-	settingKeys   []string
+	textures         map[string]*DDSPreviewState // nil preview state represents null texture
+	textureKeys      [][2]string
+	activeTexture    int
+	settings         map[string][]float32
+	settingKeys      []string
+	baseMaterial     stingray.Hash
+	baseMaterialName string
 
 	offset          imgui.Vec2
 	zoom            float32
@@ -61,6 +64,7 @@ func (pv *MaterialPreviewState) LoadMaterial(mat *material.Material, getResource
 	pv.activeTexture = -1
 	clear(pv.settings)
 	pv.settingKeys = nil
+	pv.baseMaterial = stingray.Hash{}
 
 	sortedTextureUsages := slices.SortedFunc(maps.Keys(mat.Textures), stingray.ThinHash.Cmp)
 	for _, key := range sortedTextureUsages {
@@ -140,6 +144,13 @@ func (pv *MaterialPreviewState) LoadMaterial(mat *material.Material, getResource
 	}
 	slices.Sort(pv.settingKeys)
 
+	pv.baseMaterial = mat.BaseMaterial
+	if bmName, ok := hashes[mat.BaseMaterial]; ok {
+		pv.baseMaterialName = bmName
+	} else {
+		pv.baseMaterialName = mat.BaseMaterial.String()
+	}
+
 	return nil
 }
 
@@ -183,8 +194,9 @@ func MaterialPreview(name string, pv *MaterialPreviewState) {
 	{
 		size := imgui.ContentRegionAvail()
 		size.Y -= imutils.ComboHeight()
+		size.Y -= imgui.TextLineHeightWithSpacing() // base material
 		if len(pv.settings) > 0 {
-			size.Y -= imgui.TextLineHeightWithSpacing() * float32(min(len(pv.settings)+2, 6))
+			size.Y -= imgui.TextLineHeightWithSpacing() * float32(min(len(pv.settings)+2, 6)) // settings
 		}
 		imgui.SetNextWindowSize(size)
 	}
@@ -292,6 +304,18 @@ func MaterialPreview(name string, pv *MaterialPreviewState) {
 		imgui.SetItemTooltip("This image doesn't use an alpha component.")
 	} else {
 		imgui.SetItemTooltip("Ignore alpha component, making RGB components always fully visible.")
+	}
+
+	imgui.TextUnformatted("Base material:")
+	imgui.SameLine()
+	if (pv.baseMaterial == stingray.Hash{}) {
+		imgui.TextUnformatted("none")
+	} else {
+		fileID := stingray.FileID{
+			Name: pv.baseMaterial,
+			Type: stingray.Sum64([]byte("material")),
+		}
+		widgets.GamefileLinkTextF(fileID, "%v", pv.baseMaterialName)
 	}
 
 	const tableFlags = imgui.TableFlagsResizable | imgui.TableFlagsBorders | imgui.TableFlagsScrollY | imgui.TableFlagsRowBg
