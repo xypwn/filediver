@@ -805,20 +805,20 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 				indicatorColor := imgui.ColorU32Col(imgui.ColText)
 
 				indicatorWidth := size.X * indicatorWidthInWorld / screenWidthInWorld
-				indicatorPos := pos.Add(imgui.NewVec2(10, 10))
+				indicatorPos := pos.Add(imutils.SVec2(10, 10))
 				dl.AddRectFilled(
-					indicatorPos.Add(imgui.NewVec2(0, 0)),
-					indicatorPos.Add(imgui.NewVec2(2, 10)),
+					indicatorPos.Add(imutils.SVec2(0, 0)),
+					indicatorPos.Add(imutils.SVec2(2, 10)),
 					indicatorColor,
 				)
 				dl.AddRectFilled(
-					indicatorPos.Add(imgui.NewVec2(0, 4)),
-					indicatorPos.Add(imgui.NewVec2(indicatorWidth, 6)),
+					indicatorPos.Add(imutils.SVec2(0, 4)),
+					indicatorPos.Add(imgui.NewVec2(indicatorWidth, 0).Add(imutils.SVec2(0, 6))),
 					indicatorColor,
 				)
 				dl.AddRectFilled(
-					indicatorPos.Add(imgui.NewVec2(indicatorWidth-2, 0)),
-					indicatorPos.Add(imgui.NewVec2(indicatorWidth, 10)),
+					indicatorPos.Add(imgui.NewVec2(indicatorWidth, 0).Add(imutils.SVec2(-2, 0))),
+					indicatorPos.Add(imgui.NewVec2(indicatorWidth, 0).Add(imutils.SVec2(0, 10))),
 					indicatorColor,
 				)
 
@@ -848,10 +848,10 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 					dimPrefix,
 				)
 				textSize := imgui.CalcTextSize(text)
-				textPos := indicatorPos.Add(imgui.NewVec2(indicatorWidth/2-textSize.X/2, 12))
+				textPos := indicatorPos.Add(imgui.NewVec2(indicatorWidth/2-textSize.X/2, 0)).Add(imutils.SVec2(0, 12))
 				dl.AddRectFilled(
-					textPos.Add(imgui.NewVec2(-4, 0)),
-					textPos.Add(textSize).Add(imgui.NewVec2(4, 0)),
+					textPos.Add(imutils.SVec2(-4, 0)),
+					textPos.Add(textSize).Add(imutils.SVec2(4, 0)),
 					imgui.ColorU32Vec4(imgui.NewVec4(0, 0, 0, 0.5)),
 				)
 				dl.AddTextVec2(
@@ -887,18 +887,18 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 		imgui.TextUnformatted("Display")
 		imgui.Indent()
 		imgui.Checkbox("Wireframe mode", &pv.showWireframe)
-		imgui.SameLineV(200, -1)
+		imgui.SameLineV(imutils.S(170), -1)
 		imgui.ColorEdit4V("Wireframe color", &pv.wireframeColor, colorPickerFlags)
 
 		imgui.Checkbox("Bounding box", &pv.showAABB)
 		imgui.SameLine()
 		imgui.TextUnformatted(fnt.I("Warning"))
 		imgui.SetItemTooltip("Bounding boxes are known to sometimes be wrong")
-		imgui.SameLineV(200, -1)
+		imgui.SameLineV(imutils.S(170), -1)
 		imgui.ColorEdit4V("Bounding box color", &pv.aabbColor, colorPickerFlags)
 
 		imgui.Checkbox("Vertex normals", &pv.visualizeNormals)
-		imgui.SameLineV(200, -1)
+		imgui.SameLineV(imutils.S(170), -1)
 		imgui.ColorEdit4V("Vertex normals color", &pv.visualizedNormalsColor, colorPickerFlags)
 		imgui.Unindent()
 
@@ -915,13 +915,13 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 	imgui.BeginDisabledV(pv.numUdims <= 1)
 	if imgui.Button("UDims Selection") {
 		imgui.OpenPopupStr("UDims")
-		imgui.SetNextWindowPos(viewPos.Sub(imgui.NewVec2(150, 0)))
+		imgui.SetNextWindowPos(viewPos.Sub(imutils.SVec2(120, 0)))
 	}
 	if pv.numUdims <= 1 {
 		imgui.SetItemTooltip("Mesh has no UDims")
 	}
 	imgui.EndDisabled()
-	imgui.SetNextWindowSize(imgui.NewVec2(150, viewSize.Y))
+	imgui.SetNextWindowSize(imutils.SVec2(120, viewSize.Y))
 	if imgui.BeginPopup("UDims") {
 		if imgui.Button("Reset") {
 			for i := range pv.udimsSelected {

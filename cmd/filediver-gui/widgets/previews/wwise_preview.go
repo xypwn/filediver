@@ -369,7 +369,7 @@ func WwisePreview(name string, pv *WwisePreviewState) {
 						if len(stream.qualityInfoTextItems) > 0 {
 							imgui.SameLine()
 							imgui.TextUnformatted(fnt.I("Info"))
-							imgui.SetNextWindowSize(imgui.NewVec2(300, 0))
+							imgui.SetNextWindowSize(imutils.SVec2(250, 0))
 							if imgui.BeginItemTooltip() {
 								imgui.PushTextWrapPos()
 								imgui.TextUnformatted("This audio has some inaccuracies in preview mode:")

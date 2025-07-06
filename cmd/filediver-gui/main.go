@@ -224,7 +224,7 @@ func (a *guiApp) onInitWindow(state *imgui_wrapper.State) error {
 	a.redetectRunnerProgs()
 
 	if version != "" {
-		a.popupManager.Open["Some optional extensions missing or out of date"] =
+		a.popupManager.Open["Missing or out of date extensions"] =
 			!a.ffmpegDownloadState.HaveRequestedVersion() || !a.scriptsDistDownloadState.HaveRequestedVersion()
 		a.popupManager.Open["Welcome to Filediver GUI"] = true
 	}
@@ -242,6 +242,8 @@ func (a *guiApp) onInitWindow(state *imgui_wrapper.State) error {
 		if err := a.preferences.Load(a.preferencesPath); err != nil {
 			return fmt.Errorf("loading preferences: %w", err)
 		}
+		state.GUIScale = a.preferences.GUIScale
+		state.FrameRate = a.preferences.TargetFPS
 	}
 
 	{
@@ -260,6 +262,7 @@ func (a *guiApp) onInitWindow(state *imgui_wrapper.State) error {
 }
 
 func (a *guiApp) onPreDraw(state *imgui_wrapper.State) error {
+	imutils.GlobalScale = state.GUIScale
 	if a.gameData != nil && a.previewState == nil {
 		var err error
 		a.previewState, err = previews.NewAutoPreview(
@@ -441,7 +444,7 @@ func (a *guiApp) drawHistoryButtons() (newItem stingray.FileID, changed bool) {
 	}
 	imgui.SetItemTooltip("Jump to previous item in history (Alt+Left-arrow)")
 	imgui.EndDisabled()
-	imgui.SameLineV(0, imgui.CurrentStyle().ItemSpacing().X/2)
+	imgui.SameLineV(0, imutils.S(4))
 	imgui.BeginDisabledV(a.historyStackIndex == len(a.historyStack)-1)
 	imgui.SetNextItemShortcut(imgui.KeyChord(imgui.ModAlt | imgui.KeyRightArrow))
 	if imgui.Button(fnt.I("Arrow_forward")) {
@@ -463,7 +466,7 @@ func (a *guiApp) drawMenuBar() (menuBarHeight float32) {
 	const mainWindowFlags = imgui.WindowFlagsNoDecoration | imgui.WindowFlagsNoResize | imgui.WindowFlagsNoBringToFrontOnFocus | imgui.WindowFlagsNoSavedSettings | imgui.WindowFlagsNoTitleBar | imgui.WindowFlagsNoCollapse | imgui.WindowFlagsNoNavFocus | imgui.WindowFlagsMenuBar | imgui.WindowFlagsNoDocking
 	if imgui.BeginV("##Main", nil, mainWindowFlags) {
 		if imgui.BeginMenuBar() {
-			imgui.PushStyleVarVec2(imgui.StyleVarItemSpacing, imgui.NewVec2(5, 5))
+			imgui.PushStyleVarVec2(imgui.StyleVarItemSpacing, imutils.SVec2(3.5, 3.5))
 			menuBarHeight = imgui.FrameHeight()
 			if imgui.BeginMenu("Help") {
 				imgui.Separator()
@@ -766,7 +769,7 @@ func (a *guiApp) drawTypeFilterWindow() {
 		}
 		return strings.Join(items, " ")
 	}
-	imgui.SetNextWindowSizeV(imgui.NewVec2(300, 600), imgui.CondOnce)
+	imgui.SetNextWindowSizeV(imutils.SVec2(250, 500), imgui.CondOnce)
 	if widgets.FilterListWindow("Type Filter",
 		&a.isTypeFilterOpen,
 		"Search Types",
@@ -790,7 +793,7 @@ func (a *guiApp) drawTypeFilterWindow() {
 }
 
 func (a *guiApp) drawArchiveFilterWindow() {
-	imgui.SetNextWindowSizeV(imgui.NewVec2(300, 600), imgui.CondOnce)
+	imgui.SetNextWindowSizeV(imutils.SVec2(250, 500), imgui.CondOnce)
 	if widgets.FilterListWindow("Archive Filter",
 		&a.isArchiveFilterOpen,
 		"Search Archives",
@@ -987,7 +990,7 @@ func (a *guiApp) drawLogWindow() {
 
 	viewport := imgui.MainViewport()
 	imgui.SetNextWindowPosV(viewport.Center(), imgui.CondOnce, imgui.NewVec2(0.5, 0.5))
-	imgui.SetNextWindowSizeV(imgui.NewVec2(400, 400), imgui.CondOnce)
+	imgui.SetNextWindowSizeV(imutils.SVec2(350, 350), imgui.CondOnce)
 	if imgui.BeginV("Extractor logs", &a.isLogsOpen, 0) {
 		avail := imgui.ContentRegionAvail()
 		avail.Y -= imgui.FrameHeightWithSpacing()
@@ -1048,12 +1051,12 @@ func (a *guiApp) drawCheckForUpdatesPopup() {
 		a.checkUpdatesLock.Lock()
 		if a.checkUpdatesErr == nil {
 			if a.checkingForUpdates {
-				imgui.ProgressBarV(-1*float32(imgui.Time()), imgui.NewVec2(250, 0), "Checking for updates")
+				imgui.ProgressBarV(-1*float32(imgui.Time()), imutils.SVec2(200, 0), "Checking for updates")
 			} else if a.checkUpdatesNewVersion == version {
 				imutils.Textcf(imgui.NewVec4(0, 0.7, 0, 1), fnt.I("Check")+"Up-to-date (version %v)", version)
 			} else {
 				imutils.Textcf(imgui.NewVec4(0.8, 0.8, 0, 1), fnt.I("Exclamation")+"New version available: %v", a.checkUpdatesNewVersion)
-				if imgui.ButtonV(fnt.I("Download")+" Download "+a.checkUpdatesNewVersion, imgui.NewVec2(250, 0)) {
+				if imgui.ButtonV(fnt.I("Download")+" Download "+a.checkUpdatesNewVersion, imutils.SVec2(200, 0)) {
 					open.Start(a.checkUpdatesDownloadURL)
 				}
 				imgui.SetItemTooltip("Open '" + a.checkUpdatesDownloadURL + "'")
@@ -1063,7 +1066,7 @@ func (a *guiApp) drawCheckForUpdatesPopup() {
 		}
 		a.checkUpdatesLock.Unlock()
 		imgui.Separator()
-		if imgui.ButtonV("Close", imgui.NewVec2(250, 0)) {
+		if imgui.ButtonV("Close", imutils.SVec2(200, 0)) {
 			close()
 		}
 	}, imgui.WindowFlagsAlwaysAutoResize, true)
@@ -1079,7 +1082,7 @@ func (a *guiApp) drawWelcomePopup() {
 		imgui.Separator()
 		imgui.TextLinkOpenURLV("Filediver Issues", "https://github.com/xypwn/filediver/issues")
 		imgui.Separator()
-		if imgui.ButtonV("OK", imgui.NewVec2(400, 0)) {
+		if imgui.ButtonV("OK", imutils.SVec2(300, 0)) {
 			close()
 		}
 	}, imgui.WindowFlagsAlwaysAutoResize, true)
@@ -1088,7 +1091,7 @@ func (a *guiApp) drawWelcomePopup() {
 func (a *guiApp) drawExtensionsWarningPopup() {
 	viewport := imgui.MainViewport()
 	imgui.SetNextWindowPosV(viewport.Center(), imgui.CondAlways, imgui.NewVec2(0.5, 0.5))
-	a.popupManager.Popup("Some optional extensions missing or out of date", func(close func()) {
+	a.popupManager.Popup("Missing or out of date extensions", func(close func()) {
 		imgui.PushTextWrapPos()
 		imgui.TextUnformatted("The following recommended extensions are missing or out of date:")
 		if !a.ffmpegDownloadState.HaveRequestedVersion() {
@@ -1105,11 +1108,11 @@ func (a *guiApp) drawExtensionsWarningPopup() {
 		}
 		imgui.TextUnformatted("You can download these extensions by clicking \"Manage extensions\", or by going to Settings->Extensions.")
 		imgui.Separator()
-		if imgui.ButtonV("Close", imgui.NewVec2(120, 0)) {
+		if imgui.ButtonV("Close", imutils.SVec2(100, 0)) {
 			close()
 		}
 		imgui.SameLine()
-		if imgui.ButtonV("Manage extensions", imgui.NewVec2(160, 0)) {
+		if imgui.ButtonV("Manage extensions", imutils.SVec2(120, 0)) {
 			close()
 			a.popupManager.Open["Extensions"] = true
 		}
@@ -1194,8 +1197,8 @@ resolutions may cause low frame rates and poor responsiveness.`)
 func (a *guiApp) drawAboutPopup() {
 	viewport := imgui.MainViewport()
 
-	imgui.SetNextWindowSizeV(imgui.NewVec2(500, 400), imgui.CondOnce)
-	imgui.SetNextWindowSizeConstraints(imgui.NewVec2(300, 200), viewport.Size())
+	imgui.SetNextWindowSizeV(imutils.SVec2(400, 350), imgui.CondOnce)
+	imgui.SetNextWindowSizeConstraints(imutils.SVec2(250, 170), viewport.Size())
 	imgui.SetNextWindowPosV(viewport.Center(), imgui.CondAlways, imgui.NewVec2(0.5, 0.5))
 	a.popupManager.Popup("About", func(close func()) {
 		imgui.TextUnformatted("Filediver GUI")
