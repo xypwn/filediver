@@ -576,8 +576,25 @@ func (a *guiApp) drawBrowserWindow() {
 				imgui.TableSetupScrollFreeze(0, 1)
 				imgui.TableHeadersRow()
 
+				// Set this to true if the new activeFileID
+				// may not be visible in the current clipping
+				// region.
+				forceUpdateSelected := false
+
+				if jumpToFile, ok := widgets.PopGamefileLinkFile(); ok {
+					if i := slices.Index(a.gameData.SortedSearchResultFileIDs, jumpToFile); i != -1 {
+						activeFileID = jumpToFile
+						forceUpdateSelected = true
+					}
+				}
+
 				clipper := imgui.NewListClipper()
 				clipper.Begin(int32(len(a.gameData.SortedSearchResultFileIDs)))
+				if forceUpdateSelected {
+					if i := slices.Index(a.gameData.SortedSearchResultFileIDs, activeFileID); i != -1 {
+						clipper.IncludeItemByIndex(int32(i))
+					}
+				}
 				for clipper.Step() {
 					for row := clipper.DisplayStart(); row < clipper.DisplayEnd(); row++ {
 						id := a.gameData.SortedSearchResultFileIDs[row]
@@ -618,7 +635,7 @@ func (a *guiApp) drawBrowserWindow() {
 							id == activeFileID,
 							imgui.SelectableFlagsSpanAllColumns|imgui.SelectableFlags(imgui.SelectableFlagsSelectOnNav),
 							imgui.NewVec2(0, 0),
-						)
+						) || forceUpdateSelected
 						copied := false
 						if id == activeFileID && imgui.Shortcut(imgui.KeyChord(imgui.ModCtrl|imgui.KeyC)) {
 							copied = true
@@ -660,6 +677,9 @@ func (a *guiApp) drawBrowserWindow() {
 
 						if selected {
 							a.previewState.LoadFile(a.ctx, a.gameData.DataDir.Files[id], a.preferences.PreviewVideoVerticalResolution)
+							if forceUpdateSelected {
+								imgui.SetScrollHereY()
+							}
 						}
 					}
 				}
