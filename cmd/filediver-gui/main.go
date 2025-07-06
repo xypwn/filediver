@@ -88,6 +88,8 @@ type guiApp struct {
 	archiveIDSearchQuery    string
 	archiveIDs              []widgets.FilterListSection[stingray.Hash]
 	selectedArchives        map[stingray.Hash]struct{}
+	historyStack            []stingray.FileID
+	historyStackIndex       int
 
 	checkUpdatesOnStartupBGDone bool
 	checkUpdatesOnStartupFGDone bool
@@ -411,6 +413,48 @@ func (a *guiApp) calcAllSelectedForExport() bool {
 	return true
 }
 
+func (a *guiApp) historyPush(prevItem, newItem stingray.FileID) {
+	a.historyStack = a.historyStack[:a.historyStackIndex]
+	if (prevItem != stingray.FileID{}) {
+		a.historyStack = append(a.historyStack, prevItem)
+	}
+	a.historyStack = append(a.historyStack, newItem)
+	a.historyStackIndex = len(a.historyStack) - 1
+
+	const limit = 128
+	if len(a.historyStack) > limit {
+		cut := len(a.historyStack) - limit
+		a.historyStack = a.historyStack[cut:]
+		a.historyStackIndex -= cut
+	}
+}
+
+// newItem is only valid if changed is true.
+func (a *guiApp) drawHistoryButtons() (newItem stingray.FileID, changed bool) {
+	imgui.BeginDisabledV(len(a.historyStack) == 0)
+	imgui.BeginDisabledV(a.historyStackIndex == 0)
+	imgui.SetNextItemShortcut(imgui.KeyChord(imgui.ModAlt | imgui.KeyLeftArrow))
+	if imgui.Button(fnt.I("Arrow_back")) {
+		a.historyStackIndex--
+		newItem = a.historyStack[a.historyStackIndex]
+		changed = true
+	}
+	imgui.SetItemTooltip("Jump to previous item in history (Alt+Left-arrow)")
+	imgui.EndDisabled()
+	imgui.SameLine()
+	imgui.BeginDisabledV(a.historyStackIndex == len(a.historyStack)-1)
+	imgui.SetNextItemShortcut(imgui.KeyChord(imgui.ModAlt | imgui.KeyRightArrow))
+	if imgui.Button(fnt.I("Arrow_forward")) {
+		a.historyStackIndex++
+		newItem = a.historyStack[a.historyStackIndex]
+		changed = true
+	}
+	imgui.SetItemTooltip("Jump to next item in history (Alt+Right-arrow)")
+	imgui.EndDisabled()
+	imgui.EndDisabled()
+	return
+}
+
 func (a *guiApp) drawMenuBar() (menuBarHeight float32) {
 	viewport := imgui.MainViewport()
 
@@ -526,6 +570,13 @@ func (a *guiApp) drawBrowserWindow() {
 				activeFileID = a.previewState.ActiveID()
 			}
 
+			// Set this to true if the new activeFileID
+			// may not be visible in the current clipping
+			// region.
+			forceUpdateSelected := false
+			// true if the item was selected through a history button.
+			noPushToHistory := false
+
 			imgui.SetNextItemWidth(-math.SmallestNonzeroFloat32)
 			if imgui.Shortcut(imgui.KeyChord(imgui.ModCtrl | imgui.KeyF)) {
 				imgui.SetKeyboardFocusHere()
@@ -539,6 +590,12 @@ func (a *guiApp) drawBrowserWindow() {
 			widgets.FilterListButton("Types", &a.isTypeFilterOpen, a.selectedGameFileTypes)
 			imgui.SameLine()
 			widgets.FilterListButton("Archives", &a.isArchiveFilterOpen, a.selectedArchives)
+
+			if newActiveID, ok := a.drawHistoryButtons(); ok {
+				activeFileID = newActiveID
+				forceUpdateSelected = true
+				noPushToHistory = true
+			}
 
 			imgui.BeginDisabledV(len(a.gameData.SortedSearchResultFileIDs) == 0)
 			imgui.PushItemFlag(imgui.ItemFlags(imgui.ItemFlagsMixedValue),
@@ -575,11 +632,6 @@ func (a *guiApp) drawBrowserWindow() {
 				imgui.TableSetupColumnV("Type", imgui.TableColumnFlagsWidthStretch, 1, 0)
 				imgui.TableSetupScrollFreeze(0, 1)
 				imgui.TableHeadersRow()
-
-				// Set this to true if the new activeFileID
-				// may not be visible in the current clipping
-				// region.
-				forceUpdateSelected := false
 
 				if jumpToFile, ok := widgets.PopGamefileLinkFile(); ok {
 					if i := slices.Index(a.gameData.SortedSearchResultFileIDs, jumpToFile); i != -1 {
@@ -635,7 +687,7 @@ func (a *guiApp) drawBrowserWindow() {
 							id == activeFileID,
 							imgui.SelectableFlagsSpanAllColumns|imgui.SelectableFlags(imgui.SelectableFlagsSelectOnNav),
 							imgui.NewVec2(0, 0),
-						) || forceUpdateSelected
+						) || (forceUpdateSelected && id == activeFileID)
 						copied := false
 						if id == activeFileID && imgui.Shortcut(imgui.KeyChord(imgui.ModCtrl|imgui.KeyC)) {
 							copied = true
@@ -676,6 +728,9 @@ func (a *guiApp) drawBrowserWindow() {
 						imgui.PopID()
 
 						if selected {
+							if !noPushToHistory {
+								a.historyPush(a.previewState.ActiveID(), id)
+							}
 							a.previewState.LoadFile(a.ctx, a.gameData.DataDir.Files[id], a.preferences.PreviewVideoVerticalResolution)
 							if forceUpdateSelected {
 								imgui.SetScrollHereY()

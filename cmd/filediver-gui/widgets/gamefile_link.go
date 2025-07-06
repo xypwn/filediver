@@ -37,31 +37,12 @@ func GamefileLinkTextF(file stingray.FileID, format string, args ...any) {
 	imutils.CopyableTextfV(imutils.CopyableTextOptions{
 		TooltipCopied: fnt.I("Check") + "Hash copied",
 		TooltipHovered: "File hash: " + file.Name.String() + "\n" +
-			fnt.I("Jump_to_element") + "Left-click to jump to this file in browser (Shift to skip dialog)\n" +
+			fnt.I("Jump_to_element") + "Left-click to jump to this file in browser\n" +
 			fnt.I("Content_copy") + " Right-click to copy to clipboard",
 		Btn:           imgui.MouseButtonRight,
 		ClipboardText: file.Name.String(),
 	}, format, args...)
 	if imgui.IsItemClicked() {
-		if imgui.IsKeyDown(imgui.KeyLeftShift) {
-			gamefileLinkFile = file
-		} else {
-			imgui.OpenPopupStr("Jump to file")
-		}
-	}
-
-	imgui.SetNextWindowPosV(imgui.MainViewport().Center(), imgui.CondAlways, imgui.NewVec2(0.5, 0.5))
-	if imgui.BeginPopupModalV("Jump to file", nil, imgui.WindowFlagsAlwaysAutoResize) {
-		imgui.PushTextWrapPos()
-		imutils.Textf("Jump to %v in browser?", file.Name)
-		if imgui.ButtonV("Yes", imgui.NewVec2(80, 0)) {
-			gamefileLinkFile = file
-			imgui.CloseCurrentPopup()
-		}
-		imgui.SameLine()
-		if imgui.ButtonV("No", imgui.NewVec2(80, 0)) {
-			imgui.CloseCurrentPopup()
-		}
-		imgui.EndPopup()
+		gamefileLinkFile = file
 	}
 }
