@@ -411,6 +411,32 @@ func (a *guiApp) calcAllSelectedForExport() bool {
 	return true
 }
 
+func (a *guiApp) drawSelectAllFilesCheckbox() {
+	imgui.BeginDisabledV(len(a.gameData.SortedSearchResultFileIDs) == 0)
+	imgui.PushItemFlag(imgui.ItemFlags(imgui.ItemFlagsMixedValue),
+		!a.allSelectedForExport && len(a.filesSelectedForExport) > 0)
+	if imgui.Checkbox("##select-all", &a.allSelectedForExport) {
+		if a.allSelectedForExport {
+			for _, id := range a.gameData.SortedSearchResultFileIDs {
+				a.filesSelectedForExport[id] = struct{}{}
+			}
+		} else {
+			for _, id := range a.gameData.SortedSearchResultFileIDs {
+				delete(a.filesSelectedForExport, id)
+			}
+		}
+	}
+	imgui.PopItemFlag()
+	imgui.EndDisabled()
+	if len(a.gameData.SortedSearchResultFileIDs) != 0 {
+		if a.allSelectedForExport {
+			imgui.SetItemTooltip("Deselect all currently visible files for export")
+		} else {
+			imgui.SetItemTooltip("Select all currently visible files for export")
+		}
+	}
+}
+
 func (a *guiApp) drawMenuBar() (menuBarHeight float32) {
 	viewport := imgui.MainViewport()
 
@@ -540,29 +566,6 @@ func (a *guiApp) drawBrowserWindow() {
 			imgui.SameLine()
 			widgets.FilterListButton("Archives", &a.isArchiveFilterOpen, a.selectedArchives)
 
-			imgui.BeginDisabledV(len(a.gameData.SortedSearchResultFileIDs) == 0)
-			imgui.PushItemFlag(imgui.ItemFlags(imgui.ItemFlagsMixedValue),
-				!a.allSelectedForExport && len(a.filesSelectedForExport) > 0)
-			if imgui.Checkbox("Select all for export", &a.allSelectedForExport) {
-				if a.allSelectedForExport {
-					for _, id := range a.gameData.SortedSearchResultFileIDs {
-						a.filesSelectedForExport[id] = struct{}{}
-					}
-				} else {
-					for _, id := range a.gameData.SortedSearchResultFileIDs {
-						delete(a.filesSelectedForExport, id)
-					}
-				}
-			}
-			imgui.PopItemFlag()
-			imgui.EndDisabled()
-			if len(a.gameData.SortedSearchResultFileIDs) != 0 {
-				if a.allSelectedForExport {
-					imgui.SetItemTooltip("Deselect all currently visible files for export")
-				} else {
-					imgui.SetItemTooltip("Select all currently visible files for export")
-				}
-			}
 			{
 				size := imgui.ContentRegionAvail()
 				size.Y -= imgui.TextLineHeightWithSpacing()
@@ -570,11 +573,24 @@ func (a *guiApp) drawBrowserWindow() {
 			}
 			const tableFlags = imgui.TableFlagsResizable | imgui.TableFlagsBorders | imgui.TableFlagsScrollY | imgui.TableFlagsRowBg
 			if imgui.BeginTableV("##Game Files", 3, tableFlags, imgui.NewVec2(0, 0), 0) {
-				imgui.TableSetupColumnV(fnt.I("File_export"), imgui.TableColumnFlagsWidthFixed|imgui.TableColumnFlagsNoResize, imgui.FrameHeight(), 0)
+				imgui.TableSetupColumnV("##export",
+					imgui.TableColumnFlagsWidthFixed|imgui.TableColumnFlagsNoResize, imgui.FrameHeight(), 0)
 				imgui.TableSetupColumnV("Name", imgui.TableColumnFlagsWidthStretch, 3, 0)
 				imgui.TableSetupColumnV("Type", imgui.TableColumnFlagsWidthStretch, 1, 0)
 				imgui.TableSetupScrollFreeze(0, 1)
-				imgui.TableHeadersRow()
+				imgui.TableNextRowV(imgui.TableRowFlagsHeaders, 0)
+				for i := range imgui.TableGetColumnCount() {
+					imgui.TableSetColumnIndex(i)
+					imgui.PushIDInt(i)
+					imgui.PushStyleVarVec2(imgui.StyleVarFramePadding, imgui.NewVec2(0, 0))
+					if i == 0 {
+						a.drawSelectAllFilesCheckbox()
+					} else {
+						imgui.TableHeader(imgui.TableGetColumnNameIntV(i))
+					}
+					imgui.PopStyleVar()
+					imgui.PopID()
+				}
 
 				clipper := imgui.NewListClipper()
 				clipper.Begin(int32(len(a.gameData.SortedSearchResultFileIDs)))
