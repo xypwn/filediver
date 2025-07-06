@@ -565,9 +565,9 @@ func (a *guiApp) drawBrowserWindow() {
 			}
 			a.gameDataLoad.Unlock()
 		} else {
-			var activeFileID stingray.FileID
+			var newActiveFileID stingray.FileID
 			if a.previewState != nil {
-				activeFileID = a.previewState.ActiveID()
+				newActiveFileID = a.previewState.ActiveID()
 			}
 
 			// Set this to true if the new activeFileID
@@ -592,7 +592,7 @@ func (a *guiApp) drawBrowserWindow() {
 			widgets.FilterListButton("Archives", &a.isArchiveFilterOpen, a.selectedArchives)
 
 			if newActiveID, ok := a.drawHistoryButtons(); ok {
-				activeFileID = newActiveID
+				newActiveFileID = newActiveID
 				forceUpdateSelected = true
 				noPushToHistory = true
 			}
@@ -635,7 +635,7 @@ func (a *guiApp) drawBrowserWindow() {
 
 				if jumpToFile, ok := widgets.PopGamefileLinkFile(); ok {
 					if i := slices.Index(a.gameData.SortedSearchResultFileIDs, jumpToFile); i != -1 {
-						activeFileID = jumpToFile
+						newActiveFileID = jumpToFile
 						forceUpdateSelected = true
 					}
 				}
@@ -643,7 +643,7 @@ func (a *guiApp) drawBrowserWindow() {
 				clipper := imgui.NewListClipper()
 				clipper.Begin(int32(len(a.gameData.SortedSearchResultFileIDs)))
 				if forceUpdateSelected {
-					if i := slices.Index(a.gameData.SortedSearchResultFileIDs, activeFileID); i != -1 {
+					if i := slices.Index(a.gameData.SortedSearchResultFileIDs, newActiveFileID); i != -1 {
 						clipper.IncludeItemByIndex(int32(i))
 					}
 				}
@@ -684,15 +684,15 @@ func (a *guiApp) drawBrowserWindow() {
 						imgui.TableNextColumn()
 						selected := imgui.SelectableBoolV(
 							a.gameData.LookupHash(id.Name),
-							id == activeFileID,
+							id == newActiveFileID,
 							imgui.SelectableFlagsSpanAllColumns|imgui.SelectableFlags(imgui.SelectableFlagsSelectOnNav),
 							imgui.NewVec2(0, 0),
-						) || (forceUpdateSelected && id == activeFileID)
+						) || (forceUpdateSelected && id == newActiveFileID)
 						copied := false
-						if id == activeFileID && imgui.Shortcut(imgui.KeyChord(imgui.ModCtrl|imgui.KeyC)) {
+						if id == newActiveFileID && imgui.Shortcut(imgui.KeyChord(imgui.ModCtrl|imgui.KeyC)) {
 							copied = true
 						}
-						if id == activeFileID && imgui.Shortcut(imgui.KeyChord(imgui.KeySpace)) {
+						if id == newActiveFileID && imgui.Shortcut(imgui.KeyChord(imgui.KeySpace)) {
 							toggleExport(id)
 						}
 						if imgui.IsItemClickedV(imgui.MouseButtonRight) {
@@ -728,10 +728,7 @@ func (a *guiApp) drawBrowserWindow() {
 						imgui.PopID()
 
 						if selected {
-							if !noPushToHistory {
-								a.historyPush(a.previewState.ActiveID(), id)
-							}
-							a.previewState.LoadFile(a.ctx, a.gameData.DataDir.Files[id], a.preferences.PreviewVideoVerticalResolution)
+							newActiveFileID = id
 							if forceUpdateSelected {
 								imgui.SetScrollHereY()
 							}
@@ -741,6 +738,14 @@ func (a *guiApp) drawBrowserWindow() {
 
 				imgui.EndTable()
 			}
+
+			if newActiveFileID != a.previewState.ActiveID() {
+				if !noPushToHistory {
+					a.historyPush(a.previewState.ActiveID(), newActiveFileID)
+				}
+				a.previewState.LoadFile(a.ctx, a.gameData.DataDir.Files[newActiveFileID], a.preferences.PreviewVideoVerticalResolution)
+			}
+
 			imutils.Textf("Showing %v/%v files (%v selected for export)", len(a.gameData.SortedSearchResultFileIDs), len(a.gameData.DataDir.Files), len(a.filesSelectedForExport))
 		}
 	}
