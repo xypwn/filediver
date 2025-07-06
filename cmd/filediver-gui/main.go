@@ -441,7 +441,7 @@ func (a *guiApp) drawHistoryButtons() (newItem stingray.FileID, changed bool) {
 	}
 	imgui.SetItemTooltip("Jump to previous item in history (Alt+Left-arrow)")
 	imgui.EndDisabled()
-	imgui.SameLine()
+	imgui.SameLineV(0, imgui.CurrentStyle().ItemSpacing().X/2)
 	imgui.BeginDisabledV(a.historyStackIndex == len(a.historyStack)-1)
 	imgui.SetNextItemShortcut(imgui.KeyChord(imgui.ModAlt | imgui.KeyRightArrow))
 	if imgui.Button(fnt.I("Arrow_forward")) {
@@ -587,15 +587,15 @@ func (a *guiApp) drawBrowserWindow() {
 			}
 			imgui.SetItemTooltip("Filter by file name (Ctrl+F)")
 
-			widgets.FilterListButton("Types", &a.isTypeFilterOpen, a.selectedGameFileTypes)
-			imgui.SameLine()
-			widgets.FilterListButton("Archives", &a.isArchiveFilterOpen, a.selectedArchives)
-
 			if newActiveID, ok := a.drawHistoryButtons(); ok {
 				newActiveFileID = newActiveID
 				forceUpdateSelected = true
 				noPushToHistory = true
 			}
+			imgui.SameLine()
+			widgets.FilterListButton("Types", &a.isTypeFilterOpen, a.selectedGameFileTypes)
+			imgui.SameLine()
+			widgets.FilterListButton("Archives", &a.isArchiveFilterOpen, a.selectedArchives)
 
 			imgui.BeginDisabledV(len(a.gameData.SortedSearchResultFileIDs) == 0)
 			imgui.PushItemFlag(imgui.ItemFlags(imgui.ItemFlagsMixedValue),
