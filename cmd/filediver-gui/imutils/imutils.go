@@ -9,6 +9,7 @@ import (
 	"github.com/adrg/xdg"
 	"github.com/ncruces/zenity"
 	fnt "github.com/xypwn/filediver/cmd/filediver-gui/fonts"
+	"golang.org/x/exp/constraints"
 )
 
 func TextError(err error) {
@@ -281,4 +282,27 @@ func FilePicker(label string, path *string, directory bool) (changed bool) {
 	imgui.TextUnformatted(label)
 
 	return
+}
+
+// Used for [S] and [SVec2].
+var GlobalScale float32 = 1
+
+// S scales the given number by the current GUI scale
+// after converting it to float32.
+//
+// Use [SVec2] to make a scaled imgui.Vec2.
+//
+// Requires [GlobalScale] to be set.
+func S[T constraints.Float | constraints.Integer](x T) float32 {
+	return GlobalScale * float32(x)
+}
+
+// SVec2 creates an imgui.Vec2 scaled by the current
+// GUI scale.
+//
+// See [S].
+//
+// Requires [GlobalScale] to be set.
+func SVec2[X, Y constraints.Float | constraints.Integer](x X, y Y) imgui.Vec2 {
+	return imgui.NewVec2(S(x), S(y))
 }

@@ -173,7 +173,7 @@ func Downloader(title, description string, ds *DownloaderState) {
 		imgui.SetNextWindowPosV(imgui.MainViewport().Center(), imgui.CondAlways, imgui.NewVec2(0.5, 0.5))
 		if imgui.BeginPopupModalV("Confirm delete", nil, imgui.WindowFlagsAlwaysAutoResize) {
 			imutils.Textf("Delete %v?\nYou can always re-download it.", title)
-			if imgui.ButtonV("Delete", imgui.NewVec2(120, 0)) {
+			if imgui.ButtonV("Delete", imutils.SVec2(80, 0)) {
 				contentsPath, tmpPath, versionPath := ds.info.Target.Paths(ds.parentDir)
 				if err := os.Remove(versionPath); err == nil {
 					_ = os.Remove(tmpPath)
@@ -184,7 +184,7 @@ func Downloader(title, description string, ds *DownloaderState) {
 				imgui.CloseCurrentPopup()
 			}
 			imgui.SameLine()
-			if imgui.ButtonV("Cancel", imgui.NewVec2(120, 0)) {
+			if imgui.ButtonV("Cancel", imutils.SVec2(80, 0)) {
 				imgui.CloseCurrentPopup()
 			}
 			imgui.EndPopup()
