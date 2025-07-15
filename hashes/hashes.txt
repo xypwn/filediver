@@ -70491,6 +70491,7 @@ content/fac_cyborgs/equipment/backpacks/conscript_backpack_lmg/textures/backpack
 content/fac_cyborgs/equipment/backpacks/conscript_jumppack/conscript_jumppack
 content/fac_cyborgs/equipment/backpacks/conscript_jumppack/lambert1
 content/fac_cyborgs/equipment/backpacks/lieutenant_jetpack/lieutenant_jetpack
+content/fac_cyborgs/equipment/backpacks/soldier_jumppack/soldier_jumppack
 content/fac_cyborgs/equipment/weapons/conscript_cannon/conscript_cannon
 content/fac_cyborgs/equipment/weapons/conscript_flamer/conscript_flamer
 content/fac_cyborgs/equipment/weapons/conscript_flamer/materials/conscript_flamer
@@ -70505,6 +70506,9 @@ content/fac_cyborgs/equipment/weapons/conscript_smg/animation/fire
 content/fac_cyborgs/equipment/weapons/conscript_smg/animation/idle
 content/fac_cyborgs/equipment/weapons/conscript_smg/conscript_smg
 content/fac_cyborgs/equipment/weapons/conscript_smg/m_conscript_smg
+content/fac_cyborgs/equipment/weapons/lieutenant_cannon/lieutenant_cannon
+content/fac_cyborgs/equipment/weapons/lieutenant_launcher/lieutenant_launcher
+content/fac_cyborgs/equipment/weapons/lieutenant_saw/lieutenant_saw
 content/fac_cyborgs/equipment/weapons/soldier_chainsaw/animation/idle
 content/fac_cyborgs/equipment/weapons/soldier_chainsaw/materials/m_soldier_chainsaw
 content/fac_cyborgs/equipment/weapons/soldier_chainsaw/materials/soldier_chainsaw

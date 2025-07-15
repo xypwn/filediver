@@ -4940,3 +4940,7 @@ content/fac_helldivers/hellpod/hellpod/animation/base/unopened
 content/fac_helldivers/hellpod/turret/animation/despawn
 content/fac_helldivers/hellpod/turret_machinegun_gpmg/animation/despawn
 content/objectives/obj_common/raise_flag/animation/predeploy
+content/fac_cyborgs/equipment/weapons/lieutenant_saw/lieutenant_saw
+content/fac_cyborgs/equipment/weapons/lieutenant_cannon/lieutenant_cannon
+content/fac_cyborgs/equipment/weapons/lieutenant_launcher/lieutenant_launcher
+content/fac_cyborgs/equipment/backpacks/soldier_jumppack/soldier_jumppack
