@@ -17741,3 +17741,14 @@ yellow
 zapper
 zipper_grenade
 soldier_berserk
+g_magazine_shadow_LOD1
+g_plasma_blaster
+g_plasma_blaster_LOD1
+g_plasma_blaster_LOD2
+g_plasma_blaster_LOD3
+g_plasma_blaster_LOD4
+g_plasma_blaster_shadow
+g_plasma_blaster_shadow_LOD1
+g_plasma_blaster_shadow_LOD2
+g_plasma_blaster_shadow_LOD3
+plasma_blaster
