@@ -183,8 +183,6 @@ func OpenGameDir(ctx context.Context, gameDir string, hashStrings []string, thin
 		for h, n := range wwiseHashes {
 			hashesMap[h] = n
 		}
-	} else {
-		return nil, err
 	}
 	for _, h := range hashStrings {
 		hashesMap[stingray.Sum64([]byte(h))] = h
