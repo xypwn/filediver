@@ -211,7 +211,7 @@ func AddMaterials(ctx extractor.Context, doc *gltf.Document, imgOpts *extr_mater
 	return materialIdxs, nil
 }
 
-func AddPrefabMetadata(ctx extractor.Context, doc *gltf.Document, parent *uint32, skin *uint32, meshNodes []uint32, armorSetName *string) {
+func AddPrefabMetadata(ctx extractor.Context, doc *gltf.Document, filename stingray.Hash, parent *uint32, skin *uint32, meshNodes []uint32, armorSetName *string) {
 	if armorSetName != nil {
 		extras := map[string]any{"armorSet": *armorSetName}
 		for _, node := range meshNodes {
@@ -228,13 +228,11 @@ func AddPrefabMetadata(ctx extractor.Context, doc *gltf.Document, parent *uint32
 		prefabMetadata["skin"] = *skin
 	}
 	prefabMetadata["objects"] = meshNodes
-	extras[ctx.File().ID().Name.String()] = prefabMetadata
+	extras[filename.String()] = prefabMetadata
 	doc.Extras = extras
 }
 
 func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, gltfDoc *gltf.Document) error {
-	cfg := ctx.Config()
-
 	fMain, err := ctx.File().Open(ctx.Ctx(), stingray.DataMain)
 	if err != nil {
 		return err
@@ -248,6 +246,12 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 		}
 		defer fGPU.Close()
 	}
+
+	return ConvertBuffer(fMain, fGPU, ctx.File().ID().Name, ctx, imgOpts, gltfDoc)
+}
+
+func ConvertBuffer(fMain, fGPU io.ReadSeekCloser, filename stingray.Hash, ctx extractor.Context, imgOpts *extr_material.ImageOptions, gltfDoc *gltf.Document) error {
+	cfg := ctx.Config()
 
 	unitInfo, err := unit.LoadInfo(fMain)
 	if err != nil {
@@ -281,8 +285,8 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 		armorSet, ok := ctx.ArmorSets()[*triadID]
 		if ok {
 			armorSetName = &armorSet.Name
-			if _, contains := armorSet.UnitMetadata[ctx.File().ID().Name]; contains {
-				value := armorSet.UnitMetadata[ctx.File().ID().Name]
+			if _, contains := armorSet.UnitMetadata[filename]; contains {
+				value := armorSet.UnitMetadata[filename]
 				metadata = &value
 			}
 		}
@@ -300,7 +304,7 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 	var skin *uint32 = nil
 	var parent *uint32 = nil
 	if bonesEnabled && len(unitInfo.Bones) > 2 {
-		skin = gltf.Index(AddSkeleton(ctx, doc, unitInfo, ctx.File().ID().Name, armorSetName))
+		skin = gltf.Index(AddSkeleton(ctx, doc, unitInfo, filename, armorSetName))
 		parent = doc.Skins[*skin].Skeleton
 		if animationsEnabled {
 			state_machine.AddAnimationSet(ctx, doc, unitInfo)
@@ -308,7 +312,7 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 	} else {
 		parent = gltf.Index(uint32(len(doc.Nodes)))
 		doc.Nodes = append(doc.Nodes, &gltf.Node{
-			Name: ctx.File().ID().Name.String(),
+			Name: filename.String(),
 		})
 		doc.Scenes[0].Nodes = append(doc.Scenes[0].Nodes, *parent)
 		if armorSetName != nil {
@@ -334,13 +338,13 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 			})
 		}
 
-		err := geometry.LoadGLTF(ctx, fGPU, doc, ctx.File().ID().Name, meshInfos, unitInfo.GroupBones, unitInfo.MeshLayouts, unitInfo, &meshNodes, materialIdxs, *parent, skin)
+		err := geometry.LoadGLTF(ctx, fGPU, doc, filename, meshInfos, unitInfo.GroupBones, unitInfo.MeshLayouts, unitInfo, &meshNodes, materialIdxs, *parent, skin)
 		if err != nil {
 			return err
 		}
 	}
 
-	AddPrefabMetadata(ctx, doc, parent, skin, meshNodes, armorSetName)
+	AddPrefabMetadata(ctx, doc, filename, parent, skin, meshNodes, armorSetName)
 
 	formatIsBlend := cfg.Model.Format == "blend"
 	if gltfDoc == nil && !formatIsBlend {

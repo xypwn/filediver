@@ -4949,3 +4949,8 @@ content/fac_helldivers/equipment/primary_weapons/volley_gun/volley_gun
 content/fac_helldivers/equipment/support_weapons/plasma_blaster/plasma_blaster
 content/fac_helldivers/equipment/throwables/arc_grenade/arc_grenade
 content/fac_helldivers/hellpod/laser_cannon_turret/laser_cannon_turret
+content/env_illuminate/gameplay/il_turret_01
+content/env_shared/assets/trigger_box/trigger_box
+content/fac_helldivers/equipment/attachment/magazine/plasma_blaster_canister
+content/fac_helldivers/equipment/attachment/magazine/volley_gun_magazine
+content/fac_helldivers/equipment/sidearm_weapons/revolver_pistol/revolver_speedloader
