@@ -11,6 +11,7 @@ import (
 	"path"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 
 	"maps"
@@ -48,8 +49,12 @@ func parseWwiseDep(ctx context.Context, f *stingray.File) (string, error) {
 	if _, err := io.ReadFull(r, magicNum[:]); err != nil {
 		return "", err
 	}
-	if magicNum != [4]byte{0xd8, '/', 'v', 'x'} {
-		return "", errors.New("invalid magic number")
+	validMagicNums := [][4]byte{
+		{0xd8, '/', 'v', 'x'},   // < patch 1.003.200
+		{0x85, 0xf1, 0xa3, 'x'}, // >= patch 1.003.200
+	}
+	if !slices.Contains(validMagicNums, magicNum) {
+		return "", fmt.Errorf("invalid magic number, got: %s", strconv.Quote(string(magicNum[:])))
 	}
 	var textLen uint32
 	if err := binary.Read(r, binary.LittleEndian, &textLen); err != nil {

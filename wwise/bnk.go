@@ -75,6 +75,7 @@ type BnkHircObject struct {
 		PluginID          BnkHircSoundPluginID
 		StreamType        BnkHircSoundStreamType
 		SourceID          uint32
+		CacheID           uint32 // thanks to @dekr0 for pointing out this field
 		InMemoryMediaSize uint32
 		SourceBits        BnkHircSoundStreamSourceBits
 	}
@@ -203,8 +204,28 @@ func openBnk(r io.ReadSeeker, bkhdKey *BkhdXorKey) (*Bnk, error) {
 				if _, err := io.CopyN(&buf, r, int64(objSize)); err != nil {
 					return nil, err
 				}
-				if err := binary.Read(&buf, binary.LittleEndian, &obj.Sound); err != nil {
-					return nil, err
+				if hdr.Version <= 150 {
+					// wwise version <= 150; pre HD2 patch 1.003.200
+					var sound struct {
+						PluginID          BnkHircSoundPluginID
+						StreamType        BnkHircSoundStreamType
+						SourceID          uint32
+						InMemoryMediaSize uint32
+						SourceBits        BnkHircSoundStreamSourceBits
+					}
+					if err := binary.Read(&buf, binary.LittleEndian, &sound); err != nil {
+						return nil, err
+					}
+					obj.Sound.PluginID = sound.PluginID
+					obj.Sound.StreamType = sound.StreamType
+					obj.Sound.SourceID = sound.SourceID
+					obj.Sound.CacheID = 0
+					obj.Sound.InMemoryMediaSize = sound.InMemoryMediaSize
+					obj.Sound.SourceBits = sound.SourceBits
+				} else {
+					if err := binary.Read(&buf, binary.LittleEndian, &obj.Sound); err != nil {
+						return nil, err
+					}
 				}
 				buf.Reset()
 			default:
