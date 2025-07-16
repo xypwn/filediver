@@ -68396,6 +68396,7 @@ content/env_illuminate/debris/il_generic_debris_04
 content/env_illuminate/debris/il_generic_debris_05
 content/env_illuminate/gameplay/il_spawner_guy_staff
 content/env_illuminate/gameplay/il_teslatower
+content/env_illuminate/gameplay/il_turret_01
 content/env_illuminate/gameplay/materials/m_il_teslatower
 content/env_illuminate/gameplay/textures/il_teslatower_emissive
 content/env_illuminate/gameplay/textures/il_teslatower_mask
@@ -68969,6 +68970,7 @@ content/env_shared/assets/trees/textures/log_medium_02_normal
 content/env_shared/assets/trees/textures/log_small_01_normal
 content/env_shared/assets/trees/textures/stump_large_01_normal
 content/env_shared/assets/trees/textures/stump_medium_01_normal
+content/env_shared/assets/trigger_box/trigger_box
 content/env_shared/assets/tutorial_trigger_area/tutorial_trigger_area
 content/env_shared/assets/water_plane
 content/env_shared_arctic/assets/ice/ice_icicle_01
@@ -70657,6 +70659,7 @@ content/fac_helldivers/equipment/attachment/magazine/pdw_standard_magazine_peppe
 content/fac_helldivers/equipment/attachment/magazine/pistol_magazine
 content/fac_helldivers/equipment/attachment/magazine/pistol_magazine_extended
 content/fac_helldivers/equipment/attachment/magazine/pistol_magazine_fastreload
+content/fac_helldivers/equipment/attachment/magazine/plasma_blaster_canister
 content/fac_helldivers/equipment/attachment/magazine/railgun_magazine
 content/fac_helldivers/equipment/attachment/magazine/recoilless_grenade_standard
 content/fac_helldivers/equipment/attachment/magazine/smart_pistol_magazine_standard
@@ -70677,6 +70680,7 @@ content/fac_helldivers/equipment/attachment/magazine/textures/machinegun_box_lar
 content/fac_helldivers/equipment/attachment/magazine/textures/machinegun_box_large_normal
 content/fac_helldivers/equipment/attachment/magazine/vigilance_magazine_extended
 content/fac_helldivers/equipment/attachment/magazine/vigilance_magazine_standard
+content/fac_helldivers/equipment/attachment/magazine/volley_gun_magazine
 content/fac_helldivers/equipment/attachment/muzzle/muzzle_12g_duckbill
 content/fac_helldivers/equipment/attachment/muzzle/muzzle_12g_full_choke
 content/fac_helldivers/equipment/attachment/muzzle/muzzle_12g_half_choke
@@ -70991,6 +70995,7 @@ content/fac_helldivers/equipment/sidearm_weapons/revolver_pistol/animation/reloa
 content/fac_helldivers/equipment/sidearm_weapons/revolver_pistol/animation/reload_fast
 content/fac_helldivers/equipment/sidearm_weapons/revolver_pistol/animation/reload_feedbullet
 content/fac_helldivers/equipment/sidearm_weapons/revolver_pistol/revolver_pistol
+content/fac_helldivers/equipment/sidearm_weapons/revolver_pistol/revolver_speedloader
 content/fac_helldivers/equipment/sidearm_weapons/revolver_pistol/textures/revolver_pistol_nac
 content/fac_helldivers/equipment/sidearm_weapons/smart_pistol/animation/idle
 content/fac_helldivers/equipment/sidearm_weapons/smart_pistol/animation/reload
