@@ -894,6 +894,99 @@ const (
 	SettingBdataOffsetLast                      SettingsUsage = 0x3662b116
 	SettingMetallic                             SettingsUsage = 0x7da4d360
 	SettingVisibilityMask                       SettingsUsage = 0xcb029df0
+	SettingAlphaExp                             SettingsUsage = 0x64f2868c
+	SettingAlphaMult                            SettingsUsage = 0xe68b5074
+	SettingAoLowestValue                        SettingsUsage = 0xe8fef8d1
+	SettingEmissiveExp                          SettingsUsage = 0x998f874c
+	SettingGlobalSizeMult                       SettingsUsage = 0xfbb94fd0
+	SettingLifetimeExponent                     SettingsUsage = 0x37a41249
+	SettingLooping                              SettingsUsage = 0x9ec83234
+	SettingLutExp                               SettingsUsage = 0x018ec4c0
+	SettingNormalStrength                       SettingsUsage = 0xc2e15ee9
+	SettingPivotPoint                           SettingsUsage = 0xfc5ba572
+	SettingRandomFlipping                       SettingsUsage = 0x048f369c
+	SettingRowsAndColumns                       SettingsUsage = 0x6f522576
+	SettingSmokeColor                           SettingsUsage = 0x13c347ca
+	SettingTimeSpeed                            SettingsUsage = 0x056b17ae
+	SettingUseParticleColor                     SettingsUsage = 0xd69ea7ae
+	SettingUseParticleLife                      SettingsUsage = 0x4adad7f1
+	SettingAngleFadeExp                         SettingsUsage = 0xcce4ba13
+	SettingColorMultDown                        SettingsUsage = 0x22218c9d
+	SettingDepthDistanceFade                    SettingsUsage = 0x928d624f
+	SettingDistOffset                           SettingsUsage = 0x4f3d4be4
+	SettingDistScaleMax                         SettingsUsage = 0x2680b90e
+	SettingDistScaleMin                         SettingsUsage = 0x392725d3
+	SettingEmissivenessBase                     SettingsUsage = 0x08e0823b
+	SettingFadeDistDivide                       SettingsUsage = 0x5e43b2da
+	SettingLuminocityCurve                      SettingsUsage = 0x90324e35
+	SettingLuminocityMax                        SettingsUsage = 0x21d6cbb4
+	SettingLuminocityMin                        SettingsUsage = 0x934a3447
+	SettingMaxDist                              SettingsUsage = 0x1b5169e1
+	SettingRndNrmStrength                       SettingsUsage = 0xad841302
+	SettingShrinkNearCamera                     SettingsUsage = 0xf5753f28
+	SettingSmokeColorSecondary                  SettingsUsage = 0xb4138578
+	SettingSssColor                             SettingsUsage = 0x5086eea5
+	SettingSssDiffusion                         SettingsUsage = 0x68b91c2a
+	SettingSssGradient                          SettingsUsage = 0x8bd32a93
+	SettingSssIntensityStart                    SettingsUsage = 0x16362861
+	SettingSssOverLife                          SettingsUsage = 0xf033bf66
+	SettingSssSmokeColor                        SettingsUsage = 0x2e7c3c44
+	SettingUseFlipbookBlending                  SettingsUsage = 0xb7bdafe4
+	SettingUseTwoColors                         SettingsUsage = 0xf277aef4
+	SettingWeatherEffectColor                   SettingsUsage = 0xa50e0984
+	SettingWeatherEffectColorLerp               SettingsUsage = 0x552b4e87
+	SettingDistScale                            SettingsUsage = 0xa3a280e9
+	SettingMaxScale                             SettingsUsage = 0xea9477e1
+	SettingMinScale                             SettingsUsage = 0xe071b412
+	SettingAddBurning                           SettingsUsage = 0x9afb32d3
+	SettingAngleFadeMax                         SettingsUsage = 0x3b6b4b04
+	SettingAngleFadeMin                         SettingsUsage = 0xa703ac3e
+	SettingBacksideColor                        SettingsUsage = 0xb0b71cc7
+	SettingBulge                                SettingsUsage = 0x9f02e411
+	SettingBulgeFalloff                         SettingsUsage = 0xd4a7a01f
+	SettingBulgeMult                            SettingsUsage = 0x35682e1e
+	SettingBulgeUvs                             SettingsUsage = 0x4f6d94b1
+	SettingBurnColor                            SettingsUsage = 0xfbfe72d9
+	SettingBurnIntensity                        SettingsUsage = 0xfaf6849f
+	SettingBurnSoftness                         SettingsUsage = 0x189fc090
+	SettingBurnThicknessMult                    SettingsUsage = 0x085e1986
+	SettingCutoff                               SettingsUsage = 0x8097a46b
+	SettingCutoffEnd                            SettingsUsage = 0x1fda5478
+	SettingCutoffOverLife                       SettingsUsage = 0xa422ac7d
+	SettingCutoffStart                          SettingsUsage = 0x674418c0
+	SettingDistTexAdd                           SettingsUsage = 0x523951eb
+	SettingDistTexMult                          SettingsUsage = 0xfb591648
+	SettingDistTexSpeed                         SettingsUsage = 0x75d951be
+	SettingDistTexTile                          SettingsUsage = 0xdedc27b5
+	SettingLuminocityMult                       SettingsUsage = 0x4ebee212
+	SettingMaskAdd                              SettingsUsage = 0x0282d73a
+	SettingMaskCenterFalloff                    SettingsUsage = 0x00c9fc4f
+	SettingMaskCenterRadius                     SettingsUsage = 0x7ab3b0b8
+	SettingMaskExp                              SettingsUsage = 0x7aadcdfd
+	SettingMaskFalloff                          SettingsUsage = 0x4a955005
+	SettingMaskRadius                           SettingsUsage = 0x3186e63e
+	SettingMetalness                            SettingsUsage = 0xb889ab09
+	SettingNormalMap                            SettingsUsage = 0xf5c97d31
+	SettingPivot                                SettingsUsage = 0x8144a2c2
+	SettingRadialDistortion                     SettingsUsage = 0xe89e4caf
+	SettingRemapLow                             SettingsUsage = 0x5186557c
+	SettingRimExp                               SettingsUsage = 0x2968d76e
+	SettingRimIntensity                         SettingsUsage = 0x55ad7ec8
+	SettingSpec                                 SettingsUsage = 0xd223d54d
+	SettingTex01Channel                         SettingsUsage = 0xc40b92c1
+	SettingTex01Exp                             SettingsUsage = 0x7ec19ac4
+	SettingTex01Intensity                       SettingsUsage = 0x5384ddc9
+	SettingTex01Speed                           SettingsUsage = 0x00bc4ed6
+	SettingTex01Tile                            SettingsUsage = 0xf4546de0
+	SettingTex01UvExp                           SettingsUsage = 0x29e6a3b6
+	SettingTex02Channel                         SettingsUsage = 0x5e335da8
+	SettingTex02Exp                             SettingsUsage = 0x4a91c88d
+	SettingTex02Intensity                       SettingsUsage = 0x77f01efe
+	SettingTex02Speed                           SettingsUsage = 0xb8ccbdfb
+	SettingTex02Tile                            SettingsUsage = 0x22a6a3a2
+	SettingTex02UvExp                           SettingsUsage = 0x2e4fe5b1
+	SettingUseAngleFade                         SettingsUsage = 0xefe27c53
+	SettingUseBackColor                         SettingsUsage = 0x71287aa5
 )
 
 func (usage *SettingsUsage) String() string {
@@ -2680,6 +2773,192 @@ func (usage *SettingsUsage) String() string {
 		return "Metallic"
 	case SettingVisibilityMask:
 		return "VisibilityMask"
+	case SettingAlphaExp:
+		return "AlphaExp"
+	case SettingAlphaMult:
+		return "AlphaMult"
+	case SettingAoLowestValue:
+		return "AoLowestValue"
+	case SettingEmissiveExp:
+		return "EmissiveExp"
+	case SettingGlobalSizeMult:
+		return "GlobalSizeMult"
+	case SettingLifetimeExponent:
+		return "LifetimeExponent"
+	case SettingLooping:
+		return "Looping"
+	case SettingLutExp:
+		return "LutExp"
+	case SettingNormalStrength:
+		return "NormalStrength"
+	case SettingPivotPoint:
+		return "PivotPoint"
+	case SettingRandomFlipping:
+		return "RandomFlipping"
+	case SettingRowsAndColumns:
+		return "RowsAndColumns"
+	case SettingSmokeColor:
+		return "SmokeColor"
+	case SettingTimeSpeed:
+		return "TimeSpeed"
+	case SettingUseParticleColor:
+		return "UseParticleColor"
+	case SettingUseParticleLife:
+		return "UseParticleLife"
+	case SettingAngleFadeExp:
+		return "AngleFadeExp"
+	case SettingColorMultDown:
+		return "ColorMultDown"
+	case SettingDepthDistanceFade:
+		return "DepthDistanceFade"
+	case SettingDistOffset:
+		return "DistOffset"
+	case SettingDistScaleMax:
+		return "DistScaleMax"
+	case SettingDistScaleMin:
+		return "DistScaleMin"
+	case SettingEmissivenessBase:
+		return "EmissivenessBase"
+	case SettingFadeDistDivide:
+		return "FadeDistDivide"
+	case SettingLuminocityCurve:
+		return "LuminocityCurve"
+	case SettingLuminocityMax:
+		return "LuminocityMax"
+	case SettingLuminocityMin:
+		return "LuminocityMin"
+	case SettingMaxDist:
+		return "MaxDist"
+	case SettingRndNrmStrength:
+		return "RndNrmStrength"
+	case SettingShrinkNearCamera:
+		return "ShrinkNearCamera"
+	case SettingSmokeColorSecondary:
+		return "SmokeColorSecondary"
+	case SettingSssColor:
+		return "SssColor"
+	case SettingSssDiffusion:
+		return "SssDiffusion"
+	case SettingSssGradient:
+		return "SssGradient"
+	case SettingSssIntensityStart:
+		return "SssIntensityStart"
+	case SettingSssOverLife:
+		return "SssOverLife"
+	case SettingSssSmokeColor:
+		return "SssSmokeColor"
+	case SettingUseFlipbookBlending:
+		return "UseFlipbookBlending"
+	case SettingUseTwoColors:
+		return "UseTwoColors"
+	case SettingWeatherEffectColor:
+		return "WeatherEffectColor"
+	case SettingWeatherEffectColorLerp:
+		return "WeatherEffectColorLerp"
+	case SettingDistScale:
+		return "DistScale"
+	case SettingMaxScale:
+		return "MaxScale"
+	case SettingMinScale:
+		return "MinScale"
+	case SettingAddBurning:
+		return "AddBurning"
+	case SettingAngleFadeMax:
+		return "AngleFadeMax"
+	case SettingAngleFadeMin:
+		return "AngleFadeMin"
+	case SettingBacksideColor:
+		return "BacksideColor"
+	case SettingBulge:
+		return "Bulge"
+	case SettingBulgeFalloff:
+		return "BulgeFalloff"
+	case SettingBulgeMult:
+		return "BulgeMult"
+	case SettingBulgeUvs:
+		return "BulgeUvs"
+	case SettingBurnColor:
+		return "BurnColor"
+	case SettingBurnIntensity:
+		return "BurnIntensity"
+	case SettingBurnSoftness:
+		return "BurnSoftness"
+	case SettingBurnThicknessMult:
+		return "BurnThicknessMult"
+	case SettingCutoff:
+		return "Cutoff"
+	case SettingCutoffEnd:
+		return "CutoffEnd"
+	case SettingCutoffOverLife:
+		return "CutoffOverLife"
+	case SettingCutoffStart:
+		return "CutoffStart"
+	case SettingDistTexAdd:
+		return "DistTexAdd"
+	case SettingDistTexMult:
+		return "DistTexMult"
+	case SettingDistTexSpeed:
+		return "DistTexSpeed"
+	case SettingDistTexTile:
+		return "DistTexTile"
+	case SettingLuminocityMult:
+		return "LuminocityMult"
+	case SettingMaskAdd:
+		return "MaskAdd"
+	case SettingMaskCenterFalloff:
+		return "MaskCenterFalloff"
+	case SettingMaskCenterRadius:
+		return "MaskCenterRadius"
+	case SettingMaskExp:
+		return "MaskExp"
+	case SettingMaskFalloff:
+		return "MaskFalloff"
+	case SettingMaskRadius:
+		return "MaskRadius"
+	case SettingMetalness:
+		return "Metalness"
+	case SettingNormalMap:
+		return "NormalMap"
+	case SettingPivot:
+		return "Pivot"
+	case SettingRadialDistortion:
+		return "RadialDistortion"
+	case SettingRemapLow:
+		return "RemapLow"
+	case SettingRimExp:
+		return "RimExp"
+	case SettingRimIntensity:
+		return "RimIntensity"
+	case SettingSpec:
+		return "Spec"
+	case SettingTex01Channel:
+		return "Tex01Channel"
+	case SettingTex01Exp:
+		return "Tex01Exp"
+	case SettingTex01Intensity:
+		return "Tex01Intensity"
+	case SettingTex01Speed:
+		return "Tex01Speed"
+	case SettingTex01Tile:
+		return "Tex01Tile"
+	case SettingTex01UvExp:
+		return "Tex01UvExp"
+	case SettingTex02Channel:
+		return "Tex02Channel"
+	case SettingTex02Exp:
+		return "Tex02Exp"
+	case SettingTex02Intensity:
+		return "Tex02Intensity"
+	case SettingTex02Speed:
+		return "Tex02Speed"
+	case SettingTex02Tile:
+		return "Tex02Tile"
+	case SettingTex02UvExp:
+		return "Tex02UvExp"
+	case SettingUseAngleFade:
+		return "UseAngleFade"
+	case SettingUseBackColor:
+		return "UseBackColor"
 	default:
 		return "Unknown setting usage!"
 	}

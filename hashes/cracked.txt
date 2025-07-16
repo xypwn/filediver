@@ -4940,3 +4940,12 @@ content/fac_helldivers/hellpod/hellpod/animation/base/unopened
 content/fac_helldivers/hellpod/turret/animation/despawn
 content/fac_helldivers/hellpod/turret_machinegun_gpmg/animation/despawn
 content/objectives/obj_common/raise_flag/animation/predeploy
+content/fac_cyborgs/equipment/weapons/lieutenant_saw/lieutenant_saw
+content/fac_cyborgs/equipment/weapons/lieutenant_cannon/lieutenant_cannon
+content/fac_cyborgs/equipment/weapons/lieutenant_launcher/lieutenant_launcher
+content/fac_cyborgs/equipment/backpacks/soldier_jumppack/soldier_jumppack
+content/fac_helldivers/equipment/backpacks/displacement_backpack/displacement_backpack
+content/fac_helldivers/equipment/primary_weapons/volley_gun/volley_gun
+content/fac_helldivers/equipment/support_weapons/plasma_blaster/plasma_blaster
+content/fac_helldivers/equipment/throwables/arc_grenade/arc_grenade
+content/fac_helldivers/hellpod/laser_cannon_turret/laser_cannon_turret

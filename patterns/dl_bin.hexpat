@@ -25,9 +25,9 @@ struct MurmurHash {
 } [[format("formatHash")]];
 // end stingray.hexpat
 
-#define WEAPON_CUSTOMIZATION_OFFSET 0x00000
+#define WEAPON_CUSTOMIZATION_OFFSET 0x10000
 #define UNIT_CUSTOMIZATION_OFFSET 0xf0000
-#define HELLDIVER_CUSTOMIZATION_OFFSET 0x870000
+#define HELLDIVER_CUSTOMIZATION_OFFSET 0xf50000
 #define ANIMATION_EVENT_TRIGGER_OFFSET 0x60000
 
 fn relative_to_parents_parent(u128 offset) {
@@ -143,7 +143,7 @@ enum Passive : u32 {
     SIEGE_READY,
     INTEGRATED_EXPLOSIVES,
     GUNSLINGER,
-    UNK02,
+    ADRENO_DEFIBRILLATOR,
     BALLISTIC_PADDING,
 };
 
@@ -167,6 +167,7 @@ fn passiveName(Passive passive) {
         (Passive::SIEGE_READY): return "SIEGE_READY";
         (Passive::INTEGRATED_EXPLOSIVES): return "INTEGRATED_EXPLOSIVES";
         (Passive::GUNSLINGER): return "GUNSLINGER";
+        (Passive::ADRENO_DEFIBRILLATOR): return "ADRENO_DEFIBRILLATOR";
         (Passive::REINFORCED_EPAULETTES): return "REINFORCED_EPAULETTES";
         (Passive::BALLISTIC_PADDING): return "BALLISTIC_PADDING";
     }
@@ -200,6 +201,7 @@ struct HelldiverCustomizationKit {
         passive_bonus != Passive::SIEGE_READY &&
         passive_bonus != Passive::INTEGRATED_EXPLOSIVES &&
         passive_bonus != Passive::GUNSLINGER &&
+        passive_bonus != Passive::ADRENO_DEFIBRILLATOR &&
         passive_bonus != Passive::REINFORCED_EPAULETTES &&
         passive_bonus != Passive::BALLISTIC_PADDING
     ) {

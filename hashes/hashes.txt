@@ -70491,6 +70491,7 @@ content/fac_cyborgs/equipment/backpacks/conscript_backpack_lmg/textures/backpack
 content/fac_cyborgs/equipment/backpacks/conscript_jumppack/conscript_jumppack
 content/fac_cyborgs/equipment/backpacks/conscript_jumppack/lambert1
 content/fac_cyborgs/equipment/backpacks/lieutenant_jetpack/lieutenant_jetpack
+content/fac_cyborgs/equipment/backpacks/soldier_jumppack/soldier_jumppack
 content/fac_cyborgs/equipment/weapons/conscript_cannon/conscript_cannon
 content/fac_cyborgs/equipment/weapons/conscript_flamer/conscript_flamer
 content/fac_cyborgs/equipment/weapons/conscript_flamer/materials/conscript_flamer
@@ -70505,6 +70506,9 @@ content/fac_cyborgs/equipment/weapons/conscript_smg/animation/fire
 content/fac_cyborgs/equipment/weapons/conscript_smg/animation/idle
 content/fac_cyborgs/equipment/weapons/conscript_smg/conscript_smg
 content/fac_cyborgs/equipment/weapons/conscript_smg/m_conscript_smg
+content/fac_cyborgs/equipment/weapons/lieutenant_cannon/lieutenant_cannon
+content/fac_cyborgs/equipment/weapons/lieutenant_launcher/lieutenant_launcher
+content/fac_cyborgs/equipment/weapons/lieutenant_saw/lieutenant_saw
 content/fac_cyborgs/equipment/weapons/soldier_chainsaw/animation/idle
 content/fac_cyborgs/equipment/weapons/soldier_chainsaw/materials/m_soldier_chainsaw
 content/fac_cyborgs/equipment/weapons/soldier_chainsaw/materials/soldier_chainsaw
@@ -70729,6 +70733,7 @@ content/fac_helldivers/equipment/backpacks/bomb_backpack/materials/bomb_backpack
 content/fac_helldivers/equipment/backpacks/bomb_backpack/textures/bomb_backpack_nac
 content/fac_helldivers/equipment/backpacks/directional_energy_shield/directional_energy_shield
 content/fac_helldivers/equipment/backpacks/directional_energy_shield/directional_energy_shield_backpack
+content/fac_helldivers/equipment/backpacks/displacement_backpack/displacement_backpack
 content/fac_helldivers/equipment/backpacks/drone_gas_projector_backpack/drone_gas_projector_backpack
 content/fac_helldivers/equipment/backpacks/drone_generic/animation/back
 content/fac_helldivers/equipment/backpacks/drone_generic/animation/forward
@@ -70940,6 +70945,7 @@ content/fac_helldivers/equipment/primary_weapons/sniper_rifle_helghast/sniper_ri
 content/fac_helldivers/equipment/primary_weapons/triple_barrel_breakshotgun/animation/idle
 content/fac_helldivers/equipment/primary_weapons/triple_barrel_breakshotgun/animation/reload
 content/fac_helldivers/equipment/primary_weapons/triple_barrel_breakshotgun/triple_barrel_breakshotgun
+content/fac_helldivers/equipment/primary_weapons/volley_gun/volley_gun
 content/fac_helldivers/equipment/sample_pouch/sample_pouch
 content/fac_helldivers/equipment/sidearm_weapons/automatic_pistol/animation/fire
 content/fac_helldivers/equipment/sidearm_weapons/automatic_pistol/automatic_pistol
@@ -71074,6 +71080,7 @@ content/fac_helldivers/equipment/support_weapons/machinegun/animation/reload_fas
 content/fac_helldivers/equipment/support_weapons/machinegun/machinegun
 content/fac_helldivers/equipment/support_weapons/machinegun/textures/machinegun_nac
 content/fac_helldivers/equipment/support_weapons/missile_launcher/missile_launcher
+content/fac_helldivers/equipment/support_weapons/plasma_blaster/plasma_blaster
 content/fac_helldivers/equipment/support_weapons/railgun/animation/fire
 content/fac_helldivers/equipment/support_weapons/railgun/animation/idle
 content/fac_helldivers/equipment/support_weapons/railgun/animation/reload
@@ -71094,6 +71101,7 @@ content/fac_helldivers/equipment/support_weapons/sniper_rifle/materials/m_sniper
 content/fac_helldivers/equipment/support_weapons/sniper_rifle/sniper_rifle
 content/fac_helldivers/equipment/support_weapons/sniper_rifle/textures/sniper_rifle_nac
 content/fac_helldivers/equipment/throwables/antitank_grenade/antitank_grenade
+content/fac_helldivers/equipment/throwables/arc_grenade/arc_grenade
 content/fac_helldivers/equipment/throwables/contact_mine/contact_mine
 content/fac_helldivers/equipment/throwables/dynamite/dynamite
 content/fac_helldivers/equipment/throwables/dynamite/textures/dynamite_nac
@@ -71227,6 +71235,7 @@ content/fac_helldivers/hellpod/landingzone_beacon/animation/undeployed
 content/fac_helldivers/hellpod/landingzone_beacon/landingzone_beacon
 content/fac_helldivers/hellpod/landingzone_beacon/test_unit_links
 content/fac_helldivers/hellpod/landingzone_beacon/textures/landingzone_beacon_nac
+content/fac_helldivers/hellpod/laser_cannon_turret/laser_cannon_turret
 content/fac_helldivers/hellpod/manned_turret/animation/aim/traverse
 content/fac_helldivers/hellpod/manned_turret/animation/ammo_wiggle
 content/fac_helldivers/hellpod/manned_turret/animation/deploy
