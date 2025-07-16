@@ -100,7 +100,7 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 		if err != nil {
 			return err
 		}
-		extr_unit.AddPrefabMetadata(ctx, doc, parent, skin, meshNodes, nil)
+		extr_unit.AddPrefabMetadata(ctx, doc, unitHash, parent, skin, meshNodes, nil)
 	}
 
 	formatIsBlend := cfg.Model.Format == "blend"

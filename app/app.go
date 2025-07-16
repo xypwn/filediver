@@ -27,6 +27,7 @@ import (
 	extr_geogroup "github.com/xypwn/filediver/extractor/geometry_group"
 	extr_material "github.com/xypwn/filediver/extractor/material"
 	extr_package "github.com/xypwn/filediver/extractor/package"
+	extr_prefab "github.com/xypwn/filediver/extractor/prefab"
 	extr_state_machine "github.com/xypwn/filediver/extractor/state_machine"
 	extr_strings "github.com/xypwn/filediver/extractor/strings"
 	extr_texture "github.com/xypwn/filediver/extractor/texture"
@@ -502,6 +503,8 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 			extr = extr_unit.Convert(gltfDoc)
 		case "geometry_group":
 			extr = extr_geogroup.Convert(gltfDoc)
+		case "prefab":
+			extr = extr_prefab.Convert(gltfDoc)
 		case "texture":
 			if extrFormat == "dds" {
 				extr = extr_texture.ExtractDDS
