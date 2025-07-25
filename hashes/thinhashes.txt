@@ -13844,6 +13844,11 @@ habs_wall_weather_2m_01
 habs_wall_weather_3m_01
 habs_wall_weather_end_01
 habs_wall_weather_end_02
+halo
+halo_fx
+halo_left_indicator
+halo_right_indicator
+halo_spinner
 hammer
 hand_axe
 handle
