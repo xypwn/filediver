@@ -59,7 +59,7 @@ const ffmpegFeatures = `- Preview video
 - Convert audio to OGG/AAC/MP3
 - Convert video to MP4`
 
-const scriptsDistFeatures = `- Export models (units/geometry_groups) and materials to .blend (Blender)`
+const scriptsDistFeatures = `- Export models (units/geometry_groups/prefabs) and materials to .blend (Blender)`
 
 type guiApp struct {
 	showErrorPopup func(error)

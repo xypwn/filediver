@@ -49,7 +49,7 @@ type Config struct {
 		JoinComponents   bool   `cfg:"tags=advanced help='join UDIM components'"`
 		BoundingBoxes    bool   `cfg:"tags=advanced help='export model bounding boxes'"`
 		NoBones          bool   `cfg:"tags=advanced help='don\\'t include bones'"`
-	} `cfg:"tags=t:unit,t:geometry_group help='see unit options'"`
+	} `cfg:"tags=t:unit,t:geometry_group,t:prefab help='see unit options'"`
 	Animation struct {
 		Format string `cfg:"options=json,raw"`
 	} `cfg:"tags=t:animation,t:state_machine help='see unit options'"`
@@ -103,6 +103,7 @@ var Extractable = map[string]bool{
 	"texture":        true,
 	"unit":           true,
 	"geometry_group": true,
+	"prefab":         true,
 	"state_machine":  true,
 	"animation":      true,
 	"strings":        true,
