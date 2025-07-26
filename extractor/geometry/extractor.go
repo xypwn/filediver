@@ -630,7 +630,7 @@ func LoadGLTF(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, nam
 		hasLOD0 := true
 
 		isLOD := func(name string, onlyModelAndShadow bool) bool {
-			if strings.Contains(name, "shadow") {
+			if strings.Contains(name, "shadow") || strings.Contains(name, "debris") {
 				return true
 			}
 			if strings.Contains(name, "_LOD") && !strings.Contains(name, "_LOD0") {
