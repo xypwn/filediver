@@ -151,12 +151,12 @@ struct JointList {
 };
 
 struct MeshGroup {
-    u32 StartGroupId;
+    u32 MaterialIdx;
     u32 VertexOffset;
     u32 NumVertices;
     u32 IndexOffset;
     u32 NumIndices;
-    u32 EndGroupId; // Group IDs should be identical
+    u32 GroupIdx;
 };
 
 struct MeshGroupList {

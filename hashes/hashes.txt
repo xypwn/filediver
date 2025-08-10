@@ -68101,6 +68101,7 @@ content/env_bugs/assets/gameplay/bug_spawner_large_01
 content/env_bugs/assets/gameplay/bug_spawner_large_01_marker
 content/env_bugs/assets/gameplay/bug_spawner_medium_01
 content/env_bugs/assets/gameplay/bug_spawner_medium_01_marker
+content/env_bugs/assets/gameplay/bug_spawner_prowler
 content/env_bugs/assets/gameplay/bug_spawner_scavenger
 content/env_bugs/assets/gameplay/bug_spawner_shrieker
 content/env_bugs/assets/gameplay/bug_spawner_small_01
@@ -72122,6 +72123,7 @@ content/objectives/obj_common/sam_site/animation/pitch
 content/objectives/obj_common/sam_site/animation/raised_idle
 content/objectives/obj_common/sam_site/animation/undeployed
 content/objectives/obj_common/sam_site/animation/yaw
+content/objectives/obj_common/sam_site/idle_sam_site
 content/objectives/obj_common/sam_site/sam_site
 content/objectives/obj_common/sam_site/sam_site_foundation
 content/objectives/obj_common/sam_site/sam_site_foundation_01
@@ -72288,6 +72290,10 @@ content/objectives/obj_illuminate/il_monolith/textures/il_monolith_mask
 content/objectives/obj_illuminate/il_monolith/textures/il_monolith_nar
 content/objectives/obj_illuminate/il_mothership/animations/death
 content/objectives/obj_illuminate/il_mothership/animations/idle
+content/objectives/obj_illuminate/il_mothership/city_cannon_lock
+content/objectives/obj_illuminate/il_mothership/il_cannon_crank_vertical
+content/objectives/obj_illuminate/il_mothership/il_city_cannon
+content/objectives/obj_illuminate/il_mothership/il_city_cannon_terminal
 content/objectives/obj_illuminate/il_mothership/il_mothership
 content/objectives/obj_illuminate/il_mothership/il_mothership_shield
 content/objectives/obj_illuminate/il_mothership/il_mothership_tentacles

@@ -4954,3 +4954,9 @@ content/env_shared/assets/trigger_box/trigger_box
 content/fac_helldivers/equipment/attachment/magazine/plasma_blaster_canister
 content/fac_helldivers/equipment/attachment/magazine/volley_gun_magazine
 content/fac_helldivers/equipment/sidearm_weapons/revolver_pistol/revolver_speedloader
+content/objectives/obj_illuminate/il_mothership/city_cannon_lock
+content/objectives/obj_illuminate/il_mothership/il_cannon_crank_vertical
+content/objectives/obj_illuminate/il_mothership/il_city_cannon
+content/objectives/obj_illuminate/il_mothership/il_city_cannon_terminal
+content/objectives/obj_common/sam_site/idle_sam_site
+content/env_bugs/assets/gameplay/bug_spawner_prowler

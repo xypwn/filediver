@@ -53,8 +53,8 @@ struct PtrList<T, auto base> {
 };
 
 struct UnitEntry {
-    MurmurHash unk;
-    MurmurHash unit;
+    MurmurHash type;
+    MurmurHash name;
 };
 
 struct List<T, auto count> {
@@ -62,12 +62,12 @@ struct List<T, auto count> {
 };
 
 struct MeshGroup {
-    u32 GroupId;
+    u32 MaterialIdx;
     u32 VertexOffset;
     u32 NumVertices;
     u32 IndexOffset;
     u32 NumIndices;
-    u32 unk;
+    u32 GroupIdx;
 };
 
 struct MeshInfoItem {
@@ -82,7 +82,7 @@ struct MeshInfoItem {
 
 struct MeshInfo {
     u32 count;
-    ThinMurmurHash bones[count];
+    ThinMurmurHash meshName[count];
     RebasedNullablePtr<MeshInfoItem, u32, "relative_to_parents_parent"> ptrs[count];
 };
 
