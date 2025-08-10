@@ -52,12 +52,14 @@ jobs:
     - name: Build GUI executable
       run: go build -ldflags="-s -w -X main.version=${{github.ref_name}} -H=windowsgui -extldflags=-static" -o filediver-gui/filediver-gui-windows.exe ./cmd/filediver-gui
     - name: Prepare CLI archive directory
+      shell: bash
       run: |
         mkdir filediver-cli
         cp README.md LICENSE filediver-cli/
     - name: Build CLI executable
       run: go build -o filediver-cli/filediver.exe ./cmd/filediver-cli
     - name: Download FFmpeg binary
+      shell: bash
       run: |
         curl -L -o ffmpeg-6.1.1-essentials_build.zip https://github.com/GyanD/codexffmpeg/releases/download/6.1.1/ffmpeg-6.1.1-essentials_build.zip
         7z e ffmpeg-6.1.1-essentials_build.zip ffmpeg-6.1.1-essentials_build/bin/ffmpeg.exe
