@@ -62,8 +62,7 @@ jobs:
       shell: bash
       run: |
         curl -L -o ffmpeg-6.1.1-essentials_build.zip https://github.com/GyanD/codexffmpeg/releases/download/6.1.1/ffmpeg-6.1.1-essentials_build.zip
-        7z e ffmpeg-6.1.1-essentials_build.zip ffmpeg-6.1.1-essentials_build/bin/ffmpeg.exe
-        mv ffmpeg-6.1.1-essentials_build/bin/ffmpeg.exe filediver-cli/
+        7z e ffmpeg-6.1.1-essentials_build.zip ffmpeg-6.1.1-essentials_build/bin/ffmpeg.exe -ofilediver-cli/
     - name: Create CLI archive
       run: 7z a -r filediver-cli-windows.zip filediver-cli/
     - name: Upload release files
