@@ -343,6 +343,7 @@ func ConvertBuffer(fMain, fGPU io.ReadSeekCloser, filename stingray.Hash, ctx ex
 			return err
 		}
 	}
+	doc.Scenes[0].Nodes = append(doc.Scenes[0].Nodes, meshNodes...)
 
 	AddPrefabMetadata(ctx, doc, filename, parent, skin, meshNodes, armorSetName)
 
