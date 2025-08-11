@@ -403,15 +403,17 @@ func (v MeshLayoutItemFormat) Type() gltf.AccessorType {
 	}
 }
 
+type MeshLayoutItem struct {
+	Type   MeshLayoutItemType
+	Format MeshLayoutItemFormat
+	Layer  uint32
+	Unk00  [8]byte
+}
+
 type MeshLayout struct {
-	MagicNum0 [4]byte
-	Unk00     [4]byte
-	Items     [16]struct {
-		Type   MeshLayoutItemType
-		Format MeshLayoutItemFormat
-		Layer  uint32
-		Unk00  [8]byte
-	}
+	MagicNum0     [4]byte
+	Unk00         [4]byte
+	Items         [16]MeshLayoutItem
 	NumItems      uint32
 	Unk01         [4]byte
 	MagicNum1     [4]byte
