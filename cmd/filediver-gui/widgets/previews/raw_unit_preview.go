@@ -67,7 +67,8 @@ func (obj rawUnitPreviewMeshBuffer) deleteObjects() {
 }
 
 type rawUnitPreviewLOD struct {
-	Name stingray.ThinHash
+	Name    stingray.ThinHash
+	Enabled bool
 	geometry.MeshInfo
 }
 
@@ -202,6 +203,10 @@ func (pv *RawUnitPreviewState) Delete() {
 func (pv *RawUnitPreviewState) LoadUnit(ctx context.Context, fileID stingray.FileID, getResource GetResourceFunc, thinhashes map[stingray.ThinHash]string) error {
 	for i := range pv.udimsSelected {
 		pv.udimsSelected[i] = true
+	}
+	if _, exists := pv.meshBuffers[file.ID().Name.Value]; exists {
+		pv.fileName = file.ID().Name.Value
+		return nil
 	}
 
 	mainData, exists, err := getResource(fileID, stingray.DataMain)
@@ -433,7 +438,7 @@ func (pv *RawUnitPreviewState) getAABBVertices() [8]mgl32.Vec3 {
 	}
 }
 
-func RawUnitPreview(name string, pv *RawUnitPreviewState) {
+func RawUnitPreview(name string, pv *RawUnitPreviewState, lookupHash func(stingray.Hash) (string, bool), lookupThinHash func(stingray.ThinHash) (string, bool)) {
 	if pv.meshBuffers == nil {
 		return
 	}
@@ -448,6 +453,7 @@ func RawUnitPreview(name string, pv *RawUnitPreviewState) {
 	viewSize := imgui.ContentRegionAvail()
 	viewSize.Y -= imutils.CheckboxHeight()
 
+	imgui.SetNextItemAllowOverlap()
 	widgets.GLView(name, pv.fb, viewSize,
 		func() {
 			io := imgui.CurrentIO()
@@ -481,22 +487,25 @@ func RawUnitPreview(name string, pv *RawUnitPreviewState) {
 			gl.UniformMatrix4fv(pv.uniforms["view"], 1, false, &view[0])
 
 			//for file := range pv.lodInfos {
-			//for _, lod := range pv.lodInfos[pv.fileName] {
-			lod := pv.lodInfos[pv.fileName][len(pv.lodInfos[pv.fileName])-1]
-			gl.BindVertexArray(pv.meshBuffers[pv.fileName][lod.MeshLayoutIndex].vao)
-			var indexType uint32
-			switch pv.meshBuffers[pv.fileName][lod.MeshLayoutIndex].idxStride {
-			case 1:
-				indexType = gl.UNSIGNED_BYTE
-			case 2:
-				indexType = gl.UNSIGNED_SHORT
-			case 4:
-				indexType = gl.UNSIGNED_INT
+			for _, lod := range pv.lodInfos[pv.fileName] {
+				if !lod.Enabled {
+					continue
+				}
+				gl.BindVertexArray(pv.meshBuffers[pv.fileName][lod.MeshLayoutIndex].vao)
+				var indexType uint32
+				idxStride := uint32(pv.meshBuffers[pv.fileName][lod.MeshLayoutIndex].idxStride)
+				switch idxStride {
+				case 1:
+					indexType = gl.UNSIGNED_BYTE
+				case 2:
+					indexType = gl.UNSIGNED_SHORT
+				case 4:
+					indexType = gl.UNSIGNED_INT
+				}
+				for _, group := range lod.Groups {
+					gl.DrawElementsBaseVertexWithOffset(gl.TRIANGLES, int32(group.NumIndices), indexType, uintptr(group.IndexOffset*idxStride), int32(group.VertexOffset))
+				}
 			}
-			for _, group := range lod.Groups {
-				gl.DrawElementsBaseVertexWithOffset(gl.TRIANGLES, int32(group.NumIndices), indexType, uintptr(group.IndexOffset), int32(group.VertexOffset))
-			}
-			//}
 			//}
 
 			gl.BindVertexArray(0)
@@ -630,6 +639,29 @@ func RawUnitPreview(name string, pv *RawUnitPreviewState) {
 			}
 		},
 	)
+
+	nextPos := imgui.CursorScreenPos()
+	offsetY := imgui.Vec2{
+		X: 0,
+		Y: float32(len(pv.lodInfos[pv.fileName])) * imutils.CheckboxHeight(),
+	}
+	imgui.SetCursorScreenPos(nextPos.Sub(offsetY))
+	imgui.IndentV(imutils.S(10))
+	for idx := range pv.lodInfos[pv.fileName] {
+		name, ok := lookupThinHash(pv.lodInfos[pv.fileName][idx].Name)
+		if !ok {
+			name = pv.lodInfos[pv.fileName][idx].Name.String()
+		}
+		var vtxCount, idxCount uint32 = 0, 0
+		for _, group := range pv.lodInfos[pv.fileName][idx].Groups {
+			vtxCount += group.NumVertices
+			idxCount += group.NumIndices
+		}
+		imgui.Checkbox(fmt.Sprintf("%v - %v vertices - %v indices", name, vtxCount, idxCount), &pv.lodInfos[pv.fileName][idx].Enabled)
+	}
+	imgui.Unindent()
+
+	imgui.SetCursorScreenPos(nextPos)
 
 	if imgui.Button(fnt.I("Home")) {
 		pv.viewRotation = mgl32.Vec2{}
