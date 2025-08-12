@@ -275,7 +275,16 @@ func AutoPreview(name string, pv *AutoPreviewState) bool {
 	case AutoPreviewEmpty:
 		return false
 	case AutoPreviewUnit:
-		RawUnitPreview(name, pv.state.rawUnit)
+		RawUnitPreview(name, pv.state.rawUnit,
+			func(hash stingray.Hash) (name string, ok bool) {
+				name, ok = pv.hashes[hash]
+				return
+			},
+			func(hash stingray.ThinHash) (name string, ok bool) {
+				name, ok = pv.thinhashes[hash]
+				return
+			},
+		)
 	case AutoPreviewAudio:
 		WwisePreview(name, pv.state.audio)
 	case AutoPreviewVideo:
