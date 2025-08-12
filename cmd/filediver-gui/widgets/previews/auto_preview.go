@@ -363,7 +363,16 @@ func (pv *AutoPreview) Draw(name string) bool {
 	case AutoPreviewEmpty:
 		return false
 	case AutoPreviewUnit:
-		RawUnitPreview(name, pv.previews.rawUnit)
+		RawUnitPreview(name, pv.previews.rawUnit,
+			func(hash stingray.Hash) (name string, ok bool) {
+				name, ok = pv.hashes[hash]
+				return
+			},
+			func(hash stingray.ThinHash) (name string, ok bool) {
+				name, ok = pv.thinhashes[hash]
+				return
+			},
+		)
 	case AutoPreviewTree:
 		SpeedtreePreview(name, pv.previews.speedtree)
 	case AutoPreviewAudio:
