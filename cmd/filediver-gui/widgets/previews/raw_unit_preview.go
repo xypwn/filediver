@@ -70,6 +70,14 @@ type rawUnitPreviewLOD struct {
 	Name    stingray.ThinHash
 	Enabled bool
 	geometry.MeshInfo
+	Matrix mgl32.Mat4
+}
+
+type rawUnitPreviewObject struct {
+	Name    stingray.Hash
+	Buffers []rawUnitPreviewMeshBuffer
+	LODs    []rawUnitPreviewLOD
+	Matrix  mgl32.Mat4
 }
 
 // NOTE(xypwn): We do at most ~10 lookups once per frame,
@@ -108,8 +116,7 @@ func (uniforms *rawUnitPreviewUniforms) generate(program uint32, names ...string
 type RawUnitPreviewState struct {
 	fb *widgets.GLViewState
 
-	meshBuffers map[uint64][]rawUnitPreviewMeshBuffer
-	lodInfos    map[uint64][]rawUnitPreviewLOD
+	objects     map[uint64]rawUnitPreviewObject
 	vtxArrayIdx uint32
 	fileName    uint64
 	program     uint32
@@ -180,11 +187,10 @@ func NewRawUnitPreview() (*RawUnitPreviewState, error) {
 
 	pv.vfov = mgl32.DegToRad(60)
 	pv.viewDistance = 25
-	pv.maxViewDistance = 100
+	pv.maxViewDistance = 1000
 
 	pv.aabbColor = [4]float32{0.3, 0.3, 0.8, 0.2}
-	pv.meshBuffers = make(map[uint64][]rawUnitPreviewMeshBuffer)
-	pv.lodInfos = make(map[uint64][]rawUnitPreviewLOD)
+	pv.objects = make(map[uint64]rawUnitPreviewObject)
 	pv.model = stingrayToGLCoords
 
 	return pv, nil
@@ -193,8 +199,8 @@ func NewRawUnitPreview() (*RawUnitPreviewState, error) {
 func (pv *RawUnitPreviewState) Delete() {
 	pv.fb.Delete()
 	gl.DeleteProgram(pv.program)
-	for model := range pv.meshBuffers {
-		for _, mesh := range pv.meshBuffers[model] {
+	for model := range pv.objects {
+		for _, mesh := range pv.objects[model].Buffers {
 			mesh.deleteObjects()
 		}
 	}
@@ -204,8 +210,8 @@ func (pv *RawUnitPreviewState) LoadUnit(ctx context.Context, fileID stingray.Fil
 	for i := range pv.udimsSelected {
 		pv.udimsSelected[i] = true
 	}
-	if _, exists := pv.meshBuffers[file.ID().Name.Value]; exists {
-		pv.fileName = file.ID().Name.Value
+	if _, exists := pv.objects[fileID.Name.Value]; exists {
+		pv.fileName = fileID.Name.Value
 		return nil
 	}
 
@@ -322,6 +328,13 @@ func (pv *RawUnitPreviewState) LoadUnit(ctx context.Context, fileID stingray.Fil
 		return 0
 	}
 
+	object := rawUnitPreviewObject{
+		Name:    fileID.Name,
+		Buffers: make([]rawUnitPreviewMeshBuffer, 0),
+		LODs:    make([]rawUnitPreviewLOD, 0),
+		Matrix:  mgl32.Ident4(),
+	}
+
 	for _, layout := range meshLayouts {
 		meshBuffer := rawUnitPreviewMeshBuffer{}
 		meshBuffer.genObjects()
@@ -348,16 +361,28 @@ func (pv *RawUnitPreviewState) LoadUnit(ctx context.Context, fileID stingray.Fil
 			gl.EnableVertexAttribArray(layoutIdx)
 			offset += uintptr(layout.Items[idx].Format.Size())
 		}
-		pv.meshBuffers[fileID.Name.Value] = append(pv.meshBuffers[fileID.Name.Value], meshBuffer)
+		object.Buffers = append(object.Buffers, meshBuffer)
 	}
 
 	for idx := range bones {
+		lodModelMatrix := mgl32.Ident4()
+		for boneIdx := range info.Bones {
+			if info.Bones[boneIdx].NameHash == bones[idx] {
+				lodModelMatrix = info.Bones[boneIdx].Matrix
+				break
+			}
+		}
 		lodInfo := rawUnitPreviewLOD{
 			Name:     bones[idx],
 			MeshInfo: meshInfos[idx],
+			Enabled:  true,
+			Matrix:   lodModelMatrix,
 		}
-		pv.lodInfos[fileID.Name.Value] = append(pv.lodInfos[fileID.Name.Value], lodInfo)
+		object.LODs = append(object.LODs, lodInfo)
 	}
+
+	pv.objects[fileID.Name.Value] = object
+	pv.fileName = fileID.Name.Value
 
 	visibilityMasks, err := datalib.ParseVisibilityMasks()
 	if err != nil {
@@ -379,7 +404,6 @@ func (pv *RawUnitPreviewState) LoadUnit(ctx context.Context, fileID stingray.Fil
 	}
 	pv.udimsSelected = pv.udimsShownDefault
 
-	pv.fileName = fileID.Name.Value
 	return nil
 }
 
@@ -439,10 +463,10 @@ func (pv *RawUnitPreviewState) getAABBVertices() [8]mgl32.Vec3 {
 }
 
 func RawUnitPreview(name string, pv *RawUnitPreviewState, lookupHash func(stingray.Hash) (string, bool), lookupThinHash func(stingray.ThinHash) (string, bool)) {
-	if pv.meshBuffers == nil {
+	if pv.objects == nil {
 		return
 	}
-	if pv.meshBuffers[pv.fileName][pv.vtxArrayIdx].numIndices == 0 {
+	if pv.objects[pv.fileName].Buffers[pv.vtxArrayIdx].numIndices == 0 {
 		return
 	}
 
@@ -483,17 +507,18 @@ func RawUnitPreview(name string, pv *RawUnitPreviewState, lookupHash func(stingr
 			gl.Enable(gl.DEPTH_TEST)
 			gl.UseProgram(pv.program)
 			gl.UniformMatrix4fv(pv.uniforms["projection"], 1, false, &projection[0])
-			gl.UniformMatrix4fv(pv.uniforms["model"], 1, false, &pv.model[0])
 			gl.UniformMatrix4fv(pv.uniforms["view"], 1, false, &view[0])
 
 			//for file := range pv.lodInfos {
-			for _, lod := range pv.lodInfos[pv.fileName] {
+			for _, lod := range pv.objects[pv.fileName].LODs {
 				if !lod.Enabled {
 					continue
 				}
-				gl.BindVertexArray(pv.meshBuffers[pv.fileName][lod.MeshLayoutIndex].vao)
+				model := stingrayToGLCoords.Mul4(pv.objects[pv.fileName].Matrix).Mul4(lod.Matrix)
+				gl.UniformMatrix4fv(pv.uniforms["model"], 1, false, &model[0])
+				gl.BindVertexArray(pv.objects[pv.fileName].Buffers[lod.MeshLayoutIndex].vao)
 				var indexType uint32
-				idxStride := uint32(pv.meshBuffers[pv.fileName][lod.MeshLayoutIndex].idxStride)
+				idxStride := uint32(pv.objects[pv.fileName].Buffers[lod.MeshLayoutIndex].idxStride)
 				switch idxStride {
 				case 1:
 					indexType = gl.UNSIGNED_BYTE
@@ -643,21 +668,21 @@ func RawUnitPreview(name string, pv *RawUnitPreviewState, lookupHash func(stingr
 	nextPos := imgui.CursorScreenPos()
 	offsetY := imgui.Vec2{
 		X: 0,
-		Y: float32(len(pv.lodInfos[pv.fileName])) * imutils.CheckboxHeight(),
+		Y: float32(len(pv.objects[pv.fileName].LODs))*imutils.CheckboxHeight() + imutils.S(10),
 	}
 	imgui.SetCursorScreenPos(nextPos.Sub(offsetY))
 	imgui.IndentV(imutils.S(10))
-	for idx := range pv.lodInfos[pv.fileName] {
-		name, ok := lookupThinHash(pv.lodInfos[pv.fileName][idx].Name)
+	for idx := range pv.objects[pv.fileName].LODs {
+		name, ok := lookupThinHash(pv.objects[pv.fileName].LODs[idx].Name)
 		if !ok {
-			name = pv.lodInfos[pv.fileName][idx].Name.String()
+			name = pv.objects[pv.fileName].LODs[idx].Name.String()
 		}
 		var vtxCount, idxCount uint32 = 0, 0
-		for _, group := range pv.lodInfos[pv.fileName][idx].Groups {
+		for _, group := range pv.objects[pv.fileName].LODs[idx].Groups {
 			vtxCount += group.NumVertices
 			idxCount += group.NumIndices
 		}
-		imgui.Checkbox(fmt.Sprintf("%v - %v vertices - %v indices", name, vtxCount, idxCount), &pv.lodInfos[pv.fileName][idx].Enabled)
+		imgui.Checkbox(fmt.Sprintf("%v %v - %v vertices", fnt.I("Deployed_code"), name, vtxCount), &pv.objects[pv.fileName].LODs[idx].Enabled)
 	}
 	imgui.Unindent()
 
@@ -676,9 +701,9 @@ func RawUnitPreview(name string, pv *RawUnitPreviewState, lookupHash func(stingr
 	if imgui.BeginPopup("Debug info") {
 		imgui.TextUnformatted("Mesh info")
 		imgui.Indent()
-		imutils.Textf("Indices: %v", pv.meshBuffers[pv.fileName][pv.vtxArrayIdx].numIndices)
-		imutils.Textf("Vertices: %v", pv.meshBuffers[pv.fileName][pv.vtxArrayIdx].numVertices)
-		imutils.Textf("Triangles: %v", pv.meshBuffers[pv.fileName][pv.vtxArrayIdx].numIndices/3)
+		imutils.Textf("Indices: %v", pv.objects[pv.fileName].Buffers[pv.vtxArrayIdx].numIndices)
+		imutils.Textf("Vertices: %v", pv.objects[pv.fileName].Buffers[pv.vtxArrayIdx].numVertices)
+		imutils.Textf("Triangles: %v", pv.objects[pv.fileName].Buffers[pv.vtxArrayIdx].numIndices/3)
 		imgui.Unindent()
 
 		imgui.Separator()
