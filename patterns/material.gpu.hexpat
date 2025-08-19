@@ -323,7 +323,7 @@ namespace d3d {
         D3D10_SB_PIXEL_SHADER       = 0,
         D3D10_SB_VERTEX_SHADER      = 1,
         D3D10_SB_GEOMETRY_SHADER    = 2,
-        
+
         // D3D11 Shaders
         D3D11_SB_HULL_SHADER        = 3,
         D3D11_SB_DOMAIN_SHADER      = 4,
@@ -450,7 +450,7 @@ namespace d3d {
 
         // This marks the end of D3D10.0 opcodes
         D3D10_SB_OPCODE_RESERVED0,
-        
+
     // ---------- DX 10.1 op codes---------------------
 
         D3D10_1_SB_OPCODE_LOD,
@@ -501,7 +501,7 @@ namespace d3d {
         D3D11_SB_OPCODE_DCL_FUNCTION_BODY                ,
         D3D11_SB_OPCODE_DCL_FUNCTION_TABLE               ,
         D3D11_SB_OPCODE_DCL_INTERFACE                    ,
-        
+
         D3D11_SB_OPCODE_DCL_INPUT_CONTROL_POINT_COUNT    ,
         D3D11_SB_OPCODE_DCL_OUTPUT_CONTROL_POINT_COUNT   ,
         D3D11_SB_OPCODE_DCL_TESS_DOMAIN                  ,
@@ -545,9 +545,9 @@ namespace d3d {
         D3D11_SB_OPCODE_IMM_ATOMIC_IMAX                  ,
         D3D11_SB_OPCODE_IMM_ATOMIC_IMIN                  ,
         D3D11_SB_OPCODE_IMM_ATOMIC_UMAX                  ,
-        D3D11_SB_OPCODE_IMM_ATOMIC_UMIN                  ,   
+        D3D11_SB_OPCODE_IMM_ATOMIC_UMIN                  ,
         D3D11_SB_OPCODE_SYNC                             ,
-        
+
         D3D11_SB_OPCODE_DADD                             ,
         D3D11_SB_OPCODE_DMAX                             ,
         D3D11_SB_OPCODE_DMIN                             ,
@@ -564,7 +564,7 @@ namespace d3d {
         D3D11_SB_OPCODE_EVAL_SNAPPED                     ,
         D3D11_SB_OPCODE_EVAL_SAMPLE_INDEX                ,
         D3D11_SB_OPCODE_EVAL_CENTROID                    ,
-        
+
         D3D11_SB_OPCODE_DCL_GS_INSTANCE_COUNT            ,
 
         D3D11_SB_OPCODE_ABORT                            ,
@@ -872,7 +872,7 @@ struct ShaderProgramList {
     padding[12];
     std::mem::AlignTo<8> align;
     u128 programCounts[count];
-    
+
     ShaderProgramBlock programs[count];
 };
 
