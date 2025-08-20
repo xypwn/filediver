@@ -52,8 +52,6 @@ func main() {
 	defer out.Close()
 
 	prt.Infof("Writing %v...", *output)
-	for _, opcode := range dxbc.ShaderCode.Opcodes {
-		out.WriteString(opcode.ToGLSL())
-	}
+	out.WriteString(dxbc.ToGLSL())
 	prt.Infof("Done.")
 }
