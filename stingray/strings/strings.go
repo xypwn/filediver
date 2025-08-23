@@ -20,6 +20,7 @@ var LanguageFriendlyName = map[stingray.ThinHash]string{
 	stingray.Sum64([]byte("jp")).Thin(): "Japanese",
 	stingray.Sum64([]byte("ko")).Thin(): "Korean",
 	stingray.Sum64([]byte("ms")).Thin(): "Spanish (Mexico)",
+	stingray.Sum64([]byte("nl")).Thin(): "Dutch",
 	stingray.Sum64([]byte("pl")).Thin(): "Polish",
 	stingray.Sum64([]byte("pt")).Thin(): "Portuguese (Europe)",
 	stingray.Sum64([]byte("ru")).Thin(): "Russian",
