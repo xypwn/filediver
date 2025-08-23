@@ -1,3 +1,21 @@
+# .strings language names
+bp
+de
+es
+fr
+gb
+it
+jp
+ko
+ms
+pl
+pt
+ru
+sc
+tc
+us
+
+# Bones, texture usages, state machine thingys etc. (basically everything else)
 16x08_proxy
 16x16_proxy
 28x16_proxy

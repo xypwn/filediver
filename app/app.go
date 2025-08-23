@@ -205,12 +205,12 @@ func OpenGameDir(ctx context.Context, gameDir string, hashStrings []string, thin
 		Type: stingray.Sum64([]byte("strings")),
 	}]
 
-	var stringMap *stingray_strings.StingrayStrings = nil
+	var stringMap *stingray_strings.Strings = nil
 	if ok {
 		stringsReader, err := stringsFile.Open(ctx, stingray.DataMain)
 		if err == nil {
 			defer stringsReader.Close()
-			stringMap, err = stingray_strings.LoadStingrayStrings(stringsReader)
+			stringMap, err = stingray_strings.Load(stringsReader)
 			if err != nil {
 				stringMap = nil
 			}
