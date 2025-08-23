@@ -3,106 +3,95 @@ package strings
 import (
 	"bytes"
 	"encoding/binary"
-	"encoding/json"
+	"encoding/hex"
 	"fmt"
 	"io"
+
+	"github.com/xypwn/filediver/stingray"
 )
 
-type StingrayStrings struct {
-	Magic   []uint8
-	Version uint32
-	Count   uint32
-	// Not actually sure that this is a signature, but its my best guess as to its purpose
-	Signature *uint32
-	Strings   map[uint32]string
+var LanguageFriendlyName = map[stingray.ThinHash]string{
+	stingray.Sum64([]byte("bp")).Thin(): "Portuguese (Brazil)",
+	stingray.Sum64([]byte("de")).Thin(): "German",
+	stingray.Sum64([]byte("es")).Thin(): "Spanish (Spain)",
+	stingray.Sum64([]byte("fr")).Thin(): "French",
+	stingray.Sum64([]byte("gb")).Thin(): "English (UK)",
+	stingray.Sum64([]byte("it")).Thin(): "Italian",
+	stingray.Sum64([]byte("jp")).Thin(): "Japanese",
+	stingray.Sum64([]byte("ko")).Thin(): "Korean",
+	stingray.Sum64([]byte("ms")).Thin(): "Spanish (Mexico)",
+	stingray.Sum64([]byte("pl")).Thin(): "Polish",
+	stingray.Sum64([]byte("pt")).Thin(): "Portuguese (Europe)",
+	stingray.Sum64([]byte("ru")).Thin(): "Russian",
+	stingray.Sum64([]byte("sc")).Thin(): "Chinese (Simplified)",
+	stingray.Sum64([]byte("tc")).Thin(): "Chinese (Traditional)",
+	stingray.Sum64([]byte("us")).Thin(): "English (US)",
 }
 
-func (s *StingrayStrings) MarshalJSON() ([]byte, error) {
-	buf := bytes.Buffer{}
-	enc := json.NewEncoder(&buf)
-	enc.SetEscapeHTML(false)
-	err := enc.Encode(s.Strings)
-	return buf.Bytes(), err
+type Strings struct {
+	Magic    [4]byte
+	Version  uint32
+	Count    uint32
+	Language stingray.ThinHash // not present (zeroed) if Count == 0
+	Strings  map[uint32]string
 }
 
-func ReadCString(r io.Reader) (*string, error) {
-	var data []byte = make([]byte, 1)
-	var toReturn string
-	for {
-		read, err := r.Read(data)
-		if read == 0 {
-			return nil, fmt.Errorf("string read past the end of r")
-		}
-
-		if err != nil {
-			return nil, err
-		}
-
-		// Break reading string on null terminator
-		if data[0] == 0 {
-			break
-		}
-
-		toReturn = toReturn + string(data)
+func LoadHeader(r io.Reader) (Strings, error) {
+	var header struct {
+		Magic   [4]byte
+		Version uint32
+		Count   uint32
 	}
-	return &toReturn, nil
+	if err := binary.Read(r, binary.LittleEndian, &header); err != nil {
+		return Strings{}, err
+	}
+	res := Strings{
+		Magic:   header.Magic,
+		Version: header.Version,
+		Count:   header.Count,
+	}
+	if header.Count > 0 {
+		if err := binary.Read(r, binary.LittleEndian, &res.Language); err != nil {
+			return Strings{}, err
+		}
+	}
+	return res, nil
 }
 
-func LoadStingrayStrings(r io.ReadSeeker) (*StingrayStrings, error) {
-	magic := make([]uint8, 4)
-	if err := binary.Read(r, binary.LittleEndian, magic); err != nil {
+func Load(r io.Reader) (*Strings, error) {
+	data, err := io.ReadAll(r)
+	if err != nil {
 		return nil, err
 	}
 
-	var version, count, signature uint32
-	if err := binary.Read(r, binary.LittleEndian, &version); err != nil {
+	dataR := bytes.NewReader(data)
+
+	res, err := LoadHeader(dataR)
+	if err != nil {
+		fmt.Println("a\n", hex.EncodeToString(data), len(data))
 		return nil, err
 	}
 
-	if err := binary.Read(r, binary.LittleEndian, &count); err != nil {
+	stringIDs := make([]uint32, res.Count)
+	stringOffsets := make([]uint32, res.Count)
+	res.Strings = make(map[uint32]string)
+
+	if err := binary.Read(dataR, binary.LittleEndian, stringIDs); err != nil {
 		return nil, err
 	}
 
-	if count == 0 {
-		return &StingrayStrings{
-			Magic:     magic,
-			Version:   version,
-			Count:     count,
-			Signature: nil,
-			Strings:   make(map[uint32]string),
-		}, nil
-	}
-
-	if err := binary.Read(r, binary.LittleEndian, &signature); err != nil {
-		return nil, err
-	}
-
-	stringIDs := make([]uint32, count)
-	stringOffsets := make([]uint32, count)
-	strings := make(map[uint32]string)
-
-	if err := binary.Read(r, binary.LittleEndian, stringIDs); err != nil {
-		return nil, err
-	}
-
-	if err := binary.Read(r, binary.LittleEndian, stringOffsets); err != nil {
+	if err := binary.Read(dataR, binary.LittleEndian, stringOffsets); err != nil {
 		return nil, err
 	}
 
 	for i, offset := range stringOffsets {
-		r.Seek(int64(offset), io.SeekStart)
-		str, err := ReadCString(r)
-		if err != nil {
-			return nil, err
+		s := data[offset:]
+		end := bytes.IndexByte(s, 0)
+		if end == -1 {
+			return nil, fmt.Errorf("string null-terminator not found")
 		}
-		strings[stringIDs[i]] = *str
+		res.Strings[stringIDs[i]] = string(s[:end])
 	}
 
-	return &StingrayStrings{
-		Magic:     magic,
-		Version:   version,
-		Count:     count,
-		Signature: &signature,
-		Strings:   strings,
-	}, nil
+	return &res, nil
 }

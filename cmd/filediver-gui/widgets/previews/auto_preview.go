@@ -230,14 +230,14 @@ func (pv *AutoPreviewState) LoadFile(ctx context.Context, file *stingray.File, m
 			pv.err = err
 			return
 		}
-		data, err := stingray_strings.LoadStingrayStrings(
+		data, err := stingray_strings.Load(
 			bytes.NewReader(data[stingray.DataMain]),
 		)
 		if err != nil {
 			pv.err = fmt.Errorf("loading DDS image: %w", err)
 			return
 		}
-		pv.state.strings.Load(data)
+		pv.state.strings.Load(data, pv.thinhashes)
 	case stingray.Sum64([]byte("material")):
 		pv.activeType = AutoPreviewMaterial
 		if err := loadFiles(stingray.DataMain); err != nil {
