@@ -2,19 +2,19 @@ package app
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path"
 	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
-
-	"maps"
 
 	"github.com/gobwas/glob"
 	"github.com/qmuntal/gltf"
@@ -42,10 +42,14 @@ import (
 	"github.com/xypwn/filediver/wwise"
 )
 
-func parseWwiseDep(ctx context.Context, f *stingray.File) (string, error) {
-	r, err := f.Open(ctx, stingray.DataMain)
-	if err != nil {
-		return "", err
+func parseWwiseDep(dataDir *stingray.DataDir, fileID stingray.FileID) (string, error) {
+	var r *bytes.Reader
+	{
+		b, err := dataDir.Read(fileID, stingray.DataMain)
+		if err != nil {
+			return "", err
+		}
+		r = bytes.NewReader(b)
 	}
 	var magicNum [4]byte
 	if _, err := io.ReadFull(r, magicNum[:]); err != nil {
@@ -108,21 +112,21 @@ type App struct {
 }
 
 // Automatically gets most wwise-related hashes by reading the game files
-func getWwiseHashes(ctx context.Context, dataDir *stingray.DataDir) (map[stingray.Hash]string, error) {
+func getWwiseHashes(dataDir *stingray.DataDir) (map[stingray.Hash]string, error) {
 	hashes := make(map[stingray.Hash]string)
 	// Read wwise_dep files to figure out the names of all wwise_bank files
-	for id, file := range dataDir.Files {
-		if id.Type == stingray.Sum64([]byte("wwise_dep")) {
-			h, err := parseWwiseDep(ctx, file)
+	for id := range dataDir.Files {
+		if id.Type == stingray.Sum("wwise_dep") {
+			h, err := parseWwiseDep(dataDir, id)
 			if err != nil {
 				return nil, fmt.Errorf("wwise_dep: %w", err)
 			}
-			hashes[stingray.Sum64([]byte(h))] = h
+			hashes[stingray.Sum(h)] = h
 		}
 	}
 	// Read wwise_bank files to figure out the names of most wwise_stream files
-	for id, file := range dataDir.Files {
-		if id.Type == stingray.Sum64([]byte("wwise_bank")) {
+	for id := range dataDir.Files {
+		if id.Type == stingray.Sum("wwise_bank") {
 			name, ok := hashes[id.Name]
 			if !ok {
 				// It seems the wwise banks no longer all have an according wwise_dep (https://github.com/xypwn/filediver/issues/35).
@@ -132,24 +136,23 @@ func getWwiseHashes(ctx context.Context, dataDir *stingray.DataDir) (map[stingra
 			}
 			dir := path.Dir(name)
 			if err := func() error {
-				r, err := file.Open(ctx, stingray.DataMain)
+				b, err := dataDir.Read(id, stingray.DataMain)
 				if err != nil {
 					return err
 				}
-				defer r.Close()
-				bnk, err := stingray_wwise.OpenBnk(r)
+				bnk, err := stingray_wwise.OpenBnk(bytes.NewReader(b))
 				if err != nil {
 					return err
 				}
 				for i := 0; i < bnk.NumFiles(); i++ {
 					id := bnk.FileID(i)
 					streamPath := path.Join(dir, fmt.Sprint(id))
-					hashes[stingray.Sum64([]byte(streamPath))] = streamPath
+					hashes[stingray.Sum(streamPath)] = streamPath
 				}
 				for _, obj := range bnk.HircObjects {
 					if obj.Header.Type == wwise.BnkHircObjectSound {
 						streamPath := path.Join(dir, fmt.Sprint(obj.Sound.SourceID))
-						hashes[stingray.Sum64([]byte(streamPath))] = streamPath
+						hashes[stingray.Sum(streamPath)] = streamPath
 					}
 				}
 				return nil
@@ -163,7 +166,7 @@ func getWwiseHashes(ctx context.Context, dataDir *stingray.DataDir) (map[stingra
 	{
 		numWithoutName := 0
 		for id := range dataDir.Files {
-			if id.Type == stingray.Sum64([]byte("wwise_stream")) {
+			if id.Type == stingray.Sum("wwise_stream") {
 				if _, ok := hashes[id.Name]; !ok {
 					fmt.Println(id.Name)
 					numWithoutName++
@@ -186,7 +189,7 @@ func OpenGameDir(ctx context.Context, gameDir string, hashStrings []string, thin
 	}
 
 	hashesMap := make(map[stingray.Hash]string)
-	if wwiseHashes, err := getWwiseHashes(ctx, dataDir); err == nil {
+	if wwiseHashes, err := getWwiseHashes(dataDir); err == nil {
 		for h, n := range wwiseHashes {
 			hashesMap[h] = n
 		}
@@ -194,24 +197,21 @@ func OpenGameDir(ctx context.Context, gameDir string, hashStrings []string, thin
 		return nil, err
 	}
 	for _, h := range hashStrings {
-		hashesMap[stingray.Sum64([]byte(h))] = h
+		hashesMap[stingray.Sum(h)] = h
 	}
 	thinHashesMap := make(map[stingray.ThinHash]string)
 	for _, h := range thinhashes {
-		thinHashesMap[stingray.Sum64([]byte(h)).Thin()] = h
+		thinHashesMap[stingray.Sum(h).Thin()] = h
 	}
 
-	stringsFile, ok := dataDir.Files[stingray.FileID{
-		Name: armorStrings,
-		Type: stingray.Sum64([]byte("strings")),
-	}]
-
 	var stringMap *stingray_strings.Strings = nil
-	if ok {
-		stringsReader, err := stringsFile.Open(ctx, stingray.DataMain)
+	{
+		b, err := dataDir.Read(stingray.FileID{
+			Name: armorStrings,
+			Type: stingray.Sum("strings"),
+		}, stingray.DataMain)
 		if err == nil {
-			defer stringsReader.Close()
-			stringMap, err = stingray_strings.Load(stringsReader)
+			stringMap, err = stingray_strings.Load(bytes.NewReader(b))
 			if err != nil {
 				stringMap = nil
 			}
@@ -282,9 +282,9 @@ func (a *App) MatchingFiles(
 	includeGlob string,
 	excludeGlob string,
 	includeOnlyTypes []string,
-	includeTriadIDs []stingray.Hash,
+	includeArchiveIDs []stingray.Hash,
 ) (
-	map[stingray.FileID]*stingray.File,
+	map[stingray.FileID]struct{},
 	error,
 ) {
 	var inclGlob glob.Glob
@@ -306,20 +306,22 @@ func (a *App) MatchingFiles(
 		}
 	}
 
-	var includeTriadFiles map[stingray.FileID]*stingray.File = make(map[stingray.FileID]*stingray.File)
-	for _, includeTriadID := range includeTriadIDs {
-		files, ok := a.DataDir.FilesByTriad[includeTriadID]
+	var includeArchiveFiles map[stingray.FileID]struct{} = make(map[stingray.FileID]struct{})
+	for _, includeArchiveID := range includeArchiveIDs {
+		files, ok := a.DataDir.Archives[includeArchiveID]
 		if !ok {
-			return nil, fmt.Errorf("triad %v does not exist", includeTriadID.String())
+			return nil, fmt.Errorf("archive %v does not exist", includeArchiveID.String())
 		}
-		maps.Copy(includeTriadFiles, files)
+		for _, f := range files {
+			includeArchiveFiles[f] = struct{}{}
+		}
 	}
 
-	res := make(map[stingray.FileID]*stingray.File)
-	for id, file := range a.DataDir.Files {
+	res := make(map[stingray.FileID]struct{})
+	for id := range a.DataDir.Files {
 		shouldIncl := true
-		if len(includeTriadIDs) != 0 {
-			if _, ok := includeTriadFiles[id]; !ok {
+		if len(includeArchiveIDs) != 0 {
+			if _, ok := includeArchiveFiles[id]; !ok {
 				shouldIncl = false
 			}
 		}
@@ -332,8 +334,8 @@ func (a *App) MatchingFiles(
 			}
 		}
 		if includeGlob != "" {
-			// Include all files in triad even if they don't match the includeGlob - includeGlob will only add files to read
-			shouldIncl = (len(includeTriadIDs) != 0 && shouldIncl) || a.matchFileID(id, inclGlob, inclGlobNameOnly)
+			// Include all files in archive even if they don't match the includeGlob - includeGlob will only add files to read
+			shouldIncl = (len(includeArchiveIDs) != 0 && shouldIncl) || a.matchFileID(id, inclGlob, inclGlobNameOnly)
 		}
 		if excludeGlob != "" {
 			if a.matchFileID(id, exclGlob, exclGlobNameOnly) {
@@ -344,7 +346,7 @@ func (a *App) MatchingFiles(
 			continue
 		}
 
-		res[id] = file
+		res[id] = struct{}{}
 	}
 
 	return res, nil
@@ -367,38 +369,45 @@ func (a *App) LookupThinHash(hash stingray.ThinHash) string {
 }
 
 type extractContext struct {
-	ctx      context.Context
-	app      *App
-	file     *stingray.File
-	runner   *exec.Runner
-	config   appconfig.Config
-	outPath  string
-	files    []string
-	triadIDs []stingray.Hash
-	printer  Printer
+	ctx              context.Context
+	app              *App
+	fileID           stingray.FileID
+	runner           *exec.Runner
+	config           appconfig.Config
+	outPath          string
+	files            []string
+	selectedArchives []stingray.Hash
+	printer          Printer
 }
 
-func newExtractContext(ctx context.Context, app *App, file *stingray.File, runner *exec.Runner, config appconfig.Config, outPath string, triadIDs []stingray.Hash, printer Printer) *extractContext {
+func newExtractContext(ctx context.Context, app *App, fileID stingray.FileID, runner *exec.Runner, config appconfig.Config, outPath string, selectedArchives []stingray.Hash, printer Printer) *extractContext {
 	return &extractContext{
-		ctx:      ctx,
-		app:      app,
-		file:     file,
-		runner:   runner,
-		config:   config,
-		outPath:  outPath,
-		triadIDs: triadIDs,
-		printer:  printer,
+		ctx:              ctx,
+		app:              app,
+		fileID:           fileID,
+		runner:           runner,
+		config:           config,
+		outPath:          outPath,
+		selectedArchives: selectedArchives,
+		printer:          printer,
 	}
 }
 
-func (c *extractContext) OutPath() (string, error) { return c.outPath, nil }
-func (c *extractContext) File() *stingray.File     { return c.file }
+func (c *extractContext) Ctx() context.Context    { return c.ctx }
+func (c *extractContext) FileID() stingray.FileID { return c.fileID }
+func (c *extractContext) Open(id stingray.FileID, typ stingray.DataType) (io.ReadSeeker, error) {
+	b, err := c.app.DataDir.Read(id, typ)
+	if err != nil {
+		return nil, err
+	}
+	return bytes.NewReader(b), nil
+}
+func (c *extractContext) Exists(id stingray.FileID, typ stingray.DataType) bool {
+	files := c.app.DataDir.Files[id]
+	return len(files) > 0 && files[0].Exists(typ)
+}
 func (c *extractContext) Runner() *exec.Runner     { return c.runner }
 func (c *extractContext) Config() appconfig.Config { return c.config }
-func (c *extractContext) GetResource(name, typ stingray.Hash) (file *stingray.File, exists bool) {
-	file, exists = c.app.DataDir.Files[stingray.FileID{Name: name, Type: typ}]
-	return
-}
 func (c *extractContext) CreateFile(suffix string) (io.WriteCloser, error) {
 	path, err := c.AllocateFile(suffix)
 	if err != nil {
@@ -414,24 +423,28 @@ func (c *extractContext) AllocateFile(suffix string) (string, error) {
 	c.files = append(c.files, path)
 	return path, nil
 }
-func (c *extractContext) Ctx() context.Context { return c.ctx }
-func (c *extractContext) Files() []string {
-	return c.files
-}
 func (c *extractContext) Hashes() map[stingray.Hash]string {
 	return c.app.Hashes
 }
 func (c *extractContext) ThinHashes() map[stingray.ThinHash]string {
 	return c.app.ThinHashes
 }
-func (c *extractContext) TriadIDs() []stingray.Hash {
-	return c.triadIDs
+func (c *extractContext) SelectedArchives() []stingray.Hash {
+	return c.selectedArchives
+}
+func (c *extractContext) Archives(fileID stingray.FileID) []stingray.Hash {
+	files := c.app.DataDir.Files[fileID]
+	res := make(map[stingray.Hash]struct{})
+	for _, file := range files {
+		res[file.ArchiveID] = struct{}{}
+	}
+	return slices.Collect(maps.Keys(res))
 }
 func (c *extractContext) ArmorSets() map[stingray.Hash]dlbin.ArmorSet {
 	return c.app.ArmorSets
 }
 func (c *extractContext) Warnf(f string, a ...any) {
-	name, typ := c.app.LookupHash(c.file.ID().Name), c.app.LookupHash(c.file.ID().Type)
+	name, typ := c.app.LookupHash(c.fileID.Name), c.app.LookupHash(c.fileID.Type)
 	c.printer.Warnf("extract %v.%v: %v", name, typ, fmt.Sprintf(f, a...))
 }
 func (c *extractContext) LookupHash(hash stingray.Hash) string {
@@ -440,6 +453,8 @@ func (c *extractContext) LookupHash(hash stingray.Hash) string {
 func (c *extractContext) LookupThinHash(hash stingray.ThinHash) string {
 	return c.app.LookupThinHash(hash)
 }
+
+var _ extractor.Context = &extractContext{}
 
 func getSourceExtractFunc(extrCfg appconfig.Config, typ string) (extr extractor.ExtractFunc) {
 	switch extrCfg.Raw.Format {
@@ -458,13 +473,8 @@ func getSourceExtractFunc(extrCfg appconfig.Config, typ string) (extr extractor.
 }
 
 // Returns path to extracted file/directory.
-func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string, extrCfg appconfig.Config, runner *exec.Runner, gltfDoc *gltf.Document, triadIDs []stingray.Hash, printer Printer) ([]string, error) {
+func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string, extrCfg appconfig.Config, runner *exec.Runner, gltfDoc *gltf.Document, archiveIDs []stingray.Hash, printer Printer) ([]string, error) {
 	name, typ := a.LookupHash(id.Name), a.LookupHash(id.Type)
-
-	file, ok := a.DataDir.Files[id]
-	if !ok {
-		return nil, fmt.Errorf("extract %v.%v: file does not exist", name, typ)
-	}
 
 	typeFormats := appconfig.GetTypeFormats(extrCfg)
 	extrFormat := typeFormats[typ]
@@ -534,18 +544,18 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 	extrCtx := newExtractContext(
 		ctx,
 		a,
-		file,
+		id,
 		runner,
 		extrCfg,
 		outPath,
-		triadIDs,
+		archiveIDs,
 		printer,
 	)
 	if err := extr(extrCtx); err != nil {
 		{
 			var err error
 			var errPath string
-			for _, path := range extrCtx.Files() {
+			for _, path := range extrCtx.files {
 				if e := os.Remove(path); e != nil && !errors.Is(e, os.ErrNotExist) && err == nil {
 					err = e
 					errPath = path
@@ -558,5 +568,5 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 		return nil, fmt.Errorf("extract %v.%v: %w", name, typ, err)
 	}
 
-	return extrCtx.Files(), nil
+	return extrCtx.files, nil
 }

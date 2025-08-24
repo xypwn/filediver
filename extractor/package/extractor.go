@@ -2,7 +2,6 @@ package stingray_package
 
 import (
 	"encoding/json"
-	"errors"
 
 	"github.com/xypwn/filediver/extractor"
 	"github.com/xypwn/filediver/stingray"
@@ -10,14 +9,10 @@ import (
 )
 
 func ExtractPackageJSON(ctx extractor.Context) error {
-	if !ctx.File().Exists(stingray.DataMain) {
-		return errors.New("no main data")
-	}
-	r, err := ctx.File().Open(ctx.Ctx(), stingray.DataMain)
+	r, err := ctx.Open(ctx.FileID(), stingray.DataMain)
 	if err != nil {
 		return err
 	}
-	defer r.Close()
 	pkgData, err := stingray_package.LoadPackage(r)
 	if err != nil {
 		return err

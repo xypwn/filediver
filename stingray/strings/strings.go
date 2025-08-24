@@ -11,22 +11,22 @@ import (
 )
 
 var LanguageFriendlyName = map[stingray.ThinHash]string{
-	stingray.Sum64([]byte("bp")).Thin(): "Portuguese (Brazil)",
-	stingray.Sum64([]byte("de")).Thin(): "German",
-	stingray.Sum64([]byte("es")).Thin(): "Spanish (Spain)",
-	stingray.Sum64([]byte("fr")).Thin(): "French",
-	stingray.Sum64([]byte("gb")).Thin(): "English (UK)",
-	stingray.Sum64([]byte("it")).Thin(): "Italian",
-	stingray.Sum64([]byte("jp")).Thin(): "Japanese",
-	stingray.Sum64([]byte("ko")).Thin(): "Korean",
-	stingray.Sum64([]byte("ms")).Thin(): "Spanish (Mexico)",
-	stingray.Sum64([]byte("nl")).Thin(): "Dutch",
-	stingray.Sum64([]byte("pl")).Thin(): "Polish",
-	stingray.Sum64([]byte("pt")).Thin(): "Portuguese (Europe)",
-	stingray.Sum64([]byte("ru")).Thin(): "Russian",
-	stingray.Sum64([]byte("sc")).Thin(): "Chinese (Simplified)",
-	stingray.Sum64([]byte("tc")).Thin(): "Chinese (Traditional)",
-	stingray.Sum64([]byte("us")).Thin(): "English (US)",
+	stingray.Sum("bp").Thin(): "Portuguese (Brazil)",
+	stingray.Sum("de").Thin(): "German",
+	stingray.Sum("es").Thin(): "Spanish (Spain)",
+	stingray.Sum("fr").Thin(): "French",
+	stingray.Sum("gb").Thin(): "English (UK)",
+	stingray.Sum("it").Thin(): "Italian",
+	stingray.Sum("jp").Thin(): "Japanese",
+	stingray.Sum("ko").Thin(): "Korean",
+	stingray.Sum("ms").Thin(): "Spanish (Mexico)",
+	stingray.Sum("nl").Thin(): "Dutch",
+	stingray.Sum("pl").Thin(): "Polish",
+	stingray.Sum("pt").Thin(): "Portuguese (Europe)",
+	stingray.Sum("ru").Thin(): "Russian",
+	stingray.Sum("sc").Thin(): "Chinese (Simplified)",
+	stingray.Sum("tc").Thin(): "Chinese (Traditional)",
+	stingray.Sum("us").Thin(): "English (US)",
 }
 
 type Strings struct {

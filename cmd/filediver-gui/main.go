@@ -37,21 +37,21 @@ var license string
 
 var (
 	gameFileTypeDescriptions = map[stingray.Hash]string{
-		stingray.Sum64([]byte("bik")):            "video",
-		stingray.Sum64([]byte("wwise_bank")):     "audio bank",
-		stingray.Sum64([]byte("wwise_stream")):   "loose audio",
-		stingray.Sum64([]byte("texture")):        "image/texture",
-		stingray.Sum64([]byte("unit")):           "3D model",
-		stingray.Sum64([]byte("strings")):        "text table",
-		stingray.Sum64([]byte("package")):        "file bundle",
-		stingray.Sum64([]byte("bones")):          "unit bones",
-		stingray.Sum64([]byte("physics")):        "unit physics",
-		stingray.Sum64([]byte("geometry_group")): "group of 3D models",
-		stingray.Sum64([]byte("material")):       "shader settings",
+		stingray.Sum("bik"):            "video",
+		stingray.Sum("wwise_bank"):     "audio bank",
+		stingray.Sum("wwise_stream"):   "loose audio",
+		stingray.Sum("texture"):        "image/texture",
+		stingray.Sum("unit"):           "3D model",
+		stingray.Sum("strings"):        "text table",
+		stingray.Sum("package"):        "file bundle",
+		stingray.Sum("bones"):          "unit bones",
+		stingray.Sum("physics"):        "unit physics",
+		stingray.Sum("geometry_group"): "group of 3D models",
+		stingray.Sum("material"):       "shader settings",
 	}
 	gameFileTypeTooltipsExtra = map[stingray.Hash]string{
-		stingray.Sum64([]byte("wwise_stream")): "All wwise_streams are also contained in a wwise_bank.\nYou probably want to use wwise_bank instead.",
-		stingray.Sum64([]byte("package")):      "A package contains references to a bunch of other files.",
+		stingray.Sum("wwise_stream"): "All wwise_streams are also contained in a wwise_bank.\nYou probably want to use wwise_bank instead.",
+		stingray.Sum("package"):      "A package contains references to a bunch of other files.",
 	}
 )
 
@@ -270,11 +270,10 @@ func (a *guiApp) onPreDraw(state *imgui_wrapper.State) error {
 			a.gameData.Hashes,
 			a.gameData.ThinHashes,
 			func(id stingray.FileID, typ stingray.DataType) (data []byte, exists bool, err error) {
-				file, ok := a.gameData.DataDir.Files[id]
-				if !ok {
+				data, err = a.gameData.DataDir.Read(id, typ)
+				if err == stingray.ErrFileDataTypeNotExist {
 					return nil, false, nil
 				}
-				data, err = file.Read(typ)
 				if err != nil {
 					return nil, true, err
 				}
@@ -511,8 +510,8 @@ func (a *guiApp) drawBrowserWindow() {
 					if a.gameData == nil {
 						a.gameData = a.gameDataLoad.Result
 						types := make(map[stingray.Hash]struct{})
-						for _, f := range a.gameData.DataDir.Files {
-							types[f.ID().Type] = struct{}{}
+						for id := range a.gameData.DataDir.Files {
+							types[id.Type] = struct{}{}
 						}
 						a.gameFileTypes = []widgets.FilterListSection[stingray.Hash]{
 							{Title: "Previewable and exportable"},
@@ -525,13 +524,13 @@ func (a *guiApp) drawBrowserWindow() {
 							var sectionIdx int
 							switch typ {
 							case // previewable and exportable
-								stingray.Sum64([]byte("bik")),
-								stingray.Sum64([]byte("texture")),
-								stingray.Sum64([]byte("material")),
-								stingray.Sum64([]byte("wwise_bank")),
-								stingray.Sum64([]byte("wwise_stream")),
-								stingray.Sum64([]byte("unit")),
-								stingray.Sum64([]byte("strings")):
+								stingray.Sum("bik"),
+								stingray.Sum("texture"),
+								stingray.Sum("material"),
+								stingray.Sum("wwise_bank"),
+								stingray.Sum("wwise_stream"),
+								stingray.Sum("unit"),
+								stingray.Sum("strings"):
 								sectionIdx = 0
 							default:
 								typName := a.gameData.LookupHash(typ)
@@ -547,7 +546,7 @@ func (a *guiApp) drawBrowserWindow() {
 						}
 						a.archiveIDs = []widgets.FilterListSection[stingray.Hash]{
 							{
-								Items: slices.SortedFunc(maps.Keys(a.gameData.DataDir.FilesByTriad), func(h1, h2 stingray.Hash) int {
+								Items: slices.SortedFunc(maps.Keys(a.gameData.DataDir.Archives), func(h1, h2 stingray.Hash) int {
 									return strings.Compare(a.gameData.LookupHash(h1), a.gameData.LookupHash(h2))
 								}),
 							},
@@ -746,7 +745,7 @@ func (a *guiApp) drawBrowserWindow() {
 				if !noPushToHistory {
 					a.historyPush(a.previewState.ActiveID(), newActiveFileID)
 				}
-				a.previewState.LoadFile(a.ctx, a.gameData.DataDir.Files[newActiveFileID], a.preferences.PreviewVideoVerticalResolution)
+				a.previewState.LoadFile(a.ctx, newActiveFileID, a.preferences.PreviewVideoVerticalResolution)
 			}
 
 			imutils.Textf("Showing %v/%v files (%v selected for export)", len(a.gameData.SortedSearchResultFileIDs), len(a.gameData.DataDir.Files), len(a.filesSelectedForExport))
@@ -838,7 +837,7 @@ func (a *guiApp) drawArchiveFilterWindow() {
 				if armorSet, ok := a.gameData.ArmorSets[x]; ok {
 					fmt.Fprintf(&tt, "Armor set: %v\n", armorSet.Name)
 				}
-				fmt.Fprintf(&tt, "Contains %v files\n", len(a.gameData.DataDir.FilesByTriad[x]))
+				fmt.Fprintf(&tt, "Contains %v files\n", len(a.gameData.DataDir.Archives[x]))
 				fmt.Fprintf(&tt, "%v Left-click or Space to select/deselect\n", fnt.I("Left_click"))
 				fmt.Fprintf(&tt, "%v Right-click or Ctrl+C to copy name hash to clipboard\n", fnt.I("Content_copy"))
 				imgui.SetItemTooltip(tt.String())

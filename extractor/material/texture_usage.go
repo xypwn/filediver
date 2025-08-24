@@ -487,8 +487,8 @@ const (
 	Wounds512                                  TextureUsage = 0x75d9cea2
 )
 
-func (usage *TextureUsage) String() string {
-	switch *usage {
+func (usage TextureUsage) String() string {
+	switch usage {
 	case Albedo:
 		return "albedo"
 	case AlbedoArray:

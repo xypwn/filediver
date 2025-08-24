@@ -183,11 +183,10 @@ func getFormat(ctx extractor.Context) (format, error) {
 }
 
 func ExtractWem(ctx extractor.Context) error {
-	f, err := ctx.File().Open(ctx.Ctx(), stingray.DataStream)
+	f, err := ctx.Open(ctx.FileID(), stingray.DataStream)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
 	out, err := ctx.CreateFile(".wem")
 	if err != nil {
 		return err
@@ -204,11 +203,10 @@ func ConvertWem(ctx extractor.Context) error {
 	if err != nil {
 		return err
 	}
-	r, err := ctx.File().Open(ctx.Ctx(), stingray.DataStream)
+	r, err := ctx.Open(ctx.FileID(), stingray.DataStream)
 	if err != nil {
 		return err
 	}
-	defer r.Close()
 	if err := convertWemStream(ctx, "", r, format); err != nil {
 		return err
 	}
@@ -216,11 +214,10 @@ func ConvertWem(ctx extractor.Context) error {
 }
 
 func ExtractBnk(ctx extractor.Context) error {
-	f, err := ctx.File().Open(ctx.Ctx(), stingray.DataMain)
+	f, err := ctx.Open(ctx.FileID(), stingray.DataMain)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
 
 	r, err := stingray_wwise.OpenRawBnk(f)
 	if err != nil {
@@ -243,15 +240,14 @@ func ConvertBnk(ctx extractor.Context) error {
 		return err
 	}
 
-	in, err := ctx.File().Open(ctx.Ctx(), stingray.DataMain)
+	in, err := ctx.Open(ctx.FileID(), stingray.DataMain)
 	if err != nil {
 		return err
 	}
-	defer in.Close()
 
-	bnkName, ok := ctx.Hashes()[ctx.File().ID().Name]
+	bnkName, ok := ctx.Hashes()[ctx.FileID().Name]
 	if !ok {
-		return fmt.Errorf("expected wwise bank file %v.wwise_bank to have a known name", ctx.File().ID().Name)
+		return fmt.Errorf("expected wwise bank file %v.wwise_bank to have a known name", ctx.FileID().Name)
 	}
 	dir := path.Dir(bnkName)
 
@@ -260,16 +256,16 @@ func ConvertBnk(ctx extractor.Context) error {
 	}
 
 	streams, err := stingray_wwise.BnkGetAllReferencedStreamData(in, func(id uint32) (data []byte, ok bool, err error) {
-		streamFileID := stingray.Sum64([]byte(streamFilePath(id)))
-		if streamFile, exists := ctx.GetResource(streamFileID, stingray.Sum64([]byte("wwise_stream"))); exists {
-			data, err := streamFile.Read(stingray.DataStream)
-			if err != nil {
-				return nil, true, err
-			}
-			return data, true, nil
-		} else {
+		streamFileName := stingray.Sum(streamFilePath(id))
+		streamFile, err := ctx.Open(stingray.NewFileID(streamFileName, stingray.Sum("wwise_stream")), stingray.DataStream)
+		if err == stingray.ErrFileDataTypeNotExist {
 			return nil, false, nil
 		}
+		data, err = io.ReadAll(streamFile)
+		if err != nil {
+			return nil, true, err
+		}
+		return data, true, nil
 	})
 	if err != nil {
 		return err

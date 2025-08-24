@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	_ "embed"
 	"errors"
@@ -56,7 +57,7 @@ func main() {
 	var optInclGlob *string
 	var optExclGlob *string
 	var optInclOnlyTypes *string
-	var optInclTriads *string
+	var optInclArchives *string
 	var optArmorStringsFile *string
 	var optKnownHashesPath *string
 	var optThinHashListMode *string
@@ -93,8 +94,8 @@ func main() {
 			Default: "all",
 			Help:    "only include comma-separated type name(s) (aliases: " + strings.Join(typeAliasStrs, ", ") + ")",
 		})
-		optInclTriads = argp.String("t", "triads", &argparse.Option{
-			Help: "include comma-separated triad name(s) as found in game data directory; aka Archive ID, e.g. 0x9ba626afa44a3aa3",
+		optInclArchives = argp.String("t", "triads", &argparse.Option{
+			Help: "include comma-separated archive name(s) [formerly triads] as found in game data directory, e.g. 0x9ba626afa44a3aa3",
 		})
 		optArmorStringsFile = argp.String("s", "strings", &argparse.Option{
 			Default: "0x7c7587b563f10985",
@@ -158,15 +159,15 @@ func main() {
 			Replace(*optInclOnlyTypes)
 		inclOnlyTypes = strings.Split(types, ",")
 	}
-	var inclTriadIDs []stingray.Hash
-	if *optInclTriads != "" {
-		split := strings.Split(*optInclTriads, ",")
-		for _, triad := range split {
-			hash, err := stingray.ParseHash(triad)
+	var inclArchiveIDs []stingray.Hash
+	if *optInclArchives != "" {
+		split := strings.Split(*optInclArchives, ",")
+		for _, archive := range split {
+			hash, err := stingray.ParseHash(archive)
 			if err != nil {
-				prt.Fatalf("parsing triad name: %v", err)
+				prt.Fatalf("parsing archive name: %v", err)
 			}
-			inclTriadIDs = append(inclTriadIDs, hash)
+			inclArchiveIDs = append(inclArchiveIDs, hash)
 		}
 	}
 
@@ -235,7 +236,7 @@ func main() {
 	}
 	prt.NoStatus()
 
-	files, err := a.MatchingFiles(*optInclGlob, *optExclGlob, inclOnlyTypes, inclTriadIDs)
+	files, err := a.MatchingFiles(*optInclGlob, *optExclGlob, inclOnlyTypes, inclArchiveIDs)
 	if err != nil {
 		prt.Fatalf("%v", err)
 	}
@@ -280,16 +281,16 @@ func main() {
 
 	if *optList {
 		for _, id := range sortedFileIDs {
-			triadIDs := a.DataDir.Files[id].TriadIDs()
-			triadIDStrings := make([]string, len(triadIDs))
-			for i := range triadIDs {
-				// Triad/Archive filenames are not 0x prefixed, nor are they left padded with zeroes
-				triadIDStrings[i] = fmt.Sprintf("%x", triadIDs[i].Value)
+			var archiveIDStrings []string
+			for _, file := range a.DataDir.Files[id] {
+				// Archive filenames are not 0x prefixed
+				archiveIDStrings = append(archiveIDStrings,
+					fmt.Sprintf("%016x", file.ArchiveID.Value))
 			}
 			fmt.Printf("%v.%v, %v.%v <- %v\n",
 				a.Hashes[id.Name], a.Hashes[id.Type],
 				id.Name.String(), id.Type.String(),
-				strings.Join(triadIDStrings, ", "),
+				strings.Join(archiveIDStrings, ", "),
 			)
 		}
 	} else if *optThinHashListMode != "none" || *optThinToFind != "" {
@@ -299,24 +300,23 @@ func main() {
 		unknownMat := make(map[string]bool)
 		unitCount := 0
 		for _, id := range sortedFileIDs {
-			if id.Type != stingray.Sum64([]byte("unit")) {
+			if id.Type != stingray.Sum("unit") {
 				continue
 			}
-			r, err := a.DataDir.Files[id].Open(ctx, stingray.DataMain)
+			b, err := a.DataDir.Read(id, stingray.DataMain)
 			if err != nil {
 				prt.Errorf("opening %v.unit's main file: %v", err)
 				continue
 			}
-			defer r.Close()
 
-			unitInfo, err := unit.LoadInfo(r)
+			unitInfo, err := unit.LoadInfo(bytes.NewReader(b))
 			if err != nil {
 				prt.Errorf("loading info from %v.unit: %v", id.Name.String(), err)
 				continue
 			}
 
 			for _, bone := range unitInfo.Bones {
-				if *optThinToFind != "" && stingray.Sum64([]byte(*optThinToFind)).Thin() == bone.NameHash {
+				if *optThinToFind != "" && stingray.Sum(*optThinToFind).Thin() == bone.NameHash {
 					unitName, exists := a.Hashes[id.Name]
 					if !exists {
 						unitName = id.Name.String()
@@ -335,7 +335,7 @@ func main() {
 				}
 			}
 			for mat := range unitInfo.Materials {
-				if *optThinToFind != "" && stingray.Sum64([]byte(*optThinToFind)).Thin() == mat {
+				if *optThinToFind != "" && stingray.Sum(*optThinToFind).Thin() == mat {
 					unitName, exists := a.Hashes[id.Name]
 					if !exists {
 						unitName = id.Name.String()
@@ -429,7 +429,7 @@ func main() {
 			prt.Infof("Listed %v bones or materials (you should probably redirect this to a file)", printed)
 		}
 		if *optThinToFind != "" {
-			prt.Infof("Listed %v units with bone or material '%v' == 0x%08x", unitCount, *optThinToFind, stingray.Sum64([]byte(*optThinToFind)).Thin().Value)
+			prt.Infof("Listed %v units with bone or material '%v' == 0x%08x", unitCount, *optThinToFind, stingray.Sum(*optThinToFind).Thin().Value)
 		}
 	} else {
 		prt.Infof("Extracting files...")
@@ -439,8 +439,8 @@ func main() {
 		if cfg.Unit.SingleFile {
 			for _, key := range []string{"unit", "geometry_group", "material"} {
 				name := "combined_" + key
-				if optInclTriads != nil && len(*optInclTriads) > 0 {
-					name = fmt.Sprintf("%s_%s", strings.ReplaceAll(*optInclTriads, ",", "_"), key)
+				if optInclArchives != nil && len(*optInclArchives) > 0 {
+					name = fmt.Sprintf("%s_%s", strings.ReplaceAll(*optInclArchives, ",", "_"), key)
 				}
 				var formatBlend bool
 				switch key {
@@ -469,7 +469,7 @@ func main() {
 			}
 			prt.Statusf("File %v/%v: %v", i+1, len(files), truncName)
 			document := documents[typ]
-			if _, err := a.ExtractFile(ctx, id, *optOutDir, cfg, runner, document, inclTriadIDs, prt); err == nil {
+			if _, err := a.ExtractFile(ctx, id, *optOutDir, cfg, runner, document, inclArchiveIDs, prt); err == nil {
 				numExtrFiles++
 			} else {
 				if errors.Is(err, context.Canceled) {

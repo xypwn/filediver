@@ -10,18 +10,22 @@ import (
 
 func extract(ctx extractor.Context, save func(ctx extractor.Context, r io.Reader) error) error {
 	dataTypes := []stingray.DataType{stingray.DataMain}
-	if ctx.File().Exists(stingray.DataStream) {
+	if ctx.Exists(ctx.FileID(), stingray.DataStream) {
 		dataTypes = append(dataTypes, stingray.DataStream)
 	} else {
 		dataTypes = append(dataTypes, stingray.DataGPU)
 	}
 
-	r, err := ctx.File().OpenMulti(ctx.Ctx(), dataTypes...)
-	if err != nil {
-		return err
+	var rs []io.Reader
+	for _, dataType := range dataTypes {
+		r, err := ctx.Open(ctx.FileID(), dataType)
+		if err != nil {
+			return err
+		}
+		rs = append(rs, r)
 	}
-	defer r.Close()
 
+	r := io.MultiReader(rs...)
 	var hdr struct {
 		Unk00 [16]byte
 	}

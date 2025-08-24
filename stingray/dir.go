@@ -1,169 +1,69 @@
 package stingray
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
-
-	"github.com/xypwn/filediver/util"
 )
 
-const errPfx = "stingray: "
-
-type File struct {
-	// Multiple triads may point to the same file.
-	// Len is assumed to be >= 1.
-	triads []*Triad
-	// Actual file data == triads[0].Files[indexInTriad0].
-	indexInTriad0 int
-	// Existing file types (main/stream/GPU).
-	exists [3]bool
+// Locus represents the location
+// of a single partial game file
+// (i.e. just main, stream or GPU)
+// within an archive.
+type Locus struct {
+	Offset uint64
+	Size   uint32
 }
 
-func (f *File) ID() FileID {
-	return f.triads[0].Files[f.indexInTriad0].ID
+// Exists returns whether the referenced
+// partial game file has any contents.
+func (l Locus) Exists() bool {
+	return l.Size != 0
 }
 
-func (f *File) TriadIDs() []Hash {
-	res := make([]Hash, len(f.triads))
-	for i := range f.triads {
-		res[i] = f.triads[i].ID
-	}
-	return res
+// FileInfo represent the component locations
+// of a single game file.
+type FileInfo struct {
+	ArchiveID Hash
+	Files     [NumDataType]Locus
 }
 
-func (f *File) Exists(typ DataType) bool {
-	return f.exists[typ]
+func (f FileInfo) Exists(typ DataType) bool {
+	return f.Files[typ].Exists()
 }
 
-// Reads the whole file and returns it.
-func (f *File) Read(typ DataType) ([]byte, error) {
-	r, err := f.triads[0].OpenFile(f.indexInTriad0, typ)
-	if err != nil {
-		return nil, err
-	}
-	defer r.Close()
-	return io.ReadAll(r)
-}
-
-type nopReadSeekCloser struct {
-	r io.ReadSeeker
-}
-
-func newNopReadSeekCloser(r io.ReadSeeker) *nopReadSeekCloser {
-	return &nopReadSeekCloser{r}
-}
-
-func (r *nopReadSeekCloser) Read(p []byte) (int, error) {
-	return r.r.Read(p)
-}
-
-func (r *nopReadSeekCloser) Seek(offset int64, whence int) (int64, error) {
-	return r.r.Seek(offset, whence)
-}
-
-func (r *nopReadSeekCloser) Close() error {
-	return nil
-}
-
-// Call Close() on returned reader when done.
-func (f *File) Open(ctx context.Context, typ DataType) (io.ReadSeekCloser, error) {
-	b, err := f.Read(typ)
-	if err != nil {
-		return nil, err
-	}
-	return util.NewContextReadSeekCloser(ctx, newNopReadSeekCloser(bytes.NewReader(b))), nil
-}
-
-type multiReadCloser struct {
-	io.Reader
-	underlying []io.ReadCloser
-}
-
-func (r *multiReadCloser) Close() error {
-	var firstErr error
-	for _, v := range r.underlying {
-		err := v.Close()
-		if err != nil && firstErr != nil {
-			firstErr = err
-		}
-	}
-	return firstErr
-}
-
-// Returns a MultiReader concatenating the given data stream types.
-// Skips any specified types that don't exist.
-// If you need seeking functionality, use Open().
-// Call Close() on returned reader when done.
-func (f *File) OpenMulti(ctx context.Context, types ...DataType) (io.ReadCloser, error) {
-	var rdcs []io.ReadCloser
-	var rds []io.Reader
-	for _, dataType := range types {
-		if !f.Exists(dataType) {
-			continue
-		}
-		r, err := f.Open(ctx, dataType)
-		if err != nil {
-			for _, rdc := range rdcs {
-				rdc.Close()
-			}
-			return nil, err
-		}
-		rdcs = append(rdcs, r)
-		rds = append(rds, r)
-	}
-	return &multiReadCloser{
-		Reader:     io.MultiReader(rds...),
-		underlying: rdcs,
-	}, nil
-}
-
-// For testing purposes, takes a HUGE amount of time to execute.
-func (a *File) contentEqual(b *File, dt DataType) (bool, error) {
-	ctx := context.Background()
-	fa, err := a.Open(ctx, dt)
-	if err != nil {
-		return false, err
-	}
-	defer fa.Close()
-	ba, err := io.ReadAll(fa)
-	if err != nil {
-		return false, err
-	}
-	fb, err := b.Open(ctx, dt)
-	if err != nil {
-		return false, err
-	}
-	defer fb.Close()
-	bb, err := io.ReadAll(fb)
-	if err != nil {
-		return false, err
-	}
-	return bytes.Equal(ba, bb), nil
-}
-
+// DataDir represents the collection of game files.
 type DataDir struct {
-	Files map[FileID]*File
-	// Triad ID to map of files by ID.
-	FilesByTriad map[Hash]map[FileID]*File
+	// Base directory path
+	Path string
+	// Archive ID to files in that archive
+	Archives map[Hash][]FileID
+	// File ID to all file info (according to testing,
+	// all file info structs in the slice should refer
+	// to the same data).
+	Files map[FileID][]FileInfo
 }
 
-// Opens the "data" game directory, reading all file metadata. Ctx allows for granular cancellation (before each triad open).
+// Opens the "data" game directory, reading all file metadata. Ctx allows for granular cancellation (before each archive open).
 // onProgress is optional.
-func OpenDataDir(ctx context.Context, dirPath string, onProgress func(curr, total int)) (*DataDir, error) {
-	const errPfx = errPfx + "OpenDataDir: "
+func OpenDataDir(ctx context.Context, dirPath string, onProgress func(curr, total int)) (_ *DataDir, err error) {
+	defer func() {
+		if err != nil {
+			err = fmt.Errorf("stingray: OpenDataDir: %w", err)
+		}
+	}()
 
 	ents, err := os.ReadDir(dirPath)
 	if err != nil {
-		return nil, fmt.Errorf("%v%w", errPfx, err)
+		return nil, err
 	}
 
 	dd := &DataDir{
-		Files:        make(map[FileID]*File),
-		FilesByTriad: make(map[Hash]map[FileID]*File),
+		Path:     dirPath,
+		Archives: make(map[Hash][]FileID),
+		Files:    make(map[FileID][]FileInfo),
 	}
 
 	for i, ent := range ents {
@@ -180,48 +80,53 @@ func OpenDataDir(ctx context.Context, dirPath string, onProgress func(curr, tota
 			continue
 		}
 		path := filepath.Join(dirPath, ent.Name())
-		tr, err := OpenTriad(path)
+		ar, err := OpenArchive(path)
 		if err != nil {
-			return nil, fmt.Errorf("%v%w", errPfx, err)
+			return nil, err
 		}
-		for i, v := range tr.Files {
-			file, fileExists := dd.Files[v.ID]
-			if fileExists {
-				file.triads = append(file.triads, tr)
-			} else {
-				file = &File{
-					triads:        []*Triad{tr},
-					indexInTriad0: i,
+		for _, fileData := range ar.Files {
+			var file FileInfo
+			file.ArchiveID = ar.ID
+			for typ := range NumDataType {
+				file.Files[typ] = Locus{
+					Offset: fileData.Offsets[typ],
+					Size:   fileData.Sizes[typ],
 				}
-				for typ := DataType(0); typ < NumDataType; typ++ {
-					has, err := tr.HasFile(i, typ)
-					if err != nil {
-						return nil, err
-					}
-					file.exists[typ] = has
-				}
-				dd.Files[v.ID] = file
 			}
-			// According to my testing, files that share the same ID always have the same
-			// contents, but may have multiple triads pointing to them.
-			// Uncomment this to re-test that.
-			/*if _, ok := dd.Files[v.ID]; ok {
-				for _, typ := range []DataType{DataMain, DataStream, DataGPU} {
-					if newFile.Exists(typ) && dd.Files[v.ID].Exists(typ) {
-						if eq, err := newFile.contentEqual(dd.Files[v.ID], typ); err != nil {
-							return nil, err
-						} else if !eq {
-							return nil, fmt.Errorf("%vduplicate file ID with different %v file contents", errPfx, typ)
-						}
-					}
-				}
-			}*/
-			if _, ok := dd.FilesByTriad[tr.ID]; !ok {
-				dd.FilesByTriad[tr.ID] = make(map[FileID]*File)
-			}
-			dd.FilesByTriad[tr.ID][v.ID] = file
+			dd.Files[fileData.ID] = append(dd.Files[fileData.ID], file)
+			dd.Archives[ar.ID] = append(dd.Archives[ar.ID], fileData.ID)
 		}
 	}
 
 	return dd, nil
+}
+
+// Attempts to read the given file.
+// Returns [ErrFileNotExist] if id doesn't exist and
+// [ErrFileDataTypeNotExist] if the file exists, but
+// doesn't have the requested data type.
+func (d *DataDir) Read(id FileID, typ DataType) ([]byte, error) {
+	files := d.Files[id]
+	if len(files) == 0 {
+		return nil, ErrFileNotExist
+	}
+	file := files[0]
+	if !file.Files[typ].Exists() {
+		return nil, ErrFileDataTypeNotExist
+	}
+
+	af, err := os.Open(filepath.Join(d.Path, fmt.Sprintf("%016x%v", file.ArchiveID.Value, typ.ArchiveFileExtension())))
+	if err != nil {
+		return nil, err
+	}
+	defer af.Close()
+	if _, err := af.Seek(int64(file.Files[typ].Offset), io.SeekStart); err != nil {
+		return nil, err
+	}
+
+	b := make([]byte, file.Files[typ].Size)
+	if _, err := io.ReadFull(af, b); err != nil {
+		return nil, err
+	}
+	return b, nil
 }

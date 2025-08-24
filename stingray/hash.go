@@ -11,8 +11,7 @@ import (
 
 type Hash struct{ Value uint64 }
 
-// Murmur64a hash
-func Sum64(b []byte) Hash {
+func murmur64aSum(b []byte) Hash {
 	var seed uint64 = 0
 	var mix uint64 = 0xc6a4a7935bd1e995
 	const shifts = 47
@@ -46,6 +45,12 @@ func Sum64(b []byte) Hash {
 	return Hash{Value: hash}
 }
 
+// Murmur64a hash
+func Sum[T ~[]byte | string](x T) Hash {
+	return murmur64aSum([]byte(x))
+}
+
+// 64-bit hash to 32-bit hash
 func (h Hash) Thin() ThinHash {
 	return ThinHash{Value: uint32(h.Value >> 32)}
 }

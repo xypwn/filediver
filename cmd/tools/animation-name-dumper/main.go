@@ -1,10 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"os/signal"
 	"syscall"
@@ -13,30 +13,23 @@ import (
 	"github.com/xypwn/filediver/app"
 	"github.com/xypwn/filediver/app/appconfig"
 	"github.com/xypwn/filediver/config"
-	"github.com/xypwn/filediver/exec"
-	"github.com/xypwn/filediver/extractor"
 	"github.com/xypwn/filediver/hashes"
 	"github.com/xypwn/filediver/stingray"
-	dlbin "github.com/xypwn/filediver/stingray/dl_bin"
 	"github.com/xypwn/filediver/stingray/state_machine"
 )
 
-func dumpAnimationNames(ctx extractor.Context) error {
-	if !ctx.File().Exists(stingray.DataMain) {
-		return errors.New("no main data")
-	}
-	r, err := ctx.File().Open(ctx.Ctx(), stingray.DataMain)
+func dumpAnimationNames(a *app.App, fileID stingray.FileID) error {
+	bs, err := a.DataDir.Read(fileID, stingray.DataMain)
 	if err != nil {
 		return err
 	}
-	defer r.Close()
-	stateMachine, err := state_machine.LoadStateMachine(r)
+	stateMachine, err := state_machine.LoadStateMachine(bytes.NewReader(bs))
 	if err != nil {
 		return err
 	}
 	for _, group := range stateMachine.Groups {
 		for _, animation := range group.Animations {
-			knownName, ok := ctx.Hashes()[animation.Name]
+			knownName, ok := a.Hashes[animation.Name]
 			if ok {
 				fmt.Println(knownName)
 			} else {
@@ -46,41 +39,6 @@ func dumpAnimationNames(ctx extractor.Context) error {
 	}
 	return nil
 }
-
-type stateMachineContext struct {
-	ctx     context.Context
-	file    *stingray.File
-	app     *app.App
-	printer app.Printer
-	cfg     appconfig.Config
-}
-
-func (c *stateMachineContext) OutPath() (string, error) { return "", nil }
-func (c *stateMachineContext) OutDir() (string, error)  { return "", nil }
-func (c *stateMachineContext) AddFile()                 {}
-func (c *stateMachineContext) File() *stingray.File     { return c.file }
-func (c *stateMachineContext) Runner() *exec.Runner     { return nil }
-func (c *stateMachineContext) Config() appconfig.Config { return c.cfg }
-func (c *stateMachineContext) GetResource(_, _ stingray.Hash) (*stingray.File, bool) {
-	return nil, false
-}
-func (c *stateMachineContext) CreateFile(_ string) (io.WriteCloser, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-func (c *stateMachineContext) AllocateFile(_ string) (string, error) {
-	return "", fmt.Errorf("not implemented")
-}
-func (c *stateMachineContext) Ctx() context.Context                        { return c.ctx }
-func (c *stateMachineContext) Files() []string                             { return nil }
-func (c *stateMachineContext) Hashes() map[stingray.Hash]string            { return c.app.Hashes }
-func (c *stateMachineContext) ThinHashes() map[stingray.ThinHash]string    { return c.app.ThinHashes }
-func (c *stateMachineContext) TriadIDs() []stingray.Hash                   { return nil }
-func (c *stateMachineContext) ArmorSets() map[stingray.Hash]dlbin.ArmorSet { return c.app.ArmorSets }
-func (c *stateMachineContext) Warnf(f string, a ...any) {
-	name, typ := c.app.LookupHash(c.file.ID().Name), c.app.LookupHash(c.file.ID().Type)
-	c.printer.Warnf("dump %v.%v: %v", name, typ, fmt.Sprintf(f, a...))
-}
-func (c *stateMachineContext) LookupHash(hash stingray.Hash) string { return c.app.LookupHash(hash) }
 
 func main() {
 	prt := app.NewConsolePrinter(
@@ -124,17 +82,10 @@ func main() {
 		prt.Fatalf("%v", err)
 	}
 
-	for _, file := range files {
+	for fileID := range files {
 		var cfg appconfig.Config
 		config.InitDefault(&cfg)
-		dumpCtx := &stateMachineContext{
-			ctx:     ctx,
-			file:    file,
-			app:     a,
-			printer: prt,
-			cfg:     cfg,
-		}
-		if err := dumpAnimationNames(dumpCtx); err != nil {
+		if err := dumpAnimationNames(a, fileID); err != nil {
 			if errors.Is(err, context.Canceled) {
 				prt.NoStatus()
 				prt.Warnf("Name dump canceled, exiting cleanly")

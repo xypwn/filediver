@@ -3,7 +3,6 @@ package strings
 import (
 	"cmp"
 	"encoding/json"
-	"errors"
 	"slices"
 
 	"github.com/xypwn/filediver/extractor"
@@ -31,14 +30,10 @@ type SimpleStrings struct {
 }
 
 func ExtractStringsJSON(ctx extractor.Context) error {
-	if !ctx.File().Exists(stingray.DataMain) {
-		return errors.New("no main data")
-	}
-	r, err := ctx.File().Open(ctx.Ctx(), stingray.DataMain)
+	r, err := ctx.Open(ctx.FileID(), stingray.DataMain)
 	if err != nil {
 		return err
 	}
-	defer r.Close()
 	strings, err := stingray_strings.Load(r)
 	if err != nil {
 		return err

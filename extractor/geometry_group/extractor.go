@@ -18,18 +18,16 @@ import (
 func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, gltfDoc *gltf.Document) error {
 	cfg := ctx.Config()
 
-	fMain, err := ctx.File().Open(ctx.Ctx(), stingray.DataMain)
+	fMain, err := ctx.Open(ctx.FileID(), stingray.DataMain)
 	if err != nil {
 		return err
 	}
-	defer fMain.Close()
-	var fGPU io.ReadSeekCloser
-	if ctx.File().Exists(stingray.DataGPU) {
-		fGPU, err = ctx.File().Open(ctx.Ctx(), stingray.DataGPU)
+	var fGPU io.ReadSeeker
+	if ctx.Exists(ctx.FileID(), stingray.DataGPU) {
+		fGPU, err = ctx.Open(ctx.FileID(), stingray.DataGPU)
 		if err != nil {
 			return err
 		}
-		defer fGPU.Close()
 	}
 
 	geoGroup, err := geometrygroup.LoadGeometryGroup(fMain)
@@ -50,15 +48,13 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 	}
 
 	for unitHash, meshInfo := range geoGroup.MeshInfos {
-		unitRes, exists := ctx.GetResource(unitHash, stingray.Sum64([]byte("unit")))
-		if !exists {
+		f, err := ctx.Open(stingray.NewFileID(unitHash, stingray.Sum("unit")), stingray.DataMain)
+		if err == stingray.ErrFileNotExist {
 			return fmt.Errorf("%v.unit does not exist", unitHash.String())
 		}
-		f, err := unitRes.Open(ctx.Ctx(), stingray.DataMain)
 		if err != nil {
 			return err
 		}
-		defer f.Close()
 
 		unitInfo, err := unit.LoadInfo(f)
 		if err != nil {
@@ -114,11 +110,11 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 			return err
 		}
 	} else if gltfDoc == nil && formatIsBlend {
-		path, err := ctx.(interface{ OutPath() (string, error) }).OutPath()
+		outPath, err := ctx.AllocateFile(".blend")
 		if err != nil {
 			return err
 		}
-		err = blend_helper.ExportBlend(doc, path, ctx.Runner())
+		err = blend_helper.ExportBlend(doc, outPath, ctx.Runner())
 		if err != nil {
 			return err
 		}

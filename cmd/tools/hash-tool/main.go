@@ -23,7 +23,7 @@ func hash(s string, thin bool, littleEndian bool) string {
 		endian = binary.BigEndian
 	}
 
-	h := stingray.Sum64([]byte(s))
+	h := stingray.Sum(s)
 	if thin {
 		return pfx + h.Thin().StringEndian(endian)
 	} else {
@@ -86,12 +86,12 @@ func crack(hashStrs []string, wordlist []string, prefixlist []string, delim stri
 	tryCombinations = func(i, wordsLeft int, firstWord bool) {
 		if wordsLeft == 0 {
 			for idx, h := range hashes32 {
-				if stingray.Sum64(buf[:i]).Thin() == h {
+				if stingray.Sum(buf[:i]).Thin() == h {
 					fmt.Printf("String found: %v = \"%v\"\n", hashStrs32[idx], string(buf[:i]))
 				}
 			}
 			for idx, h := range hashes64 {
-				if stingray.Sum64(buf[:i]) == h {
+				if stingray.Sum(buf[:i]) == h {
 					fmt.Printf("String found: %v = \"%v\"\n", hashStrs64[idx], string(buf[:i]))
 				}
 			}

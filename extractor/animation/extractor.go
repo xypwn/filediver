@@ -3,7 +3,6 @@ package animation
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -19,14 +18,10 @@ import (
 )
 
 func ExtractAnimationJson(ctx extractor.Context) error {
-	if !ctx.File().Exists(stingray.DataMain) {
-		return errors.New("no main data")
-	}
-	r, err := ctx.File().Open(ctx.Ctx(), stingray.DataMain)
+	r, err := ctx.Open(ctx.FileID(), stingray.DataMain)
 	if err != nil {
 		return err
 	}
-	defer r.Close()
 
 	anim, err := animation.LoadAnimation(r)
 	if err != nil {
@@ -66,11 +61,10 @@ func AddAnimation(ctx extractor.Context, doc *gltf.Document, boneInfo *bones.Inf
 	cfg := ctx.Config()
 
 	for _, path := range anim.AnimationHashes {
-		animationFile, ok := ctx.GetResource(path, stingray.Sum64([]byte("animation")))
-		if !ok {
+		mainR, err := ctx.Open(stingray.NewFileID(path, stingray.Sum("animation")), stingray.DataMain)
+		if err == stingray.ErrFileNotExist {
 			return fmt.Errorf("could not find animation %v", path.String())
 		}
-		mainR, err := animationFile.Open(ctx.Ctx(), stingray.DataMain)
 		if err != nil {
 			return fmt.Errorf("could not open animation file %v: %v", path.String(), err)
 		}

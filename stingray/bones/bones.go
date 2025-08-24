@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/xypwn/filediver/extractor"
 	"github.com/xypwn/filediver/stingray"
 )
 
@@ -14,8 +13,8 @@ type Info struct {
 	Hashes  []stingray.ThinHash
 }
 
-func PlayerBones(ctx extractor.Context) (*Info, error) {
-	file, ok := ctx.GetResource(stingray.Sum64([]byte("content/fac_helldivers/cha_avatar/avatar_helldiver")), stingray.Sum64([]byte("bones")))
+/*func PlayerBones(ctx extractor.Context) (*Info, error) {
+	file, ok := ctx.GetResource(stingray.Sum("content/fac_helldivers/cha_avatar/avatar_helldiver")), stingray.Sum64([]byte("bones"))
 	if !ok {
 		return nil, fmt.Errorf("avatar bones not located")
 	}
@@ -25,7 +24,7 @@ func PlayerBones(ctx extractor.Context) (*Info, error) {
 	}
 	defer bonesMain.Close()
 	return LoadBones(bonesMain)
-}
+}*/
 
 func LoadBones(mainR io.ReadSeeker) (*Info, error) {
 	var count uint32
