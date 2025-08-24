@@ -56,6 +56,9 @@ type Config struct {
 	Text struct {
 		Format string `cfg:"options=json,raw"`
 	} `cfg:"tags=t:strings,t:package,t:bones help='only-text-exportable formats'"`
+	Lua struct {
+		Format string `cfg:"options=luac,raw"`
+	} `cfg:"tags=t:lua help='luajit bytecode'"`
 	Raw struct {
 		Format string `cfg:"options=separate,combined,main,stream,gpu help='how to handle the different file sub-types (each file may have a main, stream and GPU file)'"`
 	} `cfg:"help='applies to any file without an available extractor or \"raw\" as the selected format'"`
@@ -109,6 +112,7 @@ var Extractable = map[string]bool{
 	"strings":        true,
 	"package":        true,
 	"bones":          true,
+	"lua":            true,
 }
 
 var ConfigFields = config.MustFields(Config{})
