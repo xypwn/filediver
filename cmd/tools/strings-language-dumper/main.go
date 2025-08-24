@@ -45,7 +45,7 @@ func main() {
 
 	langs := make(map[stingray.ThinHash]struct{})
 	for id, file := range files {
-		if id.Type != stingray.Sum64([]byte("strings")) {
+		if id.Type != stingray.Sum("strings") {
 			continue
 		}
 		r, err := file.Open(ctx, stingray.DataMain)

@@ -73,8 +73,7 @@ func (pv *MaterialPreviewState) LoadMaterial(mat *material.Material, getResource
 		var ok bool
 		usage := extr_material.TextureUsage(key.Value)
 		imageName = usage.String()
-		unknownUsage := extr_material.TextureUsage(0)
-		if imageName == (&unknownUsage).String() {
+		if imageName == extr_material.TextureUsage(0).String() {
 			imageName += " (" + key.String() + ")"
 		}
 		if pathName, ok = hashes[path]; !ok {
@@ -90,7 +89,7 @@ func (pv *MaterialPreviewState) LoadMaterial(mat *material.Material, getResource
 			continue
 		}
 
-		dataMain, fileExists, err := getResource(stingray.FileID{Name: path, Type: stingray.Sum64([]byte("texture"))}, stingray.DataMain)
+		dataMain, fileExists, err := getResource(stingray.FileID{Name: path, Type: stingray.Sum("texture")}, stingray.DataMain)
 		if err != nil {
 			return fmt.Errorf("material texture %v: %w", pathName, err)
 		}
@@ -98,12 +97,12 @@ func (pv *MaterialPreviewState) LoadMaterial(mat *material.Material, getResource
 			return fmt.Errorf("material texture %v: referenced texture does not exist", pathName)
 		}
 
-		dataGPU, _, err := getResource(stingray.FileID{Name: path, Type: stingray.Sum64([]byte("texture"))}, stingray.DataGPU)
+		dataGPU, _, err := getResource(stingray.FileID{Name: path, Type: stingray.Sum("texture")}, stingray.DataGPU)
 		if err != nil {
 			return fmt.Errorf("material texture %v: %w", pathName, err)
 		}
 
-		dataStream, _, err := getResource(stingray.FileID{Name: path, Type: stingray.Sum64([]byte("texture"))}, stingray.DataStream)
+		dataStream, _, err := getResource(stingray.FileID{Name: path, Type: stingray.Sum("texture")}, stingray.DataStream)
 		if err != nil && !errors.Is(err, stingray.ErrFileDataTypeNotExist) {
 			return fmt.Errorf("material texture %v: %w", pathName, err)
 		}
@@ -313,7 +312,7 @@ func MaterialPreview(name string, pv *MaterialPreviewState) {
 	} else {
 		fileID := stingray.FileID{
 			Name: pv.baseMaterial,
-			Type: stingray.Sum64([]byte("material")),
+			Type: stingray.Sum("material"),
 		}
 		widgets.GamefileLinkTextF(fileID, "%v", pv.baseMaterialName)
 	}

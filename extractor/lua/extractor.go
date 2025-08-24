@@ -15,7 +15,7 @@ type Header struct {
 }
 
 func ExtractLuac(ctx extractor.Context) error {
-	f, err := ctx.File().Open(ctx.Ctx(), stingray.DataMain)
+	f, err := ctx.Open(ctx.FileID(), stingray.DataMain)
 	if err != nil {
 		return err
 	}

@@ -1,12 +1,10 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -283,37 +281,26 @@ func main() {
 		return byteOffsetsByHash, byteOffsetsByThinHash
 	}
 
-	var filebuf bytes.Buffer
 	if !onlySearchThroughAdditionalInputFiles {
 		for _, fileID := range sortedMapFileIDKeys(files) {
-			file := files[fileID]
 			for dataType := stingray.DataType(0); dataType < stingray.NumDataType; dataType++ {
-				if !file.Exists(dataType) {
+				bytes, err := a.DataDir.Read(fileID, dataType)
+				if err == stingray.ErrFileDataTypeNotExist {
 					continue
 				}
-				{
-					rd, err := file.Open(ctx, dataType)
-					if err != nil {
-						prt.Errorf("Error opening file: %v", err)
-						continue
-					}
-					filebuf.Reset()
-					_, err = io.Copy(&filebuf, rd)
-					rd.Close()
-					if err != nil {
-						prt.Errorf("Error reading file: %v", err)
-						continue
-					}
+				if err != nil {
+					prt.Errorf("Error opening file: %v", err)
+					continue
 				}
-				byteOffsetsByHash, byteOffsetsByThinHash := findMatchingBytes(filebuf.Bytes(), &fileID.Name)
+				byteOffsetsByHash, byteOffsetsByThinHash := findMatchingBytes(bytes, &fileID.Name)
 				for _, hash := range sortedMapHashKeys(byteOffsetsByHash) {
 					byteOffsets := byteOffsetsByHash[hash]
-					fmt.Fprintf(outFile, "gamefile %v.%v (%v) -> %v %v time(s), offsets: %v\n", a.LookupHash(file.ID().Name), a.LookupHash(file.ID().Type), dataType, a.LookupHash(hash), len(byteOffsets), byteOffsets)
+					fmt.Fprintf(outFile, "gamefile %v.%v (%v) -> %v %v time(s), offsets: %v\n", a.LookupHash(fileID.Name), a.LookupHash(fileID.Type), dataType, a.LookupHash(hash), len(byteOffsets), byteOffsets)
 					crossrefCounter++
 				}
 				for _, hash := range sortedMapThinHashKeys(byteOffsetsByThinHash) {
 					byteOffsets := byteOffsetsByThinHash[hash]
-					fmt.Fprintf(outFile, "gamefile %v.%v (%v) -> %v %v time(s), offsets: %v\n", a.LookupHash(file.ID().Name), a.LookupHash(file.ID().Type), dataType, hash, len(byteOffsets), byteOffsets)
+					fmt.Fprintf(outFile, "gamefile %v.%v (%v) -> %v %v time(s), offsets: %v\n", a.LookupHash(fileID.Name), a.LookupHash(fileID.Type), dataType, hash, len(byteOffsets), byteOffsets)
 					crossrefCounter++
 				}
 			}

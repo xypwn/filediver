@@ -288,7 +288,7 @@ func (pv *UnitPreviewState) LoadUnit(mainData, gpuData []byte, getResource GetRe
 			}
 			matData, ok, err := getResource(stingray.FileID{
 				Name: matFileName,
-				Type: stingray.Sum64([]byte("material")),
+				Type: stingray.Sum("material"),
 			}, stingray.DataMain)
 			if err != nil {
 				return stingray.Hash{}, false, stingray.Hash{}, false, fmt.Errorf("load material %v.material: %w", matFileName, err)
@@ -326,7 +326,7 @@ func (pv *UnitPreviewState) LoadUnit(mainData, gpuData []byte, getResource GetRe
 		return err
 	}
 	uploadStingrayTexture := func(textureID uint32, fileName stingray.Hash) error {
-		file := stingray.FileID{Name: fileName, Type: stingray.Sum64([]byte("texture"))}
+		file := stingray.FileID{Name: fileName, Type: stingray.Sum("texture")}
 		var texMain, texStream, texGPU []byte
 		if texMain, _, err = getResource(file, stingray.DataMain); err != nil {
 			return fmt.Errorf("load texture %v.texture: %w", fileName, err)
