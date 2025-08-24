@@ -1,6 +1,7 @@
 package single_glb_helper
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -20,15 +21,18 @@ func CreateCloseableGltfDocument(outDir string, triad string, formatBlend bool, 
 	})
 	closeGLB := func(doc *gltf.Document) error {
 		outPath := filepath.Join(outDir, triad)
+		if len(document.Buffers) == 0 {
+			return nil
+		}
 		if formatBlend {
 			err := blend_helper.ExportBlend(doc, outPath, runner)
 			if err != nil {
-				return err
+				return fmt.Errorf("closing %v.blend: %v", outPath, err)
 			}
 		} else {
 			err := exportGLB(doc, outPath)
 			if err != nil {
-				return err
+				return fmt.Errorf("closing %v.glb: %v", outPath, err)
 			}
 		}
 		return nil
