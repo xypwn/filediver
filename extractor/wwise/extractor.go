@@ -85,7 +85,7 @@ func pcmFloat32ToIntS16(dst []int, src []float32) {
 	}
 }
 
-func convertWemStream(ctx extractor.Context, outName string, in io.ReadSeeker, format format) error {
+func convertWemStream(ctx *extractor.Context, outName string, in io.ReadSeeker, format format) error {
 	if !ctx.Runner().Has("ffmpeg") {
 		format = formatWav
 	}
@@ -165,7 +165,7 @@ func convertWemStream(ctx extractor.Context, outName string, in io.ReadSeeker, f
 	return nil
 }
 
-func getFormat(ctx extractor.Context) (format, error) {
+func getFormat(ctx *extractor.Context) (format, error) {
 	cfg := ctx.Config()
 
 	switch cfg.Audio.Format {
@@ -182,7 +182,7 @@ func getFormat(ctx extractor.Context) (format, error) {
 	}
 }
 
-func ExtractWem(ctx extractor.Context) error {
+func ExtractWem(ctx *extractor.Context) error {
 	f, err := ctx.Open(ctx.FileID(), stingray.DataStream)
 	if err != nil {
 		return err
@@ -198,7 +198,7 @@ func ExtractWem(ctx extractor.Context) error {
 	return nil
 }
 
-func ConvertWem(ctx extractor.Context) error {
+func ConvertWem(ctx *extractor.Context) error {
 	format, err := getFormat(ctx)
 	if err != nil {
 		return err
@@ -213,7 +213,7 @@ func ConvertWem(ctx extractor.Context) error {
 	return nil
 }
 
-func ExtractBnk(ctx extractor.Context) error {
+func ExtractBnk(ctx *extractor.Context) error {
 	f, err := ctx.Open(ctx.FileID(), stingray.DataMain)
 	if err != nil {
 		return err
@@ -234,7 +234,7 @@ func ExtractBnk(ctx extractor.Context) error {
 	return nil
 }
 
-func ConvertBnk(ctx extractor.Context) error {
+func ConvertBnk(ctx *extractor.Context) error {
 	format, err := getFormat(ctx)
 	if err != nil {
 		return err

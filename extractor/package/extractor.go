@@ -8,7 +8,7 @@ import (
 	stingray_package "github.com/xypwn/filediver/stingray/package"
 )
 
-func ExtractPackageJSON(ctx extractor.Context) error {
+func ExtractPackageJSON(ctx *extractor.Context) error {
 	r, err := ctx.Open(ctx.FileID(), stingray.DataMain)
 	if err != nil {
 		return err

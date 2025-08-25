@@ -13,7 +13,7 @@ import (
 	"github.com/xypwn/filediver/stingray/unit"
 )
 
-func ExtractStateMachineJson(ctx extractor.Context) error {
+func ExtractStateMachineJson(ctx *extractor.Context) error {
 	r, err := ctx.Open(ctx.FileID(), stingray.DataMain)
 	if err != nil {
 		return err
@@ -75,7 +75,7 @@ func ExtractStateMachineJson(ctx extractor.Context) error {
 	return err
 }
 
-func AddAnimationSet(ctx extractor.Context, doc *gltf.Document, unitInfo *unit.Info) error {
+func AddAnimationSet(ctx *extractor.Context, doc *gltf.Document, unitInfo *unit.Info) error {
 	smMainR, err := ctx.Open(stingray.NewFileID(unitInfo.StateMachine, stingray.Sum("state_machine")), stingray.DataMain)
 	if err == stingray.ErrFileNotExist {
 		return fmt.Errorf("add animation set: unit's state machine %v does not exist", unitInfo.StateMachine.String())

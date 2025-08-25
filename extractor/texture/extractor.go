@@ -12,7 +12,7 @@ import (
 	"github.com/xypwn/filediver/stingray/unit/texture"
 )
 
-func ExtractDDSData(ctx extractor.Context, id stingray.FileID) ([]byte, error) {
+func ExtractDDSData(ctx *extractor.Context, id stingray.FileID) ([]byte, error) {
 	if !ctx.Exists(id, stingray.DataMain) {
 		return nil, errors.New("no main data")
 	}
@@ -41,7 +41,7 @@ func ExtractDDSData(ctx extractor.Context, id stingray.FileID) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func ExtractDDS(ctx extractor.Context) error {
+func ExtractDDS(ctx *extractor.Context) error {
 	data, err := ExtractDDSData(ctx, ctx.FileID())
 	if err != nil {
 		return err
@@ -57,7 +57,7 @@ func ExtractDDS(ctx extractor.Context) error {
 	return err
 }
 
-func ConvertToPNGData(ctx extractor.Context, id stingray.FileID) ([]byte, error) {
+func ConvertToPNGData(ctx *extractor.Context, id stingray.FileID) ([]byte, error) {
 	ddsData, err := ExtractDDSData(ctx, id)
 	if err != nil {
 		return nil, err
@@ -78,7 +78,7 @@ func ConvertToPNGData(ctx extractor.Context, id stingray.FileID) ([]byte, error)
 	return buf.Bytes(), err
 }
 
-func ConvertToPNG(ctx extractor.Context) error {
+func ConvertToPNG(ctx *extractor.Context) error {
 	data, err := ConvertToPNGData(ctx, ctx.FileID())
 	if err != nil {
 		return err

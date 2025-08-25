@@ -29,7 +29,7 @@ type SimpleStrings struct {
 	Items    []SimpleStringsItem
 }
 
-func ExtractStringsJSON(ctx extractor.Context) error {
+func ExtractStringsJSON(ctx *extractor.Context) error {
 	r, err := ctx.Open(ctx.FileID(), stingray.DataMain)
 	if err != nil {
 		return err

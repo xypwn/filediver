@@ -8,7 +8,7 @@ import (
 	"github.com/xypwn/filediver/stingray/bones"
 )
 
-func ExtractBonesJSON(ctx extractor.Context) error {
+func ExtractBonesJSON(ctx *extractor.Context) error {
 	r, err := ctx.Open(ctx.FileID(), stingray.DataMain)
 	if err != nil {
 		return err

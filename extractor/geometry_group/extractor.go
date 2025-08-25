@@ -15,7 +15,7 @@ import (
 	geometrygroup "github.com/xypwn/filediver/stingray/unit/geometry_group"
 )
 
-func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, gltfDoc *gltf.Document) error {
+func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gltfDoc *gltf.Document) error {
 	cfg := ctx.Config()
 
 	fMain, err := ctx.Open(ctx.FileID(), stingray.DataMain)
@@ -123,8 +123,8 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 	return nil
 }
 
-func Convert(currDoc *gltf.Document) func(ctx extractor.Context) error {
-	return func(ctx extractor.Context) error {
+func Convert(currDoc *gltf.Document) func(ctx *extractor.Context) error {
+	return func(ctx *extractor.Context) error {
 		opts, err := extr_material.GetImageOpts(ctx)
 		if err != nil {
 			return err

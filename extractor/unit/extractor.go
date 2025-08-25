@@ -22,7 +22,7 @@ import (
 	"github.com/xypwn/filediver/stingray/unit/material"
 )
 
-func LoadBoneMap(ctx extractor.Context, unitInfo *unit.Info) (*bones.Info, error) {
+func LoadBoneMap(ctx *extractor.Context, unitInfo *unit.Info) (*bones.Info, error) {
 	if unitInfo.BonesHash.Value == 0x0 {
 		return nil, nil
 	}
@@ -39,7 +39,7 @@ func LoadBoneMap(ctx extractor.Context, unitInfo *unit.Info) (*bones.Info, error
 }
 
 // Adds the unit's skeleton to the gltf document
-func AddSkeleton(ctx extractor.Context, doc *gltf.Document, unitInfo *unit.Info, skeletonName stingray.Hash, armorName *string) uint32 {
+func AddSkeleton(ctx *extractor.Context, doc *gltf.Document, unitInfo *unit.Info, skeletonName stingray.Hash, armorName *string) uint32 {
 	boneInfo, err := LoadBoneMap(ctx, unitInfo)
 	if err != nil {
 		ctx.Warnf("addSkeleton: %v", err)
@@ -177,7 +177,7 @@ func AddSkeleton(ctx extractor.Context, doc *gltf.Document, unitInfo *unit.Info,
 	return uint32(len(doc.Skins) - 1)
 }
 
-func AddMaterials(ctx extractor.Context, doc *gltf.Document, imgOpts *extr_material.ImageOptions, unitInfo *unit.Info, metadata *dlbin.UnitData) (map[stingray.ThinHash]uint32, error) {
+func AddMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_material.ImageOptions, unitInfo *unit.Info, metadata *dlbin.UnitData) (map[stingray.ThinHash]uint32, error) {
 	materialIdxs := make(map[stingray.ThinHash]uint32)
 	for id, resID := range unitInfo.Materials {
 		matR, err := ctx.Open(stingray.NewFileID(resID, stingray.Sum("material")), stingray.DataMain)
@@ -206,7 +206,7 @@ func AddMaterials(ctx extractor.Context, doc *gltf.Document, imgOpts *extr_mater
 	return materialIdxs, nil
 }
 
-func AddPrefabMetadata(ctx extractor.Context, doc *gltf.Document, filename stingray.Hash, parent *uint32, skin *uint32, meshNodes []uint32, armorSetName *string) {
+func AddPrefabMetadata(ctx *extractor.Context, doc *gltf.Document, filename stingray.Hash, parent *uint32, skin *uint32, meshNodes []uint32, armorSetName *string) {
 	if armorSetName != nil {
 		extras := map[string]any{"armorSet": *armorSetName}
 		for _, node := range meshNodes {
@@ -227,7 +227,7 @@ func AddPrefabMetadata(ctx extractor.Context, doc *gltf.Document, filename sting
 	doc.Extras = extras
 }
 
-func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, gltfDoc *gltf.Document) error {
+func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gltfDoc *gltf.Document) error {
 	fMain, err := ctx.Open(ctx.FileID(), stingray.DataMain)
 	if err != nil {
 		return err
@@ -243,7 +243,7 @@ func ConvertOpts(ctx extractor.Context, imgOpts *extr_material.ImageOptions, glt
 	return ConvertBuffer(fMain, fGPU, ctx.FileID().Name, ctx, imgOpts, gltfDoc)
 }
 
-func ConvertBuffer(fMain, fGPU io.ReadSeeker, filename stingray.Hash, ctx extractor.Context, imgOpts *extr_material.ImageOptions, gltfDoc *gltf.Document) error {
+func ConvertBuffer(fMain, fGPU io.ReadSeeker, filename stingray.Hash, ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gltfDoc *gltf.Document) error {
 	cfg := ctx.Config()
 
 	unitInfo, err := unit.LoadInfo(fMain)
@@ -362,7 +362,7 @@ func ConvertBuffer(fMain, fGPU io.ReadSeeker, filename stingray.Hash, ctx extrac
 	return nil
 }
 
-func loadGeometryGroupMeshes(ctx extractor.Context, doc *gltf.Document, unitInfo *unit.Info, meshNodes *[]uint32, materialIndices map[stingray.ThinHash]uint32, parent uint32, skin *uint32) error {
+func loadGeometryGroupMeshes(ctx *extractor.Context, doc *gltf.Document, unitInfo *unit.Info, meshNodes *[]uint32, materialIndices map[stingray.ThinHash]uint32, parent uint32, skin *uint32) error {
 	geoID := stingray.NewFileID(unitInfo.GeometryGroup, stingray.Sum("geometry_group"))
 	f, err := ctx.Open(geoID, stingray.DataMain)
 	if err == stingray.ErrFileNotExist {
@@ -403,8 +403,8 @@ func loadGeometryGroupMeshes(ctx extractor.Context, doc *gltf.Document, unitInfo
 	return geometry.LoadGLTF(ctx, gpuR, doc, ctx.FileID().Name, meshInfos, geoInfo.Bones, geoGroup.MeshLayouts, unitInfo, meshNodes, materialIndices, parent, skin)
 }
 
-func Convert(currDoc *gltf.Document) func(ctx extractor.Context) error {
-	return func(ctx extractor.Context) error {
+func Convert(currDoc *gltf.Document) func(ctx *extractor.Context) error {
+	return func(ctx *extractor.Context) error {
 		opts, err := extr_material.GetImageOpts(ctx)
 		if err != nil {
 			return err
