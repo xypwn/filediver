@@ -13,7 +13,7 @@ import (
 	"github.com/xypwn/filediver/stingray/prefab"
 )
 
-func ConvertOpts(ctx extractor.Context, gltfDoc *gltf.Document) error {
+func ConvertOpts(ctx *extractor.Context, gltfDoc *gltf.Document) error {
 	fMain, err := ctx.Open(ctx.FileID(), stingray.DataMain)
 	if err != nil {
 		return err
@@ -214,8 +214,8 @@ func ConvertOpts(ctx extractor.Context, gltfDoc *gltf.Document) error {
 	return nil
 }
 
-func Convert(currDoc *gltf.Document) func(ctx extractor.Context) error {
-	return func(ctx extractor.Context) error {
+func Convert(currDoc *gltf.Document) func(ctx *extractor.Context) error {
+	return func(ctx *extractor.Context) error {
 		return ConvertOpts(ctx, currDoc)
 	}
 }

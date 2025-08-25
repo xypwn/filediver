@@ -14,7 +14,7 @@ type Header struct {
 	Version uint32
 }
 
-func ExtractLuac(ctx extractor.Context) error {
+func ExtractLuac(ctx *extractor.Context) error {
 	f, err := ctx.Open(ctx.FileID(), stingray.DataMain)
 	if err != nil {
 		return err

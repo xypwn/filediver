@@ -13,7 +13,7 @@ type Info struct {
 	Hashes  []stingray.ThinHash
 }
 
-/*func PlayerBones(ctx extractor.Context) (*Info, error) {
+/*func PlayerBones(ctx *extractor.Context) (*Info, error) {
 	file, ok := ctx.GetResource(stingray.Sum("content/fac_helldivers/cha_avatar/avatar_helldiver")), stingray.Sum64([]byte("bones"))
 	if !ok {
 		return nil, fmt.Errorf("avatar bones not located")

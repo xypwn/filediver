@@ -7,6 +7,6 @@ import (
 )
 
 // Todo: add physics support
-func ExtractPhysics(ctx extractor.Context) error {
+func ExtractPhysics(ctx *extractor.Context) error {
 	return fmt.Errorf("not implemented")
 }

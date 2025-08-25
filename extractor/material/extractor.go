@@ -121,7 +121,7 @@ func postProcessIlluminateClearcoat(img image.Image) error {
 
 // Adds a texture to doc. Returns new texture ID if err != nil.
 // postProcess optionally applies image post-processing.
-func writeTexture(ctx extractor.Context, doc *gltf.Document, id stingray.Hash, postProcess func(image.Image) error, imgOpts *ImageOptions, suffix string) (uint32, error) {
+func writeTexture(ctx *extractor.Context, doc *gltf.Document, id stingray.Hash, postProcess func(image.Image) error, imgOpts *ImageOptions, suffix string) (uint32, error) {
 	// Check if we've already added this texture
 	for j, texture := range doc.Textures {
 		if doc.Images[*texture.Source].Name == (id.String() + suffix) {
@@ -249,7 +249,7 @@ func combineIlluminateOcclusionMetallicRoughness(narImg, dataImg image.Image) er
 }
 
 // Combines illuminate data and NAR into a gltf compliant ao, metallic, roughness map and returns the index
-func writeIlluminateOcclusionMetallicRoughnessTexture(ctx extractor.Context, doc *gltf.Document, narId, ilDataId stingray.Hash, imgOpts *ImageOptions) (uint32, error) {
+func writeIlluminateOcclusionMetallicRoughnessTexture(ctx *extractor.Context, doc *gltf.Document, narId, ilDataId stingray.Hash, imgOpts *ImageOptions) (uint32, error) {
 	// Check if we've already added this texture
 	textureName := narId.String() + "_" + ilDataId.String() + "_orm"
 	for j, texture := range doc.Textures {
@@ -376,7 +376,7 @@ func compareMaterials(doc *gltf.Document, mat *material.Material, matIdx uint32,
 	return true
 }
 
-func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Document, imgOpts *ImageOptions, matName string, unitData *dlbin.UnitData) (uint32, error) {
+func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Document, imgOpts *ImageOptions, matName string, unitData *dlbin.UnitData) (uint32, error) {
 	cfg := ctx.Config()
 
 	// Avoid duplicating material if it already is added to document
@@ -783,7 +783,7 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 
 // Uses ctx.Config().Material.Format as format! Add an extra parameter for
 // format if this is made public!
-func convertOpts(ctx extractor.Context, imgOpts *ImageOptions, gltfDoc *gltf.Document) error {
+func convertOpts(ctx *extractor.Context, imgOpts *ImageOptions, gltfDoc *gltf.Document) error {
 	cfg := ctx.Config()
 
 	fMain, err := ctx.Open(ctx.FileID(), stingray.DataMain)
@@ -927,7 +927,7 @@ func convertOpts(ctx extractor.Context, imgOpts *ImageOptions, gltfDoc *gltf.Doc
 	return nil
 }
 
-func GetImageOpts(ctx extractor.Context) (*ImageOptions, error) {
+func GetImageOpts(ctx *extractor.Context) (*ImageOptions, error) {
 	cfg := ctx.Config()
 
 	var opts ImageOptions
@@ -946,8 +946,8 @@ func GetImageOpts(ctx extractor.Context) (*ImageOptions, error) {
 	return &opts, nil
 }
 
-func Convert(currDoc *gltf.Document) func(ctx extractor.Context) error {
-	return func(ctx extractor.Context) error {
+func Convert(currDoc *gltf.Document) func(ctx *extractor.Context) error {
+	return func(ctx *extractor.Context) error {
 		opts, err := GetImageOpts(ctx)
 		if err != nil {
 			return err
@@ -958,7 +958,7 @@ func Convert(currDoc *gltf.Document) func(ctx extractor.Context) error {
 
 // Uses ctx.Config().Material.TexturesFormat as format for individual textures!
 // Add an extra parameter for format when this is used by another extractor.
-func ConvertTextures(ctx extractor.Context) error {
+func ConvertTextures(ctx *extractor.Context) error {
 	cfg := ctx.Config()
 
 	fMain, err := ctx.Open(ctx.FileID(), stingray.DataMain)

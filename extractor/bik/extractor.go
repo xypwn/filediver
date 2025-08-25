@@ -8,7 +8,7 @@ import (
 	"github.com/xypwn/filediver/stingray"
 )
 
-func extract(ctx extractor.Context, save func(ctx extractor.Context, r io.Reader) error) error {
+func extract(ctx *extractor.Context, save func(ctx *extractor.Context, r io.Reader) error) error {
 	dataTypes := []stingray.DataType{stingray.DataMain}
 	if ctx.Exists(ctx.FileID(), stingray.DataStream) {
 		dataTypes = append(dataTypes, stingray.DataStream)
@@ -36,8 +36,8 @@ func extract(ctx extractor.Context, save func(ctx extractor.Context, r io.Reader
 	return save(ctx, r)
 }
 
-func ExtractBik(ctx extractor.Context) error {
-	return extract(ctx, func(ctx extractor.Context, r io.Reader) error {
+func ExtractBik(ctx *extractor.Context) error {
+	return extract(ctx, func(ctx *extractor.Context, r io.Reader) error {
 		out, err := ctx.CreateFile(".bik")
 		if err != nil {
 			return err
@@ -50,12 +50,12 @@ func ExtractBik(ctx extractor.Context) error {
 	})
 }
 
-func ConvertToMP4(ctx extractor.Context) error {
+func ConvertToMP4(ctx *extractor.Context) error {
 	if !ctx.Runner().Has("ffmpeg") {
 		return ExtractBik(ctx)
 	}
 
-	return extract(ctx, func(ctx extractor.Context, r io.Reader) error {
+	return extract(ctx, func(ctx *extractor.Context, r io.Reader) error {
 		outPath, err := ctx.AllocateFile(".mp4")
 		if err != nil {
 			return err

@@ -592,7 +592,7 @@ func addBoundingBox(doc *gltf.Document, name string, meshHeader unit.MeshHeader,
 	*meshNodes = append(*meshNodes, idx)
 }
 
-func LoadGLTF(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, name stingray.Hash, meshInfos []MeshInfo, bones []stingray.ThinHash, meshLayouts []unit.MeshLayout, unitInfo *unit.Info, meshNodes *[]uint32, materialIndices map[stingray.ThinHash]uint32, parent uint32, skin *uint32) error {
+func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, name stingray.Hash, meshInfos []MeshInfo, bones []stingray.ThinHash, meshLayouts []unit.MeshLayout, unitInfo *unit.Info, meshNodes *[]uint32, materialIndices map[stingray.ThinHash]uint32, parent uint32, skin *uint32) error {
 	cfg := ctx.Config()
 
 	unitName, contains := ctx.Hashes()[name]

@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"maps"
 	"os"
 	"path"
 	"path/filepath"
@@ -368,94 +367,6 @@ func (a *App) LookupThinHash(hash stingray.ThinHash) string {
 	return hash.String()
 }
 
-type extractContext struct {
-	ctx              context.Context
-	app              *App
-	fileID           stingray.FileID
-	runner           *exec.Runner
-	config           appconfig.Config
-	outPath          string
-	files            []string
-	selectedArchives []stingray.Hash
-	printer          Printer
-}
-
-func newExtractContext(ctx context.Context, app *App, fileID stingray.FileID, runner *exec.Runner, config appconfig.Config, outPath string, selectedArchives []stingray.Hash, printer Printer) *extractContext {
-	return &extractContext{
-		ctx:              ctx,
-		app:              app,
-		fileID:           fileID,
-		runner:           runner,
-		config:           config,
-		outPath:          outPath,
-		selectedArchives: selectedArchives,
-		printer:          printer,
-	}
-}
-
-func (c *extractContext) Ctx() context.Context    { return c.ctx }
-func (c *extractContext) FileID() stingray.FileID { return c.fileID }
-func (c *extractContext) Open(id stingray.FileID, typ stingray.DataType) (io.ReadSeeker, error) {
-	b, err := c.app.DataDir.Read(id, typ)
-	if err != nil {
-		return nil, err
-	}
-	return bytes.NewReader(b), nil
-}
-func (c *extractContext) Exists(id stingray.FileID, typ stingray.DataType) bool {
-	files := c.app.DataDir.Files[id]
-	return len(files) > 0 && files[0].Exists(typ)
-}
-func (c *extractContext) Runner() *exec.Runner     { return c.runner }
-func (c *extractContext) Config() appconfig.Config { return c.config }
-func (c *extractContext) CreateFile(suffix string) (io.WriteCloser, error) {
-	path, err := c.AllocateFile(suffix)
-	if err != nil {
-		return nil, err
-	}
-	return os.Create(path)
-}
-func (c *extractContext) AllocateFile(suffix string) (string, error) {
-	path := c.outPath + suffix
-	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
-		return "", err
-	}
-	c.files = append(c.files, path)
-	return path, nil
-}
-func (c *extractContext) Hashes() map[stingray.Hash]string {
-	return c.app.Hashes
-}
-func (c *extractContext) ThinHashes() map[stingray.ThinHash]string {
-	return c.app.ThinHashes
-}
-func (c *extractContext) SelectedArchives() []stingray.Hash {
-	return c.selectedArchives
-}
-func (c *extractContext) Archives(fileID stingray.FileID) []stingray.Hash {
-	files := c.app.DataDir.Files[fileID]
-	res := make(map[stingray.Hash]struct{})
-	for _, file := range files {
-		res[file.ArchiveID] = struct{}{}
-	}
-	return slices.Collect(maps.Keys(res))
-}
-func (c *extractContext) ArmorSets() map[stingray.Hash]dlbin.ArmorSet {
-	return c.app.ArmorSets
-}
-func (c *extractContext) Warnf(f string, a ...any) {
-	name, typ := c.app.LookupHash(c.fileID.Name), c.app.LookupHash(c.fileID.Type)
-	c.printer.Warnf("extract %v.%v: %v", name, typ, fmt.Sprintf(f, a...))
-}
-func (c *extractContext) LookupHash(hash stingray.Hash) string {
-	return c.app.LookupHash(hash)
-}
-func (c *extractContext) LookupThinHash(hash stingray.ThinHash) string {
-	return c.app.LookupThinHash(hash)
-}
-
-var _ extractor.Context = &extractContext{}
-
 func getSourceExtractFunc(extrCfg appconfig.Config, typ string) (extr extractor.ExtractFunc) {
 	switch extrCfg.Raw.Format {
 	case "main":
@@ -541,21 +452,29 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 	if err := os.MkdirAll(filepath.Dir(outPath), os.ModePerm); err != nil {
 		return nil, err
 	}
-	extrCtx := newExtractContext(
+	extrCtx, getOutFiles := extractor.NewContext(
 		ctx,
-		a,
 		id,
+		a.Hashes,
+		a.ThinHashes,
+		a.ArmorSets,
+		a.DataDir,
 		runner,
 		extrCfg,
 		outPath,
 		archiveIDs,
-		printer,
+		func(format string, args ...any) {
+			name, typ := a.LookupHash(id.Name), a.LookupHash(id.Type)
+			printer.Warnf("extract %v.%v: %v", name, typ, fmt.Sprintf(format, args...))
+		},
 	)
-	if err := extr(extrCtx); err != nil {
+	err := extr(extrCtx)
+	outFiles := getOutFiles()
+	if err != nil {
 		{
 			var err error
 			var errPath string
-			for _, path := range extrCtx.files {
+			for _, path := range outFiles {
 				if e := os.Remove(path); e != nil && !errors.Is(e, os.ErrNotExist) && err == nil {
 					err = e
 					errPath = path
@@ -568,5 +487,5 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 		return nil, fmt.Errorf("extract %v.%v: %w", name, typ, err)
 	}
 
-	return extrCtx.files, nil
+	return outFiles, nil
 }

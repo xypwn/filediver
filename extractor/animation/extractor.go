@@ -17,7 +17,7 @@ import (
 	"github.com/xypwn/filediver/stingray/state_machine"
 )
 
-func ExtractAnimationJson(ctx extractor.Context) error {
+func ExtractAnimationJson(ctx *extractor.Context) error {
 	r, err := ctx.Open(ctx.FileID(), stingray.DataMain)
 	if err != nil {
 		return err
@@ -57,7 +57,7 @@ func ExtractAnimationJson(ctx extractor.Context) error {
 	return err
 }
 
-func AddAnimation(ctx extractor.Context, doc *gltf.Document, boneInfo *bones.Info, anim state_machine.Animation) error {
+func AddAnimation(ctx *extractor.Context, doc *gltf.Document, boneInfo *bones.Info, anim state_machine.Animation) error {
 	cfg := ctx.Config()
 
 	for _, path := range anim.AnimationHashes {
