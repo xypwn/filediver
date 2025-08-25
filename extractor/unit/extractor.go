@@ -266,22 +266,11 @@ func ConvertBuffer(fMain, fGPU io.ReadSeeker, filename stingray.Hash, ctx *extra
 	// Get metadata
 	var metadata *dlbin.UnitData = nil
 	var armorSetName *string = nil
-	var archiveID *stingray.Hash = nil
-	for _, archive := range ctx.SelectedArchives() {
-		for _, fileArchive := range ctx.Archives(ctx.FileID()) {
-			if fileArchive == archive {
-				archiveID = &archive
-			}
-		}
-	}
-	if archiveID != nil {
-		armorSet, ok := ctx.ArmorSets()[*archiveID]
-		if ok {
-			armorSetName = &armorSet.Name
-			if _, contains := armorSet.UnitMetadata[filename]; contains {
-				value := armorSet.UnitMetadata[filename]
-				metadata = &value
-			}
+	if armorSet, ok := ctx.GuessFileArmorSet(ctx.FileID()); ok {
+		armorSetName = &armorSet.Name
+		if _, contains := armorSet.UnitMetadata[filename]; contains {
+			value := armorSet.UnitMetadata[filename]
+			metadata = &value
 		}
 	}
 
