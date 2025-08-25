@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"maps"
@@ -44,15 +45,15 @@ func main() {
 	}
 
 	langs := make(map[stingray.ThinHash]struct{})
-	for id, file := range files {
+	for id := range files {
 		if id.Type != stingray.Sum("strings") {
 			continue
 		}
-		r, err := file.Open(ctx, stingray.DataMain)
+		bs, err := a.DataDir.Read(id, stingray.DataMain)
 		if err != nil {
-			prt.Errorf("Error opening file: %v", err)
+			prt.Errorf("Error reading file: %v", err)
 		}
-		strings, err := strings.Load(r)
+		strings, err := strings.Load(bytes.NewReader(bs))
 		if err != nil {
 			prt.Errorf("Error reading %v.strings: %v", a.LookupHash(id.Name), err)
 		}
