@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -143,24 +142,26 @@ func (c *Context) ThinHashes() map[stingray.ThinHash]string {
 	return c.thinHashes
 }
 
-// SelectedArchives returns the selected archive IDs, if any (-t option).
-func (c *Context) SelectedArchives() []stingray.Hash {
-	return c.selectedArchives
-}
-
-// Archives returns the archives belonging to the given file.
-func (c *Context) Archives(fileID stingray.FileID) []stingray.Hash {
-	files := c.dataDir.Files[fileID]
-	res := make(map[stingray.Hash]struct{})
-	for _, file := range files {
-		res[file.ArchiveID] = struct{}{}
+// GuessFileArmorSet uses the selected archives (-t option)
+// to guess which armor set the given file is meant to belong to.
+//
+// TODO: We might want to take a different approach to this,
+// since we can never truly be sure the archive/armor set ID
+// is correct.
+func (c *Context) GuessFileArmorSet(fileID stingray.FileID) (_ dlbin.ArmorSet, ok bool) {
+	var archive stingray.Hash
+	for _, file := range c.dataDir.Files[fileID] {
+		if slices.Contains(c.selectedArchives, file.ArchiveID) {
+			archive = file.ArchiveID
+			break
+		}
 	}
-	return slices.Collect(maps.Keys(res))
-}
+	if archive.Value == 0 {
+		return dlbin.ArmorSet{}, false
+	}
 
-// ArmorSets returns a map of known armor sets.
-func (c *Context) ArmorSets() map[stingray.Hash]dlbin.ArmorSet {
-	return c.armorSets
+	armorSet, ok := c.armorSets[archive]
+	return armorSet, ok
 }
 
 // Warnf logs a user-visible warning message.
