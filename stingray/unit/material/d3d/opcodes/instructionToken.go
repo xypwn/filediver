@@ -810,7 +810,7 @@ func (tok *InstructionToken) quintenaryOpGLSL(opType ShaderOpcodeType, cbs []Con
 		expr,
 	)
 
-	return toReturn + "\n"
+	return toReturn + fmt.Sprintf(" // %v\n", tok.operands[0].OperandToken0.Type().ToString())
 }
 
 func ParseInstruction(opcode uint32, data []uint8) (Opcode, error) {
