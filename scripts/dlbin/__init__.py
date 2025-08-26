@@ -65,6 +65,7 @@ class Passive(IntEnum):
     GUNSLINGER = 18
     ADRENO_DEFIBRILLATOR = 19
     BALLISTIC_PADDING = 20
+    FEET_FIRST = 30
 
 class MurmurHash:
     def __init__(self, value: int):
@@ -73,7 +74,7 @@ class MurmurHash:
     def __str__(self):
         return f"0x{self.value:016x}"
 
-ARMOR_SET_OFFSET = 0xf50000
+ARMOR_SET_OFFSET = 0x130000
 
 class Piece:
     def __init__(self,
@@ -352,7 +353,7 @@ class UnitCustomizationSetting:
         return cls(parent_type, typ, object_name, skin_name, category_type, unk00, unk01, unk02, showroom_offset, showroom_rotation, skins)
 
 
-WEAPON_CUSTOMIZATION_OFFSET = 0x10000
+WEAPON_CUSTOMIZATION_OFFSET = 0xf0000
 
 class WeaponCustomizationSlot(IntEnum):
     NONE = 0

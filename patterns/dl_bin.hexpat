@@ -25,9 +25,9 @@ struct MurmurHash {
 } [[format("formatHash")]];
 // end stingray.hexpat
 
-#define WEAPON_CUSTOMIZATION_OFFSET 0x10000
+#define WEAPON_CUSTOMIZATION_OFFSET 0xf0000
 #define UNIT_CUSTOMIZATION_OFFSET 0xf0000
-#define HELLDIVER_CUSTOMIZATION_OFFSET 0xf50000
+#define HELLDIVER_CUSTOMIZATION_OFFSET 0x130000
 #define ANIMATION_EVENT_TRIGGER_OFFSET 0x60000
 
 fn relative_to_parents_parent(u128 offset) {
@@ -145,6 +145,7 @@ enum Passive : u32 {
     GUNSLINGER,
     ADRENO_DEFIBRILLATOR,
     BALLISTIC_PADDING,
+    FEET_FIRST = 30,
 };
 
 fn passiveName(Passive passive) {
@@ -170,6 +171,7 @@ fn passiveName(Passive passive) {
         (Passive::ADRENO_DEFIBRILLATOR): return "ADRENO_DEFIBRILLATOR";
         (Passive::REINFORCED_EPAULETTES): return "REINFORCED_EPAULETTES";
         (Passive::BALLISTIC_PADDING): return "BALLISTIC_PADDING";
+        (Passive::FEET_FIRST): return "FEET_FIRST";
     }
     return "Very unknown!";
 };
@@ -203,7 +205,8 @@ struct HelldiverCustomizationKit {
         passive_bonus != Passive::GUNSLINGER &&
         passive_bonus != Passive::ADRENO_DEFIBRILLATOR &&
         passive_bonus != Passive::REINFORCED_EPAULETTES &&
-        passive_bonus != Passive::BALLISTIC_PADDING
+        passive_bonus != Passive::BALLISTIC_PADDING &&
+        passive_bonus != Passive::FEET_FIRST
     ) {
         std::print("Unknown passive in element {:d}! {}", std::core::array_index(), u32(passive_bonus));
     }
