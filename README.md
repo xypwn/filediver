@@ -19,6 +19,24 @@ An unofficial Helldivers 2 game asset extractor.
 
 **Simply download and run. It's highly recommended to install all extensions when prompted.**
 
+<details>
+  <summary>Manually installing extensions</summary>
+
+  **Do this if auto-download doesn't work for some reason. BE WARNED THAT IT'S A LOT MORE INVOLVED.**
+  
+  - In file expolorer, paste `%LOCALAPPDATA%\filediver` into the directory bar to open the extension folder; **all future instructions saying to "create a file/folder" will imply to do it in there**
+  - Make sure to have file extensions enabled in file explorer
+  - Make two folders, called `ffmpeg` and `filediver-scripts`
+  - FFmpeg
+	- Download https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip
+	- Place the `bin` folder in `ffmpeg-master-latest-win64-gpl.zip/ffmpeg-master-latest-win64-gpl` into the `ffmpeg` directory you just created
+	- Create a new text file called `ffmpeg_version` (NO EXTENSION). Edit the file with notepad, type in the text `latest` and hit save.
+  - Helper scripts
+	- Download [scripts_dist](https://github.com/xypwn/filediver?tab=readme-ov-file#helper-scripts-scripts_dist)
+	- Place the `hd2_accurate_blender_importer` folder in `scripts-dist-windows.zip/scripts_dist` into the `filediver-scripts` directory you just created
+	- Create a new text file called `filediver-scripts_version` (NO EXTENSION). Edit the file with notepad, type in the latest version of filediver (e.g. `v0.6.15`) and hit save.
+</details>
+
 ### Filediver CLI (command-line interface)
 - [Download CLI Windows (64-bit)](https://github.com/xypwn/filediver/releases/latest/download/filediver-cli-windows.zip)
 - [Download CLI Linux (64-bit)](https://github.com/xypwn/filediver/releases/latest/download/filediver-cli-linux.zip)
