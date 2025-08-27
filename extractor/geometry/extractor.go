@@ -882,9 +882,8 @@ func LoadGLTF(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, nam
 			node := uint32(len(doc.Nodes)) - 1
 			if _, contains := primitives[0].Attributes[gltf.JOINTS_0]; contains {
 				doc.Nodes[node].Skin = skin
-			} else {
-				doc.Nodes[parent].Children = append(doc.Nodes[parent].Children, node)
 			}
+			doc.Nodes[parent].Children = append(doc.Nodes[parent].Children, node)
 			*meshNodes = append(*meshNodes, node)
 		}
 	}
