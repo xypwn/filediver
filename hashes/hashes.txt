@@ -67949,6 +67949,25 @@ content/effects/wind/default
 content/entities/dummy
 content/entities/navmeshseedpoint
 content/entities/ship_cutscene_unit
+content/env_bugs/assets/bug_cave_rocks/bug_cave_bridge_01
+content/env_bugs/assets/bug_cave_rocks/bug_cave_bridge_destructible_01
+content/env_bugs/assets/bug_cave_rocks/bug_cave_pillar_01
+content/env_bugs/assets/bug_cave_rocks/bug_cave_rock_massive_01
+content/env_bugs/assets/bug_cave_rocks/bug_cave_rock_massive_02
+content/env_bugs/assets/bug_cave_rocks/bug_cave_rock_massive_05
+content/env_bugs/assets/bug_cave_rocks/bug_cave_rock_overhang_01
+content/env_bugs/assets/bug_cave_rocks/bug_cave_rock_overhang_02
+content/env_bugs/assets/bug_cave_rocks/bug_cave_roof_01
+content/env_bugs/assets/bug_cave_rocks/bug_cave_tunnel_curve_01
+content/env_bugs/assets/bug_cave_rocks/bug_cave_tunnel_entrance_01
+content/env_bugs/assets/bug_cave_rocks/bug_cave_tunnel_junction_01
+content/env_bugs/assets/bug_cave_rocks/bug_cave_tunnel_straight_01
+content/env_bugs/assets/bug_cave_rocks/bug_cave_tunnel_straight_02
+content/env_bugs/assets/bug_cave_rocks/bug_cave_wall_01
+content/env_bugs/assets/bug_caviar/bug_caviar_large_01
+content/env_bugs/assets/bug_caviar/bug_caviar_medium_01
+content/env_bugs/assets/bug_caviar/bug_caviar_small_01
+content/env_bugs/assets/bug_caviar/bug_caviar_small_02
 content/env_bugs/assets/bug_corpses/bug_corpse_charger_01
 content/env_bugs/assets/bug_corpses/bug_corpse_charger_02
 content/env_bugs/assets/bug_corpses/bug_corpse_gore_pile_01
@@ -67972,6 +67991,7 @@ content/env_bugs/assets/bug_goop/bug_goop_pillow_03
 content/env_bugs/assets/bug_goop/materials/m_bug_goop_pillow_01
 content/env_bugs/assets/bug_goop/materials/m_bug_goop_pillow_02
 content/env_bugs/assets/bug_goop/materials/m_bug_goop_pillow_03
+content/env_bugs/assets/bug_hive/bug_hive_chimney_01
 content/env_bugs/assets/bug_hive/materials/m_spore_light_01
 content/env_bugs/assets/bug_hive/materials/m_spore_light_02
 content/env_bugs/assets/bug_hive/spore_cluster_01
@@ -67988,6 +68008,7 @@ content/env_bugs/assets/bug_hive/textures/spore_light_01_normal
 content/env_bugs/assets/bug_hive/textures/spore_light_02_albedo
 content/env_bugs/assets/bug_hive/textures/spore_light_02_mra
 content/env_bugs/assets/bug_hive/textures/spore_light_02_normal
+content/env_bugs/assets/bug_membrane_door/bug_membrane_door
 content/env_bugs/assets/bug_rocks/bug_hive_wall_large
 content/env_bugs/assets/bug_rocks/bug_hive_wall_medium
 content/env_bugs/assets/bug_rocks/bug_hive_wall_small
@@ -70083,6 +70104,7 @@ content/env_super_earth/military_base/sandbags/sandbag_02
 content/env_super_earth/military_base/sandbags/sandbag_03
 content/env_super_earth/military_base/sandbags/sandbag_pile_01
 content/env_super_earth/military_base/sandbags/sandbag_pile_02
+content/env_super_earth/military_base/scrap/radar_wagon
 content/env_super_earth/military_base/signs/materials/m_sign_biohazard_warning
 content/env_super_earth/military_base/signs/materials/m_sign_demolition_range
 content/env_super_earth/military_base/signs/materials/m_sign_extraction
@@ -70605,6 +70627,7 @@ content/fac_helldivers/discoverables/health_pack_discoverable_01/health_pack_dis
 content/fac_helldivers/discovereables/health_pack_discoverable
 content/fac_helldivers/equipment/attachment/magazine/assault_rifle_helghast_magazine
 content/fac_helldivers/equipment/attachment/magazine/assault_rifle_karbin_magazine_standard
+content/fac_helldivers/equipment/attachment/magazine/assault_rifle_nacho_mag_standard
 content/fac_helldivers/equipment/attachment/magazine/assaultrifle_drum_magazine
 content/fac_helldivers/equipment/attachment/magazine/assaultrifle_extended_magazine
 content/fac_helldivers/equipment/attachment/magazine/assaultrifle_extended_magazine_fastreload
@@ -70660,6 +70683,7 @@ content/fac_helldivers/equipment/attachment/magazine/pdw_standard_magazine_peppe
 content/fac_helldivers/equipment/attachment/magazine/pistol_magazine
 content/fac_helldivers/equipment/attachment/magazine/pistol_magazine_extended
 content/fac_helldivers/equipment/attachment/magazine/pistol_magazine_fastreload
+content/fac_helldivers/equipment/attachment/magazine/pistol_nacho_mag_standard
 content/fac_helldivers/equipment/attachment/magazine/plasma_blaster_canister
 content/fac_helldivers/equipment/attachment/magazine/railgun_magazine
 content/fac_helldivers/equipment/attachment/magazine/recoilless_grenade_standard
@@ -70667,6 +70691,7 @@ content/fac_helldivers/equipment/attachment/magazine/smart_pistol_magazine_stand
 content/fac_helldivers/equipment/attachment/magazine/smg_defender_extended_magazine
 content/fac_helldivers/equipment/attachment/magazine/smg_defender_standard_magazine
 content/fac_helldivers/equipment/attachment/magazine/smg_helghast_magazine
+content/fac_helldivers/equipment/attachment/magazine/smg_nacho_mag_standard
 content/fac_helldivers/equipment/attachment/magazine/smg_rhino_standard_magazine
 content/fac_helldivers/equipment/attachment/magazine/sniper_rifle_helghast_magazine
 content/fac_helldivers/equipment/attachment/magazine/sniperrifle_standard_magazine
@@ -70813,6 +70838,7 @@ content/fac_helldivers/equipment/primary_weapons/assault_rifle_helghast/animatio
 content/fac_helldivers/equipment/primary_weapons/assault_rifle_helghast/animation/reload
 content/fac_helldivers/equipment/primary_weapons/assault_rifle_helghast/assault_rifle_helghast
 content/fac_helldivers/equipment/primary_weapons/assault_rifle_karbin/assault_rifle_karbin
+content/fac_helldivers/equipment/primary_weapons/assault_rifle_nacho/assault_rifle_nacho
 content/fac_helldivers/equipment/primary_weapons/assault_rifle_patriot/animation/fire
 content/fac_helldivers/equipment/primary_weapons/assault_rifle_patriot/animation/idle
 content/fac_helldivers/equipment/primary_weapons/assault_rifle_patriot/animation/reload
@@ -70922,6 +70948,7 @@ content/fac_helldivers/equipment/primary_weapons/pump_shotgun_plasma/animation/p
 content/fac_helldivers/equipment/primary_weapons/pump_shotgun_plasma/animation/reload
 content/fac_helldivers/equipment/primary_weapons/pump_shotgun_plasma/pump_shotgun_plasma
 content/fac_helldivers/equipment/primary_weapons/pump_shotgun_slug/pump_shotgun_slug
+content/fac_helldivers/equipment/primary_weapons/shotgun_nacho/shotgun_nacho
 content/fac_helldivers/equipment/primary_weapons/smg_defender/animations/fire
 content/fac_helldivers/equipment/primary_weapons/smg_defender/animations/idle
 content/fac_helldivers/equipment/primary_weapons/smg_defender/animations/reload
@@ -70936,6 +70963,7 @@ content/fac_helldivers/equipment/primary_weapons/smg_helghast/animation/stock_cl
 content/fac_helldivers/equipment/primary_weapons/smg_helghast/animation/stock_open
 content/fac_helldivers/equipment/primary_weapons/smg_helghast/smg_helghast
 content/fac_helldivers/equipment/primary_weapons/smg_helghast/textures/smg_helghast_nac
+content/fac_helldivers/equipment/primary_weapons/smg_nacho/smg_nacho
 content/fac_helldivers/equipment/primary_weapons/smg_rhino/animation/bolt_open
 content/fac_helldivers/equipment/primary_weapons/smg_rhino/animation/fire
 content/fac_helldivers/equipment/primary_weapons/smg_rhino/animation/idle
@@ -70984,6 +71012,7 @@ content/fac_helldivers/equipment/sidearm_weapons/pistol_cricket/animation/stock_
 content/fac_helldivers/equipment/sidearm_weapons/pistol_cricket/animation/stock_open
 content/fac_helldivers/equipment/sidearm_weapons/pistol_cricket/pistol_cricket
 content/fac_helldivers/equipment/sidearm_weapons/pistol_cricket/textures/pistol_cricket_nac
+content/fac_helldivers/equipment/sidearm_weapons/pistol_nacho/pistol_nacho
 content/fac_helldivers/equipment/sidearm_weapons/plasma_pistol/animation/idle
 content/fac_helldivers/equipment/sidearm_weapons/plasma_pistol/animation/reload
 content/fac_helldivers/equipment/sidearm_weapons/plasma_pistol/plasma_pistol
@@ -71039,6 +71068,7 @@ content/fac_helldivers/equipment/support_weapons/chemgun/animation/idle
 content/fac_helldivers/equipment/support_weapons/chemgun/animation/reload
 content/fac_helldivers/equipment/support_weapons/chemgun/chemgun
 content/fac_helldivers/equipment/support_weapons/chemgun/textures/chemgun_nac
+content/fac_helldivers/equipment/support_weapons/expendable_napalm_launcher/expendable_napalm_launcher
 content/fac_helldivers/equipment/support_weapons/faf_missile_helghast/faf_missile_helghast
 content/fac_helldivers/equipment/support_weapons/faf_missile_launcher/animation/assisted_reload
 content/fac_helldivers/equipment/support_weapons/faf_missile_launcher/animation/draw
@@ -71263,6 +71293,8 @@ content/fac_helldivers/hellpod/mine_launcher/mine_launcher_prop
 content/fac_helldivers/hellpod/mine_launcher/textures/mine_launcher_nac
 content/fac_helldivers/hellpod/mine_launcher_gas_mine/mine_launcher_gas_mine
 content/fac_helldivers/hellpod/mine_launcher_tank_mine/mine_launcher_tank_mine
+content/fac_helldivers/hellpod/mini_missile_silo/mini_missile_silo
+content/fac_helldivers/hellpod/mini_missile_silo/mini_missile_silo_missile
 content/fac_helldivers/hellpod/mortar_turret/animation/bridge_idle
 content/fac_helldivers/hellpod/mortar_turret/animation/deploy
 content/fac_helldivers/hellpod/mortar_turret/animation/elevation
@@ -71912,6 +71944,8 @@ content/objectives/obj_bugs/entities/bug_tcs_01/bug_tcs_01_terminal_screen_b
 content/objectives/obj_bugs/entities/bug_tcs_01/bug_tcs_01_terminal_screen_c
 content/objectives/obj_bugs/entities/bug_tcs_02/bug_tcs_02
 content/objectives/obj_bugs/entities/bug_tcs_02_destroy_eggs/bug_tcs_02_destroy_eggs
+content/objectives/obj_bugs/hive_world_spore_lung/hive_world_spore_lung
+content/objectives/obj_bugs/hive_world_spore_lung/hive_world_spore_lung_tentacle
 content/objectives/obj_bugs/raise_flag/deploy_flag_area_marker_bug_hive
 content/objectives/obj_bugs/retrieve_larva/animation/alarming
 content/objectives/obj_bugs/retrieve_larva/bug_larva_container_backpack
@@ -71936,6 +71970,7 @@ content/objectives/obj_bugs/thumper/animation/thump
 content/objectives/obj_bugs/thumper/thumper
 content/objectives/obj_common/black_box/black_box_01
 content/objectives/obj_common/black_box/materials/black_box_01
+content/objectives/obj_common/briefcase/briefcase
 content/objectives/obj_common/capital_defense/capital_defense_building
 content/objectives/obj_common/capital_defense/capital_defense_pillar
 content/objectives/obj_common/capital_defense/capital_defense_tower
