@@ -344,7 +344,20 @@ func (tok *InstructionToken) trinaryOpGLSL(opType ShaderOpcodeType, cbs []Consta
 		expr,
 	)
 
-	return toReturn + fmt.Sprintf(" // %v\n", tok.operands[0].OperandToken0.Type().ToString())
+	if tok.Saturate() {
+		expr = fmt.Sprintf("clamp(%v, 0.0, 1.0)", expr)
+	}
+	if opType.ReturnNumberType() != internalNumberTypeFloat {
+		expr = fmt.Sprintf("%v(%v)", opType.ReturnNumberType().BitcastToFloat(), expr)
+	}
+
+	toReturn += fmt.Sprintf(
+		"%v = %v;",
+		tok.operands[0].ToGLSL(cbs, isg, osg, res, masks[0], true),
+		expr,
+	)
+
+	return toReturn + "\n"
 }
 
 func ParseInstruction(opcode uint32, data []uint8) (Opcode, error) {
