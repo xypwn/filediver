@@ -6299,12 +6299,12 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     principled_bsdf_001.distribution = 'MULTI_GGX'
     principled_bsdf_001.subsurface_method = 'RANDOM_WALK'
     #Decal Mix Color -> principled_bsdf_001.Base Color
-    HD2_Shader.links.new(decal_mix_node.outputs[2], principled_bsdf_001.inputs[0])
+    HD2_Shader.links.new(decal_mix_node.outputs[2], principled_bsdf_001.inputs['Base Color'])
     #IOR
-    principled_bsdf_001.inputs[3].default_value = 1.4500000476837158
+    principled_bsdf_001.inputs['IOR'].default_value = 1.4500000476837158
     #Cape Control Mask Alpha -> principled_bsdf_001 Alpha
     HD2_Shader.links.new(group_input_1.outputs[3], alpha_cutoff_node.inputs[0])
-    HD2_Shader.links.new(alpha_cutoff_node.outputs[0], principled_bsdf_001.inputs[4])
+    HD2_Shader.links.new(alpha_cutoff_node.outputs[0], principled_bsdf_001.inputs['Alpha'])
     #Weight
     if 'Weight' in principled_bsdf_001.inputs:
         principled_bsdf_001.inputs['Weight'].default_value = 0.0
