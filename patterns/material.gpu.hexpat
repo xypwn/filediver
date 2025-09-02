@@ -25,9 +25,6 @@ struct MurmurHash {
 } [[format("formatHash")]];
 // end stingray.hexpat
 
-// import dxbc.hexpat; // Grumble
-#include <std/ptr.pat>
-
 fn relative_to_parents_parents_parents_parents_parent(u128 offset) {
     return addressof(parent.parent.parent.parent.parent.parent);
 };
@@ -47,6 +44,10 @@ fn relative_to_parents_parent(u128 offset) {
 fn relative_to_parent(u128 offset) {
     return addressof(parent.parent);
 };
+
+namespace d3d {
+// import dxbc.hexpat; // Grumble
+#include <std/ptr.pat>
 
 enum D3D_SHADER_VARIABLE_CLASS : u16 {
     D3D_SVC_SCALAR = 0,
@@ -185,15 +186,6 @@ enum D3D_SHADER_VARIABLE_TYPE : u16 {
     D3D11_SVT_CONSUME_STRUCTURED_BUFFER,
 };
 
-struct Header {
-    char magic[4];
-    u8 digest[16];
-    u16 major;
-    u16 minor;
-    u32 size;
-    u32 parts;
-};
-
 struct string {
     char data[];
 };
@@ -229,9 +221,32 @@ struct ConstantBuffer {
     u32 type;
 };
 
+enum InputType : u32 {
+    CBUFFER,
+    TBUFFER,
+    TEXTURE,
+    SAMPLER,
+    UAV_RW_TYPED,
+    STRUCTURED,
+    UAV_RW_STRUCTURED,
+    BYTE_ADDRESS,
+    UAV_RW_BYTE_ADDRESS,
+    UAV_APPEND_STRUCTURED,
+    UAV_CONSUME_STRUCTURED,
+    UAV_RW_STRUCTURED_WITH_COUNTER,
+};
+
+u32 temp_sampler_count = 0;
+u32 temp_texture_count = 0;
+
 struct ResourceBinding {
     string *name : u32 [[pointer_base("relative_to_parents_parents_parent")]];
-    u32 input_type;
+    InputType input_type;
+    if (input_type == InputType::SAMPLER) {
+        temp_sampler_count += 1;
+    } else if (input_type == InputType::TEXTURE) {
+        temp_texture_count += 1;
+    }
     u32 return_type;
     u32 view_dimension;
     u32 sample_count;
@@ -248,12 +263,16 @@ struct RDEF {
     u32 cbuf_count;
     List<ConstantBuffer, cbuf_count> *cbuf : u32 [[pointer_base("relative_to_parent")]];
     u32 rbind_count;
+    temp_sampler_count = 0;
+    temp_texture_count = 0;
     List<ResourceBinding, rbind_count> *rbind : u32 [[pointer_base("relative_to_parent")]];
     u8 minor;
     u8 major;
     u16 program_type;
     u32 flags;
     string *creator : u32 [[pointer_base("relative_to_parent")]];
+    u32 sampler_count = temp_sampler_count [[export]];
+    u32 texture_count = temp_texture_count [[export]];
 };
 
 struct Element {
@@ -641,9 +660,12 @@ struct PartHeader {
     u32 size;
 };
 
+s32 temp_rdef_index = -1;
+
 struct Part {
     PartHeader header;
     if(header.name == "RDEF") {
+        temp_rdef_index = std::core::array_index();
         RDEF data;
         padding[header.size - sizeof(data)];
     } else if(header.name == "ISGN") {
@@ -667,11 +689,26 @@ struct Pointer<T> {
     T *data : u32 [[pointer_base("relative_to_parents_parent")]];
 };
 
+struct Header {
+    char magic[4];
+    u8 digest[16];
+    u16 major;
+    u16 minor;
+    u32 size;
+    u32 parts;
+};
+
 struct DXBC {
     Header header;
+    temp_rdef_index = -1;
     Pointer<Part> parts[header.parts];
+    if (temp_rdef_index != -1) {
+        u32 rdef_index = temp_rdef_index [[export]];
+    }
+    padding[header.size - sizeof(header) - sizeof(parts)];
 };
 // end dxbc.hexpat
+} // end namespace d3d
 
 struct UnkArrayEntry {
     ThinMurmurHash name;
@@ -710,6 +747,35 @@ struct Header {
     u32 size;
 };
 
+struct CBufMetadata {
+    u32 unk0;
+    u32 size;
+    u32 index;
+    u32 unk1;
+};
+
+struct TextureMetadata {
+    ThinMurmurHash name;
+    u32 unkIndex;
+    u32 register;
+    u32 bindcount;
+};
+
+struct SamplerMetadata {
+    ThinMurmurHash name;
+    u32 register;
+    u32 bindcount;
+};
+
+struct Shader {
+    d3d::DXBC dxbc;
+    ThinMurmurHash name;
+    std::mem::AlignTo<8> align;
+    CBufMetadata cbufMetadata[dxbc.parts[dxbc.rdef_index].data.data.cbuf_count];
+    TextureMetadata texMetadata[dxbc.parts[dxbc.rdef_index].data.data.texture_count];
+    SamplerMetadata samplerMetadata[dxbc.parts[dxbc.rdef_index].data.data.sampler_count];
+};
+
 struct Material {
     Header hdr;
     u8 *offset0 : u32;
@@ -725,3 +791,8 @@ struct Material {
 };
 
 Material mat @0x0;
+
+
+Shader dxbc @0x9ed90;
+Shader dxbc2 @0xbcfa0;
+Shader dxbc3 @0xbf0a8;
