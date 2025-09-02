@@ -65,7 +65,8 @@ class Passive(IntEnum):
     GUNSLINGER = 18
     ADRENO_DEFIBRILLATOR = 19
     BALLISTIC_PADDING = 20
-    FEET_FIRST = 30
+    DESERT_STORMER = 21
+    FEET_FIRST = 31
 
 class MurmurHash:
     def __init__(self, value: int):
@@ -74,7 +75,7 @@ class MurmurHash:
     def __str__(self):
         return f"0x{self.value:016x}"
 
-ARMOR_SET_OFFSET = 0x130000
+ARMOR_SET_OFFSET = 0xe50000
 
 class Piece:
     def __init__(self,
@@ -431,24 +432,24 @@ class DlBinItem:
         contentStart = data.tell()
         content = data.read(size)
         contentEnd = data.tell()
-        if DLItemType(kind) == DLItemType.ArmorCustomization:
+        if kind == DLItemType.ArmorCustomization.value:
             data.seek(contentStart)
             content = HelldiverCustomizationKit.parse(data)
             data.seek(contentEnd)
-        elif DLItemType(kind) == DLItemType.UnitCustomization:
+        elif kind == DLItemType.UnitCustomization.value:
             data.seek(contentStart)
             content = UnitCustomizationSetting.parse(data)
             data.seek(contentEnd)
-        elif DLItemType(kind) == DLItemType.WeaponCustomization:
+        elif kind == DLItemType.WeaponCustomization.value:
             data.seek(contentStart)
             offset, unk00, count, unk01 = struct.unpack("<IIII", data.read(16))
             data.seek((offset & 0xFFFF))
             content = [WeaponCustomizationSetting.parse(data) for _ in range(count)]
             data.seek(contentEnd)
-        return cls(magic, unk00, DLItemType(kind), size, unk02, unk03, content)
+        return cls(magic, unk00, kind, size, unk02, unk03, content)
     
     def serialize(self) -> bytes:
-        return struct.pack("<4sIIIII", self.magic, self.unk00, self.unk01, self.size, self.unk02, self.unk03) + self.content
+        return struct.pack("<4sIIIII", self.magic, self.unk00, self.kind, self.size, self.unk02, self.unk03) + self.content
 
 
 class DlBin:

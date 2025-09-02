@@ -16,13 +16,17 @@ def main():
     parser = ArgumentParser()
     parser.add_argument("core_file", type=Path)
     parser.add_argument("--game-dir", type=Path, default=Path("C:/Program Files (x86)/Steam/steamapps/common/Helldivers 2/data/game"))
-    parser.add_argument("--offset", type=int, default=0x13d200000)
+    parser.add_argument("--offset", type=int, default=0)
+    parser.add_argument("--output", "-o", type=Path, default=Path("."))
     args = parser.parse_args()
 
     offset: int = args.offset
     core_file: Path = args.core_file
     game_dir: Path = args.game_dir
+    output_dir: Path = args.output
 
+    if not output_dir.exists():
+        output_dir.mkdir(parents=True)
     dlbin_sizes: List[Tuple[str, int]] = []
     assert game_dir.is_dir()
     for file in game_dir.iterdir():
@@ -58,7 +62,7 @@ def main():
                     size = f.tell() - start
                     for name, encsize in dlbin_sizes:
                         if (encsize - 48) >= size:
-                            decrypted_path = Path(name).with_suffix(".dec.dl_bin")
+                            decrypted_path = output_dir / Path(name).with_suffix(".dec.dl_bin")
                             if decrypted_path.exists():
                                 exist_diff = (encsize - 48) - decrypted_path.stat().st_size
                                 new_diff = (encsize - 48) - size

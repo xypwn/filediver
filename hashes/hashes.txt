@@ -70337,6 +70337,7 @@ content/fac_bugs/cha_boomer/cha_boomer_sss
 content/fac_bugs/cha_boomer/cha_boomer_tier_2
 content/fac_bugs/cha_boomer/cha_boomer_tier_2_bci
 content/fac_bugs/cha_boomer/cha_boomer_tier_2_sss
+content/fac_bugs/cha_boomer_burrower/cha_boomer_burrower
 content/fac_bugs/cha_boomer_nurser/cha_boomer_nurser
 content/fac_bugs/cha_boomer_nurser/cha_boomer_nurser_02
 content/fac_bugs/cha_boomer_tier_2/cha_boomer_tier_2
@@ -70361,6 +70362,19 @@ content/fac_bugs/cha_charger_bull/cha_charger_bull
 content/fac_bugs/cha_charger_bull/cha_charger_bull_bci
 content/fac_bugs/cha_charger_bull/cha_charger_bull_ccras
 content/fac_bugs/cha_charger_bull/cha_charger_bull_sss
+content/fac_bugs/cha_charger_burrower/cha_charger_burrower
+content/fac_bugs/cha_dragon/cha_dragon
+content/fac_bugs/cha_hive_lord/cha_hive_lord
+content/fac_bugs/cha_hive_lord/cha_hive_lord_l_leg
+content/fac_bugs/cha_hive_lord/cha_hive_lord_l_mandible
+content/fac_bugs/cha_hive_lord/cha_hive_lord_r_leg
+content/fac_bugs/cha_hive_lord/cha_hive_lord_r_mandible
+content/fac_bugs/cha_hive_lord/cha_hive_lord_shard_b_01
+content/fac_bugs/cha_hive_lord/cha_hive_lord_shard_b_02
+content/fac_bugs/cha_hive_lord/cha_hive_lord_shard_b_03
+content/fac_bugs/cha_hive_lord/cha_hive_lord_shard_f_01
+content/fac_bugs/cha_hive_lord/cha_hive_lord_shard_f_02
+content/fac_bugs/cha_hive_lord/cha_hive_lord_shard_f_03
 content/fac_bugs/cha_hunter/animation/actions/combat_taunt_01
 content/fac_bugs/cha_hunter/animation/actions/tongue_attack
 content/fac_bugs/cha_hunter/animation/idle/idle_01
@@ -70442,6 +70456,7 @@ content/fac_bugs/cha_warrior_big/animations/tasks/sleeping
 content/fac_bugs/cha_warrior_big/animations/timer
 content/fac_bugs/cha_warrior_big/cha_warrior_big
 content/fac_bugs/cha_warrior_big/cha_warrior_big_tier2
+content/fac_bugs/cha_warrior_burrower/cha_warrior_burrower
 content/fac_bugs/cha_warrior_plus/cha_warrior_plus
 content/fac_bugs/cha_warrior_tier_1/cha_warrior_tier_1
 content/fac_bugs/cha_warrior_tier_2/cha_warrior_tier_2
@@ -70627,6 +70642,7 @@ content/fac_helldivers/discoverables/health_pack_discoverable_01/health_pack_dis
 content/fac_helldivers/discovereables/health_pack_discoverable
 content/fac_helldivers/equipment/attachment/magazine/assault_rifle_helghast_magazine
 content/fac_helldivers/equipment/attachment/magazine/assault_rifle_karbin_magazine_standard
+content/fac_helldivers/equipment/attachment/magazine/assault_rifle_large_calibre_mag_standard
 content/fac_helldivers/equipment/attachment/magazine/assault_rifle_nacho_mag_standard
 content/fac_helldivers/equipment/attachment/magazine/assaultrifle_drum_magazine
 content/fac_helldivers/equipment/attachment/magazine/assaultrifle_extended_magazine
@@ -70779,6 +70795,7 @@ content/fac_helldivers/equipment/backpacks/drone_mg/drone_mg
 content/fac_helldivers/equipment/backpacks/drone_mg/drone_mg_backpack
 content/fac_helldivers/equipment/backpacks/drone_mg/drone_mg_weapon
 content/fac_helldivers/equipment/backpacks/drone_mg/m_drone_assault_rifle
+content/fac_helldivers/equipment/backpacks/drone_weapons/drone_assault_rifle/drone_assault_rifle
 content/fac_helldivers/equipment/backpacks/drone_weapons/drone_gas_projector/drone_gas_projector
 content/fac_helldivers/equipment/backpacks/drone_weapons/drone_laser_rifle/drone_laser_rifle
 content/fac_helldivers/equipment/backpacks/energy_shield_backpack/energy_shield_backpack
@@ -70812,6 +70829,8 @@ content/fac_helldivers/equipment/melee_weapons/flag/melee_flag
 content/fac_helldivers/equipment/melee_weapons/flag/textures/melee_flag_nac
 content/fac_helldivers/equipment/melee_weapons/hand_axe/hand_axe
 content/fac_helldivers/equipment/melee_weapons/hand_axe/textures/hand_axe_nac
+content/fac_helldivers/equipment/melee_weapons/machete/machete
+content/fac_helldivers/equipment/melee_weapons/machete/machete_sheath
 content/fac_helldivers/equipment/melee_weapons/stun_spear/animation/draw
 content/fac_helldivers/equipment/melee_weapons/stun_spear/animation/folded
 content/fac_helldivers/equipment/melee_weapons/stun_spear/animation/holster
@@ -70838,6 +70857,7 @@ content/fac_helldivers/equipment/primary_weapons/assault_rifle_helghast/animatio
 content/fac_helldivers/equipment/primary_weapons/assault_rifle_helghast/animation/reload
 content/fac_helldivers/equipment/primary_weapons/assault_rifle_helghast/assault_rifle_helghast
 content/fac_helldivers/equipment/primary_weapons/assault_rifle_karbin/assault_rifle_karbin
+content/fac_helldivers/equipment/primary_weapons/assault_rifle_large_calibre_01/assault_rifle_large_calibre_01
 content/fac_helldivers/equipment/primary_weapons/assault_rifle_nacho/assault_rifle_nacho
 content/fac_helldivers/equipment/primary_weapons/assault_rifle_patriot/animation/fire
 content/fac_helldivers/equipment/primary_weapons/assault_rifle_patriot/animation/idle
@@ -71091,6 +71111,7 @@ content/fac_helldivers/equipment/support_weapons/flamethrower/materials/m_flamet
 content/fac_helldivers/equipment/support_weapons/flamethrower/textures/flamethrower_nac
 content/fac_helldivers/equipment/support_weapons/grenade_launcher/grenade_launcher
 content/fac_helldivers/equipment/support_weapons/grenade_launcher_tactical/grenade_launcher_tactical
+content/fac_helldivers/equipment/support_weapons/harpoon_gun/harpoon_gun
 content/fac_helldivers/equipment/support_weapons/heavy_mg/animations/fire
 content/fac_helldivers/equipment/support_weapons/heavy_mg/animations/idle
 content/fac_helldivers/equipment/support_weapons/heavy_mg/animations/reload
@@ -71138,6 +71159,7 @@ content/fac_helldivers/equipment/support_weapons/sniper_rifle/sniper_rifle
 content/fac_helldivers/equipment/support_weapons/sniper_rifle/textures/sniper_rifle_nac
 content/fac_helldivers/equipment/throwables/antitank_grenade/antitank_grenade
 content/fac_helldivers/equipment/throwables/arc_grenade/arc_grenade
+content/fac_helldivers/equipment/throwables/cluster_frag_grenade/cluster_frag_grenade
 content/fac_helldivers/equipment/throwables/contact_mine/contact_mine
 content/fac_helldivers/equipment/throwables/dynamite/dynamite
 content/fac_helldivers/equipment/throwables/dynamite/textures/dynamite_nac
@@ -71409,8 +71431,11 @@ content/fac_helldivers/vehicles/frv/armaments/frv_mg/animations/reload
 content/fac_helldivers/vehicles/frv/armaments/frv_mg/animations/reload_fast
 content/fac_helldivers/vehicles/frv/armaments/frv_mg/frv_mg
 content/fac_helldivers/vehicles/frv/frv
+content/fac_helldivers/vehicles/lav/armaments/lav_autocannon/lav_autocannon
 content/fac_helldivers/vehicles/lav/lav
 content/fac_helldivers/vehicles/lav/m_lav
+content/fac_helldivers/vehicles/oilrig/oil_rig
+content/fac_helldivers/vehicles/oilrig/oilrig_tank
 content/fac_helldivers/vehicles/shuttle_gunship/animation/clamps/cw
 content/fac_helldivers/vehicles/shuttle_gunship/animation/clamps/cw_release
 content/fac_helldivers/vehicles/shuttle_gunship/animation/clamps/frv
@@ -71506,6 +71531,7 @@ content/fac_illuminate/equipment/weapons/pathfinder_lightspear/animations/closed
 content/fac_illuminate/equipment/weapons/pathfinder_lightspear/animations/opened
 content/fac_illuminate/equipment/weapons/pathfinder_lightspear/animations/shoot
 content/fac_illuminate/equipment/weapons/pathfinder_lightspear/pathfinder_lightspear
+content/fac_illuminate/vehicles/armaments/illuminate_turret_warmachine/illuminate_turret_wm_cannon
 content/fac_illuminate/vehicles/illuminate_attack_ship/animation/idle
 content/fac_illuminate/vehicles/illuminate_attack_ship/animation/pose
 content/fac_illuminate/vehicles/illuminate_attack_ship/animation/shake
@@ -71581,6 +71607,15 @@ content/fac_super_earth/bridge_personnel/cha_personnel/cha_servicetech_f_01
 content/fac_super_earth/bridge_personnel/cha_personnel/cha_servicetech_f_02
 content/fac_super_earth/bridge_personnel/cha_personnel/cha_servicetech_f_03
 content/fac_super_earth/bridge_personnel/cha_personnel/cha_servicetech_f_04
+content/fac_super_earth/bridge_personnel/cha_personnel_female/cha_cargo_worker_female
+content/fac_super_earth/bridge_personnel/cha_personnel_female/cha_eagle_pilot_female
+content/fac_super_earth/bridge_personnel/cha_personnel_female/cha_fire_support_female
+content/fac_super_earth/bridge_personnel/cha_personnel_female/cha_helmsman_female
+content/fac_super_earth/bridge_personnel/cha_personnel_female/cha_mechanic_female
+content/fac_super_earth/bridge_personnel/cha_personnel_male/cha_cargo_worker_male
+content/fac_super_earth/bridge_personnel/cha_personnel_male/cha_fire_support_male
+content/fac_super_earth/bridge_personnel/cha_personnel_male/cha_helmsman_male
+content/fac_super_earth/bridge_personnel/cha_personnel_male/cha_mechanic_male
 content/fac_super_earth/bridge_personnel/cha_science_officer_female/cha_science_officer_female
 content/fac_super_earth/bridge_personnel/cha_science_officer_female/m_body
 content/fac_super_earth/bridge_personnel/generic_human/generic_human
@@ -71879,6 +71914,10 @@ content/markers/exploration_markers/narrative/poi_text_tablet_seaf_retreat_01
 content/markers/exploration_markers/narrative/poi_text_tablet_seaf_retreat_02
 content/markers/exploration_markers/narrative/poi_text_tablet_seaf_retreat_03
 content/markers/exploration_markers/narrative/poi_text_tablet_seaf_retreat_04
+content/markers/exploration_markers/narrative_node_lvl2_destruction
+content/markers/exploration_markers/narrative_node_lvl3_destruction
+content/markers/exploration_markers/narrative_node_lvl4_destruction
+content/markers/exploration_markers/narrative_node_no_destruction
 content/markers/landing_zone
 content/markers/m_cyborg_marker
 content/markers/m_helldiver_marker
@@ -72089,6 +72128,7 @@ content/objectives/obj_common/icbm_silo/icbm_terminal
 content/objectives/obj_common/icbm_silo/textures/icbm_lock_nac
 content/objectives/obj_common/icbm_silo/textures/icbm_rocket_nac
 content/objectives/obj_common/investigate_point_upload_data_common
+content/objectives/obj_common/media_drone/media_drone_camera
 content/objectives/obj_common/military_uplink/military_uplink_drop_off
 content/objectives/obj_common/military_uplink/objective_military_uplink_terminal
 content/objectives/obj_common/oil_field/oil_field_plane
@@ -72250,8 +72290,10 @@ content/objectives/obj_cyborgs/cyborg_detector_tower/materials/m_cy_detector_tow
 content/objectives/obj_cyborgs/cyborg_detector_tower/materials/m_detector_tower_fence
 content/objectives/obj_cyborgs/cyborg_detector_tower/materials/m_emissive
 content/objectives/obj_cyborgs/cyborg_detector_tower/textures/cy_detector_tower_nac
+content/objectives/obj_cyborgs/cyborg_dropoff/cyborg_dropoff_01
 content/objectives/obj_cyborgs/cyborg_filling_station/cy_filling_station
 content/objectives/obj_cyborgs/cyborg_filling_station/objective_filling_station_terminal
+content/objectives/obj_cyborgs/cyborg_generic_objective_terminal/cy_objective_terminal
 content/objectives/obj_cyborgs/cyborg_gunship_spawner/animation/dormant
 content/objectives/obj_cyborgs/cyborg_gunship_spawner/cyborg_gunship_spawner
 content/objectives/obj_cyborgs/cyborg_gunship_spawner/materials/m_cyborg_gunship_spawner
@@ -72332,6 +72374,7 @@ content/objectives/obj_illuminate/il_mothership/il_city_cannon_terminal
 content/objectives/obj_illuminate/il_mothership/il_mothership
 content/objectives/obj_illuminate/il_mothership/il_mothership_shield
 content/objectives/obj_illuminate/il_mothership/il_mothership_tentacles
+content/objectives/obj_illuminate/il_mothership/il_mothership_tentacles_vista
 content/objectives/obj_illuminate/il_mothership/il_mothership_vista
 content/objectives/obj_illuminate/il_mothership/textures/il_mothership_albedo
 content/objectives/obj_illuminate/il_mothership/textures/il_mothership_nar
