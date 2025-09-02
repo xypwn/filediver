@@ -593,13 +593,19 @@ struct Opcode {
     }
 };
 
+#define PARSE_OPCODES false
+
 struct SHEX {
     u64 begin = $;
     Version version;
     u8 reserved;
     D3D10_SB_TOKENIZED_PROGRAM_TYPE program_type;
     u32 num_dwords;
-    Opcode opcodes[while($ < begin+(num_dwords-2)*4)];
+    if(PARSE_OPCODES) {
+        Opcode opcodes[while($ < begin+num_dwords*4)];
+    } else {
+        u32 opcode_data[while($ < begin+num_dwords*4)];
+    }
 };
 
 struct PartHeader {
@@ -639,3 +645,4 @@ struct DXBC {
 };
 
 DXBC dxbc @0x9ed90;
+DXBC dxbc2 @0xbcfa0;
