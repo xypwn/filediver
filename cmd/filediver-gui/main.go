@@ -1173,6 +1173,7 @@ resolutions may cause low frame rates and poor responsiveness.`)
 
 		if a.preferences != prevPrefs {
 			state.GUIScale = a.preferences.GUIScale
+			state.FrameRate = a.preferences.TargetFPS
 			if err := a.preferences.Save(a.preferencesPath); err != nil {
 				a.showErrorPopup(err)
 			}
