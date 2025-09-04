@@ -13,12 +13,11 @@ import (
 	"github.com/xypwn/filediver/stingray/prefab"
 )
 
-func ConvertOpts(ctx extractor.Context, gltfDoc *gltf.Document) error {
-	fMain, err := ctx.File().Open(ctx.Ctx(), stingray.DataMain)
+func ConvertOpts(ctx *extractor.Context, gltfDoc *gltf.Document) error {
+	fMain, err := ctx.Open(ctx.FileID(), stingray.DataMain)
 	if err != nil {
 		return err
 	}
-	defer fMain.Close()
 	prefabData, err := prefab.Load(fMain)
 	if err != nil {
 		return err
@@ -42,10 +41,7 @@ func ConvertOpts(ctx extractor.Context, gltfDoc *gltf.Document) error {
 	}
 
 	for _, object := range prefabData.Objects {
-		unit, ok := ctx.GetResource(object.UnitHash, stingray.Sum64([]byte("unit")))
-		if !ok {
-			return fmt.Errorf("could not find %s.unit when exporting prefab", object.UnitHash.String())
-		}
+		unitID := stingray.NewFileID(object.UnitHash, stingray.Sum("unit"))
 		extras, ok := doc.Extras.(map[string]any)
 		if !ok {
 			extras = make(map[string]any)
@@ -62,19 +58,17 @@ func ConvertOpts(ctx extractor.Context, gltfDoc *gltf.Document) error {
 
 		if unitMetadataIface, contains := extras[object.UnitHash.String()]; !contains {
 			// We have not already loaded this unit, load it now
-			fMain, err := unit.Open(ctx.Ctx(), stingray.DataMain)
+			fMain, err := ctx.Open(unitID, stingray.DataMain)
 			if err != nil {
 				return err
 			}
-			defer fMain.Close()
 
-			var fGPU io.ReadSeekCloser
-			if unit.Exists(stingray.DataGPU) {
-				fGPU, err = unit.Open(ctx.Ctx(), stingray.DataGPU)
+			var fGPU io.ReadSeeker
+			if ctx.Exists(unitID, stingray.DataGPU) {
+				fGPU, err = ctx.Open(unitID, stingray.DataGPU)
 				if err != nil {
 					return err
 				}
-				defer fGPU.Close()
 			}
 
 			err = extr_unit.ConvertBuffer(fMain, fGPU, object.UnitHash, ctx, imgOpts, doc)
@@ -208,11 +202,11 @@ func ConvertOpts(ctx extractor.Context, gltfDoc *gltf.Document) error {
 			return err
 		}
 	} else if gltfDoc == nil && formatIsBlend {
-		path, err := ctx.(interface{ OutPath() (string, error) }).OutPath()
+		outPath, err := ctx.AllocateFile(".blend")
 		if err != nil {
 			return err
 		}
-		err = blend_helper.ExportBlend(doc, path, ctx.Runner())
+		err = blend_helper.ExportBlend(doc, outPath, ctx.Runner())
 		if err != nil {
 			return err
 		}
@@ -220,8 +214,8 @@ func ConvertOpts(ctx extractor.Context, gltfDoc *gltf.Document) error {
 	return nil
 }
 
-func Convert(currDoc *gltf.Document) func(ctx extractor.Context) error {
-	return func(ctx extractor.Context) error {
+func Convert(currDoc *gltf.Document) func(ctx *extractor.Context) error {
+	return func(ctx *extractor.Context) error {
 		return ConvertOpts(ctx, currDoc)
 	}
 }

@@ -19,8 +19,7 @@ func ExportBlend(doc *gltf.Document, outPath string, runner *exec.Runner) (err e
 		return fmt.Errorf("cannot export as .blend: \"%v\" missing", blendExporter)
 	}
 	enc := gltf.NewEncoder(write)
-	path := outPath + ".blend"
-	cmd, err := runner.Start(blendExporter, nil, nil, read, "-", path)
+	cmd, err := runner.Start(blendExporter, nil, nil, read, "-", outPath)
 	if err != nil {
 		return err
 	}

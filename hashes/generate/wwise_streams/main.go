@@ -46,7 +46,7 @@ func main() {
 	fileNames := make(map[stingray.Hash]struct{})
 	for id := range a.DataDir.Files {
 		fileNames[id.Name] = struct{}{}
-		if id.Type == stingray.Sum64([]byte("wwise_stream")) {
+		if id.Type == stingray.Sum("wwise_stream") {
 			numWwiseStreams++
 		}
 	}
@@ -82,7 +82,7 @@ func main() {
 		numFoundInPack := 0
 		for i := int64(0); i < 1<<30; i++ {
 			buf = strconv.AppendInt(buf, i, 10)
-			if _, ok := fileNames[stingray.Sum64(buf)]; ok {
+			if _, ok := fileNames[stingray.Sum(buf)]; ok {
 				fmt.Fprintln(out, string(buf))
 				numFoundInPack++
 				numFound++

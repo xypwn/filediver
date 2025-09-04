@@ -2,7 +2,6 @@ package texture
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"image/png"
 	"io"
@@ -13,15 +12,23 @@ import (
 	"github.com/xypwn/filediver/stingray/unit/texture"
 )
 
-func ExtractDDSData(ctx context.Context, file *stingray.File) ([]byte, error) {
-	if !file.Exists(stingray.DataMain) {
+func ExtractDDSData(ctx *extractor.Context, id stingray.FileID) ([]byte, error) {
+	if !ctx.Exists(id, stingray.DataMain) {
 		return nil, errors.New("no main data")
 	}
-	r, err := file.OpenMulti(ctx, stingray.DataMain, stingray.DataStream, stingray.DataGPU)
-	if err != nil {
-		return nil, err
+	var rs []io.Reader
+	for dataType := range stingray.NumDataType {
+		r, err := ctx.Open(id, dataType)
+		if err == stingray.ErrFileDataTypeNotExist {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		rs = append(rs, r)
 	}
-	defer r.Close()
+
+	r := io.MultiReader(rs...)
 	if _, err := texture.DecodeInfo(r); err != nil {
 		return nil, err
 	}
@@ -34,8 +41,8 @@ func ExtractDDSData(ctx context.Context, file *stingray.File) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func ExtractDDS(ctx extractor.Context) error {
-	data, err := ExtractDDSData(ctx.Ctx(), ctx.File())
+func ExtractDDS(ctx *extractor.Context) error {
+	data, err := ExtractDDSData(ctx, ctx.FileID())
 	if err != nil {
 		return err
 	}
@@ -50,8 +57,13 @@ func ExtractDDS(ctx extractor.Context) error {
 	return err
 }
 
-func ConvertToPNGData(ctx context.Context, file *stingray.File) ([]byte, error) {
-	origTex, err := texture.Decode(ctx, file, false)
+func ConvertToPNGData(ctx *extractor.Context, id stingray.FileID) ([]byte, error) {
+	ddsData, err := ExtractDDSData(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	origTex, err := dds.Decode(bytes.NewReader(ddsData), false)
 	if err != nil {
 		return nil, err
 	}
@@ -66,8 +78,8 @@ func ConvertToPNGData(ctx context.Context, file *stingray.File) ([]byte, error) 
 	return buf.Bytes(), err
 }
 
-func ConvertToPNG(ctx extractor.Context) error {
-	data, err := ConvertToPNGData(ctx.Ctx(), ctx.File())
+func ConvertToPNG(ctx *extractor.Context) error {
+	data, err := ConvertToPNGData(ctx, ctx.FileID())
 	if err != nil {
 		return err
 	}

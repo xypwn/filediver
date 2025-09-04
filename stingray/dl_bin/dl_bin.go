@@ -273,7 +273,7 @@ type HelldiverCustomizationKit struct {
 	Description uint32
 	Rarity      CustomizationKitRarity
 	Passive     CustomizationKitPassive
-	Triad       stingray.Hash
+	Archive     stingray.Hash
 	Type        CustomizationKitType
 	Unk00       uint32
 	// 20 bit integer
@@ -317,7 +317,7 @@ type ArmorSet struct {
 	UnitMetadata map[stingray.Hash]UnitData
 }
 
-// Map of triad hash to armor set
+// Map of archive hash to armor set
 func LoadArmorSetDefinitions(strings map[uint32]string) (map[stingray.Hash]ArmorSet, error) {
 	file, err := fs.Open("generated_customization_armor_sets.dl_bin")
 	if err != nil {
@@ -400,7 +400,7 @@ func LoadArmorSetDefinitions(strings map[uint32]string) (map[stingray.Hash]Armor
 			}
 		}
 
-		sets[item.Kit.Triad] = armorSet
+		sets[item.Kit.Archive] = armorSet
 
 		offset += binary.Size(item)
 		offset += int(item.KitSize) - binary.Size(item.Kit)

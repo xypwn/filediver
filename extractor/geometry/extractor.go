@@ -185,8 +185,8 @@ func getMeshNameFbxConvertAndTransformBone(unitInfo *unit.Info, groupBoneHash st
 	fbxConvertIdx = -1
 	meshNameBoneIdx = -1
 	transformBoneIdx = -1
-	gameMeshHash := stingray.Sum64([]byte("game_mesh")).Thin()
-	fbxConvertHash := stingray.Sum64([]byte("FbxAxisSystem_ConvertNode")).Thin()
+	gameMeshHash := stingray.Sum("game_mesh").Thin()
+	fbxConvertHash := stingray.Sum("FbxAxisSystem_ConvertNode").Thin()
 	for boneIdx, bone := range unitInfo.Bones {
 		if bone.NameHash == gameMeshHash {
 			parentIdx = boneIdx
@@ -592,7 +592,7 @@ func addBoundingBox(doc *gltf.Document, name string, meshHeader unit.MeshHeader,
 	*meshNodes = append(*meshNodes, idx)
 }
 
-func LoadGLTF(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, name stingray.Hash, meshInfos []MeshInfo, bones []stingray.ThinHash, meshLayouts []unit.MeshLayout, unitInfo *unit.Info, meshNodes *[]uint32, materialIndices map[stingray.ThinHash]uint32, parent uint32, skin *uint32) error {
+func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, name stingray.Hash, meshInfos []MeshInfo, bones []stingray.ThinHash, meshLayouts []unit.MeshLayout, unitInfo *unit.Info, meshNodes *[]uint32, materialIndices map[stingray.ThinHash]uint32, parent uint32, skin *uint32) error {
 	cfg := ctx.Config()
 
 	unitName, contains := ctx.Hashes()[name]
@@ -646,8 +646,8 @@ func LoadGLTF(ctx extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, nam
 			if strings.Contains(groupName, "_LOD1") && !strings.Contains(groupName, "shadow") {
 				hasLOD0 = false
 				lod0Name := strings.TrimSuffix(groupName, "_LOD1")
-				lod0Hash1 := stingray.Sum64([]byte(lod0Name)).Thin()
-				lod0Hash2 := stingray.Sum64([]byte(lod0Name + "_LOD0")).Thin()
+				lod0Hash1 := stingray.Sum(lod0Name).Thin()
+				lod0Hash2 := stingray.Sum(lod0Name + "_LOD0").Thin()
 				for _, bone := range unitInfo.GroupBones {
 					if lod0Hash1 == bone || lod0Hash2 == bone {
 						hasLOD0 = true

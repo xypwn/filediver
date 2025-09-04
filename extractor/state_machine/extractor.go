@@ -2,7 +2,6 @@ package state_machine
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 
 	"github.com/qmuntal/gltf"
@@ -14,15 +13,11 @@ import (
 	"github.com/xypwn/filediver/stingray/unit"
 )
 
-func ExtractStateMachineJson(ctx extractor.Context) error {
-	if !ctx.File().Exists(stingray.DataMain) {
-		return errors.New("no main data")
-	}
-	r, err := ctx.File().Open(ctx.Ctx(), stingray.DataMain)
+func ExtractStateMachineJson(ctx *extractor.Context) error {
+	r, err := ctx.Open(ctx.FileID(), stingray.DataMain)
 	if err != nil {
 		return err
 	}
-	defer r.Close()
 
 	stateMachine, err := state_machine.LoadStateMachine(r)
 	if err != nil {
@@ -80,31 +75,24 @@ func ExtractStateMachineJson(ctx extractor.Context) error {
 	return err
 }
 
-func AddAnimationSet(ctx extractor.Context, doc *gltf.Document, unitInfo *unit.Info) error {
-	smFile, ok := ctx.GetResource(unitInfo.StateMachine, stingray.Sum64([]byte("state_machine")))
-	if !ok {
+func AddAnimationSet(ctx *extractor.Context, doc *gltf.Document, unitInfo *unit.Info) error {
+	smMainR, err := ctx.Open(stingray.NewFileID(unitInfo.StateMachine, stingray.Sum("state_machine")), stingray.DataMain)
+	if err == stingray.ErrFileNotExist {
 		return fmt.Errorf("add animation set: unit's state machine %v does not exist", unitInfo.StateMachine.String())
 	}
-	smMainR, err := smFile.Open(ctx.Ctx(), stingray.DataMain)
 	if err != nil {
 		return fmt.Errorf("add animation set: failed to open state machine main file with error: %v", err)
 	}
-	defer smMainR.Close()
 
 	stateMachine, err := state_machine.LoadStateMachine(smMainR)
 	if err != nil {
 		return fmt.Errorf("add animation set: failed to load state machine with error: %v", err)
 	}
 
-	bonesFile, ok := ctx.GetResource(unitInfo.BonesHash, stingray.Sum64([]byte("bones")))
-	if !ok {
-		return fmt.Errorf("add animation set: unit's bones file %v does not exist", unitInfo.StateMachine.String())
+	bonesMainR, err := ctx.Open(stingray.NewFileID(unitInfo.BonesHash, stingray.Sum("bones")), stingray.DataMain)
+	if err == stingray.ErrFileNotExist {
+		return fmt.Errorf("add animation set: unit's bones file %v does not exist", unitInfo.BonesHash.String())
 	}
-	bonesMainR, err := bonesFile.Open(ctx.Ctx(), stingray.DataMain)
-	if err != nil {
-		return fmt.Errorf("add animation set: failed to open bones main file with error: %v", err)
-	}
-	defer bonesMainR.Close()
 
 	boneInfo, err := bones.LoadBones(bonesMainR)
 	if err != nil {

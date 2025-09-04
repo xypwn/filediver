@@ -68,8 +68,8 @@ func (gd *GameData) UpdateSearchQuery(query string, allowedTypes map[stingray.Ha
 		}
 	} else {
 		for archiveID := range allowedArchives {
-			if files, ok := gd.DataDir.FilesByTriad[archiveID]; ok {
-				for fileID := range files {
+			if files, ok := gd.DataDir.Archives[archiveID]; ok {
+				for _, fileID := range files {
 					maybeAdd(fileID)
 				}
 			}

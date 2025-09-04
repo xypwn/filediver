@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"os"
 
 	"github.com/jwalton/go-supportscolor"
@@ -53,43 +52,31 @@ func main() {
 	}
 
 	numSearchedFiles := 0
-	var buf bytes.Buffer
-	for id, file := range files {
+	for id := range files {
 		prt.Statusf("%v/%v", numSearchedFiles, len(files))
 		name := a.LookupHash(id.Name) + "." + a.LookupHash(id.Type)
-		for dataType := stingray.DataType(0); dataType < stingray.NumDataType; dataType++ {
-			if !file.Exists(dataType) {
+		for dataType := range stingray.NumDataType {
+			bs, err := a.DataDir.Read(id, dataType)
+			if err == stingray.ErrFileDataTypeNotExist {
 				continue
 			}
-			if err := func() error {
-				f, err := file.Open(ctx, dataType)
-				if err != nil {
-					return err
-				}
-				defer f.Close()
-				buf.Reset()
-				if _, err = io.Copy(&buf, f); err != nil {
-					return err
-				}
-
-				currentOffset := 0
-				var offsets []int
-				bs := buf.Bytes()
-				for {
-					idx := bytes.Index(bs[currentOffset:], query)
-					if idx == -1 {
-						break
-					} else {
-						offsets = append(offsets, currentOffset+idx)
-						currentOffset += idx + len(query)
-					}
-				}
-				if len(offsets) > 0 {
-					prt.Infof("Match in %v (offsets: %v)", name, offsets)
-				}
-				return nil
-			}(); err != nil {
+			if err != nil {
 				prt.Errorf("Error reading file: %v", err)
+			}
+
+			currentOffset := 0
+			var offsets []int
+			for {
+				idx := bytes.Index(bs[currentOffset:], query)
+				if idx == -1 {
+					break
+				} else {
+					offsets = append(offsets, currentOffset+idx)
+					currentOffset += idx + len(query)
+				}
+			}
+			if len(offsets) > 0 {
+				prt.Infof("Match in %v (offsets: %v)", name, offsets)
 			}
 		}
 		numSearchedFiles++

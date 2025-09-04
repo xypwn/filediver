@@ -7,7 +7,6 @@ import (
 	"image"
 	"image/jpeg"
 	"image/png"
-	"io"
 	"math"
 	"path/filepath"
 	"strings"
@@ -22,7 +21,6 @@ import (
 	"github.com/xypwn/filediver/stingray"
 	dlbin "github.com/xypwn/filediver/stingray/dl_bin"
 	"github.com/xypwn/filediver/stingray/unit/material"
-	"github.com/xypwn/filediver/stingray/unit/texture"
 )
 
 type ImageOptions struct {
@@ -123,7 +121,7 @@ func postProcessIlluminateClearcoat(img image.Image) error {
 
 // Adds a texture to doc. Returns new texture ID if err != nil.
 // postProcess optionally applies image post-processing.
-func writeTexture(ctx extractor.Context, doc *gltf.Document, id stingray.Hash, postProcess func(image.Image) error, imgOpts *ImageOptions, suffix string) (uint32, error) {
+func writeTexture(ctx *extractor.Context, doc *gltf.Document, id stingray.Hash, postProcess func(image.Image) error, imgOpts *ImageOptions, suffix string) (uint32, error) {
 	// Check if we've already added this texture
 	for j, texture := range doc.Textures {
 		if doc.Images[*texture.Source].Name == (id.String() + suffix) {
@@ -131,12 +129,11 @@ func writeTexture(ctx extractor.Context, doc *gltf.Document, id stingray.Hash, p
 		}
 	}
 
-	file, exists := ctx.GetResource(id, stingray.Sum64([]byte("texture")))
-	if !exists || !file.Exists(stingray.DataMain) {
-		return 0, fmt.Errorf("texture resource %v doesn't exist", id)
+	ddsData, err := extr_texture.ExtractDDSData(ctx, stingray.NewFileID(id, stingray.Sum("texture")))
+	if err != nil {
+		return 0, err
 	}
-
-	tex, err := texture.Decode(ctx.Ctx(), file, false)
+	tex, err := dds.Decode(bytes.NewReader(ddsData), false)
 	if err != nil {
 		return 0, err
 	}
@@ -183,16 +180,7 @@ func writeTexture(ctx extractor.Context, doc *gltf.Document, id stingray.Hash, p
 	})
 	texIdx := uint32(len(doc.Textures) - 1)
 	if imgOpts != nil && imgOpts.Raw {
-		reader, err := file.OpenMulti(ctx.Ctx(), stingray.DataMain, stingray.DataStream, stingray.DataGPU)
-		if err != nil {
-			ctx.Warnf("writeTexture: failed to open multireader for raw dds")
-			return texIdx, nil
-		}
-		defer reader.Close()
-		if _, err := texture.DecodeInfo(reader); err != nil {
-			ctx.Warnf("writeTexture: failed to decode stingray texture info")
-			return texIdx, nil
-		}
+		reader := bytes.NewReader(ddsData)
 		mimeType = "image/vnd-ms.dds"
 		imgIdx, err = modeler.WriteImage(doc, id.String()+suffix+".dds", mimeType, reader)
 		if err != nil {
@@ -261,7 +249,7 @@ func combineIlluminateOcclusionMetallicRoughness(narImg, dataImg image.Image) er
 }
 
 // Combines illuminate data and NAR into a gltf compliant ao, metallic, roughness map and returns the index
-func writeIlluminateOcclusionMetallicRoughnessTexture(ctx extractor.Context, doc *gltf.Document, narId, ilDataId stingray.Hash, imgOpts *ImageOptions) (uint32, error) {
+func writeIlluminateOcclusionMetallicRoughnessTexture(ctx *extractor.Context, doc *gltf.Document, narId, ilDataId stingray.Hash, imgOpts *ImageOptions) (uint32, error) {
 	// Check if we've already added this texture
 	textureName := narId.String() + "_" + ilDataId.String() + "_orm"
 	for j, texture := range doc.Textures {
@@ -270,22 +258,23 @@ func writeIlluminateOcclusionMetallicRoughnessTexture(ctx extractor.Context, doc
 		}
 	}
 
-	narFile, exists := ctx.GetResource(narId, stingray.Sum64([]byte("texture")))
-	if !exists || !narFile.Exists(stingray.DataMain) {
-		return 0, fmt.Errorf("texture resource %v doesn't exist", narId)
+	narR, err := extr_texture.ExtractDDSData(ctx,
+		stingray.NewFileID(narId, stingray.Sum("texture")))
+	if err != nil {
+		return 0, err
 	}
-
-	ilDataFile, exists := ctx.GetResource(ilDataId, stingray.Sum64([]byte("texture")))
-	if !exists || !ilDataFile.Exists(stingray.DataMain) {
-		return 0, fmt.Errorf("texture resource %v doesn't exist", ilDataId)
-	}
-
-	narTex, err := texture.Decode(ctx.Ctx(), narFile, false)
+	ilDataR, err := extr_texture.ExtractDDSData(ctx,
+		stingray.NewFileID(ilDataId, stingray.Sum("texture")))
 	if err != nil {
 		return 0, err
 	}
 
-	ilDataTex, err := texture.Decode(ctx.Ctx(), ilDataFile, false)
+	narTex, err := dds.Decode(bytes.NewReader(narR), false)
+	if err != nil {
+		return 0, err
+	}
+
+	ilDataTex, err := dds.Decode(bytes.NewReader(ilDataR), false)
 	if err != nil {
 		return 0, err
 	}
@@ -387,7 +376,7 @@ func compareMaterials(doc *gltf.Document, mat *material.Material, matIdx uint32,
 	return true
 }
 
-func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Document, imgOpts *ImageOptions, matName string, unitData *dlbin.UnitData) (uint32, error) {
+func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Document, imgOpts *ImageOptions, matName string, unitData *dlbin.UnitData) (uint32, error) {
 	cfg := ctx.Config()
 
 	// Avoid duplicating material if it already is added to document
@@ -433,6 +422,7 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 		case Albedo:
 			index, err := writeTexture(ctx, doc, mat.Textures[texUsage], albedoPostProcess, imgOpts, "")
 			if err != nil {
+				ctx.Warnf("writeTexture: %v: %v", TextureUsage(texUsage.Value), err)
 				continue
 			}
 			baseColorTexture = &gltf.TextureInfo{
@@ -443,6 +433,7 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 		case AlbedoEmissive:
 			index, err := writeTexture(ctx, doc, mat.Textures[texUsage], postProcessToOpaque, imgOpts, "")
 			if err != nil {
+				ctx.Warnf("writeTexture: %v: %v", TextureUsage(texUsage.Value), err)
 				continue
 			}
 			baseColorTexture = &gltf.TextureInfo{
@@ -455,7 +446,7 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 			}
 			postProcessEmissiveColor, err := createPostProcessEmissiveColor(emissiveColorSetting)
 			if err != nil {
-				ctx.Warnf("%v", err)
+				ctx.Warnf("createPostProcessEmissiveColor: %v", err)
 				continue
 			}
 			emissiveIndex, err := writeTexture(ctx, doc, mat.Textures[texUsage], postProcessEmissiveColor, imgOpts, "_emissive")
@@ -501,6 +492,7 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 			}
 			index, err := writeTexture(ctx, doc, hash, normalPostProcess, imgOpts, "")
 			if err != nil {
+				ctx.Warnf("writeTexture: %v: %v", TextureUsage(texUsage.Value), err)
 				continue
 			}
 			normalTexture = &gltf.NormalTexture{
@@ -512,15 +504,17 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 			hash := mat.Textures[texUsage]
 			index, err := writeTexture(ctx, doc, hash, postProcessReconstructNormalZ, imgOpts, "")
 			if err != nil {
+				ctx.Warnf("writeTexture: %v: %v", TextureUsage(texUsage.Value), err)
 				continue
 			}
 			normalTexture = &gltf.NormalTexture{
 				Index: gltf.Index(index),
 			}
-			illuminateDataHash, ok := mat.Textures[stingray.Sum64([]byte("illuminate_data")).Thin()]
+			illuminateDataHash, ok := mat.Textures[stingray.Sum("illuminate_data").Thin()]
 			if metallicRoughnessTexture == nil && ok {
 				metallicRoughnessIndex, err := writeIlluminateOcclusionMetallicRoughnessTexture(ctx, doc, hash, illuminateDataHash, imgOpts)
 				if err != nil {
+					ctx.Warnf("writeIlluminateOcclusionMetallicRoughnessTexture: %v", err)
 					continue
 				}
 				metallicRoughnessTexture = &gltf.TextureInfo{
@@ -530,6 +524,7 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 			if occlusionTexture == nil && ok {
 				occlusionIndex, err := writeIlluminateOcclusionMetallicRoughnessTexture(ctx, doc, hash, illuminateDataHash, imgOpts)
 				if err != nil {
+					ctx.Warnf("writeIlluminateOcclusionMetallicRoughnessTexture: %v", err)
 					continue
 				}
 				occlusionTexture = &gltf.OcclusionTexture{
@@ -540,15 +535,17 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 			hash := mat.Textures[texUsage]
 			index, err := writeTexture(ctx, doc, hash, postProcessIlluminateClearcoat, imgOpts, "")
 			if err != nil {
+				ctx.Warnf("writeTexture: %v: %v", TextureUsage(texUsage.Value), err)
 				continue
 			}
 			coatTexture = &gltf.TextureInfo{
 				Index: index,
 			}
-			narHash, ok := mat.Textures[stingray.Sum64([]byte("NAR")).Thin()]
+			narHash, ok := mat.Textures[stingray.Sum("NAR").Thin()]
 			if metallicRoughnessTexture == nil && ok {
 				metallicRoughnessIndex, err := writeIlluminateOcclusionMetallicRoughnessTexture(ctx, doc, narHash, hash, imgOpts)
 				if err != nil {
+					ctx.Warnf("writeIlluminateOcclusionMetallicRoughnessTexture: %v", err)
 					continue
 				}
 				metallicRoughnessTexture = &gltf.TextureInfo{
@@ -558,6 +555,7 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 			if occlusionTexture == nil && ok {
 				occlusionIndex, err := writeIlluminateOcclusionMetallicRoughnessTexture(ctx, doc, narHash, hash, imgOpts)
 				if err != nil {
+					ctx.Warnf("writeIlluminateOcclusionMetallicRoughnessTexture: %v", err)
 					continue
 				}
 				occlusionTexture = &gltf.OcclusionTexture{
@@ -567,6 +565,7 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 		case MRA:
 			index, err := writeTexture(ctx, doc, mat.Textures[texUsage], postProcess, imgOpts, "")
 			if err != nil {
+				ctx.Warnf("writeTexture: %v: %v", TextureUsage(texUsage.Value), err)
 				continue
 			}
 			metallicRoughnessTexture = &gltf.TextureInfo{
@@ -578,6 +577,7 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 		case LensEmissiveTexture:
 			index, err := writeTexture(ctx, doc, mat.Textures[texUsage], postProcess, imgOpts, "")
 			if err != nil {
+				ctx.Warnf("writeTexture: %v: %v", TextureUsage(texUsage.Value), err)
 				continue
 			}
 			emissiveTexture = &gltf.TextureInfo{
@@ -642,6 +642,7 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 			}
 			index, err := writeTexture(ctx, doc, hash, postProcess, imgOpts, "")
 			if err != nil {
+				ctx.Warnf("writeTexture: %v: %v", TextureUsage(texUsage.Value), err)
 				continue
 			}
 			usedTextures[TextureUsage(texUsage.Value)] = index
@@ -671,6 +672,7 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 			}
 			index, err := writeTexture(ctx, doc, hash, postProcess, imgOpts, "")
 			if err != nil {
+				ctx.Warnf("writeTexture: %v: %v", TextureUsage(texUsage.Value), err)
 				continue
 			}
 			usedTextures[TextureUsage(texUsage.Value)] = index
@@ -704,6 +706,7 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 			if cfg.Unit.AllTextures {
 				index, err := writeTexture(ctx, doc, mat.Textures[texUsage], postProcess, imgOpts, "")
 				if err != nil {
+					ctx.Warnf("writeTexture: %v: %v", TextureUsage(texUsage.Value), err)
 					continue
 				}
 				usedTextures[TextureUsage(texUsage.Value)] = index
@@ -712,6 +715,7 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 			if cfg.Unit.AllTextures {
 				index, err := writeTexture(ctx, doc, mat.Textures[texUsage], postProcessReconstructNormalZ, imgOpts, "")
 				if err != nil {
+					ctx.Warnf("writeTexture: %v: %v", TextureUsage(texUsage.Value), err)
 					continue
 				}
 				usedTextures[TextureUsage(texUsage.Value)] = index
@@ -722,6 +726,7 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 				ctx.Warnf("addMaterial: unknown/unhandled texture usage %v in material %v", t.String(), matName)
 				index, err := writeTexture(ctx, doc, mat.Textures[texUsage], postProcess, imgOpts, "")
 				if err != nil {
+					ctx.Warnf("writeTexture: %v: %v", TextureUsage(texUsage.Value), err)
 					continue
 				}
 				usedTextures[TextureUsage(texUsage.Value)] = index
@@ -778,21 +783,12 @@ func AddMaterial(ctx extractor.Context, mat *material.Material, doc *gltf.Docume
 
 // Uses ctx.Config().Material.Format as format! Add an extra parameter for
 // format if this is made public!
-func convertOpts(ctx extractor.Context, imgOpts *ImageOptions, gltfDoc *gltf.Document) error {
+func convertOpts(ctx *extractor.Context, imgOpts *ImageOptions, gltfDoc *gltf.Document) error {
 	cfg := ctx.Config()
 
-	fMain, err := ctx.File().Open(ctx.Ctx(), stingray.DataMain)
+	fMain, err := ctx.Open(ctx.FileID(), stingray.DataMain)
 	if err != nil {
 		return err
-	}
-	defer fMain.Close()
-	var fGPU io.ReadSeekCloser
-	if ctx.File().Exists(stingray.DataGPU) {
-		fGPU, err = ctx.File().Open(ctx.Ctx(), stingray.DataGPU)
-		if err != nil {
-			return err
-		}
-		defer fGPU.Close()
 	}
 
 	mat, err := material.Load(fMain)
@@ -852,7 +848,7 @@ func convertOpts(ctx extractor.Context, imgOpts *ImageOptions, gltfDoc *gltf.Doc
 		return nil
 	}
 
-	matIdx, err := AddMaterial(ctx, mat, doc, imgOpts, ctx.File().ID().Name.String(), nil)
+	matIdx, err := AddMaterial(ctx, mat, doc, imgOpts, ctx.FileID().Name.String(), nil)
 	if err != nil {
 		return err
 	}
@@ -881,7 +877,7 @@ func convertOpts(ctx extractor.Context, imgOpts *ImageOptions, gltfDoc *gltf.Doc
 	}
 
 	doc.Meshes = append(doc.Meshes, &gltf.Mesh{
-		Name: ctx.File().ID().Name.String(),
+		Name: ctx.FileID().Name.String(),
 		Primitives: []*gltf.Primitive{
 			primitive,
 		},
@@ -902,7 +898,7 @@ func convertOpts(ctx extractor.Context, imgOpts *ImageOptions, gltfDoc *gltf.Doc
 	}
 	y, x := spiral(len(doc.Nodes))
 	doc.Nodes = append(doc.Nodes, &gltf.Node{
-		Name:        ctx.File().ID().Name.String() + " Visualizer",
+		Name:        ctx.FileID().Name.String() + " Visualizer",
 		Mesh:        gltf.Index(uint32(len(doc.Meshes) - 1)),
 		Translation: [3]float32{float32(2 * x), 0.0, float32(2 * y)},
 	})
@@ -919,11 +915,11 @@ func convertOpts(ctx extractor.Context, imgOpts *ImageOptions, gltfDoc *gltf.Doc
 			return err
 		}
 	} else if gltfDoc == nil && formatIsBlend {
-		path, err := ctx.(interface{ OutPath() (string, error) }).OutPath()
+		outPath, err := ctx.AllocateFile(".blend")
 		if err != nil {
 			return err
 		}
-		err = blend_helper.ExportBlend(doc, path, ctx.Runner())
+		err = blend_helper.ExportBlend(doc, outPath, ctx.Runner())
 		if err != nil {
 			return err
 		}
@@ -931,7 +927,7 @@ func convertOpts(ctx extractor.Context, imgOpts *ImageOptions, gltfDoc *gltf.Doc
 	return nil
 }
 
-func GetImageOpts(ctx extractor.Context) (*ImageOptions, error) {
+func GetImageOpts(ctx *extractor.Context) (*ImageOptions, error) {
 	cfg := ctx.Config()
 
 	var opts ImageOptions
@@ -950,8 +946,8 @@ func GetImageOpts(ctx extractor.Context) (*ImageOptions, error) {
 	return &opts, nil
 }
 
-func Convert(currDoc *gltf.Document) func(ctx extractor.Context) error {
-	return func(ctx extractor.Context) error {
+func Convert(currDoc *gltf.Document) func(ctx *extractor.Context) error {
+	return func(ctx *extractor.Context) error {
 		opts, err := GetImageOpts(ctx)
 		if err != nil {
 			return err
@@ -962,14 +958,13 @@ func Convert(currDoc *gltf.Document) func(ctx extractor.Context) error {
 
 // Uses ctx.Config().Material.TexturesFormat as format for individual textures!
 // Add an extra parameter for format when this is used by another extractor.
-func ConvertTextures(ctx extractor.Context) error {
+func ConvertTextures(ctx *extractor.Context) error {
 	cfg := ctx.Config()
 
-	fMain, err := ctx.File().Open(ctx.Ctx(), stingray.DataMain)
+	fMain, err := ctx.Open(ctx.FileID(), stingray.DataMain)
 	if err != nil {
 		return err
 	}
-	defer fMain.Close()
 
 	mat, err := material.Load(fMain)
 	if err != nil {
@@ -977,8 +972,16 @@ func ConvertTextures(ctx extractor.Context) error {
 	}
 
 	for _, texture := range mat.Textures {
-		texFile, ok := ctx.GetResource(texture, stingray.Sum64([]byte("texture")))
-		if !ok {
+		id := stingray.NewFileID(texture, stingray.Sum("texture"))
+		var data []byte
+		var err error
+		if cfg.Material.TexturesFormat == "dds" {
+			data, err = extr_texture.ExtractDDSData(ctx, id)
+		} else {
+			data, err = extr_texture.ConvertToPNGData(ctx, id)
+		}
+		if err != nil {
+			ctx.Warnf("read %v.texture: %w", ctx.LookupHash(texture), err)
 			continue
 		}
 
@@ -999,15 +1002,6 @@ func ConvertTextures(ctx extractor.Context) error {
 		}
 		defer out.Close()
 
-		var data []byte
-		if cfg.Material.TexturesFormat == "dds" {
-			data, err = extr_texture.ExtractDDSData(ctx.Ctx(), texFile)
-		} else {
-			data, err = extr_texture.ConvertToPNGData(ctx.Ctx(), texFile)
-		}
-		if err != nil {
-			return err
-		}
 		_, err = out.Write(data)
 		if err != nil {
 			return err

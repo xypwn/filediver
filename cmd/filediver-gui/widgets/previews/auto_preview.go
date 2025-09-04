@@ -86,15 +86,15 @@ func (pv *AutoPreviewState) NeedCJKFont() bool {
 	return pv.state.strings.NeedCJKFont()
 }
 
-func (pv *AutoPreviewState) LoadFile(ctx context.Context, file *stingray.File, maxVideoVerticalResolution int) {
-	if file == nil {
+func (pv *AutoPreviewState) LoadFile(ctx context.Context, fileID stingray.FileID, maxVideoVerticalResolution int) {
+	if fileID == (stingray.FileID{}) {
 		pv.activeID.Name.Value = 0
 		pv.activeID.Type.Value = 0
 		pv.activeType = AutoPreviewEmpty
 		return
 	}
 
-	pv.activeID = file.ID()
+	pv.activeID = fileID
 	pv.err = nil
 
 	var data [3][]byte
@@ -107,19 +107,19 @@ func (pv *AutoPreviewState) LoadFile(ctx context.Context, file *stingray.File, m
 			if data[typ] != nil {
 				panic("programmer error: duplicate data type")
 			}
-			if file.Exists(typ) {
-				b, err := file.Read(typ)
-				if err != nil {
-					return fmt.Errorf("reading file: %w", err)
-				}
+			b, exists, err := pv.getResource(fileID, typ)
+			if err != nil {
+				return fmt.Errorf("reading file: %w", err)
+			}
+			if exists {
 				data[typ] = b
 			}
 		}
 		return nil
 	}
 
-	switch file.ID().Type {
-	case stingray.Sum64([]byte("unit")):
+	switch fileID.Type {
+	case stingray.Sum("unit"):
 		pv.activeType = AutoPreviewUnit
 		if err := loadFiles(stingray.DataMain, stingray.DataGPU); err != nil {
 			pv.err = err
@@ -133,25 +133,25 @@ func (pv *AutoPreviewState) LoadFile(ctx context.Context, file *stingray.File, m
 			pv.err = fmt.Errorf("loading unit: %w", err)
 			return
 		}
-	case stingray.Sum64([]byte("wwise_stream")):
+	case stingray.Sum("wwise_stream"):
 		pv.state.audio.ClearStreams()
 		pv.activeType = AutoPreviewAudio
 		if err := loadFiles(stingray.DataStream); err != nil {
 			pv.err = err
 			return
 		}
-		pv.state.audio.Title = file.ID().Name.String()
-		pv.state.audio.LoadStream(file.ID().Name.String(), data[stingray.DataStream], true)
-	case stingray.Sum64([]byte("wwise_bank")):
+		pv.state.audio.Title = fileID.Name.String()
+		pv.state.audio.LoadStream(fileID.Name.String(), data[stingray.DataStream], true)
+	case stingray.Sum("wwise_bank"):
 		pv.state.audio.ClearStreams()
 		pv.activeType = AutoPreviewAudio
 		if err := loadFiles(stingray.DataMain); err != nil {
 			pv.err = err
 			return
 		}
-		bnkFile, ok := pv.hashes[file.ID().Name]
+		bnkFile, ok := pv.hashes[fileID.Name]
 		if !ok {
-			pv.err = fmt.Errorf("expected wwise bank file %v.wwise_bank to have a known name", file.ID().Name)
+			pv.err = fmt.Errorf("expected wwise bank file %v.wwise_bank to have a known name", fileID.Name)
 			return
 		}
 		pv.state.audio.Title = bnkFile
@@ -160,8 +160,8 @@ func (pv *AutoPreviewState) LoadFile(ctx context.Context, file *stingray.File, m
 			bytes.NewReader(data[stingray.DataMain]),
 			func(id uint32) (data []byte, exists bool, err error) {
 				fileID := stingray.FileID{
-					Name: stingray.Sum64([]byte(path.Join(dir, fmt.Sprint(id)))),
-					Type: stingray.Sum64([]byte("wwise_stream")),
+					Name: stingray.Sum(path.Join(dir, fmt.Sprint(id))),
+					Type: stingray.Sum("wwise_stream"),
 				}
 				return pv.getResource(fileID, stingray.DataStream)
 			},
@@ -174,7 +174,7 @@ func (pv *AutoPreviewState) LoadFile(ctx context.Context, file *stingray.File, m
 			stream := streams[id]
 			pv.state.audio.LoadStream(fmt.Sprint(id), stream, false)
 		}
-	case stingray.Sum64([]byte("bik")):
+	case stingray.Sum("bik"):
 		pv.activeType = AutoPreviewVideo
 		if err := loadFiles(stingray.DataMain, stingray.DataStream, stingray.DataGPU); err != nil {
 			pv.err = err
@@ -203,7 +203,7 @@ func (pv *AutoPreviewState) LoadFile(ctx context.Context, file *stingray.File, m
 			}
 			return
 		}
-	case stingray.Sum64([]byte("texture")):
+	case stingray.Sum("texture"):
 		pv.activeType = AutoPreviewTexture
 		if err := loadFiles(stingray.DataMain, stingray.DataStream, stingray.DataGPU); err != nil {
 			pv.err = err
@@ -224,7 +224,7 @@ func (pv *AutoPreviewState) LoadFile(ctx context.Context, file *stingray.File, m
 			return
 		}
 		pv.state.texture.LoadImage(img)
-	case stingray.Sum64([]byte("strings")):
+	case stingray.Sum("strings"):
 		pv.activeType = AutoPreviewStrings
 		if err := loadFiles(stingray.DataMain); err != nil {
 			pv.err = err
@@ -238,7 +238,7 @@ func (pv *AutoPreviewState) LoadFile(ctx context.Context, file *stingray.File, m
 			return
 		}
 		pv.state.strings.Load(data, pv.thinhashes)
-	case stingray.Sum64([]byte("material")):
+	case stingray.Sum("material"):
 		pv.activeType = AutoPreviewMaterial
 		if err := loadFiles(stingray.DataMain); err != nil {
 			pv.err = err

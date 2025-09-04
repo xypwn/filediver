@@ -1,10 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"os/signal"
 	"syscall"
@@ -13,29 +13,23 @@ import (
 	"github.com/xypwn/filediver/app"
 	"github.com/xypwn/filediver/app/appconfig"
 	"github.com/xypwn/filediver/config"
-	"github.com/xypwn/filediver/exec"
-	"github.com/xypwn/filediver/extractor"
 	"github.com/xypwn/filediver/hashes"
 	"github.com/xypwn/filediver/stingray"
-	dlbin "github.com/xypwn/filediver/stingray/dl_bin"
 	"github.com/xypwn/filediver/stingray/physics"
 )
 
-func dumpPhysicsNames(ctx extractor.Context) error {
-	if !ctx.File().Exists(stingray.DataMain) {
-		return errors.New("no main data")
-	}
-	r, err := ctx.File().Open(ctx.Ctx(), stingray.DataMain)
+func dumpPhysicsNames(a *app.App, fileID stingray.FileID) error {
+	bs, err := a.DataDir.Read(fileID, stingray.DataMain)
 	if err != nil {
 		return err
 	}
-	defer r.Close()
-	physics, err := physics.LoadPhysics(r)
+
+	physics, err := physics.LoadPhysics(bytes.NewReader(bs))
 	if err != nil {
 		return err
 	}
 	physicsSuffix := string(physics.NameEnd[:23])
-	knownName, ok := ctx.Hashes()[ctx.File().ID().Name]
+	knownName, ok := a.Hashes[fileID.Name]
 	if ok {
 		fmt.Println(knownName)
 	} else {
@@ -43,39 +37,6 @@ func dumpPhysicsNames(ctx extractor.Context) error {
 	}
 	return err
 }
-
-type physicsContext struct {
-	ctx     context.Context
-	file    *stingray.File
-	app     *app.App
-	printer app.Printer
-	cfg     appconfig.Config
-}
-
-func (c *physicsContext) OutPath() (string, error)                              { return "", nil }
-func (c *physicsContext) OutDir() (string, error)                               { return "", nil }
-func (c *physicsContext) AddFile()                                              {}
-func (c *physicsContext) File() *stingray.File                                  { return c.file }
-func (c *physicsContext) Runner() *exec.Runner                                  { return nil }
-func (c *physicsContext) Config() appconfig.Config                              { return c.cfg }
-func (c *physicsContext) GetResource(_, _ stingray.Hash) (*stingray.File, bool) { return nil, false }
-func (c *physicsContext) CreateFile(_ string) (io.WriteCloser, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-func (c *physicsContext) AllocateFile(_ string) (string, error) {
-	return "", fmt.Errorf("not implemented")
-}
-func (c *physicsContext) Ctx() context.Context                        { return c.ctx }
-func (c *physicsContext) Files() []string                             { return nil }
-func (c *physicsContext) Hashes() map[stingray.Hash]string            { return c.app.Hashes }
-func (c *physicsContext) ThinHashes() map[stingray.ThinHash]string    { return c.app.ThinHashes }
-func (c *physicsContext) TriadIDs() []stingray.Hash                   { return nil }
-func (c *physicsContext) ArmorSets() map[stingray.Hash]dlbin.ArmorSet { return c.app.ArmorSets }
-func (c *physicsContext) Warnf(f string, a ...any) {
-	name, typ := c.app.LookupHash(c.file.ID().Name), c.app.LookupHash(c.file.ID().Type)
-	c.printer.Warnf("dump %v.%v: %v", name, typ, fmt.Sprintf(f, a...))
-}
-func (c *physicsContext) LookupHash(hash stingray.Hash) string { return c.LookupHash(hash) }
 
 func main() {
 	prt := app.NewConsolePrinter(
@@ -118,17 +79,10 @@ func main() {
 		prt.Fatalf("%v", err)
 	}
 
-	for _, file := range files {
+	for fileID := range files {
 		var cfg appconfig.Config
 		config.InitDefault(&cfg)
-		dumpCtx := &physicsContext{
-			ctx:     ctx,
-			file:    file,
-			app:     a,
-			printer: prt,
-			cfg:     cfg,
-		}
-		if err := dumpPhysicsNames(dumpCtx); err != nil {
+		if err := dumpPhysicsNames(a, fileID); err != nil {
 			if errors.Is(err, context.Canceled) {
 				prt.NoStatus()
 				prt.Warnf("Name dump canceled, exiting cleanly")
