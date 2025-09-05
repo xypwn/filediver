@@ -899,6 +899,7 @@ func (a *guiApp) drawExportWindow() {
 			imgui.BeginDisabledV(len(a.filesSelectedForExport) == 0 || a.gameData == nil)
 			label := fmt.Sprintf("%v Begin export (%v)", fnt.I("File_export"), len(a.filesSelectedForExport))
 			if imgui.ButtonV(label, imgui.NewVec2(-math.SmallestNonzeroFloat32, 0)) && a.gameData != nil {
+				a.redetectRunnerProgs()
 				a.logger.Reset()
 				a.gameDataExport = a.gameData.GoExport(
 					a.ctx,
