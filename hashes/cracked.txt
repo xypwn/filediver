@@ -5041,3 +5041,6 @@ content/fac_helldivers/equipment/throwables/cluster_frag_grenade/cluster_frag_gr
 content/fac_helldivers/vehicles/lav/armaments/lav_autocannon/lav_autocannon
 content/fac_helldivers/vehicles/oilrig/oil_rig
 content/fac_helldivers/vehicles/oilrig/oilrig_tank
+content/fac_helldivers/equipment/attachment/optics/optics_lowpower_scope
+content/fac_helldivers/equipment/attachment/optics/optics_midpower_scope
+content/fac_helldivers/equipment/attachment/optics/optics_support

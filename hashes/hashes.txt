@@ -70755,11 +70755,14 @@ content/fac_helldivers/equipment/attachment/muzzle/muzzle_revolver_short
 content/fac_helldivers/equipment/attachment/optics/optics_highpower_scope
 content/fac_helldivers/equipment/attachment/optics/optics_highpower_scope_02
 content/fac_helldivers/equipment/attachment/optics/optics_ironsight
+content/fac_helldivers/equipment/attachment/optics/optics_lowpower_scope
+content/fac_helldivers/equipment/attachment/optics/optics_midpower_scope
 content/fac_helldivers/equipment/attachment/optics/optics_railgun
 content/fac_helldivers/equipment/attachment/optics/optics_reddot
 content/fac_helldivers/equipment/attachment/optics/optics_reddot_02
 content/fac_helldivers/equipment/attachment/optics/optics_reddot_03
 content/fac_helldivers/equipment/attachment/optics/optics_reddot_04
+content/fac_helldivers/equipment/attachment/optics/optics_support
 content/fac_helldivers/equipment/attachment/optics/sniper_rifle_helghast_scope
 content/fac_helldivers/equipment/backpacks/air_burst_rocket_backpack/air_burst_rocket_backpack
 content/fac_helldivers/equipment/backpacks/ammo_backpack/ammo_backpack
