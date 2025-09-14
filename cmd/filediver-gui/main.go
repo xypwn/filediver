@@ -579,7 +579,15 @@ func (a *guiApp) drawBrowserWindow() {
 			// true if the item was selected through a history button.
 			noPushToHistory := false
 
-			imgui.SetNextItemWidth(imgui.ContentRegionAvail().X - imutils.CheckboxHeight())
+			searchBarWidth := imgui.ContentRegionAvail().X
+			{
+				style := imgui.CurrentStyle()
+				imgui.CalcItemWidth()
+				searchBarWidth -= imgui.CalcTextSize(fnt.I("Help")).X +
+					style.ItemSpacing().X +
+					2*style.FramePadding().X
+			}
+			imgui.SetNextItemWidth(searchBarWidth)
 			if imgui.Shortcut(imgui.KeyChord(imgui.ModCtrl | imgui.KeyF)) {
 				imgui.SetKeyboardFocusHere()
 			}
