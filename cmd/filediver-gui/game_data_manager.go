@@ -8,7 +8,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/expr-lang/expr/vm"
 	"github.com/qmuntal/gltf"
 	"github.com/xypwn/filediver/app"
 	"github.com/xypwn/filediver/app/appconfig"
@@ -36,7 +35,7 @@ type GameData struct {
 	HashFileNames             map[stingray.FileID]string
 	SortedSearchResultFileIDs []stingray.FileID
 
-	FilterExpr    *vm.Program
+	FilterExpr    *app.FilterExprProgram
 	FilterExprErr error
 }
 

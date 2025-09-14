@@ -7,6 +7,7 @@ require (
 	github.com/adrg/xdg v0.4.0
 	github.com/andygrunwald/vdf v1.1.0
 	github.com/ebitengine/oto/v3 v3.3.2
+	github.com/expr-lang/expr v1.17.6
 	github.com/go-audio/audio v1.0.0
 	github.com/go-audio/wav v1.1.0
 	github.com/go-gl/gl v0.0.0-20231021071112-07e5d0ea2e71
@@ -42,7 +43,6 @@ require (
 	github.com/dchest/jsmin v0.0.0-20220218165748-59f39799265f // indirect
 	github.com/dsnet/compress v0.0.2-0.20230904184137-39efe44ab707 // indirect
 	github.com/ebitengine/purego v0.8.0 // indirect
-	github.com/expr-lang/expr v1.17.6 // indirect
 	github.com/go-audio/riff v1.0.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect

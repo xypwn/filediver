@@ -6,7 +6,6 @@ import (
 	"github.com/AllenDang/cimgui-go/imgui"
 	"github.com/xypwn/filediver/app"
 	"github.com/xypwn/filediver/cmd/filediver-gui/imutils"
-	"github.com/xypwn/filediver/stingray"
 )
 
 func DrawMetadataSearchHelp() {
@@ -38,28 +37,14 @@ func DrawMetadataSearchHelp() {
 		typ := reflect.TypeFor[app.FileMetadata]()
 		for i := range typ.NumField() {
 			field := typ.Field(i)
-			imgui.PushIDInt(int32(i))
-			var typStr string
-			if t, ok := field.Tag.Lookup("type"); ok {
-				typStr = t
-			} else {
-				switch field.Type {
-				case reflect.TypeFor[[]stingray.Hash]():
-					typStr = "hashes"
-				case reflect.TypeFor[stingray.Hash]():
-					typStr = "hash"
-				case reflect.TypeFor[string]():
-					typStr = "string"
-				case reflect.TypeFor[int](), reflect.TypeFor[float64]():
-					typStr = "number"
-				default:
-					panic("unknown type")
-				}
+			if field.Tag.Get("meta") == "true" {
+				continue
 			}
+			imgui.PushIDInt(int32(i))
 			imgui.TableNextColumn()
 			imutils.Textcf(yellow, "%s", field.Name)
 			imgui.TableNextColumn()
-			imutils.Textcf(gray, "%s", typStr)
+			imutils.Textcf(gray, "%s", app.FileMetadataTypeName(field.Name))
 			imgui.TableNextColumn()
 			imutils.Textcf(gray, "%s", field.Tag.Get("help"))
 			if example, ok := field.Tag.Lookup("example"); ok {

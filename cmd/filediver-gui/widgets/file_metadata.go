@@ -43,6 +43,9 @@ func FileMetadata(meta app.FileMetadata) {
 		typ := val.Type()
 		for i := range typ.NumField() {
 			field := typ.Field(i)
+			if field.Tag.Get("meta") == "true" || !meta.AvailableFields[field.Name] {
+				continue
+			}
 			imgui.PushIDInt(int32(i))
 			imgui.TableNextColumn()
 			imutils.Textf("%s", field.Name)

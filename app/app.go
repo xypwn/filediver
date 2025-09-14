@@ -15,7 +15,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/expr-lang/expr/vm"
 	"github.com/gobwas/glob"
 	"github.com/qmuntal/gltf"
 	"github.com/xypwn/filediver/app/appconfig"
@@ -187,11 +186,13 @@ func getFileMetadata(dataDir *stingray.DataDir) map[stingray.FileID]FileMetadata
 	metadata := make(map[stingray.FileID]FileMetadata, len(dataDir.Files))
 	for fileID := range dataDir.Files {
 		meta := FileMetadata{
-			Type: fileID.Type,
+			AvailableFields: make(map[string]bool),
+			Type:            fileID.Type,
 		}
 		for _, info := range dataDir.Files[fileID] {
 			meta.Archives = append(meta.Archives, info.ArchiveID)
 		}
+		meta.addAvailableFields("Type", "Archives")
 		switch fileID.Type {
 		case stingray.Sum("texture"):
 			const stingrayHeaderSize = 0xc0
@@ -214,6 +215,7 @@ func getFileMetadata(dataDir *stingray.DataDir) map[stingray.FileID]FileMetadata
 			meta.Width = int(info.Header.Width)
 			meta.Height = int(info.Header.Height)
 			meta.Format = info.DXT10Header.DXGIFormat.String()
+			meta.addAvailableFields("Width", "Height", "Format")
 		}
 		metadata[fileID] = meta
 	}
@@ -346,7 +348,7 @@ func (a *App) MatchingFiles(
 			return nil, err
 		}
 	}
-	var metadataFilterProg *vm.Program
+	var metadataFilterProg *FilterExprProgram
 	if metadataFilter != "" {
 		var err error
 		metadataFilterProg, err = CompileMetadataFilterExpr(metadataFilter)
