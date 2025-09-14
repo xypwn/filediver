@@ -112,6 +112,9 @@ type App struct {
 
 // Automatically gets most wwise-related hashes by reading the game files
 func getWwiseHashes(dataDir *stingray.DataDir) (map[stingray.Hash]string, error) {
+	if dataDir == nil {
+		return nil, fmt.Errorf("no data dir to load wwise files")
+	}
 	hashes := make(map[stingray.Hash]string)
 	// Read wwise_dep files to figure out the names of all wwise_bank files
 	for id := range dataDir.Files {
@@ -180,20 +183,12 @@ func getWwiseHashes(dataDir *stingray.DataDir) (map[stingray.Hash]string, error)
 	return hashes, nil
 }
 
-// Open game dir and read metadata.
-func OpenGameDir(ctx context.Context, gameDir string, hashStrings []string, thinhashes []string, armorStrings stingray.Hash, onProgress func(curr, total int)) (*App, error) {
-	dataDir, err := stingray.OpenDataDir(ctx, filepath.Join(gameDir, "data"), onProgress)
-	if err != nil {
-		return nil, err
-	}
-
+func GenerateHashes(ctx context.Context, hashStrings []string, thinhashes []string, dataDir *stingray.DataDir) *App {
 	hashesMap := make(map[stingray.Hash]string)
 	if wwiseHashes, err := getWwiseHashes(dataDir); err == nil {
 		for h, n := range wwiseHashes {
 			hashesMap[h] = n
 		}
-	} else {
-		return nil, err
 	}
 	for _, h := range hashStrings {
 		hashesMap[stingray.Sum(h)] = h
@@ -202,6 +197,22 @@ func OpenGameDir(ctx context.Context, gameDir string, hashStrings []string, thin
 	for _, h := range thinhashes {
 		thinHashesMap[stingray.Sum(h).Thin()] = h
 	}
+
+	return &App{
+		Hashes:     hashesMap,
+		ThinHashes: thinHashesMap,
+		DataDir:    dataDir,
+	}
+}
+
+// Open game dir and read metadata.
+func OpenGameDir(ctx context.Context, gameDir string, hashStrings []string, thinhashes []string, armorStrings stingray.Hash, onProgress func(curr, total int)) (*App, error) {
+	dataDir, err := stingray.OpenDataDir(ctx, filepath.Join(gameDir, "data"), onProgress)
+	if err != nil {
+		return nil, err
+	}
+
+	app := GenerateHashes(ctx, hashStrings, thinhashes, dataDir)
 
 	var stringMap *stingray_strings.Strings = nil
 	{
@@ -222,17 +233,12 @@ func OpenGameDir(ctx context.Context, gameDir string, hashStrings []string, thin
 		mapping = stringMap.Strings
 	}
 
-	armorSets, err := dlbin.LoadArmorSetDefinitions(mapping)
+	app.ArmorSets, err = dlbin.LoadArmorSetDefinitions(mapping)
 	if err != nil {
 		return nil, err
 	}
 
-	return &App{
-		Hashes:     hashesMap,
-		ThinHashes: thinHashesMap,
-		ArmorSets:  armorSets,
-		DataDir:    dataDir,
-	}, nil
+	return app, nil
 }
 
 func (a *App) hashNameVariationsForMatch(h stingray.Hash) []string {
