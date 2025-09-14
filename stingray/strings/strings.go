@@ -29,6 +29,44 @@ var LanguageFriendlyName = map[stingray.ThinHash]string{
 	stingray.Sum("us").Thin(): "English (US)",
 }
 
+var FriendlyNameToHash = map[string]stingray.ThinHash{
+	"Portuguese (Brazil)":   stingray.Sum("bp").Thin(),
+	"German":                stingray.Sum("de").Thin(),
+	"Spanish (Spain)":       stingray.Sum("es").Thin(),
+	"French":                stingray.Sum("fr").Thin(),
+	"English (UK)":          stingray.Sum("gb").Thin(),
+	"Italian":               stingray.Sum("it").Thin(),
+	"Japanese":              stingray.Sum("jp").Thin(),
+	"Korean":                stingray.Sum("ko").Thin(),
+	"Spanish (Mexico)":      stingray.Sum("ms").Thin(),
+	"Dutch":                 stingray.Sum("nl").Thin(),
+	"Polish":                stingray.Sum("pl").Thin(),
+	"Portuguese (Europe)":   stingray.Sum("pt").Thin(),
+	"Russian":               stingray.Sum("ru").Thin(),
+	"Chinese (Simplified)":  stingray.Sum("sc").Thin(),
+	"Chinese (Traditional)": stingray.Sum("tc").Thin(),
+	"English (US)":          stingray.Sum("us").Thin(),
+}
+
+var FriendlyNames = []string{
+	"Chinese (Simplified)",
+	"Chinese (Traditional)",
+	"Dutch",
+	"English (UK)",
+	"English (US)",
+	"French",
+	"German",
+	"Italian",
+	"Japanese",
+	"Korean",
+	"Polish",
+	"Portuguese (Brazil)",
+	"Portuguese (Europe)",
+	"Russian",
+	"Spanish (Spain)",
+	"Spanish (Mexico)",
+}
+
 type Strings struct {
 	Magic    [4]byte
 	Version  uint32

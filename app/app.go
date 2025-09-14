@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path"
 	"path/filepath"
@@ -181,7 +182,7 @@ func getWwiseHashes(dataDir *stingray.DataDir) (map[stingray.Hash]string, error)
 }
 
 // Open game dir and read metadata.
-func OpenGameDir(ctx context.Context, gameDir string, hashStrings []string, thinhashes []string, armorStrings stingray.Hash, onProgress func(curr, total int)) (*App, error) {
+func OpenGameDir(ctx context.Context, gameDir string, hashStrings []string, thinhashes []string, language stingray.ThinHash, onProgress func(curr, total int)) (*App, error) {
 	dataDir, err := stingray.OpenDataDir(ctx, filepath.Join(gameDir, "data"), onProgress)
 	if err != nil {
 		return nil, err
@@ -203,23 +204,21 @@ func OpenGameDir(ctx context.Context, gameDir string, hashStrings []string, thin
 		thinHashesMap[stingray.Sum(h).Thin()] = h
 	}
 
-	var stringMap *stingray_strings.Strings = nil
-	{
-		b, err := dataDir.Read(stingray.FileID{
-			Name: armorStrings,
-			Type: stingray.Sum("strings"),
-		}, stingray.DataMain)
-		if err == nil {
-			stringMap, err = stingray_strings.Load(bytes.NewReader(b))
-			if err != nil {
-				stringMap = nil
-			}
-		}
-	}
-
 	var mapping map[uint32]string = make(map[uint32]string)
-	if stringMap != nil {
-		mapping = stringMap.Strings
+	for fileId := range dataDir.Files {
+		if fileId.Type != stingray.Sum("strings") {
+			continue
+		}
+		stringData, err := dataDir.Read(fileId, stingray.DataMain)
+		if err != nil {
+			continue
+		}
+		strings, err := stingray_strings.Load(bytes.NewReader(stringData))
+		if err != nil || strings.Language != language {
+			continue
+		}
+
+		maps.Copy(mapping, strings.Strings)
 	}
 
 	armorSets, err := dlbin.LoadArmorSetDefinitions(mapping)

@@ -13,7 +13,6 @@ import (
 	"runtime/pprof"
 	"slices"
 	"sort"
-	"strconv"
 	"strings"
 	"syscall"
 
@@ -30,6 +29,7 @@ import (
 	"github.com/xypwn/filediver/extractor/single_glb_helper"
 	"github.com/xypwn/filediver/hashes"
 	"github.com/xypwn/filediver/stingray"
+	stingray_strings "github.com/xypwn/filediver/stingray/strings"
 	"github.com/xypwn/filediver/stingray/unit"
 )
 
@@ -59,7 +59,7 @@ func main() {
 	var optExclGlob *string
 	var optInclOnlyTypes *string
 	var optInclArchives *string
-	var optArmorStringsFile *string
+	var optArmorStringsLanguage *string
 	var optKnownHashesPath *string
 	var optThinHashListMode *string
 	// Config common to CLI and GUI
@@ -95,9 +95,14 @@ func main() {
 		optInclArchives = argp.String("t", "triads", &argparse.Option{
 			Help: "include comma-separated archive name(s) [formerly triads] as found in game data directory, e.g. 0x9ba626afa44a3aa3",
 		})
-		optArmorStringsFile = argp.String("s", "strings", &argparse.Option{
-			Default: "0x7c7587b563f10985",
-			Help:    `strings file to use to map armor set string IDs to names (default: "0x7c7587b563f10985" - en-us)`,
+		langs := make([]any, len(stingray_strings.FriendlyNames))
+		for i := range langs {
+			langs[i] = stingray_strings.FriendlyNames[i]
+		}
+		optArmorStringsLanguage = argp.String("s", "strings-language", &argparse.Option{
+			Default: "English (US)",
+			Choices: langs,
+			Help:    "Language to use when exporting armor set name",
 		})
 		optKnownHashesPath = argp.String("", "hashes-file", &argparse.Option{
 			Help: "path to a text file containing known file and type names, will use built-in hash list if none is given",
@@ -173,16 +178,6 @@ func main() {
 		}
 	}
 
-	armorStringsHash, err := stingray.ParseHash(*optArmorStringsFile)
-	if err != nil {
-		hashVal, err := strconv.ParseUint(*optArmorStringsFile, 10, 64)
-		if err != nil {
-			prt.Warnf("unable to parse armor strings hash (%v), using default of en-us", err)
-			hashVal = 0x7c7587b563f10985
-		}
-		armorStringsHash = stingray.Hash{Value: hashVal}
-	}
-
 	var gamedir string
 	if cfg.Gamedir == "<auto-detect>" {
 		var err error
@@ -224,7 +219,7 @@ func main() {
 		cancel()
 	}()
 
-	a, err := app.OpenGameDir(ctx, gamedir, knownHashes, knownThinHashes, armorStringsHash, func(curr, total int) {
+	a, err := app.OpenGameDir(ctx, gamedir, knownHashes, knownThinHashes, stingray_strings.FriendlyNameToHash[*optArmorStringsLanguage], func(curr, total int) {
 		prt.Statusf("Reading metadata %.0f%%", float64(curr)/float64(total)*100)
 	})
 	if err != nil {
