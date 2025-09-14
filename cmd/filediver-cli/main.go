@@ -59,6 +59,7 @@ func main() {
 	var optInclOnlyTypes *string
 	var optInclArchives *string
 	var optArmorStringsFile *string
+	var optMetadataFilter *string
 	var optKnownHashesPath *string
 	var optThinHashListMode *string
 	// Config common to CLI and GUI
@@ -100,6 +101,9 @@ func main() {
 		optArmorStringsFile = argp.String("s", "strings", &argparse.Option{
 			Default: "0x7c7587b563f10985",
 			Help:    `strings file to use to map armor set string IDs to names (default: "0x7c7587b563f10985" - en-us)`,
+		})
+		optMetadataFilter = argp.String("m", "filter-metadata", &argparse.Option{
+			Help: `metadata search filter (e.g.: "width == 512 && format == 'BC1UNorm'") [see https://expr-lang.org]`,
 		})
 		optKnownHashesPath = argp.String("", "hashes-file", &argparse.Option{
 			Help: "path to a text file containing known file and type names, will use built-in hash list if none is given",
@@ -236,7 +240,7 @@ func main() {
 	}
 	prt.NoStatus()
 
-	files, err := a.MatchingFiles(*optInclGlob, *optExclGlob, inclOnlyTypes, inclArchiveIDs)
+	files, err := a.MatchingFiles(*optInclGlob, *optExclGlob, inclOnlyTypes, inclArchiveIDs, *optMetadataFilter)
 	if err != nil {
 		prt.Fatalf("%v", err)
 	}

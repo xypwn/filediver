@@ -591,11 +591,11 @@ func (a *guiApp) drawBrowserWindow() {
 			imgui.SetItemTooltip("Filter by file name (Ctrl+F)")
 			imgui.SameLine()
 			if imgui.Button(fnt.I("Help")) {
-				imgui.OpenPopupStr("##AdvancedSearchHelp")
+				imgui.OpenPopupStr("##MetadataSearchHelp")
 			}
-			imgui.SetItemTooltip("Advanced search help")
-			if imgui.BeginPopup("##AdvancedSearchHelp") {
-				DrawAdvancedSearchHelp()
+			imgui.SetItemTooltip("Metadata search help")
+			if imgui.BeginPopup("##MetadataSearchHelp") {
+				DrawMetadataSearchHelp()
 				imgui.EndPopup()
 			}
 

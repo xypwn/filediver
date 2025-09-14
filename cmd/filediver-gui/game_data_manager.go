@@ -1,25 +1,19 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
-	"io"
-	"reflect"
 	"slices"
 	"strings"
 	"sync"
 
-	"github.com/expr-lang/expr"
-	"github.com/expr-lang/expr/ast"
 	"github.com/expr-lang/expr/vm"
 	"github.com/qmuntal/gltf"
 	"github.com/xypwn/filediver/app"
 	"github.com/xypwn/filediver/app/appconfig"
 	fnt "github.com/xypwn/filediver/cmd/filediver-gui/fonts"
 	"github.com/xypwn/filediver/cmd/filediver-gui/textutils"
-	"github.com/xypwn/filediver/dds"
 	"github.com/xypwn/filediver/exec"
 	"github.com/xypwn/filediver/extractor/single_glb_helper"
 	"github.com/xypwn/filediver/hashes"
@@ -36,25 +30,6 @@ type GameDataExport struct {
 	NumFiles         int
 }
 
-// Searchable metadata
-type FileMetadata struct {
-	Type        stingray.Hash   `help:"File type (e.g. \"unit\")"`
-	Archives    []stingray.Hash `help:"Archives the file is contained in"`
-	Width       int             `help:"Texture width"`
-	Height      int             `help:"Texture height"`
-	Format      string          `help:"Texture format (e.g. \"BC1UNorm\")"`
-	NumVertices int             `help:"Number of unit vertices"`
-}
-
-var fileMetadataFields []string
-
-func init() {
-	t := reflect.TypeFor[FileMetadata]()
-	for i := range t.NumField() {
-		fileMetadataFields = append(fileMetadataFields, t.Field(i).Name)
-	}
-}
-
 type GameData struct {
 	*app.App
 	KnownFileNames            map[stingray.FileID]string
@@ -63,7 +38,6 @@ type GameData struct {
 
 	FilterExpr    *vm.Program
 	FilterExprErr error
-	Metadata      map[stingray.FileID]FileMetadata
 }
 
 func NewGameData(a *app.App) *GameData {
@@ -74,92 +48,8 @@ func NewGameData(a *app.App) *GameData {
 		gd.KnownFileNames[id] = strings.ToLower(gd.LookupHash(id.Name) + "." + gd.LookupHash(id.Type))
 		gd.HashFileNames[id] = id.Name.String() + "." + id.Type.String()
 	}
-	gd.Metadata = make(map[stingray.FileID]FileMetadata)
-	gd.updateMetadata()
 	gd.UpdateSearchQuery("", nil, nil)
 	return gd
-}
-
-func (gd *GameData) updateMetadata() {
-	for fileID := range gd.DataDir.Files {
-		meta := FileMetadata{
-			Type: fileID.Type,
-		}
-		for _, info := range gd.DataDir.Files[fileID] {
-			meta.Archives = append(meta.Archives, info.ArchiveID)
-		}
-		switch fileID.Type {
-		case stingray.Sum("texture"):
-			const stingrayHeaderSize = 0xc0
-			const textureHeaderSize = stingrayHeaderSize + 0x04 /*DDS magic*/ + 0x7c /*DDS header*/ + 0x14 /*DXT10 header*/
-			b, err := gd.DataDir.ReadAtMost(fileID, stingray.DataMain, textureHeaderSize)
-			if err != nil {
-				// ignore for now
-				continue
-			}
-			bR := bytes.NewReader(b)
-			if _, err := bR.Seek(stingrayHeaderSize, io.SeekCurrent); err != nil {
-				// ignore for now
-				continue
-			}
-			info, err := dds.DecodeInfo(bR)
-			if err != nil {
-				// ignore for now
-				continue
-			}
-			meta.Width = int(info.Header.Width)
-			meta.Height = int(info.Header.Height)
-			meta.Format = info.DXT10Header.DXGIFormat.String()
-		}
-		gd.Metadata[fileID] = meta
-	}
-}
-
-type exprEnv struct {
-	FileMetadata
-	StringEqString  func(string, string) bool
-	StringNeqString func(string, string) bool
-	HashEqString    func(stingray.Hash, string) bool
-	HashNeqString   func(stingray.Hash, string) bool
-	StringInHashes  func(string, []stingray.Hash) bool
-}
-
-func newExprEnv(meta FileMetadata) exprEnv {
-	hashEqString := func(hash stingray.Hash, s string) bool {
-		if hash == stingray.Sum(s) {
-			return true
-		}
-		h, err := stingray.ParseHash(s)
-		if err != nil {
-			return false
-		}
-		return h == hash
-	}
-	return exprEnv{
-		FileMetadata:    meta,
-		StringEqString:  strings.EqualFold,
-		StringNeqString: func(a, b string) bool { return !strings.EqualFold(a, b) },
-		HashEqString:    hashEqString,
-		HashNeqString:   func(a stingray.Hash, b string) bool { return !hashEqString(a, b) },
-		StringInHashes: func(s string, hashes []stingray.Hash) bool {
-			return slices.ContainsFunc(hashes, func(hash stingray.Hash) bool {
-				return hashEqString(hash, s)
-			})
-		},
-	}
-}
-
-type exprFixCasing struct{}
-
-func (*exprFixCasing) Visit(node *ast.Node) {
-	switch n := (*node).(type) {
-	case *ast.IdentifierNode:
-		if idx := slices.IndexFunc(fileMetadataFields, func(name string) bool {
-			return strings.EqualFold(name, n.Value)
-		}); idx != -1 {
-			n.Value = fileMetadataFields[idx]
-		}
-	}
 }
 
 func (gd *GameData) UpdateSearchQuery(query string, allowedTypes map[stingray.Hash]struct{}, allowedArchives map[stingray.Hash]struct{}) {
@@ -167,14 +57,7 @@ func (gd *GameData) UpdateSearchQuery(query string, allowedTypes map[stingray.Ha
 	if idx := strings.Index(query, "?"); idx != -1 {
 		exprStr := query[idx+1:]
 		query = query[:idx]
-		gd.FilterExpr, gd.FilterExprErr = expr.Compile(exprStr,
-			expr.Env(exprEnv{}),
-			expr.AsBool(),
-			expr.Patch(&exprFixCasing{}),
-			expr.Operator("==", "StringEqString"),
-			expr.Operator("==", "HashEqString"),
-			expr.Operator("in", "StringInHashes"),
-		)
+		gd.FilterExpr, gd.FilterExprErr = app.CompileMetadataFilterExpr(exprStr)
 		if gd.FilterExprErr != nil {
 			return
 		}
@@ -193,12 +76,12 @@ func (gd *GameData) UpdateSearchQuery(query string, allowedTypes map[stingray.Ha
 			return true
 		}
 		if gd.FilterExpr != nil {
-			res, err := expr.Run(gd.FilterExpr, newExprEnv(gd.Metadata[fileID]))
+			matches, err := app.MetadataFilterExprMatches(gd.FilterExpr, gd.Metadata[fileID])
 			if err != nil {
 				gd.FilterExprErr = err
 				return false
 			}
-			if !res.(bool) {
+			if !matches {
 				return true
 			}
 		}

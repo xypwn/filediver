@@ -4,15 +4,16 @@ import (
 	"reflect"
 
 	"github.com/AllenDang/cimgui-go/imgui"
+	"github.com/xypwn/filediver/app"
 	"github.com/xypwn/filediver/cmd/filediver-gui/imutils"
 	"github.com/xypwn/filediver/stingray"
 )
 
-func DrawAdvancedSearchHelp() {
+func DrawMetadataSearchHelp() {
 	gray := imgui.NewVec4(0.8, 0.8, 0.8, 1)
 	yellow := imgui.NewVec4(1, 0.9, 0.1, 1)
 
-	imutils.Textf(`Anything following a ? in the search query will be interpreted as an advanced search expression.`)
+	imutils.Textf(`Anything following a ? in the search query will be interpreted as a metadata search expression.`)
 
 	imutils.Textf(`Example:`)
 	imgui.SameLine()
@@ -34,7 +35,7 @@ func DrawAdvancedSearchHelp() {
 		imgui.TableSetupColumnV("Description", 0, 0, 0)
 		imgui.TableSetupScrollFreeze(0, 1)
 		imgui.TableHeadersRow()
-		typ := reflect.TypeFor[FileMetadata]()
+		typ := reflect.TypeFor[app.FileMetadata]()
 		for i := range typ.NumField() {
 			field := typ.Field(i)
 			imgui.PushIDInt(int32(i))
