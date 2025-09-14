@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"maps"
 	"os"
 	"os/signal"
 	"runtime/pprof"
@@ -33,14 +34,14 @@ import (
 )
 
 // Aliases available in -T option.
-var typeAliases = []string{
-	"audio_stream", "wwise_stream",
-	"audio_bank", "wwise_bank",
-	"video", "bik",
-	"model", "unit,geometry_group",
-	"text", "strings,package,bones",
-	"image", "texture",
-	"animation_set", "state_machine",
+var typeAliases = map[string][]string{
+	"audio_stream":  {"wwise_stream"},
+	"audio_bank":    {"wwise_bank"},
+	"video":         {"bik"},
+	"model":         {"unit", "geometry_group"},
+	"text":          {"strings", "package", "bones"},
+	"image":         {"texture"},
+	"animation_set": {"state_machine"},
 }
 
 func main() {
@@ -81,13 +82,10 @@ func main() {
 		optExclGlob = argp.String("x", "exclude", &argparse.Option{
 			Help: "exclude matching files from selection (glob syntax, can be mixed with --include)",
 		})
-		if len(typeAliases)%2 != 0 {
-			panic("expected typeAliases to be in chunks of 2")
-		}
 		var typeAliasStrs []string
-		for i := 0; i < len(typeAliases); i += 2 {
+		for _, t := range slices.Sorted(maps.Keys(typeAliases)) {
 			typeAliasStrs = append(typeAliasStrs,
-				typeAliases[i+0]+"->"+typeAliases[i+1],
+				t+"->"+strings.Join(typeAliases[t], ","),
 			)
 		}
 		optInclOnlyTypes = argp.String("T", "types", &argparse.Option{
@@ -155,9 +153,13 @@ func main() {
 
 	var inclOnlyTypes []string
 	if *optInclOnlyTypes != "all" {
-		types := strings.NewReplacer(typeAliases...).
-			Replace(*optInclOnlyTypes)
-		inclOnlyTypes = strings.Split(types, ",")
+		for typeName := range strings.SplitSeq(*optInclOnlyTypes, ",") {
+			if replace, ok := typeAliases[typeName]; ok {
+				inclOnlyTypes = append(inclOnlyTypes, replace...)
+			} else {
+				inclOnlyTypes = append(inclOnlyTypes, typeName)
+			}
+		}
 	}
 	var inclArchiveIDs []stingray.Hash
 	if *optInclArchives != "" {
