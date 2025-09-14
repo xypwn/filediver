@@ -579,7 +579,7 @@ func (a *guiApp) drawBrowserWindow() {
 			// true if the item was selected through a history button.
 			noPushToHistory := false
 
-			imgui.SetNextItemWidth(-math.SmallestNonzeroFloat32)
+			imgui.SetNextItemWidth(imgui.ContentRegionAvail().X - imutils.CheckboxHeight())
 			if imgui.Shortcut(imgui.KeyChord(imgui.ModCtrl | imgui.KeyF)) {
 				imgui.SetKeyboardFocusHere()
 			}
@@ -587,7 +587,29 @@ func (a *guiApp) drawBrowserWindow() {
 				a.gameData.UpdateSearchQuery(a.gameFileSearchQuery, a.selectedGameFileTypes, a.selectedArchives)
 				a.allSelectedForExport = a.calcAllSelectedForExport()
 			}
+			searchInputTextData := imgui.CurrentContext().LastItemData()
 			imgui.SetItemTooltip("Filter by file name (Ctrl+F)")
+			imgui.SameLine()
+			if imgui.Button(fnt.I("Help")) {
+				imgui.OpenPopupStr("##AdvancedSearchHelp")
+			}
+			imgui.SetItemTooltip("Advanced search help")
+			if imgui.BeginPopup("##AdvancedSearchHelp") {
+				DrawAdvancedSearchHelp()
+				imgui.EndPopup()
+			}
+
+			if a.gameData.FilterExprErr != nil {
+				itm := searchInputTextData
+				bottomLeft := imgui.NewVec2(itm.Rect().Min.X, itm.Rect().Max.Y)
+				width := itm.Rect().Max.X - itm.Rect().Min.X
+				flags := imgui.ChildFlagsFrameStyle | imgui.ChildFlagsAutoResizeY | imgui.ChildFlagsAlwaysAutoResize
+				imgui.SetNextWindowPos(bottomLeft)
+				if imgui.BeginChildStrV("FilterExprErr", imgui.NewVec2(width, 0), flags, 0) {
+					imutils.TextError(a.gameData.FilterExprErr)
+				}
+				imgui.EndChild()
+			}
 
 			if newActiveID, ok := a.drawHistoryButtons(); ok {
 				newActiveFileID = newActiveID
