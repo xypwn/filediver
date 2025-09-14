@@ -13,12 +13,11 @@ import (
 
 // Searchable metadata
 type FileMetadata struct {
-	Type        stingray.Hash   `help:"File type (e.g. \"unit\")"`
-	Archives    []stingray.Hash `help:"Archives the file is contained in"`
-	Width       int             `help:"Texture width"`
-	Height      int             `help:"Texture height"`
-	Format      string          `help:"Texture format (e.g. \"BC1UNorm\")"`
-	NumVertices int             `help:"Number of unit vertices"`
+	Type     stingray.Hash   `help:"File type (e.g. \"unit\")"`
+	Archives []stingray.Hash `help:"Archives the file is contained in"`
+	Width    int             `help:"Texture width"`
+	Height   int             `help:"Texture height"`
+	Format   string          `help:"Texture format (e.g. \"BC1UNorm\")"`
 }
 
 var fileMetadataFields []string
