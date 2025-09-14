@@ -91,6 +91,8 @@ type guiApp struct {
 	historyStack            []stingray.FileID
 	historyStackIndex       int
 
+	shouldSetupWindowFocus bool
+
 	checkUpdatesOnStartupBGDone bool
 	checkUpdatesOnStartupFGDone bool
 	checkingForUpdates          bool
@@ -141,6 +143,7 @@ func newGUIApp(showErrorPopup func(error)) *guiApp {
 		filesSelectedForExport:     map[stingray.FileID]struct{}{},
 		selectedGameFileTypes:      map[stingray.Hash]struct{}{},
 		selectedArchives:           map[stingray.Hash]struct{}{},
+		shouldSetupWindowFocus:     true,
 		exportDir:                  filepath.Join(xdg.UserDirs.Download, "filediver_exports"),
 		exportNotifyWhenDone:       true,
 		extractorConfig:            extractorConfig,
@@ -317,6 +320,7 @@ func (a *guiApp) onDraw(state *imgui_wrapper.State) {
 			imgui.InternalDockBuilderDockWindow(fnt.I("File_export")+" Export", bottomLeftID)
 			imgui.InternalDockBuilderDockWindow(fnt.I("Settings_applications")+" Extractor config", bottomLeftID)
 			imgui.InternalDockBuilderDockWindow(fnt.I("Preview")+" Preview", rightID)
+			imgui.InternalDockBuilderDockWindow(fnt.I("Tag")+" Metadata", rightID)
 			imgui.InternalDockBuilderFinish(id)
 		}
 		imgui.DockSpaceV(id, imgui.NewVec2(0, 0), 0, winClass)
@@ -332,6 +336,12 @@ func (a *guiApp) onDraw(state *imgui_wrapper.State) {
 	a.drawExtractorConfigWindow()
 	a.drawLogWindow()
 	a.drawPreviewWindow(state)
+	a.drawMetadataWindow()
+
+	if a.shouldSetupWindowFocus {
+		imgui.SetWindowFocusStr(fnt.I("Preview") + " Preview")
+		a.shouldSetupWindowFocus = false
+	}
 
 	// drawXXXPopup functions use an
 	// imutils.PopupManager, meaning
@@ -1061,6 +1071,19 @@ func (a *guiApp) drawPreviewWindow(state *imgui_wrapper.State) {
 		} else {
 			imgui.PushTextWrapPos()
 			imgui.TextUnformatted("Loading game data...")
+		}
+	}
+	imgui.End()
+}
+
+func (a *guiApp) drawMetadataWindow() {
+	if imgui.Begin(fnt.I("Tag") + " Metadata") {
+		if a.gameData != nil && a.previewState != nil && a.previewState.ActiveID() != (stingray.FileID{}) {
+			widgets.FileMetadata(a.gameData.Metadata[a.previewState.ActiveID()])
+		} else {
+			imgui.PushTextWrapPos()
+			imgui.TextUnformatted("No file selected")
+			imgui.PopTextWrapPos()
 		}
 	}
 	imgui.End()

@@ -62,6 +62,10 @@ func DrawMetadataSearchHelp() {
 			imutils.Textcf(gray, "%s", typStr)
 			imgui.TableNextColumn()
 			imutils.Textcf(gray, "%s", field.Tag.Get("help"))
+			if example, ok := field.Tag.Lookup("example"); ok {
+				imgui.SameLine()
+				imutils.Textcf(gray, "(e.g. %s)", example)
+			}
 			imgui.PopID()
 		}
 		imgui.EndTable()

@@ -13,11 +13,11 @@ import (
 
 // Searchable metadata
 type FileMetadata struct {
-	Type     stingray.Hash   `help:"File type (e.g. \"unit\")"`
+	Type     stingray.Hash   `help:"File type" example:"\"unit\""`
 	Archives []stingray.Hash `help:"Archives the file is contained in"`
 	Width    int             `help:"Texture width"`
 	Height   int             `help:"Texture height"`
-	Format   string          `help:"Texture format (e.g. \"BC1UNorm\")"`
+	Format   string          `help:"Texture format" example:"\"BC1UNorm\""`
 }
 
 var fileMetadataFields []string
