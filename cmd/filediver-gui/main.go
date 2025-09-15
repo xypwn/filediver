@@ -624,7 +624,9 @@ func (a *guiApp) drawBrowserWindow() {
 				flags := imgui.ChildFlagsFrameStyle | imgui.ChildFlagsAutoResizeY | imgui.ChildFlagsAlwaysAutoResize
 				imgui.SetNextWindowPos(bottomLeft)
 				if imgui.BeginChildStrV("FilterExprErr", imgui.NewVec2(width, 0), flags, 0) {
+					imgui.PushFont(imgui_wrapper.FontMono)
 					imutils.TextError(a.gameData.FilterExprErr)
+					imgui.PopFont()
 				}
 				imgui.EndChild()
 			}
@@ -1263,22 +1265,22 @@ func (a *guiApp) drawAboutPopup() {
 		} else {
 			imgui.TextUnformatted("development version")
 		}
-		imgui.Separator()
-		if imgui.CollapsingHeaderBoolPtr("License", nil) {
-			imgui.PushTextWrapPos()
-			imgui.TextUnformatted(license)
+		drawLicense := func(heading, body string) {
+			if imgui.CollapsingHeaderBoolPtr(heading, nil) {
+				imgui.PushTextWrapPos()
+				imgui.PushFont(imgui_wrapper.FontMono)
+				imgui.TextUnformatted(body)
+				imgui.PopFont()
+				imgui.PopTextWrapPos()
+			}
 		}
+		imgui.Separator()
+		drawLicense("License", license)
 		imgui.Separator()
 		if imgui.CollapsingHeaderBoolPtr("Font Licenses", nil) {
 			imgui.Indent()
-			if imgui.CollapsingHeaderBoolPtr("Noto", nil) {
-				imgui.PushTextWrapPos()
-				imgui.TextUnformatted(fnt.TextFontLicense)
-			}
-			if imgui.CollapsingHeaderBoolPtr("Material Symbols", nil) {
-				imgui.PushTextWrapPos()
-				imgui.TextUnformatted(fnt.IconFontLicense)
-			}
+			drawLicense("Noto", fnt.TextFontLicense)
+			drawLicense("Material Symbols", fnt.IconFontLicense)
 			imgui.Unindent()
 		}
 		imgui.Separator()

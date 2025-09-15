@@ -18,6 +18,9 @@ var TextFontCN []byte
 //go:embed NotoSansKR-Regular.ttf
 var TextFontKR []byte
 
+//go:embed NotoSansMono-Medium.ttf
+var TextFontMono []byte
+
 //go:embed MaterialSymbolsOutlined.ttf
 var IconFont []byte
 
