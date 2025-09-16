@@ -339,11 +339,13 @@ func LoadArmorSetDefinitions(strings map[uint32]string) (map[stingray.Hash]Armor
 		return nil, fmt.Errorf("fs.File does not implement io.ReadSeeker (but it should so this should not happen)")
 	}
 
-	getNameIfContained := func(id uint32) string {
-		if name, contains := strings[id]; contains {
+	getNameIfContained := func(casedId, upperId uint32) string {
+		if name, contains := stringsMap[casedId]; contains {
+			return name
+		} else if name, contains := stringsMap[upperId]; contains {
 			return name
 		} else {
-			return fmt.Sprintf("%x", id)
+			return fmt.Sprintf("%x", casedId)
 		}
 	}
 
@@ -367,7 +369,7 @@ func LoadArmorSetDefinitions(strings map[uint32]string) (map[stingray.Hash]Armor
 		}
 
 		armorSet := ArmorSet{
-			Name:         getNameIfContained(item.Kit.NameCased),
+			Name:         getNameIfContained(item.Kit.NameCased, item.Kit.NameUpper),
 			SetId:        item.Kit.SetId,
 			Passive:      item.Kit.Passive,
 			Type:         item.Kit.Type,

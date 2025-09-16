@@ -217,6 +217,11 @@ func OpenGameDir(ctx context.Context, gameDir string, hashStrings []string, thin
 		if err != nil || strings.Language != language {
 			continue
 		}
+		for id := range strings.Strings {
+			if _, contains := mapping[id]; contains {
+				panic(fmt.Errorf("ID %v was already contained in the mapping!\n", id))
+			}
+		}
 
 		maps.Copy(mapping, strings.Strings)
 	}

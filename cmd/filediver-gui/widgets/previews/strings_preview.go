@@ -39,7 +39,7 @@ func (pv *StringsPreviewState) Load(data *stingray_strings.Strings, thinhashes m
 	}
 	if data.Count == 0 {
 		pv.languageFriendlyName = "None"
-	} else if fn, ok := stingray_strings.LanguageFriendlyName[data.Language]; ok {
+	} else if fn, ok := stingray_strings.LanguageHashToFriendlyName[data.Language]; ok {
 		pv.languageFriendlyName = fn
 	} else {
 		pv.languageFriendlyName = "Unknown"

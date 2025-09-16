@@ -10,7 +10,7 @@ import (
 	"github.com/xypwn/filediver/stingray"
 )
 
-var LanguageFriendlyName = map[stingray.ThinHash]string{
+var LanguageHashToFriendlyName = map[stingray.ThinHash]string{
 	stingray.Sum("bp").Thin(): "Portuguese (Brazil)",
 	stingray.Sum("de").Thin(): "German",
 	stingray.Sum("es").Thin(): "Spanish (Spain)",
@@ -29,42 +29,16 @@ var LanguageFriendlyName = map[stingray.ThinHash]string{
 	stingray.Sum("us").Thin(): "English (US)",
 }
 
-var FriendlyNameToHash = map[string]stingray.ThinHash{
-	"Portuguese (Brazil)":   stingray.Sum("bp").Thin(),
-	"German":                stingray.Sum("de").Thin(),
-	"Spanish (Spain)":       stingray.Sum("es").Thin(),
-	"French":                stingray.Sum("fr").Thin(),
-	"English (UK)":          stingray.Sum("gb").Thin(),
-	"Italian":               stingray.Sum("it").Thin(),
-	"Japanese":              stingray.Sum("jp").Thin(),
-	"Korean":                stingray.Sum("ko").Thin(),
-	"Spanish (Mexico)":      stingray.Sum("ms").Thin(),
-	"Dutch":                 stingray.Sum("nl").Thin(),
-	"Polish":                stingray.Sum("pl").Thin(),
-	"Portuguese (Europe)":   stingray.Sum("pt").Thin(),
-	"Russian":               stingray.Sum("ru").Thin(),
-	"Chinese (Simplified)":  stingray.Sum("sc").Thin(),
-	"Chinese (Traditional)": stingray.Sum("tc").Thin(),
-	"English (US)":          stingray.Sum("us").Thin(),
-}
+var LanguageFriendlyNameToHash map[string]stingray.ThinHash
+var LanguageFriendlyNames []string
 
-var FriendlyNames = []string{
-	"Chinese (Simplified)",
-	"Chinese (Traditional)",
-	"Dutch",
-	"English (UK)",
-	"English (US)",
-	"French",
-	"German",
-	"Italian",
-	"Japanese",
-	"Korean",
-	"Polish",
-	"Portuguese (Brazil)",
-	"Portuguese (Europe)",
-	"Russian",
-	"Spanish (Spain)",
-	"Spanish (Mexico)",
+func init() {
+	LanguageFriendlyNameToHash = make(map[string]stingray.ThinHash)
+	LanguageFriendlyNames = make([]string, 0)
+	for hash, value := range LanguageHashToFriendlyName {
+		LanguageFriendlyNameToHash[value] = hash
+		LanguageFriendlyNames = append(LanguageFriendlyNames, value)
+	}
 }
 
 type Strings struct {

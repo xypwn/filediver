@@ -95,9 +95,9 @@ func main() {
 		optInclArchives = argp.String("t", "triads", &argparse.Option{
 			Help: "include comma-separated archive name(s) [formerly triads] as found in game data directory, e.g. 0x9ba626afa44a3aa3",
 		})
-		langs := make([]any, len(stingray_strings.FriendlyNames))
+		langs := make([]any, len(stingray_strings.LanguageFriendlyNames))
 		for i := range langs {
-			langs[i] = stingray_strings.FriendlyNames[i]
+			langs[i] = stingray_strings.LanguageFriendlyNames[i]
 		}
 		optArmorStringsLanguage = argp.String("s", "strings-language", &argparse.Option{
 			Default: "English (US)",
@@ -219,7 +219,7 @@ func main() {
 		cancel()
 	}()
 
-	a, err := app.OpenGameDir(ctx, gamedir, knownHashes, knownThinHashes, stingray_strings.FriendlyNameToHash[*optArmorStringsLanguage], func(curr, total int) {
+	a, err := app.OpenGameDir(ctx, gamedir, knownHashes, knownThinHashes, stingray_strings.LanguageFriendlyNameToHash[*optArmorStringsLanguage], func(curr, total int) {
 		prt.Statusf("Reading metadata %.0f%%", float64(curr)/float64(total)*100)
 	})
 	if err != nil {
