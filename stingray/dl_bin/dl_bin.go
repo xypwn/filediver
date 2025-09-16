@@ -340,9 +340,9 @@ func LoadArmorSetDefinitions(strings map[uint32]string) (map[stingray.Hash]Armor
 	}
 
 	getNameIfContained := func(casedId, upperId uint32) string {
-		if name, contains := stringsMap[casedId]; contains {
+		if name, contains := strings[casedId]; contains {
 			return name
-		} else if name, contains := stringsMap[upperId]; contains {
+		} else if name, contains := strings[upperId]; contains {
 			return name
 		} else {
 			return fmt.Sprintf("%x", casedId)
