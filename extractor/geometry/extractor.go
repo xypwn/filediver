@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"math"
 	"slices"
 	"strings"
 
@@ -48,26 +47,6 @@ func convertFloat16Slice(gpuR io.ReadSeeker, data []byte, tmpArr []uint16, extra
 	return data, size, nil
 }
 
-func sign(f float64) float64 {
-	if math.Signbit(f) {
-		return -1
-	}
-	return 1
-}
-
-func decodePackedNormal(normal uint32) mgl32.Vec3 {
-	x10 := normal & 0x3ff
-	y10 := (normal >> 10) & 0x3ff
-	x, y := float64(x10)*(2.0/1023.0)-1, float64(y10)*(2.0/1023.0)-1
-	z := 1 - math.Abs(x) - math.Abs(y)
-
-	if z < 0 {
-		x, y = (1-math.Abs(y))*sign(x), (1-math.Abs(x))*sign(y)
-	}
-
-	return mgl32.Vec3{float32(x), float32(y), float32(z)}.Normalize()
-}
-
 func convertVertices(gpuR io.ReadSeeker, layout unit.MeshLayout) ([]byte, []AccessorInfo, error) {
 	data := make([]byte, 0)
 	dataLen := len(data)
@@ -108,7 +87,7 @@ func convertVertices(gpuR io.ReadSeeker, layout unit.MeshLayout) ([]byte, []Acce
 				if err = binary.Read(gpuR, binary.LittleEndian, &tmp); err != nil {
 					return nil, nil, fmt.Errorf("reading gpu data: %v", err)
 				}
-				val = decodePackedNormal(tmp)
+				val = unit.DecodePackedOctahedralNormal(tmp)
 				data, err = binary.Append(data, binary.LittleEndian, val)
 				if err != nil {
 					return nil, nil, fmt.Errorf("adding packed vec4 unorm to data: %v", err)
