@@ -49,7 +49,7 @@ func ExtractStringsJSON(ctx *extractor.Context) error {
 		if n, ok := ctx.ThinHashes()[strings.Language]; ok {
 			lang.KnownName = n
 		}
-		if fn, ok := stingray_strings.LanguageFriendlyName[strings.Language]; ok {
+		if fn, ok := stingray_strings.LanguageHashToFriendlyName[strings.Language]; ok {
 			lang.KnownFriendlyName = fn
 		}
 		simpleStrings.Language = lang

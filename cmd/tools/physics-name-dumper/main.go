@@ -60,7 +60,7 @@ func main() {
 	knownHashes := app.ParseHashes(hashes.Hashes)
 	knownThinHashes := app.ParseHashes(hashes.ThinHashes)
 
-	a, err := app.OpenGameDir(ctx, gameDir, knownHashes, knownThinHashes, stingray.Hash{}, func(curr int, total int) {
+	a, err := app.OpenGameDir(ctx, gameDir, knownHashes, knownThinHashes, stingray.ThinHash{}, func(curr int, total int) {
 		prt.Statusf("Opening game directory %.0f%%", float64(curr)/float64(total)*100)
 	})
 	if err != nil {
