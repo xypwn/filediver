@@ -20,17 +20,17 @@ func CreateCloseableGltfDocument(outDir string, name string, formatBlend bool, r
 		WrapT:     gltf.WrapRepeat,
 	})
 	closeGLB := func(doc *gltf.Document) error {
-		outPath := filepath.Join(outDir, name+".blend")
+		outPath := filepath.Join(outDir, name)
 		if len(document.Buffers) == 0 {
 			return nil
 		}
 		if formatBlend {
-			err := blend_helper.ExportBlend(doc, outPath, runner)
+			err := blend_helper.ExportBlend(doc, outPath+".blend", runner)
 			if err != nil {
 				return fmt.Errorf("closing %v.blend: %v", outPath, err)
 			}
 		} else {
-			err := exportGLB(doc, outPath)
+			err := exportGLB(doc, outPath+".glb")
 			if err != nil {
 				return fmt.Errorf("closing %v.glb: %v", outPath, err)
 			}
@@ -41,11 +41,10 @@ func CreateCloseableGltfDocument(outDir string, name string, formatBlend bool, r
 }
 
 func exportGLB(doc *gltf.Document, outPath string) error {
-	path := outPath + ".glb"
-	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
+	if err := os.MkdirAll(filepath.Dir(outPath), os.ModePerm); err != nil {
 		return err
 	}
-	out, err := os.Create(path)
+	out, err := os.Create(outPath)
 	if err != nil {
 		return err
 	}

@@ -247,7 +247,7 @@ def main():
         if "extras" in gltf and "frameRate" in gltf["extras"]:
             print(f'Setting FPS to {gltf["extras"]["frameRate"]}')
             bpy.context.scene.render.fps = gltf["extras"]["frameRate"]
-        bpy.ops.import_scene.gltf(filepath=str(path), import_shading="SMOOTH", bone_heuristic="TEMPERANCE")
+        bpy.ops.import_scene.gltf(filepath=str(path), import_shading="NORMALS", bone_heuristic="TEMPERANCE")
     finally:
         if str(input_model) == "-":
             path.unlink()
@@ -366,11 +366,6 @@ def main():
                     break
             shader_module.add_bake_uvs(obj)
             obj.select_set(True)
-            try:
-                bpy.ops.object.shade_smooth()
-            except RuntimeError:
-                # Context incorrect? We don't actually need to do this so its okay if it fails
-                pass
             print(f"Applied material to {node['name']}!")
 
     bpy.ops.wm.save_mainfile(filepath=str(output))
