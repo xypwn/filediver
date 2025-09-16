@@ -411,7 +411,7 @@ func (pv *UnitPreviewState) LoadUnit(mainData, gpuData []byte, getResource GetRe
 	pv.object.numVertices = int32(len(mesh.Positions))
 
 	// Calculate tangents and bitangents
-	normals := make([][3]float32, len(mesh.Positions))
+	normals := mesh.Normals
 	tangents := make([][3]float32, len(mesh.Positions))
 	bitangents := make([][3]float32, len(mesh.Positions))
 	nIndicesPerPos := make([]int, len(mesh.Positions))
@@ -442,15 +442,11 @@ func (pv *UnitPreviewState) LoadUnit(mainData, gpuData []byte, getResource GetRe
 			1.0 / (deltaUV1.X()*deltaUV2.Y() - deltaUV2.X()*deltaUV1.Y()),
 		)
 
-		normal := edge1.Cross(edge2).Normalize()
 		tangent, bitangent := tb.Rows()
 		tangent = tangent.Normalize()
 		bitangent = bitangent.Normalize()
 
 		// Accumulate
-		normals[i1] = mgl32.Vec3(normals[i1]).Add(normal)
-		normals[i2] = mgl32.Vec3(normals[i2]).Add(normal)
-		normals[i3] = mgl32.Vec3(normals[i3]).Add(normal)
 		tangents[i1] = mgl32.Vec3(tangents[i1]).Add(tangent)
 		tangents[i2] = mgl32.Vec3(tangents[i2]).Add(tangent)
 		tangents[i3] = mgl32.Vec3(tangents[i3]).Add(tangent)
@@ -463,21 +459,9 @@ func (pv *UnitPreviewState) LoadUnit(mainData, gpuData []byte, getResource GetRe
 	}
 	for _, i := range indices {
 		// Average
-		normals[i] = mgl32.Vec3(normals[i]).Mul(1 / float32(nIndicesPerPos[i])).Normalize()
 		tangents[i] = mgl32.Vec3(tangents[i]).Mul(1 / float32(nIndicesPerPos[i])).Normalize()
 		bitangents[i] = mgl32.Vec3(bitangents[i]).Mul(1 / float32(nIndicesPerPos[i])).Normalize()
 	}
-
-	// NOTE(xypwn): These mesh.Normals don't seem quite right
-	// (hence we calculated them manually in the previous block).
-	// Adding 0.5 seems to help marginally, but many normals are
-	// still messed up.
-	// See "Mesh info"->"Vertex normals" in the in-app unit preview
-	// after uncommenting this.
-	/*normals = mesh.Normals
-	for i := range normals {
-		normals[i] = mgl32.Vec3(normals[i]).Sub(mgl32.Vec3{0.5, 0.5, 0.5})
-	}*/
 
 	pv.numUdims = 0
 	for _, uv := range mesh.UVCoords[0] {
