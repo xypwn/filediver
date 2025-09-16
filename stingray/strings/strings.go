@@ -10,7 +10,7 @@ import (
 	"github.com/xypwn/filediver/stingray"
 )
 
-var LanguageFriendlyName = map[stingray.ThinHash]string{
+var LanguageHashToFriendlyName = map[stingray.ThinHash]string{
 	stingray.Sum("bp").Thin(): "Portuguese (Brazil)",
 	stingray.Sum("de").Thin(): "German",
 	stingray.Sum("es").Thin(): "Spanish (Spain)",
@@ -27,6 +27,18 @@ var LanguageFriendlyName = map[stingray.ThinHash]string{
 	stingray.Sum("sc").Thin(): "Chinese (Simplified)",
 	stingray.Sum("tc").Thin(): "Chinese (Traditional)",
 	stingray.Sum("us").Thin(): "English (US)",
+}
+
+var LanguageFriendlyNameToHash map[string]stingray.ThinHash
+var LanguageFriendlyNames []string
+
+func init() {
+	LanguageFriendlyNameToHash = make(map[string]stingray.ThinHash)
+	LanguageFriendlyNames = make([]string, 0)
+	for hash, value := range LanguageHashToFriendlyName {
+		LanguageFriendlyNameToHash[value] = hash
+		LanguageFriendlyNames = append(LanguageFriendlyNames, value)
+	}
 }
 
 type Strings struct {

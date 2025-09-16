@@ -530,9 +530,7 @@ func loadMesh(gpuR io.ReadSeeker, info MeshInfo, layout MeshLayout) (Mesh, error
 					if err := binary.Read(gpuR, binary.LittleEndian, &tmp); err != nil {
 						return Mesh{}, err
 					}
-					val[0] = float32(tmp&0x3ff) / 1023.0
-					val[1] = float32((tmp>>10)&0x3ff) / 1023.0
-					val[2] = float32((tmp>>20)&0x3ff) / 1023.0
+					val = DecodePackedOctahedralNormal(tmp)
 				case FormatVec4F16:
 					var tmp [4]uint16
 					if err := binary.Read(gpuR, binary.LittleEndian, &tmp); err != nil {

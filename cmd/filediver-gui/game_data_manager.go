@@ -17,6 +17,7 @@ import (
 	"github.com/xypwn/filediver/extractor/single_glb_helper"
 	"github.com/xypwn/filediver/hashes"
 	"github.com/xypwn/filediver/stingray"
+	stingray_strings "github.com/xypwn/filediver/stingray/strings"
 )
 
 type GameDataExport struct {
@@ -214,7 +215,7 @@ func (gd *GameDataLoad) loadGameData(ctx context.Context, gameDir string) {
 		}
 	}
 
-	a, err := app.OpenGameDir(ctx, gameDir, app.ParseHashes(hashes.Hashes), app.ParseHashes(hashes.ThinHashes), stingray.Hash{Value: 0x7c7587b563f10985}, func(curr, total int) {
+	a, err := app.OpenGameDir(ctx, gameDir, app.ParseHashes(hashes.Hashes), app.ParseHashes(hashes.ThinHashes), stingray_strings.LanguageFriendlyNameToHash["English (US)"], func(curr, total int) {
 		gd.Lock()
 		gd.Progress = float32(curr+1) / float32(total)
 		gd.Unlock()

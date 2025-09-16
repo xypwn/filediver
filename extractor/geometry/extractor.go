@@ -82,14 +82,12 @@ func convertVertices(gpuR io.ReadSeeker, layout unit.MeshLayout) ([]byte, []Acce
 				}
 			case unit.FormatVec4R10G10B10A2_UNORM:
 				var tmp uint32
-				var val [3]float32
+				var val mgl32.Vec3
 				var err error
 				if err = binary.Read(gpuR, binary.LittleEndian, &tmp); err != nil {
 					return nil, nil, fmt.Errorf("reading gpu data: %v", err)
 				}
-				val[0] = float32(tmp&0x3ff) / 1023.0
-				val[1] = float32((tmp>>10)&0x3ff) / 1023.0
-				val[2] = float32((tmp>>20)&0x3ff) / 1023.0
+				val = unit.DecodePackedOctahedralNormal(tmp)
 				data, err = binary.Append(data, binary.LittleEndian, val)
 				if err != nil {
 					return nil, nil, fmt.Errorf("adding packed vec4 unorm to data: %v", err)
@@ -298,7 +296,7 @@ func createAttributes(doc *gltf.Document, layout unit.MeshLayout, accessorInfo [
 		case unit.ItemPosition:
 			attributes[gltf.POSITION] = accessor
 		case unit.ItemNormal:
-			attributes["COLOR_1"] = accessor
+			attributes[gltf.NORMAL] = accessor
 		case unit.ItemUVCoords:
 			attributes[fmt.Sprintf("TEXCOORD_%v", layout.Items[j].Layer)] = accessor
 		case unit.ItemBoneIdx:
@@ -690,9 +688,9 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, na
 
 		udimPrimitives := make(map[uint32][]*gltf.Primitive)
 		nodeName := fmt.Sprintf("%v %v", unitName, groupName)
-		var transformed bool = false
 		remapped := make(map[uint32]bool)
-		var previousPositionAccessor *gltf.Accessor
+		var transformedPositions, transformedNormals bool = false, false
+		var previousPositionAccessor, previousNormalAccessor *gltf.Accessor
 		for j, group := range header.Groups {
 			// Check if this group is a gib or collision mesh, if it is skip it unless include_lods is set
 			var materialName string
@@ -778,7 +776,7 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, na
 					// Check if there are vertices that still need to be transformed
 					vertexOffset = previousPositionAccessor.Count
 				}
-				if !((transformed && vertexOffset == 0) || transformMatrix.ApproxEqual(mgl32.Ident4())) {
+				if !((transformedPositions && vertexOffset == 0) || transformMatrix.ApproxEqual(mgl32.Ident4())) {
 					// Only transform vertices once, and only perform the multiplications if the transform does something
 					bufferOffset := doc.Accessors[positionAccessor].ByteOffset + doc.BufferViews[vertexBuffer].ByteOffset
 					stride := doc.BufferViews[vertexBuffer].ByteStride
@@ -787,9 +785,29 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, na
 					if err != nil {
 						return err
 					}
-					transformed = true
+					transformedPositions = true
 				}
 				previousPositionAccessor = doc.Accessors[positionAccessor]
+			}
+
+			if normalAccessor, contains := groupAttr[gltf.NORMAL]; contains {
+				var vertexOffset uint32 = 0
+				if previousNormalAccessor != nil && previousNormalAccessor.Count < doc.Accessors[normalAccessor].Count {
+					// Check if there are vertices that still need to be transformed
+					vertexOffset = previousNormalAccessor.Count
+				}
+				if !((transformedNormals && vertexOffset == 0) || transformMatrix.ApproxEqual(mgl32.Ident4())) {
+					// Only transform vertices once, and only perform the multiplications if the transform does something
+					bufferOffset := doc.Accessors[normalAccessor].ByteOffset + doc.BufferViews[vertexBuffer].ByteOffset
+					stride := doc.BufferViews[vertexBuffer].ByteStride
+					buffer := doc.Buffers[doc.BufferViews[vertexBuffer].Buffer]
+					err := transformVertices(buffer, bufferOffset, stride, vertexOffset, doc.Accessors[normalAccessor].Count, transformMatrix)
+					if err != nil {
+						return err
+					}
+					transformedNormals = true
+				}
+				previousNormalAccessor = doc.Accessors[normalAccessor]
 			}
 
 			_, beenRemapped := remapped[*groupIndices]

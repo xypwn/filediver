@@ -7,13 +7,13 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"maps"
 	"os"
 	"os/signal"
 	"reflect"
 	"runtime/pprof"
 	"slices"
 	"sort"
-	"strconv"
 	"strings"
 	"syscall"
 	"text/tabwriter"
@@ -31,18 +31,19 @@ import (
 	"github.com/xypwn/filediver/extractor/single_glb_helper"
 	"github.com/xypwn/filediver/hashes"
 	"github.com/xypwn/filediver/stingray"
+	stingray_strings "github.com/xypwn/filediver/stingray/strings"
 	"github.com/xypwn/filediver/stingray/unit"
 )
 
 // Aliases available in -T option.
-var typeAliases = []string{
-	"audio_stream", "wwise_stream",
-	"audio_bank", "wwise_bank",
-	"video", "bik",
-	"model", "unit,geometry_group",
-	"text", "strings,package,bones",
-	"image", "texture",
-	"animation_set", "state_machine",
+var typeAliases = map[string][]string{
+	"audio_stream":  {"wwise_stream"},
+	"audio_bank":    {"wwise_bank"},
+	"video":         {"bik"},
+	"model":         {"unit", "geometry_group"},
+	"text":          {"strings", "package", "bones"},
+	"image":         {"texture"},
+	"animation_set": {"state_machine"},
 }
 
 func main() {
@@ -60,7 +61,7 @@ func main() {
 	var optExclGlob *string
 	var optInclOnlyTypes *string
 	var optInclArchives *string
-	var optArmorStringsFile *string
+	var optArmorStringsLanguage *string
 	var optMetadataFilter *string
 	var optKnownHashesPath *string
 	var optThinHashListMode *string
@@ -85,13 +86,10 @@ func main() {
 		optExclGlob = argp.String("x", "exclude", &argparse.Option{
 			Help: "exclude matching files from selection (glob syntax, can be mixed with --include)",
 		})
-		if len(typeAliases)%2 != 0 {
-			panic("expected typeAliases to be in chunks of 2")
-		}
 		var typeAliasStrs []string
-		for i := 0; i < len(typeAliases); i += 2 {
+		for _, t := range slices.Sorted(maps.Keys(typeAliases)) {
 			typeAliasStrs = append(typeAliasStrs,
-				typeAliases[i+0]+"->"+typeAliases[i+1],
+				t+"->"+strings.Join(typeAliases[t], ","),
 			)
 		}
 		optInclOnlyTypes = argp.String("T", "types", &argparse.Option{
@@ -101,9 +99,14 @@ func main() {
 		optInclArchives = argp.String("t", "triads", &argparse.Option{
 			Help: "include comma-separated archive name(s) [formerly triads] as found in game data directory, e.g. 0x9ba626afa44a3aa3",
 		})
-		optArmorStringsFile = argp.String("s", "strings", &argparse.Option{
-			Default: "0x7c7587b563f10985",
-			Help:    `strings file to use to map armor set string IDs to names (default: "0x7c7587b563f10985" - en-us)`,
+		langs := make([]any, len(stingray_strings.LanguageFriendlyNames))
+		for i := range langs {
+			langs[i] = stingray_strings.LanguageFriendlyNames[i]
+		}
+		optArmorStringsLanguage = argp.String("s", "strings-language", &argparse.Option{
+			Default: "English (US)",
+			Choices: langs,
+			Help:    "Language to use when exporting armor set name",
 		})
 		optMetadataFilter = argp.String("m", "filter-metadata", &argparse.Option{
 			Help: `metadata search filter (see --help-metadata)`,
@@ -195,9 +198,13 @@ Options:`)
 
 	var inclOnlyTypes []string
 	if *optInclOnlyTypes != "all" {
-		types := strings.NewReplacer(typeAliases...).
-			Replace(*optInclOnlyTypes)
-		inclOnlyTypes = strings.Split(types, ",")
+		for typeName := range strings.SplitSeq(*optInclOnlyTypes, ",") {
+			if replace, ok := typeAliases[typeName]; ok {
+				inclOnlyTypes = append(inclOnlyTypes, replace...)
+			} else {
+				inclOnlyTypes = append(inclOnlyTypes, typeName)
+			}
+		}
 	}
 	var inclArchiveIDs []stingray.Hash
 	if *optInclArchives != "" {
@@ -209,16 +216,6 @@ Options:`)
 			}
 			inclArchiveIDs = append(inclArchiveIDs, hash)
 		}
-	}
-
-	armorStringsHash, err := stingray.ParseHash(*optArmorStringsFile)
-	if err != nil {
-		hashVal, err := strconv.ParseUint(*optArmorStringsFile, 10, 64)
-		if err != nil {
-			prt.Warnf("unable to parse armor strings hash (%v), using default of en-us", err)
-			hashVal = 0x7c7587b563f10985
-		}
-		armorStringsHash = stingray.Hash{Value: hashVal}
 	}
 
 	var gamedir string
@@ -262,7 +259,7 @@ Options:`)
 		cancel()
 	}()
 
-	a, err := app.OpenGameDir(ctx, gamedir, knownHashes, knownThinHashes, armorStringsHash, func(curr, total int) {
+	a, err := app.OpenGameDir(ctx, gamedir, knownHashes, knownThinHashes, stingray_strings.LanguageFriendlyNameToHash[*optArmorStringsLanguage], func(curr, total int) {
 		prt.Statusf("Reading metadata %.0f%%", float64(curr)/float64(total)*100)
 	})
 	if err != nil {

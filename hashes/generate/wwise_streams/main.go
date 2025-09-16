@@ -34,7 +34,7 @@ func main() {
 		prt.Fatalf("Command line option for installation path not implemented in wwise_streams generator. Please open an issue on GitHub")
 	}
 	ctx := context.Background() // no need to exit cleanly since we're only reading
-	a, err := app.OpenGameDir(ctx, gameDir, nil, nil, stingray.Hash{}, func(curr, total int) {
+	a, err := app.OpenGameDir(ctx, gameDir, nil, nil, stingray.ThinHash{}, func(curr, total int) {
 		prt.Statusf("Reading metadata %.0f%%", float64(curr)/float64(total)*100)
 	})
 	if err != nil {
