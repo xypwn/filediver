@@ -1,12 +1,9 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"os"
-	"os/signal"
 	"strconv"
-	"syscall"
 
 	"github.com/hellflame/argparse"
 	"github.com/jwalton/go-supportscolor"
@@ -21,13 +18,6 @@ func main() {
 		os.Stderr,
 		os.Stderr,
 	)
-	ctx, cancel := context.WithCancel(context.Background())
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		<-sigs
-		cancel()
-	}()
 
 	parser := argparse.NewParser("lookup-hash", "", nil)
 	thin := parser.Flag("t", "thin", &argparse.Option{
@@ -59,14 +49,36 @@ func main() {
 	knownHashes := app.ParseHashes(hashes.Hashes)
 	knownThinHashes := app.ParseHashes(hashes.ThinHashes)
 
-	a := app.GenerateHashes(ctx, knownHashes, knownThinHashes, nil)
+	hashesMap := make(map[stingray.Hash]string)
+	for _, h := range knownHashes {
+		hashesMap[stingray.Sum(h)] = h
+	}
+	thinHashesMap := make(map[stingray.ThinHash]string)
+	for _, h := range knownThinHashes {
+		thinHashesMap[stingray.Sum(h).Thin()] = h
+	}
+
+	lookupThinHash := func(hash stingray.ThinHash) string {
+		if name, ok := thinHashesMap[hash]; ok {
+			return name
+		}
+		return hash.String()
+	}
+
+	lookupHash := func(hash stingray.Hash) string {
+		if name, ok := hashesMap[hash]; ok {
+			return name
+		}
+		return hash.String()
+	}
+
 	prt.NoStatus()
 
 	var toPrint string
 	if *thin {
-		toPrint = a.LookupThinHash(stingray.ThinHash{Value: uint32(value)})
+		toPrint = lookupThinHash(stingray.ThinHash{Value: uint32(value)})
 	} else {
-		toPrint = a.LookupHash(stingray.Hash{Value: value})
+		toPrint = lookupHash(stingray.Hash{Value: value})
 	}
 	fmt.Println(toPrint)
 }
