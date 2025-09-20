@@ -18,11 +18,12 @@ type FileMetadata struct {
 	// as having an assigned value.
 	AvailableFields map[string]bool `meta:"true"`
 
-	Type     stingray.Hash   `help:"File type" example:"\"unit\""`
-	Archives []stingray.Hash `help:"Archives the file is contained in"`
-	Width    int             `help:"Texture width"`
-	Height   int             `help:"Texture height"`
-	Format   string          `help:"Texture format" example:"\"BC1UNorm\""`
+	Type     stingray.Hash     `help:"File type" example:"\"unit\""`
+	Archives []stingray.Hash   `help:"Archives the file is contained in"`
+	Width    int               `help:"Texture width"`
+	Height   int               `help:"Texture height"`
+	Format   string            `help:"Texture format" example:"\"BC1UNorm\""`
+	Language stingray.ThinHash `help:"Strings language" example:"\"us\""`
 }
 
 // String representation for metadata types
@@ -42,6 +43,8 @@ func FileMetadataTypeName(fieldName string) string {
 			typStr = "hashes"
 		case reflect.TypeFor[stingray.Hash]():
 			typStr = "hash"
+		case reflect.TypeFor[stingray.ThinHash]():
+			typStr = "thin hash"
 		case reflect.TypeFor[string]():
 			typStr = "string"
 		case reflect.TypeFor[int](), reflect.TypeFor[float64]():
@@ -113,12 +116,25 @@ func newExprEnv(meta FileMetadata) exprEnv {
 		}
 		return h == hash
 	}
+	thinHashEqString := func(hash stingray.ThinHash, s string) bool {
+		if hash == stingray.Sum(s).Thin() {
+			return true
+		}
+		h, err := stingray.ParseThinHash(s)
+		if err != nil {
+			return false
+		}
+		return h == hash
+	}
 	anyEq := func(a, b any) bool {
 		if a, b, ok := matchTypesSymmetric[string, string](a, b); ok {
 			return strings.EqualFold(a, b)
 		}
 		if a, b, ok := matchTypesSymmetric[stingray.Hash, string](a, b); ok {
 			return hashEqString(a, b)
+		}
+		if a, b, ok := matchTypesSymmetric[stingray.ThinHash, string](a, b); ok {
+			return thinHashEqString(a, b)
 		}
 		return runtime.Equal(a, b)
 	}

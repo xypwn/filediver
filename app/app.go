@@ -217,6 +217,19 @@ func getFileMetadata(dataDir *stingray.DataDir) map[stingray.FileID]FileMetadata
 			meta.Height = int(info.Header.Height)
 			meta.Format = info.DXT10Header.DXGIFormat.String()
 			meta.addAvailableFields("Width", "Height", "Format")
+		case stingray.Sum("strings"):
+			b, err := dataDir.ReadAtMost(fileID, stingray.DataMain, 0x10)
+			if err != nil {
+				// ignore for now
+				continue
+			}
+			hdr, err := stingray_strings.LoadHeader(bytes.NewReader(b))
+			if err != nil {
+				// ignore for now
+				continue
+			}
+			meta.Language = hdr.Language
+			meta.addAvailableFields("Language")
 		}
 		metadata[fileID] = meta
 	}
