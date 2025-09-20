@@ -88,6 +88,7 @@ type guiApp struct {
 	archiveIDSearchQuery    string
 	archiveIDs              []widgets.FilterListSection[stingray.Hash]
 	selectedArchives        map[stingray.Hash]struct{}
+	scrollToSelectedFile    bool
 	historyStack            []stingray.FileID
 	historyStackIndex       int
 
@@ -577,18 +578,6 @@ func (a *guiApp) drawBrowserWindow() {
 			}
 			a.gameDataLoad.Unlock()
 		} else {
-			var newActiveFileID stingray.FileID
-			if a.previewState != nil {
-				newActiveFileID = a.previewState.ActiveID()
-			}
-
-			// Set this to true if the new activeFileID
-			// may not be visible in the current clipping
-			// region.
-			forceUpdateSelected := false
-			// true if the item was selected through a history button.
-			noPushToHistory := false
-
 			searchBarWidth := imgui.ContentRegionAvail().X
 			{
 				style := imgui.CurrentStyle()
@@ -604,6 +593,7 @@ func (a *guiApp) drawBrowserWindow() {
 			if imgui.InputTextWithHint("##SearchName", fnt.I("Search")+" Filter by file name...", &a.gameFileSearchQuery, 0, nil) {
 				a.gameData.UpdateSearchQuery(a.gameFileSearchQuery, a.selectedGameFileTypes, a.selectedArchives)
 				a.allSelectedForExport = a.calcAllSelectedForExport()
+				a.scrollToSelectedFile = true
 			}
 			searchInputTextData := imgui.CurrentContext().LastItemData()
 			imgui.SetItemTooltip("Filter by file name (Ctrl+F)")
@@ -631,9 +621,19 @@ func (a *guiApp) drawBrowserWindow() {
 				imgui.EndChild()
 			}
 
-			if newActiveID, ok := a.drawHistoryButtons(); ok {
-				newActiveFileID = newActiveID
-				forceUpdateSelected = true
+			var newActiveFileID stingray.FileID
+			if a.previewState != nil {
+				newActiveFileID = a.previewState.ActiveID()
+			}
+			if jumpToFile, ok := widgets.PopGamefileLinkFile(); ok {
+				newActiveFileID = jumpToFile
+				a.scrollToSelectedFile = true
+			}
+
+			noPushToHistory := false // item selected through a history button
+			if newID, ok := a.drawHistoryButtons(); ok {
+				newActiveFileID = newID
+				a.scrollToSelectedFile = true
 				noPushToHistory = true
 			}
 			imgui.SameLine()
@@ -677,16 +677,9 @@ func (a *guiApp) drawBrowserWindow() {
 				imgui.TableSetupScrollFreeze(0, 1)
 				imgui.TableHeadersRow()
 
-				if jumpToFile, ok := widgets.PopGamefileLinkFile(); ok {
-					if i := slices.Index(a.gameData.SortedSearchResultFileIDs, jumpToFile); i != -1 {
-						newActiveFileID = jumpToFile
-						forceUpdateSelected = true
-					}
-				}
-
 				clipper := imgui.NewListClipper()
 				clipper.Begin(int32(len(a.gameData.SortedSearchResultFileIDs)))
-				if forceUpdateSelected {
+				if a.scrollToSelectedFile {
 					if i := slices.Index(a.gameData.SortedSearchResultFileIDs, newActiveFileID); i != -1 {
 						clipper.IncludeItemByIndex(int32(i))
 					}
@@ -731,7 +724,7 @@ func (a *guiApp) drawBrowserWindow() {
 							id == newActiveFileID,
 							imgui.SelectableFlagsSpanAllColumns|imgui.SelectableFlags(imgui.SelectableFlagsSelectOnNav),
 							imgui.NewVec2(0, 0),
-						) || (forceUpdateSelected && id == newActiveFileID)
+						) || (a.scrollToSelectedFile && id == newActiveFileID)
 						copied := false
 						if id == newActiveFileID && imgui.Shortcut(imgui.KeyChord(imgui.ModCtrl|imgui.KeyC)) {
 							copied = true
@@ -773,8 +766,12 @@ func (a *guiApp) drawBrowserWindow() {
 
 						if selected {
 							newActiveFileID = id
-							if forceUpdateSelected {
+							if a.scrollToSelectedFile {
 								imgui.SetScrollHereY()
+								// BUG: When using nav (tab/arrow keys) to navigate after
+								// a scrollToNewActiveFileID frame, the nav thinks it's at
+								// the last item that was manually selected, not the one
+								// that was automatically scrolled to.
 							}
 						}
 					}
@@ -783,7 +780,7 @@ func (a *guiApp) drawBrowserWindow() {
 				imgui.EndTable()
 			}
 
-			if newActiveFileID != a.previewState.ActiveID() {
+			if a.previewState != nil && newActiveFileID != a.previewState.ActiveID() {
 				if !noPushToHistory {
 					a.historyPush(a.previewState.ActiveID(), newActiveFileID)
 				}
@@ -794,6 +791,8 @@ func (a *guiApp) drawBrowserWindow() {
 		}
 	}
 	imgui.End()
+
+	a.scrollToSelectedFile = false
 }
 
 func (a *guiApp) drawTypeFilterWindow() {
@@ -830,6 +829,7 @@ func (a *guiApp) drawTypeFilterWindow() {
 	) {
 		a.gameData.UpdateSearchQuery(a.gameFileSearchQuery, a.selectedGameFileTypes, a.selectedArchives)
 		a.allSelectedForExport = a.calcAllSelectedForExport()
+		a.scrollToSelectedFile = true
 	}
 }
 
@@ -891,6 +891,7 @@ func (a *guiApp) drawArchiveFilterWindow() {
 	) {
 		a.gameData.UpdateSearchQuery(a.gameFileSearchQuery, a.selectedGameFileTypes, a.selectedArchives)
 		a.allSelectedForExport = a.calcAllSelectedForExport()
+		a.scrollToSelectedFile = true
 	}
 }
 

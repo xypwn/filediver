@@ -122,7 +122,9 @@ type UnitPreviewState struct {
 	aabb    [2]mgl32.Vec3
 	aabbMat mgl32.Mat4
 
-	meshPositions [][3]float32 // for fitting mesh to screen and calculating maxViewDistance
+	// For fitting mesh to screen and debug info
+	meshPositions [][3]float32
+	meshNormals   [][3]float32
 
 	maxViewDistance float32
 
@@ -134,14 +136,14 @@ type UnitPreviewState struct {
 	activeUDimListItem  int32
 	hoveredUDimListItem int32
 
-	showWireframe          bool
-	wireframeColor         [4]float32
-	showAABB               bool
-	aabbColor              [4]float32
-	visualizeNormals       bool
-	visualizedNormalsColor [4]float32
-	zoomToFitOnLoad        bool
-	zoomToFit              bool // set view distance to fit mesh
+	showWireframe             bool
+	wireframeColor            [4]float32
+	showAABB                  bool
+	aabbColor                 [4]float32
+	visualizeNormals          bool
+	visualizeTangentBitangent int32 // 1 or 0
+	zoomToFitOnLoad           bool
+	zoomToFit                 bool // set view distance to fit mesh
 }
 
 func NewUnitPreview() (*UnitPreviewState, error) {
@@ -182,7 +184,7 @@ func NewUnitPreview() (*UnitPreviewState, error) {
 	if err != nil {
 		return nil, err
 	}
-	pv.objectNormalVisUniforms.generate(pv.objectNormalVisProgram, "mvp", "len", "color", "udimShown")
+	pv.objectNormalVisUniforms.generate(pv.objectNormalVisProgram, "mvp", "len", "showTangentBitangent", "udimShown")
 
 	pv.dbgObj.genObjects(false)
 	pv.dbgObjProgram, err = glutils.CreateProgramFromSources(unitPreviewShaderCode,
@@ -216,7 +218,6 @@ func NewUnitPreview() (*UnitPreviewState, error) {
 
 	pv.wireframeColor = [4]float32{1.0, 1.0, 1.0, 0.5}
 	pv.aabbColor = [4]float32{0.3, 0.3, 0.8, 0.2}
-	pv.visualizedNormalsColor = [4]float32{1.0, 1.0, 0.0, 1.0}
 
 	return pv, nil
 }
@@ -410,59 +411,6 @@ func (pv *UnitPreviewState) LoadUnit(mainData, gpuData []byte, getResource GetRe
 	pv.object.numIndices = int32(len(indices))
 	pv.object.numVertices = int32(len(mesh.Positions))
 
-	// Calculate tangents and bitangents
-	normals := mesh.Normals
-	tangents := make([][3]float32, len(mesh.Positions))
-	bitangents := make([][3]float32, len(mesh.Positions))
-	nIndicesPerPos := make([]int, len(mesh.Positions))
-	for i := 0; i < len(indices); i += 3 {
-		i1 := indices[i+0]
-		i2 := indices[i+1]
-		i3 := indices[i+2]
-
-		p1 := mgl32.Vec3(mesh.Positions[i1])
-		p2 := mgl32.Vec3(mesh.Positions[i2])
-		p3 := mgl32.Vec3(mesh.Positions[i3])
-		uv1 := mgl32.Vec2(mesh.UVCoords[0][i1])
-		uv2 := mgl32.Vec2(mesh.UVCoords[0][i2])
-		uv3 := mgl32.Vec2(mesh.UVCoords[0][i3])
-
-		edge1 := p2.Sub(p1)
-		edge2 := p3.Sub(p1)
-		deltaUV1 := uv2.Sub(uv1)
-		deltaUV2 := uv3.Sub(uv1)
-
-		tb := mgl32.Mat2FromRows(
-			mgl32.Vec2{deltaUV2.Y(), -deltaUV1.Y()},
-			mgl32.Vec2{-deltaUV2.X(), deltaUV1.X()},
-		).Mul2x3(mgl32.Mat2x3FromRows(
-			edge1,
-			edge2,
-		)).Mul(
-			1.0 / (deltaUV1.X()*deltaUV2.Y() - deltaUV2.X()*deltaUV1.Y()),
-		)
-
-		tangent, bitangent := tb.Rows()
-		tangent = tangent.Normalize()
-		bitangent = bitangent.Normalize()
-
-		// Accumulate
-		tangents[i1] = mgl32.Vec3(tangents[i1]).Add(tangent)
-		tangents[i2] = mgl32.Vec3(tangents[i2]).Add(tangent)
-		tangents[i3] = mgl32.Vec3(tangents[i3]).Add(tangent)
-		bitangents[i1] = mgl32.Vec3(bitangents[i1]).Add(bitangent)
-		bitangents[i2] = mgl32.Vec3(bitangents[i2]).Add(bitangent)
-		bitangents[i3] = mgl32.Vec3(bitangents[i3]).Add(bitangent)
-		nIndicesPerPos[i1]++
-		nIndicesPerPos[i2]++
-		nIndicesPerPos[i3]++
-	}
-	for _, i := range indices {
-		// Average
-		tangents[i] = mgl32.Vec3(tangents[i]).Mul(1 / float32(nIndicesPerPos[i])).Normalize()
-		bitangents[i] = mgl32.Vec3(bitangents[i]).Mul(1 / float32(nIndicesPerPos[i])).Normalize()
-	}
-
 	pv.numUdims = 0
 	for _, uv := range mesh.UVCoords[0] {
 		udim := uint32(uv[0]) | uint32(1-uv[1])<<5
@@ -477,10 +425,10 @@ func (pv *UnitPreviewState) LoadUnit(mainData, gpuData []byte, getResource GetRe
 		gl.BindVertexArray(pv.object.vao)
 
 		positionsSize := len(mesh.Positions) * 3 * 4
-		normalsSize := len(normals) * 3 * 4
+		normalsSize := len(mesh.Normals) * 3 * 4
 		uvsSize := len(mesh.UVCoords[0]) * 2 * 4
-		tangentsSize := len(tangents) * 3 * 4
-		bitangentsSize := len(bitangents) * 3 * 4
+		tangentsSize := len(mesh.Tangents) * 3 * 4
+		bitangentsSize := len(mesh.Bitangents) * 3 * 4
 
 		gl.BindBuffer(gl.ARRAY_BUFFER, pv.object.vbo)
 		gl.BufferData(gl.ARRAY_BUFFER, positionsSize+normalsSize+uvsSize+tangentsSize+bitangentsSize, nil, gl.STATIC_DRAW)
@@ -491,7 +439,7 @@ func (pv *UnitPreviewState) LoadUnit(mainData, gpuData []byte, getResource GetRe
 		gl.EnableVertexAttribArray(0)
 		offset += positionsSize
 		//
-		gl.BufferSubData(gl.ARRAY_BUFFER, offset, normalsSize, gl.Ptr(normals))
+		gl.BufferSubData(gl.ARRAY_BUFFER, offset, normalsSize, gl.Ptr(mesh.Normals))
 		gl.VertexAttribPointerWithOffset(1, 3, gl.FLOAT, true, 3*4, uintptr(offset))
 		gl.EnableVertexAttribArray(1)
 		offset += normalsSize
@@ -501,12 +449,12 @@ func (pv *UnitPreviewState) LoadUnit(mainData, gpuData []byte, getResource GetRe
 		gl.EnableVertexAttribArray(2)
 		offset += uvsSize
 		//
-		gl.BufferSubData(gl.ARRAY_BUFFER, offset, tangentsSize, gl.Ptr(tangents))
+		gl.BufferSubData(gl.ARRAY_BUFFER, offset, tangentsSize, gl.Ptr(mesh.Tangents))
 		gl.VertexAttribPointerWithOffset(3, 3, gl.FLOAT, true, 3*4, uintptr(offset))
 		gl.EnableVertexAttribArray(3)
 		offset += tangentsSize
 		//
-		gl.BufferSubData(gl.ARRAY_BUFFER, offset, bitangentsSize, gl.Ptr(bitangents))
+		gl.BufferSubData(gl.ARRAY_BUFFER, offset, bitangentsSize, gl.Ptr(mesh.Bitangents))
 		gl.VertexAttribPointerWithOffset(4, 3, gl.FLOAT, true, 3*4, uintptr(offset))
 		gl.EnableVertexAttribArray(4)
 		offset += bitangentsSize
@@ -518,6 +466,7 @@ func (pv *UnitPreviewState) LoadUnit(mainData, gpuData []byte, getResource GetRe
 	}
 
 	pv.meshPositions = mesh.Positions
+	pv.meshNormals = mesh.Normals
 
 	// Upload debug object data
 	{
@@ -697,9 +646,9 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 				gl.BindVertexArray(pv.object.vao)
 				gl.UniformMatrix4fv(pv.objectNormalVisUniforms["mvp"], 1, false, &mvp[0])
 				gl.Uniform1f(pv.objectNormalVisUniforms["len"], pv.viewDistance*0.02)
-				gl.Uniform4fv(pv.objectNormalVisUniforms["color"], 1, &pv.visualizedNormalsColor[0])
+				gl.Uniform1iv(pv.objectNormalVisUniforms["showTangentBitangent"], 1, &pv.visualizeTangentBitangent)
 				gl.Uniform1iv(pv.objectNormalVisUniforms["udimShown"], 64, &pv.udimsShown[0])
-				gl.DrawElements(gl.TRIANGLES, pv.object.numIndices, gl.UNSIGNED_INT, nil)
+				gl.DrawElements(gl.POINTS, pv.object.numIndices, gl.UNSIGNED_INT, nil) // TODO: Make this not draw duplicate vertices
 				gl.BindVertexArray(0)
 				gl.UseProgram(0)
 			}
@@ -843,6 +792,45 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 					indicatorColor,
 					text,
 				)
+
+			}
+
+			_, _, view, projection := pv.computeMVP(size.X / size.Y)
+			mvp := projection.Mul4(view).Mul4(pv.model)
+
+			// Show hovered vertex info
+			if pv.visualizeNormals {
+				igRelMousePos := imgui.MousePos().Sub(pos)
+				mousePos := mgl32.Vec2{
+					igRelMousePos.X,
+					igRelMousePos.Y,
+				}
+				var closestPos mgl32.Vec2
+				closestDist := float32(math.MaxFloat32)
+				var closestIdx int
+				for i, vtx := range pv.meshPositions {
+					v := mvp.Mul4x1(mgl32.Vec3(vtx).Vec4(1.0))
+					v = v.Mul(1 / v.W())
+					v[0] = (v[0] + 1) * size.X * 0.5
+					v[1] = (-v[1] + 1) * size.Y * 0.5
+					dist := mousePos.Sub(v.Vec2()).LenSqr()
+					if dist < closestDist {
+						closestPos = v.Vec2()
+						closestDist = dist
+						closestIdx = i
+					}
+				}
+				markerPos := pos.Add(imgui.NewVec2(closestPos.X(), closestPos.Y()))
+				dl.AddCircleFilled(
+					markerPos,
+					imutils.S(2),
+					imgui.ColorU32Vec4(imgui.NewVec4(1, 0, 0, 1)),
+				)
+				dl.AddTextVec2(
+					markerPos,
+					imgui.ColorU32Vec4(imgui.NewVec4(1, 1, 0, 1)),
+					fmt.Sprintf("Pos: %v\nNormal: %v", pv.meshPositions[closestIdx], pv.meshNormals[closestIdx]),
+				)
 			}
 		},
 	)
@@ -882,8 +870,22 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 		imgui.ColorEdit4V("Bounding box color", &pv.aabbColor, colorPickerFlags)
 
 		imgui.Checkbox("Vertex normals", &pv.visualizeNormals)
-		imgui.SameLineV(imutils.S(170), -1)
-		imgui.ColorEdit4V("Vertex normals color", &pv.visualizedNormalsColor, colorPickerFlags)
+		imgui.SetItemTooltip("Normal is blue")
+		{
+			imgui.BeginDisabledV(!pv.visualizeNormals)
+			check := pv.visualizeTangentBitangent != 0
+			imgui.Checkbox("Vertex tangent and bitangent", &check)
+			if pv.visualizeNormals {
+				imgui.SetItemTooltip("Tangent is red, bitangent is green")
+			} else {
+				imgui.SetItemTooltip("Requires normals to be shown")
+			}
+			pv.visualizeTangentBitangent = 0
+			if check {
+				pv.visualizeTangentBitangent = 1
+			}
+			imgui.EndDisabled()
+		}
 		imgui.Unindent()
 
 		imgui.EndPopup()

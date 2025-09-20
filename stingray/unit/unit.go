@@ -458,6 +458,8 @@ type Mesh struct {
 	Positions   [][3]float32
 	UVCoords    [][][2]float32
 	Normals     [][3]float32
+	Tangents    [][3]float32
+	Bitangents  [][3]float32
 	BoneIndices [][][4]uint8
 	BoneWeights [][4]float32
 	Indices     [][]uint32
@@ -523,26 +525,30 @@ func loadMesh(gpuR io.ReadSeeker, info MeshInfo, layout MeshLayout) (Mesh, error
 				}
 				mesh.Positions = append(mesh.Positions, v)
 			case ItemNormal:
-				var val [3]float32
+				var normal mgl32.Vec3
+				var tangent mgl32.Vec3
+				var bitangent mgl32.Vec3
 				switch item.Format {
 				case FormatVec4R10G10B10A2_UNORM:
 					var tmp uint32
 					if err := binary.Read(gpuR, binary.LittleEndian, &tmp); err != nil {
 						return Mesh{}, err
 					}
-					val = DecodePackedOctahedralNormal(tmp)
+					normal, tangent, bitangent = DecodePackedNormal(tmp)
 				case FormatVec4F16:
 					var tmp [4]uint16
 					if err := binary.Read(gpuR, binary.LittleEndian, &tmp); err != nil {
 						return Mesh{}, err
 					}
-					for i := range val {
-						val[i] = float16.Frombits(tmp[i]).Float32()
+					for i := range normal {
+						normal[i] = float32(float16.Frombits(tmp[i]).Float32())
 					}
 				default:
 					return Mesh{}, fmt.Errorf("expected normal item to have format packed32u or [4]float16, but got: %v", item.Format)
 				}
-				mesh.Normals = append(mesh.Normals, val)
+				mesh.Normals = append(mesh.Normals, normal)
+				mesh.Tangents = append(mesh.Tangents, tangent)
+				mesh.Bitangents = append(mesh.Bitangents, bitangent)
 			case 2:
 				if item.Format != FormatVec4F16 {
 					return Mesh{}, fmt.Errorf("expected type 2 item to have format [4]float16, but got: %v", item.Format)
