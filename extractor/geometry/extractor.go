@@ -47,10 +47,10 @@ func convertFloat16Slice(gpuR io.ReadSeeker, data []byte, tmpArr []uint16, extra
 	return data, size, nil
 }
 
-func convertVertices(gpuR io.ReadSeeker, layout unit.MeshLayout) ([]byte, []AccessorInfo, error) {
+func convertVertices(gpuR io.ReadSeeker, layout unit.MeshLayout) ([]byte, [][]AccessorInfo, error) {
 	data := make([]byte, 0)
 	dataLen := len(data)
-	accessorStructure := make([]AccessorInfo, 0, layout.NumItems)
+	accessorStructure := make([][]AccessorInfo, 0, layout.NumItems)
 	if _, err := gpuR.Seek(int64(layout.VertexOffset), io.SeekStart); err != nil {
 		return nil, nil, err
 	}
@@ -74,11 +74,11 @@ func convertVertices(gpuR io.ReadSeeker, layout unit.MeshLayout) ([]byte, []Acce
 					return nil, nil, fmt.Errorf("adding packed vec4 typeless to data: %v", err)
 				}
 				if vertex == 0 {
-					accessorStructure = append(accessorStructure, AccessorInfo{
+					accessorStructure = append(accessorStructure, []AccessorInfo{{
 						AccessorType:  gltf.AccessorVec4,
 						ComponentType: gltf.ComponentFloat,
 						Size:          16,
-					})
+					}})
 				}
 			case unit.FormatVec4R10G10B10A2_UNORM:
 				var tmp uint32
@@ -86,17 +86,33 @@ func convertVertices(gpuR io.ReadSeeker, layout unit.MeshLayout) ([]byte, []Acce
 				if err = binary.Read(gpuR, binary.LittleEndian, &tmp); err != nil {
 					return nil, nil, fmt.Errorf("reading gpu data: %v", err)
 				}
-				normal, _, _ := unit.DecodePackedNormal(tmp)
-				data, err = binary.Append(data, binary.LittleEndian, normal)
+				bitangentDirection := float32(1)
+				if tmp>>30 == 3 {
+					bitangentDirection = -1
+				}
+				normal, tangent, _ := unit.DecodePackedNormal(tmp)
+				data, err = binary.Append(data, binary.LittleEndian, struct {
+					N mgl32.Vec3
+					T mgl32.Vec4
+				}{
+					N: normal,
+					T: tangent.Vec4(bitangentDirection),
+				})
 				if err != nil {
 					return nil, nil, fmt.Errorf("adding packed vec4 unorm to data: %v", err)
 				}
 				if vertex == 0 {
-					accessorStructure = append(accessorStructure, AccessorInfo{
+					accessorStructure = append(accessorStructure, []AccessorInfo{{
+						// Normal
 						AccessorType:  gltf.AccessorVec3,
 						ComponentType: gltf.ComponentFloat,
 						Size:          12,
-					})
+					}, {
+						// Tangent (XYZ) + bitangent direction (W)
+						AccessorType:  gltf.AccessorVec4,
+						ComponentType: gltf.ComponentFloat,
+						Size:          16,
+					}})
 				}
 			case unit.FormatF16:
 				fallthrough
@@ -118,11 +134,11 @@ func convertVertices(gpuR io.ReadSeeker, layout unit.MeshLayout) ([]byte, []Acce
 					return nil, nil, fmt.Errorf("converting float16 slice: %v", err)
 				}
 				if vertex == 0 {
-					accessorStructure = append(accessorStructure, AccessorInfo{
+					accessorStructure = append(accessorStructure, []AccessorInfo{{
 						AccessorType:  accessorType,
 						ComponentType: gltf.ComponentFloat,
 						Size:          size,
-					})
+					}})
 				}
 			case unit.FormatF32:
 				fallthrough
@@ -162,11 +178,11 @@ func convertVertices(gpuR io.ReadSeeker, layout unit.MeshLayout) ([]byte, []Acce
 					item.Format = unit.FormatVec4F
 				}
 				if vertex == 0 {
-					accessorStructure = append(accessorStructure, AccessorInfo{
+					accessorStructure = append(accessorStructure, []AccessorInfo{{
 						AccessorType:  item.Format.Type(),
 						ComponentType: item.Format.ComponentType(),
 						Size:          uint32(item.Format.Size()),
-					})
+					}})
 				}
 			default:
 				return nil, nil, fmt.Errorf("Unknown format %v for type %v", item.Format.String(), item.Type.String())
@@ -251,7 +267,7 @@ func remapJoints(buffer *gltf.Buffer, stride, bufferOffset, vertexCount uint32, 
 	return nil
 }
 
-func addMeshLayoutVertexBuffer(doc *gltf.Document, data []byte, accessorInfo []AccessorInfo) (uint32, error) {
+func addMeshLayoutVertexBuffer(doc *gltf.Document, data []byte, accessorInfo [][]AccessorInfo) (uint32, error) {
 	ensurePadding(doc)
 	buffer := lastBuffer(doc)
 	offset := uint32(len(buffer.Data))
@@ -259,8 +275,10 @@ func addMeshLayoutVertexBuffer(doc *gltf.Document, data []byte, accessorInfo []A
 	buffer.Data = append(buffer.Data, data...)
 	buffer.ByteLength += uint32(len(data))
 	convertedVertexStride := uint32(0)
-	for _, info := range accessorInfo {
-		convertedVertexStride += info.Size
+	for i := range accessorInfo {
+		for j := range accessorInfo[i] {
+			convertedVertexStride += accessorInfo[i][j].Size
+		}
 	}
 
 	doc.BufferViews = append(doc.BufferViews, &gltf.BufferView{
@@ -274,34 +292,41 @@ func addMeshLayoutVertexBuffer(doc *gltf.Document, data []byte, accessorInfo []A
 	return uint32(len(doc.BufferViews) - 1), nil
 }
 
-func createAttributes(doc *gltf.Document, layout unit.MeshLayout, accessorInfo []AccessorInfo) map[string]*gltf.Accessor {
+func createAttributes(doc *gltf.Document, layout unit.MeshLayout, accessorInfo [][]AccessorInfo) map[string]*gltf.Accessor {
 	attributes := make(map[string]*gltf.Accessor)
 
 	var byteOffset uint32 = 0
-	for j := 0; j < int(layout.NumItems); j++ {
-		item := accessorInfo[j]
-		accessor := &gltf.Accessor{
-			BufferView:    gltf.Index(uint32(len(doc.BufferViews)) - 1),
-			ByteOffset:    uint32(byteOffset),
-			ComponentType: item.ComponentType,
-			Type:          item.AccessorType,
-			Count:         layout.NumVertices,
-		}
-		byteOffset += item.Size
-		if layout.Items[j].Type == unit.ItemBoneIdx && layout.Items[j].Layer != 0 {
+	for itemIdx := 0; itemIdx < int(layout.NumItems); itemIdx++ {
+		if layout.Items[itemIdx].Type == unit.ItemBoneIdx && layout.Items[itemIdx].Layer != 0 {
 			continue
 		}
-		switch layout.Items[j].Type {
+
+		// A stingray item maps to one or more glTF accessors
+		accessors := make([]*gltf.Accessor, len(accessorInfo[itemIdx]))
+		for i := range accessorInfo[itemIdx] {
+			info := accessorInfo[itemIdx][i]
+			accessors[i] = &gltf.Accessor{
+				BufferView:    gltf.Index(uint32(len(doc.BufferViews)) - 1),
+				ByteOffset:    uint32(byteOffset),
+				ComponentType: info.ComponentType,
+				Type:          info.AccessorType,
+				Count:         layout.NumVertices,
+			}
+			byteOffset += info.Size
+		}
+
+		switch layout.Items[itemIdx].Type {
 		case unit.ItemPosition:
-			attributes[gltf.POSITION] = accessor
+			attributes[gltf.POSITION] = accessors[0]
 		case unit.ItemNormal:
-			attributes[gltf.NORMAL] = accessor
+			attributes[gltf.NORMAL] = accessors[0]
+			attributes[gltf.TANGENT] = accessors[1]
 		case unit.ItemUVCoords:
-			attributes[fmt.Sprintf("TEXCOORD_%v", layout.Items[j].Layer)] = accessor
+			attributes[fmt.Sprintf("TEXCOORD_%v", layout.Items[itemIdx].Layer)] = accessors[0]
 		case unit.ItemBoneIdx:
-			attributes[fmt.Sprintf("JOINTS_%v", layout.Items[j].Layer)] = accessor
+			attributes[fmt.Sprintf("JOINTS_%v", layout.Items[itemIdx].Layer)] = accessors[0]
 		case unit.ItemBoneWeight:
-			attributes[fmt.Sprintf("WEIGHTS_%v", layout.Items[j].Layer)] = accessor
+			attributes[fmt.Sprintf("WEIGHTS_%v", layout.Items[itemIdx].Layer)] = accessors[0]
 		}
 	}
 	return attributes
