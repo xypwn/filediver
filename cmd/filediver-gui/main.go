@@ -92,6 +92,8 @@ type guiApp struct {
 	historyStack            []stingray.FileID
 	historyStackIndex       int
 
+	shouldSetupWindowFocus bool
+
 	checkUpdatesOnStartupBGDone bool
 	checkUpdatesOnStartupFGDone bool
 	checkingForUpdates          bool
@@ -142,6 +144,7 @@ func newGUIApp(showErrorPopup func(error)) *guiApp {
 		filesSelectedForExport:     map[stingray.FileID]struct{}{},
 		selectedGameFileTypes:      map[stingray.Hash]struct{}{},
 		selectedArchives:           map[stingray.Hash]struct{}{},
+		shouldSetupWindowFocus:     true,
 		exportDir:                  filepath.Join(xdg.UserDirs.Download, "filediver_exports"),
 		exportNotifyWhenDone:       true,
 		extractorConfig:            extractorConfig,
@@ -318,6 +321,7 @@ func (a *guiApp) onDraw(state *imgui_wrapper.State) {
 			imgui.InternalDockBuilderDockWindow(fnt.I("File_export")+" Export", bottomLeftID)
 			imgui.InternalDockBuilderDockWindow(fnt.I("Settings_applications")+" Extractor config", bottomLeftID)
 			imgui.InternalDockBuilderDockWindow(fnt.I("Preview")+" Preview", rightID)
+			imgui.InternalDockBuilderDockWindow(fnt.I("Tag")+" Metadata", rightID)
 			imgui.InternalDockBuilderFinish(id)
 		}
 		imgui.DockSpaceV(id, imgui.NewVec2(0, 0), 0, winClass)
@@ -333,6 +337,12 @@ func (a *guiApp) onDraw(state *imgui_wrapper.State) {
 	a.drawExtractorConfigWindow()
 	a.drawLogWindow()
 	a.drawPreviewWindow(state)
+	a.drawMetadataWindow()
+
+	if a.shouldSetupWindowFocus {
+		imgui.SetWindowFocusStr(fnt.I("Preview") + " Preview")
+		a.shouldSetupWindowFocus = false
+	}
 
 	// drawXXXPopup functions use an
 	// imutils.PopupManager, meaning
@@ -568,7 +578,15 @@ func (a *guiApp) drawBrowserWindow() {
 			}
 			a.gameDataLoad.Unlock()
 		} else {
-			imgui.SetNextItemWidth(-math.SmallestNonzeroFloat32)
+			searchBarWidth := imgui.ContentRegionAvail().X
+			{
+				style := imgui.CurrentStyle()
+				imgui.CalcItemWidth()
+				searchBarWidth -= imgui.CalcTextSize(fnt.I("Help")).X +
+					style.ItemSpacing().X +
+					2*style.FramePadding().X
+			}
+			imgui.SetNextItemWidth(searchBarWidth)
 			if imgui.Shortcut(imgui.KeyChord(imgui.ModCtrl | imgui.KeyF)) {
 				imgui.SetKeyboardFocusHere()
 			}
@@ -577,7 +595,31 @@ func (a *guiApp) drawBrowserWindow() {
 				a.allSelectedForExport = a.calcAllSelectedForExport()
 				a.scrollToSelectedFile = true
 			}
+			searchInputTextData := imgui.CurrentContext().LastItemData()
 			imgui.SetItemTooltip("Filter by file name (Ctrl+F)")
+			imgui.SameLine()
+			if imgui.Button(fnt.I("Help")) {
+				imgui.OpenPopupStr("##MetadataSearchHelp")
+			}
+			imgui.SetItemTooltip("Metadata search help")
+			if imgui.BeginPopup("##MetadataSearchHelp") {
+				DrawMetadataSearchHelp()
+				imgui.EndPopup()
+			}
+
+			if a.gameData.FilterExprErr != nil {
+				itm := searchInputTextData
+				bottomLeft := imgui.NewVec2(itm.Rect().Min.X, itm.Rect().Max.Y)
+				width := itm.Rect().Max.X - itm.Rect().Min.X
+				flags := imgui.ChildFlagsFrameStyle | imgui.ChildFlagsAutoResizeY | imgui.ChildFlagsAlwaysAutoResize
+				imgui.SetNextWindowPos(bottomLeft)
+				if imgui.BeginChildStrV("FilterExprErr", imgui.NewVec2(width, 0), flags, 0) {
+					imgui.PushFont(imgui_wrapper.FontMono)
+					imutils.TextError(a.gameData.FilterExprErr)
+					imgui.PopFont()
+				}
+				imgui.EndChild()
+			}
 
 			var newActiveFileID stingray.FileID
 			if a.previewState != nil {
@@ -1037,6 +1079,19 @@ func (a *guiApp) drawPreviewWindow(state *imgui_wrapper.State) {
 	imgui.End()
 }
 
+func (a *guiApp) drawMetadataWindow() {
+	if imgui.Begin(fnt.I("Tag") + " Metadata") {
+		if a.gameData != nil && a.previewState != nil && a.previewState.ActiveID() != (stingray.FileID{}) {
+			widgets.FileMetadata(a.gameData.Metadata[a.previewState.ActiveID()])
+		} else {
+			imgui.PushTextWrapPos()
+			imgui.TextUnformatted("No file selected")
+			imgui.PopTextWrapPos()
+		}
+	}
+	imgui.End()
+}
+
 func (a *guiApp) drawCheckForUpdatesPopup() {
 	a.checkUpdatesLock.Lock()
 	if a.checkUpdatesOnStartupBGDone && !a.checkUpdatesOnStartupFGDone {
@@ -1211,22 +1266,22 @@ func (a *guiApp) drawAboutPopup() {
 		} else {
 			imgui.TextUnformatted("development version")
 		}
-		imgui.Separator()
-		if imgui.CollapsingHeaderBoolPtr("License", nil) {
-			imgui.PushTextWrapPos()
-			imgui.TextUnformatted(license)
+		drawLicense := func(heading, body string) {
+			if imgui.CollapsingHeaderBoolPtr(heading, nil) {
+				imgui.PushTextWrapPos()
+				imgui.PushFont(imgui_wrapper.FontMono)
+				imgui.TextUnformatted(body)
+				imgui.PopFont()
+				imgui.PopTextWrapPos()
+			}
 		}
+		imgui.Separator()
+		drawLicense("License", license)
 		imgui.Separator()
 		if imgui.CollapsingHeaderBoolPtr("Font Licenses", nil) {
 			imgui.Indent()
-			if imgui.CollapsingHeaderBoolPtr("Noto", nil) {
-				imgui.PushTextWrapPos()
-				imgui.TextUnformatted(fnt.TextFontLicense)
-			}
-			if imgui.CollapsingHeaderBoolPtr("Material Symbols", nil) {
-				imgui.PushTextWrapPos()
-				imgui.TextUnformatted(fnt.IconFontLicense)
-			}
+			drawLicense("Noto", fnt.TextFontLicense)
+			drawLicense("Material Symbols", fnt.IconFontLicense)
 			imgui.Unindent()
 		}
 		imgui.Separator()

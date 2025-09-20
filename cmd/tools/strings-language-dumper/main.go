@@ -39,7 +39,7 @@ func main() {
 		prt.Fatalf("Error opening game dir: %v", err)
 	}
 
-	files, err := a.MatchingFiles("", "", nil, nil)
+	files, err := a.MatchingFiles("", "", nil, nil, "")
 	if err != nil {
 		prt.Fatalf("Error matching files: %v", err)
 	}
