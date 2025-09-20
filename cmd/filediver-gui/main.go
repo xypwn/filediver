@@ -741,7 +741,7 @@ func (a *guiApp) drawBrowserWindow() {
 				imgui.EndTable()
 			}
 
-			if newActiveFileID != a.previewState.ActiveID() {
+			if a.previewState != nil && newActiveFileID != a.previewState.ActiveID() {
 				if !noPushToHistory {
 					a.historyPush(a.previewState.ActiveID(), newActiveFileID)
 				}

@@ -82,13 +82,12 @@ func convertVertices(gpuR io.ReadSeeker, layout unit.MeshLayout) ([]byte, []Acce
 				}
 			case unit.FormatVec4R10G10B10A2_UNORM:
 				var tmp uint32
-				var val mgl32.Vec3
 				var err error
 				if err = binary.Read(gpuR, binary.LittleEndian, &tmp); err != nil {
 					return nil, nil, fmt.Errorf("reading gpu data: %v", err)
 				}
-				val = unit.DecodePackedOctahedralNormal(tmp)
-				data, err = binary.Append(data, binary.LittleEndian, val)
+				normal, _, _ := unit.DecodePackedNormal(tmp)
+				data, err = binary.Append(data, binary.LittleEndian, normal)
 				if err != nil {
 					return nil, nil, fmt.Errorf("adding packed vec4 unorm to data: %v", err)
 				}
