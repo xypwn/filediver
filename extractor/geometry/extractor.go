@@ -723,7 +723,7 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, na
 		}
 
 		udimPrimitives := make(map[uint32][]*gltf.Primitive)
-		nodeName := fmt.Sprintf("%v %v", unitName, groupName)
+		nodeName := groupName
 		remapped := make(map[uint32]bool)
 		var transformedPositions, transformedNormals bool = false, false
 		var previousPositionAccessor, previousNormalAccessor *gltf.Accessor

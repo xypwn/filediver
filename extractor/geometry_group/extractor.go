@@ -3,6 +3,7 @@ package geometry_group
 import (
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/qmuntal/gltf"
 	"github.com/xypwn/filediver/extractor"
@@ -75,9 +76,14 @@ func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gl
 			skin = gltf.Index(extr_unit.AddSkeleton(ctx, doc, unitInfo, unitHash, nil))
 			parent = doc.Skins[*skin].Skeleton
 		} else {
+			unitName := ctx.LookupHash(unitHash)
+			if strings.Contains(unitName, "/") {
+				items := strings.Split(unitName, "/")
+				unitName = items[len(items)-1]
+			}
 			parent = gltf.Index(uint32(len(doc.Nodes)))
 			doc.Nodes = append(doc.Nodes, &gltf.Node{
-				Name: unitHash.String(),
+				Name: unitName,
 			})
 			doc.Scenes[0].Nodes = append(doc.Scenes[0].Nodes, *parent)
 		}

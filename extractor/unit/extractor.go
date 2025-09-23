@@ -3,6 +3,7 @@ package unit
 import (
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/qmuntal/gltf"
 	"github.com/qmuntal/gltf/modeler"
@@ -151,9 +152,14 @@ func AddSkeleton(ctx *extractor.Context, doc *gltf.Document, unitInfo *unit.Info
 	}
 
 	if skeleton == nil {
+		unitName := ctx.LookupHash(skeletonName)
+		if strings.Contains(unitName, "/") {
+			items := strings.Split(unitName, "/")
+			unitName = items[len(items)-1]
+		}
 		idx := len(doc.Nodes)
 		doc.Nodes = append(doc.Nodes, &gltf.Node{
-			Name: skeletonName.String(),
+			Name: unitName,
 			Children: []uint32{
 				rootNodeIndex,
 			},
