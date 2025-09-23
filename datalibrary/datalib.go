@@ -5,6 +5,7 @@ import (
 	_ "embed"
 	"encoding/binary"
 	"io"
+	"math"
 	"strconv"
 	"strings"
 	"sync"
@@ -346,6 +347,10 @@ func ParseTypeLib() (*DLTypeLib, error) {
 	for hashIdx, typeDesc := range typeDescs {
 		members := make([]DLMemberDesc, 0)
 		for i := typeDesc.MemberStart; i < typeDesc.MemberStart+typeDesc.MemberCount && i < uint32(len(memberDescs)); i++ {
+			defaultValue := make([]byte, 0)
+			if memberDescs[i].DefaultValueOffset != math.MaxUint32 && memberDescs[i].DefaultValueSize != math.MaxUint32 {
+				defaultValue = defaultData[memberDescs[i].DefaultValueOffset : memberDescs[i].DefaultValueOffset+memberDescs[i].DefaultValueSize]
+			}
 			members = append(members, DLMemberDesc{
 				Name:         getDLText(memberDescs[i].TypeID, memberDescs[i].NameOffset),
 				Comment:      getDLText(5381, memberDescs[i].CommentOffset),
@@ -354,7 +359,7 @@ func ParseTypeLib() (*DLTypeLib, error) {
 				Size:         memberDescs[i].Size.GetNative(),
 				Alignment:    memberDescs[i].Alignment.GetNative(),
 				Offset:       memberDescs[i].Offset.GetNative(),
-				DefaultValue: defaultData[memberDescs[i].DefaultValueOffset : memberDescs[i].DefaultValueOffset+memberDescs[i].DefaultValueSize],
+				DefaultValue: defaultValue,
 				Flags:        memberDescs[i].Flags,
 			})
 		}
