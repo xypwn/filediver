@@ -14,12 +14,12 @@ import (
 	"github.com/qmuntal/gltf"
 	"github.com/qmuntal/gltf/modeler"
 
+	datalib "github.com/xypwn/filediver/datalibrary"
 	"github.com/xypwn/filediver/dds"
 	"github.com/xypwn/filediver/extractor"
 	"github.com/xypwn/filediver/extractor/blend_helper"
 	extr_texture "github.com/xypwn/filediver/extractor/texture"
 	"github.com/xypwn/filediver/stingray"
-	dlbin "github.com/xypwn/filediver/stingray/dl_bin"
 	"github.com/xypwn/filediver/stingray/unit/material"
 )
 
@@ -322,7 +322,7 @@ func writeIlluminateOcclusionMetallicRoughnessTexture(ctx *extractor.Context, do
 	return texIdx, nil
 }
 
-func compareMaterials(doc *gltf.Document, mat *material.Material, matIdx uint32, matName string, unitData *dlbin.UnitData) bool {
+func compareMaterials(doc *gltf.Document, mat *material.Material, matIdx uint32, matName string, unitData *datalib.UnitData) bool {
 	if doc.Materials[matIdx].Name != matName {
 		return false
 	}
@@ -376,7 +376,7 @@ func compareMaterials(doc *gltf.Document, mat *material.Material, matIdx uint32,
 	return true
 }
 
-func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Document, imgOpts *ImageOptions, matName string, unitData *dlbin.UnitData) (uint32, error) {
+func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Document, imgOpts *ImageOptions, matName string, unitData *datalib.UnitData) (uint32, error) {
 	cfg := ctx.Config()
 
 	// Avoid duplicating material if it already is added to document
