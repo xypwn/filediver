@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"maps"
 	"slices"
 	"strings"
 
@@ -13,6 +14,7 @@ import (
 
 	"github.com/go-gl/mathgl/mgl32"
 
+	datalib "github.com/xypwn/filediver/datalibrary"
 	"github.com/xypwn/filediver/extractor"
 	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/stingray/unit"
@@ -710,11 +712,18 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, na
 			layoutToIndexAccessor[header.MeshLayoutIndex] = indexAccessor
 		}
 
+		visibilityMaskData, err := datalib.ParseVisibilityMasks()
+		if err != nil {
+			ctx.Warnf("ParseVisibilityMasks: %v", err)
+			visibilityMaskData = make(map[stingray.Hash]datalib.VisibilityMaskComponent)
+		}
+
 		udimPrimitives := make(map[uint32][]*gltf.Primitive)
 		nodeName := fmt.Sprintf("%v %v", unitName, groupName)
 		remapped := make(map[uint32]bool)
 		var transformedPositions, transformedNormals bool = false, false
 		var previousPositionAccessor, previousNormalAccessor *gltf.Accessor
+		var visibilityMasks []map[string]any
 		for j, group := range header.Groups {
 			// Check if this group is a gib or collision mesh, if it is skip it unless include_lods is set
 			var materialName string
@@ -865,8 +874,10 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, na
 				flipNormals(buffer, indexAccessor.ComponentType, group.NumIndices, bufferOffset)
 			}
 
+			mask, contains := visibilityMaskData[name]
+			visibilityMasks = make([]map[string]any, 0)
 			udimIndexAccessors := make(map[uint32]uint32)
-			if !cfg.Model.JoinComponents {
+			if !cfg.Model.JoinComponents && contains {
 				texcoordIndex, ok := groupAttr[gltf.TEXCOORD_0]
 				// Don't separate udims of LODs or shadow meshes, unless this is LOD1 and we don't have an LOD0
 				if ok && (!isLOD(groupName, true) || (!hasLOD0 && strings.Contains(groupName, "LOD1") && !strings.Contains(groupName, "shadow"))) {
@@ -878,6 +889,13 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, na
 					} else {
 						for udim, indices := range UDIMs {
 							udimIndexAccessors[udim] = modeler.WriteIndices(doc, indices)
+						}
+						for i := 0; i < mask.Length(); i++ {
+							visibilityMasks = append(visibilityMasks, map[string]any{
+								"name":   ctx.LookupThinHash(mask.MaskInfos[i].Name),
+								"index":  mask.MaskInfos[i].Index,
+								"hidden": mask.MaskInfos[i].StartHidden,
+							})
 						}
 					}
 				}
@@ -914,8 +932,8 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, na
 			})
 
 			udimNodeName := nodeName
-			if len(udimPrimitives) > 1 {
-				udimNodeName = fmt.Sprintf("%v udim %v", nodeName, udim)
+			if len(udimPrimitives) > 1 && len(visibilityMasks) > 1 {
+				udimNodeName = fmt.Sprintf("%v %v", nodeName, visibilityMasks[udim]["name"])
 			}
 			doc.Nodes = append(doc.Nodes, &gltf.Node{
 				Name: udimNodeName,
@@ -924,6 +942,15 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, na
 			node := uint32(len(doc.Nodes)) - 1
 			if _, contains := primitives[0].Attributes[gltf.JOINTS_0]; contains {
 				doc.Nodes[node].Skin = skin
+			}
+			if len(udimPrimitives) > 1 && len(visibilityMasks) > 0 {
+				extras, ok := doc.Nodes[node].Extras.(map[string]any)
+				if !ok {
+					extras = visibilityMasks[udim]
+				} else {
+					maps.Copy(extras, visibilityMasks[udim])
+				}
+				doc.Nodes[node].Extras = extras
 			}
 			doc.Nodes[parent].Children = append(doc.Nodes[parent].Children, node)
 			*meshNodes = append(*meshNodes, node)
