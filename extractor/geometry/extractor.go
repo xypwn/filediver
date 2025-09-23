@@ -652,12 +652,13 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, na
 		}
 
 		hasLOD0 := true
+		hasBaseModel := true
 
-		isLOD := func(name string, onlyModelAndShadow bool) bool {
+		isLOD := func(name string, onlyModelAndShadow bool, haveBaseModel bool) bool {
 			if strings.Contains(name, "shadow") || strings.Contains(name, "debris") {
 				return true
 			}
-			if strings.Contains(name, "_LOD") && !strings.Contains(name, "_LOD0") {
+			if strings.Contains(name, "_LOD") && (!strings.Contains(name, "_LOD0") || haveBaseModel) {
 				return true
 			}
 			if strings.Contains(name, "cull") || strings.Contains(name, "collision") {
@@ -666,20 +667,23 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, na
 			return false
 		}
 
-		if !cfg.Model.IncludeLODS && isLOD(groupName, false) {
-			if strings.Contains(groupName, "_LOD1") && !strings.Contains(groupName, "shadow") {
+		if !cfg.Model.IncludeLODS && isLOD(groupName, false, true) {
+			if (strings.Contains(groupName, "_LOD1") || strings.Contains(groupName, "_LOD0")) && !strings.Contains(groupName, "shadow") {
 				hasLOD0 = false
+				hasBaseModel = false
 				lod0Name := strings.TrimSuffix(groupName, "_LOD1")
 				lod0Hash1 := stingray.Sum(lod0Name).Thin()
 				lod0Hash2 := stingray.Sum(lod0Name + "_LOD0").Thin()
 				for _, bone := range unitInfo.GroupBones {
-					if lod0Hash1 == bone || lod0Hash2 == bone {
-						hasLOD0 = true
+					if lod0Hash1 == bone {
+						hasBaseModel = true
 						break
+					} else if lod0Hash2 == bone {
+						hasLOD0 = true
 					}
 				}
 			}
-			if hasLOD0 {
+			if (hasLOD0 && strings.Contains(groupName, "_LOD") && !strings.Contains(groupName, "_LOD0")) || (hasBaseModel && strings.Contains(groupName, "_LOD0")) {
 				continue
 			}
 		}
@@ -880,7 +884,7 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, na
 			if !cfg.Model.JoinComponents && contains {
 				texcoordIndex, ok := groupAttr[gltf.TEXCOORD_0]
 				// Don't separate udims of LODs or shadow meshes, unless this is LOD1 and we don't have an LOD0
-				if ok && (!isLOD(groupName, true) || (!hasLOD0 && strings.Contains(groupName, "LOD1") && !strings.Contains(groupName, "shadow"))) {
+				if ok && (!isLOD(groupName, true, hasBaseModel) || (!hasLOD0 && strings.Contains(groupName, "LOD1") && !strings.Contains(groupName, "shadow"))) {
 					texcoordAccessor := doc.Accessors[texcoordIndex]
 					groupIndexAccessor := doc.Accessors[*groupIndices]
 					var UDIMs map[uint32][]uint32
@@ -900,7 +904,7 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, na
 					}
 				}
 			}
-			if cfg.Model.JoinComponents || (cfg.Model.IncludeLODS && (isLOD(groupName, true))) {
+			if cfg.Model.JoinComponents || (cfg.Model.IncludeLODS && (isLOD(groupName, true, hasBaseModel))) {
 				udimIndexAccessors[0] = *groupIndices
 			}
 
