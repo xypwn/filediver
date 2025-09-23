@@ -896,9 +896,9 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, na
 						}
 						for i := 0; i < mask.Length(); i++ {
 							visibilityMasks = append(visibilityMasks, map[string]any{
-								"name":   ctx.LookupThinHash(mask.MaskInfos[i].Name),
-								"index":  mask.MaskInfos[i].Index,
-								"hidden": mask.MaskInfos[i].StartHidden,
+								"name":           ctx.LookupThinHash(mask.MaskInfos[i].Name),
+								"index":          mask.MaskInfos[i].Index,
+								"default_hidden": mask.MaskInfos[i].StartHidden,
 							})
 						}
 					}

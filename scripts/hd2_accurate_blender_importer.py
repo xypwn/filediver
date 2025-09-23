@@ -297,6 +297,10 @@ def main():
             for other in obj.users_collection:
                 other.objects.unlink(obj)
             collection.objects.link(obj)
+        if "extras" in node and "default_hidden" in node["extras"] and node["extras"]["default_hidden"] == 1 and node["name"] in bpy.data.objects:
+            obj = bpy.data.objects[node["name"]]
+            obj.hide_render = True
+            obj.hide_set(True)
         if "mesh" not in node:
             continue
         mesh = gltf["meshes"][node["mesh"]]
