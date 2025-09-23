@@ -18729,7 +18729,6 @@ armor_rear_whole
 bl_door_destroyed
 body_front_damaged
 br_door_destroyed
-bt_forearms_fine
 body_front_whole
 engine_back_damaged
 engine_rear_damaged
@@ -18865,3 +18864,19 @@ left_front_leg_gib
 left_back_leg_gib
 right_back_leg_gib
 right_front_leg_gib
+right_back_fine
+back_face_gib_mask
+lower_back_gib_mask
+front_face_gib_mask
+left_arm_gib_mask
+right_arm_gib_mask
+left_leg_gib_mask
+right_leg_gib_mask
+upper_left_arm_mask
+upper_left_arm_gib_mask
+upper_right_arm_mask
+upper_right_arm_gib_mask
+right_front_face_mask
+right_front_face_gib_mask
+left_front_face_mask
+left_front_face_gib_mask
