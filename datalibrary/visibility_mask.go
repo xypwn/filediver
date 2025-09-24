@@ -64,7 +64,7 @@ func ParseVisibilityMasks() (map[stingray.Hash]VisibilityMaskComponent, error) {
 		return nil, err
 	}
 
-	typelib, err := ParseTypeLib()
+	typelib, err := ParseTypeLib(nil)
 	if err != nil {
 		return nil, err
 	}
@@ -80,19 +80,19 @@ func ParseVisibilityMasks() (map[stingray.Hash]VisibilityMaskComponent, error) {
 		return nil, fmt.Errorf("VisibilityMaskComponentData unexpected format (there should be 2 members but were actually %v)", len(visibilityMaskType.Members))
 	}
 
-	if visibilityMaskType.Members[0].Type.Atom != DL_TYPE_ATOM_INLINE_ARRAY {
+	if visibilityMaskType.Members[0].Type.Atom != INLINE_ARRAY {
 		return nil, fmt.Errorf("VisibilityMaskComponentData unexpected format (hashmap atom was not inline array)")
 	}
 
-	if visibilityMaskType.Members[1].Type.Atom != DL_TYPE_ATOM_INLINE_ARRAY {
+	if visibilityMaskType.Members[1].Type.Atom != INLINE_ARRAY {
 		return nil, fmt.Errorf("VisibilityMaskComponentData unexpected format (data atom was not inline array)")
 	}
 
-	if visibilityMaskType.Members[0].Type.Storage != DL_TYPE_STORAGE_STRUCT {
+	if visibilityMaskType.Members[0].Type.Storage != STRUCT {
 		return nil, fmt.Errorf("VisibilityMaskComponentData unexpected format (hashmap storage was not struct)")
 	}
 
-	if visibilityMaskType.Members[1].Type.Storage != DL_TYPE_STORAGE_STRUCT {
+	if visibilityMaskType.Members[1].Type.Storage != STRUCT {
 		return nil, fmt.Errorf("VisibilityMaskComponentData unexpected format (data storage was not struct)")
 	}
 

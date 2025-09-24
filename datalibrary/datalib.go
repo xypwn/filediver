@@ -1,9 +1,11 @@
 package datalib
 
 import (
+	"bufio"
 	"bytes"
 	_ "embed"
 	"encoding/binary"
+	"encoding/json"
 	"io"
 	"math"
 	"strconv"
@@ -49,8 +51,12 @@ func init() {
 		wg.Add(1)
 		go func() {
 			DLHashesToStrings = make(map[DLHash]string)
-			dlHashStrings := strings.Split(hashes.DLTypeNames, "\n")
-			for _, text := range dlHashStrings {
+			sc := bufio.NewScanner(strings.NewReader(hashes.DLTypeNames))
+			for sc.Scan() {
+				text := strings.TrimSpace(sc.Text())
+				if text == "" || strings.HasPrefix(text, "//") {
+					continue
+				}
 				DLHashesToStrings[Sum(text)] = text
 			}
 			wg.Done()
@@ -82,6 +88,17 @@ func Sum(text string) DLHash {
 	return DLHash(result - 5381)
 }
 
+func (h DLHash) MarshalText() ([]byte, error) {
+	if h == 0 {
+		return []byte("(builtin)"), nil
+	}
+	typeName, ok := DLHashesToStrings[h]
+	if !ok {
+		return []byte(strconv.FormatUint(uint64(h), 16)), nil
+	}
+	return []byte(typeName), nil
+}
+
 // 4 bytes for alignment purposes
 type DLTypeFlags uint32
 
@@ -99,6 +116,15 @@ func (f DLTypeFlags) IsUnion() bool {
 
 func (f DLTypeFlags) VerifyExternalSizeAlign() bool {
 	return f&0x8 != 0
+}
+
+func (f DLTypeFlags) MarshalJSON() ([]byte, error) {
+	return json.Marshal(map[string]any{
+		"has_subdata":                f.HasSubdata(),
+		"is_external":                f.IsExternal(),
+		"is_union":                   f.IsUnion(),
+		"verify_external_size_align": f.VerifyExternalSizeAlign(),
+	})
 }
 
 type DLWidthDependentUInt32 [2]uint32
@@ -121,41 +147,53 @@ func (u DLWidthDependentUInt32) GetNative() uint32 {
 type DLTypeAtom uint8
 
 const (
-	DL_TYPE_ATOM_POD DLTypeAtom = iota
-	DL_TYPE_ATOM_ARRAY
-	DL_TYPE_ATOM_INLINE_ARRAY
-	DL_TYPE_ATOM_BITFIELD
+	POD DLTypeAtom = iota
+	ARRAY
+	INLINE_ARRAY
+	BITFIELD
 
-	DL_TYPE_ATOM_CNT
+	ATOM_CNT
 )
+
+func (atom DLTypeAtom) MarshalText() ([]byte, error) {
+	return []byte(atom.String()), nil
+}
+
+//go:generate go run golang.org/x/tools/cmd/stringer -type=DLTypeAtom
 
 type DLTypeStorage uint8
 
 const (
-	DL_TYPE_STORAGE_INT8 DLTypeStorage = iota
-	DL_TYPE_STORAGE_INT16
-	DL_TYPE_STORAGE_INT32
-	DL_TYPE_STORAGE_INT64
-	DL_TYPE_STORAGE_UINT8
-	DL_TYPE_STORAGE_UINT16
-	DL_TYPE_STORAGE_UINT32
-	DL_TYPE_STORAGE_UINT64
-	DL_TYPE_STORAGE_FP32
-	DL_TYPE_STORAGE_FP64
-	DL_TYPE_STORAGE_ENUM_INT8
-	DL_TYPE_STORAGE_ENUM_INT16
-	DL_TYPE_STORAGE_ENUM_INT32
-	DL_TYPE_STORAGE_ENUM_INT64
-	DL_TYPE_STORAGE_ENUM_UINT8
-	DL_TYPE_STORAGE_ENUM_UINT16
-	DL_TYPE_STORAGE_ENUM_UINT32
-	DL_TYPE_STORAGE_ENUM_UINT64
-	DL_TYPE_STORAGE_STR
-	DL_TYPE_STORAGE_PTR
-	DL_TYPE_STORAGE_STRUCT
+	INT8 DLTypeStorage = iota
+	INT16
+	INT32
+	INT64
+	UINT8
+	UINT16
+	UINT32
+	UINT64
+	FP32
+	FP64
+	ENUM_INT8
+	ENUM_INT16
+	ENUM_INT32
+	ENUM_INT64
+	ENUM_UINT8
+	ENUM_UINT16
+	ENUM_UINT32
+	ENUM_UINT64
+	STR
+	PTR
+	STRUCT
 
-	DL_TYPE_STORAGE_CNT
+	STORAGE_CNT
 )
+
+func (storage DLTypeStorage) MarshalText() ([]byte, error) {
+	return []byte(storage.String()), nil
+}
+
+//go:generate go run golang.org/x/tools/cmd/stringer -type=DLTypeStorage
 
 type DLBitfieldOrArrayLen uint16
 
@@ -171,24 +209,32 @@ func (b DLBitfieldOrArrayLen) GetOffset() uint8 {
 	return uint8(b >> 8)
 }
 
+func (b DLBitfieldOrArrayLen) MarshalJSON() ([]byte, error) {
+	return json.Marshal(map[string]any{
+		"inline_array_len": b.GetArrayLen(),
+		"bits":             b.GetBits(),
+		"bit_offset":       b.GetOffset(),
+	})
+}
+
 type DLType struct {
-	Atom                   DLTypeAtom
-	Storage                DLTypeStorage
-	BitfieldInfoOrArrayLen DLBitfieldOrArrayLen
+	Atom                   DLTypeAtom           `json:"atom"`
+	Storage                DLTypeStorage        `json:"storage"`
+	BitfieldInfoOrArrayLen DLBitfieldOrArrayLen `json:"union_arrayinfo_bfinfo"`
 }
 
 type DLTypeLibHeader struct {
-	ID      [4]uint8
-	Version uint32
+	ID      [4]uint8 `json:"-"`
+	Version uint32   `json:"version"`
 
-	TypeCount      uint32
-	EnumCount      uint32
-	MemberCount    uint32
-	EnumValueCount uint32
-	EnumAliasCount uint32
+	TypeCount      uint32 `json:"type_count"`
+	EnumCount      uint32 `json:"enum_count"`
+	MemberCount    uint32 `json:"member_count"`
+	EnumValueCount uint32 `json:"enum_value_count"`
+	EnumAliasCount uint32 `json:"enum_alias_count"`
 
-	DefaultValueSize    uint32
-	TypeInfoStringsSize uint32
+	DefaultValueSize    uint32 `json:"default_value_size"`
+	TypeInfoStringsSize uint32 `json:"typeinfo_strings_size"`
 }
 
 type rawDLMemberDesc struct {
@@ -205,15 +251,15 @@ type rawDLMemberDesc struct {
 }
 
 type DLMemberDesc struct {
-	Name         string
-	Comment      string
-	Type         DLType
-	TypeID       DLHash
-	Size         uint32
-	Alignment    uint32
-	Offset       uint32
-	DefaultValue []uint8
-	Flags        DLTypeFlags
+	Name         string      `json:"name"`
+	Comment      string      `json:"comment,omitempty"`
+	Type         DLType      `json:"type_flags"`
+	TypeID       DLHash      `json:"type"`
+	Size         uint32      `json:"size"`
+	Alignment    uint32      `json:"alignment"`
+	Offset       uint32      `json:"offset"`
+	DefaultValue []uint8     `json:"-"`
+	Flags        DLTypeFlags `json:"flags"`
 }
 
 type rawDLTypeDesc struct {
@@ -227,12 +273,12 @@ type rawDLTypeDesc struct {
 }
 
 type DLTypeDesc struct {
-	Name      string
-	Flags     DLTypeFlags
-	Size      uint32
-	Alignment uint32
-	Members   []DLMemberDesc
-	Comment   string
+	Name      string         `json:"name"`
+	Flags     DLTypeFlags    `json:"flags"`
+	Size      uint32         `json:"size"`
+	Alignment uint32         `json:"alignment"`
+	Members   []DLMemberDesc `json:"members,omitempty"`
+	Comment   string         `json:"comment,omitempty"`
 }
 
 type rawDLEnumDesc struct {
@@ -259,27 +305,30 @@ type rawDLEnumAliasDesc struct {
 }
 
 type DLEnumValueDesc struct {
-	Name    string
-	Comment string
-	Value   uint64
-	Aliases []string
+	Name    string   `json:"name"`
+	Comment string   `json:"comment,omitempty"`
+	Value   uint64   `json:"value"`
+	Aliases []string `json:"aliases,omitempty"`
 }
 
 type DLEnumDesc struct {
-	Name    string
-	Flags   DLTypeFlags
-	Storage DLTypeStorage
-	Values  []DLEnumValueDesc
+	Name    string            `json:"name"`
+	Flags   DLTypeFlags       `json:"flags"`
+	Storage DLTypeStorage     `json:"storage"`
+	Values  []DLEnumValueDesc `json:"values"`
 }
 
 type DLTypeLib struct {
-	DLTypeLibHeader
-	Types map[DLHash]DLTypeDesc
-	Enums map[DLHash]DLEnumDesc
+	DLTypeLibHeader `json:"header"`
+	Types           map[DLHash]DLTypeDesc `json:"types,omitempty"`
+	Enums           map[DLHash]DLEnumDesc `json:"enums,omitempty"`
 }
 
-func ParseTypeLib() (*DLTypeLib, error) {
-	r := bytes.NewReader(typelib)
+func ParseTypeLib(data []byte) (*DLTypeLib, error) {
+	if data == nil {
+		data = typelib
+	}
+	r := bytes.NewReader(data)
 	var header DLTypeLibHeader
 	if err := binary.Read(r, binary.LittleEndian, &header); err != nil {
 		return nil, err
@@ -332,13 +381,41 @@ func ParseTypeLib() (*DLTypeLib, error) {
 
 	getDLText := func(hash DLHash, offset uint32) string {
 		var text string
-		if value, contains := DLHashesToStrings[hash]; (len(stringsData) == 0 || bytes.IndexByte(stringsData[offset:], 0) == -1) && !contains {
-			text = strconv.FormatUint(uint64(offset), 16)
+		if offset == math.MaxUint32 {
+			return ""
+		} else if value, contains := DLHashesToStrings[hash]; (len(stringsData) == 0 || bytes.IndexByte(stringsData[offset:], 0) == -1) && !contains {
+			text = strconv.FormatUint(uint64(hash), 16) + " (offset: 0x" + strconv.FormatUint(uint64(offset), 16) + ")"
 		} else if contains {
 			text = value
 		} else {
 			nameEnd := bytes.IndexByte(stringsData[offset:], 0)
-			text = string(stringsData[offset:nameEnd])
+			text = string(stringsData[offset : offset+uint32(nameEnd)])
+		}
+		return text
+	}
+
+	getDLEnumAliasText := func(enum string, offset uint32) string {
+		var text string
+		if offset == math.MaxUint32 {
+			return ""
+		} else if len(stringsData) == 0 || bytes.IndexByte(stringsData[offset:], 0) == -1 {
+			text = enum + "_" + strconv.FormatUint(uint64(offset), 16)
+		} else {
+			nameEnd := bytes.IndexByte(stringsData[offset:], 0)
+			text = string(stringsData[offset : offset+uint32(nameEnd)])
+		}
+		return text
+	}
+
+	getDLUnhashedText := func(offset uint32) string {
+		var text string
+		if offset == math.MaxUint32 {
+			return ""
+		} else if len(stringsData) == 0 || bytes.IndexByte(stringsData[offset:], 0) == -1 {
+			text = strconv.FormatUint(uint64(offset), 16)
+		} else {
+			nameEnd := bytes.IndexByte(stringsData[offset:], 0)
+			text = string(stringsData[offset : offset+uint32(nameEnd)])
 		}
 		return text
 	}
@@ -352,8 +429,8 @@ func ParseTypeLib() (*DLTypeLib, error) {
 				defaultValue = defaultData[memberDescs[i].DefaultValueOffset : memberDescs[i].DefaultValueOffset+memberDescs[i].DefaultValueSize]
 			}
 			members = append(members, DLMemberDesc{
-				Name:         getDLText(memberDescs[i].TypeID, memberDescs[i].NameOffset),
-				Comment:      getDLText(5381, memberDescs[i].CommentOffset),
+				Name:         getDLUnhashedText(memberDescs[i].NameOffset),
+				Comment:      getDLUnhashedText(memberDescs[i].CommentOffset),
 				Type:         memberDescs[i].Type,
 				TypeID:       memberDescs[i].TypeID,
 				Size:         memberDescs[i].Size.GetNative(),
@@ -370,32 +447,41 @@ func ParseTypeLib() (*DLTypeLib, error) {
 			Size:      typeDesc.Size.GetNative(),
 			Alignment: typeDesc.Alignment.GetNative(),
 			Members:   members,
-			Comment:   getDLText(5381, typeDesc.CommentOffset),
+			Comment:   getDLUnhashedText(typeDesc.CommentOffset),
 		}
 	}
 
 	Enums := make(map[DLHash]DLEnumDesc)
 	for hashIdx, enumDesc := range enumDescs {
 		values := make([]DLEnumValueDesc, 0)
+		enumName := getDLText(enumHashes[hashIdx], enumDesc.NameOffset)
 		for i := enumDesc.ValueStart; i < enumDesc.ValueStart+enumDesc.ValueCount && i < uint32(len(enumValueDescs)); i++ {
 			aliases := enumAliasDescs[enumDesc.AliasStart : enumDesc.AliasStart+enumDesc.AliasCount]
 			mainAlias := enumAliasDescs[enumValueDescs[i].MainAlias]
 
 			aliasNames := make([]string, 0)
 			for _, alias := range aliases {
-				aliasNames = append(aliasNames, getDLText(5381, alias.NameOffset))
+				if alias.ValueIndex != i {
+					continue
+				}
+				aliasNames = append(aliasNames, getDLEnumAliasText(enumName, alias.NameOffset))
 			}
 
+			if len(aliasNames) > 1 {
+				aliasNames = aliasNames[1:]
+			} else {
+				aliasNames = make([]string, 0)
+			}
 			values = append(values, DLEnumValueDesc{
-				Name:    getDLText(5381, mainAlias.NameOffset),
-				Comment: getDLText(5381, enumValueDescs[i].CommentOffset),
+				Name:    getDLEnumAliasText(enumName, mainAlias.NameOffset),
+				Comment: getDLUnhashedText(enumValueDescs[i].CommentOffset),
 				Value:   enumValueDescs[i].Value,
 				Aliases: aliasNames,
 			})
 		}
 
 		Enums[enumHashes[hashIdx]] = DLEnumDesc{
-			Name:    getDLText(typeHashes[hashIdx], enumDesc.NameOffset),
+			Name:    enumName,
 			Flags:   enumDesc.Flags,
 			Storage: enumDesc.Storage,
 			Values:  values,

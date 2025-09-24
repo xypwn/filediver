@@ -3,7 +3,6 @@ package extractor
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
