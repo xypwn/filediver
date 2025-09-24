@@ -209,6 +209,7 @@ const (
 	Hmap                                       TextureUsage = 0x65c04d06
 	HologramCylinderTextureMap                 TextureUsage = 0x91a9d7fb
 	IdMasksArray                               TextureUsage = 0xb281e5f2
+	IndexEmissive                              TextureUsage = 0x3a8e336c
 	IesLookup                                  TextureUsage = 0x2d03d53b
 	IlluminateData                             TextureUsage = 0x90b84a53
 	IlluminateDotsTexture                      TextureUsage = 0xb267ec71
@@ -233,6 +234,7 @@ const (
 	LinearDepthMip6                            TextureUsage = 0xa1bd1332
 	LocalLightsShadowAtlas                     TextureUsage = 0x48c88f1d
 	LUTEmissive                                TextureUsage = 0xb70d0e9e
+	LUTColor                                   TextureUsage = 0x489dfaab
 	Mask                                       TextureUsage = 0xc2048121
 	MaskAtlasTex                               TextureUsage = 0x2d83e8c7
 	MaskTex                                    TextureUsage = 0xe58ff005
@@ -901,6 +903,8 @@ func (usage TextureUsage) String() string {
 		return "hologram_cylinder_texture_map"
 	case IdMasksArray:
 		return "id_masks_array"
+	case IndexEmissive:
+		return "index_emissive"
 	case IesLookup:
 		return "ies_lookup"
 	case IlluminateData:
@@ -949,6 +953,8 @@ func (usage TextureUsage) String() string {
 		return "local_lights_shadow_atlas"
 	case LUTEmissive:
 		return "lut_emissive"
+	case LUTColor:
+		return "lut_color"
 	case Mask:
 		return "mask"
 	case MaskAtlasTex:
