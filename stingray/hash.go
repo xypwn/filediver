@@ -84,6 +84,17 @@ func ParseHash(s string) (Hash, error) {
 	return Hash{Value: x}, nil
 }
 
+// ParseHash parses a big endian murmur32 hash.
+// Ignores 0x prefix if present.
+func ParseThinHash(s string) (ThinHash, error) {
+	s = strings.TrimPrefix(s, "0x")
+	x, err := strconv.ParseUint(s, 16, 32)
+	if err != nil {
+		return ThinHash{}, fmt.Errorf("parsing thin hash: %w", err)
+	}
+	return ThinHash{Value: uint32(x)}, nil
+}
+
 type ThinHash struct{ Value uint32 }
 
 func (h ThinHash) StringEndian(endian binary.ByteOrder) string {

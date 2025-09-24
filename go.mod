@@ -7,6 +7,7 @@ require (
 	github.com/adrg/xdg v0.4.0
 	github.com/andygrunwald/vdf v1.1.0
 	github.com/ebitengine/oto/v3 v3.3.2
+	github.com/expr-lang/expr v1.17.6
 	github.com/go-audio/audio v1.0.0
 	github.com/go-audio/wav v1.1.0
 	github.com/go-gl/gl v0.0.0-20231021071112-07e5d0ea2e71

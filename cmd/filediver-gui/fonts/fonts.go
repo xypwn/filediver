@@ -26,6 +26,9 @@ var TextFontCN []byte
 var textFontKRCompressed []byte
 var TextFontKR []byte
 
+//go:embed NotoSansMono-Medium.ttf
+var TextFontMono []byte
+
 //go:embed MaterialSymbolsOutlined.ttf.gz
 var iconFontCompressed []byte
 var IconFont []byte

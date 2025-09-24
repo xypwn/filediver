@@ -35,6 +35,9 @@ type GameData struct {
 	KnownFileNames            map[stingray.FileID]string
 	HashFileNames             map[stingray.FileID]string
 	SortedSearchResultFileIDs []stingray.FileID
+
+	FilterExpr    *app.FilterExprProgram
+	FilterExprErr error
 }
 
 func NewGameData(a *app.App) *GameData {
@@ -50,28 +53,61 @@ func NewGameData(a *app.App) *GameData {
 }
 
 func (gd *GameData) UpdateSearchQuery(query string, allowedTypes map[stingray.Hash]struct{}, allowedArchives map[stingray.Hash]struct{}) {
-	query = strings.ToLower(query)
-
-	gd.SortedSearchResultFileIDs = gd.SortedSearchResultFileIDs[:0]
-	maybeAdd := func(fileID stingray.FileID) {
-		if len(allowedTypes) > 0 {
-			if _, allowed := allowedTypes[fileID.Type]; !allowed {
-				return
-			}
-		}
-		if textutils.QueryMatchesAny(query, gd.KnownFileNames[fileID], gd.HashFileNames[fileID]) {
-			gd.SortedSearchResultFileIDs = append(gd.SortedSearchResultFileIDs, fileID)
+	gd.FilterExpr, gd.FilterExprErr = nil, nil
+	if idx := strings.Index(query, "?"); idx != -1 {
+		exprStr := query[idx+1:]
+		query = query[:idx]
+		gd.FilterExpr, gd.FilterExprErr = app.CompileMetadataFilterExpr(exprStr)
+		if gd.FilterExprErr != nil {
+			return
 		}
 	}
+
+	gd.SortedSearchResultFileIDs = gd.SortedSearchResultFileIDs[:0]
+
+	// returns whether to continue
+	maybeAdd := func(fileID stingray.FileID) bool {
+		if len(allowedTypes) > 0 {
+			if _, allowed := allowedTypes[fileID.Type]; !allowed {
+				return true
+			}
+		}
+		if !textutils.QueryMatchesAny(query, gd.KnownFileNames[fileID], gd.HashFileNames[fileID]) {
+			return true
+		}
+		if gd.FilterExpr != nil {
+			matches, err := app.MetadataFilterExprMatches(gd.FilterExpr, gd.Metadata[fileID])
+			if err != nil {
+				gd.FilterExprErr = err
+				return false
+			}
+			if !matches {
+				return true
+			}
+		}
+		gd.SortedSearchResultFileIDs = append(gd.SortedSearchResultFileIDs, fileID)
+		return true
+	}
+
 	if len(allowedArchives) == 0 {
 		for fileID := range gd.DataDir.Files {
-			maybeAdd(fileID)
+			if !maybeAdd(fileID) {
+				break
+			}
 		}
 	} else {
+		seen := make(map[stingray.FileID]bool)
+	archiveLoop:
 		for archiveID := range allowedArchives {
 			if files, ok := gd.DataDir.Archives[archiveID]; ok {
 				for _, fileID := range files {
-					maybeAdd(fileID)
+					if seen[fileID] {
+						continue
+					}
+					if !maybeAdd(fileID) {
+						break archiveLoop
+					}
+					seen[fileID] = true
 				}
 			}
 		}
@@ -192,8 +228,9 @@ func (gd *GameDataLoad) loadGameData(ctx context.Context, gameDir string) {
 		return
 	}
 
+	res := NewGameData(a)
 	gd.Lock()
-	gd.Result = NewGameData(a)
+	gd.Result = res
 	gd.Done = true
 	gd.Unlock()
 }
