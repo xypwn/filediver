@@ -18712,7 +18712,6 @@ right_fine
 fr_foglights
 fl_foglights
 b_foglights
-ankle_top_damaged
 armor_front_damaged
 armor_head_damaged
 armor_rear_damaged
@@ -18720,7 +18719,6 @@ back_pump_flamer
 back_face_mask
 back_right_thruster
 back_left_thruster
-admiral_neck_upper
 antenna_l_whole
 antenna_r_whole
 armor_front_whole
@@ -18880,3 +18878,12 @@ right_front_face_mask
 right_front_face_gib_mask
 left_front_face_mask
 left_front_face_gib_mask
+fin_front_whole
+fin_front_damaged
+lf_leg_whole
+lr_leg_whole
+rf_leg_whole
+rr_leg_whole
+walker_back_damaged
+walker_pelvis_damaged
+left_back_leg_damaged
