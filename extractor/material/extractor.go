@@ -481,7 +481,7 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 				continue
 			}
 			fallthrough
-		case AlbedoEmissive:
+		case AlbedoEmissive, BaseColorEmissiveMap:
 			index, err := writeTexture(ctx, doc, mat.Textures[texUsage], albedoPostProcess, imgOpts, "")
 			if err != nil {
 				ctx.Warnf("writeTexture: %v: %v", TextureUsage(texUsage.Value), err)
@@ -556,7 +556,7 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 			}
 			usedTextures[TextureUsage(texUsage.Value)] = index
 			normalPostProcess = postProcessReconstructNormalZ
-		case NAR:
+		case NAR, NormalXyAoRoughMap:
 			hash := mat.Textures[texUsage]
 			index, err := writeTexture(ctx, doc, hash, postProcessReconstructNormalZ, imgOpts, "")
 			if err != nil {
@@ -567,6 +567,10 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 				Index: gltf.Index(index),
 			}
 			illuminateDataHash, ok := mat.Textures[stingray.Sum("illuminate_data").Thin()]
+			if !ok {
+				// Did they just rename it from illuminate data?
+				illuminateDataHash, ok = mat.Textures[stingray.Sum("metallic_intensity_map").Thin()]
+			}
 			if metallicRoughnessTexture == nil && ok {
 				metallicRoughnessIndex, err := writeIlluminateOcclusionMetallicRoughnessTexture(ctx, doc, hash, illuminateDataHash, imgOpts)
 				if err != nil {
@@ -587,7 +591,7 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 					Index: gltf.Index(occlusionIndex),
 				}
 			}
-		case IlluminateData:
+		case IlluminateData, MetallicIntensityMap:
 			hash := mat.Textures[texUsage]
 			index, err := writeTexture(ctx, doc, hash, postProcessIlluminateClearcoat, imgOpts, "")
 			if err != nil {
@@ -598,6 +602,9 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 				Index: index,
 			}
 			narHash, ok := mat.Textures[stingray.Sum("NAR").Thin()]
+			if !ok {
+				narHash, ok = mat.Textures[stingray.Sum("normal_xy_ao_rough_map").Thin()]
+			}
 			if metallicRoughnessTexture == nil && ok {
 				metallicRoughnessIndex, err := writeIlluminateOcclusionMetallicRoughnessTexture(ctx, doc, narHash, hash, imgOpts)
 				if err != nil {

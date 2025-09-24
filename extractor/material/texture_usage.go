@@ -25,6 +25,7 @@ const (
 	BadgeFlipbook                              TextureUsage = 0xf487b955
 	BakerMaterialAtlas                         TextureUsage = 0xf5417edc
 	BaseColor                                  TextureUsage = 0xcb577b8f
+	BaseColorEmissiveMap                       TextureUsage = 0x608d8147
 	BaseColorMetalMap                          TextureUsage = 0x848ba63b
 	BaseColorScrolled                          TextureUsage = 0xb6859653
 	BaseData                                   TextureUsage = 0xc2eb8d6e
@@ -243,6 +244,7 @@ const (
 	MaterialMap                                TextureUsage = 0xa3e48458
 	MaterialTiler                              TextureUsage = 0xb0ac108a
 	MetallicMap                                TextureUsage = 0x3be74960
+	MetallicIntensityMap                       TextureUsage = 0xf6ce0d93
 	MetalSurfaceData                           TextureUsage = 0xe32e3fa5
 	MindScrambleTexture                        TextureUsage = 0x63c89170
 	MinimapBaseColor                           TextureUsage = 0x8ebbf7d9
@@ -535,6 +537,8 @@ func (usage TextureUsage) String() string {
 		return "baker_material_atlas"
 	case BaseColor:
 		return "base_color"
+	case BaseColorEmissiveMap:
+		return "base_color_emissive_map"
 	case BaseColorMetalMap:
 		return "base_color_metal_map"
 	case BaseColorScrolled:
@@ -971,6 +975,8 @@ func (usage TextureUsage) String() string {
 		return "material_tiler"
 	case MetallicMap:
 		return "metallic_map"
+	case MetallicIntensityMap:
+		return "metallic_intensity_map"
 	case MetalSurfaceData:
 		return "metal_surface_data"
 	case MindScrambleTexture:
