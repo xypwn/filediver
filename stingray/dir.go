@@ -101,11 +101,12 @@ func OpenDataDir(ctx context.Context, dirPath string, onProgress func(curr, tota
 	return dd, nil
 }
 
-// Attempts to read the given file.
+// Attempts to read at most nBytes from the given file, or all bytes
+// if atMost is 0.
 // Returns [ErrFileNotExist] if id doesn't exist and
 // [ErrFileDataTypeNotExist] if the file exists, but
 // doesn't have the requested data type.
-func (d *DataDir) Read(id FileID, typ DataType) ([]byte, error) {
+func (d *DataDir) ReadAtMost(id FileID, typ DataType, nBytes int) ([]byte, error) {
 	files := d.Files[id]
 	if len(files) == 0 {
 		return nil, ErrFileNotExist
@@ -124,9 +125,19 @@ func (d *DataDir) Read(id FileID, typ DataType) ([]byte, error) {
 		return nil, err
 	}
 
-	b := make([]byte, file.Files[typ].Size)
+	if nBytes <= 0 {
+		nBytes = int(file.Files[typ].Size)
+	} else {
+		nBytes = min(int(file.Files[typ].Size), nBytes)
+	}
+
+	b := make([]byte, nBytes)
 	if _, err := io.ReadFull(af, b); err != nil {
 		return nil, err
 	}
 	return b, nil
+}
+
+func (d *DataDir) Read(id FileID, typ DataType) ([]byte, error) {
+	return d.ReadAtMost(id, typ, 0)
 }

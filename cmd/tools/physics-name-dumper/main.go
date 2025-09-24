@@ -74,7 +74,7 @@ func main() {
 	}
 	prt.NoStatus()
 
-	files, err := a.MatchingFiles("", "", []string{"physics"}, nil)
+	files, err := a.MatchingFiles("", "", []string{"physics"}, nil, "")
 	if err != nil {
 		prt.Fatalf("%v", err)
 	}

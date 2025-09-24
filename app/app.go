@@ -20,6 +20,7 @@ import (
 	"github.com/qmuntal/gltf"
 	"github.com/xypwn/filediver/app/appconfig"
 	datalib "github.com/xypwn/filediver/datalibrary"
+	"github.com/xypwn/filediver/dds"
 	"github.com/xypwn/filediver/exec"
 	"github.com/xypwn/filediver/extractor"
 	extr_animation "github.com/xypwn/filediver/extractor/animation"
@@ -109,6 +110,7 @@ type App struct {
 	ThinHashes map[stingray.ThinHash]string
 	ArmorSets  map[stingray.Hash]datalib.ArmorSet
 	DataDir    *stingray.DataDir
+	Metadata   map[stingray.FileID]FileMetadata
 }
 
 // Automatically gets most wwise-related hashes by reading the game files
@@ -181,6 +183,59 @@ func getWwiseHashes(dataDir *stingray.DataDir) (map[stingray.Hash]string, error)
 	return hashes, nil
 }
 
+func getFileMetadata(dataDir *stingray.DataDir) map[stingray.FileID]FileMetadata {
+	metadata := make(map[stingray.FileID]FileMetadata, len(dataDir.Files))
+	for fileID := range dataDir.Files {
+		meta := FileMetadata{
+			AvailableFields: make(map[string]bool),
+			Type:            fileID.Type,
+		}
+		for _, info := range dataDir.Files[fileID] {
+			meta.Archives = append(meta.Archives, info.ArchiveID)
+		}
+		meta.addAvailableFields("Type", "Archives")
+		switch fileID.Type {
+		case stingray.Sum("texture"):
+			const stingrayHeaderSize = 0xc0
+			const textureHeaderSize = stingrayHeaderSize + 0x04 /*DDS magic*/ + 0x7c /*DDS header*/ + 0x14 /*DXT10 header*/
+			b, err := dataDir.ReadAtMost(fileID, stingray.DataMain, textureHeaderSize)
+			if err != nil {
+				// ignore for now
+				continue
+			}
+			bR := bytes.NewReader(b)
+			if _, err := bR.Seek(stingrayHeaderSize, io.SeekCurrent); err != nil {
+				// ignore for now
+				continue
+			}
+			info, err := dds.DecodeInfo(bR)
+			if err != nil {
+				// ignore for now
+				continue
+			}
+			meta.Width = int(info.Header.Width)
+			meta.Height = int(info.Header.Height)
+			meta.Format = info.DXT10Header.DXGIFormat.String()
+			meta.addAvailableFields("Width", "Height", "Format")
+		case stingray.Sum("strings"):
+			b, err := dataDir.ReadAtMost(fileID, stingray.DataMain, 0x10)
+			if err != nil {
+				// ignore for now
+				continue
+			}
+			hdr, err := stingray_strings.LoadHeader(bytes.NewReader(b))
+			if err != nil {
+				// ignore for now
+				continue
+			}
+			meta.Language = hdr.Language
+			meta.addAvailableFields("Language")
+		}
+		metadata[fileID] = meta
+	}
+	return metadata
+}
+
 // Open game dir and read metadata.
 func OpenGameDir(ctx context.Context, gameDir string, hashStrings []string, thinhashes []string, language stingray.ThinHash, onProgress func(curr, total int)) (*App, error) {
 	dataDir, err := stingray.OpenDataDir(ctx, filepath.Join(gameDir, "data"), onProgress)
@@ -236,6 +291,7 @@ func OpenGameDir(ctx context.Context, gameDir string, hashStrings []string, thin
 		ThinHashes: thinHashesMap,
 		ArmorSets:  armorSets,
 		DataDir:    dataDir,
+		Metadata:   getFileMetadata(dataDir),
 	}, nil
 }
 
@@ -286,6 +342,7 @@ func (a *App) MatchingFiles(
 	excludeGlob string,
 	includeOnlyTypes []string,
 	includeArchiveIDs []stingray.Hash,
+	metadataFilter string,
 ) (
 	map[stingray.FileID]struct{},
 	error,
@@ -304,6 +361,14 @@ func (a *App) MatchingFiles(
 	if excludeGlob != "" {
 		var err error
 		exclGlob, err = glob.Compile(excludeGlob)
+		if err != nil {
+			return nil, err
+		}
+	}
+	var metadataFilterProg *FilterExprProgram
+	if metadataFilter != "" {
+		var err error
+		metadataFilterProg, err = CompileMetadataFilterExpr(metadataFilter)
 		if err != nil {
 			return nil, err
 		}
@@ -342,6 +407,15 @@ func (a *App) MatchingFiles(
 		}
 		if excludeGlob != "" {
 			if a.matchFileID(id, exclGlob, exclGlobNameOnly) {
+				shouldIncl = false
+			}
+		}
+		if metadataFilterProg != nil && shouldIncl {
+			matches, err := MetadataFilterExprMatches(metadataFilterProg, a.Metadata[id])
+			if err != nil {
+				return nil, err
+			}
+			if !matches {
 				shouldIncl = false
 			}
 		}

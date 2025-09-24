@@ -8,6 +8,9 @@ import (
 	fnt "github.com/xypwn/filediver/cmd/filediver-gui/fonts"
 )
 
+// Current monospace font.
+var FontMono *imgui.Font
+
 var baseGlyphRanges = [...]imgui.Wchar{
 	0x0020, 0x00ff, // basic latin + supplement
 	0x0100, 0x017f, // latin extended-A
@@ -90,6 +93,19 @@ func updateFonts(guiScale float32, needCJKFonts bool) {
 			fontSize*spec.scale,
 			fc,
 			spec.glyphRange,
+		)
+		fc.Destroy()
+	}
+
+	{ // Monospace
+		fc := imgui.NewFontConfig()
+		fc.SetFontDataOwnedByAtlas(false)
+		FontMono = fonts.AddFontFromMemoryTTFV(
+			uintptr(unsafe.Pointer(&fnt.TextFontMono[0])),
+			int32(len(fnt.TextFontMono)),
+			fontSize,
+			fc,
+			fonts.GlyphRangesDefault(),
 		)
 		fc.Destroy()
 	}

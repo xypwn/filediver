@@ -10,11 +10,13 @@ import (
 	"maps"
 	"os"
 	"os/signal"
+	"reflect"
 	"runtime/pprof"
 	"slices"
 	"sort"
 	"strings"
 	"syscall"
+	"text/tabwriter"
 
 	//"github.com/davecgh/go-spew/spew"
 
@@ -60,8 +62,10 @@ func main() {
 	var optInclOnlyTypes *string
 	var optInclArchives *string
 	var optArmorStringsLanguage *string
+	var optMetadataFilter *string
 	var optKnownHashesPath *string
 	var optThinHashListMode *string
+	var optHelpMetadata *bool
 	// Config common to CLI and GUI
 	cfg := appconfig.Config{}
 
@@ -104,6 +108,9 @@ func main() {
 			Choices: langs,
 			Help:    "Language to use when exporting armor set name",
 		})
+		optMetadataFilter = argp.String("m", "filter-metadata", &argparse.Option{
+			Help: `metadata search filter (see --help-metadata)`,
+		})
 		optKnownHashesPath = argp.String("", "hashes-file", &argparse.Option{
 			Help: "path to a text file containing known file and type names, will use built-in hash list if none is given",
 		})
@@ -112,9 +119,42 @@ func main() {
 			Choices: []any{"none", "unknown", "known", "bone", "material", "all"},
 			Help:    "if not none, list [option] thin hashes referenced in included unit files, then exit"},
 		)
+		optHelpMetadata = argp.Flag("", "help-metadata", &argparse.Option{
+			Help: `show metadata filter syntax help`,
+		})
 	}); err != nil {
 		log.Fatal(err)
 	} else if !dontExit {
+		os.Exit(0)
+	}
+
+	if *optHelpMetadata {
+		fmt.Println(`Example:
+  filediver -T texture --filter-metadata "width == 512 && height == 1024 && format == 'BC1UNorm'"
+  (extracts all textures with width 512, height 1024 and BC1UNorm image format [mostly cape textures])
+
+Syntax:
+  - expr-lang (see https://expr-lang.org)
+  - hashes must be passed as strings
+  - value name casing is ignored
+  - casing is ignored when checking if strings are equal
+
+Options:`)
+		typ := reflect.TypeFor[app.FileMetadata]()
+		tabw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+		fmt.Fprintf(tabw, "  =Name=\t=Type=\t=Description=\n")
+		for i := range typ.NumField() {
+			field := typ.Field(i)
+			if field.Tag.Get("meta") == "true" {
+				continue
+			}
+			var exampleStr string
+			if example, ok := field.Tag.Lookup("example"); ok {
+				exampleStr = fmt.Sprintf(" (e.g. %s)", example)
+			}
+			fmt.Fprintf(tabw, "  %s\t%s\t%s%s\n", field.Name, app.FileMetadataTypeName(field.Name), field.Tag.Get("help"), exampleStr)
+		}
+		tabw.Flush()
 		os.Exit(0)
 	}
 
@@ -233,7 +273,7 @@ func main() {
 	}
 	prt.NoStatus()
 
-	files, err := a.MatchingFiles(*optInclGlob, *optExclGlob, inclOnlyTypes, inclArchiveIDs)
+	files, err := a.MatchingFiles(*optInclGlob, *optExclGlob, inclOnlyTypes, inclArchiveIDs, *optMetadataFilter)
 	if err != nil {
 		prt.Fatalf("%v", err)
 	}
