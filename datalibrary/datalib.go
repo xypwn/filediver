@@ -5,6 +5,7 @@ import (
 	"bytes"
 	_ "embed"
 	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"io"
 	"math"
@@ -89,14 +90,24 @@ func Sum(text string) DLHash {
 }
 
 func (h DLHash) MarshalText() ([]byte, error) {
+	return []byte(h.String()), nil
+}
+
+func (h DLHash) String() string {
 	if h == 0 {
-		return []byte("(builtin)"), nil
+		return "(builtin)"
 	}
 	typeName, ok := DLHashesToStrings[h]
 	if !ok {
-		return []byte(strconv.FormatUint(uint64(h), 16)), nil
+		return strconv.FormatUint(uint64(h), 16)
 	}
-	return []byte(typeName), nil
+	return typeName
+}
+
+func (h DLHash) StringEndian(endian binary.ByteOrder) string {
+	var b [4]byte
+	endian.PutUint32(b[:], uint32(h))
+	return hex.EncodeToString(b[:])
 }
 
 // 4 bytes for alignment purposes

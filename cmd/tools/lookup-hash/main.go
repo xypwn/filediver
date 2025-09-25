@@ -8,6 +8,7 @@ import (
 	"github.com/hellflame/argparse"
 	"github.com/jwalton/go-supportscolor"
 	"github.com/xypwn/filediver/app"
+	datalib "github.com/xypwn/filediver/datalibrary"
 	"github.com/xypwn/filediver/hashes"
 	"github.com/xypwn/filediver/stingray"
 )
@@ -23,6 +24,9 @@ func main() {
 	thin := parser.Flag("t", "thin", &argparse.Option{
 		Help: "Given hash is 32bit",
 	})
+	isDatalib := parser.Flag("dl", "datalib", &argparse.Option{
+		Help: "Given hash is datalibrary hash",
+	})
 	base := parser.Int("b", "base", &argparse.Option{
 		Help:    "Base the hash is given in",
 		Choices: []any{2, 8, 10, 16},
@@ -37,7 +41,7 @@ func main() {
 	}
 
 	bitsize := 64
-	if *thin {
+	if *thin || *isDatalib {
 		bitsize = 32
 	}
 
@@ -48,6 +52,7 @@ func main() {
 
 	knownHashes := app.ParseHashes(hashes.Hashes)
 	knownThinHashes := app.ParseHashes(hashes.ThinHashes)
+	knownDatalibHashes := app.ParseHashes(hashes.DLTypeNames)
 
 	hashesMap := make(map[stingray.Hash]string)
 	for _, h := range knownHashes {
@@ -57,9 +62,20 @@ func main() {
 	for _, h := range knownThinHashes {
 		thinHashesMap[stingray.Sum(h).Thin()] = h
 	}
+	datalibHashesMap := make(map[datalib.DLHash]string)
+	for _, h := range knownDatalibHashes {
+		datalibHashesMap[datalib.Sum(h)] = h
+	}
 
 	lookupThinHash := func(hash stingray.ThinHash) string {
 		if name, ok := thinHashesMap[hash]; ok {
+			return name
+		}
+		return hash.String()
+	}
+
+	lookupDLHash := func(hash datalib.DLHash) string {
+		if name, ok := datalibHashesMap[hash]; ok {
 			return name
 		}
 		return hash.String()
@@ -77,6 +93,8 @@ func main() {
 	var toPrint string
 	if *thin {
 		toPrint = lookupThinHash(stingray.ThinHash{Value: uint32(value)})
+	} else if *isDatalib {
+		toPrint = lookupDLHash(datalib.DLHash(value))
 	} else {
 		toPrint = lookupHash(stingray.Hash{Value: value})
 	}

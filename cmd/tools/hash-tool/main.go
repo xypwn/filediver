@@ -10,10 +10,11 @@ import (
 
 	"github.com/hellflame/argparse"
 
+	datalib "github.com/xypwn/filediver/datalibrary"
 	"github.com/xypwn/filediver/stingray"
 )
 
-func hash(s string, thin bool, littleEndian bool) string {
+func hash(s string, thin, isDatalib, littleEndian bool) string {
 	var pfx string
 	var endian binary.ByteOrder
 	if littleEndian {
@@ -21,6 +22,11 @@ func hash(s string, thin bool, littleEndian bool) string {
 	} else {
 		pfx = "0x"
 		endian = binary.BigEndian
+	}
+
+	if isDatalib {
+		h := datalib.Sum(s)
+		return pfx + h.StringEndian(endian)
 	}
 
 	h := stingray.Sum(s)
@@ -164,6 +170,7 @@ A prefix list contains a list of prefixes that will be attempted to be prepended
 Example: Given the previous wordlist example's parameters, but with a prefix list containing "some/dir" and "other/dir", the permutations of length 2 include "hi_hi", "some/dir/hi_hi", "other/dir/hi_hi", "hi_hello", "some/dir/hi_hello" etc.`,
 	})
 	thin := parser.Flag("t", "thin", &argparse.Option{Help: "Output \"thin\" 32-bit hashes instead of 64-bit"})
+	isDatalib := parser.Flag("dl", "datalib", &argparse.Option{Help: "Output datalibrary hashes rather than murmur hashes"})
 	littleEndian := parser.Flag("l", "little_endian", &argparse.Option{Help: "Output hashes in little endian"})
 	inputStrs := parser.Strings("", "input", &argparse.Option{Positional: true, Help: "Strings to hash / hashes to crack (see epilog)"})
 	inputPath := parser.String("i", "input_file", &argparse.Option{Help: "Path to file containing strings to hash / hashes to crack"})
@@ -244,10 +251,10 @@ Example: Given the previous wordlist example's parameters, but with a prefix lis
 		}
 
 		if len(*inputStrs) == 1 {
-			fmt.Println(hash((*inputStrs)[0], *thin, *littleEndian))
+			fmt.Println(hash((*inputStrs)[0], *thin, *isDatalib, *littleEndian))
 		} else {
 			for _, s := range *inputStrs {
-				fmt.Printf("\"%v\" = %v\n", s, hash(s, *thin, *littleEndian))
+				fmt.Printf("\"%v\" = %v\n", s, hash(s, *thin, *isDatalib, *littleEndian))
 			}
 		}
 	}
