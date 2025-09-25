@@ -21,6 +21,10 @@ import (
 var customizationArmorSetsCompressed []byte
 var customizationArmorSets []byte
 
+//go:embed generated_unit_customization_settings.dl_bin.gz
+var unitCustomizationSettingsCompressed []byte
+var unitCustomizationSettings []byte
+
 //go:embed generated_entities.dl_bin.gz
 var entitiesCompressed []byte
 var entities []byte
@@ -70,6 +74,7 @@ func init() {
 	// Reduces binary size by ~33MB.
 	goDecompress(&entities, entitiesCompressed)
 	goDecompress(&customizationArmorSets, customizationArmorSetsCompressed)
+	goDecompress(&unitCustomizationSettings, unitCustomizationSettingsCompressed)
 	goDecompress(&typelib, typelibCompressed)
 	goParseHashes()
 	wg.Wait()

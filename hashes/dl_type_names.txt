@@ -968,6 +968,13 @@ PackageLayerTagIndirectionPair
 LoadoutItem
 SprayWeaponComponent
 MinigameExternalSwitchesComponentData
+UnitCustomizationSettings
+UnitCustomizationCollectionType
+UnitCustomizationCollectionCategoryType
+UnitCustomizationSetting
+UnitCustomizationComponentData
+UnitCustomizationComponent
+UnitCustomizationMaterialOverrides
 
 // ======== Enums and Values ========
 HelldiverCustomizationPassiveBonus
