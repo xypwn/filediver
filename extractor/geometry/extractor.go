@@ -815,6 +815,10 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, na
 			}
 
 			if normalAccessor, contains := groupAttr[gltf.NORMAL]; contains {
+				tangentAccessor, contains := groupAttr[gltf.TANGENT]
+				if !contains {
+					return fmt.Errorf("normal present but tangent not present")
+				}
 				var vertexOffset uint32 = 0
 				if previousNormalAccessor != nil && previousNormalAccessor.Count < doc.Accessors[normalAccessor].Count {
 					// Check if there are vertices that still need to be transformed
@@ -826,7 +830,14 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, na
 					stride := doc.BufferViews[vertexBuffer].ByteStride
 					buffer := doc.Buffers[doc.BufferViews[vertexBuffer].Buffer]
 					// Only use the rotation matrix to transform normals
-					err := transformVertices(buffer, bufferOffset, stride, vertexOffset, doc.Accessors[normalAccessor].Count, transformMatrix.Mat3().Mat4())
+					rotationMatrix := transformMatrix.Mat3().Mat4()
+					err := transformVertices(buffer, bufferOffset, stride, vertexOffset, doc.Accessors[normalAccessor].Count, rotationMatrix)
+					if err != nil {
+						return err
+					}
+
+					bufferOffset = doc.Accessors[tangentAccessor].ByteOffset + doc.BufferViews[vertexBuffer].ByteOffset
+					err = transformVertices(buffer, bufferOffset, stride, vertexOffset, doc.Accessors[tangentAccessor].Count, rotationMatrix)
 					if err != nil {
 						return err
 					}
