@@ -42,16 +42,6 @@ func (v *VisibilityMaskComponent) Length() int {
 	return i
 }
 
-type DLInstanceHeader struct {
-	_       DLHash
-	Magic   [4]byte
-	Version uint32
-	Type    DLHash
-	Size    uint32
-	Is64Bit uint8
-	_       [7]uint8
-}
-
 func ParseVisibilityMasks() (map[stingray.Hash]VisibilityMaskComponent, error) {
 	visibilityMaskHash := Sum("VisibilityMaskComponentData")
 	visibilityMaskHashData := make([]byte, 4)

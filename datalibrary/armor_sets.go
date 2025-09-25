@@ -131,13 +131,10 @@ func (b CustomizationKitBodyType) String() string {
 }
 
 type Body struct {
-	Type  CustomizationKitBodyType
-	Unk00 uint32
-	// 20 bit integer, limit on filesize 1MB
-	PiecesAddress uint32
-	Unk01         uint32
-	PiecesCount   uint32
-	Unk02         uint32
+	Type          CustomizationKitBodyType
+	Unk00         uint32
+	PiecesAddress int64
+	PiecesCount   int64
 }
 
 type CustomizationKitType uint32
@@ -262,32 +259,19 @@ func (v CustomizationKitPassive) String() string {
 }
 
 type HelldiverCustomizationKit struct {
-	Id          uint32
-	DlcId       uint32
-	SetId       uint32
-	NameUpper   uint32
-	NameCased   uint32
-	Description uint32
-	Rarity      CustomizationKitRarity
-	Passive     CustomizationKitPassive
-	Archive     stingray.Hash
-	Type        CustomizationKitType
-	Unk00       uint32
-	// 20 bit integer
-	BodyArrayAddress uint32
-	Unk01            uint32
-	BodyCount        uint32
-	Unk02            uint32
-}
-
-type DlItem struct {
-	Magic   [4]byte
-	Unk00   uint32
-	Unk01   uint32
-	KitSize uint32
-	Unk02   uint32
-	Unk03   uint32
-	Kit     HelldiverCustomizationKit
+	Id               uint32
+	DlcId            uint32
+	SetId            uint32
+	NameUpper        uint32
+	NameCased        uint32
+	Description      uint32
+	Rarity           CustomizationKitRarity
+	Passive          CustomizationKitPassive
+	Archive          stingray.Hash
+	Type             CustomizationKitType
+	Unk00            uint32
+	BodyArrayAddress int64
+	BodyCount        int64
 }
 
 type UnitData struct {
@@ -333,35 +317,44 @@ func LoadArmorSetDefinitions(strings map[uint32]string) (map[stingray.Hash]Armor
 	if err := binary.Read(r, binary.LittleEndian, &count); err != nil {
 		return nil, fmt.Errorf("reading count: %v", err)
 	}
-	const armorSetOffset = 0xe50000
-	var offset int = 4
 	for i := uint32(0); i < count; i++ {
-		var item DlItem
-		if err := binary.Read(r, binary.LittleEndian, &item); err != nil {
+		var header DLSubdataHeader
+		if err := binary.Read(r, binary.LittleEndian, &header); err != nil {
 			return nil, fmt.Errorf("reading item %v: %v", i, err)
 		}
 
-		r.Seek(int64((item.Kit.BodyArrayAddress&0xffffff)-armorSetOffset), io.SeekStart)
-		var bodies []Body = make([]Body, item.Kit.BodyCount)
+		if header.Type != Sum("HelldiverCustomizationKit") {
+			return nil, fmt.Errorf("invalid armor customization file")
+		}
+
+		base, _ := r.Seek(0, io.SeekCurrent)
+
+		var kit HelldiverCustomizationKit
+		if err := binary.Read(r, binary.LittleEndian, &kit); err != nil {
+			return nil, fmt.Errorf("reading item %v: %v", i, err)
+		}
+
+		r.Seek(base+kit.BodyArrayAddress, io.SeekStart)
+		var bodies []Body = make([]Body, kit.BodyCount)
 		if err := binary.Read(r, binary.LittleEndian, bodies); err != nil {
-			return nil, fmt.Errorf("reading bodies: %v", err)
+			return nil, fmt.Errorf("reading bodies at address %x: %v", base+kit.BodyArrayAddress, err)
 		}
 
 		armorSet := ArmorSet{
-			Name:         getNameIfContained(item.Kit.NameCased, item.Kit.NameUpper),
-			SetId:        item.Kit.SetId,
-			Passive:      item.Kit.Passive,
-			Type:         item.Kit.Type,
+			Name:         getNameIfContained(kit.NameCased, kit.NameUpper),
+			SetId:        kit.SetId,
+			Passive:      kit.Passive,
+			Type:         kit.Type,
 			UnitMetadata: make(map[stingray.Hash]UnitData),
 		}
 
 		for b, body := range bodies {
-			if _, err := r.Seek(int64((body.PiecesAddress&0xffffff)-armorSetOffset), io.SeekStart); err != nil {
-				return nil, fmt.Errorf("seeking piece address %x for body %v in item %v: %v", (body.PiecesAddress&0xffffff)-armorSetOffset, b, i, err)
+			if _, err := r.Seek(base+body.PiecesAddress, io.SeekStart); err != nil {
+				return nil, fmt.Errorf("seeking piece address %x for body %v in item %v: %v", base+body.PiecesAddress, b, i, err)
 			}
 			pieces := make([]Piece, body.PiecesCount)
 			if err := binary.Read(r, binary.LittleEndian, pieces); err != nil {
-				return nil, fmt.Errorf("reading %v pieces for body %v in item %v (address was %x): %v", body.PiecesCount, b, i, (body.PiecesAddress&0xffffff)-armorSetOffset, err)
+				return nil, fmt.Errorf("reading %v pieces for body %v in item %v (address was %x): %v", body.PiecesCount, b, i, base+body.PiecesAddress, err)
 			}
 			for _, piece := range pieces {
 				unitData := UnitData{
@@ -383,11 +376,9 @@ func LoadArmorSetDefinitions(strings map[uint32]string) (map[stingray.Hash]Armor
 			}
 		}
 
-		sets[item.Kit.Archive] = armorSet
+		sets[kit.Archive] = armorSet
 
-		offset += binary.Size(item)
-		offset += int(item.KitSize) - binary.Size(item.Kit)
-		r.Seek(int64(offset), io.SeekStart)
+		r.Seek(base+int64(header.Size), io.SeekStart)
 	}
 
 	return sets, nil
