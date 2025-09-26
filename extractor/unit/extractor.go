@@ -3,6 +3,8 @@ package unit
 import (
 	"fmt"
 	"io"
+	"math"
+	"slices"
 
 	"github.com/qmuntal/gltf"
 	"github.com/qmuntal/gltf/modeler"
@@ -227,6 +229,99 @@ func AddPrefabMetadata(ctx *extractor.Context, doc *gltf.Document, filename stin
 	doc.Extras = extras
 }
 
+func findBoneRecursive(doc *gltf.Document, currentNode uint32, boneName string) *uint32 {
+	if doc.Nodes[currentNode].Name == boneName {
+		return gltf.Index(currentNode)
+	}
+	for _, child := range doc.Nodes[currentNode].Children {
+		res := findBoneRecursive(doc, child, boneName)
+		if res != nil {
+			return res
+		}
+	}
+	return nil
+}
+
+func findBone(ctx *extractor.Context, doc *gltf.Document, parent *uint32, namehash stingray.ThinHash) *uint32 {
+	boneName, ok := ctx.ThinHashes()[namehash]
+	if !ok {
+		boneName = fmt.Sprintf("Bone_%08x", namehash.Value)
+	}
+
+	return findBoneRecursive(doc, *parent, boneName)
+}
+
+func AddLights(ctx *extractor.Context, doc *gltf.Document, unitInfo *unit.Info, parent *uint32) {
+	if len(unitInfo.Lights) == 0 {
+		return
+	}
+
+	if !slices.Contains(doc.ExtensionsUsed, "KHR_lights_punctual") {
+		doc.ExtensionsUsed = append(doc.ExtensionsUsed, "KHR_lights_punctual")
+	}
+
+	gltfLights := make([]map[string]any, 0)
+	for _, light := range unitInfo.Lights {
+		if light.BoneIndex >= uint32(len(unitInfo.Bones)) {
+			ctx.Warnf("light %v has bone index exceeding length of unit bones list", ctx.LookupThinHash(light.NameHash))
+			return
+		}
+
+		boneGltfIdx := findBone(ctx, doc, parent, unitInfo.Bones[light.BoneIndex].NameHash)
+		if boneGltfIdx == nil {
+			ctx.Warnf("could not find bone %v to attach light %v", ctx.LookupThinHash(unitInfo.Bones[light.BoneIndex].NameHash), ctx.LookupThinHash(light.NameHash))
+			return
+		}
+
+		lightGltfIdx := len(gltfLights)
+		lightNodeIdx := len(doc.Nodes)
+		quat := mgl32.QuatRotate(mgl32.DegToRad(90), mgl32.Vec3{1.0, 0.0, 0.0})
+		doc.Nodes = append(doc.Nodes, &gltf.Node{
+			Name:     ctx.LookupThinHash(light.NameHash),
+			Rotation: quat.V.Vec4(quat.W),
+			Extensions: map[string]any{
+				"KHR_lights_punctual": map[string]any{
+					"light": lightGltfIdx,
+				},
+			},
+		})
+
+		doc.Nodes[*boneGltfIdx].Children = append(doc.Nodes[*boneGltfIdx].Children, uint32(lightNodeIdx))
+
+		maxColor := float32(math.Max(math.Max(float64(light.Color[0]), float64(light.Color[1])), float64(light.Color[2])))
+		intensity := light.Intensity
+		if maxColor > 1.0 {
+			light.Color[0] /= maxColor
+			light.Color[1] /= maxColor
+			light.Color[2] /= maxColor
+			intensity *= maxColor
+		}
+		gltfLight := map[string]any{
+			"name":      ctx.LookupThinHash(light.NameHash),
+			"type":      light.Type.ToGLTF(),
+			"color":     light.Color,
+			"intensity": intensity * 100.0,
+		}
+		if light.Type != unit.LightDirectional {
+			gltfLight["range"] = light.FalloffEnd
+		}
+		if light.Type == unit.LightSpot {
+			spot := map[string]any{
+				"innerConeAngle": light.SpotInnerAngle,
+				"outerConeAngle": light.SpotOuterAngle,
+			}
+			gltfLight["spot"] = spot
+		}
+		gltfLights = append(gltfLights, gltfLight)
+	}
+	if doc.Extensions == nil {
+		doc.Extensions = make(gltf.Extensions)
+	}
+	doc.Extensions["KHR_lights_punctual"] = map[string]any{
+		"lights": gltfLights,
+	}
+}
+
 func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gltfDoc *gltf.Document) error {
 	fMain, err := ctx.Open(ctx.FileID(), stingray.DataMain)
 	if err != nil {
@@ -291,6 +386,7 @@ func ConvertBuffer(fMain, fGPU io.ReadSeeker, filename stingray.Hash, ctx *extra
 		if animationsEnabled {
 			state_machine.AddAnimationSet(ctx, doc, unitInfo)
 		}
+		AddLights(ctx, doc, unitInfo, parent)
 	} else {
 		parent = gltf.Index(uint32(len(doc.Nodes)))
 		doc.Nodes = append(doc.Nodes, &gltf.Node{
