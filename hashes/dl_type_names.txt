@@ -996,7 +996,6 @@ MeleeWeaponComponentData
 MeleeShieldComponentData
 MeleeShieldComponent
 MeleeWeaponComponent
-MonolithSpoolInfo
 PowerGeneratorComponentData
 PowerNodeComponent
 PowerGeneratorComponent
