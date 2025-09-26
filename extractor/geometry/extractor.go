@@ -836,17 +836,7 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, na
 					scaleY := rotationMatrix.Col(1).Len()
 					scaleZ := rotationMatrix.Col(2).Len()
 
-					rotationMatrix[0] /= scaleX
-					rotationMatrix[3] /= scaleX
-					rotationMatrix[6] /= scaleX
-
-					rotationMatrix[1] /= scaleY
-					rotationMatrix[4] /= scaleY
-					rotationMatrix[7] /= scaleY
-
-					rotationMatrix[2] /= scaleZ
-					rotationMatrix[5] /= scaleZ
-					rotationMatrix[8] /= scaleZ
+					rotationMatrix = rotationMatrix.Mul4(mgl32.Scale3D(scaleX, scaleY, scaleZ).Inv())
 
 					err := transformVertices(buffer, bufferOffset, stride, vertexOffset, doc.Accessors[normalAccessor].Count, rotationMatrix)
 					if err != nil {
