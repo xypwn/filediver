@@ -19,6 +19,7 @@ import (
 	"github.com/gobwas/glob"
 	"github.com/qmuntal/gltf"
 	"github.com/xypwn/filediver/app/appconfig"
+	datalib "github.com/xypwn/filediver/datalibrary"
 	"github.com/xypwn/filediver/dds"
 	"github.com/xypwn/filediver/exec"
 	"github.com/xypwn/filediver/extractor"
@@ -37,7 +38,6 @@ import (
 	extr_wwise "github.com/xypwn/filediver/extractor/wwise"
 	"github.com/xypwn/filediver/steampath"
 	"github.com/xypwn/filediver/stingray"
-	dlbin "github.com/xypwn/filediver/stingray/dl_bin"
 	stingray_strings "github.com/xypwn/filediver/stingray/strings"
 	stingray_wwise "github.com/xypwn/filediver/stingray/wwise"
 	"github.com/xypwn/filediver/wwise"
@@ -108,7 +108,7 @@ func ParseHashes(str string) []string {
 type App struct {
 	Hashes     map[stingray.Hash]string
 	ThinHashes map[stingray.ThinHash]string
-	ArmorSets  map[stingray.Hash]dlbin.ArmorSet
+	ArmorSets  map[stingray.Hash]datalib.ArmorSet
 	DataDir    *stingray.DataDir
 	Metadata   map[stingray.FileID]FileMetadata
 }
@@ -281,9 +281,9 @@ func OpenGameDir(ctx context.Context, gameDir string, hashStrings []string, thin
 		maps.Copy(mapping, strings.Strings)
 	}
 
-	armorSets, err := dlbin.LoadArmorSetDefinitions(mapping)
+	armorSets, err := datalib.LoadArmorSetDefinitions(mapping)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("LoadArmorSetDefinitions: %v", err)
 	}
 
 	return &App{

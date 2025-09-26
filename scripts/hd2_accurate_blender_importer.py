@@ -247,7 +247,7 @@ def main():
         if "extras" in gltf and "frameRate" in gltf["extras"]:
             print(f'Setting FPS to {gltf["extras"]["frameRate"]}')
             bpy.context.scene.render.fps = gltf["extras"]["frameRate"]
-        bpy.ops.import_scene.gltf(filepath=str(path), import_shading="NORMALS", bone_heuristic="TEMPERANCE")
+        bpy.ops.import_scene.gltf(filepath=str(path), bone_heuristic="TEMPERANCE")
     finally:
         if str(input_model) == "-":
             path.unlink()
@@ -297,7 +297,14 @@ def main():
             for other in obj.users_collection:
                 other.objects.unlink(obj)
             collection.objects.link(obj)
+        if "extras" in node and "default_hidden" in node["extras"] and node["extras"]["default_hidden"] == 1 and node["name"] in bpy.data.objects:
+            obj = bpy.data.objects[node["name"]]
+            obj.hide_render = True
+            obj.hide_set(True)
         if "mesh" not in node:
+            if node["name"] in bpy.data.objects and "children" in node and gltf["nodes"][node["children"][0]]["name"] == "StingrayEntityRoot":
+                object = bpy.data.objects[node["name"]]
+                object.data.display_type = "WIRE"
             continue
         mesh = gltf["meshes"][node["mesh"]]
         textures: Dict[str, Image] = {}

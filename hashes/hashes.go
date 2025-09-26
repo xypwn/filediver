@@ -12,3 +12,6 @@ var MaterialTextures string
 
 //go:embed thinhashes.txt
 var ThinHashes string
+
+//go:embed dl_type_names.txt
+var DLTypeNames string

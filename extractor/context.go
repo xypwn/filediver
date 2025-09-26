@@ -9,9 +9,9 @@ import (
 	"slices"
 
 	"github.com/xypwn/filediver/app/appconfig"
+	datalib "github.com/xypwn/filediver/datalibrary"
 	"github.com/xypwn/filediver/exec"
 	"github.com/xypwn/filediver/stingray"
-	dlbin "github.com/xypwn/filediver/stingray/dl_bin"
 )
 
 // Context is what's passed to the extractor when
@@ -23,7 +23,7 @@ type Context struct {
 	ctx              context.Context
 	hashes           map[stingray.Hash]string
 	thinHashes       map[stingray.ThinHash]string
-	armorSets        map[stingray.Hash]dlbin.ArmorSet
+	armorSets        map[stingray.Hash]datalib.ArmorSet
 	dataDir          *stingray.DataDir
 	runner           *exec.Runner
 	config           appconfig.Config
@@ -47,7 +47,7 @@ func NewContext(
 	fileID stingray.FileID,
 	hashes map[stingray.Hash]string,
 	thinHashes map[stingray.ThinHash]string,
-	armorSets map[stingray.Hash]dlbin.ArmorSet,
+	armorSets map[stingray.Hash]datalib.ArmorSet,
 	dataDir *stingray.DataDir,
 	runner *exec.Runner,
 	config appconfig.Config,
@@ -148,7 +148,7 @@ func (c *Context) ThinHashes() map[stingray.ThinHash]string {
 // TODO: We might want to take a different approach to this,
 // since we can never truly be sure the archive/armor set ID
 // is correct.
-func (c *Context) GuessFileArmorSet(fileID stingray.FileID) (_ dlbin.ArmorSet, ok bool) {
+func (c *Context) GuessFileArmorSet(fileID stingray.FileID) (datalib.ArmorSet, bool) {
 	var archive stingray.Hash
 	for _, file := range c.dataDir.Files[fileID] {
 		if slices.Contains(c.selectedArchives, file.ArchiveID) {
@@ -157,7 +157,7 @@ func (c *Context) GuessFileArmorSet(fileID stingray.FileID) (_ dlbin.ArmorSet, o
 		}
 	}
 	if archive.Value == 0 {
-		return dlbin.ArmorSet{}, false
+		return datalib.ArmorSet{}, false
 	}
 
 	armorSet, ok := c.armorSets[archive]

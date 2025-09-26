@@ -5,12 +5,14 @@ import (
 	"io"
 	"math"
 	"slices"
+	"strings"
 
 	"github.com/qmuntal/gltf"
 	"github.com/qmuntal/gltf/modeler"
 
 	"github.com/go-gl/mathgl/mgl32"
 
+	datalib "github.com/xypwn/filediver/datalibrary"
 	"github.com/xypwn/filediver/extractor"
 	"github.com/xypwn/filediver/extractor/blend_helper"
 	"github.com/xypwn/filediver/extractor/geometry"
@@ -18,7 +20,6 @@ import (
 	"github.com/xypwn/filediver/extractor/state_machine"
 	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/stingray/bones"
-	dlbin "github.com/xypwn/filediver/stingray/dl_bin"
 	"github.com/xypwn/filediver/stingray/unit"
 	geometrygroup "github.com/xypwn/filediver/stingray/unit/geometry_group"
 	"github.com/xypwn/filediver/stingray/unit/material"
@@ -153,9 +154,14 @@ func AddSkeleton(ctx *extractor.Context, doc *gltf.Document, unitInfo *unit.Info
 	}
 
 	if skeleton == nil {
+		unitName := ctx.LookupHash(skeletonName)
+		if strings.Contains(unitName, "/") {
+			items := strings.Split(unitName, "/")
+			unitName = items[len(items)-1]
+		}
 		idx := len(doc.Nodes)
 		doc.Nodes = append(doc.Nodes, &gltf.Node{
-			Name: skeletonName.String(),
+			Name: unitName,
 			Children: []uint32{
 				rootNodeIndex,
 			},
@@ -179,7 +185,7 @@ func AddSkeleton(ctx *extractor.Context, doc *gltf.Document, unitInfo *unit.Info
 	return uint32(len(doc.Skins) - 1)
 }
 
-func AddMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_material.ImageOptions, unitInfo *unit.Info, metadata *dlbin.UnitData) (map[stingray.ThinHash]uint32, error) {
+func AddMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_material.ImageOptions, unitInfo *unit.Info, metadata *datalib.UnitData) (map[stingray.ThinHash]uint32, error) {
 	materialIdxs := make(map[stingray.ThinHash]uint32)
 	for id, resID := range unitInfo.Materials {
 		matR, err := ctx.Open(stingray.NewFileID(resID, stingray.Sum("material")), stingray.DataMain)
@@ -359,7 +365,7 @@ func ConvertBuffer(fMain, fGPU io.ReadSeeker, filename stingray.Hash, ctx *extra
 	}
 
 	// Get metadata
-	var metadata *dlbin.UnitData = nil
+	var metadata *datalib.UnitData = nil
 	var armorSetName *string = nil
 	if armorSet, ok := ctx.GuessFileArmorSet(ctx.FileID()); ok {
 		armorSetName = &armorSet.Name

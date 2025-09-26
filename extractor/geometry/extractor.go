@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"maps"
 	"slices"
 	"strings"
 
@@ -13,6 +14,7 @@ import (
 
 	"github.com/go-gl/mathgl/mgl32"
 
+	datalib "github.com/xypwn/filediver/datalibrary"
 	"github.com/xypwn/filediver/extractor"
 	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/stingray/unit"
@@ -629,6 +631,9 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, na
 	layoutToIndexAccessor := make(map[uint32]*gltf.Accessor)
 	layoutAttributes := make(map[uint32]map[string]*gltf.Accessor)
 
+	processedLODBones := false
+	hasLOD0 := true
+	hasBaseModel := true
 	for i, header := range meshInfos {
 		if header.MeshLayoutIndex >= uint32(len(meshLayouts)) {
 			return fmt.Errorf("MeshLayoutIndex out of bounds")
@@ -649,13 +654,11 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, na
 			groupName = bones[i].String()
 		}
 
-		hasLOD0 := true
-
-		isLOD := func(name string, onlyModelAndShadow bool) bool {
+		isLOD := func(name string, onlyModelAndShadow bool, haveBaseModel bool) bool {
 			if strings.Contains(name, "shadow") || strings.Contains(name, "debris") {
 				return true
 			}
-			if strings.Contains(name, "_LOD") && !strings.Contains(name, "_LOD0") {
+			if strings.Contains(name, "_LOD") && (!strings.Contains(name, "_LOD0") || haveBaseModel) {
 				return true
 			}
 			if strings.Contains(name, "cull") || strings.Contains(name, "collision") {
@@ -664,20 +667,25 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, na
 			return false
 		}
 
-		if !cfg.Model.IncludeLODS && isLOD(groupName, false) {
-			if strings.Contains(groupName, "_LOD1") && !strings.Contains(groupName, "shadow") {
+		if !cfg.Model.IncludeLODS && isLOD(groupName, false, true) {
+			if !processedLODBones && (strings.Contains(groupName, "_LOD1") || strings.Contains(groupName, "_LOD0")) && !strings.Contains(groupName, "shadow") {
 				hasLOD0 = false
+				hasBaseModel = false
 				lod0Name := strings.TrimSuffix(groupName, "_LOD1")
+				lod0Name = strings.TrimSuffix(lod0Name, "_LOD0")
 				lod0Hash1 := stingray.Sum(lod0Name).Thin()
 				lod0Hash2 := stingray.Sum(lod0Name + "_LOD0").Thin()
 				for _, bone := range unitInfo.GroupBones {
-					if lod0Hash1 == bone || lod0Hash2 == bone {
-						hasLOD0 = true
+					if lod0Hash1 == bone {
+						hasBaseModel = true
 						break
+					} else if lod0Hash2 == bone {
+						hasLOD0 = true
 					}
 				}
+				processedLODBones = true
 			}
-			if hasLOD0 {
+			if (hasLOD0 && strings.Contains(groupName, "_LOD") && !strings.Contains(groupName, "_LOD0")) || (hasBaseModel && strings.Contains(groupName, "_LOD0")) || strings.Contains(groupName, "shadow") {
 				continue
 			}
 		}
@@ -710,11 +718,18 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, na
 			layoutToIndexAccessor[header.MeshLayoutIndex] = indexAccessor
 		}
 
+		visibilityMaskData, err := datalib.ParseVisibilityMasks()
+		if err != nil {
+			ctx.Warnf("ParseVisibilityMasks: %v", err)
+			visibilityMaskData = make(map[stingray.Hash]datalib.VisibilityMaskComponent)
+		}
+
 		udimPrimitives := make(map[uint32][]*gltf.Primitive)
-		nodeName := fmt.Sprintf("%v %v", unitName, groupName)
+		nodeName := groupName
 		remapped := make(map[uint32]bool)
 		var transformedPositions, transformedNormals bool = false, false
 		var previousPositionAccessor, previousNormalAccessor *gltf.Accessor
+		var visibilityMasks map[uint16]map[string]any
 		for j, group := range header.Groups {
 			// Check if this group is a gib or collision mesh, if it is skip it unless include_lods is set
 			var materialName string
@@ -884,11 +899,22 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, na
 				flipNormals(buffer, indexAccessor.ComponentType, group.NumIndices, bufferOffset)
 			}
 
+			mask, contains := visibilityMaskData[name]
+			if !contains {
+				if strings.Contains(ctx.LookupHash(name), "cha_lieutenant") {
+					// For some reason neither of the hulk models are in the visibility masks, but an invalid filename is?
+					// Not sure how the game looks them up in this case, probably need to investigate more
+					mask, contains = visibilityMaskData[stingray.Sum("content/fac_cyborgs/cha_lieutenant/cha_lieutenant_assault")]
+				} else {
+					ctx.Warnf("visibilityMaskData does not contain %v, model will be written with udim numbers rather than names", unitName)
+				}
+			}
+			visibilityMasks = make(map[uint16]map[string]any)
 			udimIndexAccessors := make(map[uint32]uint32)
 			if !cfg.Model.JoinComponents {
 				texcoordIndex, ok := groupAttr[gltf.TEXCOORD_0]
 				// Don't separate udims of LODs or shadow meshes, unless this is LOD1 and we don't have an LOD0
-				if ok && (!isLOD(groupName, true) || (!hasLOD0 && strings.Contains(groupName, "LOD1") && !strings.Contains(groupName, "shadow"))) {
+				if ok && (!isLOD(groupName, true, hasBaseModel) || ((!hasLOD0 && !hasBaseModel) && strings.Contains(groupName, "LOD1") && !strings.Contains(groupName, "shadow"))) {
 					texcoordAccessor := doc.Accessors[texcoordIndex]
 					groupIndexAccessor := doc.Accessors[*groupIndices]
 					var UDIMs map[uint32][]uint32
@@ -898,10 +924,17 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, na
 						for udim, indices := range UDIMs {
 							udimIndexAccessors[udim] = modeler.WriteIndices(doc, indices)
 						}
+						for i := 0; contains && i < mask.Length(); i++ {
+							visibilityMasks[mask.MaskInfos[i].Index] = map[string]any{
+								"name":           ctx.LookupThinHash(mask.MaskInfos[i].Name),
+								"index":          mask.MaskInfos[i].Index,
+								"default_hidden": mask.MaskInfos[i].StartHidden,
+							}
+						}
 					}
 				}
 			}
-			if cfg.Model.JoinComponents || (cfg.Model.IncludeLODS && (isLOD(groupName, true))) {
+			if cfg.Model.JoinComponents || (cfg.Model.IncludeLODS && (isLOD(groupName, true, hasBaseModel))) {
 				udimIndexAccessors[0] = *groupIndices
 			}
 
@@ -934,7 +967,14 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, na
 
 			udimNodeName := nodeName
 			if len(udimPrimitives) > 1 {
-				udimNodeName = fmt.Sprintf("%v udim %v", nodeName, udim)
+				if _, contains := visibilityMasks[uint16(udim)]; !contains {
+					visibilityMasks[uint16(udim)] = map[string]any{
+						"name":           fmt.Sprintf("udim %v", udim),
+						"index":          uint16(udim),
+						"default_hidden": false,
+					}
+				}
+				udimNodeName = fmt.Sprintf("%v %v", nodeName, visibilityMasks[uint16(udim)]["name"])
 			}
 			doc.Nodes = append(doc.Nodes, &gltf.Node{
 				Name: udimNodeName,
@@ -943,6 +983,15 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, na
 			node := uint32(len(doc.Nodes)) - 1
 			if _, contains := primitives[0].Attributes[gltf.JOINTS_0]; contains {
 				doc.Nodes[node].Skin = skin
+			}
+			if len(udimPrimitives) > 1 && len(visibilityMasks) > 0 {
+				extras, ok := doc.Nodes[node].Extras.(map[string]any)
+				if !ok {
+					extras = visibilityMasks[uint16(udim)]
+				} else {
+					maps.Copy(extras, visibilityMasks[uint16(udim)])
+				}
+				doc.Nodes[node].Extras = extras
 			}
 			doc.Nodes[parent].Children = append(doc.Nodes[parent].Children, node)
 			*meshNodes = append(*meshNodes, node)

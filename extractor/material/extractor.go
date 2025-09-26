@@ -14,12 +14,12 @@ import (
 	"github.com/qmuntal/gltf"
 	"github.com/qmuntal/gltf/modeler"
 
+	datalib "github.com/xypwn/filediver/datalibrary"
 	"github.com/xypwn/filediver/dds"
 	"github.com/xypwn/filediver/extractor"
 	"github.com/xypwn/filediver/extractor/blend_helper"
 	extr_texture "github.com/xypwn/filediver/extractor/texture"
 	"github.com/xypwn/filediver/stingray"
-	dlbin "github.com/xypwn/filediver/stingray/dl_bin"
 	"github.com/xypwn/filediver/stingray/unit/material"
 )
 
@@ -69,9 +69,9 @@ func postProcessToOpaque(img image.Image) error {
 	}
 }
 
-// Returns a function that uses the alpha of an emissive map and an emissive color to create
+// Returns a function that uses a specific channel of an emissive map and an emissive color to create
 // a gltf emissive map
-func createPostProcessEmissiveColor(color []float32) (func(image.Image) error, error) {
+func createPostProcessEmissiveColor(color []float32, channel int) (func(image.Image) error, error) {
 	if len(color) < 3 {
 		return nil, fmt.Errorf("createPostProcessEmissiveColor: color %v does not have enough entries", color)
 	}
@@ -81,10 +81,47 @@ func createPostProcessEmissiveColor(color []float32) (func(image.Image) error, e
 			for iY := img.Rect.Min.Y; iY < img.Rect.Max.Y; iY++ {
 				for iX := img.Rect.Min.X; iX < img.Rect.Max.X; iX++ {
 					idx := img.PixOffset(iX, iY)
-					alphaPct := float32(img.Pix[idx+3]) / 255.0
-					img.Pix[idx] = uint8(color[0] * 255.0 * alphaPct)
-					img.Pix[idx+1] = uint8(color[1] * 255.0 * alphaPct)
-					img.Pix[idx+2] = uint8(color[2] * 255.0 * alphaPct)
+					emissivePct := float32(img.Pix[idx+channel]) / 255.0
+					img.Pix[idx] = uint8(color[0] * 255.0 * emissivePct)
+					img.Pix[idx+1] = uint8(color[1] * 255.0 * emissivePct)
+					img.Pix[idx+2] = uint8(color[2] * 255.0 * emissivePct)
+					img.Pix[idx+3] = 255
+				}
+			}
+			return nil
+		default:
+			return errors.New("postProcessEmissiveColor: unsupported image type")
+		}
+	}, nil
+}
+
+// Returns a function that uses the red of the index_emissive and the lut_color to create an albedo texture
+func createPostProcessLutColor(ctx *extractor.Context, lutColorHash stingray.Hash) (func(image.Image) error, error) {
+	lutColorData, err := extr_texture.ExtractDDSData(ctx,
+		stingray.NewFileID(lutColorHash, stingray.Sum("texture")))
+	if err != nil {
+		return nil, err
+	}
+	lutColor, err := dds.Decode(bytes.NewReader(lutColorData), false)
+	if err != nil {
+		return nil, err
+	}
+	lutColorNRGBA, ok := lutColor.Image.(*image.NRGBA)
+	if !ok {
+		return nil, fmt.Errorf("lutColor could not be converted to NRGBA")
+	}
+	return func(img image.Image) error {
+		switch img := img.(type) {
+		case *image.NRGBA:
+			for iY := img.Rect.Min.Y; iY < img.Rect.Max.Y; iY++ {
+				for iX := img.Rect.Min.X; iX < img.Rect.Max.X; iX++ {
+					idx := img.PixOffset(iX, iY)
+					// index of lut stored in red channel
+					colorIndex := img.Pix[idx]
+					lutPixelIdx := lutColorNRGBA.PixOffset(int(colorIndex), 1)
+					img.Pix[idx] = lutColorNRGBA.Pix[lutPixelIdx]
+					img.Pix[idx+1] = lutColorNRGBA.Pix[lutPixelIdx+1]
+					img.Pix[idx+2] = lutColorNRGBA.Pix[lutPixelIdx+2]
 					img.Pix[idx+3] = 255
 				}
 			}
@@ -322,7 +359,7 @@ func writeIlluminateOcclusionMetallicRoughnessTexture(ctx *extractor.Context, do
 	return texIdx, nil
 }
 
-func compareMaterials(ctx *extractor.Context, doc *gltf.Document, mat *material.Material, matIdx uint32, matName string, unitData *dlbin.UnitData) bool {
+func compareMaterials(ctx *extractor.Context, doc *gltf.Document, mat *material.Material, matIdx uint32, matName string, unitData *datalib.UnitData) bool {
 	if doc.Materials[matIdx].Name != matName {
 		return false
 	}
@@ -376,7 +413,7 @@ func compareMaterials(ctx *extractor.Context, doc *gltf.Document, mat *material.
 	return true
 }
 
-func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Document, imgOpts *ImageOptions, matName string, unitData *dlbin.UnitData) (uint32, error) {
+func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Document, imgOpts *ImageOptions, matName string, unitData *datalib.UnitData) (uint32, error) {
 	cfg := ctx.Config()
 
 	// Avoid duplicating material if it already is added to document
@@ -427,7 +464,7 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 		case "albedo":
 			index, err := writeTexture(ctx, doc, mat.Textures[texUsage], albedoPostProcess, imgOpts, "")
 			if err != nil {
-				ctx.Warnf("writeTexture: %v: %v", ctx.LookupThinHash(texUsage), err)
+				ctx.Warnf("writeTexture: %v: %v", texUsageStr, err)
 				continue
 			}
 			baseColorTexture = &gltf.TextureInfo{
@@ -435,10 +472,24 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 			}
 			usedTextures[texUsageStr] = index
 			albedoPostProcess = postProcessToOpaque
-		case "albedo_emissive":
-			index, err := writeTexture(ctx, doc, mat.Textures[texUsage], postProcessToOpaque, imgOpts, "")
+		case "index_emissive":
+			lutColorHash, ok := mat.Textures[stingray.Sum("lut_color").Thin()]
+			if !ok {
+				ctx.Warnf("writeTexture: %v: lut_color texture not found!", texUsageStr)
+				continue
+			}
+			var err error
+			albedoPostProcess, err = createPostProcessLutColor(ctx, lutColorHash)
 			if err != nil {
-				ctx.Warnf("writeTexture: %v: %v", ctx.LookupThinHash(texUsage), err)
+				albedoPostProcess = postProcessToOpaque
+				ctx.Warnf("writeTexture: %v: %v", texUsageStr, err)
+				continue
+			}
+			fallthrough
+		case "albedo_emissive", "base_color_emissive_map":
+			index, err := writeTexture(ctx, doc, mat.Textures[texUsage], albedoPostProcess, imgOpts, "")
+			if err != nil {
+				ctx.Warnf("writeTexture: %v: %v", texUsageStr, err)
 				continue
 			}
 			baseColorTexture = &gltf.TextureInfo{
@@ -449,7 +500,11 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 				ctx.Warnf("material %v has %v texture but no emissive_color", matName, texUsageStr)
 				continue
 			}
-			postProcessEmissiveColor, err := createPostProcessEmissiveColor(emissiveColorSetting)
+			postProcessEmissiveColor, err := createPostProcessEmissiveColor(emissiveColorSetting, 3)
+			if texUsageStr == "index_emissive" {
+				// IndexEmissive uses the green channel for emissive strength
+				postProcessEmissiveColor, err = createPostProcessEmissiveColor(emissiveColorSetting, 1)
+			}
 			if err != nil {
 				ctx.Warnf("createPostProcessEmissiveColor: %v", err)
 				continue
@@ -475,6 +530,7 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 				continue
 			}
 			emissiveStrength = emissiveStrengthSetting[0]
+			albedoPostProcess = postProcessToOpaque
 		case "normal_specular_ao":
 			// GLTF normals will look wonky, but our own material will be able to use the specular+ao in this map
 			// in blender
@@ -505,7 +561,7 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 			}
 			usedTextures[texUsageStr] = index
 			normalPostProcess = postProcessReconstructNormalZ
-		case "NAR":
+		case "NAR", "normal_xy_ao_rough_map":
 			hash := mat.Textures[texUsage]
 			index, err := writeTexture(ctx, doc, hash, postProcessReconstructNormalZ, imgOpts, "")
 			if err != nil {
@@ -516,6 +572,10 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 				Index: gltf.Index(index),
 			}
 			illuminateDataHash, ok := mat.Textures[stingray.Sum("illuminate_data").Thin()]
+			if !ok {
+				// Did they just rename it from illuminate data?
+				illuminateDataHash, ok = mat.Textures[stingray.Sum("metallic_intensity_map").Thin()]
+			}
 			if metallicRoughnessTexture == nil && ok {
 				metallicRoughnessIndex, err := writeIlluminateOcclusionMetallicRoughnessTexture(ctx, doc, hash, illuminateDataHash, imgOpts)
 				if err != nil {
@@ -536,7 +596,7 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 					Index: gltf.Index(occlusionIndex),
 				}
 			}
-		case "illuminate_data":
+		case "illuminate_data", "metallic_intensity_map":
 			hash := mat.Textures[texUsage]
 			index, err := writeTexture(ctx, doc, hash, postProcessIlluminateClearcoat, imgOpts, "")
 			if err != nil {
@@ -547,6 +607,9 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 				Index: index,
 			}
 			narHash, ok := mat.Textures[stingray.Sum("NAR").Thin()]
+			if !ok {
+				narHash, ok = mat.Textures[stingray.Sum("normal_xy_ao_rough_map").Thin()]
+			}
 			if metallicRoughnessTexture == nil && ok {
 				metallicRoughnessIndex, err := writeIlluminateOcclusionMetallicRoughnessTexture(ctx, doc, narHash, hash, imgOpts)
 				if err != nil {
