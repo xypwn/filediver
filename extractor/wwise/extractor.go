@@ -255,15 +255,15 @@ func ConvertBnk(ctx *extractor.Context) error {
 		return path.Join(dir, fmt.Sprint(resourceID))
 	}
 
-	streams, err := stingray_wwise.BnkGetAllReferencedStreamData(in, func(id uint32) (data []byte, ok bool, err error) {
+	streams, err := stingray_wwise.BnkGetAllReferencedStreamData(in, func(id uint32) (data []byte, exists bool, err error) {
 		streamFileName := stingray.Sum(streamFilePath(id))
 		streamFile, err := ctx.Open(stingray.NewFileID(streamFileName, stingray.Sum("wwise_stream")), stingray.DataStream)
-		if err == stingray.ErrFileDataTypeNotExist {
+		if err == stingray.ErrFileNotExist || err == stingray.ErrFileDataTypeNotExist {
 			return nil, false, nil
 		}
 		data, err = io.ReadAll(streamFile)
 		if err != nil {
-			return nil, true, err
+			return nil, false, err
 		}
 		return data, true, nil
 	})

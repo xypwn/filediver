@@ -57,7 +57,7 @@ func OpenBnk(in io.ReadSeeker) (*wwise.Bnk, error) {
 
 func BnkGetAllReferencedStreamData(
 	in io.ReadSeeker,
-	tryGetStreamByID func(id uint32) (data []byte, ok bool, err error),
+	tryGetStreamByID func(id uint32) (data []byte, exists bool, err error),
 ) (map[uint32][]byte, error) {
 	streams := make(map[uint32][]byte)
 

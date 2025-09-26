@@ -276,11 +276,11 @@ func (a *guiApp) onPreDraw(state *imgui_wrapper.State) error {
 			a.gameData.ThinHashes,
 			func(id stingray.FileID, typ stingray.DataType) (data []byte, exists bool, err error) {
 				data, err = a.gameData.DataDir.Read(id, typ)
-				if err == stingray.ErrFileDataTypeNotExist {
+				if err == stingray.ErrFileNotExist || err == stingray.ErrFileDataTypeNotExist {
 					return nil, false, nil
 				}
 				if err != nil {
-					return nil, true, err
+					return nil, false, err
 				}
 				return data, true, nil
 			},
