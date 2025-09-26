@@ -960,7 +960,7 @@ func convertOpts(ctx *extractor.Context, imgOpts *ImageOptions, gltfDoc *gltf.Do
 
 	formatIsBlend := cfg.Material.Format == "blend"
 	if gltfDoc == nil && !formatIsBlend {
-		out, err := ctx.CreateFile(".glb")
+		out, err := ctx.CreateFile(".texture.glb")
 		if err != nil {
 			return err
 		}
@@ -969,7 +969,7 @@ func convertOpts(ctx *extractor.Context, imgOpts *ImageOptions, gltfDoc *gltf.Do
 			return err
 		}
 	} else if gltfDoc == nil && formatIsBlend {
-		outPath, err := ctx.AllocateFile(".blend")
+		outPath, err := ctx.AllocateFile(".texture.blend")
 		if err != nil {
 			return err
 		}
