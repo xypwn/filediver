@@ -29,6 +29,25 @@ type FileMetadata struct {
 // String representation for metadata types
 // that should be used in help texts
 func FileMetadataTypeName(fieldName string) string {
+	var getTypName func(t reflect.Type) string
+	getTypName = func(t reflect.Type) string {
+		if t.Kind() == reflect.Slice {
+			return "list[" + getTypName(t.Elem()) + "]"
+		}
+		switch t {
+		case reflect.TypeFor[stingray.Hash]():
+			return "hash"
+		case reflect.TypeFor[stingray.ThinHash]():
+			return "thin hash"
+		case reflect.TypeFor[string]():
+			return "string"
+		case reflect.TypeFor[int](), reflect.TypeFor[float64]():
+			return "number"
+		default:
+			panic("unknown type " + t.String())
+		}
+	}
+
 	typ := reflect.TypeFor[FileMetadata]()
 	field, ok := typ.FieldByName(fieldName)
 	if !ok {
@@ -38,20 +57,7 @@ func FileMetadataTypeName(fieldName string) string {
 	if t, ok := field.Tag.Lookup("type"); ok {
 		typStr = t
 	} else {
-		switch field.Type {
-		case reflect.TypeFor[[]stingray.Hash]():
-			typStr = "hashes"
-		case reflect.TypeFor[stingray.Hash]():
-			typStr = "hash"
-		case reflect.TypeFor[stingray.ThinHash]():
-			typStr = "thin hash"
-		case reflect.TypeFor[string]():
-			typStr = "string"
-		case reflect.TypeFor[int](), reflect.TypeFor[float64]():
-			typStr = "number"
-		default:
-			panic("unknown type " + field.Type.String())
-		}
+		typStr = getTypName(field.Type)
 	}
 	return typStr
 }

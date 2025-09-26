@@ -23,7 +23,7 @@ func DrawMetadataSearchHelp() {
 	imutils.Textf("Syntax:")
 	imgui.SameLine()
 	imgui.TextLinkOpenURLV("expr-lang", "https://expr-lang.org/docs/language-definition")
-	imutils.Textf(` - hashes must be passed as strings`)
+	imutils.Textf(` - hash must be passed as string`)
 	imutils.Textf(` - value name casing is ignored`)
 	imutils.Textf(` - casing is ignored when checking if strings are equal`)
 
