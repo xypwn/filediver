@@ -662,7 +662,7 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, na
 				return true
 			}
 			if strings.Contains(name, "cull") || strings.Contains(name, "collision") {
-				return true && !onlyModelAndShadow
+				return true && onlyModelAndShadow
 			}
 			return false
 		}
@@ -904,8 +904,6 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, na
 					// For some reason neither of the hulk models are in the visibility masks, but an invalid filename is?
 					// Not sure how the game looks them up in this case, probably need to investigate more
 					mask, contains = visibilityMaskData[stingray.Sum("content/fac_cyborgs/cha_lieutenant/cha_lieutenant_assault")]
-				} else {
-					ctx.Warnf("visibilityMaskData does not contain %v, model will be written with udim numbers rather than names", unitName)
 				}
 			}
 			visibilityMasks = make(map[uint16]map[string]any)
