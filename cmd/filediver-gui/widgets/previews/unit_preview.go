@@ -2,6 +2,7 @@ package previews
 
 import (
 	"bytes"
+	"cmp"
 	"embed"
 	"errors"
 	"fmt"
@@ -18,6 +19,7 @@ import (
 	"github.com/xypwn/filediver/cmd/filediver-gui/glutils"
 	"github.com/xypwn/filediver/cmd/filediver-gui/imutils"
 	"github.com/xypwn/filediver/cmd/filediver-gui/widgets"
+	datalib "github.com/xypwn/filediver/datalibrary"
 	"github.com/xypwn/filediver/dds"
 	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/stingray/unit"
@@ -127,9 +129,11 @@ type UnitPreviewState struct {
 
 	maxViewDistance float32
 
-	numUdims      uint32
-	udimsSelected [64]bool  // udims persistently selected
-	udimsShown    [64]int32 // udims visually selected 1 (shown) or 0 (hidden)
+	numUdims          uint32
+	udimsShownDefault [64]bool
+	udimsSelected     [64]bool  // udims persistently selected
+	udimsShown        [64]int32 // udims visually selected 1 (shown) or 0 (hidden)
+	udimNames         [64]string
 
 	// For dragging selection
 	activeUDimListItem  int32
@@ -228,11 +232,7 @@ func (pv *UnitPreviewState) Delete() {
 	pv.dbgObj.deleteObjects()
 }
 
-func (pv *UnitPreviewState) LoadUnit(mainData, gpuData []byte, getResource GetResourceFunc) error {
-	for i := range pv.udimsSelected {
-		pv.udimsSelected[i] = true
-	}
-
+func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []byte, getResource GetResourceFunc, thinhashes map[stingray.ThinHash]string) error {
 	info, err := unit.LoadInfo(bytes.NewReader(mainData))
 	if err != nil {
 		return err
@@ -512,6 +512,30 @@ func (pv *UnitPreviewState) LoadUnit(mainData, gpuData []byte, getResource GetRe
 		// We want to be able to zoom out a bit further.
 		pv.maxViewDistance *= 2
 	}
+
+	for i := range pv.udimsShownDefault {
+		pv.udimsShownDefault[i] = true
+		pv.udimNames[i] = ""
+	}
+	visibilityMasks, err := datalib.ParseVisibilityMasks()
+	if err != nil {
+		return err
+	}
+	if visibilityMask, ok := visibilityMasks[fileID]; ok {
+		for _, info := range visibilityMask.MaskInfos {
+			if int(info.Index) >= len(pv.udimsShownDefault) {
+				// No support for udims with index > 64 at the moment
+				continue
+			}
+			pv.udimsShownDefault[info.Index] = info.StartHidden == 0
+			name, ok := thinhashes[info.Name]
+			if !ok {
+				name = info.Name.String()
+			}
+			pv.udimNames[info.Index] = name
+		}
+	}
+	pv.udimsSelected = pv.udimsShownDefault
 
 	return nil
 }
@@ -900,18 +924,16 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 	imgui.BeginDisabledV(pv.numUdims <= 1)
 	if imgui.Button("UDims Selection") {
 		imgui.OpenPopupStr("UDims")
-		imgui.SetNextWindowPos(viewPos.Sub(imutils.SVec2(120, 0)))
+		imgui.SetNextWindowPos(viewPos.Sub(imutils.SVec2(240, 0)))
+		imgui.SetNextWindowSize(imgui.NewVec2(imutils.S(240), viewSize.Y))
 	}
 	if pv.numUdims <= 1 {
 		imgui.SetItemTooltip("Mesh has no UDims")
 	}
 	imgui.EndDisabled()
-	imgui.SetNextWindowSize(imutils.SVec2(120, viewSize.Y))
-	if imgui.BeginPopup("UDims") {
+	if imgui.InternalBeginPopupEx(imgui.IDStr("UDims"), imgui.WindowFlagsNoTitleBar|imgui.WindowFlagsNoSavedSettings) {
 		if imgui.Button("Reset") {
-			for i := range pv.udimsSelected {
-				pv.udimsSelected[i] = true
-			}
+			pv.udimsSelected = pv.udimsShownDefault
 		}
 		imgui.Separator()
 		imgui.PushStyleVarVec2(imgui.StyleVarItemSpacing,
@@ -961,7 +983,7 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 			if selected {
 				imgui.WindowDrawList().AddRectFilled(pos, pos.Add(size), imgui.ColorU32Col(imgui.ColButton))
 			}
-			imutils.Textf(fmt.Sprintf("%v %v", icon, i))
+			imutils.Textf(fmt.Sprintf("%s %02d: %s", icon, i, cmp.Or(pv.udimNames[i], "unknown")))
 			imgui.SetCursorScreenPos(pos)
 			imgui.SetNextItemAllowOverlap()
 			imgui.InvisibleButton("btn", size)
