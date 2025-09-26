@@ -831,6 +831,23 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, na
 					buffer := doc.Buffers[doc.BufferViews[vertexBuffer].Buffer]
 					// Only use the rotation matrix to transform normals
 					rotationMatrix := transformMatrix.Mat3().Mat4()
+
+					scaleX := rotationMatrix.Col(0).Len()
+					scaleY := rotationMatrix.Col(1).Len()
+					scaleZ := rotationMatrix.Col(2).Len()
+
+					rotationMatrix[0] /= scaleX
+					rotationMatrix[3] /= scaleX
+					rotationMatrix[6] /= scaleX
+
+					rotationMatrix[1] /= scaleY
+					rotationMatrix[4] /= scaleY
+					rotationMatrix[7] /= scaleY
+
+					rotationMatrix[2] /= scaleZ
+					rotationMatrix[5] /= scaleZ
+					rotationMatrix[8] /= scaleZ
+
 					err := transformVertices(buffer, bufferOffset, stride, vertexOffset, doc.Accessors[normalAccessor].Count, rotationMatrix)
 					if err != nil {
 						return err
