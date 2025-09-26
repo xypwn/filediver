@@ -145,8 +145,8 @@ type UnitPreviewState struct {
 	aabbColor                 [4]float32
 	visualizeNormals          bool
 	visualizeTangentBitangent int32 // 1 or 0
-	zoomToFitOnLoad           bool
-	zoomToFit                 bool // set view distance to fit mesh
+	autoZoomEnabled           bool
+	doAutoZoomNextFrame       bool
 }
 
 func NewUnitPreview() (*UnitPreviewState, error) {
@@ -488,8 +488,8 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 
 	pv.model = stingrayToGLCoords
 
-	if pv.zoomToFitOnLoad {
-		pv.zoomToFit = true
+	if pv.autoZoomEnabled {
+		pv.doAutoZoomNextFrame = true
 	}
 
 	// Calculate max zoom out distance
@@ -616,9 +616,15 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 				pv.viewRotation = pv.viewRotation.Add(mgl32.Vec2{md.X, md.Y}.Mul(-0.01))
 				pv.viewRotation[1] = mgl32.Clamp(pv.viewRotation[1], -1.55, 1.55)
 			}
+			if imgui.IsItemDeactivated() && pv.autoZoomEnabled {
+				pv.doAutoZoomNextFrame = true
+			}
 			if imgui.IsItemHovered() {
 				scroll := io.MouseWheel()
 				pv.viewDistance -= 0.1 * pv.viewDistance * scroll
+				if scroll != 0 {
+					pv.autoZoomEnabled = false
+				}
 			}
 			pv.viewDistance = mgl32.Clamp(
 				pv.viewDistance,
@@ -691,7 +697,7 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 				gl.UseProgram(0)
 			}
 
-			if pv.zoomToFit {
+			if pv.doAutoZoomNextFrame {
 				pv.viewDistance = pv.maxViewDistance
 
 				_, viewPosition, view, projection := pv.computeMVP(size.X / size.Y)
@@ -734,7 +740,7 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 				pv.viewDistance += maxCamDistDelta
 				pv.viewDistance *= 1.02
 
-				pv.zoomToFit = false
+				pv.doAutoZoomNextFrame = false
 			}
 		},
 		func(pos, size imgui.Vec2) {
@@ -860,7 +866,7 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 
 	if imgui.Button(fnt.I("Home")) {
 		pv.viewRotation = mgl32.Vec2{}
-		pv.zoomToFit = true
+		pv.doAutoZoomNextFrame = true
 	}
 	imgui.SetItemTooltip("Reset view")
 	imgui.SameLine()
@@ -914,8 +920,8 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 		imgui.EndPopup()
 	}
 	imgui.SameLine()
-	if imgui.Checkbox("Auto-zoom on load", &pv.zoomToFitOnLoad) && pv.zoomToFitOnLoad {
-		pv.zoomToFit = true
+	if imgui.Checkbox(fnt.I("All_out")+" Auto-zoom", &pv.autoZoomEnabled) && pv.autoZoomEnabled {
+		pv.doAutoZoomNextFrame = true
 	}
 	imgui.SameLine()
 	// UDim selection
