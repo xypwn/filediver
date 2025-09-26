@@ -118,6 +118,11 @@ type UnitPreviewState struct {
 	viewDistance float32
 	viewRotation mgl32.Vec2 // {yaw, pitch}
 
+	// Previous view distance and rotation (for view animation)
+	animOrigViewDistance float32
+	animOrigViewRotation mgl32.Vec2
+	animTime             float32 // range [0;1], -1 when not animating
+
 	// Axis-aligned bounding box. Don't forget
 	// to multiply aabb's vertices with aabbMat first!
 	aabb    [2]mgl32.Vec3
@@ -540,18 +545,30 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 	return nil
 }
 
-func (pv *UnitPreviewState) computeMVP(aspectRatio float32) (
+func (pv *UnitPreviewState) computeMVP(aspectRatio float32, animate bool) (
 	normal mgl32.Mat3,
 	viewPosition mgl32.Vec3,
 	view mgl32.Mat4,
 	projection mgl32.Mat4,
 ) {
+	var viewDistance float32
+	var viewRotation mgl32.Vec2
+
+	if animate && pv.animTime >= 0 && pv.animTime <= 1 {
+		// Animate -> lerp original to current by animTime
+		viewDistance = pv.animOrigViewDistance*(1-pv.animTime) + pv.viewDistance*pv.animTime
+		viewRotation = pv.animOrigViewRotation.Mul(1 - pv.animTime).Add(pv.viewRotation.Mul(pv.animTime))
+	} else {
+		viewDistance = pv.viewDistance
+		viewRotation = pv.viewRotation
+	}
+
 	normal = pv.model.Inv().Transpose().Mat3()
 	{
 		mat := mgl32.Ident3()
-		mat = mat.Mul3(mgl32.Rotate3DY(pv.viewRotation[0]))
-		mat = mat.Mul3(mgl32.Rotate3DX(pv.viewRotation[1]))
-		viewPosition = mat.Mul3x1(mgl32.Vec3{0, 0, pv.viewDistance})
+		mat = mat.Mul3(mgl32.Rotate3DY(viewRotation[0]))
+		mat = mat.Mul3(mgl32.Rotate3DX(viewRotation[1]))
+		viewPosition = mat.Mul3x1(mgl32.Vec3{0, 0, viewDistance})
 	}
 	view = mgl32.LookAt(
 		viewPosition[0], viewPosition[1], viewPosition[2],
@@ -607,6 +624,12 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 	viewSize := imgui.ContentRegionAvail()
 	viewSize.Y -= imutils.CheckboxHeight()
 
+	if pv.animTime == -1 || pv.animTime >= 1 {
+		pv.animOrigViewDistance = pv.viewDistance
+		pv.animOrigViewRotation = pv.viewRotation
+		pv.animTime = -1
+	}
+
 	widgets.GLView(name, pv.fb, viewSize,
 		func() {
 			io := imgui.CurrentIO()
@@ -636,7 +659,7 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 			gl.ClearColor(0.2, 0.2, 0.2, 1)
 			gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 
-			normal, viewPosition, view, projection := pv.computeMVP(size.X / size.Y)
+			normal, viewPosition, view, projection := pv.computeMVP(size.X/size.Y, true)
 			mvp := projection.Mul4(view).Mul4(pv.model)
 
 			// Draw object
@@ -700,7 +723,7 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 			if pv.doAutoZoomNextFrame {
 				pv.viewDistance = pv.maxViewDistance
 
-				_, viewPosition, view, projection := pv.computeMVP(size.X / size.Y)
+				_, viewPosition, view, projection := pv.computeMVP(size.X/size.Y, false)
 
 				fitVertexCamDistDelta := func(vertex mgl32.Vec3) float32 {
 					v := vertex.Vec4(1.0)
@@ -741,6 +764,8 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 				pv.viewDistance *= 1.02
 
 				pv.doAutoZoomNextFrame = false
+
+				pv.animTime = 0
 			}
 		},
 		func(pos, size imgui.Vec2) {
@@ -824,7 +849,7 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 
 			}
 
-			_, _, view, projection := pv.computeMVP(size.X / size.Y)
+			_, _, view, projection := pv.computeMVP(size.X/size.Y, false)
 			mvp := projection.Mul4(view).Mul4(pv.model)
 
 			// Show hovered vertex info
@@ -867,6 +892,7 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 	if imgui.Button(fnt.I("Home")) {
 		pv.viewRotation = mgl32.Vec2{}
 		pv.doAutoZoomNextFrame = true
+		pv.animTime = 0
 	}
 	imgui.SetItemTooltip("Reset view")
 	imgui.SameLine()
@@ -1021,4 +1047,7 @@ Drag to toggle multiple items (right-click to cancel)`)
 	pv.activeUDimListItem = nextActiveUDimListItem
 	pv.hoveredUDimListItem = nextHoveredUDimListItem
 
+	if pv.animTime != -1 {
+		pv.animTime += 5 * imgui.CurrentIO().DeltaTime()
+	}
 }
