@@ -71390,6 +71390,7 @@ content/fac_helldivers/vehicles/combat_walker/animations/land
 content/fac_helldivers/vehicles/combat_walker/animations/stomp
 content/fac_helldivers/vehicles/combat_walker/animations/traverse
 content/fac_helldivers/vehicles/combat_walker/combat_walker
+content/fac_helldivers/vehicles/combat_walker/materials/combat_walker_body
 content/fac_helldivers/vehicles/combat_walker_autocannon/animation/fire
 content/fac_helldivers/vehicles/combat_walker_autocannon/combat_walker_autocannon_left
 content/fac_helldivers/vehicles/combat_walker_autocannon/combat_walker_autocannon_right
@@ -71401,6 +71402,7 @@ content/fac_helldivers/vehicles/combat_walker_missle_launcher/animation/elevatio
 content/fac_helldivers/vehicles/combat_walker_missle_launcher/animation/traverse
 content/fac_helldivers/vehicles/combat_walker_missle_launcher/combat_walker_missle_launcher
 content/fac_helldivers/vehicles/combat_walker_obsidian/combat_walker_obsidian
+content/fac_helldivers/vehicles/combat_walker_obsidian/materials/combat_walker_obsidian_body
 content/fac_helldivers/vehicles/combat_walker_turret/animations/barrel_spin
 content/fac_helldivers/vehicles/combat_walker_turret/animations/elevation
 content/fac_helldivers/vehicles/combat_walker_turret/animations/traverse
