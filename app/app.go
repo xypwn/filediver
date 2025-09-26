@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"maps"
 	"os"
 	"path"
 	"path/filepath"
@@ -105,11 +104,12 @@ func ParseHashes(str string) []string {
 }
 
 type App struct {
-	Hashes     map[stingray.Hash]string
-	ThinHashes map[stingray.ThinHash]string
-	ArmorSets  map[stingray.Hash]datalib.ArmorSet
-	DataDir    *stingray.DataDir
-	Metadata   map[stingray.FileID]FileMetadata
+	Hashes      map[stingray.Hash]string
+	ThinHashes  map[stingray.ThinHash]string
+	ArmorSets   map[stingray.Hash]datalib.ArmorSet
+	DataDir     *stingray.DataDir
+	LanguageMap map[uint32]string
+	Metadata    map[stingray.FileID]FileMetadata
 }
 
 // Automatically gets most wwise-related hashes by reading the game files
@@ -258,27 +258,7 @@ func OpenGameDir(ctx context.Context, gameDir string, hashStrings []string, thin
 		thinHashesMap[stingray.Sum(h).Thin()] = h
 	}
 
-	var mapping map[uint32]string = make(map[uint32]string)
-	for fileId := range dataDir.Files {
-		if fileId.Type != stingray.Sum("strings") {
-			continue
-		}
-		stringData, err := dataDir.Read(fileId, stingray.DataMain)
-		if err != nil {
-			continue
-		}
-		strings, err := stingray_strings.Load(bytes.NewReader(stringData))
-		if err != nil || strings.Language != language {
-			continue
-		}
-		for id := range strings.Strings {
-			if _, contains := mapping[id]; contains {
-				panic(fmt.Errorf("ID %v was already contained in the mapping!\n", id))
-			}
-		}
-
-		maps.Copy(mapping, strings.Strings)
-	}
+	mapping := stingray_strings.LoadLanguageMap(dataDir, language)
 
 	armorSets, err := datalib.LoadArmorSetDefinitions(mapping)
 	if err != nil {
@@ -286,11 +266,12 @@ func OpenGameDir(ctx context.Context, gameDir string, hashStrings []string, thin
 	}
 
 	return &App{
-		Hashes:     hashesMap,
-		ThinHashes: thinHashesMap,
-		ArmorSets:  armorSets,
-		DataDir:    dataDir,
-		Metadata:   getFileMetadata(dataDir),
+		Hashes:      hashesMap,
+		ThinHashes:  thinHashesMap,
+		ArmorSets:   armorSets,
+		DataDir:     dataDir,
+		LanguageMap: mapping,
+		Metadata:    getFileMetadata(dataDir),
 	}, nil
 }
 
@@ -533,6 +514,7 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 		a.Hashes,
 		a.ThinHashes,
 		a.ArmorSets,
+		a.LanguageMap,
 		a.DataDir,
 		runner,
 		extrCfg,

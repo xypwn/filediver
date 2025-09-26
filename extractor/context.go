@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 
 	"github.com/xypwn/filediver/app/appconfig"
 	datalib "github.com/xypwn/filediver/datalibrary"
@@ -24,6 +25,7 @@ type Context struct {
 	hashes           map[stingray.Hash]string
 	thinHashes       map[stingray.ThinHash]string
 	armorSets        map[stingray.Hash]datalib.ArmorSet
+	languageMap      map[uint32]string
 	dataDir          *stingray.DataDir
 	runner           *exec.Runner
 	config           appconfig.Config
@@ -48,6 +50,7 @@ func NewContext(
 	hashes map[stingray.Hash]string,
 	thinHashes map[stingray.ThinHash]string,
 	armorSets map[stingray.Hash]datalib.ArmorSet,
+	languageMap map[uint32]string,
 	dataDir *stingray.DataDir,
 	runner *exec.Runner,
 	config appconfig.Config,
@@ -60,6 +63,7 @@ func NewContext(
 		hashes:           hashes,
 		thinHashes:       thinHashes,
 		armorSets:        armorSets,
+		languageMap:      languageMap,
 		dataDir:          dataDir,
 		runner:           runner,
 		config:           config,
@@ -142,6 +146,11 @@ func (c *Context) ThinHashes() map[stingray.ThinHash]string {
 	return c.thinHashes
 }
 
+// LanguageMap returns a map of localization strings.
+func (c *Context) LanguageMap() map[uint32]string {
+	return c.languageMap
+}
+
 // GuessFileArmorSet uses the selected archives (-t option)
 // to guess which armor set the given file is meant to belong to.
 //
@@ -185,4 +194,12 @@ func (c *Context) LookupThinHash(hash stingray.ThinHash) string {
 		return name
 	}
 	return hash.String()
+}
+
+// LookupString returns the localized string for an ID or the hex representation if the ID is not present.
+func (c *Context) LookupString(id uint32) string {
+	if name, ok := c.languageMap[id]; ok {
+		return name
+	}
+	return strconv.FormatUint(uint64(id), 16)
 }

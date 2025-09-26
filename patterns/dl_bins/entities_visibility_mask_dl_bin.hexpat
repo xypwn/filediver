@@ -38,6 +38,7 @@ fn relative_to_parent(u128 offset) {
 u64 U64_MAX = 0xffffffffffffffff;
 
 enum DLItemType : u32 {
+    UnitCustomizationComponentData = 0x704b76a6,
     VisibilityMaskComponentData = 0x8ec31141,
 };
 
@@ -69,6 +70,25 @@ struct VisibilityMaskComponentData {
     VisibilityMaskComponent data[240];
 };
 
+struct UnitCustomizationMaterialOverrides {
+    u32 material_id;
+    padding[4];
+    u64 material_lut;
+    u64 decal_sheet;
+    u64 pattern_lut;
+    u64 pattern_masks_array;
+};
+
+struct UnitCustomizationComponent {
+    UnitCustomizationMaterialOverrides materials_textures_overrides[12];
+    UnitCustomizationMaterialOverrides mounted_weapon_texture_overrides[5];
+};
+
+struct UnitCustomizationComponentData {
+    ComponentIndexData hashmap[152];
+    UnitCustomizationComponent data[77];
+};
+
 struct DLItem {
     DLItemType type0;
     char magic[4];
@@ -78,6 +98,7 @@ struct DLItem {
     u32 unk02;
     u32 unk03;
     match(type) {
+        (DLItemType::UnitCustomizationComponentData): UnitCustomizationComponentData data;
         (DLItemType::VisibilityMaskComponentData): VisibilityMaskComponentData data;
         (_): u8 data[size];
     }
