@@ -193,7 +193,7 @@ func ConvertOpts(ctx *extractor.Context, gltfDoc *gltf.Document) error {
 	cfg := ctx.Config()
 	formatIsBlend := cfg.Model.Format == "blend"
 	if gltfDoc == nil && !formatIsBlend {
-		out, err := ctx.CreateFile(".glb")
+		out, err := ctx.CreateFile(".prefab.glb")
 		if err != nil {
 			return err
 		}
@@ -202,7 +202,7 @@ func ConvertOpts(ctx *extractor.Context, gltfDoc *gltf.Document) error {
 			return err
 		}
 	} else if gltfDoc == nil && formatIsBlend {
-		outPath, err := ctx.AllocateFile(".blend")
+		outPath, err := ctx.AllocateFile(".prefab.blend")
 		if err != nil {
 			return err
 		}
