@@ -114,6 +114,64 @@ func (curr *Bone) setTransforms(matrix mgl32.Mat4) {
 	curr.Transform.Rotation = mat3.Mul3(mgl32.Diag3(invScale))
 }
 
+type UnitLightType uint32
+
+const (
+	LightOmni UnitLightType = iota
+	LightSpot
+	LightBox
+	LightDirectional
+)
+
+func (l UnitLightType) ToGLTF() string {
+	switch l {
+	case LightOmni:
+		return "point"
+	case LightSpot:
+		return "spot"
+	case LightDirectional:
+		return "directional"
+	default:
+		return "point"
+	}
+}
+
+//go:generate go run golang.org/x/tools/cmd/stringer -type=UnitLightType
+
+type Light struct {
+	NameHash  stingray.ThinHash
+	BoneIndex uint32
+	Color     [3]float32
+	Intensity float32
+
+	FalloffStart    float32
+	FalloffEnd      float32
+	FalloffExponent float32
+
+	SpotInnerAngle float32
+	SpotOuterAngle float32
+
+	Unknown0   float32
+	ShadowBias float32
+
+	Unknown1 float32
+	Unknown2 float32
+	Unknown3 float32
+	Unknown4 float32
+	Unknown5 float32
+
+	Flags uint32
+	Type  UnitLightType
+
+	UnknownData [8]float32
+}
+
+type LightArray struct {
+	Count   uint32
+	Unknown [12]byte
+	Lights  []Light
+}
+
 type MeshLayoutItemType uint32
 
 const (
@@ -439,7 +497,7 @@ type Header struct {
 	Unk02                 [8]byte
 	LODGroupListOffset    uint32
 	JointListOffset       uint32
-	UnkOffset01           uint32
+	LightListOffset       uint32
 	UnkOffset02           uint32
 	Unk03                 [12]byte
 	UnkOffset03           uint32
@@ -473,6 +531,7 @@ type Info struct {
 	SkeletonMaps           []SkeletonMap
 	Bones                  []Bone
 	JointTransformMatrices [][4][4]float32
+	Lights                 []Light
 	Materials              map[stingray.ThinHash]stingray.Hash
 	NumMeshes              uint32
 	MeshInfos              []MeshInfo
@@ -908,6 +967,25 @@ func LoadInfo(mainR io.ReadSeeker) (*Info, error) {
 		}
 	}
 
+	var lights []Light
+	if hdr.LightListOffset != 0 {
+		if _, err := mainR.Seek(int64(hdr.LightListOffset), io.SeekStart); err != nil {
+			return nil, err
+		}
+		var count uint32
+		if err := binary.Read(mainR, binary.LittleEndian, &count); err != nil {
+			return nil, err
+		}
+		if _, err := mainR.Seek(int64(hdr.LightListOffset)+16, io.SeekStart); err != nil {
+			return nil, err
+		}
+
+		lights = make([]Light, count)
+		if err := binary.Read(mainR, binary.LittleEndian, &lights); err != nil {
+			return nil, err
+		}
+	}
+
 	var meshLayouts []MeshLayout
 	if hdr.MeshLayoutListOffset != 0 {
 		if _, err := mainR.Seek(int64(hdr.MeshLayoutListOffset), io.SeekStart); err != nil {
@@ -1044,6 +1122,7 @@ func LoadInfo(mainR io.ReadSeeker) (*Info, error) {
 		SkeletonMaps:           skeletonMapList,
 		Bones:                  bones,
 		JointTransformMatrices: jointTransformMatrices,
+		Lights:                 lights,
 		Materials:              materialMap,
 		NumMeshes:              uint32(len(meshInfos)),
 		MeshInfos:              meshInfos,

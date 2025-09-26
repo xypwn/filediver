@@ -11,21 +11,21 @@ out vec4 lineColor;
 
 uniform bool showTangentBitangent;
 
-void drawLine(vec4 endPositions[1]) {
+void drawLine(vec4 endPosition) {
     gl_Position = gl_in[0].gl_Position;
     EmitVertex();
-    gl_Position = endPositions[0];
+    gl_Position = endPosition;
     EmitVertex();
     EndPrimitive();
 }
 
 void main() {
     lineColor = vec4(0, 0, 1, 1);
-    drawLine(normalEndPosition);
+    drawLine(normalEndPosition[0]);
     if (showTangentBitangent) {
         lineColor = vec4(1, 0, 0, 1);
-        drawLine(tangentEndPosition);
+        drawLine(tangentEndPosition[0]);
         lineColor = vec4(0, 1, 0, 1);
-        drawLine(bitangentEndPosition);
+        drawLine(bitangentEndPosition[0]);
     }
 }

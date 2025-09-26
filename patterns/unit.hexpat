@@ -867,17 +867,58 @@ struct SoundCallbackData {
     u8 *unkOffset02 : u32 [[pointer_base("relative_to_parent")]];
 };
 
-struct UnknownMatrixItem {
-    ThinMurmurHash unkHash00;
-    u32 unk00;
-    Mat4x4 matrix;
-    u8 unkData[40];
+fn normalizeR(float R, float G, float B) {
+    float length = std::math::sqrt(R*R + G*G + B*B);
+    if (length == 0) {
+        return R;
+    }
+    return R / length;
 };
 
-struct UnknownMatricesList {
+fn normalizeG(float R, float G, float B) {
+    return normalizeR(G, R, B);
+};
+
+fn normalizeB(float R, float G, float B) {
+    return normalizeR(B, R, G);
+};
+
+struct Color3 {
+    float R;
+    float G;
+    float B;
+} [[color(std::format("{:02X}{:02X}{:02X}", u8(255 * normalizeR(R, G, B)), u8(255 * normalizeG(R, G, B)), u8(255 * normalizeB(R, G, B))))]];
+
+enum LightType : u32 {
+    omni,
+    spot,
+    box,
+    directional
+};
+
+struct Light {
+    ThinMurmurHash lightName;
+    u32 boneIdx;
+    Color3 color;
+    float intensity;
+    float falloff_start;
+    float falloff_end;
+    float falloff_exp;
+    float start_angle;
+    float end_angle;
+    float unknown0;
+    float shadow_bias;
+    float unknown1[5];
+    u8 flags;
+    padding[3];
+    LightType type;
+    u8 unkData[32];
+};
+
+struct LightArray {
     u32 count;
     u32 unk00[3];
-    UnknownMatrixItem matrices[count];
+    Light lights[count];
 };
 
 u128 rootAddress = 0;
@@ -926,7 +967,7 @@ struct Header {
     u8 unk02[8];
     std::ptr::NullablePtr<LODGroupPtrList, u32> LODGroupListOffset;
     std::ptr::NullablePtr<JointList, u32> JointListOffset;
-    std::ptr::NullablePtr<UnknownMatricesList, u32> UnkOffset01;
+    std::ptr::NullablePtr<LightArray, u32> Lights;
     std::ptr::NullablePtr<u8, u32> UnkOffset02;
     std::ptr::NullablePtr<SoundCallbackData, u32> UnkOffset03;
     u8 unk03[8];
@@ -940,9 +981,9 @@ struct Header {
     std::ptr::NullablePtr<MeshInfoList, u32> MeshInfoListOffset;
     u8 unk05[8];
     std::ptr::NullablePtr<MaterialList, u32> MaterialListOffset;
-    $ = meshDataListAddress;
-    calculateMeshDataOffset(std::mem::read_unsigned(meshDataListAddress, 4));
-    std::ptr::NullablePtr<MeshDataList, u32> MeshDataOffset;
+    // $ = meshDataListAddress;
+    // calculateMeshDataOffset(std::mem::read_unsigned(meshDataListAddress, 4));
+    // std::ptr::NullablePtr<MeshDataList, u32> MeshDataOffset;
 };
 
 Header hdr @0x0;

@@ -15,7 +15,6 @@ import (
 	"github.com/xypwn/filediver/cmd/filediver-gui/imutils"
 	"github.com/xypwn/filediver/cmd/filediver-gui/widgets"
 	"github.com/xypwn/filediver/dds"
-	extr_material "github.com/xypwn/filediver/extractor/material"
 	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/stingray/unit/material"
 	"github.com/xypwn/filediver/stingray/unit/texture"
@@ -71,10 +70,9 @@ func (pv *MaterialPreviewState) LoadMaterial(mat *material.Material, getResource
 		path := mat.Textures[key]
 		var imageName, pathName string
 		var ok bool
-		usage := extr_material.TextureUsage(key.Value)
-		imageName = usage.String()
-		if imageName == extr_material.TextureUsage(0).String() {
-			imageName += " (" + key.String() + ")"
+		imageName, ok = thinhashes[key]
+		if !ok {
+			imageName = "Unknown texture usage: " + key.String()
 		}
 		if pathName, ok = hashes[path]; !ok {
 			pathName = path.String()
@@ -129,14 +127,10 @@ func (pv *MaterialPreviewState) LoadMaterial(mat *material.Material, getResource
 		pv.activeTexture = 0
 	}
 
-	unknownUsage := extr_material.SettingsUsage(0x0)
-	unknownUsageStr := unknownUsage.String()
-
 	for key, value := range mat.Settings {
-		usage := extr_material.SettingsUsage(key.Value)
-		keyName := usage.String()
-		if keyName == unknownUsageStr {
-			keyName += " (" + key.String() + ")"
+		keyName, ok := thinhashes[key]
+		if !ok {
+			keyName = "unknown setting: " + key.String()
 		}
 		pv.settings[keyName] = value
 		pv.settingKeys = append(pv.settingKeys, keyName)
