@@ -322,14 +322,13 @@ func writeIlluminateOcclusionMetallicRoughnessTexture(ctx *extractor.Context, do
 	return texIdx, nil
 }
 
-func compareMaterials(doc *gltf.Document, mat *material.Material, matIdx uint32, matName string, unitData *dlbin.UnitData) bool {
+func compareMaterials(ctx *extractor.Context, doc *gltf.Document, mat *material.Material, matIdx uint32, matName string, unitData *dlbin.UnitData) bool {
 	if doc.Materials[matIdx].Name != matName {
 		return false
 	}
 	for texUsage := range mat.Textures {
-		usage := TextureUsage(texUsage.Value)
 		extras := doc.Materials[matIdx].Extras.(map[string]interface{})
-		texIdxInterface, contains := extras[usage.String()]
+		texIdxInterface, contains := extras[ctx.LookupThinHash(texUsage)]
 		if !contains {
 			continue
 		}
@@ -340,29 +339,30 @@ func compareMaterials(doc *gltf.Document, mat *material.Material, matIdx uint32,
 		texture := doc.Textures[texIdx]
 		imgName := doc.Images[*texture.Source].Name
 		materialTexName := mat.Textures[texUsage].String()
-		if unitData != nil {
-			switch usage {
-			case MaterialLUT:
+		texUsageStr, ok := ctx.ThinHashes()[texUsage]
+		if unitData != nil && ok {
+			switch texUsageStr {
+			case "material_lut":
 				if unitData.MaterialLut.Value == 0 {
 					break
 				}
 				materialTexName = unitData.MaterialLut.String()
-			case PatternLUT:
+			case "pattern_lut":
 				if unitData.PatternLut.Value == 0 {
 					break
 				}
 				materialTexName = unitData.PatternLut.String()
-			case CapeLUT:
+			case "cape_lut":
 				if unitData.CapeLut.Value == 0 {
 					break
 				}
 				materialTexName = unitData.CapeLut.String()
-			case BaseData:
+			case "base_data":
 				if unitData.BaseData.Value == 0 {
 					break
 				}
 				materialTexName = unitData.BaseData.String()
-			case DecalSheet:
+			case "decal_sheet":
 				if unitData.DecalSheet.Value == 0 {
 					break
 				}
@@ -381,11 +381,11 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 
 	// Avoid duplicating material if it already is added to document
 	for i := range doc.Materials {
-		if compareMaterials(doc, mat, uint32(i), matName, unitData) {
+		if compareMaterials(ctx, doc, mat, uint32(i), matName, unitData) {
 			return uint32(i), nil
 		}
 	}
-	usedTextures := make(map[TextureUsage]uint32)
+	usedTextures := make(map[string]uint32)
 	var baseColorTexture *gltf.TextureInfo
 	var metallicRoughnessTexture *gltf.TextureInfo
 	var emissiveTexture *gltf.TextureInfo
@@ -405,43 +405,48 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 		Raw:            true,
 	}
 	for texUsage := range mat.Textures {
-		switch TextureUsage(texUsage.Value) {
-		case ColorRoughness:
+		texUsageStr, ok := ctx.ThinHashes()[texUsage]
+		if !ok {
+			ctx.Warnf("unknown texture usage hash %v", texUsage.String())
+			continue
+		}
+		switch texUsageStr {
+		case "color_roughness":
 			fallthrough
-		case ColorSpecularB:
+		case "color_specular_b":
 			fallthrough
-		case AlbedoIridescence:
+		case "albedo_iridescence":
 			albedoPostProcess = nil
 			fallthrough
-		case CoveringAlbedo:
+		case "covering_albedo":
 			fallthrough
-		case InputImage:
+		case "input_image":
 			fallthrough
-		case ReticleTexture:
+		case "reticle_texture":
 			fallthrough
-		case Albedo:
+		case "albedo":
 			index, err := writeTexture(ctx, doc, mat.Textures[texUsage], albedoPostProcess, imgOpts, "")
 			if err != nil {
-				ctx.Warnf("writeTexture: %v: %v", TextureUsage(texUsage.Value), err)
+				ctx.Warnf("writeTexture: %v: %v", ctx.LookupThinHash(texUsage), err)
 				continue
 			}
 			baseColorTexture = &gltf.TextureInfo{
 				Index: index,
 			}
-			usedTextures[TextureUsage(texUsage.Value)] = index
+			usedTextures[texUsageStr] = index
 			albedoPostProcess = postProcessToOpaque
-		case AlbedoEmissive:
+		case "albedo_emissive":
 			index, err := writeTexture(ctx, doc, mat.Textures[texUsage], postProcessToOpaque, imgOpts, "")
 			if err != nil {
-				ctx.Warnf("writeTexture: %v: %v", TextureUsage(texUsage.Value), err)
+				ctx.Warnf("writeTexture: %v: %v", ctx.LookupThinHash(texUsage), err)
 				continue
 			}
 			baseColorTexture = &gltf.TextureInfo{
 				Index: index,
 			}
-			emissiveColorSetting, ok := mat.Settings[stingray.ThinHash{Value: uint32(SettingEmissiveColor)}]
+			emissiveColorSetting, ok := mat.Settings[stingray.Sum("emissive_color").Thin()]
 			if !ok {
-				ctx.Warnf("material %v has AlbedoEmissive texture but no emissive_color", matName)
+				ctx.Warnf("material %v has %v texture but no emissive_color", matName, texUsageStr)
 				continue
 			}
 			postProcessEmissiveColor, err := createPostProcessEmissiveColor(emissiveColorSetting)
@@ -459,52 +464,52 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 			emissiveFactor[0] = 1.0
 			emissiveFactor[1] = 1.0
 			emissiveFactor[2] = 1.0
-			emissiveStrengthSetting, ok := mat.Settings[stingray.ThinHash{Value: uint32(SettingEmissiveIntensity)}]
+			emissiveStrengthSetting, ok := mat.Settings[stingray.Sum("emissive_intensity").Thin()]
 			if !ok {
-				emissiveStrengthSetting, ok = mat.Settings[stingray.ThinHash{Value: uint32(SettingEmissiveMult)}]
+				emissiveStrengthSetting, ok = mat.Settings[stingray.Sum("emissive_mult").Thin()]
 			}
 			if !ok {
-				emissiveStrengthSetting, ok = mat.Settings[stingray.ThinHash{Value: uint32(SettingEmissiveStrength)}]
+				emissiveStrengthSetting, ok = mat.Settings[stingray.Sum("emissive_strength").Thin()]
 			}
 			if !ok || len(emissiveStrengthSetting) == 0 {
 				continue
 			}
 			emissiveStrength = emissiveStrengthSetting[0]
-		case NormalSpecularAO:
+		case "normal_specular_ao":
 			// GLTF normals will look wonky, but our own material will be able to use the specular+ao in this map
 			// in blender
 			normalPostProcess = nil
 			fallthrough
-		case Normal:
+		case "normal":
 			fallthrough
-		case Normals:
+		case "normals":
 			fallthrough
-		case NormalMap:
+		case "normal_map":
 			fallthrough
-		case CoveringNormal:
+		case "covering_normal":
 			fallthrough
-		case NAC:
+		case "NAC":
 			fallthrough
-		case BaseData:
+		case "base_data":
 			hash := mat.Textures[texUsage]
-			if unitData != nil && TextureUsage(texUsage.Value) == BaseData && unitData.BaseData.Value != 0 {
+			if unitData != nil && texUsageStr == "base_data" && unitData.BaseData.Value != 0 {
 				hash = unitData.BaseData
 			}
 			index, err := writeTexture(ctx, doc, hash, normalPostProcess, imgOpts, "")
 			if err != nil {
-				ctx.Warnf("writeTexture: %v: %v", TextureUsage(texUsage.Value), err)
+				ctx.Warnf("writeTexture: %v: %v", ctx.LookupThinHash(texUsage), err)
 				continue
 			}
 			normalTexture = &gltf.NormalTexture{
 				Index: gltf.Index(index),
 			}
-			usedTextures[TextureUsage(texUsage.Value)] = index
+			usedTextures[texUsageStr] = index
 			normalPostProcess = postProcessReconstructNormalZ
-		case NAR:
+		case "NAR":
 			hash := mat.Textures[texUsage]
 			index, err := writeTexture(ctx, doc, hash, postProcessReconstructNormalZ, imgOpts, "")
 			if err != nil {
-				ctx.Warnf("writeTexture: %v: %v", TextureUsage(texUsage.Value), err)
+				ctx.Warnf("writeTexture: %v: %v", ctx.LookupThinHash(texUsage), err)
 				continue
 			}
 			normalTexture = &gltf.NormalTexture{
@@ -531,11 +536,11 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 					Index: gltf.Index(occlusionIndex),
 				}
 			}
-		case IlluminateData:
+		case "illuminate_data":
 			hash := mat.Textures[texUsage]
 			index, err := writeTexture(ctx, doc, hash, postProcessIlluminateClearcoat, imgOpts, "")
 			if err != nil {
-				ctx.Warnf("writeTexture: %v: %v", TextureUsage(texUsage.Value), err)
+				ctx.Warnf("writeTexture: %v: %v", ctx.LookupThinHash(texUsage), err)
 				continue
 			}
 			coatTexture = &gltf.TextureInfo{
@@ -562,22 +567,22 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 					Index: gltf.Index(occlusionIndex),
 				}
 			}
-		case MRA:
+		case "mra":
 			index, err := writeTexture(ctx, doc, mat.Textures[texUsage], postProcess, imgOpts, "")
 			if err != nil {
-				ctx.Warnf("writeTexture: %v: %v", TextureUsage(texUsage.Value), err)
+				ctx.Warnf("writeTexture: %v: %v", ctx.LookupThinHash(texUsage), err)
 				continue
 			}
 			metallicRoughnessTexture = &gltf.TextureInfo{
 				Index: index,
 			}
-			usedTextures[TextureUsage(texUsage.Value)] = index
-		case EmissiveColor:
+			usedTextures[texUsageStr] = index
+		case "emissive_color":
 			fallthrough
-		case LensEmissiveTexture:
+		case "lens_emissive_texture":
 			index, err := writeTexture(ctx, doc, mat.Textures[texUsage], postProcess, imgOpts, "")
 			if err != nil {
-				ctx.Warnf("writeTexture: %v: %v", TextureUsage(texUsage.Value), err)
+				ctx.Warnf("writeTexture: %v: %v", ctx.LookupThinHash(texUsage), err)
 				continue
 			}
 			emissiveTexture = &gltf.TextureInfo{
@@ -586,162 +591,148 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 			emissiveFactor[0] = 1.0
 			emissiveFactor[1] = 1.0
 			emissiveFactor[2] = 1.0
-			usedTextures[TextureUsage(texUsage.Value)] = index
-		case MaterialLUT:
+			usedTextures[texUsageStr] = index
+		case "material_lut":
 			fallthrough
-		case TextureLUT:
+		case "texture_lut":
 			fallthrough
-		case CapeLUT:
+		case "cape_lut":
 			fallthrough
-		case LUTEmissive:
+		case "lut_emissive":
 			fallthrough
-		case BloodLUT:
+		case "blood_lut":
 			fallthrough
-		case BrdfLUT:
+		case "brdf_lut":
 			fallthrough
-		case ColorLUT:
+		case "color_lut":
 			fallthrough
-		case ColorRoughnessLUT:
+		case "color_roughness_lut":
 			fallthrough
-		case ContinentsLUT:
+		case "continents_LUT":
 			fallthrough
-		case CorporateColorRoughnessLUT:
+		case "corporate_color_roughness_lut":
 			fallthrough
-		case CosmicDustLUT:
+		case "eye_lut":
 			fallthrough
-		case EmissiveNebulaLUT:
+		case "minimap_lut":
 			fallthrough
-		case EyeLUT:
+		case "moon_lut":
 			fallthrough
-		case MinimapLUT:
+		case "palette_lut":
 			fallthrough
-		case MoonLUT:
+		case "specular_brdf_lut":
 			fallthrough
-		case PaletteLUT:
-			fallthrough
-		case SpaceStarLUT:
-			fallthrough
-		case SpaceStarLUTTmp:
-			fallthrough
-		case SpecularBrdfLUT:
-			fallthrough
-		case SssLUT:
-			fallthrough
-		case WoundLUTToAdd:
-			fallthrough
-		case PatternLUT:
+		case "pattern_lut":
 			// Save raw DDS for all LUT types, to later be processed into exr
 			imgOpts = lutImgOpts
 			hash := mat.Textures[texUsage]
-			if unitData != nil && TextureUsage(texUsage.Value) == MaterialLUT && unitData.MaterialLut.Value != 0 {
+			if unitData != nil && texUsageStr == "material_lut" && unitData.MaterialLut.Value != 0 {
 				hash = unitData.MaterialLut
-			} else if unitData != nil && TextureUsage(texUsage.Value) == PatternLUT && unitData.PatternLut.Value != 0 {
+			} else if unitData != nil && texUsageStr == "pattern_lut" && unitData.PatternLut.Value != 0 {
 				hash = unitData.PatternLut
-			} else if unitData != nil && TextureUsage(texUsage.Value) == CapeLUT && unitData.CapeLut.Value != 0 {
+			} else if unitData != nil && texUsageStr == "cape_lut" && unitData.CapeLut.Value != 0 {
 				hash = unitData.CapeLut
 			}
 			index, err := writeTexture(ctx, doc, hash, postProcess, imgOpts, "")
 			if err != nil {
-				ctx.Warnf("writeTexture: %v: %v", TextureUsage(texUsage.Value), err)
+				ctx.Warnf("writeTexture: %v: %v", ctx.LookupThinHash(texUsage), err)
 				continue
 			}
-			usedTextures[TextureUsage(texUsage.Value)] = index
+			usedTextures[texUsageStr] = index
 			imgOpts = origImgOpts
-		case CompositeArray:
+		case "composite_array":
 			fallthrough
-		case CustomizationCamoTilerArray:
+		case "customization_camo_tiler_array":
 			fallthrough
-		case CustomizationMaterialDetailTilerArray:
+		case "customization_material_detail_tiler_array":
 			fallthrough
-		case DecalSheet:
+		case "decal_sheet":
 			fallthrough
-		case IdMasksArray:
+		case "id_masks_array":
 			fallthrough
-		case DetailData:
+		case "Detail_Data":
 			fallthrough
-		case MetalSurfaceData:
+		case "metal_surface_data":
 			fallthrough
-		case ConcreteSurfaceData:
+		case "concrete_surface_data":
 			fallthrough
-		case GrayscaleSkin:
+		case "grayscale_skin":
 			fallthrough
-		case PatternMasksArray:
+		case "pattern_masks_array":
 			hash := mat.Textures[texUsage]
-			if unitData != nil && TextureUsage(texUsage.Value) == DecalSheet && unitData.DecalSheet.Value != 0 {
+			if unitData != nil && texUsageStr == "decal_sheet" && unitData.DecalSheet.Value != 0 {
 				hash = unitData.DecalSheet
 			}
 			index, err := writeTexture(ctx, doc, hash, postProcess, imgOpts, "")
 			if err != nil {
-				ctx.Warnf("writeTexture: %v: %v", TextureUsage(texUsage.Value), err)
+				ctx.Warnf("writeTexture: %v: %v", ctx.LookupThinHash(texUsage), err)
 				continue
 			}
-			usedTextures[TextureUsage(texUsage.Value)] = index
-		case BloodSplatterTiler:
+			usedTextures[texUsageStr] = index
+		case "blood_splatter_tiler":
 			fallthrough
-		case BugSplatterTiler:
+		case "bug_splatter_tiler":
 			fallthrough
-		case LensCutoutTexture:
+		case "lens_cutout_texture":
 			fallthrough
-		case ScorchMarks:
+		case "scorch_marks":
 			fallthrough
-		case SubsurfaceOpacity:
+		case "subsurface_opacity":
 			fallthrough
-		case WeatheringDirt:
+		case "weathering_dirt":
 			fallthrough
-		case WeatheringSpecial:
+		case "weathering_special":
 			fallthrough
-		case DirtMap:
+		case "dirt_map":
 			fallthrough
-		case NoiseArray:
+		case "noise_array":
 			fallthrough
-		case LightBleedMap:
+		case "light_bleed_map":
 			fallthrough
-		case DistortionMap:
+		case "distortion_map":
 			fallthrough
-		case WeatheringDataMask:
+		case "weathering_data_mask":
 			fallthrough
-		case WoundData:
+		case "wound_data":
 			fallthrough
-		case WoundDerivative:
+		case "wound_derivative":
 			if cfg.Unit.AllTextures {
 				index, err := writeTexture(ctx, doc, mat.Textures[texUsage], postProcess, imgOpts, "")
 				if err != nil {
-					ctx.Warnf("writeTexture: %v: %v", TextureUsage(texUsage.Value), err)
+					ctx.Warnf("writeTexture: %v: %v", ctx.LookupThinHash(texUsage), err)
 					continue
 				}
-				usedTextures[TextureUsage(texUsage.Value)] = index
+				usedTextures[texUsageStr] = index
 			}
-		case WoundNormal:
+		case "wound_normal":
 			if cfg.Unit.AllTextures {
 				index, err := writeTexture(ctx, doc, mat.Textures[texUsage], postProcessReconstructNormalZ, imgOpts, "")
 				if err != nil {
-					ctx.Warnf("writeTexture: %v: %v", TextureUsage(texUsage.Value), err)
+					ctx.Warnf("writeTexture: %v: %v", ctx.LookupThinHash(texUsage), err)
 					continue
 				}
-				usedTextures[TextureUsage(texUsage.Value)] = index
+				usedTextures[texUsageStr] = index
 			}
 		default:
 			if cfg.Unit.AllTextures {
-				t := TextureUsage(texUsage.Value)
-				ctx.Warnf("addMaterial: unknown/unhandled texture usage %v in material %v", t.String(), matName)
+				ctx.Warnf("addMaterial: unknown/unhandled texture usage %v in material %v", ctx.LookupThinHash(texUsage), matName)
 				index, err := writeTexture(ctx, doc, mat.Textures[texUsage], postProcess, imgOpts, "")
 				if err != nil {
-					ctx.Warnf("writeTexture: %v: %v", TextureUsage(texUsage.Value), err)
+					ctx.Warnf("writeTexture: %v: %v", ctx.LookupThinHash(texUsage), err)
 					continue
 				}
-				usedTextures[TextureUsage(texUsage.Value)] = index
+				usedTextures[texUsageStr] = index
 			}
 		}
 	}
 
 	usagesToTextureIndices := make(map[string]interface{})
 	for usage, texIdx := range usedTextures {
-		usagesToTextureIndices[usage.String()] = texIdx
+		usagesToTextureIndices[usage] = texIdx
 	}
 
 	for setting, value := range mat.Settings {
-		usage := SettingsUsage(setting.Value)
-		usagesToTextureIndices[usage.String()] = value
+		usagesToTextureIndices[ctx.LookupThinHash(setting)] = value
 	}
 
 	doc.Materials = append(doc.Materials, &gltf.Material{
@@ -843,7 +834,7 @@ func convertOpts(ctx *extractor.Context, imgOpts *ImageOptions, gltfDoc *gltf.Do
 		return nil
 	}
 
-	_, containsIdMasks := mat.Textures[stingray.ThinHash{Value: uint32(IdMasksArray)}]
+	_, containsIdMasks := mat.Textures[stingray.Sum("id_masks_array").Thin()]
 	if gltfDoc != nil && cfg.Unit.AccurateOnly && !containsIdMasks {
 		return nil
 	}

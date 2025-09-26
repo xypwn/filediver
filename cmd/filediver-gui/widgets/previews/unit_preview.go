@@ -19,7 +19,6 @@ import (
 	"github.com/xypwn/filediver/cmd/filediver-gui/imutils"
 	"github.com/xypwn/filediver/cmd/filediver-gui/widgets"
 	"github.com/xypwn/filediver/dds"
-	extr_material "github.com/xypwn/filediver/extractor/material"
 	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/stingray/unit"
 	"github.com/xypwn/filediver/stingray/unit/material"
@@ -305,17 +304,17 @@ func (pv *UnitPreviewState) LoadUnit(mainData, gpuData []byte, getResource GetRe
 			// found is used.
 			for texUsage, texFileName := range mat.Textures {
 				removeAlpha := true
-				switch extr_material.TextureUsage(texUsage.Value) {
-				case extr_material.ColorRoughness, extr_material.ColorSpecularB, extr_material.AlbedoIridescence:
+				switch texUsage {
+				case stingray.Sum("color_roughness").Thin(), stingray.Sum("color_specular_b").Thin(), stingray.Sum("albedo_iridescence").Thin():
 					removeAlpha = false
 					fallthrough
-				case extr_material.CoveringAlbedo, extr_material.InputImage, extr_material.Albedo:
+				case stingray.Sum("covering_albedo").Thin(), stingray.Sum("input_image").Thin(), stingray.Sum("albedo").Thin():
 					albedoFileName = texFileName
 					albedoRemoveAlpha = removeAlpha
-				case extr_material.NormalSpecularAO:
+				case stingray.Sum("normal_specular_ao").Thin():
 					normalFileName = texFileName
 					reconstructNormalZ = false
-				case extr_material.Normal, extr_material.Normals, extr_material.NormalMap, extr_material.CoveringNormal, extr_material.NAC, extr_material.BaseData, extr_material.NAR:
+				case stingray.Sum("normal").Thin(), stingray.Sum("normals").Thin(), stingray.Sum("normal_map").Thin(), stingray.Sum("covering_normal").Thin(), stingray.Sum("nac").Thin(), stingray.Sum("base_data").Thin(), stingray.Sum("nar").Thin(), stingray.Sum("normal_ao_roughness").Thin(), stingray.Sum("normal_xy_ao_rough_map").Thin(), stingray.Sum("normal_xy_roughness_opacity").Thin():
 					normalFileName = texFileName
 					reconstructNormalZ = true
 				}
