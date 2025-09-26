@@ -17,6 +17,7 @@ import (
 	"github.com/AllenDang/cimgui-go/imgui"
 	"github.com/adrg/xdg"
 	"github.com/ebitengine/oto/v3"
+	"github.com/mattn/go-shellwords"
 	"github.com/ncruces/zenity"
 	"github.com/skratchdot/open-golang/open"
 	"github.com/xypwn/filediver/app/appconfig"
@@ -403,8 +404,15 @@ func (a *guiApp) redetectRunnerProgs() {
 		// Try to use a local FFprobe instance if the extension isn't installed
 		a.runner.Add("ffprobe", ffprobeArgs...)
 	}
-	blenderImporterPath := filepath.Join(a.scriptsDistDownloadState.Dir(), "hd2_accurate_blender_importer", "hd2_accurate_blender_importer")
-	a.runner.Add(blenderImporterPath)
+	blenderImporterArgs := []string{filepath.Join(a.scriptsDistDownloadState.Dir(), "hd2_accurate_blender_importer", "hd2_accurate_blender_importer")}
+	if value := os.Getenv("FILEDIVER_BLENDER_IMPORTER_COMMAND"); value != "" {
+		// Custom blender importer path (intended for dev only)
+		if args, err := shellwords.Parse(value); err == nil && len(args) >= 1 {
+			a.logger.Infof("Using custom blender importer command: %v", args)
+			blenderImporterArgs = args
+		}
+	}
+	a.runner.AddWithName("hd2_accurate_blender_importer", blenderImporterArgs[0], blenderImporterArgs[1:]...)
 }
 
 // We use state tracking for allSelectedForExport
@@ -942,8 +950,8 @@ func (a *guiApp) drawExportWindow() {
 			imgui.BeginDisabledV(len(a.filesSelectedForExport) == 0 || a.gameData == nil)
 			label := fmt.Sprintf("%v Begin export (%v)", fnt.I("File_export"), len(a.filesSelectedForExport))
 			if imgui.ButtonV(label, imgui.NewVec2(-math.SmallestNonzeroFloat32, 0)) && a.gameData != nil {
-				a.redetectRunnerProgs()
 				a.logger.Reset()
+				a.redetectRunnerProgs()
 				a.gameDataExport = a.gameData.GoExport(
 					a.ctx,
 					slices.SortedFunc(maps.Keys(a.filesSelectedForExport), (stingray.FileID).Cmp),
@@ -1292,10 +1300,11 @@ func (a *guiApp) drawAboutPopup() {
 }
 
 func main() {
-	if version == "" || version == "v0.0.0" {
+	if (version == "" || version == "v0.0.0") && !(os.Getenv("FILEDIVER_BLENDER_IMPORTER_COMMAND") != "") {
 		fmt.Println(`Development version detected.
-To use blender exporter, please pass a valid version to the build (this is because filediver has to know which version of Blender exporter it wants).
-You can do this via 'go run -ldflags "-X main.version=v0.0.0" ./cmd/filediver-gui' (replace v0.0.0 with a real version).`)
+To use blender importer, EITHER:
+ - use 'go run -ldflags "-X main.version=v0.0.0" ./cmd/filediver-gui' (replace v0.0.0 with a real version)
+ - set FILEDIVER_BLENDER_IMPORTER_COMMAND to a custom command (e.g. uv run scripts/hd2_accurate_blender_importer.py)`)
 	}
 
 	clipboardOk := clipboard.Init() == nil
