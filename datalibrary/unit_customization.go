@@ -99,280 +99,9 @@ type UnitCustomizationMaterialOverrides struct {
 	PatternMasksArray stingray.Hash
 }
 
-type hashLookup0x7056 struct {
-	ParentCount            uint32
-	Parents                []hashLookupParent
-	HashCount1             uint32
-	Hashes1                []stingray.Hash
-	HashMap1EntryCount     uint32
-	HashMap1               []hashLookupMapEntry
-	HashCount2             uint32
-	Hashes2                []stingray.Hash
-	UnknownTypeIndicator   uint32
-	Hashes2MappingCount    uint32
-	Hashes2Mapping         []hashLookupHashMapping
-	ThinHashMap1EntryCount uint32
-	ThinHashMap1           []hashLookupThinMapEntry
-	HashCount3             uint32
-	Hashes3                []stingray.Hash
-	HashMap2EntryCount     uint32
-	HashMap2               []hashLookupMapEntry
-	LookupTreeCount1       uint32
-	LookupTrees1           []hashLookupTree
-	HashMap3EntryCount     uint32
-	HashMap3               []hashLookupMapEntry
-	LookupTreeCount2       uint32
-	LookupTrees2           []hashLookupTree
-	HashMap4EntryCount     uint32
-	HashMap4               []hashLookupMapEntry
-	LookupTreeCount3       uint32
-	LookupTrees3           []hashLookupTree
-	HashMap5EntryCount     uint32
-	HashMap5               []hashLookupMapEntry
-	LookupTreeCount4       uint32
-	LookupTrees4           []hashLookupTree
-	DEADBEE7               uint32
-}
-
-type hashLookupParent struct {
-	ItemCount uint32
-	Items     []stingray.Hash
-}
-
-type hashLookupMapEntry struct {
-	Key   uint64
-	Value uint64
-}
-
-type hashLookupThinMapEntry struct {
-	Hash  uint32
-	Index uint32
-}
-
-type hashLookupHashMapping struct {
-	Type  uint32
-	Index uint32
-	Count uint32
-}
-
-type hashLookupTree struct {
-	Type       stingray.ThinHash
-	UnkInt     uint32
-	EntryCount uint32
-	Entries    []hashLookupMapEntry
-}
-
-func parseHashLookup(r io.Reader) (map[uint64]stingray.Hash, error) {
-	var hashLookup hashLookup0x7056
-	if err := binary.Read(r, binary.LittleEndian, &hashLookup.ParentCount); err != nil {
-		return nil, err
-	}
-
-	hashLookup.Parents = make([]hashLookupParent, 0)
-	for i := uint32(0); i < hashLookup.ParentCount; i++ {
-		var count uint32 = 0
-		for count == 0 {
-			if err := binary.Read(r, binary.LittleEndian, &count); err != nil {
-				return nil, err
-			}
-		}
-		items := make([]stingray.Hash, count)
-		if err := binary.Read(r, binary.LittleEndian, &items); err != nil {
-			return nil, err
-		}
-		hashLookup.Parents = append(hashLookup.Parents, hashLookupParent{
-			ItemCount: count,
-			Items:     items,
-		})
-	}
-
-	if err := binary.Read(r, binary.LittleEndian, &hashLookup.HashCount1); err != nil {
-		return nil, err
-	}
-	hashLookup.Hashes1 = make([]stingray.Hash, hashLookup.HashCount1)
-	if err := binary.Read(r, binary.LittleEndian, &hashLookup.Hashes1); err != nil {
-		return nil, err
-	}
-
-	if err := binary.Read(r, binary.LittleEndian, &hashLookup.HashMap1EntryCount); err != nil {
-		return nil, err
-	}
-	hashLookup.HashMap1 = make([]hashLookupMapEntry, hashLookup.HashMap1EntryCount)
-	if err := binary.Read(r, binary.LittleEndian, &hashLookup.HashMap1); err != nil {
-		return nil, err
-	}
-
-	if err := binary.Read(r, binary.LittleEndian, &hashLookup.HashCount2); err != nil {
-		return nil, err
-	}
-	hashLookup.Hashes2 = make([]stingray.Hash, hashLookup.HashCount2)
-	if err := binary.Read(r, binary.LittleEndian, &hashLookup.Hashes2); err != nil {
-		return nil, err
-	}
-
-	if err := binary.Read(r, binary.LittleEndian, &hashLookup.UnknownTypeIndicator); err != nil {
-		return nil, err
-	}
-	if err := binary.Read(r, binary.LittleEndian, &hashLookup.Hashes2MappingCount); err != nil {
-		return nil, err
-	}
-	hashLookup.Hashes2Mapping = make([]hashLookupHashMapping, hashLookup.Hashes2MappingCount)
-	if err := binary.Read(r, binary.LittleEndian, &hashLookup.Hashes2Mapping); err != nil {
-		return nil, err
-	}
-
-	if err := binary.Read(r, binary.LittleEndian, &hashLookup.ThinHashMap1EntryCount); err != nil {
-		return nil, err
-	}
-	hashLookup.ThinHashMap1 = make([]hashLookupThinMapEntry, hashLookup.ThinHashMap1EntryCount)
-	if err := binary.Read(r, binary.LittleEndian, &hashLookup.ThinHashMap1); err != nil {
-		return nil, err
-	}
-
-	if err := binary.Read(r, binary.LittleEndian, &hashLookup.HashCount3); err != nil {
-		return nil, err
-	}
-	hashLookup.Hashes3 = make([]stingray.Hash, hashLookup.HashCount3)
-	if err := binary.Read(r, binary.LittleEndian, &hashLookup.Hashes3); err != nil {
-		return nil, err
-	}
-
-	if err := binary.Read(r, binary.LittleEndian, &hashLookup.HashMap2EntryCount); err != nil {
-		return nil, err
-	}
-	hashLookup.HashMap2 = make([]hashLookupMapEntry, hashLookup.HashMap2EntryCount)
-	if err := binary.Read(r, binary.LittleEndian, &hashLookup.HashMap2); err != nil {
-		return nil, err
-	}
-
-	if err := binary.Read(r, binary.LittleEndian, &hashLookup.LookupTreeCount1); err != nil {
-		return nil, err
-	}
-	hashLookup.LookupTrees1 = make([]hashLookupTree, 0)
-	for i := uint32(0); i < hashLookup.LookupTreeCount1; i++ {
-		var tree hashLookupTree
-		if err := binary.Read(r, binary.LittleEndian, &tree.Type); err != nil {
-			return nil, err
-		}
-		if err := binary.Read(r, binary.LittleEndian, &tree.UnkInt); err != nil {
-			return nil, err
-		}
-		if err := binary.Read(r, binary.LittleEndian, &tree.EntryCount); err != nil {
-			return nil, err
-		}
-		tree.Entries = make([]hashLookupMapEntry, tree.EntryCount)
-		if err := binary.Read(r, binary.LittleEndian, &tree.Entries); err != nil {
-			return nil, err
-		}
-		hashLookup.LookupTrees1 = append(hashLookup.LookupTrees1, tree)
-	}
-
-	if err := binary.Read(r, binary.LittleEndian, &hashLookup.HashMap3EntryCount); err != nil {
-		return nil, err
-	}
-	hashLookup.HashMap3 = make([]hashLookupMapEntry, hashLookup.HashMap3EntryCount)
-	if err := binary.Read(r, binary.LittleEndian, &hashLookup.HashMap3); err != nil {
-		return nil, err
-	}
-
-	if err := binary.Read(r, binary.LittleEndian, &hashLookup.LookupTreeCount2); err != nil {
-		return nil, err
-	}
-	hashLookup.LookupTrees2 = make([]hashLookupTree, 0)
-	for i := uint32(0); i < hashLookup.LookupTreeCount2; i++ {
-		var tree hashLookupTree
-		if err := binary.Read(r, binary.LittleEndian, &tree.Type); err != nil {
-			return nil, err
-		}
-		if err := binary.Read(r, binary.LittleEndian, &tree.UnkInt); err != nil {
-			return nil, err
-		}
-		if err := binary.Read(r, binary.LittleEndian, &tree.EntryCount); err != nil {
-			return nil, err
-		}
-		tree.Entries = make([]hashLookupMapEntry, tree.EntryCount)
-		if err := binary.Read(r, binary.LittleEndian, &tree.Entries); err != nil {
-			return nil, err
-		}
-		hashLookup.LookupTrees2 = append(hashLookup.LookupTrees2, tree)
-	}
-
-	if err := binary.Read(r, binary.LittleEndian, &hashLookup.HashMap4EntryCount); err != nil {
-		return nil, err
-	}
-	hashLookup.HashMap4 = make([]hashLookupMapEntry, hashLookup.HashMap4EntryCount)
-	if err := binary.Read(r, binary.LittleEndian, &hashLookup.HashMap4); err != nil {
-		return nil, err
-	}
-
-	if err := binary.Read(r, binary.LittleEndian, &hashLookup.LookupTreeCount3); err != nil {
-		return nil, err
-	}
-	hashLookup.LookupTrees3 = make([]hashLookupTree, 0)
-	for i := uint32(0); i < hashLookup.LookupTreeCount3; i++ {
-		var tree hashLookupTree
-		if err := binary.Read(r, binary.LittleEndian, &tree.Type); err != nil {
-			return nil, err
-		}
-		if err := binary.Read(r, binary.LittleEndian, &tree.UnkInt); err != nil {
-			return nil, err
-		}
-		if err := binary.Read(r, binary.LittleEndian, &tree.EntryCount); err != nil {
-			return nil, err
-		}
-		tree.Entries = make([]hashLookupMapEntry, tree.EntryCount)
-		if err := binary.Read(r, binary.LittleEndian, &tree.Entries); err != nil {
-			return nil, err
-		}
-		hashLookup.LookupTrees3 = append(hashLookup.LookupTrees3, tree)
-	}
-
-	if err := binary.Read(r, binary.LittleEndian, &hashLookup.HashMap5EntryCount); err != nil {
-		return nil, err
-	}
-	hashLookup.HashMap5 = make([]hashLookupMapEntry, hashLookup.HashMap5EntryCount)
-	if err := binary.Read(r, binary.LittleEndian, &hashLookup.HashMap5); err != nil {
-		return nil, err
-	}
-
-	if err := binary.Read(r, binary.LittleEndian, &hashLookup.LookupTreeCount4); err != nil {
-		return nil, err
-	}
-	hashLookup.LookupTrees4 = make([]hashLookupTree, 0)
-	for i := uint32(0); i < hashLookup.LookupTreeCount3; i++ {
-		var tree hashLookupTree
-		if err := binary.Read(r, binary.LittleEndian, &tree.Type); err != nil {
-			return nil, err
-		}
-		if err := binary.Read(r, binary.LittleEndian, &tree.UnkInt); err != nil {
-			return nil, err
-		}
-		if err := binary.Read(r, binary.LittleEndian, &tree.EntryCount); err != nil {
-			return nil, err
-		}
-		tree.Entries = make([]hashLookupMapEntry, tree.EntryCount)
-		if err := binary.Read(r, binary.LittleEndian, &tree.Entries); err != nil {
-			return nil, err
-		}
-		hashLookup.LookupTrees4 = append(hashLookup.LookupTrees4, tree)
-	}
-
-	if err := binary.Read(r, binary.LittleEndian, &hashLookup.DEADBEE7); err != nil {
-		return nil, err
-	}
-
-	if hashLookup.DEADBEE7 != 0xDEADBEE7 {
-		return nil, fmt.Errorf("invalid format for 0x7056bc19c69f0f07.hash_lookup, expected final bytes read to be 0xDEADBEE7 but were %#08x", hashLookup.DEADBEE7)
-	}
-
-	toReturn := make(map[uint64]stingray.Hash)
-	for _, entry := range hashLookup.HashMap5 {
-		if entry.Key == 0x0 {
-			continue
-		}
-		toReturn[entry.Key] = stingray.Hash{Value: entry.Value}
-	}
-	return toReturn, nil
+type UnitCustomizationComponent struct {
+	MaterialsTexturesOverrides    []UnitCustomizationMaterialOverrides
+	MountedWeaponTextureOverrides []UnitCustomizationMaterialOverrides
 }
 
 func ParseUnitCustomizationSettings(getResource GetResourceFunc, stringmap map[uint32]string) ([]UnitCustomizationSettings, error) {
@@ -492,4 +221,116 @@ func ParseUnitCustomizationSettings(getResource GetResourceFunc, stringmap map[u
 	}
 
 	return toReturn, nil
+}
+
+func ParseUnitCustomizationComponents() (map[stingray.Hash]UnitCustomizationComponent, error) {
+	unitCustomizationComponentDataHash := Sum("UnitCustomizationComponentData")
+	unitCustomizationComponentDataHashData := make([]byte, 4)
+	if _, err := binary.Encode(unitCustomizationComponentDataHashData, binary.LittleEndian, unitCustomizationComponentDataHash); err != nil {
+		return nil, err
+	}
+	r := bytes.NewReader(entities[bytes.Index(entities, unitCustomizationComponentDataHashData):])
+	var header DLInstanceHeader
+	if err := binary.Read(r, binary.LittleEndian, &header); err != nil {
+		return nil, err
+	}
+
+	typelib, err := ParseTypeLib(nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var unitCustomizationComponentDataType DLTypeDesc
+	var ok bool
+	unitCustomizationComponentDataType, ok = typelib.Types[unitCustomizationComponentDataHash]
+	if !ok {
+		return nil, fmt.Errorf("could not find UnitCustomizationComponentData hash in dl_library")
+	}
+
+	if len(unitCustomizationComponentDataType.Members) != 2 {
+		return nil, fmt.Errorf("UnitCustomizationComponentData unexpected format (there should be 2 members but were actually %v)", len(unitCustomizationComponentDataType.Members))
+	}
+
+	if unitCustomizationComponentDataType.Members[0].Type.Atom != INLINE_ARRAY {
+		return nil, fmt.Errorf("UnitCustomizationComponentData unexpected format (hashmap atom was not inline array)")
+	}
+
+	if unitCustomizationComponentDataType.Members[1].Type.Atom != INLINE_ARRAY {
+		return nil, fmt.Errorf("UnitCustomizationComponentData unexpected format (data atom was not inline array)")
+	}
+
+	if unitCustomizationComponentDataType.Members[0].Type.Storage != STRUCT {
+		return nil, fmt.Errorf("UnitCustomizationComponentData unexpected format (hashmap storage was not struct)")
+	}
+
+	if unitCustomizationComponentDataType.Members[1].Type.Storage != STRUCT {
+		return nil, fmt.Errorf("UnitCustomizationComponentData unexpected format (data storage was not struct)")
+	}
+
+	if unitCustomizationComponentDataType.Members[0].TypeID != Sum("ComponentIndexData") {
+		return nil, fmt.Errorf("UnitCustomizationComponentData unexpected format (hashmap type was not ComponentIndexData)")
+	}
+
+	if unitCustomizationComponentDataType.Members[1].TypeID != Sum("UnitCustomizationComponent") {
+		return nil, fmt.Errorf("UnitCustomizationComponentData unexpected format (data type was not UnitCustomizationComponent)")
+	}
+
+	hashmap := make([]ComponentIndexData, unitCustomizationComponentDataType.Members[0].Type.BitfieldInfoOrArrayLen.GetArrayLen())
+	if err := binary.Read(r, binary.LittleEndian, &hashmap); err != nil {
+		return nil, err
+	}
+
+	var unitCustomizationComponentType DLTypeDesc
+	unitCustomizationComponentType, ok = typelib.Types[Sum("UnitCustomizationComponent")]
+	if !ok {
+		return nil, fmt.Errorf("could not find UnitCustomizationComponent hash in dl_library")
+	}
+
+	if len(unitCustomizationComponentType.Members) != 2 {
+		return nil, fmt.Errorf("UnitCustomizationComponent unexpected format (there should be 2 members but were actually %v)", len(unitCustomizationComponentType.Members))
+	}
+
+	if unitCustomizationComponentType.Members[0].Type.Atom != INLINE_ARRAY {
+		return nil, fmt.Errorf("UnitCustomizationComponent unexpected format (materials_textures_overrides was not inline array)")
+	}
+
+	if unitCustomizationComponentType.Members[1].Type.Atom != INLINE_ARRAY {
+		return nil, fmt.Errorf("UnitCustomizationComponent unexpected format (mounted_weapon_texture_overrides was not inline array)")
+	}
+
+	if unitCustomizationComponentType.Members[0].TypeID != Sum("UnitCustomizationMaterialOverrides") {
+		return nil, fmt.Errorf("UnitCustomizationComponent unexpected format (materials_textures_overrides type was not UnitCustomizationMaterialOverrides)")
+	}
+
+	if unitCustomizationComponentType.Members[1].TypeID != Sum("UnitCustomizationMaterialOverrides") {
+		return nil, fmt.Errorf("UnitCustomizationComponent unexpected format (mounted_weapon_texture_overrides type was not UnitCustomizationMaterialOverrides)")
+	}
+
+	matTextOverridesLen := unitCustomizationComponentType.Members[0].Type.BitfieldInfoOrArrayLen.GetArrayLen()
+	mountedWeaponOverridesLen := unitCustomizationComponentType.Members[1].Type.BitfieldInfoOrArrayLen.GetArrayLen()
+	data := make([]UnitCustomizationComponent, 0)
+	for i := uint16(0); i < unitCustomizationComponentDataType.Members[1].Type.BitfieldInfoOrArrayLen.GetArrayLen(); i++ {
+		materialsTexturesOverrides := make([]UnitCustomizationMaterialOverrides, matTextOverridesLen)
+		if err := binary.Read(r, binary.LittleEndian, &materialsTexturesOverrides); err != nil {
+			return nil, err
+		}
+		mountedWeaponTextureOverrides := make([]UnitCustomizationMaterialOverrides, mountedWeaponOverridesLen)
+		if err := binary.Read(r, binary.LittleEndian, &mountedWeaponTextureOverrides); err != nil {
+			return nil, err
+		}
+		data = append(data, UnitCustomizationComponent{
+			MaterialsTexturesOverrides:    materialsTexturesOverrides,
+			MountedWeaponTextureOverrides: mountedWeaponTextureOverrides,
+		})
+	}
+
+	result := make(map[stingray.Hash]UnitCustomizationComponent)
+	for _, component := range hashmap {
+		if component.Resource.Value == 0x0 {
+			continue
+		}
+		result[component.Resource] = data[component.Index]
+	}
+
+	return result, nil
 }

@@ -38,7 +38,7 @@ fn relative_to_parent(u128 offset) {
 u64 U64_MAX = 0xffffffffffffffff;
 
 enum DLItemType : u32 {
-    VisibilityMaskComponentData = 0x8ec31141,
+    UnitCustomizationComponentData = 0x704b76a6,
 };
 
 struct ComponentIndexData {
@@ -47,26 +47,23 @@ struct ComponentIndexData {
     padding[4];
 };
 
-struct VisibilityMaskInfo {
-    u32 name;
-    u16 mask_index;
-    u8 start_hidden;
-    padding[1];
+struct UnitCustomizationMaterialOverrides {
+    u32 material_id;
+    padding[4];
+    u64 material_lut;
+    u64 decal_sheet;
+    u64 pattern_lut;
+    u64 pattern_masks_array;
 };
 
-struct VisibilityMaskRandomization {
-    u32 identifier;
-    u32 mask_index_names[7];
+struct UnitCustomizationComponent {
+    UnitCustomizationMaterialOverrides materials_textures_overrides[12];
+    UnitCustomizationMaterialOverrides mounted_weapon_texture_overrides[5];
 };
 
-struct VisibilityMaskComponent {
-    VisibilityMaskInfo mask_infos[64];
-    VisibilityMaskRandomization randomizations[4];
-};
-
-struct VisibilityMaskComponentData {
-    ComponentIndexData hashmap[480];
-    VisibilityMaskComponent data[240];
+struct UnitCustomizationComponentData {
+    ComponentIndexData hashmap[152];
+    UnitCustomizationComponent data[77];
 };
 
 struct DLItem {
@@ -78,7 +75,7 @@ struct DLItem {
     u32 unk02;
     u32 unk03;
     match(type) {
-        (DLItemType::VisibilityMaskComponentData): VisibilityMaskComponentData data;
+        (DLItemType::UnitCustomizationComponentData): UnitCustomizationComponentData data;
         (_): u8 data[size];
     }
     padding[size-sizeof(data)];
