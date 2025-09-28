@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"slices"
 	"strconv"
 
 	"github.com/go-gl/mathgl/mgl32"
@@ -25,8 +26,40 @@ const (
 	CollectionCount
 )
 
+func (ucct UnitCustomizationCollectionType) Unit() (stingray.Hash, error) {
+	switch ucct {
+	case CollectionCombatWalker:
+		return stingray.Sum("content/fac_helldivers/vehicles/combat_walker/combat_walker"), nil
+	case CollectionCombatWalkerEmancipator:
+		return stingray.Sum("content/fac_helldivers/vehicles/combat_walker_obsidian/combat_walker_obsidian"), nil
+	case CollectionFRV:
+		return stingray.Sum("content/fac_helldivers/vehicles/frv/frv"), nil
+	case CollectionHellpod:
+		return stingray.Sum("content/fac_helldivers/hellpod/hellpod/hellpod"), nil
+	case CollectionHellpodRack:
+		return stingray.Sum("content/fac_helldivers/hellpod/weapon_rack/weapon_rack"), nil
+	case CollectionShuttle:
+		return stingray.Sum("content/fac_helldivers/vehicles/shuttle_gunship/shuttle_gunship"), nil
+	}
+	return stingray.Hash{Value: 0}, fmt.Errorf("Unknown unit for UnitCustomizationCollectionType %v", ucct)
+}
+
 func (ucct UnitCustomizationCollectionType) MarshalText() ([]byte, error) {
 	return []byte(ucct.String()), nil
+}
+
+var UnitCustomizationCollectionTypeUnits []stingray.Hash = []stingray.Hash{
+	stingray.Sum("content/fac_helldivers/vehicles/combat_walker/combat_walker"),
+	stingray.Sum("content/fac_helldivers/vehicles/combat_walker_turret/combat_walker_turret"),
+	stingray.Sum("content/fac_helldivers/vehicles/combat_walker_missle_launcher/combat_walker_missle_launcher"),
+	stingray.Sum("content/fac_helldivers/vehicles/combat_walker_obsidian/combat_walker_obsidian"),
+	stingray.Sum("content/fac_helldivers/vehicles/combat_walker_autocannon/combat_walker_autocannon_left"),
+	stingray.Sum("content/fac_helldivers/vehicles/combat_walker_autocannon/combat_walker_autocannon_right"),
+	stingray.Sum("content/fac_helldivers/vehicles/frv/frv"),
+	stingray.Sum("content/fac_helldivers/hellpod/hellpod/hellpod"),
+	stingray.Sum("content/fac_helldivers/hellpod/weapon_rack/weapon_rack"),
+	stingray.Sum("content/fac_helldivers/vehicles/shuttle_gunship/shuttle_gunship"),
+	stingray.Sum("content/fac_helldivers/vehicles/shuttle_gunship/turrets/shuttle_gunship_turret_hmg"),
 }
 
 //go:generate go run golang.org/x/tools/cmd/stringer -type=UnitCustomizationCollectionType
@@ -45,6 +78,15 @@ func (uccct UnitCustomizationCollectionCategoryType) MarshalText() ([]byte, erro
 }
 
 //go:generate go run golang.org/x/tools/cmd/stringer -type=UnitCustomizationCollectionCategoryType
+
+type UnitCustomizationMaterialOverrides struct {
+	MaterialID        stingray.ThinHash `json:"material_id"`
+	_                 [4]byte
+	MaterialLut       stingray.Hash `json:"material_lut,omitzero"`
+	DecalSheet        stingray.Hash `json:"decal_sheet,omitzero"`
+	PatternLut        stingray.Hash `json:"pattern_lut,omitzero"`
+	PatternMasksArray stingray.Hash `json:"pattern_masks_array,omitzero"`
+}
 
 type rawUnitCustomizationSettings struct {
 	ParentCollectionType UnitCustomizationCollectionType
@@ -74,7 +116,7 @@ type rawUnitCustomizationSetting struct {
 	DebugNameOffset      uint64
 	ID                   stingray.ThinHash
 	_                    [4]byte
-	AddPath              uint64
+	AddPath              stingray.Hash
 	Name                 uint32
 	_                    [4]byte
 	Thumbnail            stingray.Hash
@@ -83,25 +125,18 @@ type rawUnitCustomizationSetting struct {
 }
 
 type UnitCustomizationSetting struct {
-	DebugName      string            `json:"debug_name"`
-	ID             stingray.ThinHash `json:"id"`
-	Archive        stingray.Hash     `json:"archive"`
-	Name           string            `json:"name"`
-	Thumbnail      stingray.Hash     `json:"thumbnail"`
-	UIWidgetColors []mgl32.Vec3      `json:"ui_widget_colors"`
-}
-
-type UnitCustomizationMaterialOverrides struct {
-	MaterialID        stingray.ThinHash
-	MaterialLut       stingray.Hash
-	DecalSheet        stingray.Hash
-	PatternLut        stingray.Hash
-	PatternMasksArray stingray.Hash
+	Name           string                     `json:"name"`
+	DebugName      string                     `json:"debug_name"`
+	ID             stingray.ThinHash          `json:"id"`
+	Archive        stingray.Hash              `json:"archive"`
+	Customization  UnitCustomizationComponent `json:"customization"`
+	Thumbnail      stingray.Hash              `json:"thumbnail"`
+	UIWidgetColors []mgl32.Vec3               `json:"ui_widget_colors"`
 }
 
 type UnitCustomizationComponent struct {
-	MaterialsTexturesOverrides    []UnitCustomizationMaterialOverrides
-	MountedWeaponTextureOverrides []UnitCustomizationMaterialOverrides
+	MaterialsTexturesOverrides    []UnitCustomizationMaterialOverrides `json:"materials_textures_overrides"`
+	MountedWeaponTextureOverrides []UnitCustomizationMaterialOverrides `json:"mounted_weapon_texture_overrides"`
 }
 
 func ParseUnitCustomizationSettings(getResource GetResourceFunc, stringmap map[uint32]string) ([]UnitCustomizationSettings, error) {
@@ -122,6 +157,21 @@ func ParseUnitCustomizationSettings(getResource GetResourceFunc, stringmap map[u
 	}
 
 	addPathMap, err := parseHashLookup(bytes.NewReader(hashLookupData))
+	if err != nil {
+		return nil, err
+	}
+
+	deltas, err := ParseEntityDeltas()
+	if err != nil {
+		return nil, err
+	}
+
+	componentIndicesToHashes, err := ParseComponentIndices()
+	if err != nil {
+		return nil, err
+	}
+
+	matTextOverridesLen, mountedWeaponOverridesLen, err := getOverrideArrayLengths(nil)
 	if err != nil {
 		return nil, err
 	}
@@ -160,6 +210,14 @@ func ParseUnitCustomizationSettings(getResource GetResourceFunc, stringmap map[u
 			return nil, fmt.Errorf("read rawSettingsSlice: %v", err)
 		}
 
+		unitHash, err := rawSettings.CollectionType.Unit()
+		if err != nil {
+			return nil, err
+		}
+		componentData, err := getUnitCustomizationComponentDataForHash(unitHash)
+		if err != nil {
+			return nil, err
+		}
 		skins := make([]UnitCustomizationSetting, 0)
 		for _, rawSkin := range rawSettingsSlice {
 			var skin UnitCustomizationSetting
@@ -180,13 +238,59 @@ func ParseUnitCustomizationSettings(getResource GetResourceFunc, stringmap map[u
 
 			skin.ID = rawSkin.ID
 			skin.Thumbnail = rawSkin.Thumbnail
-			if rawSkin.AddPath != 0x0 {
+			overrideComponentData := slices.Clone(componentData)
+			if rawSkin.AddPath.Value != 0x0 {
 				var ok bool
-				skin.Archive, ok = addPathMap[rawSkin.AddPath]
+				skin.Archive, ok = addPathMap[rawSkin.AddPath.Value]
 				if !ok {
-					return nil, fmt.Errorf("could not find %x in hash lookup table", rawSkin.AddPath)
+					return nil, fmt.Errorf("could not find %x in hash lookup table", rawSkin.AddPath.Value)
+				}
+
+				delta, ok := deltas[rawSkin.AddPath]
+				if !ok {
+					return nil, fmt.Errorf("could not find %x in entity deltas", rawSkin.AddPath.Value)
+				}
+
+				for _, component := range delta.ModifiedComponents {
+					componentHash, ok := componentIndicesToHashes[component.ComponentIndex]
+					if !ok {
+						return nil, fmt.Errorf("invalid component index in entity deltas?")
+					}
+					if componentHash != Sum("UnitCustomizationComponentData") {
+						continue
+					}
+					for _, componentDelta := range component.Deltas {
+						overrideComponentData = slices.Replace(overrideComponentData, int(componentDelta.Offset), int(componentDelta.Offset)+len(componentDelta.Data), componentDelta.Data...)
+					}
 				}
 			}
+
+			var matOverrides UnitCustomizationComponent
+			materialsTexturesOverrides := make([]UnitCustomizationMaterialOverrides, matTextOverridesLen)
+			mountedWeaponTextureOverrides := make([]UnitCustomizationMaterialOverrides, mountedWeaponOverridesLen)
+			length, err := binary.Decode(overrideComponentData, binary.LittleEndian, &materialsTexturesOverrides)
+			if err != nil {
+				return nil, err
+			}
+			_, err = binary.Decode(overrideComponentData[length:], binary.LittleEndian, &mountedWeaponTextureOverrides)
+			if err != nil {
+				return nil, err
+			}
+			matOverrides.MaterialsTexturesOverrides = make([]UnitCustomizationMaterialOverrides, 0)
+			matOverrides.MountedWeaponTextureOverrides = make([]UnitCustomizationMaterialOverrides, 0)
+			for _, override := range materialsTexturesOverrides {
+				if override.MaterialID.Value == 0 {
+					break
+				}
+				matOverrides.MaterialsTexturesOverrides = append(matOverrides.MaterialsTexturesOverrides, override)
+			}
+			for _, override := range mountedWeaponTextureOverrides {
+				if override.MaterialID.Value == 0 {
+					break
+				}
+				matOverrides.MountedWeaponTextureOverrides = append(matOverrides.MaterialsTexturesOverrides, override)
+			}
+			skin.Customization = matOverrides
 
 			name, ok := stringmap[rawSkin.Name]
 			if !ok {
@@ -223,18 +327,27 @@ func ParseUnitCustomizationSettings(getResource GetResourceFunc, stringmap map[u
 	return toReturn, nil
 }
 
-func ParseUnitCustomizationComponents() (map[stingray.Hash]UnitCustomizationComponent, error) {
+func getUnitCustomizationComponentData() ([]byte, error) {
 	unitCustomizationComponentDataHash := Sum("UnitCustomizationComponentData")
 	unitCustomizationComponentDataHashData := make([]byte, 4)
 	if _, err := binary.Encode(unitCustomizationComponentDataHashData, binary.LittleEndian, unitCustomizationComponentDataHash); err != nil {
 		return nil, err
 	}
-	r := bytes.NewReader(entities[bytes.Index(entities, unitCustomizationComponentDataHashData):])
+	hashIndex := bytes.Index(entities, unitCustomizationComponentDataHashData)
+	r := bytes.NewReader(entities[hashIndex:])
 	var header DLInstanceHeader
 	if err := binary.Read(r, binary.LittleEndian, &header); err != nil {
 		return nil, err
 	}
 
+	data := make([]byte, header.Size)
+	_, err := r.Read(data)
+
+	return data, err
+}
+
+func getUnitCustomizationComponentDataForHash(hash stingray.Hash) ([]byte, error) {
+	unitCustomizationComponentDataHash := Sum("UnitCustomizationComponentData")
 	typelib, err := ParseTypeLib(nil)
 	if err != nil {
 		return nil, err
@@ -275,9 +388,26 @@ func ParseUnitCustomizationComponents() (map[stingray.Hash]UnitCustomizationComp
 		return nil, fmt.Errorf("UnitCustomizationComponentData unexpected format (data type was not UnitCustomizationComponent)")
 	}
 
-	hashmap := make([]ComponentIndexData, unitCustomizationComponentDataType.Members[0].Type.BitfieldInfoOrArrayLen.GetArrayLen())
-	if err := binary.Read(r, binary.LittleEndian, &hashmap); err != nil {
+	customizationData, err := getUnitCustomizationComponentData()
+	if err != nil {
+		return nil, fmt.Errorf("Could not get unit customization data from generated_entities.dl_bin: %v", err)
+	}
+	r := bytes.NewReader(customizationData)
+
+	hashmapEntries := make([]ComponentIndexData, unitCustomizationComponentDataType.Members[0].Type.BitfieldInfoOrArrayLen.GetArrayLen())
+	if err := binary.Read(r, binary.LittleEndian, &hashmapEntries); err != nil {
 		return nil, err
+	}
+
+	var index int32 = -1
+	for _, entry := range hashmapEntries {
+		if entry.Resource == hash {
+			index = int32(entry.Index)
+			break
+		}
+	}
+	if index == -1 {
+		return nil, fmt.Errorf("%v not found in unit customization component data", hash.String())
 	}
 
 	var unitCustomizationComponentType DLTypeDesc
@@ -286,28 +416,111 @@ func ParseUnitCustomizationComponents() (map[stingray.Hash]UnitCustomizationComp
 		return nil, fmt.Errorf("could not find UnitCustomizationComponent hash in dl_library")
 	}
 
+	componentData := make([]byte, unitCustomizationComponentType.Size)
+	if _, err := r.Seek(int64(unitCustomizationComponentType.Size*uint32(index)), io.SeekCurrent); err != nil {
+		return nil, err
+	}
+	_, err = r.Read(componentData)
+	return componentData, err
+}
+
+func getOverrideArrayLengths(typelib *DLTypeLib) (int, int, error) {
+	if typelib == nil {
+		var err error
+		typelib, err = ParseTypeLib(nil)
+		if err != nil {
+			return -1, -1, err
+		}
+	}
+	var unitCustomizationComponentType DLTypeDesc
+	unitCustomizationComponentType, ok := typelib.Types[Sum("UnitCustomizationComponent")]
+	if !ok {
+		return -1, -1, fmt.Errorf("could not find UnitCustomizationComponent hash in dl_library")
+	}
+
 	if len(unitCustomizationComponentType.Members) != 2 {
-		return nil, fmt.Errorf("UnitCustomizationComponent unexpected format (there should be 2 members but were actually %v)", len(unitCustomizationComponentType.Members))
+		return -1, -1, fmt.Errorf("UnitCustomizationComponent unexpected format (there should be 2 members but were actually %v)", len(unitCustomizationComponentType.Members))
 	}
 
 	if unitCustomizationComponentType.Members[0].Type.Atom != INLINE_ARRAY {
-		return nil, fmt.Errorf("UnitCustomizationComponent unexpected format (materials_textures_overrides was not inline array)")
+		return -1, -1, fmt.Errorf("UnitCustomizationComponent unexpected format (materials_textures_overrides was not inline array)")
 	}
 
 	if unitCustomizationComponentType.Members[1].Type.Atom != INLINE_ARRAY {
-		return nil, fmt.Errorf("UnitCustomizationComponent unexpected format (mounted_weapon_texture_overrides was not inline array)")
+		return -1, -1, fmt.Errorf("UnitCustomizationComponent unexpected format (mounted_weapon_texture_overrides was not inline array)")
 	}
 
 	if unitCustomizationComponentType.Members[0].TypeID != Sum("UnitCustomizationMaterialOverrides") {
-		return nil, fmt.Errorf("UnitCustomizationComponent unexpected format (materials_textures_overrides type was not UnitCustomizationMaterialOverrides)")
+		return -1, -1, fmt.Errorf("UnitCustomizationComponent unexpected format (materials_textures_overrides type was not UnitCustomizationMaterialOverrides)")
 	}
 
 	if unitCustomizationComponentType.Members[1].TypeID != Sum("UnitCustomizationMaterialOverrides") {
-		return nil, fmt.Errorf("UnitCustomizationComponent unexpected format (mounted_weapon_texture_overrides type was not UnitCustomizationMaterialOverrides)")
+		return -1, -1, fmt.Errorf("UnitCustomizationComponent unexpected format (mounted_weapon_texture_overrides type was not UnitCustomizationMaterialOverrides)")
 	}
 
 	matTextOverridesLen := unitCustomizationComponentType.Members[0].Type.BitfieldInfoOrArrayLen.GetArrayLen()
 	mountedWeaponOverridesLen := unitCustomizationComponentType.Members[1].Type.BitfieldInfoOrArrayLen.GetArrayLen()
+	return int(matTextOverridesLen), int(mountedWeaponOverridesLen), nil
+}
+
+func ParseUnitCustomizationComponents() (map[stingray.Hash]UnitCustomizationComponent, error) {
+	unitCustomizationComponentDataHash := Sum("UnitCustomizationComponentData")
+	typelib, err := ParseTypeLib(nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var unitCustomizationComponentDataType DLTypeDesc
+	var ok bool
+	unitCustomizationComponentDataType, ok = typelib.Types[unitCustomizationComponentDataHash]
+	if !ok {
+		return nil, fmt.Errorf("could not find UnitCustomizationComponentData hash in dl_library")
+	}
+
+	if len(unitCustomizationComponentDataType.Members) != 2 {
+		return nil, fmt.Errorf("UnitCustomizationComponentData unexpected format (there should be 2 members but were actually %v)", len(unitCustomizationComponentDataType.Members))
+	}
+
+	if unitCustomizationComponentDataType.Members[0].Type.Atom != INLINE_ARRAY {
+		return nil, fmt.Errorf("UnitCustomizationComponentData unexpected format (hashmap atom was not inline array)")
+	}
+
+	if unitCustomizationComponentDataType.Members[1].Type.Atom != INLINE_ARRAY {
+		return nil, fmt.Errorf("UnitCustomizationComponentData unexpected format (data atom was not inline array)")
+	}
+
+	if unitCustomizationComponentDataType.Members[0].Type.Storage != STRUCT {
+		return nil, fmt.Errorf("UnitCustomizationComponentData unexpected format (hashmap storage was not struct)")
+	}
+
+	if unitCustomizationComponentDataType.Members[1].Type.Storage != STRUCT {
+		return nil, fmt.Errorf("UnitCustomizationComponentData unexpected format (data storage was not struct)")
+	}
+
+	if unitCustomizationComponentDataType.Members[0].TypeID != Sum("ComponentIndexData") {
+		return nil, fmt.Errorf("UnitCustomizationComponentData unexpected format (hashmap type was not ComponentIndexData)")
+	}
+
+	if unitCustomizationComponentDataType.Members[1].TypeID != Sum("UnitCustomizationComponent") {
+		return nil, fmt.Errorf("UnitCustomizationComponentData unexpected format (data type was not UnitCustomizationComponent)")
+	}
+
+	customizationData, err := getUnitCustomizationComponentData()
+	if err != nil {
+		return nil, fmt.Errorf("Could not get unit customization data from generated_entities.dl_bin: %v", err)
+	}
+	r := bytes.NewReader(customizationData)
+
+	hashmap := make([]ComponentIndexData, unitCustomizationComponentDataType.Members[0].Type.BitfieldInfoOrArrayLen.GetArrayLen())
+	if err := binary.Read(r, binary.LittleEndian, &hashmap); err != nil {
+		return nil, err
+	}
+
+	matTextOverridesLen, mountedWeaponOverridesLen, err := getOverrideArrayLengths(typelib)
+	if err != nil {
+		return nil, err
+	}
+
 	data := make([]UnitCustomizationComponent, 0)
 	for i := uint16(0); i < unitCustomizationComponentDataType.Members[1].Type.BitfieldInfoOrArrayLen.GetArrayLen(); i++ {
 		materialsTexturesOverrides := make([]UnitCustomizationMaterialOverrides, matTextOverridesLen)

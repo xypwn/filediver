@@ -66,19 +66,6 @@ func main() {
 	}
 	prt.NoStatus()
 
-	lookupThinHash := func(hash stingray.ThinHash) string {
-		if name, ok := a.ThinHashes[hash]; ok {
-			return name
-		}
-		return hash.String()
-	}
-	lookupHash := func(hash stingray.Hash) string {
-		if name, ok := a.Hashes[hash]; ok {
-			return name
-		}
-		return hash.String()
-	}
-
 	getResource := func(id stingray.FileID, typ stingray.DataType) (data []byte, exists bool, err error) {
 		data, err = a.DataDir.Read(id, typ)
 		if err == stingray.ErrFileDataTypeNotExist {
@@ -95,41 +82,13 @@ func main() {
 		panic(err)
 	}
 
-	components, err := datalib.ParseUnitCustomizationComponents()
-	if err != nil {
-		panic(err)
-	}
-
-	simpleComponents := make(map[string]SimpleUnitCustomizationComponent)
-
-	for hash, component := range components {
-		var simpleComponent SimpleUnitCustomizationComponent
-		simpleComponent.MaterialsTexturesOverrides = make([]SimpleUnitCustomizationMaterialOverrides, 0)
-		simpleComponent.MountedWeaponTextureOverrides = make([]SimpleUnitCustomizationMaterialOverrides, 0)
-		for _, override := range component.MaterialsTexturesOverrides {
-			simpleComponent.MaterialsTexturesOverrides = append(simpleComponent.MaterialsTexturesOverrides, SimpleUnitCustomizationMaterialOverrides{
-				MaterialID:        lookupThinHash(override.MaterialID),
-				MaterialLut:       lookupHash(override.MaterialLut),
-				DecalSheet:        lookupHash(override.DecalSheet),
-				PatternLut:        lookupHash(override.PatternLut),
-				PatternMasksArray: lookupHash(override.PatternMasksArray),
-			})
+	result := make(map[string]datalib.UnitCustomizationSettings)
+	for _, customization := range unitCustomization {
+		if customization.CollectionType == datalib.CollectionHellpodRack {
+			result["HELLPOD RACK"] = customization
+			continue
 		}
-		for _, override := range component.MountedWeaponTextureOverrides {
-			simpleComponent.MountedWeaponTextureOverrides = append(simpleComponent.MountedWeaponTextureOverrides, SimpleUnitCustomizationMaterialOverrides{
-				MaterialID:        lookupThinHash(override.MaterialID),
-				MaterialLut:       lookupHash(override.MaterialLut),
-				DecalSheet:        lookupHash(override.DecalSheet),
-				PatternLut:        lookupHash(override.PatternLut),
-				PatternMasksArray: lookupHash(override.PatternMasksArray),
-			})
-		}
-		simpleComponents[lookupHash(hash)] = simpleComponent
-	}
-
-	result := map[string]any{
-		"UnitCustomizationSettings":      unitCustomization,
-		"UnitCustomizationComponentData": simpleComponents,
+		result[customization.ObjectName] = customization
 	}
 
 	output, err := json.MarshalIndent(result, "", "    ")
