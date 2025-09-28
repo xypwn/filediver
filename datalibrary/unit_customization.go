@@ -48,18 +48,18 @@ func (ucct UnitCustomizationCollectionType) MarshalText() ([]byte, error) {
 	return []byte(ucct.String()), nil
 }
 
-var UnitCustomizationCollectionTypeUnits []stingray.Hash = []stingray.Hash{
-	stingray.Sum("content/fac_helldivers/vehicles/combat_walker/combat_walker"),
-	stingray.Sum("content/fac_helldivers/vehicles/combat_walker_turret/combat_walker_turret"),
-	stingray.Sum("content/fac_helldivers/vehicles/combat_walker_missle_launcher/combat_walker_missle_launcher"),
-	stingray.Sum("content/fac_helldivers/vehicles/combat_walker_obsidian/combat_walker_obsidian"),
-	stingray.Sum("content/fac_helldivers/vehicles/combat_walker_autocannon/combat_walker_autocannon_left"),
-	stingray.Sum("content/fac_helldivers/vehicles/combat_walker_autocannon/combat_walker_autocannon_right"),
-	stingray.Sum("content/fac_helldivers/vehicles/frv/frv"),
-	stingray.Sum("content/fac_helldivers/hellpod/hellpod/hellpod"),
-	stingray.Sum("content/fac_helldivers/hellpod/weapon_rack/weapon_rack"),
-	stingray.Sum("content/fac_helldivers/vehicles/shuttle_gunship/shuttle_gunship"),
-	stingray.Sum("content/fac_helldivers/vehicles/shuttle_gunship/turrets/shuttle_gunship_turret_hmg"),
+var UnitHashToCustomizationCollectionType map[stingray.Hash]UnitCustomizationCollectionType = map[stingray.Hash]UnitCustomizationCollectionType{
+	stingray.Sum("content/fac_helldivers/vehicles/combat_walker/combat_walker"):                                 CollectionCombatWalker,
+	stingray.Sum("content/fac_helldivers/vehicles/combat_walker_turret/combat_walker_turret"):                   CollectionCombatWalker,
+	stingray.Sum("content/fac_helldivers/vehicles/combat_walker_missle_launcher/combat_walker_missle_launcher"): CollectionCombatWalker,
+	stingray.Sum("content/fac_helldivers/vehicles/combat_walker_obsidian/combat_walker_obsidian"):               CollectionCombatWalkerEmancipator,
+	stingray.Sum("content/fac_helldivers/vehicles/combat_walker_autocannon/combat_walker_autocannon_left"):      CollectionCombatWalkerEmancipator,
+	stingray.Sum("content/fac_helldivers/vehicles/combat_walker_autocannon/combat_walker_autocannon_right"):     CollectionCombatWalkerEmancipator,
+	stingray.Sum("content/fac_helldivers/vehicles/frv/frv"):                                                     CollectionFRV,
+	stingray.Sum("content/fac_helldivers/hellpod/hellpod/hellpod"):                                              CollectionHellpod,
+	stingray.Sum("content/fac_helldivers/hellpod/weapon_rack/weapon_rack"):                                      CollectionHellpodRack,
+	stingray.Sum("content/fac_helldivers/vehicles/shuttle_gunship/shuttle_gunship"):                             CollectionShuttle,
+	stingray.Sum("content/fac_helldivers/vehicles/shuttle_gunship/turrets/shuttle_gunship_turret_hmg"):          CollectionShuttle,
 }
 
 //go:generate go run golang.org/x/tools/cmd/stringer -type=UnitCustomizationCollectionType
