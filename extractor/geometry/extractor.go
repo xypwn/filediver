@@ -661,7 +661,7 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, na
 			if strings.Contains(name, "_LOD") && (!strings.Contains(name, "_LOD0") || haveBaseModel) {
 				return true
 			}
-			if strings.Contains(name, "cull") || strings.Contains(name, "collision") {
+			if strings.Contains(name, "cull") || strings.Contains(name, "collision") || strings.Contains(name, "_proxy") {
 				return true && onlyModelAndShadow
 			}
 			return false
