@@ -42,20 +42,20 @@ func main() {
 		prt.Fatalf("parse typelib %v: %v", *path, err)
 	}
 
-	// if typelib.TypeInfoStringsSize == 0 {
-	// 	prt.Errorf("No strings contained in type library! (AH removed strings after 24-02-23, so any dl_library from after that date will not have type names in it)")
-	// 	return
-	// }
+	if typelib.TypeInfoStringsSize == 0 {
+		prt.Errorf("No strings contained in type library! (AH removed strings after 24-02-23, so any dl_library from after that date will not have type names in it)")
+		return
+	}
 
 	fmt.Println("// ======== Types ========")
 	for _, typ := range typelib.Types {
 		fmt.Println(typ.Name)
 	}
-	// fmt.Println("\n// ======== Enums and Values ========")
-	// for _, enum := range typelib.Enums {
-	// 	fmt.Println(enum.Name)
-	// 	for _, value := range enum.Values {
-	// 		fmt.Println(value.Name)
-	// 	}
-	// }
+	fmt.Println("\n// ======== Enums and Values ========")
+	for _, enum := range typelib.Enums {
+		fmt.Println(enum.Name)
+		for _, value := range enum.Values {
+			fmt.Println(value.Name)
+		}
+	}
 }
