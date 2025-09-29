@@ -90,11 +90,22 @@ func (c *Context) FileID() stingray.FileID {
 // NOTE THAT THIS WILL PREALLOCATE ALL FILE DATA; use Exists()
 // to check if a file exists.
 func (c *Context) Open(id stingray.FileID, typ stingray.DataType) (io.ReadSeeker, error) {
-	b, err := c.dataDir.Read(id, typ)
+	b, err := c.Read(id, typ)
 	if err != nil {
 		return nil, err
 	}
 	return bytes.NewReader(b), nil
+}
+
+// Read reads the specified game file.
+// NOTE THAT THIS WILL PREALLOCATE ALL FILE DATA; use Exists()
+// to check if a file exists.
+func (c *Context) Read(id stingray.FileID, typ stingray.DataType) ([]byte, error) {
+	b, err := c.dataDir.Read(id, typ)
+	if err != nil {
+		return nil, err
+	}
+	return b, nil
 }
 
 // Exists checks if the given file exists.

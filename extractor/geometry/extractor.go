@@ -32,6 +32,11 @@ type AccessorInfo struct {
 	Size uint32
 }
 
+type MaterialVariantMap struct {
+	Name                string
+	MaterialHashToIndex map[stingray.ThinHash]uint32
+}
+
 func convertFloat16Slice(gpuR io.ReadSeeker, data []byte, tmpArr []uint16, extra uint32) ([]byte, uint32, error) {
 	var err error
 	if err = binary.Read(gpuR, binary.LittleEndian, &tmpArr); err != nil {
@@ -616,7 +621,7 @@ func addBoundingBox(doc *gltf.Document, name string, meshHeader unit.MeshHeader,
 	*meshNodes = append(*meshNodes, idx)
 }
 
-func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, name stingray.Hash, meshInfos []MeshInfo, bones []stingray.ThinHash, meshLayouts []unit.MeshLayout, unitInfo *unit.Info, meshNodes *[]uint32, materialIndices map[stingray.ThinHash]uint32, parent uint32, skin *uint32) error {
+func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, name stingray.Hash, meshInfos []MeshInfo, bones []stingray.ThinHash, meshLayouts []unit.MeshLayout, unitInfo *unit.Info, meshNodes *[]uint32, materialIndices []MaterialVariantMap, parent uint32, skin *uint32) error {
 	cfg := ctx.Config()
 
 	unitName, contains := ctx.Hashes()[name]
@@ -630,6 +635,34 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, na
 	layoutToVertexBufferView := make(map[uint32]uint32)
 	layoutToIndexAccessor := make(map[uint32]*gltf.Accessor)
 	layoutAttributes := make(map[uint32]map[string]*gltf.Accessor)
+
+	var variants map[string]any
+	var variantsOk bool
+	variants, variantsOk = doc.Extensions["KHR_materials_variants"].(map[string]any)
+	if len(materialIndices) > 1 {
+		variantsArr := make([]map[string]string, 0)
+		if variantsOk {
+			existingVariantsArr, ok := variants["variants"].([]map[string]string)
+			if ok {
+				variantsArr = existingVariantsArr
+			}
+		}
+		// We've got skins besides "default", so lets make some variants
+		for _, materialVariant := range materialIndices {
+			variantsArr = append(variantsArr, map[string]string{
+				"name": materialVariant.Name,
+			})
+		}
+		if !slices.Contains(doc.ExtensionsUsed, "KHR_materials_variants") {
+			doc.ExtensionsUsed = append(doc.ExtensionsUsed, "KHR_materials_variants")
+		}
+		if doc.Extensions == nil {
+			doc.Extensions = make(gltf.Extensions)
+		}
+		doc.Extensions["KHR_materials_variants"] = map[string][]map[string]string{
+			"variants": variantsArr,
+		}
+	}
 
 	processedLODBones := false
 	hasLOD0 := true
@@ -943,9 +976,27 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, na
 			// There are a couple of models where there are fewer materials than meshes, so this is here
 			// to prevent us from panicking if we're exporting one of those
 			if int(group.MaterialIdx) < len(header.Materials) {
-				materialVal, ok := materialIndices[header.Materials[group.MaterialIdx]]
+				materialVal, ok := materialIndices[0].MaterialHashToIndex[header.Materials[group.MaterialIdx]]
 				if ok {
 					material = &materialVal
+				}
+			}
+
+			var mappings []map[string]any = nil
+			if len(materialIndices) > 1 {
+				mappings = make([]map[string]any, 0)
+				// We've got skins besides "default", so lets make some variants
+				for idx, materialVariant := range materialIndices {
+					materialVal, ok := materialVariant.MaterialHashToIndex[header.Materials[group.MaterialIdx]]
+					if !ok {
+						continue
+					}
+					mappings = append(mappings, map[string]any{
+						"material": materialVal,
+						"variants": []uint32{
+							uint32(idx),
+						},
+					})
 				}
 			}
 
@@ -955,6 +1006,13 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, na
 					Indices:    gltf.Index(indexAccessor),
 					Material:   material,
 				})
+				if mappings != nil {
+					udimPrimitives[udim][len(udimPrimitives[udim])-1].Extensions = map[string]any{
+						"KHR_materials_variants": map[string]any{
+							"mappings": mappings,
+						},
+					}
+				}
 			}
 		}
 		for udim, primitives := range udimPrimitives {

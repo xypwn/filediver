@@ -57,7 +57,12 @@ var UnitHashToCustomizationCollectionType map[stingray.Hash]UnitCustomizationCol
 	stingray.Sum("content/fac_helldivers/vehicles/combat_walker_autocannon/combat_walker_autocannon_right"):     CollectionCombatWalkerEmancipator,
 	stingray.Sum("content/fac_helldivers/vehicles/frv/frv"):                                                     CollectionFRV,
 	stingray.Sum("content/fac_helldivers/hellpod/hellpod/hellpod"):                                              CollectionHellpod,
+	stingray.Sum("content/fac_helldivers/hellpod/hellpod_lid/hellpod_lid"):                                      CollectionHellpod,
 	stingray.Sum("content/fac_helldivers/hellpod/weapon_rack/weapon_rack"):                                      CollectionHellpodRack,
+	stingray.Sum("content/fac_helldivers/hellpod/ammo_rack/ammo_rack"):                                          CollectionHellpodRack,
+	stingray.Sum("content/fac_helldivers/hellpod/flag_rack/flag_rack"):                                          CollectionHellpodRack,
+	stingray.Sum("content/fac_helldivers/hellpod/expandable_cover/expandable_cover"):                            CollectionHellpodRack,
+	stingray.Sum("content/fac_helldivers/hellpod/hellpod_jammed/hellpod_jammed"):                                CollectionHellpodRack,
 	stingray.Sum("content/fac_helldivers/vehicles/shuttle_gunship/shuttle_gunship"):                             CollectionShuttle,
 	stingray.Sum("content/fac_helldivers/vehicles/shuttle_gunship/turrets/shuttle_gunship_turret_hmg"):          CollectionShuttle,
 }
@@ -101,6 +106,13 @@ type rawUnitCustomizationSettings struct {
 	ShowroomRotation     mgl32.Vec3
 }
 
+// Simpler struct to just contain all the overrides for a skin
+type UnitSkinOverride struct {
+	Name      string
+	ID        stingray.ThinHash
+	Overrides map[stingray.ThinHash]UnitCustomizationMaterialOverrides
+}
+
 type UnitCustomizationSettings struct {
 	ParentCollectionType UnitCustomizationCollectionType         `json:"parent_collection_type"`
 	CollectionType       UnitCustomizationCollectionType         `json:"collection_type"`
@@ -110,6 +122,31 @@ type UnitCustomizationSettings struct {
 	Skins                []UnitCustomizationSetting              `json:"skins,omitempty"`
 	ShowroomOffset       mgl32.Vec3                              `json:"showroom_offset"`
 	ShowroomRotation     mgl32.Vec3                              `json:"showroom_rotation"`
+}
+
+func (u *UnitCustomizationSettings) GetSkinOverrides() []UnitSkinOverride {
+	toReturn := make([]UnitSkinOverride, 0)
+	for _, skin := range u.Skins {
+		skinOverride := UnitSkinOverride{
+			Name:      skin.Name,
+			ID:        skin.ID,
+			Overrides: make(map[stingray.ThinHash]UnitCustomizationMaterialOverrides),
+		}
+		for _, override := range skin.Customization.MaterialsTexturesOverrides {
+			if _, ok := skinOverride.Overrides[override.MaterialID]; ok {
+				continue
+			}
+			skinOverride.Overrides[override.MaterialID] = override
+		}
+		for _, override := range skin.Customization.MountedWeaponTextureOverrides {
+			if _, ok := skinOverride.Overrides[override.MaterialID]; ok {
+				continue
+			}
+			skinOverride.Overrides[override.MaterialID] = override
+		}
+		toReturn = append(toReturn, skinOverride)
+	}
+	return toReturn
 }
 
 type rawUnitCustomizationSetting struct {
@@ -238,7 +275,7 @@ func ParseUnitCustomizationSettings(getResource GetResourceFunc, stringmap map[u
 
 			skin.ID = rawSkin.ID
 			skin.Thumbnail = rawSkin.Thumbnail
-			overrideComponentData := slices.Clone(componentData)
+			overrideComponentData := make([]byte, len(componentData))
 			if rawSkin.AddPath.Value != 0x0 {
 				var ok bool
 				skin.Archive, ok = addPathMap[rawSkin.AddPath.Value]
@@ -288,7 +325,7 @@ func ParseUnitCustomizationSettings(getResource GetResourceFunc, stringmap map[u
 				if override.MaterialID.Value == 0 {
 					break
 				}
-				matOverrides.MountedWeaponTextureOverrides = append(matOverrides.MaterialsTexturesOverrides, override)
+				matOverrides.MountedWeaponTextureOverrides = append(matOverrides.MountedWeaponTextureOverrides, override)
 			}
 			skin.Customization = matOverrides
 
