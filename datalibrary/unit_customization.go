@@ -48,25 +48,6 @@ func (ucct UnitCustomizationCollectionType) MarshalText() ([]byte, error) {
 	return []byte(ucct.String()), nil
 }
 
-var UnitHashToCustomizationCollectionType map[stingray.Hash]UnitCustomizationCollectionType = map[stingray.Hash]UnitCustomizationCollectionType{
-	stingray.Sum("content/fac_helldivers/vehicles/combat_walker/combat_walker"):                                 CollectionCombatWalker,
-	stingray.Sum("content/fac_helldivers/vehicles/combat_walker_turret/combat_walker_turret"):                   CollectionCombatWalker,
-	stingray.Sum("content/fac_helldivers/vehicles/combat_walker_missle_launcher/combat_walker_missle_launcher"): CollectionCombatWalker,
-	stingray.Sum("content/fac_helldivers/vehicles/combat_walker_obsidian/combat_walker_obsidian"):               CollectionCombatWalkerEmancipator,
-	stingray.Sum("content/fac_helldivers/vehicles/combat_walker_autocannon/combat_walker_autocannon_left"):      CollectionCombatWalkerEmancipator,
-	stingray.Sum("content/fac_helldivers/vehicles/combat_walker_autocannon/combat_walker_autocannon_right"):     CollectionCombatWalkerEmancipator,
-	stingray.Sum("content/fac_helldivers/vehicles/frv/frv"):                                                     CollectionFRV,
-	stingray.Sum("content/fac_helldivers/hellpod/hellpod/hellpod"):                                              CollectionHellpod,
-	stingray.Sum("content/fac_helldivers/hellpod/hellpod_lid/hellpod_lid"):                                      CollectionHellpod,
-	stingray.Sum("content/fac_helldivers/hellpod/weapon_rack/weapon_rack"):                                      CollectionHellpodRack,
-	stingray.Sum("content/fac_helldivers/hellpod/ammo_rack/ammo_rack"):                                          CollectionHellpodRack,
-	stingray.Sum("content/fac_helldivers/hellpod/flag_rack/flag_rack"):                                          CollectionHellpodRack,
-	stingray.Sum("content/fac_helldivers/hellpod/expandable_cover/expandable_cover"):                            CollectionHellpodRack,
-	stingray.Sum("content/fac_helldivers/hellpod/hellpod_jammed/hellpod_jammed"):                                CollectionHellpodRack,
-	stingray.Sum("content/fac_helldivers/vehicles/shuttle_gunship/shuttle_gunship"):                             CollectionShuttle,
-	stingray.Sum("content/fac_helldivers/vehicles/shuttle_gunship/turrets/shuttle_gunship_turret_hmg"):          CollectionShuttle,
-}
-
 //go:generate go run golang.org/x/tools/cmd/stringer -type=UnitCustomizationCollectionType
 
 type UnitCustomizationCollectionCategoryType uint32
@@ -113,6 +94,20 @@ type UnitSkinOverride struct {
 	Overrides map[stingray.ThinHash][]UnitCustomizationMaterialOverrides
 }
 
+type UnitSkinOverrideGroup struct {
+	CollectionType UnitCustomizationCollectionType
+	Skins          []UnitSkinOverride
+}
+
+func (u UnitSkinOverrideGroup) HasMaterial(matId stingray.ThinHash) bool {
+	for i := range u.Skins {
+		if _, ok := u.Skins[i].Overrides[matId]; ok {
+			return true
+		}
+	}
+	return false
+}
+
 type UnitCustomizationSettings struct {
 	ParentCollectionType UnitCustomizationCollectionType         `json:"parent_collection_type"`
 	CollectionType       UnitCustomizationCollectionType         `json:"collection_type"`
@@ -124,8 +119,11 @@ type UnitCustomizationSettings struct {
 	ShowroomRotation     mgl32.Vec3                              `json:"showroom_rotation"`
 }
 
-func (u *UnitCustomizationSettings) GetSkinOverrides() []UnitSkinOverride {
-	toReturn := make([]UnitSkinOverride, 0)
+func (u *UnitCustomizationSettings) GetSkinOverrideGroup() UnitSkinOverrideGroup {
+	toReturn := UnitSkinOverrideGroup{
+		Skins:          make([]UnitSkinOverride, 0),
+		CollectionType: u.CollectionType,
+	}
 	for _, skin := range u.Skins {
 		skinOverride := UnitSkinOverride{
 			Name:      skin.Name,
@@ -144,7 +142,7 @@ func (u *UnitCustomizationSettings) GetSkinOverrides() []UnitSkinOverride {
 			}
 			skinOverride.Overrides[override.MaterialID] = append(skinOverride.Overrides[override.MaterialID], override)
 		}
-		toReturn = append(toReturn, skinOverride)
+		toReturn.Skins = append(toReturn.Skins, skinOverride)
 	}
 	return toReturn
 }

@@ -21,17 +21,18 @@ import (
 //
 // A context should only be used once.
 type Context struct {
-	ctx              context.Context
-	hashes           map[stingray.Hash]string
-	thinHashes       map[stingray.ThinHash]string
-	armorSets        map[stingray.Hash]datalib.ArmorSet
-	languageMap      map[uint32]string
-	dataDir          *stingray.DataDir
-	runner           *exec.Runner
-	config           appconfig.Config
-	outPath          string
-	selectedArchives []stingray.Hash
-	warnf            func(format string, args ...any)
+	ctx                context.Context
+	hashes             map[stingray.Hash]string
+	thinHashes         map[stingray.ThinHash]string
+	armorSets          map[stingray.Hash]datalib.ArmorSet
+	skinOverrideGroups []datalib.UnitSkinOverrideGroup
+	languageMap        map[uint32]string
+	dataDir            *stingray.DataDir
+	runner             *exec.Runner
+	config             appconfig.Config
+	outPath            string
+	selectedArchives   []stingray.Hash
+	warnf              func(format string, args ...any)
 
 	// Main file ID to extract
 	fileID stingray.FileID
@@ -50,6 +51,7 @@ func NewContext(
 	hashes map[stingray.Hash]string,
 	thinHashes map[stingray.ThinHash]string,
 	armorSets map[stingray.Hash]datalib.ArmorSet,
+	skinOverrideGroups []datalib.UnitSkinOverrideGroup,
 	languageMap map[uint32]string,
 	dataDir *stingray.DataDir,
 	runner *exec.Runner,
@@ -59,17 +61,18 @@ func NewContext(
 	warnf func(format string, args ...any),
 ) (_ *Context, getFiles func() []string) {
 	c := &Context{
-		ctx:              ctx,
-		hashes:           hashes,
-		thinHashes:       thinHashes,
-		armorSets:        armorSets,
-		languageMap:      languageMap,
-		dataDir:          dataDir,
-		runner:           runner,
-		config:           config,
-		outPath:          outPath,
-		selectedArchives: selectedArchives,
-		warnf:            warnf,
+		ctx:                ctx,
+		hashes:             hashes,
+		thinHashes:         thinHashes,
+		armorSets:          armorSets,
+		skinOverrideGroups: skinOverrideGroups,
+		languageMap:        languageMap,
+		dataDir:            dataDir,
+		runner:             runner,
+		config:             config,
+		outPath:            outPath,
+		selectedArchives:   selectedArchives,
+		warnf:              warnf,
 
 		fileID: fileID,
 	}
@@ -182,6 +185,10 @@ func (c *Context) GuessFileArmorSet(fileID stingray.FileID) (datalib.ArmorSet, b
 
 	armorSet, ok := c.armorSets[archive]
 	return armorSet, ok
+}
+
+func (c *Context) SkinOverrideGroups() []datalib.UnitSkinOverrideGroup {
+	return c.skinOverrideGroups
 }
 
 // Warnf logs a user-visible warning message.

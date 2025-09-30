@@ -224,12 +224,7 @@ func AddMaterialVariant(ctx *extractor.Context, mat *material.Material, doc *glt
 	return gltf.Index(skinMatIdx), nil
 }
 
-func AddMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_material.ImageOptions, unitInfo *unit.Info, metadata *datalib.UnitData, unitCustomization *datalib.UnitCustomizationSettings) ([]geometry.MaterialVariantMap, error) {
-	var skinOverrides []datalib.UnitSkinOverride
-	if unitCustomization != nil {
-		skinOverrides = unitCustomization.GetSkinOverrides()
-	}
-
+func AddMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_material.ImageOptions, unitInfo *unit.Info, metadata *datalib.UnitData) ([]geometry.MaterialVariantMap, error) {
 	materialVariants := make([]geometry.MaterialVariantMap, 0)
 	namesToVariantIdx := make(map[string]uint32)
 	for id, resID := range unitInfo.Materials {
@@ -269,8 +264,19 @@ func AddMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_mate
 		materialVariants[namesToVariantIdx["default"]].MaterialHashToIndex[id] = matIdx
 
 		// Handle variants
+		var skinOverrides []datalib.UnitSkinOverride = make([]datalib.UnitSkinOverride, 0)
+		for _, skinOverrideGroup := range ctx.SkinOverrideGroups() {
+			if !skinOverrideGroup.HasMaterial(id) {
+				continue
+			}
+			skinOverrides = skinOverrideGroup.Skins
+		}
 		for _, skinOverride := range skinOverrides {
 			skinName := cases.Title(language.English).String(skinOverride.Name)
+
+			if _, ok := skinOverride.Overrides[id]; !ok {
+				continue
+			}
 
 			skinMatIdx, err := AddMaterialVariant(ctx, mat, doc, imgOpts, id, skinOverride, metadata)
 			if err != nil {
@@ -405,64 +411,6 @@ func AddLights(ctx *extractor.Context, doc *gltf.Document, unitInfo *unit.Info, 
 	}
 }
 
-func LoadCustomizationSettings(ctx *extractor.Context, unitHash stingray.Hash) *datalib.UnitCustomizationSettings {
-	collectionType, ok := datalib.UnitHashToCustomizationCollectionType[unitHash]
-	if !ok {
-		return nil
-	}
-
-	var getResource datalib.GetResourceFunc = func(id stingray.FileID, typ stingray.DataType) (data []byte, exists bool, err error) {
-		if !ctx.Exists(id, typ) {
-			return nil, false, nil
-		}
-		exists = true
-		data, err = ctx.Read(id, typ)
-		return
-
-	}
-
-	var unitCustomization *datalib.UnitCustomizationSettings = nil
-	customizationSettings, err := datalib.ParseUnitCustomizationSettings(getResource, ctx.LanguageMap())
-	if err != nil {
-		return nil
-	}
-
-	var hellpodIdx int = -1
-	if collectionType == datalib.CollectionHellpodRack {
-		for i := range customizationSettings {
-			if customizationSettings[i].CollectionType != datalib.CollectionHellpod {
-				continue
-			}
-			hellpodIdx = i
-			break
-		}
-	}
-	for i := range customizationSettings {
-		if customizationSettings[i].CollectionType != collectionType {
-			continue
-		}
-		unitCustomization = &customizationSettings[i]
-		break
-	}
-	if hellpodIdx != -1 {
-		for i := range unitCustomization.Skins {
-			unitCustomization.Skins[i].Name = customizationSettings[hellpodIdx].Skins[i].Name
-		}
-	}
-
-	if collectionType == datalib.CollectionHellpodRack {
-		for i := range unitCustomization.Skins {
-			for j, ammoRack := range unitCustomization.Skins[i].Customization.MaterialsTexturesOverrides {
-				if ammoRack.MaterialID == stingray.Sum("m_ammo_rack").Thin() || ammoRack.MaterialID.Value == 0xefd45abb {
-					// Rattlesnake overrides the wrong material ids, fix it so they use the correct ones
-					unitCustomization.Skins[i].Customization.MaterialsTexturesOverrides[j].MaterialID = stingray.Sum("m_rack").Thin()
-				}
-			}
-		}
-	}
-	return unitCustomization
-}
-
 func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gltfDoc *gltf.Document) error {
 	fMain, err := ctx.Open(ctx.FileID(), stingray.DataMain)
 	if err != nil {
@@ -510,10 +458,8 @@ func ConvertBuffer(fMain, fGPU io.ReadSeeker, filename stingray.Hash, ctx *extra
 		}
 	}
 
-	unitCustomization := LoadCustomizationSettings(ctx, ctx.FileID().Name)
-
 	// Load materials
-	materialIdxs, err := AddMaterials(ctx, doc, imgOpts, unitInfo, metadata, unitCustomization)
+	materialIdxs, err := AddMaterials(ctx, doc, imgOpts, unitInfo, metadata)
 	if err != nil {
 		return err
 	}

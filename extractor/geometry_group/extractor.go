@@ -62,10 +62,8 @@ func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gl
 			return err
 		}
 
-		unitCustomization := extr_unit.LoadCustomizationSettings(ctx, unitHash)
-
 		// Load materials
-		materialIdxs, err := extr_unit.AddMaterials(ctx, doc, imgOpts, unitInfo, nil, unitCustomization)
+		materialIdxs, err := extr_unit.AddMaterials(ctx, doc, imgOpts, unitInfo, nil)
 		if err != nil {
 			return err
 		}

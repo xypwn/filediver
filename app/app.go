@@ -104,12 +104,13 @@ func ParseHashes(str string) []string {
 }
 
 type App struct {
-	Hashes      map[stingray.Hash]string
-	ThinHashes  map[stingray.ThinHash]string
-	ArmorSets   map[stingray.Hash]datalib.ArmorSet
-	DataDir     *stingray.DataDir
-	LanguageMap map[uint32]string
-	Metadata    map[stingray.FileID]FileMetadata
+	Hashes             map[stingray.Hash]string
+	ThinHashes         map[stingray.ThinHash]string
+	ArmorSets          map[stingray.Hash]datalib.ArmorSet
+	SkinOverrideGroups []datalib.UnitSkinOverrideGroup
+	DataDir            *stingray.DataDir
+	LanguageMap        map[uint32]string
+	Metadata           map[stingray.FileID]FileMetadata
 }
 
 // Automatically gets most wwise-related hashes by reading the game files
@@ -235,6 +236,47 @@ func getFileMetadata(dataDir *stingray.DataDir) map[stingray.FileID]FileMetadata
 	return metadata
 }
 
+func LoadCustomizationSettings(dataDir *stingray.DataDir, languageMap map[uint32]string) []datalib.UnitCustomizationSettings {
+	var getResource datalib.GetResourceFunc = func(id stingray.FileID, typ stingray.DataType) (data []byte, exists bool, err error) {
+		fileInfo, ok := dataDir.Files[id]
+		if !ok || !fileInfo[0].Exists(typ) {
+			return nil, false, nil
+		}
+		exists = true
+		data, err = dataDir.Read(id, typ)
+		return
+
+	}
+
+	customizationSettings, err := datalib.ParseUnitCustomizationSettings(getResource, languageMap)
+	if err != nil {
+		return nil
+	}
+
+	var hellpodIdx int = -1
+	var hellpodRackIdx int = -1
+	for i := range customizationSettings {
+		if customizationSettings[i].CollectionType == datalib.CollectionHellpod {
+			hellpodIdx = i
+		} else if customizationSettings[i].CollectionType == datalib.CollectionHellpodRack {
+			hellpodRackIdx = i
+		}
+	}
+	if hellpodIdx != -1 && hellpodRackIdx != -1 {
+		for i := range customizationSettings[hellpodRackIdx].Skins {
+			customizationSettings[hellpodRackIdx].Skins[i].Name = customizationSettings[hellpodIdx].Skins[i].Name
+			for j, ammoRack := range customizationSettings[hellpodRackIdx].Skins[i].Customization.MaterialsTexturesOverrides {
+				if ammoRack.MaterialID == stingray.Sum("m_ammo_rack").Thin() || ammoRack.MaterialID.Value == 0xefd45abb {
+					// Rattlesnake overrides the wrong material ids, fix it so they use the correct ones
+					customizationSettings[hellpodRackIdx].Skins[i].Customization.MaterialsTexturesOverrides[j].MaterialID = stingray.Sum("m_rack").Thin()
+				}
+			}
+		}
+	}
+
+	return customizationSettings
+}
+
 // Open game dir and read metadata.
 func OpenGameDir(ctx context.Context, gameDir string, hashStrings []string, thinhashes []string, language stingray.ThinHash, onProgress func(curr, total int)) (*App, error) {
 	dataDir, err := stingray.OpenDataDir(ctx, filepath.Join(gameDir, "data"), onProgress)
@@ -265,13 +307,22 @@ func OpenGameDir(ctx context.Context, gameDir string, hashStrings []string, thin
 		return nil, fmt.Errorf("LoadArmorSetDefinitions: %v", err)
 	}
 
+	customizationSettings := LoadCustomizationSettings(dataDir, mapping)
+	skinOverrideGroups := make([]datalib.UnitSkinOverrideGroup, 0)
+	if customizationSettings != nil {
+		for _, setting := range customizationSettings {
+			skinOverrideGroups = append(skinOverrideGroups, setting.GetSkinOverrideGroup())
+		}
+	}
+
 	return &App{
-		Hashes:      hashesMap,
-		ThinHashes:  thinHashesMap,
-		ArmorSets:   armorSets,
-		DataDir:     dataDir,
-		LanguageMap: mapping,
-		Metadata:    getFileMetadata(dataDir),
+		Hashes:             hashesMap,
+		ThinHashes:         thinHashesMap,
+		ArmorSets:          armorSets,
+		SkinOverrideGroups: skinOverrideGroups,
+		DataDir:            dataDir,
+		LanguageMap:        mapping,
+		Metadata:           getFileMetadata(dataDir),
 	}, nil
 }
 
@@ -514,6 +565,7 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 		a.Hashes,
 		a.ThinHashes,
 		a.ArmorSets,
+		a.SkinOverrideGroups,
 		a.LanguageMap,
 		a.DataDir,
 		runner,
