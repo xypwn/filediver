@@ -110,7 +110,7 @@ type rawUnitCustomizationSettings struct {
 type UnitSkinOverride struct {
 	Name      string
 	ID        stingray.ThinHash
-	Overrides map[stingray.ThinHash]UnitCustomizationMaterialOverrides
+	Overrides map[stingray.ThinHash][]UnitCustomizationMaterialOverrides
 }
 
 type UnitCustomizationSettings struct {
@@ -130,19 +130,19 @@ func (u *UnitCustomizationSettings) GetSkinOverrides() []UnitSkinOverride {
 		skinOverride := UnitSkinOverride{
 			Name:      skin.Name,
 			ID:        skin.ID,
-			Overrides: make(map[stingray.ThinHash]UnitCustomizationMaterialOverrides),
+			Overrides: make(map[stingray.ThinHash][]UnitCustomizationMaterialOverrides),
 		}
 		for _, override := range skin.Customization.MaterialsTexturesOverrides {
-			if _, ok := skinOverride.Overrides[override.MaterialID]; ok {
-				continue
+			if _, ok := skinOverride.Overrides[override.MaterialID]; !ok {
+				skinOverride.Overrides[override.MaterialID] = make([]UnitCustomizationMaterialOverrides, 0)
 			}
-			skinOverride.Overrides[override.MaterialID] = override
+			skinOverride.Overrides[override.MaterialID] = append(skinOverride.Overrides[override.MaterialID], override)
 		}
 		for _, override := range skin.Customization.MountedWeaponTextureOverrides {
-			if _, ok := skinOverride.Overrides[override.MaterialID]; ok {
-				continue
+			if _, ok := skinOverride.Overrides[override.MaterialID]; !ok {
+				skinOverride.Overrides[override.MaterialID] = make([]UnitCustomizationMaterialOverrides, 0)
 			}
-			skinOverride.Overrides[override.MaterialID] = override
+			skinOverride.Overrides[override.MaterialID] = append(skinOverride.Overrides[override.MaterialID], override)
 		}
 		toReturn = append(toReturn, skinOverride)
 	}

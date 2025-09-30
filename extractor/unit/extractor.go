@@ -198,17 +198,22 @@ func AddMaterialVariant(ctx *extractor.Context, mat *material.Material, doc *glt
 		Textures:     maps.Clone(mat.Textures),
 		Settings:     maps.Clone(mat.Settings),
 	}
-	if override.MaterialLut.Value != 0 {
-		skinMat.Textures[stingray.Sum("material_lut").Thin()] = override.MaterialLut
+	idx := 0
+	if ctx.FileID().Name == stingray.Sum("content/fac_helldivers/hellpod/ammo_rack/ammo_rack") ||
+		ctx.FileID().Name == stingray.Sum("content/fac_helldivers/hellpod/flag_rack/flag_rack") {
+		idx = len(override) - 1
 	}
-	if override.PatternLut.Value != 0 {
-		skinMat.Textures[stingray.Sum("pattern_lut").Thin()] = override.PatternLut
+	if override[idx].MaterialLut.Value != 0 {
+		skinMat.Textures[stingray.Sum("material_lut").Thin()] = override[idx].MaterialLut
 	}
-	if override.DecalSheet.Value != 0 {
-		skinMat.Textures[stingray.Sum("decal_sheet").Thin()] = override.DecalSheet
+	if override[idx].PatternLut.Value != 0 {
+		skinMat.Textures[stingray.Sum("pattern_lut").Thin()] = override[idx].PatternLut
 	}
-	if override.PatternMasksArray.Value != 0 {
-		skinMat.Textures[stingray.Sum("pattern_masks_array").Thin()] = override.PatternMasksArray
+	if override[idx].DecalSheet.Value != 0 {
+		skinMat.Textures[stingray.Sum("decal_sheet").Thin()] = override[idx].DecalSheet
+	}
+	if override[idx].PatternMasksArray.Value != 0 {
+		skinMat.Textures[stingray.Sum("pattern_masks_array").Thin()] = override[idx].PatternMasksArray
 	}
 
 	skinMatIdx, err := extr_material.AddMaterial(ctx, &skinMat, doc, imgOpts, skinOverride.ID.String()+" "+ctx.LookupThinHash(materialId), metadata)
@@ -447,17 +452,10 @@ func LoadCustomizationSettings(ctx *extractor.Context, unitHash stingray.Hash) *
 
 	if collectionType == datalib.CollectionHellpodRack {
 		for i := range unitCustomization.Skins {
-			for _, ammoRack := range unitCustomization.Skins[i].Customization.MaterialsTexturesOverrides {
-				if ammoRack.MaterialID == stingray.Sum("m_ammo_rack").Thin() {
-					// Rattlesnake only overrides the ammo rack material, not the weapon rack (also the ammo rack uses m_rack anyways...)
-					unitCustomization.Skins[i].Customization.MaterialsTexturesOverrides = append(unitCustomization.Skins[i].Customization.MaterialsTexturesOverrides, datalib.UnitCustomizationMaterialOverrides{
-						MaterialID: stingray.Sum("m_rack").Thin(),
-						// This should only override the material lut, but I'll copy all of them just in case that changes
-						MaterialLut:       ammoRack.MaterialLut,
-						PatternLut:        ammoRack.PatternLut,
-						DecalSheet:        ammoRack.DecalSheet,
-						PatternMasksArray: ammoRack.PatternMasksArray,
-					})
+			for j, ammoRack := range unitCustomization.Skins[i].Customization.MaterialsTexturesOverrides {
+				if ammoRack.MaterialID == stingray.Sum("m_ammo_rack").Thin() || ammoRack.MaterialID.Value == 0xefd45abb {
+					// Rattlesnake overrides the wrong material ids, fix it so they use the correct ones
+					unitCustomization.Skins[i].Customization.MaterialsTexturesOverrides[j].MaterialID = stingray.Sum("m_rack").Thin()
 				}
 			}
 		}

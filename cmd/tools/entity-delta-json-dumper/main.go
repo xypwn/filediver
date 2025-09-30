@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 
 	"github.com/xypwn/filediver/app"
 	datalib "github.com/xypwn/filediver/datalibrary"
@@ -14,7 +15,10 @@ type SimpleEntityDeltaSettings struct {
 	ModifiedComponents map[string][]datalib.ComponentModificationDelta `json:"modified_components,omitempty"`
 }
 
-type SimpleComponentEntityDeltaStorage map[string]SimpleEntityDeltaSettings
+type SimpleComponentEntityDeltaStorage struct {
+	ModifiedTypes []string                             `json:"modified_types"`
+	Deltas        map[string]SimpleEntityDeltaSettings `json:"deltas"`
+}
 
 func main() {
 	knownHashes := app.ParseHashes(hashes.Hashes)
@@ -53,20 +57,32 @@ func main() {
 		panic(err)
 	}
 
-	simpleEntityDeltas := make(SimpleComponentEntityDeltaStorage)
+	modifiedTypesSet := make(map[string]bool)
+	modifiedTypesSlice := make([]string, 0)
+	simpleEntityDeltas := make(map[string]SimpleEntityDeltaSettings)
 	for name, deltaSettings := range entityDeltas {
 		simpleModifiedComponents := make(map[string][]datalib.ComponentModificationDelta)
 		for _, modifiedComponent := range deltaSettings.ModifiedComponents {
 			componentHash := componentIndicesToHashes[modifiedComponent.ComponentIndex]
 			simpleModifiedComponents[lookupDLHash(componentHash)] = modifiedComponent.Deltas
+			if _, ok := modifiedTypesSet[lookupDLHash(componentHash)]; !ok {
+				modifiedTypesSet[lookupDLHash(componentHash)] = true
+				modifiedTypesSlice = append(modifiedTypesSlice, lookupDLHash(componentHash))
+			}
 		}
 		simpleDeltaSettings := SimpleEntityDeltaSettings{
 			ModifiedComponents: simpleModifiedComponents,
 		}
 		simpleEntityDeltas[lookupHash(name)] = simpleDeltaSettings
 	}
+	slices.Sort(modifiedTypesSlice)
 
-	output, err := json.MarshalIndent(simpleEntityDeltas, "", "    ")
+	result := SimpleComponentEntityDeltaStorage{
+		ModifiedTypes: modifiedTypesSlice,
+		Deltas:        simpleEntityDeltas,
+	}
+
+	output, err := json.MarshalIndent(result, "", "    ")
 	if err != nil {
 		panic(err)
 	}
