@@ -9,15 +9,15 @@ import (
 )
 
 type rawAnimation struct {
-	Name                  stingray.Hash
-	Unk00                 uint32
-	AnimationHashCount    uint32
-	AnimationHashesOffset uint32
-	FloatCount            uint32
-	FloatListOffset       uint32
-	Unk01                 [3]uint32
-	BoneCount             uint32
-	BoneListOffset        uint32
+	Name                     stingray.Hash
+	Unk00                    uint32
+	AnimationHashCount       uint32
+	AnimationHashesOffset    uint32
+	FloatCount               uint32
+	FloatListOffset          uint32
+	Unk01                    [3]uint32
+	AnimationEventCount      uint32
+	AnimationEventListOffset uint32
 	// Links/edges?
 	LinkCount           uint32
 	LinkListOffset      uint32
@@ -42,39 +42,47 @@ type rawAnimationGroup struct {
 }
 
 type rawStateMachine struct {
-	Unk00                   uint32
-	AnimationGroupCount     uint32
-	AnimationGroupsOffset   uint32
-	ThinHashCount           uint32
-	ThinHashOffset          uint32
-	ThinHashFloatsCount     uint32
-	ThinHashFloatsOffset    uint32
-	BoneOpacityArraysCount  uint32
-	BoneOpacityArraysOffset uint32
-	UnkData00Count          uint32
-	UnkData00Offset         uint32
-	UnkData01Count          uint32
-	UnkData01Offset         uint32
-	UnkData02Count          uint32
-	UnkData02Offset         uint32
+	Unk00                      uint32
+	AnimationGroupCount        uint32
+	AnimationGroupsOffset      uint32
+	AnimationEventHashCount    uint32
+	AnimationEventHashesOffset uint32
+	ThinHashFloatsCount        uint32
+	ThinHashFloatsOffset       uint32
+	BoneOpacityArraysCount     uint32
+	BoneOpacityArraysOffset    uint32
+	UnkData00Count             uint32
+	UnkData00Offset            uint32
+	UnkData01Count             uint32
+	UnkData01Offset            uint32
+	UnkData02Count             uint32
+	UnkData02Offset            uint32
 }
 
-type rawBoneChannel struct {
-	Name  stingray.ThinHash
-	Index int32
+type rawAnimationEvent struct {
+	EventName stingray.ThinHash
+	Index     int32
 }
 
-type BoneChannel struct {
+type AnimationEvent struct {
 	Name         stingray.ThinHash `json:"-"`
-	ResolvedName string            `json:"name"`
+	ResolvedName string            `json:"animation_event_name"`
 	Index        int32             `json:"index"`
 }
 
+type rawLink struct {
+	Index     uint32
+	BlendTime float32
+	Type      uint32
+	Name      stingray.ThinHash
+}
+
 type Link struct {
-	Index  uint32            `json:"index"`
-	Weight float32           `json:"weight"`
-	Unk00  uint32            `json:"-"`
-	Name   stingray.ThinHash `json:"-"`
+	Index        uint32            `json:"index"`
+	BlendTime    float32           `json:"blend_time"`
+	Type         uint32            `json:"type_enum"`
+	Name         stingray.ThinHash `json:"-"`
+	ResolvedName string            `json:"name"`
 }
 
 type IndexedVector struct {
@@ -90,33 +98,33 @@ type Vectors struct {
 	Items []IndexedVector `json:"items,omitempty"`
 }
 
-type Animation struct {
-	Name                    stingray.Hash   `json:"-"`
-	ResolvedName            string          `json:"name"`
-	AnimationHashes         []stingray.Hash `json:"-"`
-	ResolvedAnimationHashes []string        `json:"paths,omitempty"`
-	FloatList               []float32       `json:"floats,omitempty"`
-	BoneList                []BoneChannel   `json:"bones,omitempty"`
-	LinkList                []Link          `json:"links,omitempty"`
-	VectorList              []Vectors       `json:"vectors,omitempty"`
+type State struct {
+	Name                     stingray.Hash              `json:"-"`
+	ResolvedName             string                     `json:"name"`
+	AnimationHashes          []stingray.Hash            `json:"-"`
+	ResolvedAnimationHashes  []string                   `json:"paths,omitempty"`
+	FloatList                []float32                  `json:"floats,omitempty"`
+	StateTransitions         map[stingray.ThinHash]Link `json:"-"`
+	ResolvedStateTransitions map[string]Link            `json:"state_transitions,omitempty"`
+	VectorList               []Vectors                  `json:"vectors,omitempty"`
 }
 
-type AnimationGroup struct {
-	Magic      uint32      `json:"magic"`
-	Animations []Animation `json:"animations"`
+type StateGroup struct {
+	Magic  uint32  `json:"magic"`
+	States []State `json:"states"`
 }
 
 type StateMachine struct {
-	Unk00                     uint32                        `json:"unk00"`
-	Groups                    []AnimationGroup              `json:"groups,omitempty"`
-	ThinHashes                []stingray.ThinHash           `json:"-"`
-	ResolvedThinHashes        []string                      `json:"thinhashes,omitempty"`
-	ThinHashFloatsMap         map[stingray.ThinHash]float32 `json:"-"`
-	ResolvedThinHashFloatsMap map[string]float32            `json:"boneWeightsMap,omitempty"`
-	BoneOpacityArrayList      [][]float32                   `json:"boneOpacities,omitempty"`
-	UnkData00                 []uint8                       `json:"unkData00,omitempty"`
-	UnkData01                 []uint8                       `json:"unkData01,omitempty"`
-	UnkData02                 []uint8                       `json:"unkData02,omitempty"`
+	Unk00                        uint32                        `json:"unk00"`
+	Groups                       []StateGroup                  `json:"groups,omitempty"`
+	AnimationEventHashes         []stingray.ThinHash           `json:"-"`
+	ResolvedAnimationEventHashes []string                      `json:"animation_events,omitempty"`
+	ThinHashFloatsMap            map[stingray.ThinHash]float32 `json:"-"`
+	ResolvedThinHashFloatsMap    map[string]float32            `json:"boneWeightsMap,omitempty"`
+	BoneOpacityArrayList         [][]float32                   `json:"boneOpacities,omitempty"`
+	UnkData00                    []uint8                       `json:"unkData00,omitempty"`
+	UnkData01                    []uint8                       `json:"unkData01,omitempty"`
+	UnkData02                    []uint8                       `json:"unkData02,omitempty"`
 }
 
 func loadOffsetList(r io.Reader) ([]uint32, error) {
@@ -137,7 +145,7 @@ func LoadStateMachine(r io.ReadSeeker) (*StateMachine, error) {
 		return nil, err
 	}
 
-	groups := make([]AnimationGroup, 0)
+	groups := make([]StateGroup, 0)
 	if rawSM.AnimationGroupsOffset != 0 {
 		if _, err := r.Seek(int64(rawSM.AnimationGroupsOffset), io.SeekStart); err != nil {
 			return nil, fmt.Errorf("seek animation group list offset %08x: %v", rawSM.AnimationGroupsOffset, err)
@@ -167,9 +175,9 @@ func LoadStateMachine(r io.ReadSeeker) (*StateMachine, error) {
 				return nil, fmt.Errorf("read raw group offsets %08x: %v", rawSM.AnimationGroupsOffset+groupOffset, err)
 			}
 
-			var group AnimationGroup
+			var group StateGroup
 			group.Magic = rawGroup.Magic
-			group.Animations = make([]Animation, 0)
+			group.States = make([]State, 0)
 
 			for _, animationOffset := range rawGroup.Offsets {
 				if _, err := r.Seek(int64(rawSM.AnimationGroupsOffset+groupOffset+animationOffset), io.SeekStart); err != nil {
@@ -180,53 +188,71 @@ func LoadStateMachine(r io.ReadSeeker) (*StateMachine, error) {
 					return nil, fmt.Errorf("read raw animation %08x: %v", rawSM.AnimationGroupsOffset+groupOffset+animationOffset, err)
 				}
 
-				var anim Animation
-				anim.Name = rawAnim.Name
+				var state State
+				state.Name = rawAnim.Name
 
-				anim.AnimationHashes = make([]stingray.Hash, rawAnim.AnimationHashCount)
+				state.AnimationHashes = make([]stingray.Hash, rawAnim.AnimationHashCount)
 				if rawAnim.AnimationHashesOffset != 0 {
 					if _, err := r.Seek(int64(rawSM.AnimationGroupsOffset+groupOffset+animationOffset+rawAnim.AnimationHashesOffset), io.SeekStart); err != nil {
 						return nil, fmt.Errorf("seek animation hashes %08x: %v", rawSM.AnimationGroupsOffset+groupOffset+animationOffset+rawAnim.AnimationHashesOffset, err)
 					}
-					if err := binary.Read(r, binary.LittleEndian, &anim.AnimationHashes); err != nil {
+					if err := binary.Read(r, binary.LittleEndian, &state.AnimationHashes); err != nil {
 						return nil, fmt.Errorf("read animation hashes %08x: %v", rawSM.AnimationGroupsOffset+groupOffset+animationOffset+rawAnim.AnimationHashesOffset, err)
 					}
 				}
 
-				anim.FloatList = make([]float32, rawAnim.FloatCount)
+				state.FloatList = make([]float32, rawAnim.FloatCount)
 				if rawAnim.FloatListOffset != 0 {
 					if _, err := r.Seek(int64(rawSM.AnimationGroupsOffset+groupOffset+animationOffset+rawAnim.FloatListOffset), io.SeekStart); err != nil {
 						return nil, fmt.Errorf("seek animation float list %08x: %v", rawSM.AnimationGroupsOffset+groupOffset+animationOffset+rawAnim.FloatListOffset, err)
 					}
-					if err := binary.Read(r, binary.LittleEndian, &anim.FloatList); err != nil {
+					if err := binary.Read(r, binary.LittleEndian, &state.FloatList); err != nil {
 						return nil, fmt.Errorf("read animation float list %08x: %v", rawSM.AnimationGroupsOffset+groupOffset+animationOffset+rawAnim.FloatListOffset, err)
 					}
 				}
 
-				anim.BoneList = make([]BoneChannel, 0)
-				if rawAnim.BoneListOffset != 0 {
-					if _, err := r.Seek(int64(rawSM.AnimationGroupsOffset+groupOffset+animationOffset+rawAnim.BoneListOffset), io.SeekStart); err != nil {
-						return nil, fmt.Errorf("seek animation bone list %08x: %v", rawSM.AnimationGroupsOffset+groupOffset+animationOffset+rawAnim.BoneListOffset, err)
+				state.StateTransitions = make(map[stingray.ThinHash]Link)
+				rawAnimationEvents := make([]rawAnimationEvent, rawAnim.AnimationEventCount)
+				if rawAnim.AnimationEventListOffset != 0 {
+					if _, err := r.Seek(int64(rawSM.AnimationGroupsOffset+groupOffset+animationOffset+rawAnim.AnimationEventListOffset), io.SeekStart); err != nil {
+						return nil, fmt.Errorf("seek animation event map %08x: %v", rawSM.AnimationGroupsOffset+groupOffset+animationOffset+rawAnim.AnimationEventListOffset, err)
 					}
-					for i := uint32(0); i < rawAnim.BoneCount; i++ {
-						var rawChannel rawBoneChannel
-						if err := binary.Read(r, binary.LittleEndian, &rawChannel); err != nil {
-							return nil, fmt.Errorf("read animation bone list %08x: %v", rawSM.AnimationGroupsOffset+groupOffset+animationOffset+rawAnim.BoneListOffset, err)
-						}
-						anim.BoneList = append(anim.BoneList, BoneChannel{
-							Name:  rawChannel.Name,
-							Index: rawChannel.Index,
-						})
+					if err := binary.Read(r, binary.LittleEndian, &rawAnimationEvents); err != nil {
+						return nil, fmt.Errorf("read animation event map %08x: %v", rawSM.AnimationGroupsOffset+groupOffset+animationOffset+rawAnim.AnimationEventListOffset, err)
 					}
 				}
 
-				anim.LinkList = make([]Link, rawAnim.LinkCount)
+				rawStateTransitionLinks := make([]rawLink, rawAnim.LinkCount)
 				if rawAnim.LinkListOffset != 0 {
 					if _, err := r.Seek(int64(rawSM.AnimationGroupsOffset+groupOffset+animationOffset+rawAnim.LinkListOffset), io.SeekStart); err != nil {
 						return nil, fmt.Errorf("seek animation link list %08x: %v", rawSM.AnimationGroupsOffset+groupOffset+animationOffset+rawAnim.LinkListOffset, err)
 					}
-					if err := binary.Read(r, binary.LittleEndian, &anim.LinkList); err != nil {
+					if err := binary.Read(r, binary.LittleEndian, &rawStateTransitionLinks); err != nil {
 						return nil, fmt.Errorf("read animation link list %08x: %v", rawSM.AnimationGroupsOffset+groupOffset+animationOffset+rawAnim.LinkListOffset, err)
+					}
+				}
+
+				for _, event := range rawAnimationEvents {
+					if event.Index < 0 {
+						continue
+					}
+					if event.Index >= int32(len(rawStateTransitionLinks)) {
+						state.StateTransitions[event.EventName] = Link{
+							Index:        0xFFFFFFFF,
+							BlendTime:    -1.0,
+							Type:         0xFFFFFFFF,
+							Name:         stingray.ThinHash{Value: 0xFFFFFFFF},
+							ResolvedName: "invalid",
+						}
+						continue
+					}
+
+					rawLink := rawStateTransitionLinks[event.Index]
+					state.StateTransitions[event.EventName] = Link{
+						Index:     rawLink.Index,
+						BlendTime: rawLink.BlendTime,
+						Type:      rawLink.Type,
+						Name:      rawLink.Name,
 					}
 				}
 
@@ -238,7 +264,7 @@ func LoadStateMachine(r io.ReadSeeker) (*StateMachine, error) {
 					if err != nil {
 						return nil, fmt.Errorf("load animation vector list offsets %08x: %v", rawSM.AnimationGroupsOffset+groupOffset+animationOffset+rawAnim.VectorListOffset, err)
 					}
-					anim.VectorList = make([]Vectors, 0)
+					state.VectorList = make([]Vectors, 0)
 					for _, vectorOffset := range vectorOffsets {
 						if _, err := r.Seek(int64(rawSM.AnimationGroupsOffset+groupOffset+animationOffset+rawAnim.VectorListOffset+vectorOffset), io.SeekStart); err != nil {
 							return nil, fmt.Errorf("seek animation vectors %08x: %v", rawSM.AnimationGroupsOffset+groupOffset+animationOffset+rawAnim.VectorListOffset+vectorOffset, err)
@@ -254,26 +280,26 @@ func LoadStateMachine(r io.ReadSeeker) (*StateMachine, error) {
 						if err := binary.Read(r, binary.LittleEndian, &items); err != nil {
 							return nil, fmt.Errorf("read animation vectors %08x: %v", rawSM.AnimationGroupsOffset+groupOffset+animationOffset+rawAnim.VectorListOffset+vectorOffset, err)
 						}
-						anim.VectorList = append(anim.VectorList, Vectors{
+						state.VectorList = append(state.VectorList, Vectors{
 							Unk00: unk,
 							Count: vectorCount,
 							Items: items,
 						})
 					}
 				}
-				group.Animations = append(group.Animations, anim)
+				group.States = append(group.States, state)
 			}
 			groups = append(groups, group)
 		}
 	}
 
-	thinHashes := make([]stingray.ThinHash, rawSM.ThinHashCount)
-	if rawSM.ThinHashOffset != 0 {
-		if _, err := r.Seek(int64(rawSM.ThinHashOffset), io.SeekStart); err != nil {
-			return nil, fmt.Errorf("seek thin hashes offset %08x: %v", rawSM.ThinHashOffset, err)
+	animationEventHashes := make([]stingray.ThinHash, rawSM.AnimationEventHashCount)
+	if rawSM.AnimationEventHashesOffset != 0 {
+		if _, err := r.Seek(int64(rawSM.AnimationEventHashesOffset), io.SeekStart); err != nil {
+			return nil, fmt.Errorf("seek thin hashes offset %08x: %v", rawSM.AnimationEventHashesOffset, err)
 		}
-		if err := binary.Read(r, binary.LittleEndian, &thinHashes); err != nil {
-			return nil, fmt.Errorf("read thin hashes offset %08x: %v", rawSM.ThinHashOffset, err)
+		if err := binary.Read(r, binary.LittleEndian, &animationEventHashes); err != nil {
+			return nil, fmt.Errorf("read thin hashes offset %08x: %v", rawSM.AnimationEventHashesOffset, err)
 		}
 	}
 
@@ -357,7 +383,7 @@ func LoadStateMachine(r io.ReadSeeker) (*StateMachine, error) {
 	return &StateMachine{
 		Unk00:                rawSM.Unk00,
 		Groups:               groups,
-		ThinHashes:           thinHashes,
+		AnimationEventHashes: animationEventHashes,
 		ThinHashFloatsMap:    thinHashFloatsMap,
 		BoneOpacityArrayList: opacityArrays,
 		UnkData00:            unkData00,

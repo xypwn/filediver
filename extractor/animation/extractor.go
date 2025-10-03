@@ -57,7 +57,7 @@ func ExtractAnimationJson(ctx *extractor.Context) error {
 	return err
 }
 
-func AddAnimation(ctx *extractor.Context, doc *gltf.Document, boneInfo *bones.Info, anim state_machine.Animation) error {
+func AddAnimation(ctx *extractor.Context, doc *gltf.Document, boneInfo *bones.Info, anim state_machine.State) error {
 	cfg := ctx.Config()
 
 	for _, path := range anim.AnimationHashes {

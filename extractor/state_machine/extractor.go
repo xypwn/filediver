@@ -24,13 +24,13 @@ func ExtractStateMachineJson(ctx *extractor.Context) error {
 		return err
 	}
 
-	stateMachine.ResolvedThinHashes = make([]string, 0)
-	for _, hash := range stateMachine.ThinHashes {
+	stateMachine.ResolvedAnimationEventHashes = make([]string, 0)
+	for _, hash := range stateMachine.AnimationEventHashes {
 		str, ok := ctx.ThinHashes()[hash]
 		if !ok {
 			str = hash.String()
 		}
-		stateMachine.ResolvedThinHashes = append(stateMachine.ResolvedThinHashes, str)
+		stateMachine.ResolvedAnimationEventHashes = append(stateMachine.ResolvedAnimationEventHashes, str)
 	}
 
 	stateMachine.ResolvedThinHashFloatsMap = make(map[string]float32)
@@ -43,19 +43,17 @@ func ExtractStateMachineJson(ctx *extractor.Context) error {
 	}
 
 	for groupIdx, group := range stateMachine.Groups {
-		for animIdx, animation := range group.Animations {
-			stateMachine.Groups[groupIdx].Animations[animIdx].ResolvedName = ctx.LookupHash(animation.Name)
+		for animIdx, animation := range group.States {
+			stateMachine.Groups[groupIdx].States[animIdx].ResolvedName = ctx.LookupHash(animation.Name)
 			resolvedAnimationHashes := make([]string, 0)
 			for _, hash := range animation.AnimationHashes {
 				resolvedAnimationHashes = append(resolvedAnimationHashes, ctx.LookupHash(hash))
 			}
-			stateMachine.Groups[groupIdx].Animations[animIdx].ResolvedAnimationHashes = resolvedAnimationHashes
-			for chIdx, channel := range animation.BoneList {
-				str, ok := ctx.ThinHashes()[channel.Name]
-				if !ok {
-					str = channel.Name.String()
-				}
-				stateMachine.Groups[groupIdx].Animations[animIdx].BoneList[chIdx].ResolvedName = str
+			stateMachine.Groups[groupIdx].States[animIdx].ResolvedAnimationHashes = resolvedAnimationHashes
+			stateMachine.Groups[groupIdx].States[animIdx].ResolvedStateTransitions = make(map[string]state_machine.Link)
+			for eventNameHash, transitionLink := range animation.StateTransitions {
+				transitionLink.ResolvedName = ctx.LookupThinHash(transitionLink.Name)
+				stateMachine.Groups[groupIdx].States[animIdx].ResolvedStateTransitions[ctx.LookupThinHash(eventNameHash)] = transitionLink
 			}
 		}
 	}
@@ -100,7 +98,7 @@ func AddAnimationSet(ctx *extractor.Context, doc *gltf.Document, unitInfo *unit.
 	}
 
 	for _, group := range stateMachine.Groups {
-		for _, anim := range group.Animations {
+		for _, anim := range group.States {
 			err := animation.AddAnimation(ctx, doc, boneInfo, anim)
 			if err != nil {
 				ctx.Warnf("add animation set: %v", err)
