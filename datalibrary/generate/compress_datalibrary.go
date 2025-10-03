@@ -36,6 +36,7 @@ func main() {
 		"generated_customization_armor_sets.dl_bin",
 		"generated_unit_customization_settings.dl_bin",
 		"generated_entities.dl_bin",
+		"generated_entity_deltas.dl_bin",
 	}
 	var buf bytes.Buffer
 	for _, filename := range filenames {

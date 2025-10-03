@@ -3,6 +3,7 @@ package unit
 import (
 	"fmt"
 	"io"
+	"maps"
 	"math"
 	"slices"
 	"strings"
@@ -11,6 +12,8 @@ import (
 	"github.com/qmuntal/gltf/modeler"
 
 	"github.com/go-gl/mathgl/mgl32"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 
 	datalib "github.com/xypwn/filediver/datalibrary"
 	"github.com/xypwn/filediver/extractor"
@@ -185,8 +188,45 @@ func AddSkeleton(ctx *extractor.Context, doc *gltf.Document, unitInfo *unit.Info
 	return uint32(len(doc.Skins) - 1)
 }
 
-func AddMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_material.ImageOptions, unitInfo *unit.Info, metadata *datalib.UnitData) (map[stingray.ThinHash]uint32, error) {
-	materialIdxs := make(map[stingray.ThinHash]uint32)
+func AddMaterialVariant(ctx *extractor.Context, mat *material.Material, doc *gltf.Document, imgOpts *extr_material.ImageOptions, materialId stingray.ThinHash, skinOverride datalib.UnitSkinOverride, metadata *datalib.UnitData) (*uint32, error) {
+	override, ok := skinOverride.Overrides[materialId]
+	if !ok {
+		return nil, fmt.Errorf("Override for %v not found?", ctx.LookupThinHash(materialId))
+	}
+	skinMat := material.Material{
+		BaseMaterial: mat.BaseMaterial,
+		Textures:     maps.Clone(mat.Textures),
+		Settings:     maps.Clone(mat.Settings),
+	}
+	idx := 0
+	if ctx.FileID().Name == stingray.Sum("content/fac_helldivers/hellpod/ammo_rack/ammo_rack") ||
+		ctx.FileID().Name == stingray.Sum("content/fac_helldivers/hellpod/flag_rack/flag_rack") {
+		idx = len(override) - 1
+	}
+	if override[idx].MaterialLut.Value != 0 {
+		skinMat.Textures[stingray.Sum("material_lut").Thin()] = override[idx].MaterialLut
+	}
+	if override[idx].PatternLut.Value != 0 {
+		skinMat.Textures[stingray.Sum("pattern_lut").Thin()] = override[idx].PatternLut
+	}
+	if override[idx].DecalSheet.Value != 0 {
+		skinMat.Textures[stingray.Sum("decal_sheet").Thin()] = override[idx].DecalSheet
+	}
+	if override[idx].PatternMasksArray.Value != 0 {
+		skinMat.Textures[stingray.Sum("pattern_masks_array").Thin()] = override[idx].PatternMasksArray
+	}
+
+	skinMatIdx, err := extr_material.AddMaterial(ctx, &skinMat, doc, imgOpts, skinOverride.ID.String()+" "+ctx.LookupThinHash(materialId), metadata)
+	if err != nil {
+		return nil, err
+	}
+
+	return gltf.Index(skinMatIdx), nil
+}
+
+func AddMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_material.ImageOptions, unitInfo *unit.Info, metadata *datalib.UnitData) ([]geometry.MaterialVariantMap, error) {
+	materialVariants := make([]geometry.MaterialVariantMap, 0)
+	namesToVariantIdx := make(map[string]uint32)
 	for id, resID := range unitInfo.Materials {
 		matR, err := ctx.Open(stingray.NewFileID(resID, stingray.Sum("material")), stingray.DataMain)
 		if err == stingray.ErrFileNotExist {
@@ -200,18 +240,61 @@ func AddMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_mate
 			return nil, err
 		}
 
-		matName, ok := ctx.ThinHashes()[id]
-		if !ok {
-			matName = id.String()
+		resPath := ctx.LookupHash(resID)
+		if strings.Contains(resPath, "/") {
+			split := strings.Split(resPath, "/")
+			resPath = strings.Join(split[len(split)-2:], "/")
 		}
-
-		matIdx, err := extr_material.AddMaterial(ctx, mat, doc, imgOpts, matName+" "+resID.String(), metadata)
+		matIdx, err := extr_material.AddMaterial(ctx, mat, doc, imgOpts, ctx.LookupThinHash(id)+" "+resPath, metadata)
 		if err != nil {
 			return nil, err
 		}
-		materialIdxs[id] = matIdx
+
+		// Using a slice+map combo to maintain variant order
+		// Otherwise different pieces would have different variant indices
+		// and combining them in a single file would result in random variants
+		// selected every time the skin was changed
+		if _, ok := namesToVariantIdx["default"]; !ok {
+			namesToVariantIdx["default"] = uint32(len(materialVariants))
+			materialVariants = append(materialVariants, geometry.MaterialVariantMap{
+				Name:                "default",
+				MaterialHashToIndex: make(map[stingray.ThinHash]uint32),
+			})
+		}
+		materialVariants[namesToVariantIdx["default"]].MaterialHashToIndex[id] = matIdx
+
+		// Handle variants
+		var skinOverrides []datalib.UnitSkinOverride = make([]datalib.UnitSkinOverride, 0)
+		for _, skinOverrideGroup := range ctx.SkinOverrideGroups() {
+			if !skinOverrideGroup.HasMaterial(id) {
+				continue
+			}
+			skinOverrides = skinOverrideGroup.Skins
+		}
+		for _, skinOverride := range skinOverrides {
+			skinName := cases.Title(language.English).String(skinOverride.Name)
+
+			if _, ok := skinOverride.Overrides[id]; !ok {
+				continue
+			}
+
+			skinMatIdx, err := AddMaterialVariant(ctx, mat, doc, imgOpts, id, skinOverride, metadata)
+			if err != nil {
+				// Some materials don't get overriden, that's fine
+				continue
+			}
+
+			if _, ok := namesToVariantIdx[skinName]; !ok {
+				namesToVariantIdx[skinName] = uint32(len(materialVariants))
+				materialVariants = append(materialVariants, geometry.MaterialVariantMap{
+					Name:                skinName,
+					MaterialHashToIndex: make(map[stingray.ThinHash]uint32),
+				})
+			}
+			materialVariants[namesToVariantIdx[skinName]].MaterialHashToIndex[id] = *skinMatIdx
+		}
 	}
-	return materialIdxs, nil
+	return materialVariants, nil
 }
 
 func AddPrefabMetadata(ctx *extractor.Context, doc *gltf.Document, filename stingray.Hash, parent *uint32, skin *uint32, meshNodes []uint32, armorSetName *string) {
@@ -453,7 +536,7 @@ func ConvertBuffer(fMain, fGPU io.ReadSeeker, filename stingray.Hash, ctx *extra
 	return nil
 }
 
-func loadGeometryGroupMeshes(ctx *extractor.Context, doc *gltf.Document, unitInfo *unit.Info, meshNodes *[]uint32, materialIndices map[stingray.ThinHash]uint32, parent uint32, skin *uint32) error {
+func loadGeometryGroupMeshes(ctx *extractor.Context, doc *gltf.Document, unitInfo *unit.Info, meshNodes *[]uint32, materialIndices []geometry.MaterialVariantMap, parent uint32, skin *uint32) error {
 	geoID := stingray.NewFileID(unitInfo.GeometryGroup, stingray.Sum("geometry_group"))
 	f, err := ctx.Open(geoID, stingray.DataMain)
 	if err == stingray.ErrFileNotExist {

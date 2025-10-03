@@ -29,6 +29,10 @@ var unitCustomizationSettings []byte
 var entitiesCompressed []byte
 var entities []byte
 
+//go:embed generated_entity_deltas.dl_bin.gz
+var entityDeltasCompressed []byte
+var entityDeltas []byte
+
 //go:embed dl_library.dl_typelib.gz
 var typelibCompressed []byte
 var typelib []byte
@@ -73,6 +77,7 @@ func init() {
 	// Decompress in parallel.
 	// Reduces binary size by ~33MB.
 	goDecompress(&entities, entitiesCompressed)
+	goDecompress(&entityDeltas, entityDeltasCompressed)
 	goDecompress(&customizationArmorSets, customizationArmorSetsCompressed)
 	goDecompress(&unitCustomizationSettings, unitCustomizationSettingsCompressed)
 	goDecompress(&typelib, typelibCompressed)

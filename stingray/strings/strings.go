@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"maps"
 
 	"github.com/xypwn/filediver/stingray"
 )
@@ -107,4 +108,30 @@ func Load(r io.Reader) (*Strings, error) {
 	}
 
 	return &res, nil
+}
+
+func LoadLanguageMap(dataDir *stingray.DataDir, language stingray.ThinHash) map[uint32]string {
+	var mapping map[uint32]string = make(map[uint32]string)
+	stringType := stingray.Sum("strings")
+	for fileId := range dataDir.Files {
+		if fileId.Type != stringType {
+			continue
+		}
+		stringData, err := dataDir.Read(fileId, stingray.DataMain)
+		if err != nil {
+			continue
+		}
+		strings, err := Load(bytes.NewReader(stringData))
+		if err != nil || strings.Language != language {
+			continue
+		}
+		for id := range strings.Strings {
+			if _, contains := mapping[id]; contains {
+				panic(fmt.Errorf("ID %v was already contained in the mapping!\n", id))
+			}
+		}
+
+		maps.Copy(mapping, strings.Strings)
+	}
+	return mapping
 }

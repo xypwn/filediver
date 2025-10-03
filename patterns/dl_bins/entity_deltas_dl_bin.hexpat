@@ -38,35 +38,48 @@ fn relative_to_parent(u128 offset) {
 u64 U64_MAX = 0xffffffffffffffff;
 
 enum DLItemType : u32 {
-    VisibilityMaskComponentData = 0x8ec31141,
+    ComponentEntityDeltaStorage = 0x683e604f,
 };
 
-struct ComponentIndexData {
+struct EntityDeltaTypeData {
     u64 resource_id;
     u32 index;
     padding[4];
 };
 
-struct VisibilityMaskInfo {
-    u32 name;
-    u16 mask_index;
-    u8 start_hidden;
-    padding[1];
+struct EntityDeltaSettings {
+    u32 modified_component_count;
+    u32 first_component_delta;
 };
 
-struct VisibilityMaskRandomization {
-    u32 identifier;
-    u32 mask_index_names[7];
+struct ComponentDeltaSettings {
+    u32 component_index;
+    u32 first_delta;
+    u32 delta_count;
 };
 
-struct VisibilityMaskComponent {
-    VisibilityMaskInfo mask_infos[64];
-    VisibilityMaskRandomization randomizations[4];
+struct ComponentModificationDelta {
+    u32 offset;
+    u32 size;
+    u32 data_offset;
 };
 
-struct VisibilityMaskComponentData {
-    ComponentIndexData hashmap[480];
-    VisibilityMaskComponent data[240];
+struct ComponentEntityDeltaStorage {
+    u64 hashmapOffset [[hidden]];
+    u64 hashmapCount [[hidden]];
+    u64 settingsOffset [[hidden]];
+    u64 settingsCount [[hidden]];
+    u64 componentSettingsOffset [[hidden]];
+    u64 componentSettingsCount [[hidden]];
+    u64 deltasOffset [[hidden]];
+    u64 deltasCount [[hidden]];
+    u64 dataOffset [[hidden]];
+    u64 dataCount [[hidden]];
+    EntityDeltaTypeData hashmap[hashmapCount] @ hashmapOffset + addressof(this);
+    EntityDeltaSettings settings[settingsCount] @ settingsOffset + addressof(this);
+    ComponentDeltaSettings component_settings[componentSettingsCount] @ componentSettingsOffset + addressof(this);
+    ComponentModificationDelta deltas[deltasCount] @ deltasOffset + addressof(this);
+    u8 data[dataCount] @ dataOffset + addressof(this);
 };
 
 struct DLItem {
@@ -78,7 +91,7 @@ struct DLItem {
     u32 unk02;
     u32 unk03;
     match(type) {
-        (DLItemType::VisibilityMaskComponentData): VisibilityMaskComponentData data;
+        (DLItemType::ComponentEntityDeltaStorage): ComponentEntityDeltaStorage data;
         (_): u8 data[size];
     }
     padding[size-sizeof(data)];

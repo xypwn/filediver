@@ -61,7 +61,7 @@ func main() {
 	var optExclGlob *string
 	var optInclOnlyTypes *string
 	var optInclArchives *string
-	var optArmorStringsLanguage *string
+	var optStringsLanguage *string
 	var optMetadataFilter *string
 	var optKnownHashesPath *string
 	var optThinHashListMode *string
@@ -103,10 +103,10 @@ func main() {
 		for i := range langs {
 			langs[i] = stingray_strings.LanguageFriendlyNames[i]
 		}
-		optArmorStringsLanguage = argp.String("s", "strings-language", &argparse.Option{
+		optStringsLanguage = argp.String("s", "strings-language", &argparse.Option{
 			Default: "English (US)",
 			Choices: langs,
-			Help:    "Language to use when exporting armor set name",
+			Help:    "Language to use when exporting names and descriptions",
 		})
 		optMetadataFilter = argp.String("m", "filter-metadata", &argparse.Option{
 			Help: `metadata search filter (see --help-metadata)`,
@@ -259,7 +259,7 @@ Options:`)
 		cancel()
 	}()
 
-	a, err := app.OpenGameDir(ctx, gamedir, knownHashes, knownThinHashes, stingray_strings.LanguageFriendlyNameToHash[*optArmorStringsLanguage], func(curr, total int) {
+	a, err := app.OpenGameDir(ctx, gamedir, knownHashes, knownThinHashes, stingray_strings.LanguageFriendlyNameToHash[*optStringsLanguage], func(curr, total int) {
 		prt.Statusf("Reading metadata %.0f%%", float64(curr)/float64(total)*100)
 	})
 	if err != nil {
