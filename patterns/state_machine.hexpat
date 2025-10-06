@@ -70,24 +70,24 @@ struct NANFloatList {
     float data[parent.parent.nanFloatCount];
 };
 
-struct BoneChannel {
-    ThinMurmurHash hash;
-    s32 index;
+struct AnimationEventLinkIndex {
+    ThinMurmurHash event_namehash;
+    s32 link_index;
 };
 
-struct BoneChannelList {
-    BoneChannel data[parent.parent.boneCount];
+struct AnimationEventLinkIndexList {
+    AnimationEventLinkIndex data[parent.parent.eventCount];
 };
 
-struct Link {
+struct StateTransitionLink {
     u32 index;
     float weight;
-    u32 unk00;
+    u32 type; // maybe an enum value?
     ThinMurmurHash hash;
 };
 
-struct LinkList {
-    Link data[parent.parent.linkCount];
+struct StateTransitionLinkList {
+    StateTransitionLink data[parent.parent.linkCount];
 };
 
 struct WeightIDIndex {
@@ -132,10 +132,10 @@ struct Animation {
     u32 unk01;
     u32 unk02;
     u32 unk03;
-    u32 boneCount;
-    RebasedNullablePtr<BoneChannelList, u32, "relative_to_parents_parent"> bones;
-    u32 linkCount; // No clue if this is what it is
-    RebasedNullablePtr<LinkList, u32, "relative_to_parents_parent"> links;
+    u32 eventCount;
+    RebasedNullablePtr<AnimationEventLinkIndexList, u32, "relative_to_parents_parent"> animation_events;
+    u32 linkCount;
+    RebasedNullablePtr<StateTransitionLinkList, u32, "relative_to_parents_parent"> event_links;
     u32 vectorCount;
     RebasedNullablePtr<UnknownVectorList, u32, "relative_to_parents_parent"> vectors;
     u32 wiiCount;
@@ -158,8 +158,8 @@ struct AnimationGroup {
     PtrList<Animation, "relative_to_parents_parents_parent"> animations;
 };
 
-struct ThinHashList {
-    ThinMurmurHash items[parent.parent.thinHashCount] [[inline]];
+struct AnimationEventList {
+    ThinMurmurHash items[parent.parent.animationEventsCount] [[inline]];
 };
 
 struct ThinHashFloatsList {
@@ -192,8 +192,8 @@ struct StateMachine {
     u32 unk00;
     u32 count;
     PtrList<AnimationGroup, "relative_to_parents_parent"> *groups : u32;
-    u32 thinHashCount;
-    RebasedNullablePtr<ThinHashList, u32, "absolute"> thinHashes;
+    u32 animationEventsCount;
+    RebasedNullablePtr<ThinHashList, u32, "absolute"> animationEvents;
     u32 thinHashFloatsCount;
     RebasedNullablePtr<ThinHashFloatsList, u32, "absolute"> thinHashFloats;
     u32 unkIntFloatDataCount;
