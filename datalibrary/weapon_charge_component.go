@@ -1,0 +1,231 @@
+package datalib
+
+import (
+	"bytes"
+	"encoding/binary"
+	"fmt"
+	"io"
+
+	"github.com/xypwn/filediver/stingray"
+)
+
+type ChargeStateSetting struct {
+	ChargeTime         float32           `json:"charge_time"`
+	ProjType           ProjectileType    `json:"projectile_type"`
+	ProjectileParticle stingray.Hash     `json:"projectile_particle"`
+	UnknownThinHash    stingray.ThinHash `json:"unknown"` // 17 chars long name
+	_                  [4]uint8
+}
+
+type ProjectileMultipliers struct {
+	SpeedMultiplierMin              float32 // The value to multiply the projectile speed with when at the smallest charge amount.
+	SpeedMultiplierOvercharge       float32 // The value to multiply the projectile speed with when fully overcharged.
+	DamageMultiplierMin             float32 // The value to multiply the projectile damage with when at the smallest charge amount.
+	DamageMultiplierOvercharge      float32 // The value to multiply the projectile damage with when fully overcharged.
+	PenetrationMultiplierMin        float32 // The value to multiply the projectile penetration with when at the smallest charge amount.
+	PenetrationMultiplierOvercharge float32 // The value to multiply the projectile penetration with when fully overcharged.
+	DistanceMultiplerMin            float32 // The value to multiply the arc distance with when at the smallest charge amount.
+	DistanceMultiplerOvercharge     float32 // The value to multiply the arc distance with when fully overcharged.
+	ExtraArcSplitsMin               float32 // The amount of extra splits this arc can do with minimum charge amount.
+	ExtraArcSplitsOvercharge        float32 // The amount of extra splits this arc can do when fully overcharged.
+	ExtraArcChainsMin               float32 // The amount of extra chains this arc can do with minimum charge amount.
+	ExtraArcChainsOvercharge        float32 // The amount of extra chains this arc can do when fully overcharged.
+}
+
+// Has a charge state and a value, name should be 14 chars long
+type UnknownChargeStruct struct {
+	State ChargeState
+	Value float32
+}
+
+type WeaponChargeComponent struct {
+	ChargeStateSettings     [3]ChargeStateSetting // Min-, Full-, and Over-Charged states
+	ProjMultipliers         ProjectileMultipliers // Multipliers of the setting values for the projectile based on the charge amount.
+	ChargeStartSoundID      stingray.ThinHash     // [string]Sound to start playing when the chargeup starts.
+	ChargeStopSoundID       stingray.ThinHash     // [string]Sound id to play when the chargeup ends.
+	ReadyToFireSoundID      stingray.ThinHash     // [string]Sound id to play when the weapon can fire.
+	DangerOverchargeSoundID stingray.ThinHash     // [string]Sound id to play when the chargeup enters the danger zone.
+	ChargeMesh              stingray.ThinHash     // [string]Mesh to set charge value on.
+	ChargeMaterial          stingray.ThinHash     // [string]Material to set charge value on.
+	ChargeVariable          stingray.ThinHash     // [string]Material variable to set charge value on.
+	_                       [4]uint8
+	ChargeUpMuzzleFlash     stingray.Hash     // [particles]Particle effect of the muzzle flash while charging.
+	ChargeUpMuzzleFlashLoop stingray.Hash     // [particles]Looping particle effect of the muzzle flash while charging.
+	ChargeAnimID            stingray.ThinHash // [string]What the animation variable is for rotating the barrel.
+	ChargeEndAnimID         stingray.ThinHash // [string]What the animation variable is for rotating the barrel.
+	ChargeRateAnimID        stingray.ThinHash // [string]What the animation variable is for rotating the barrel.
+	SpinSpeedAnimID         stingray.ThinHash // [string]What the animation variable is for rotating the barrel.
+	AutoFireInSafety        uint8             // [bool]If disabled, will allow the user to keep the charge as long as they are holding the trigger.
+	ExplodesOnOvercharged   uint8             // Unknown bool, name length 24 chars
+	_                       [2]uint8
+	ExplosionAudioEvent     stingray.ThinHash // Unknown, name length 22 chars
+	UnknownFloat            float32           // Unknown, probably related to the above
+	DryFireAudioEvent       stingray.ThinHash // [string].
+	ExplodeType             ExplosionType
+	StateValue              UnknownChargeStruct
+	_                       [4]uint8
+}
+
+func getWeaponChargeComponentData() ([]byte, error) {
+	weaponChargeHash := Sum("WeaponChargeComponentData")
+	weaponChargeHashData := make([]byte, 4)
+	if _, err := binary.Encode(weaponChargeHashData, binary.LittleEndian, weaponChargeHash); err != nil {
+		return nil, err
+	}
+	r := bytes.NewReader(entities[bytes.Index(entities, weaponChargeHashData):])
+	var header DLInstanceHeader
+	if err := binary.Read(r, binary.LittleEndian, &header); err != nil {
+		return nil, err
+	}
+
+	data := make([]byte, header.Size)
+	_, err := r.Read(data)
+	return data, err
+}
+
+func getWeaponChargeComponentDataForHash(hash stingray.Hash) ([]byte, error) {
+	WeaponChargeCmpDataHash := Sum("WeaponChargeComponentData")
+	typelib, err := ParseTypeLib(nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var weaponChargeCmpDataType DLTypeDesc
+	var ok bool
+	weaponChargeCmpDataType, ok = typelib.Types[WeaponChargeCmpDataHash]
+	if !ok {
+		return nil, fmt.Errorf("could not find ProjectileWeaponComponentData hash in dl_library")
+	}
+
+	if len(weaponChargeCmpDataType.Members) != 2 {
+		return nil, fmt.Errorf("WeaponChargeComponentData unexpected format (there should be 2 members but were actually %v)", len(weaponChargeCmpDataType.Members))
+	}
+
+	if weaponChargeCmpDataType.Members[0].Type.Atom != INLINE_ARRAY {
+		return nil, fmt.Errorf("WeaponChargeComponentData unexpected format (hashmap atom was not inline array)")
+	}
+
+	if weaponChargeCmpDataType.Members[1].Type.Atom != INLINE_ARRAY {
+		return nil, fmt.Errorf("WeaponChargeComponentData unexpected format (data atom was not inline array)")
+	}
+
+	if weaponChargeCmpDataType.Members[0].Type.Storage != STRUCT {
+		return nil, fmt.Errorf("WeaponChargeComponentData unexpected format (hashmap storage was not struct)")
+	}
+
+	if weaponChargeCmpDataType.Members[1].Type.Storage != STRUCT {
+		return nil, fmt.Errorf("WeaponChargeComponentData unexpected format (data storage was not struct)")
+	}
+
+	if weaponChargeCmpDataType.Members[0].TypeID != Sum("ComponentIndexData") {
+		return nil, fmt.Errorf("WeaponChargeComponentData unexpected format (hashmap type was not ComponentIndexData)")
+	}
+
+	if weaponChargeCmpDataType.Members[1].TypeID != Sum("WeaponChargeComponent") {
+		return nil, fmt.Errorf("WeaponChargeComponentData unexpected format (data type was not WeaponChargeComponent)")
+	}
+
+	weaponChargeComponentData, err := getWeaponChargeComponentData()
+	if err != nil {
+		return nil, fmt.Errorf("Could not get weapon charge component data from generated_entities.dl_bin: %v", err)
+	}
+	r := bytes.NewReader(weaponChargeComponentData)
+
+	hashmap := make([]ComponentIndexData, weaponChargeCmpDataType.Members[0].Type.BitfieldInfoOrArrayLen.GetArrayLen())
+	if err := binary.Read(r, binary.LittleEndian, &hashmap); err != nil {
+		return nil, err
+	}
+
+	var index int32 = -1
+	for _, entry := range hashmap {
+		if entry.Resource == hash {
+			index = int32(entry.Index)
+			break
+		}
+	}
+	if index == -1 {
+		return nil, fmt.Errorf("%v not found in weapon charge component data", hash.String())
+	}
+
+	var weaponChargeComponentType DLTypeDesc
+	weaponChargeComponentType, ok = typelib.Types[Sum("WeaponChargeComponent")]
+	if !ok {
+		return nil, fmt.Errorf("could not find WeaponChargeComponent hash in dl_library")
+	}
+
+	componentData := make([]byte, weaponChargeComponentType.Size)
+	if _, err := r.Seek(int64(weaponChargeComponentType.Size*uint32(index)), io.SeekCurrent); err != nil {
+		return nil, err
+	}
+	_, err = r.Read(componentData)
+	return componentData, err
+}
+
+func ParseWeaponChargeComponents() (map[stingray.Hash]WeaponChargeComponent, error) {
+	weaponChargeHash := Sum("WeaponChargeComponentData")
+	typelib, err := ParseTypeLib(nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var weaponChargeType DLTypeDesc
+	var ok bool
+	weaponChargeType, ok = typelib.Types[weaponChargeHash]
+	if !ok {
+		return nil, fmt.Errorf("could not find WeaponChargeComponentData hash in dl_library")
+	}
+
+	if len(weaponChargeType.Members) != 2 {
+		return nil, fmt.Errorf("WeaponChargeComponentData unexpected format (there should be 2 members but were actually %v)", len(weaponChargeType.Members))
+	}
+
+	if weaponChargeType.Members[0].Type.Atom != INLINE_ARRAY {
+		return nil, fmt.Errorf("WeaponChargeComponentData unexpected format (hashmap atom was not inline array)")
+	}
+
+	if weaponChargeType.Members[1].Type.Atom != INLINE_ARRAY {
+		return nil, fmt.Errorf("WeaponChargeComponentData unexpected format (data atom was not inline array)")
+	}
+
+	if weaponChargeType.Members[0].Type.Storage != STRUCT {
+		return nil, fmt.Errorf("WeaponChargeComponentData unexpected format (hashmap storage was not struct)")
+	}
+
+	if weaponChargeType.Members[1].Type.Storage != STRUCT {
+		return nil, fmt.Errorf("WeaponChargeComponentData unexpected format (data storage was not struct)")
+	}
+
+	if weaponChargeType.Members[0].TypeID != Sum("ComponentIndexData") {
+		return nil, fmt.Errorf("WeaponChargeComponentData unexpected format (hashmap type was not ComponentIndexData)")
+	}
+
+	if weaponChargeType.Members[1].TypeID != Sum("WeaponChargeComponent") {
+		return nil, fmt.Errorf("WeaponChargeComponentData unexpected format (data type was not WeaponChargeComponent)")
+	}
+
+	weaponChargeComponentData, err := getWeaponChargeComponentData()
+	if err != nil {
+		return nil, fmt.Errorf("Could not get projectile weapon component data from generated_entities.dl_bin: %v", err)
+	}
+	r := bytes.NewReader(weaponChargeComponentData)
+
+	hashmap := make([]ComponentIndexData, weaponChargeType.Members[0].Type.BitfieldInfoOrArrayLen.GetArrayLen())
+	if err := binary.Read(r, binary.LittleEndian, &hashmap); err != nil {
+		return nil, err
+	}
+
+	data := make([]WeaponChargeComponent, weaponChargeType.Members[1].Type.BitfieldInfoOrArrayLen.GetArrayLen())
+	if err := binary.Read(r, binary.LittleEndian, &data); err != nil {
+		return nil, err
+	}
+
+	result := make(map[stingray.Hash]WeaponChargeComponent)
+	for _, component := range hashmap {
+		if component.Resource.Value == 0x0 {
+			continue
+		}
+		result[component.Resource] = data[component.Index]
+	}
+
+	return result, nil
+}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -11,8 +12,13 @@ import (
 	"github.com/xypwn/filediver/stingray"
 )
 
+type SimpleComponentModificationDelta struct {
+	Offset uint32 `json:"offset"`
+	Data   string `json:"data,omitempty"`
+}
+
 type SimpleEntityDeltaSettings struct {
-	ModifiedComponents map[string][]datalib.ComponentModificationDelta `json:"modified_components,omitempty"`
+	ModifiedComponents map[string][]SimpleComponentModificationDelta `json:"modified_components,omitempty"`
 }
 
 type SimpleComponentEntityDeltaStorage struct {
@@ -61,10 +67,17 @@ func main() {
 	modifiedTypesSlice := make([]string, 0)
 	simpleEntityDeltas := make(map[string]SimpleEntityDeltaSettings)
 	for name, deltaSettings := range entityDeltas {
-		simpleModifiedComponents := make(map[string][]datalib.ComponentModificationDelta)
+		simpleModifiedComponents := make(map[string][]SimpleComponentModificationDelta)
 		for _, modifiedComponent := range deltaSettings.ModifiedComponents {
 			componentHash := componentIndicesToHashes[modifiedComponent.ComponentIndex]
-			simpleModifiedComponents[lookupDLHash(componentHash)] = modifiedComponent.Deltas
+			simpleDeltas := make([]SimpleComponentModificationDelta, 0)
+			for _, delta := range modifiedComponent.Deltas {
+				simpleDeltas = append(simpleDeltas, SimpleComponentModificationDelta{
+					Offset: delta.Offset,
+					Data:   hex.EncodeToString(delta.Data),
+				})
+			}
+			simpleModifiedComponents[lookupDLHash(componentHash)] = simpleDeltas
 			if _, ok := modifiedTypesSet[lookupDLHash(componentHash)]; !ok {
 				modifiedTypesSet[lookupDLHash(componentHash)] = true
 				modifiedTypesSlice = append(modifiedTypesSlice, lookupDLHash(componentHash))

@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"slices"
 	"strconv"
 
 	"github.com/go-gl/mathgl/mgl32"
@@ -201,11 +200,6 @@ func ParseUnitCustomizationSettings(getResource GetResourceFunc, stringmap map[u
 		return nil, err
 	}
 
-	componentIndicesToHashes, err := ParseComponentIndices()
-	if err != nil {
-		return nil, err
-	}
-
 	matTextOverridesLen, mountedWeaponOverridesLen, err := getOverrideArrayLengths(nil)
 	if err != nil {
 		return nil, err
@@ -238,7 +232,7 @@ func ParseUnitCustomizationSettings(getResource GetResourceFunc, stringmap map[u
 		rawSettingsSlice := make([]rawUnitCustomizationSetting, rawSettings.SkinsCount)
 		_, err := r.Seek(base+int64(rawSettings.SkinsOffset), io.SeekStart)
 		if err != nil {
-			return nil, fmt.Errorf("read seek skins: %v", err)
+			return nil, fmt.Errorf("seek skins: %v", err)
 		}
 
 		if err := binary.Read(r, binary.LittleEndian, &rawSettingsSlice); err != nil {
@@ -273,7 +267,7 @@ func ParseUnitCustomizationSettings(getResource GetResourceFunc, stringmap map[u
 
 			skin.ID = rawSkin.ID
 			skin.Thumbnail = rawSkin.Thumbnail
-			overrideComponentData := make([]byte, len(componentData))
+			var overrideComponentData []byte
 			if rawSkin.AddPath.Value != 0x0 {
 				var ok bool
 				skin.Archive, ok = addPathMap[rawSkin.AddPath.Value]
@@ -286,17 +280,9 @@ func ParseUnitCustomizationSettings(getResource GetResourceFunc, stringmap map[u
 					return nil, fmt.Errorf("could not find %x in entity deltas", rawSkin.AddPath.Value)
 				}
 
-				for _, component := range delta.ModifiedComponents {
-					componentHash, ok := componentIndicesToHashes[component.ComponentIndex]
-					if !ok {
-						return nil, fmt.Errorf("invalid component index in entity deltas?")
-					}
-					if componentHash != Sum("UnitCustomizationComponentData") {
-						continue
-					}
-					for _, componentDelta := range component.Deltas {
-						overrideComponentData = slices.Replace(overrideComponentData, int(componentDelta.Offset), int(componentDelta.Offset)+len(componentDelta.Data), componentDelta.Data...)
-					}
+				overrideComponentData, err = PatchComponent(Sum("UnitCustomizationComponentData"), componentData, delta)
+				if err != nil {
+					return nil, err
 				}
 			}
 

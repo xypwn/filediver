@@ -1,0 +1,31 @@
+package datalib
+
+type WeaponStatModifierType uint32
+
+const (
+	WeaponStatModifierType_Add_Ergonomics WeaponStatModifierType = iota
+	WeaponStatModifierType_Mul_Sway
+	WeaponStatModifierType_Mul_RecoilHorizontal
+	WeaponStatModifierType_Mul_RecoilHorizontalAlt
+	WeaponStatModifierType_Mul_RecoilVertical
+	WeaponStatModifierType_Mul_RecoilVerticalAlt
+	WeaponStatModifierType_Mul_DriftHorizontal
+	WeaponStatModifierType_Mul_DriftHorizontalAlt
+	WeaponStatModifierType_Mul_DriftVertical
+	WeaponStatModifierType_Mul_DriftVerticalAlt
+	WeaponStatModifierType_Mul_ClimbHorizontal
+	WeaponStatModifierType_Mul_ClimbHorizontalAlt
+	WeaponStatModifierType_Mul_ClimbVertical
+	WeaponStatModifierType_Mul_ClimbVerticalAlt
+	WeaponStatModifierType_Mul_SpreadHorizontal
+	WeaponStatModifierType_Mul_SpreadHorizontalAlt
+	WeaponStatModifierType_Mul_SpreadVertical
+	WeaponStatModifierType_Mul_SpreadVerticalAlt
+	WeaponStatModifierType_Count
+)
+
+func (p WeaponStatModifierType) MarshalText() ([]byte, error) {
+	return []byte(p.String()), nil
+}
+
+//go:generate go run golang.org/x/tools/cmd/stringer -type=WeaponStatModifierType

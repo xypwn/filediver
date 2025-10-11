@@ -25,6 +25,10 @@ var customizationArmorSets []byte
 var unitCustomizationSettingsCompressed []byte
 var unitCustomizationSettings []byte
 
+//go:embed generated_weapon_customization_settings.dl_bin.gz
+var weaponCustomizationSettingsCompressed []byte
+var weaponCustomizationSettings []byte
+
 //go:embed generated_entities.dl_bin.gz
 var entitiesCompressed []byte
 var entities []byte
@@ -80,6 +84,7 @@ func init() {
 	goDecompress(&entityDeltas, entityDeltasCompressed)
 	goDecompress(&customizationArmorSets, customizationArmorSetsCompressed)
 	goDecompress(&unitCustomizationSettings, unitCustomizationSettingsCompressed)
+	goDecompress(&weaponCustomizationSettings, weaponCustomizationSettingsCompressed)
 	goDecompress(&typelib, typelibCompressed)
 	goParseHashes()
 	wg.Wait()
@@ -345,7 +350,13 @@ type DLTypeLib struct {
 	Enums           map[DLHash]DLEnumDesc `json:"enums,omitempty"`
 }
 
+var parsedTypelib *DLTypeLib = nil
+
 func ParseTypeLib(data []byte) (*DLTypeLib, error) {
+	if parsedTypelib != nil && data == nil {
+		return parsedTypelib, nil
+	}
+
 	if data == nil {
 		data = typelib
 	}
@@ -509,9 +520,10 @@ func ParseTypeLib(data []byte) (*DLTypeLib, error) {
 		}
 	}
 
-	return &DLTypeLib{
+	parsedTypelib = &DLTypeLib{
 		DLTypeLibHeader: header,
 		Types:           Types,
 		Enums:           Enums,
-	}, nil
+	}
+	return parsedTypelib, nil
 }
