@@ -7,16 +7,17 @@ import (
 	"io"
 
 	"github.com/go-gl/mathgl/mgl32"
+	"github.com/xypwn/filediver/datalibrary/enum"
 	"github.com/xypwn/filediver/stingray"
 )
 
 type WeaponDefaultAttachment struct {
-	Slot          WeaponCustomizationSlot // Full customization slot (not unique).
-	Customization stingray.ThinHash       // [string]Name of the default customization to use.
+	Slot          enum.WeaponCustomizationSlot // Full customization slot (not unique).
+	Customization stingray.ThinHash            // [string]Name of the default customization to use.
 }
 
 type WeaponSlotCustomizationMaterials struct {
-	Slot      WeaponCustomizationSlot                `json:"slot"`
+	Slot      enum.WeaponCustomizationSlot           `json:"slot"`
 	_         [4]uint8                               `json:"-"`
 	Overrides [10]UnitCustomizationMaterialOverrides `json:"overrides"`
 }
@@ -43,31 +44,31 @@ type WeaponTriggerSettings struct {
 }
 
 type WeaponCustomizationComponent struct {
-	DefaultCustomizations                   [10]WeaponDefaultAttachment // For each unique customization slot, the default attachment.
-	CustomizationSlots                      [10]WeaponCustomizationSlot // Which slots can we use to customize the weapon?
-	OpticsPath                              stingray.Hash               // [unit]Path to the optics/scope unit.
-	MagazinePath                            stingray.Hash               // [unit]Path to the magazine unit.
-	MagazineSecondaryPath                   stingray.Hash               // [unit]Path to the second magazine unit.
-	MuzzlePath                              stingray.Hash               // [unit]Path to the muzzle unit.
-	OpticsCrosshairParams                   mgl32.Vec2                  // Offset and scale applied to the crosshair node in the optics unit. X=Forward offset, Y=Scale.
-	Unknown0Path                            stingray.Hash               // Paintscheme path? 26 chars long
-	Unknown1Path                            stingray.Hash               // Some other path - 31 chars long
-	UnderbarrelPath                         stingray.Hash               // [adhd]Path to the underbarrel entity.
-	MaterialOverride                        WeaponMaterialOverride      // Overrides the base material of the weapon.
-	TriggerSettings                         WeaponTriggerSettings       // Set trigger settings
+	DefaultCustomizations                   [10]WeaponDefaultAttachment      // For each unique customization slot, the default attachment.
+	CustomizationSlots                      [10]enum.WeaponCustomizationSlot // Which slots can we use to customize the weapon?
+	OpticsPath                              stingray.Hash                    // [unit]Path to the optics/scope unit.
+	MagazinePath                            stingray.Hash                    // [unit]Path to the magazine unit.
+	MagazineSecondaryPath                   stingray.Hash                    // [unit]Path to the second magazine unit.
+	MuzzlePath                              stingray.Hash                    // [unit]Path to the muzzle unit.
+	OpticsCrosshairParams                   mgl32.Vec2                       // Offset and scale applied to the crosshair node in the optics unit. X=Forward offset, Y=Scale.
+	Unknown0Path                            stingray.Hash                    // Paintscheme path? 26 chars long
+	Unknown1Path                            stingray.Hash                    // Some other path - 31 chars long
+	UnderbarrelPath                         stingray.Hash                    // [adhd]Path to the underbarrel entity.
+	MaterialOverride                        WeaponMaterialOverride           // Overrides the base material of the weapon.
+	TriggerSettings                         WeaponTriggerSettings            // Set trigger settings
 	HideMagazineOnStart                     uint8
 	_                                       [3]uint8
 	MagazineAdjustingNodes                  [20]stingray.ThinHash // [string]Do we have any magazine nodes that need to be autoadjusted based on rounds left?
 	MagazineAdjustingNodesVisibleChambering uint8                 // [bool]The very first node in the list will only be hidden if there isn't a chambered round
 	_                                       [3]uint8
-	UnknownEnum                             WeaponCustomizationUnknownEnum // Not sure what this enum is. The type name should be 22 characters long and probably starts with Weapon
-	UnknownBool                             uint8                          // [bool]No clue what this controls, maybe something to do with the unknown enum
+	UnknownEnum                             enum.WeaponCustomizationUnknownEnum // Not sure what this enum is. The type name should be 22 characters long and probably starts with Weapon
+	UnknownBool                             uint8                               // [bool]No clue what this controls, maybe something to do with the unknown enum
 	_                                       [3]uint8
-	MagazineAdjustingAnimation              stingray.ThinHash           // [string]Animation to play on the magazine when adjusting the rounds (outside of the initial spawn).
-	MagazineAdjustingAnimationVariable      stingray.ThinHash           // [string]Animation variable to adjust with the rounds on the magazine.
-	IKAttachSetting                         WeaponCustomizationIKAttach // What unit should we attach our left hand to? If set to None, it will default to the weapon
-	IKAttachAnimationEvent                  stingray.ThinHash           // [string]Animation event to call, if an attachment is specified for altering our left hand.
-	UnknownThinHash                         stingray.ThinHash           // No clue. Name should be 22 characters long in snake_case
+	MagazineAdjustingAnimation              stingray.ThinHash                // [string]Animation to play on the magazine when adjusting the rounds (outside of the initial spawn).
+	MagazineAdjustingAnimationVariable      stingray.ThinHash                // [string]Animation variable to adjust with the rounds on the magazine.
+	IKAttachSetting                         enum.WeaponCustomizationIKAttach // What unit should we attach our left hand to? If set to None, it will default to the weapon
+	IKAttachAnimationEvent                  stingray.ThinHash                // [string]Animation event to call, if an attachment is specified for altering our left hand.
+	UnknownThinHash                         stingray.ThinHash                // No clue. Name should be 22 characters long in snake_case
 }
 
 func getWeaponCustomizationComponentData() ([]byte, error) {

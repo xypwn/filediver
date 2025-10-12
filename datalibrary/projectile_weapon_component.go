@@ -7,37 +7,38 @@ import (
 	"io"
 
 	"github.com/go-gl/mathgl/mgl32"
+	"github.com/xypwn/filediver/datalibrary/enum"
 	"github.com/xypwn/filediver/stingray"
 )
 
 type ProjectileWeaponComponent struct {
-	ProjType                        ProjectileType // Type of projectile it fires.
-	RoundsPerMinute                 mgl32.Vec3     // Rounds per minute depending on weapon setting. Y is the default ROF.
-	ZeroingSlots                    mgl32.Vec3     // The zeroing distances of the weapon.
-	ZeroingHipfire                  float32        // The default zeroing distance while not aiming a weapon
-	CurrentZeroingSlot              uint32         // The slot in the zeroing distances to use by default.
-	InfiniteAmmo                    uint8          // [bool]True if this projectile weapon can never run out of ammo.
+	ProjType                        enum.ProjectileType // Type of projectile it fires.
+	RoundsPerMinute                 mgl32.Vec3          // Rounds per minute depending on weapon setting. Y is the default ROF.
+	ZeroingSlots                    mgl32.Vec3          // The zeroing distances of the weapon.
+	ZeroingHipfire                  float32             // The default zeroing distance while not aiming a weapon
+	CurrentZeroingSlot              uint32              // The slot in the zeroing distances to use by default.
+	InfiniteAmmo                    uint8               // [bool]True if this projectile weapon can never run out of ammo.
 	_                               [3]uint8
 	ProjectileEntity                stingray.Hash     // [adhd]If this is set an entity is spawned when firing instead of adding a projectile to the projectile manager.
 	UseFirenodePose                 float32           // This may not be correct, the type has changed since the last time this member had a name
 	HeatBuildup                     WeaponHeatBuildup // Controls visual heat effects on the weapon.
 	ScaleDownUsedFireNode           uint8             // [bool]If set, scale down the used fire node to zero (in order to hide a rocket for example)
 	_                               [3]uint8
-	OnRoundFiredShakes              WeaponCameraShakeInfo // Settings for local and in-world camera shakes to play on every round fired.
-	NumLowAmmoRounds                uint32                // Number of rounds to play the low ammo effects
-	LowAmmoAudioEvent               stingray.ThinHash     // [string]Audio event to play in addition to the regular firing audio when low on ammo.
-	LastBulletAudioEvent            stingray.ThinHash     // [string]Audio event to play in addition to the regular firing audio for the last bullet.
-	LastBulletOwnerVOEvent          stingray.ThinHash     // [string]VO event to play on the owner of the weapon when the last bullet has been fired.
-	WindEffect                      WindEffectTemplate    // Wind effect template to play when firing.
-	SpeedMultiplier                 float32               // Projectile speed multiplier.
-	DamageAddends                   HitZoneClassValues    // Damage to add to the projectile's value for each damage class. Used by weapon customizaitons.
-	APAddends                       HitZoneClassValues    // Armor penetration to add to the projectile's value for each damage class. Used by weapon customizaitons.
-	SpinupTime                      float32               // Time from 'start fire' to first projectile firing
-	RPCSyncedFireEvents             uint8                 // [bool]ONLY USE FOR SINGLE-FIRE/SLOW FIRING WEAPONS. Primarily useful for sniper rifles, explosive one-shots etc. that need the firing event to be highly accurately synced!
+	OnRoundFiredShakes              WeaponCameraShakeInfo   // Settings for local and in-world camera shakes to play on every round fired.
+	NumLowAmmoRounds                uint32                  // Number of rounds to play the low ammo effects
+	LowAmmoAudioEvent               stingray.ThinHash       // [string]Audio event to play in addition to the regular firing audio when low on ammo.
+	LastBulletAudioEvent            stingray.ThinHash       // [string]Audio event to play in addition to the regular firing audio for the last bullet.
+	LastBulletOwnerVOEvent          stingray.ThinHash       // [string]VO event to play on the owner of the weapon when the last bullet has been fired.
+	WindEffect                      enum.WindEffectTemplate // Wind effect template to play when firing.
+	SpeedMultiplier                 float32                 // Projectile speed multiplier.
+	DamageAddends                   HitZoneClassValues      // Damage to add to the projectile's value for each damage class. Used by weapon customizaitons.
+	APAddends                       HitZoneClassValues      // Armor penetration to add to the projectile's value for each damage class. Used by weapon customizaitons.
+	SpinupTime                      float32                 // Time from 'start fire' to first projectile firing
+	RPCSyncedFireEvents             uint8                   // [bool]ONLY USE FOR SINGLE-FIRE/SLOW FIRING WEAPONS. Primarily useful for sniper rifles, explosive one-shots etc. that need the firing event to be highly accurately synced!
 	_                               [3]uint8
 	CasingEject                     WeaponCasingEffectInfo // Particle effect of the shellcasing.
 	MuzzleFlash                     stingray.Hash          // [particles]Particle effect of the muzzle flash, played on attach_muzzle.
-	ShockwaveType                   SurfaceImpactType      // The surface effect to play normal to the ground underneath the muzzle.
+	ShockwaveType                   enum.SurfaceImpactType // The surface effect to play normal to the ground underneath the muzzle.
 	UseFaintShockwave               uint8                  // [bool]If true, a small shockwave is played when [1m, 2m] from the ground instead of the regular one.
 	UseMidiEventSystem              uint8                  // [bool]Fire event will be posted using Wwise's MIDI system as a MIDI sequence (cannot be paused/resumed).
 	_                               [2]uint8
@@ -65,14 +66,14 @@ type ProjectileWeaponComponent struct {
 	HeatPercentageMaterialVariable  stingray.ThinHash // [string]The material variable to try to set on each mesh when heat is updated
 	Silenced                        uint8             // [bool]If this weapon should use the silenced sound or not. Used by / overridden by customization
 	_                               [3]uint8
-	AimZeroingQuality               ProjectileZeroingQuality // How well to attempt to compensate for drag when aiming. Defaults to High (8 iterations). Set to None to ignore drag.
-	CasingEjectDisabledOnFire       uint8                    // [bool]Turns off casing ejection/effects when firing the weapon.
+	AimZeroingQuality               enum.ProjectileZeroingQuality // How well to attempt to compensate for drag when aiming. Defaults to High (8 iterations). Set to None to ignore drag.
+	CasingEjectDisabledOnFire       uint8                         // [bool]Turns off casing ejection/effects when firing the weapon.
 	_                               [3]uint8
-	BurstFireRate                   float32        // If above 0, the fire rate will be changed to this, when the weapon is set to Burst.
-	WeaponFunctionMuzzleVelocity    float32        // If we have the Muzzle Velocity weapon function and we switch to it, what should our projectile velocity be?
-	WeaponFunctionProjectileType    ProjectileType // If we have the Programmable Ammo weapon function and we switch to it, what should our projectile type be?
-	UnknownParticleHash             stingray.Hash  // added after strings removed
-	UnknownBool                     uint8          // added after strings removed
+	BurstFireRate                   float32             // If above 0, the fire rate will be changed to this, when the weapon is set to Burst.
+	WeaponFunctionMuzzleVelocity    float32             // If we have the Muzzle Velocity weapon function and we switch to it, what should our projectile velocity be?
+	WeaponFunctionProjectileType    enum.ProjectileType // If we have the Programmable Ammo weapon function and we switch to it, what should our projectile type be?
+	UnknownParticleHash             stingray.Hash       // added after strings removed
+	UnknownBool                     uint8               // added after strings removed
 	_                               [11]uint8
 }
 

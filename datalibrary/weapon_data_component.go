@@ -7,6 +7,7 @@ import (
 	"io"
 
 	"github.com/go-gl/mathgl/mgl32"
+	"github.com/xypwn/filediver/datalibrary/enum"
 	"github.com/xypwn/filediver/stingray"
 )
 
@@ -45,14 +46,14 @@ type SpreadModifiers struct {
 }
 
 type WeaponFunctionInfo struct {
-	Left  WeaponFunctionType // What weapon function is related to this input.
-	Right WeaponFunctionType // What weapon function is related to this input.
+	Left  enum.WeaponFunctionType // What weapon function is related to this input.
+	Right enum.WeaponFunctionType // What weapon function is related to this input.
 }
 
 type OpticSetting struct {
-	OpticsFunction WeaponFunctionType
+	OpticsFunction enum.WeaponFunctionType
 	SomeHash       stingray.ThinHash
-	CrosshairValue CrosshairWeaponType
+	CrosshairValue enum.CrosshairWeaponType
 }
 
 type UnitNodeScale struct {
@@ -61,16 +62,16 @@ type UnitNodeScale struct {
 }
 
 type WeaponStatModifierSetting struct {
-	Type  WeaponStatModifierType // Modifier type
+	Type  enum.WeaponStatModifierType // Modifier type
 	Value float32
 }
 
 // DLHash 2f79ad03 - name should be 23 chars long
 type WeaponFireModeFunction struct {
-	Function         WeaponFunctionType
+	Function         enum.WeaponFunctionType
 	SomeHash         stingray.ThinHash
 	SomeOtherHash    stingray.ThinHash
-	FunctionFireMode FireMode
+	FunctionFireMode enum.FireMode
 	SomeBool         uint8
 	_                [3]uint8
 }
@@ -86,12 +87,12 @@ type WeaponDataComponent struct {
 	_                                      [3]uint8
 	AimZoom                                mgl32.Vec3 // The zoom of the weapon 1 = standard fov, 2 = half fov, 4 = quarter fov
 	ScopeSway                              float32
-	NoiseTemp                              NoiseTemplate      // The noise noise template settings to use when firing the weapon.
+	NoiseTemp                              enum.NoiseTemplate // The noise noise template settings to use when firing the weapon.
 	VisibilityModifier                     float32            // When firing the weapon, the visibility will be set to this value, and the cone angle will be multiplied by this factor.
 	NumBurstRounds                         uint32             // Number of rounds fired for a burst shot.
-	PrimaryFireMode                        FireMode           // The primary fire mode (0 = ignored, 1 = auto, 2 = single, 3 = burst, 4 = charge safety on, 5 = charge safety off.)
-	SecondaryFireMode                      FireMode           // The secondary fire mode
-	TertiaryFireMode                       FireMode           // The tertiary fire mode
+	PrimaryFireMode                        enum.FireMode      // The primary fire mode (0 = ignored, 1 = auto, 2 = single, 3 = burst, 4 = charge safety on, 5 = charge safety off.)
+	SecondaryFireMode                      enum.FireMode      // The secondary fire mode
+	TertiaryFireMode                       enum.FireMode      // The tertiary fire mode
 	FunctionInfo                           WeaponFunctionInfo // Settings for the different functions this weapon has.
 	_                                      [4]uint8
 	Crosshair                              stingray.Hash // [material]The crosshair material.
@@ -112,12 +113,12 @@ type WeaponDataComponent struct {
 	AllowFPV                               uint8   // [bool]Allow First Person View on this weapon
 	AllowAiming                            uint8   // [bool]Allow aiming on this weapon
 	_                                      uint8
-	CrosshairType                          CrosshairWeaponType // What does this weapons crosshair look like.
-	FirstPersonSightNodes                  [4]OpticSetting     // [string]The chain of bones to the sight of the weapon for first person view.
-	UnknownThinHash                        stingray.ThinHash   // Not sure. name length should be 23 chars in snake_case
-	FirstPersonOpticAttachNode             stingray.ThinHash   // [string]The chain of bones to the attach_optic bone of the weapon for first person view.
-	AutoDropAbility                        AbilityId           // The ability to play when dropping the weapon due to no ammo. Only used for un-realoadable weapons.
-	ShouldWeaponScream                     uint8               // [bool]Should Play Weapon Scream.
+	CrosshairType                          enum.CrosshairWeaponType // What does this weapons crosshair look like.
+	FirstPersonSightNodes                  [4]OpticSetting          // [string]The chain of bones to the sight of the weapon for first person view.
+	UnknownThinHash                        stingray.ThinHash        // Not sure. name length should be 23 chars in snake_case
+	FirstPersonOpticAttachNode             stingray.ThinHash        // [string]The chain of bones to the attach_optic bone of the weapon for first person view.
+	AutoDropAbility                        enum.AbilityId           // The ability to play when dropping the weapon due to no ammo. Only used for un-realoadable weapons.
+	ShouldWeaponScream                     uint8                    // [bool]Should Play Weapon Scream.
 	_                                      [3]uint8
 	EnterFirstPersonAimAudioEvent          stingray.ThinHash // [wwise]Sound id to play when entering first person aim
 	ExitFirstPersonAimAudioEvent           stingray.ThinHash // [wwise]Sound id to play when exiting first person aim
@@ -134,9 +135,9 @@ type WeaponDataComponent struct {
 	OnFireRoundWielderAnimEvent            stingray.ThinHash // [string]Animation event to trigger on the wielder every time we fire a round.
 	OnFireModeChangedAnimVariable          stingray.ThinHash // [string]The animation variable to set with the new fire mode.
 	OnFireModeChangedWielderAnimEvent      stingray.ThinHash // [string]Animation event to trigger on the wielder / fp wielder every time we change fire mode.
-	FireAbility                            AbilityId         // The ability to play on the weapon when it fires
-	Unk1Ability                            AbilityId         // idk
-	Unk2Ability                            AbilityId         // idk
+	FireAbility                            enum.AbilityId    // The ability to play on the weapon when it fires
+	Unk1Ability                            enum.AbilityId    // idk
+	Unk2Ability                            enum.AbilityId    // idk
 	InfiniteAmmo                           uint8             // [bool]Should this weapon have infinite ammo
 	_                                      [3]uint8
 	WeaponStatModifiers                    [8]WeaponStatModifierSetting // Used by attachments to specify what stat they modify and not override via normal ADD formatting.
@@ -144,7 +145,7 @@ type WeaponDataComponent struct {
 	AmmoIconInner                          stingray.Hash             // [material]The inner icon for the magazine that shows up on the HUD.
 	AmmoIconOuter                          stingray.Hash             // [material]The outer icon for the magazine that shows up on the HUD.
 	WeaponFunctionFireModes                [8]WeaponFireModeFunction // Unknown
-	Unk3Ability                            AbilityId                 // Maybe related to the array above?
+	Unk3Ability                            enum.AbilityId            // Maybe related to the array above?
 	UnkHash1                               stingray.ThinHash
 	UnkHash2                               stingray.ThinHash
 	UnkHash3                               stingray.ThinHash

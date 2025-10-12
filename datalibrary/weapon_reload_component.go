@@ -6,20 +6,21 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/xypwn/filediver/datalibrary/enum"
 	"github.com/xypwn/filediver/stingray"
 )
 
 type WeaponMagazineAnimEvent struct {
-	Type                  WeaponReloadEventType // Type of reload.
-	AnimationEventWeapon  stingray.ThinHash     // [string]Animatiom event to trigger.
-	AnimationEventWielder stingray.ThinHash     // [string]Animatiom event to trigger.
+	Type                  enum.WeaponReloadEventType // Type of reload.
+	AnimationEventWeapon  stingray.ThinHash          // [string]Animatiom event to trigger.
+	AnimationEventWielder stingray.ThinHash          // [string]Animatiom event to trigger.
 }
 
 type WeaponReloadComponent struct {
 	ManualClearing           uint8 // [bool]If this is true, the rules for fast/slow reload change
 	ReloadAllowMove          uint8 // [bool]Whether or not the player can move while reloading this weapon.
 	_                        [2]uint8
-	Ability                  AbilityId                  // The ability to play on the wielder when reloading this weapon.
+	Ability                  enum.AbilityId             // The ability to play on the wielder when reloading this weapon.
 	ReloadAnimEvents         [4]WeaponMagazineAnimEvent // The animation event that will be triggered, depending on the reload type
 	Duration                 float32                    // The duration of the reload. We scale the reload ability to match this duration. If 0, use the default ability duration (no scaling).
 	HasSharedDeposit         uint8                      // [bool]Should this unit look for a (shared) deposit on the entity it it mounted on when checking for ammo?

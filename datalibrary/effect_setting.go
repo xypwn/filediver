@@ -2,6 +2,7 @@ package datalib
 
 import (
 	"github.com/go-gl/mathgl/mgl32"
+	"github.com/xypwn/filediver/datalibrary/enum"
 	"github.com/xypwn/filediver/stingray"
 )
 
@@ -25,21 +26,21 @@ type EffectSetting struct {
 	RotationOffset       mgl32.Vec3
 	NodeName             stingray.ThinHash
 	TriggerEmitEventName stingray.ThinHash
-	LinkOption           UnitEffectOrphanStrategy
+	LinkOption           enum.UnitEffectOrphanStrategy
 	Flags                EffectSettingFlags
 }
 
 type ParsedEffectSetting struct {
-	ParticleEffectHash       stingray.Hash            `json:"-"`
-	ParticleEffect           string                   `json:"particle_effect"`
-	Offset                   mgl32.Vec3               `json:"offset"`
-	RotationOffset           mgl32.Vec3               `json:"rotation_offset"`
-	NodeHash                 stingray.ThinHash        `json:"-"`
-	ResolvedNodeName         string                   `json:"node"`
-	TriggerEmitEventNameHash stingray.ThinHash        `json:"-"`
-	TriggerEmitEventName     string                   `json:"trigger_emit_event_name"`
-	LinkOption               UnitEffectOrphanStrategy `json:"link_option"`
-	InheritRotation          bool                     `json:"inherit_rotation"`
-	Linked                   bool                     `json:"linked"`
-	SpawnOnCamera            bool                     `json:"spawn_on_camera"`
+	ParticleEffectHash       stingray.Hash                 `json:"-"`
+	ParticleEffect           string                        `json:"particle_effect"`
+	Offset                   mgl32.Vec3                    `json:"offset"`
+	RotationOffset           mgl32.Vec3                    `json:"rotation_offset"`
+	NodeHash                 stingray.ThinHash             `json:"-"`
+	ResolvedNodeName         string                        `json:"node"`
+	TriggerEmitEventNameHash stingray.ThinHash             `json:"-"`
+	TriggerEmitEventName     string                        `json:"trigger_emit_event_name"`
+	LinkOption               enum.UnitEffectOrphanStrategy `json:"link_option"`
+	InheritRotation          bool                          `json:"inherit_rotation"`
+	Linked                   bool                          `json:"linked"`
+	SpawnOnCamera            bool                          `json:"spawn_on_camera"`
 }

@@ -6,23 +6,24 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/xypwn/filediver/datalibrary/enum"
 	"github.com/xypwn/filediver/stingray"
 )
 
 type MagazinePattern struct {
-	Projectiles     [32]ProjectileType // Pattern of projectiles to fire. None denotes end if the full size is not used. Pattern is repeated and aligned so the last projectile in the pattern is always the last in the magazine (should it not divide evenly).
-	FirstProjectile ProjectileType     // to trigger start/stop event
+	Projectiles     [32]enum.ProjectileType // Pattern of projectiles to fire. None denotes end if the full size is not used. Pattern is repeated and aligned so the last projectile in the pattern is always the last in the magazine (should it not divide evenly).
+	FirstProjectile enum.ProjectileType     // to trigger start/stop event
 }
 
 type WeaponMagazineComponent struct {
-	Type            MagazineType    // Type of magazine.
-	Pattern         MagazinePattern // Only used if magazine type is Pattern.
-	Capacity        uint32          // Number of rounds in one magazine.
-	Magazines       uint32          // Starting number of magazines
-	MagazinesRefill uint32          // Number of magazines given on refill.
-	MagazinesMax    uint32          // Maximum number of magazines.
-	ReloadThreshold uint32          // Reload is allowed when less than this amount of rounds are left in the clip. Defaults to 0 which means 'Same as clip capacity'.
-	Chambered       uint8           // [bool]Can this weapon hold a round in the chamber while reloading. This makes the max amount of bullets capacity + 1 after reload when weapon has rounds remaining
+	Type            enum.MagazineType // Type of magazine.
+	Pattern         MagazinePattern   // Only used if magazine type is Pattern.
+	Capacity        uint32            // Number of rounds in one magazine.
+	Magazines       uint32            // Starting number of magazines
+	MagazinesRefill uint32            // Number of magazines given on refill.
+	MagazinesMax    uint32            // Maximum number of magazines.
+	ReloadThreshold uint32            // Reload is allowed when less than this amount of rounds are left in the clip. Defaults to 0 which means 'Same as clip capacity'.
+	Chambered       uint8             // [bool]Can this weapon hold a round in the chamber while reloading. This makes the max amount of bullets capacity + 1 after reload when weapon has rounds remaining
 	UnknownBool     uint8
 	_               [2]uint8
 }

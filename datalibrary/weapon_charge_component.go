@@ -6,14 +6,15 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/xypwn/filediver/datalibrary/enum"
 	"github.com/xypwn/filediver/stingray"
 )
 
 type ChargeStateSetting struct {
-	ChargeTime         float32           `json:"charge_time"`
-	ProjType           ProjectileType    `json:"projectile_type"`
-	ProjectileParticle stingray.Hash     `json:"projectile_particle"`
-	UnknownThinHash    stingray.ThinHash `json:"unknown"` // 17 chars long name
+	ChargeTime         float32             `json:"charge_time"`
+	ProjType           enum.ProjectileType `json:"projectile_type"`
+	ProjectileParticle stingray.Hash       `json:"projectile_particle"`
+	UnknownThinHash    stingray.ThinHash   `json:"unknown"` // 17 chars long name
 	_                  [4]uint8
 }
 
@@ -34,7 +35,7 @@ type ProjectileMultipliers struct {
 
 // Has a charge state and a value, name should be 14 chars long
 type UnknownChargeStruct struct {
-	State ChargeState
+	State enum.ChargeState
 	Value float32
 }
 
@@ -61,7 +62,7 @@ type WeaponChargeComponent struct {
 	ExplosionAudioEvent     stingray.ThinHash // Unknown, name length 22 chars
 	UnknownFloat            float32           // Unknown, probably related to the above
 	DryFireAudioEvent       stingray.ThinHash // [string].
-	ExplodeType             ExplosionType
+	ExplodeType             enum.ExplosionType
 	StateValue              UnknownChargeStruct
 	_                       [4]uint8
 }

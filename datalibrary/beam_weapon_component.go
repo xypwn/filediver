@@ -7,22 +7,23 @@ import (
 	"io"
 
 	"github.com/go-gl/mathgl/mgl32"
+	"github.com/xypwn/filediver/datalibrary/enum"
 	"github.com/xypwn/filediver/stingray"
 )
 
 type BeamPrisms struct {
-	LightBeamType          BeamType `json:"light_beam_type"`
-	LightHeatGenerationMul float32  `json:"light_heat_generation_mul"`
-	HeavyBeamType          BeamType `json:"heavy_beam_type"`
-	HeavyHeatGenerationMul float32  `json:"heavy_heat_generation_mul"`
+	LightBeamType          enum.BeamType `json:"light_beam_type"`
+	LightHeatGenerationMul float32       `json:"light_heat_generation_mul"`
+	HeavyBeamType          enum.BeamType `json:"heavy_beam_type"`
+	HeavyHeatGenerationMul float32       `json:"heavy_heat_generation_mul"`
 }
 
 type BeamWeaponComponent struct {
-	Type                          BeamType   // Type of beam it fires.
-	Prisms                        BeamPrisms // Beam Prism Settings for weapons with the weapon function.
-	ScopeResponsiveness           float32    // How quickly the scope/sight follows changes in aim and movement.
-	ScopeCrosshair                mgl32.Vec2 // Crosshair position on screen in [-1, 1] range.
-	FocalDistances                mgl32.Vec3 // The focal distances of the weapon's lens
+	Type                          enum.BeamType // Type of beam it fires.
+	Prisms                        BeamPrisms    // Beam Prism Settings for weapons with the weapon function.
+	ScopeResponsiveness           float32       // How quickly the scope/sight follows changes in aim and movement.
+	ScopeCrosshair                mgl32.Vec2    // Crosshair position on screen in [-1, 1] range.
+	FocalDistances                mgl32.Vec3    // The focal distances of the weapon's lens
 	UseFirenodePose               float32
 	UseMidiEventSystem            uint8 // [bool]Fire event will be posted using Wwise's MIDI system as a MIDI sequence (cannot be paused/resumed).
 	_                             [3]uint8

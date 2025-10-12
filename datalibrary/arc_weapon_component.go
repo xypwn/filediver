@@ -6,14 +6,15 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/xypwn/filediver/datalibrary/enum"
 	"github.com/xypwn/filediver/stingray"
 )
 
 type ArcWeaponComponent struct {
-	Type                        ArcType // Type of arc it fires
-	RoundsPerMinute             float32 // Rounds per minute depending on weapon setting.
-	InfiniteAmmo                uint8   // [bool]True if this projectile weapon can never run out of ammo.
-	RPCSyncedFireEvents         uint8   // [bool]ONLY USE FOR SINGLE-FIRE/SLOW FIRING WEAPONS. Primarily useful for sniper rifles, explosive one-shots etc. that need the firing event to be highly accurately synced!
+	Type                        enum.ArcType // Type of arc it fires
+	RoundsPerMinute             float32      // Rounds per minute depending on weapon setting.
+	InfiniteAmmo                uint8        // [bool]True if this projectile weapon can never run out of ammo.
+	RPCSyncedFireEvents         uint8        // [bool]ONLY USE FOR SINGLE-FIRE/SLOW FIRING WEAPONS. Primarily useful for sniper rifles, explosive one-shots etc. that need the firing event to be highly accurately synced!
 	_                           [2]uint8
 	FireSingleAudioEvent        stingray.ThinHash     // [wwise]The audio event to trigger when doing single-fire (if we don't have looping sounds).
 	FireFailAudioEvent          stingray.ThinHash     // [wwise]The audio event to trigger when the arc fails to hit anything on the first shot.

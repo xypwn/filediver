@@ -6,14 +6,15 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/xypwn/filediver/datalibrary/enum"
 	"github.com/xypwn/filediver/stingray"
 )
 
 type MeleeAttackComponent struct {
-	OverrideMeleeAbility         AbilityId // If not invalid, it'll override the melee ability that gets executed while helding this entity, this could be a weapon, an attachment or a carryable.
-	Weight                       uint32    // Used to indicate how much weight this override has when trying to pick the final override_melee_ability
-	OverrideMeleeAbilityForProne AbilityId // If not invalid, it'll override the melee ability that gets executed while being prone and helding this entity, this could be a weapon, an attachment or a carryable.
-	WeightForProne               uint32    // Used to indicate how much weight this override has when trying to pick the final override_melee_ability_for_prone
+	OverrideMeleeAbility         enum.AbilityId // If not invalid, it'll override the melee ability that gets executed while helding this entity, this could be a weapon, an attachment or a carryable.
+	Weight                       uint32         // Used to indicate how much weight this override has when trying to pick the final override_melee_ability
+	OverrideMeleeAbilityForProne enum.AbilityId // If not invalid, it'll override the melee ability that gets executed while being prone and helding this entity, this could be a weapon, an attachment or a carryable.
+	WeightForProne               uint32         // Used to indicate how much weight this override has when trying to pick the final override_melee_ability_for_prone
 }
 
 func getMeleeAttackComponentData() ([]byte, error) {

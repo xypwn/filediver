@@ -6,16 +6,17 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/xypwn/filediver/datalibrary/enum"
 	"github.com/xypwn/filediver/stingray"
 )
 
 // DLHash 8f124598 name length 16
 type HeatsinkOverrides struct {
 	HeatCapacity float32 // No clue really
-	ProjType     ProjectileType
+	ProjType     enum.ProjectileType
 	Particles    stingray.Hash
 	MaybeEvent   stingray.ThinHash
-	StatusEffect StatusEffectType
+	StatusEffect enum.StatusEffectType
 }
 
 type WeaponHeatComponent struct {
@@ -66,13 +67,13 @@ type WeaponHeatComponent struct {
 	UnknownSoundEvent5            stingray.ThinHash
 	UnknownSoundEvent6            stingray.ThinHash
 	UnknownSoundEvent7            stingray.ThinHash
-	CameraShakeOnChargingStart    stingray.Hash // [camera_shake]The shake effect to play when the laser weapon starts charging. This ends when the charging is complete.
-	CameraShakeOnFiringStart      stingray.Hash // [camera_shake]The shake effect to play when the laser weapon starts discharging. This ends when the discharging is complete.
-	CameraShakeOnYellowTempStart  stingray.Hash // [camera_shake]The shake effect to play when the laser weapon enters yellow temperature. This ends when it exits out of yellow temperature.
-	CameraShakeOnRedTempStart     stingray.Hash // [camera_shake]The shake effect to play when the laser weapon enters red temperature. This ends when it exits out of red temperature.
-	CameraShakeOnFireStopConstant stingray.Hash // [camera_shake]The exiting constant effect for when you stop firing the weapon.
-	CameraShakeOnFireStopKick     stingray.Hash // [camera_shake]The exiting kick effect for when you stop firing the weapon.
-	OverheatAbility               AbilityId     // The ability to play when this weapon overheats.
+	CameraShakeOnChargingStart    stingray.Hash  // [camera_shake]The shake effect to play when the laser weapon starts charging. This ends when the charging is complete.
+	CameraShakeOnFiringStart      stingray.Hash  // [camera_shake]The shake effect to play when the laser weapon starts discharging. This ends when the discharging is complete.
+	CameraShakeOnYellowTempStart  stingray.Hash  // [camera_shake]The shake effect to play when the laser weapon enters yellow temperature. This ends when it exits out of yellow temperature.
+	CameraShakeOnRedTempStart     stingray.Hash  // [camera_shake]The shake effect to play when the laser weapon enters red temperature. This ends when it exits out of red temperature.
+	CameraShakeOnFireStopConstant stingray.Hash  // [camera_shake]The exiting constant effect for when you stop firing the weapon.
+	CameraShakeOnFireStopKick     stingray.Hash  // [camera_shake]The exiting kick effect for when you stop firing the weapon.
+	OverheatAbility               enum.AbilityId // The ability to play when this weapon overheats.
 }
 
 func getWeaponHeatComponentData() ([]byte, error) {

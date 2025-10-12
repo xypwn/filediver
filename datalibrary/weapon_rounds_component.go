@@ -7,6 +7,7 @@ import (
 	"io"
 
 	"github.com/go-gl/mathgl/mgl32"
+	"github.com/xypwn/filediver/datalibrary/enum"
 	"github.com/xypwn/filediver/stingray"
 )
 
@@ -18,8 +19,8 @@ type WeaponRoundsAmmoInfo struct {
 }
 
 type WeaponRoundsAmmoType struct {
-	PrimaryProjectileType   ProjectileType // Projectile type the first magazine contains.
-	AlternateProjectileType ProjectileType // Projectile type the second magazine contains.
+	PrimaryProjectileType   enum.ProjectileType // Projectile type the first magazine contains.
+	AlternateProjectileType enum.ProjectileType // Projectile type the second magazine contains.
 }
 
 type WeaponRoundsComponent struct {

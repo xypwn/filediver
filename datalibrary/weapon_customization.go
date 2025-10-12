@@ -7,6 +7,7 @@ import (
 	"io"
 
 	"github.com/go-gl/mathgl/mgl32"
+	"github.com/xypwn/filediver/datalibrary/enum"
 	"github.com/xypwn/filediver/stingray"
 )
 
@@ -24,7 +25,7 @@ type rawWeaponCustomizableItem struct {
 	SlotsCount           uint64
 	UIWidgetColorsOffset uint64
 	UIWidgetColorsCount  uint64
-	SortGroups           WeaponCustomizationSortGroups
+	SortGroups           enum.WeaponCustomizationSortGroups
 	_                    [4]uint8
 }
 
@@ -38,9 +39,9 @@ type WeaponCustomizableItem struct {
 	Archive        stingray.Hash
 	AddPath        stingray.Hash
 	Icon           stingray.Hash
-	Slots          []WeaponCustomizationSlot
+	Slots          []enum.WeaponCustomizationSlot
 	UIWidgetColors []mgl32.Vec3
-	SortGroups     WeaponCustomizationSortGroups
+	SortGroups     enum.WeaponCustomizationSortGroups
 }
 
 type rawWeaponCustomizationSettings struct {
@@ -78,13 +79,13 @@ type WeaponCasingEffectInfo struct {
 	EjectionEffect   stingray.Hash     // [particles]Particle effect of the shellcasing.
 	EjectionNode     stingray.ThinHash // [string]Node on the weapon to play the ejection port effect.
 	_                [4]uint8
-	CasingEffect     stingray.Hash        // [particles]Particle effect of the shellcasing.
-	CasingNode       [4]stingray.ThinHash // [string]Nodes on the weapon to play the casing effect. Cycles through them if there is more than one.
-	LinkEffect       stingray.Hash        // [particles]Particle effect of the link.
-	LinkNode         stingray.ThinHash    // [string]Node on the weapon to play the link effect.
-	CasingImpactType SurfaceImpactType    // Surface impact type to use for effects on shellcasing bounces.
-	CasingAudioEvent stingray.ThinHash    // [string]If set, use this audio event instead of the default for the impact type.
-	NumPlaybacks     uint32               // How many collisions are audible
+	CasingEffect     stingray.Hash          // [particles]Particle effect of the shellcasing.
+	CasingNode       [4]stingray.ThinHash   // [string]Nodes on the weapon to play the casing effect. Cycles through them if there is more than one.
+	LinkEffect       stingray.Hash          // [particles]Particle effect of the link.
+	LinkNode         stingray.ThinHash      // [string]Node on the weapon to play the link effect.
+	CasingImpactType enum.SurfaceImpactType // Surface impact type to use for effects on shellcasing bounces.
+	CasingAudioEvent stingray.ThinHash      // [string]If set, use this audio event instead of the default for the impact type.
+	NumPlaybacks     uint32                 // How many collisions are audible
 }
 
 func ParseWeaponCustomizationSettings(getResource GetResourceFunc, stringmap map[uint32]string) ([]WeaponCustomizationSettings, error) {
@@ -179,7 +180,7 @@ func ParseWeaponCustomizationSettings(getResource GetResourceFunc, stringmap map
 			item.ID = rawItem.ID
 			item.Icon = rawItem.Icon
 			item.SortGroups = rawItem.SortGroups
-			item.Slots = make([]WeaponCustomizationSlot, rawItem.SlotsCount)
+			item.Slots = make([]enum.WeaponCustomizationSlot, rawItem.SlotsCount)
 			if _, err := r.Seek(base+int64(rawItem.SlotsOffset), io.SeekStart); err != nil {
 				return nil, err
 			}
