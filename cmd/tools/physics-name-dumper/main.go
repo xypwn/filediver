@@ -33,7 +33,7 @@ func dumpPhysicsNames(a *app.App, fileID stingray.FileID) error {
 	if ok {
 		fmt.Println(knownName)
 	} else {
-		fmt.Println(physicsSuffix + ": " + fileID.Name.String())
+		fmt.Println(physicsSuffix)
 	}
 	return err
 }
