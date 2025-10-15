@@ -5,13 +5,38 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"slices"
 
 	"github.com/xypwn/filediver/stingray"
 )
 
+type HashLookup func(stingray.Hash) string
+type ThinHashLookup func(stingray.ThinHash) string
+type DLHashLookup func(DLHash) string
+
+type Component interface {
+	ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup) any
+}
+
 type Entity struct {
 	GameObjectID stingray.ThinHash
-	Components   map[DLHash]any
+	Components   map[DLHash]Component
+}
+
+type SimpleEntity struct {
+	GameObjectID string         `json:"game_object_id"`
+	Components   map[string]any `json:"components"`
+}
+
+func (e Entity) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookupDLHash DLHashLookup) SimpleEntity {
+	components := make(map[string]any)
+	for hash, component := range e.Components {
+		components[lookupDLHash(hash)] = component.ToSimple(lookupHash, lookupThinHash)
+	}
+	return SimpleEntity{
+		GameObjectID: lookupThinHash(e.GameObjectID),
+		Components:   components,
+	}
 }
 
 type EntitySettings struct {
@@ -20,6 +45,20 @@ type EntitySettings struct {
 	ComponentsCount  uint64
 	GameObjectID     stingray.ThinHash
 	_                [4]uint8
+}
+
+type UnimplementedComponent struct{}
+
+func (u UnimplementedComponent) ToSimple(_ HashLookup, _ ThinHashLookup) any {
+	return "Not implemented yet"
+}
+
+type ErrorComponent struct {
+	e error
+}
+
+func (u ErrorComponent) ToSimple(_ HashLookup, _ ThinHashLookup) any {
+	return u.e.Error()
 }
 
 func getEntitySettingsHashmapData() ([]byte, error) {
@@ -41,14 +80,22 @@ func getEntitySettingsHashmapData() ([]byte, error) {
 
 func getComponentDataForHash(componentType DLHash, resource stingray.Hash) ([]byte, error) {
 	switch componentType {
+	case Sum("AnimationComponentData"):
+		return getAnimationComponentDataForHash(resource)
 	case Sum("ArcWeaponComponentData"):
 		return getArcWeaponComponentDataForHash(resource)
 	case Sum("BeamWeaponComponentData"):
 		return getBeamWeaponComponentDataForHash(resource)
+	case Sum("HealthComponentData"):
+		return getHealthComponentDataForHash(resource)
 	case Sum("ProjectileWeaponComponentData"):
 		return getProjectileWeaponComponentDataForHash(resource)
 	case Sum("MeleeAttackComponentData"):
 		return getMeleeAttackComponentDataForHash(resource)
+	case Sum("UnitComponentData"):
+		return getUnitComponentDataForHash(resource)
+	case Sum("UnitCustomizationComponentData"):
+		return getUnitCustomizationComponentDataForHash(resource)
 	case Sum("WeaponChargeComponentData"):
 		return getWeaponChargeComponentDataForHash(resource)
 	case Sum("WeaponCustomizationComponentData"):
@@ -68,8 +115,14 @@ func getComponentDataForHash(componentType DLHash, resource stingray.Hash) ([]by
 	}
 }
 
-func parseComponent(componentType DLHash, data []byte) (any, error) {
+func parseComponent(componentType DLHash, data []byte) (Component, error) {
 	switch componentType {
+	case Sum("AnimationComponentData"):
+		var toReturn AnimationComponent
+		if _, err := binary.Decode(data, binary.LittleEndian, &toReturn); err != nil {
+			return nil, err
+		}
+		return toReturn, nil
 	case Sum("ArcWeaponComponentData"):
 		var toReturn ArcWeaponComponent
 		if _, err := binary.Decode(data, binary.LittleEndian, &toReturn); err != nil {
@@ -78,6 +131,12 @@ func parseComponent(componentType DLHash, data []byte) (any, error) {
 		return toReturn, nil
 	case Sum("BeamWeaponComponentData"):
 		var toReturn BeamWeaponComponent
+		if _, err := binary.Decode(data, binary.LittleEndian, &toReturn); err != nil {
+			return nil, err
+		}
+		return toReturn, nil
+	case Sum("HealthComponentData"):
+		var toReturn HealthComponent
 		if _, err := binary.Decode(data, binary.LittleEndian, &toReturn); err != nil {
 			return nil, err
 		}
@@ -94,6 +153,45 @@ func parseComponent(componentType DLHash, data []byte) (any, error) {
 			return nil, err
 		}
 		return toReturn, nil
+	case Sum("UnitComponentData"):
+		var toReturn UnitComponent
+		if _, err := binary.Decode(data, binary.LittleEndian, &toReturn); err != nil {
+			return nil, err
+		}
+		return toReturn, nil
+	case Sum("UnitCustomizationComponentData"):
+		var toReturn UnitCustomizationComponent
+		matTextOverridesLen, mountedWeaponOverridesLen, err := getOverrideArrayLengths(nil)
+		if err != nil {
+			return nil, err
+		}
+		materialsTexturesOverrides := make([]UnitCustomizationMaterialOverrides, matTextOverridesLen)
+		mountedWeaponTextureOverrides := make([]UnitCustomizationMaterialOverrides, mountedWeaponOverridesLen)
+		length, err := binary.Decode(data, binary.LittleEndian, &materialsTexturesOverrides)
+		if err != nil {
+			return nil, err
+		}
+		_, err = binary.Decode(data[length:], binary.LittleEndian, &mountedWeaponTextureOverrides)
+		if err != nil {
+			return nil, err
+		}
+		toReturn.MaterialsTexturesOverrides = make([]UnitCustomizationMaterialOverrides, 0)
+		for _, override := range materialsTexturesOverrides {
+			if override.MaterialID.Value == 0 {
+				break
+			}
+			toReturn.MaterialsTexturesOverrides = append(toReturn.MaterialsTexturesOverrides, override)
+		}
+
+		toReturn.MountedWeaponTextureOverrides = make([]UnitCustomizationMaterialOverrides, 0)
+		for _, override := range mountedWeaponTextureOverrides {
+			if override.MaterialID.Value == 0 {
+				break
+			}
+			toReturn.MountedWeaponTextureOverrides = append(toReturn.MountedWeaponTextureOverrides, override)
+		}
+
+		return toReturn, nil
 	case Sum("WeaponChargeComponentData"):
 		var toReturn WeaponChargeComponent
 		if _, err := binary.Decode(data, binary.LittleEndian, &toReturn); err != nil {
@@ -101,8 +199,50 @@ func parseComponent(componentType DLHash, data []byte) (any, error) {
 		}
 		return toReturn, nil
 	case Sum("WeaponCustomizationComponentData"):
-		var toReturn WeaponCustomizationComponent
-		if _, err := binary.Decode(data, binary.LittleEndian, &toReturn); err != nil {
+		weaponCustomizationSettings, err := ParseWeaponCustomizationSettings(
+			func(id stingray.FileID, typ stingray.DataType) (data []byte, exists bool, err error) {
+				return nil, false, nil
+			},
+			make(map[uint32]string),
+		)
+		if err != nil {
+			return nil, err
+		}
+		settingMap := make(map[stingray.ThinHash]WeaponCustomizableItem)
+		for _, setting := range weaponCustomizationSettings {
+			for _, item := range setting.Items {
+				settingMap[item.ID] = item
+			}
+		}
+
+		deltas, err := ParseEntityDeltas()
+		if err != nil {
+			return nil, err
+		}
+
+		var baseComponent, toReturn WeaponCustomizationComponent
+		if _, err := binary.Decode(data, binary.LittleEndian, &baseComponent); err != nil {
+			return nil, err
+		}
+		modifiedData := slices.Clone(data)
+		for _, defaultCustomization := range baseComponent.DefaultCustomizations {
+			weaponSetting, ok := settingMap[defaultCustomization.Customization]
+			if !ok {
+				continue
+			}
+
+			delta, ok := deltas[weaponSetting.AddPath]
+			if !ok {
+				continue
+			}
+
+			modifiedData, err = PatchComponent(Sum("WeaponCustomizationComponentData"), modifiedData, delta)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		if _, err := binary.Decode(modifiedData, binary.LittleEndian, &toReturn); err != nil {
 			return nil, err
 		}
 		return toReturn, nil
@@ -204,7 +344,7 @@ func ParseEntityComponentSettings() (map[stingray.Hash]Entity, error) {
 
 		delta, hasDelta := entityDeltas[entityDef.Resource]
 
-		components := make(map[DLHash]any)
+		components := make(map[DLHash]Component)
 		for _, idx := range componentIndices {
 			componentType, ok := indicesToComponents[uint32(idx)]
 			if !ok {
@@ -213,7 +353,7 @@ func ParseEntityComponentSettings() (map[stingray.Hash]Entity, error) {
 			}
 			componentData, err := getComponentDataForHash(componentType, entityDef.Resource)
 			if err != nil {
-				components[componentType] = "Not implemented yet"
+				components[componentType] = UnimplementedComponent{}
 				continue
 			}
 
@@ -225,7 +365,7 @@ func ParseEntityComponentSettings() (map[stingray.Hash]Entity, error) {
 			}
 			component, err := parseComponent(componentType, componentData)
 			if err != nil {
-				components[componentType] = err
+				components[componentType] = ErrorComponent{e: err}
 				continue
 			}
 			components[componentType] = component

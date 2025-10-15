@@ -88,7 +88,55 @@ type WeaponCasingEffectInfo struct {
 	NumPlaybacks     uint32                 // How many collisions are audible
 }
 
+type SimpleWeaponCustomizableItem struct {
+	NameCased      string                             `json:"name_cased"`
+	DebugName      string                             `json:"debug_name"`
+	ID             stingray.ThinHash                  `json:"id"`
+	NameUpper      string                             `json:"name_upper"`
+	Description    string                             `json:"description"`
+	Fluff          string                             `json:"fluff"`
+	Archive        string                             `json:"archive"`
+	AddPath        string                             `json:"add_path"`
+	Icon           string                             `json:"icon"`
+	Slots          []enum.WeaponCustomizationSlot     `json:"slots,omitempty"`
+	UIWidgetColors []mgl32.Vec3                       `json:"ui_widget_colors,omitempty"`
+	SortGroups     enum.WeaponCustomizationSortGroups `json:"sort_groups"`
+}
+
+type SimpleWeaponCustomizationSettings struct {
+	Items []SimpleWeaponCustomizableItem `json:"items"`
+}
+
+func (customization WeaponCustomizationSettings) ToSimple(lookupHash func(stingray.Hash) string, lookupThinHash func(stingray.ThinHash) string) SimpleWeaponCustomizationSettings {
+	simpleItems := make([]SimpleWeaponCustomizableItem, 0)
+	for _, item := range customization.Items {
+		simpleItems = append(simpleItems, SimpleWeaponCustomizableItem{
+			NameCased:      item.NameCased,
+			DebugName:      item.DebugName,
+			NameUpper:      item.NameUpper,
+			Fluff:          item.Fluff,
+			Description:    item.Description,
+			ID:             item.ID,
+			Archive:        lookupHash(item.Archive),
+			AddPath:        lookupHash(item.AddPath),
+			Icon:           lookupHash(item.Icon),
+			Slots:          item.Slots,
+			UIWidgetColors: item.UIWidgetColors,
+			SortGroups:     item.SortGroups,
+		})
+	}
+	return SimpleWeaponCustomizationSettings{
+		Items: simpleItems,
+	}
+}
+
+var parsedWeaponCustomizationSettings []WeaponCustomizationSettings
+
 func ParseWeaponCustomizationSettings(getResource GetResourceFunc, stringmap map[uint32]string) ([]WeaponCustomizationSettings, error) {
+	if parsedWeaponCustomizationSettings != nil {
+		return parsedWeaponCustomizationSettings, nil
+	}
+
 	hashLookupData, ok, err := getResource(stingray.FileID{
 		Name: stingray.Hash{Value: 0x7056bc19c69f0f07},
 		Type: stingray.Sum("hash_lookup"),
@@ -98,13 +146,12 @@ func ParseWeaponCustomizationSettings(getResource GetResourceFunc, stringmap map
 		return nil, err
 	}
 
-	if !ok {
-		return nil, fmt.Errorf("could not find add path hash lookup main data")
-	}
-
-	addPathMap, err := parseHashLookup(bytes.NewReader(hashLookupData))
-	if err != nil {
-		return nil, err
+	addPathMap := make(map[uint64]stingray.Hash)
+	if ok {
+		addPathMap, err = parseHashLookup(bytes.NewReader(hashLookupData))
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	r := bytes.NewReader(weaponCustomizationSettings)
@@ -153,7 +200,6 @@ func ParseWeaponCustomizationSettings(getResource GetResourceFunc, stringmap map
 			item.AddPath = rawItem.AddPath
 			item.Archive, ok = addPathMap[rawItem.AddPath.Value]
 			if !ok {
-				//return nil, fmt.Errorf("could not find %x in hash lookup table", rawItem.AddPath.Value)
 				item.Archive = stingray.Hash{Value: 0}
 			}
 
@@ -207,5 +253,6 @@ func ParseWeaponCustomizationSettings(getResource GetResourceFunc, stringmap map
 			return nil, err
 		}
 	}
+	parsedWeaponCustomizationSettings = toReturn
 	return toReturn, nil
 }

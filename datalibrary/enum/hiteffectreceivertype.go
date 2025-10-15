@@ -1,0 +1,36 @@
+package enum
+
+type HitEffectReceiverType uint32
+
+const (
+	HitEffectReceiverType_None HitEffectReceiverType = iota
+	HitEffectReceiverType_Bug
+	HitEffectReceiverType_Bug_Armor
+	HitEffectReceiverType_Cyborg
+	HitEffectReceiverType_Cyborg_Armor
+	HitEffectReceiverType_Value_5_Len_16
+	HitEffectReceiverType_Value_6_Len_24
+	HitEffectReceiverType_EnergyShield_Illuminate
+	HitEffectReceiverType_Value_8_Len_29
+	HitEffectReceiverType_EnergyShield_SE
+	HitEffectReceiverType_EnergyShield_Backpack
+	HitEffectReceiverType_Human
+	HitEffectReceiverType_VehicleHull
+	HitEffectReceiverType_VehicleWheel
+	HitEffectReceiverType_TutorialDummy
+	HitEffectReceiverType_Helldiver
+	HitEffectReceiverType_BallisticShield_Backpack
+	HitEffectReceiverType_Value_17_Len_24
+	HitEffectReceiverType_Value_18_Len_26
+	HitEffectReceiverType_Value_19_Len_27
+	HitEffectReceiverType_Value_20_Len_21
+	HitEffectReceiverType_Value_21_Len_14
+	HitEffectReceiverType_Value_22_Len_12
+	HitEffectReceiverType_Count
+)
+
+func (p HitEffectReceiverType) MarshalText() ([]byte, error) {
+	return []byte(p.String()), nil
+}
+
+//go:generate go run golang.org/x/tools/cmd/stringer -type=HitEffectReceiverType

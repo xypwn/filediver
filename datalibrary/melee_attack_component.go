@@ -11,10 +11,14 @@ import (
 )
 
 type MeleeAttackComponent struct {
-	OverrideMeleeAbility         enum.AbilityId // If not invalid, it'll override the melee ability that gets executed while helding this entity, this could be a weapon, an attachment or a carryable.
-	Weight                       uint32         // Used to indicate how much weight this override has when trying to pick the final override_melee_ability
-	OverrideMeleeAbilityForProne enum.AbilityId // If not invalid, it'll override the melee ability that gets executed while being prone and helding this entity, this could be a weapon, an attachment or a carryable.
-	WeightForProne               uint32         // Used to indicate how much weight this override has when trying to pick the final override_melee_ability_for_prone
+	OverrideMeleeAbility         enum.AbilityId `json:"override_melee_ability"`           // If not invalid, it'll override the melee ability that gets executed while helding this entity, this could be a weapon, an attachment or a carryable.
+	Weight                       uint32         `json:"weight"`                           // Used to indicate how much weight this override has when trying to pick the final override_melee_ability
+	OverrideMeleeAbilityForProne enum.AbilityId `json:"override_melee_ability_for_prone"` // If not invalid, it'll override the melee ability that gets executed while being prone and helding this entity, this could be a weapon, an attachment or a carryable.
+	WeightForProne               uint32         `json:"weight_for_prone"`                 // Used to indicate how much weight this override has when trying to pick the final override_melee_ability_for_prone
+}
+
+func (m MeleeAttackComponent) ToSimple(_ HashLookup, _ ThinHashLookup) any {
+	return m
 }
 
 func getMeleeAttackComponentData() ([]byte, error) {

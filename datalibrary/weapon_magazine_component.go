@@ -28,6 +28,47 @@ type WeaponMagazineComponent struct {
 	_               [2]uint8
 }
 
+type SimpleMagazinePattern struct {
+	Projectiles     []enum.ProjectileType `json:"projectiles"`      // Pattern of projectiles to fire. None denotes end if the full size is not used. Pattern is repeated and aligned so the last projectile in the pattern is always the last in the magazine (should it not divide evenly).
+	FirstProjectile enum.ProjectileType   `json:"first_projectile"` // to trigger start/stop event
+}
+
+type SimpleWeaponMagazineComponent struct {
+	Type            enum.MagazineType     `json:"magazine_type"`    // Type of magazine.
+	Pattern         SimpleMagazinePattern `json:"magazine_pattern"` // Only used if magazine type is Pattern.
+	Capacity        uint32                `json:"capacity"`         // Number of rounds in one magazine.
+	Magazines       uint32                `json:"magazines"`        // Starting number of magazines
+	MagazinesRefill uint32                `json:"magazines_refill"` // Number of magazines given on refill.
+	MagazinesMax    uint32                `json:"magazines_max"`    // Maximum number of magazines.
+	ReloadThreshold uint32                `json:"reload_threshold"` // Reload is allowed when less than this amount of rounds are left in the clip. Defaults to 0 which means 'Same as clip capacity'.
+	Chambered       bool                  `json:"chambered"`        // [bool]Can this weapon hold a round in the chamber while reloading. This makes the max amount of bullets capacity + 1 after reload when weapon has rounds remaining
+	UnknownBool     bool                  `json:"unknown_bool"`
+}
+
+func (m WeaponMagazineComponent) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup) any {
+	var pattern SimpleMagazinePattern
+	pattern.Projectiles = make([]enum.ProjectileType, 0)
+	for _, projectile := range m.Pattern.Projectiles {
+		if projectile == enum.ProjectileType_None {
+			break
+		}
+		pattern.Projectiles = append(pattern.Projectiles, projectile)
+	}
+	pattern.FirstProjectile = m.Pattern.FirstProjectile
+
+	return SimpleWeaponMagazineComponent{
+		Type:            m.Type,
+		Pattern:         pattern,
+		Capacity:        m.Capacity,
+		Magazines:       m.Magazines,
+		MagazinesRefill: m.MagazinesRefill,
+		MagazinesMax:    m.MagazinesMax,
+		ReloadThreshold: m.ReloadThreshold,
+		Chambered:       m.Chambered != 0,
+		UnknownBool:     m.UnknownBool != 0,
+	}
+}
+
 func getWeaponMagazineComponentData() ([]byte, error) {
 	weaponMagazineHash := Sum("WeaponMagazineComponentData")
 	weaponMagazineHashData := make([]byte, 4)

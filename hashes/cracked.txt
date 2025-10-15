@@ -5817,3 +5817,4 @@ rendering/clouds/noise_detail_combined
 rendering/lookup_tables/default_palette_lut
 rendering/lookup_tables/nebula_cosmic_dust_true_color_lut
 rendering/lookup_tables/nebula_emission_true_color_lut
+content/fac_helldivers/vehicles/frv/frv_superearth

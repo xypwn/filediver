@@ -31,6 +31,52 @@ type WeaponReloadComponent struct {
 	ReloadVONoMagsNoBackpack stingray.ThinHash // [string]If VO event is present we play this when trying to reload but have no mags and no backpack.
 }
 
+type SimpleWeaponMagazineAnimEvent struct {
+	Type                  enum.WeaponReloadEventType `json:"type"`                    // Type of reload.
+	AnimationEventWeapon  string                     `json:"animation_event_weapon"`  // [string]Animatiom event to trigger.
+	AnimationEventWielder string                     `json:"animation_event_wielder"` // [string]Animatiom event to trigger.
+}
+
+type SimpleWeaponReloadComponent struct {
+	ManualClearing           bool                            `json:"manual_clearing"`               // [bool]If this is true, the rules for fast/slow reload change
+	ReloadAllowMove          bool                            `json:"reload_allow_move"`             // [bool]Whether or not the player can move while reloading this weapon.
+	Ability                  enum.AbilityId                  `json:"ability"`                       // The ability to play on the wielder when reloading this weapon.
+	ReloadAnimEvents         []SimpleWeaponMagazineAnimEvent `json:"reload_anim_events,omitempty"`  // The animation event that will be triggered, depending on the reload type
+	Duration                 float32                         `json:"duration"`                      // The duration of the reload. We scale the reload ability to match this duration. If 0, use the default ability duration (no scaling).
+	HasSharedDeposit         bool                            `json:"has_shared_deposit"`            // [bool]Should this unit look for a (shared) deposit on the entity it it mounted on when checking for ammo?
+	ReloadVONormal           string                          `json:"reload_vo_normal"`              // [string]VO event to play when doing a normal reload.
+	ReloadVOLastmag          string                          `json:"reload_vo_lastmag"`             // [string]VO event to play when doing a reload while being on your last mag (1 mag left).
+	ReloadVONoMags           string                          `json:"reload_vo_no_mags"`             // [string]VO event to play when trying to reload but have no mags.
+	ReloadVONoMagsNoBackpack string                          `json:"reload_vo_no_mags_no_backpack"` // [string]If VO event is present we play this when trying to reload but have no mags and no backpack.
+}
+
+func (w WeaponReloadComponent) ToSimple(_ HashLookup, lookupThinHash ThinHashLookup) any {
+	reloadAnimEvents := make([]SimpleWeaponMagazineAnimEvent, 0)
+	for _, event := range w.ReloadAnimEvents {
+		if event.Type == enum.WeaponReloadEventType_None {
+			break
+		}
+		reloadAnimEvents = append(reloadAnimEvents, SimpleWeaponMagazineAnimEvent{
+			Type:                  event.Type,
+			AnimationEventWeapon:  lookupThinHash(event.AnimationEventWeapon),
+			AnimationEventWielder: lookupThinHash(event.AnimationEventWielder),
+		})
+	}
+
+	return SimpleWeaponReloadComponent{
+		ManualClearing:           w.ManualClearing != 0,
+		ReloadAllowMove:          w.ReloadAllowMove != 0,
+		Ability:                  w.Ability,
+		ReloadAnimEvents:         reloadAnimEvents,
+		Duration:                 w.Duration,
+		HasSharedDeposit:         w.HasSharedDeposit != 0,
+		ReloadVONormal:           lookupThinHash(w.ReloadVONormal),
+		ReloadVOLastmag:          lookupThinHash(w.ReloadVOLastmag),
+		ReloadVONoMags:           lookupThinHash(w.ReloadVONoMags),
+		ReloadVONoMagsNoBackpack: lookupThinHash(w.ReloadVONoMagsNoBackpack),
+	}
+}
+
 func getWeaponReloadComponentData() ([]byte, error) {
 	weaponReloadHash := Sum("WeaponReloadComponentData")
 	weaponReloadHashData := make([]byte, 4)

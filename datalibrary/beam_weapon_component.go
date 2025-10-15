@@ -42,6 +42,52 @@ type BeamWeaponComponent struct {
 	OnFireStoppedWielderAnimEvent stingray.ThinHash // [string]Animation event to trigger on the wielder when we stop firing.
 }
 
+type SimpleBeamWeaponComponent struct {
+	Type                          enum.BeamType `json:"beam_type"`
+	Prisms                        BeamPrisms    `json:"beam_prisms"`
+	ScopeResponsiveness           float32       `json:"scope_responsiveness"`
+	ScopeCrosshair                mgl32.Vec2    `json:"scope_crosshair"`
+	FocalDistances                mgl32.Vec3    `json:"focal_distances"`
+	UseFirenodePose               float32       `json:"use_firenode_pose"`
+	UseMidiEventSystem            bool          `json:"use_midi_event_system"`
+	MidiTimingRandomization       mgl32.Vec2    `json:"midi_timing_randomization"`
+	MidiStopDelay                 float32       `json:"midi_stop_delay"`
+	FireLoopStartAudioEvent       string        `json:"fire_loop_start_audio_delay"`
+	FireLoopStopAudioEvent        string        `json:"fire_loop_stop_audio_event"`
+	FireSingleAudioEvent          string        `json:"fire_single_audio_event"`
+	MuzzleFlash                   string        `json:"muzzle_flash"`
+	NoiseTimer                    float32       `json:"noise_timer"`
+	FireSourceNode                string        `json:"fire_source_node"`
+	DryFireAudioEvent             string        `json:"dry_fire_audio_event"`
+	DryFireRepeatAudioEvent       string        `json:"dry_fire_repeat_audio_event"`
+	OnFireStartedWielderAnimEvent string        `json:"on_fire_started_wielder_anim_event"`
+	OnFireStoppedWielderAnimEvent string        `json:"on_fire_stopped_wielder_anim_event"`
+}
+
+func (b BeamWeaponComponent) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup) any {
+	return SimpleBeamWeaponComponent{
+		Type:                          b.Type,
+		Prisms:                        b.Prisms,
+		ScopeResponsiveness:           b.ScopeResponsiveness,
+		ScopeCrosshair:                b.ScopeCrosshair,
+		FocalDistances:                b.FocalDistances,
+		UseFirenodePose:               b.UseFirenodePose,
+		UseMidiEventSystem:            b.UseMidiEventSystem != 0,
+		MidiTimingRandomization:       b.MidiTimingRandomization,
+		MidiStopDelay:                 b.MidiStopDelay,
+		FireLoopStartAudioEvent:       lookupThinHash(b.FireLoopStartAudioEvent),
+		FireLoopStopAudioEvent:        lookupThinHash(b.FireLoopStopAudioEvent),
+		FireSingleAudioEvent:          lookupThinHash(b.FireSingleAudioEvent),
+		MuzzleFlash:                   lookupHash(b.MuzzleFlash),
+		NoiseTimer:                    b.NoiseTimer,
+		FireSourceNode:                lookupThinHash(b.FireSourceNode),
+		DryFireAudioEvent:             lookupThinHash(b.DryFireAudioEvent),
+		DryFireRepeatAudioEvent:       lookupThinHash(b.DryFireRepeatAudioEvent),
+		OnFireStartedWielderAnimEvent: lookupThinHash(b.OnFireStartedWielderAnimEvent),
+		OnFireStoppedWielderAnimEvent: lookupThinHash(b.OnFireStoppedWielderAnimEvent),
+	}
+}
+
 func getBeamWeaponComponentData() ([]byte, error) {
 	beamWeaponHash := Sum("BeamWeaponComponentData")
 	beamWeaponHashData := make([]byte, 4)

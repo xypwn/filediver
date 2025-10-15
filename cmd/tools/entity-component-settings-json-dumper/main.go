@@ -10,11 +10,6 @@ import (
 	"github.com/xypwn/filediver/stingray"
 )
 
-type SimpleEntity struct {
-	GameObjectID string         `json:"game_object_id"`
-	Components   map[string]any `json:"components"`
-}
-
 func main() {
 	knownHashes := app.ParseHashes(hashes.Hashes)
 	knownThinHashes := app.ParseHashes(hashes.ThinHashes)
@@ -61,16 +56,9 @@ func main() {
 		panic(err)
 	}
 
-	result := make(map[string]SimpleEntity)
+	result := make(map[string]datalib.SimpleEntity)
 	for name, entity := range entityHashmap {
-		components := make(map[string]any)
-		for hash, component := range entity.Components {
-			components[lookupDLHash(hash)] = component
-		}
-		result[lookupHash(name)] = SimpleEntity{
-			GameObjectID: lookupThinHash(entity.GameObjectID),
-			Components:   components,
-		}
+		result[lookupHash(name)] = entity.ToSimple(lookupHash, lookupThinHash, lookupDLHash)
 	}
 
 	output, err := json.MarshalIndent(result, "", "    ")

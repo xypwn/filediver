@@ -39,19 +39,25 @@ func main() {
 		return hash.String()
 	}
 
-	beamWeaponComponents, err := datalib.ParseBeamWeaponComponents()
+	_, components, err := datalib.ParseHealthComponentsArray()
 	if err != nil {
 		panic(err)
 	}
 
-	result := make(map[string]any)
-	for name, component := range beamWeaponComponents {
-		result[lookupHash(name)] = component.ToSimple(lookupHash, lookupThinHash)
+	fmt.Println("[")
+	for _, component := range components {
+		output, err := json.MarshalIndent(component.ToSimple(lookupHash, lookupThinHash), "    ", "    ")
+		if err != nil {
+			fmt.Printf("    \"Error: %v\",\n", err)
+			continue
+		}
+		fmt.Printf("    %v,\n", string(output))
 	}
+	fmt.Println("]")
 
-	output, err := json.MarshalIndent(result, "", "    ")
-	if err != nil {
-		panic(err)
-	}
-	fmt.Print(string(output))
+	// output, err := json.MarshalIndent(result, "", "    ")
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// fmt.Print(string(output))
 }

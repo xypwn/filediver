@@ -19,24 +19,24 @@ type ChargeStateSetting struct {
 }
 
 type ProjectileMultipliers struct {
-	SpeedMultiplierMin              float32 // The value to multiply the projectile speed with when at the smallest charge amount.
-	SpeedMultiplierOvercharge       float32 // The value to multiply the projectile speed with when fully overcharged.
-	DamageMultiplierMin             float32 // The value to multiply the projectile damage with when at the smallest charge amount.
-	DamageMultiplierOvercharge      float32 // The value to multiply the projectile damage with when fully overcharged.
-	PenetrationMultiplierMin        float32 // The value to multiply the projectile penetration with when at the smallest charge amount.
-	PenetrationMultiplierOvercharge float32 // The value to multiply the projectile penetration with when fully overcharged.
-	DistanceMultiplerMin            float32 // The value to multiply the arc distance with when at the smallest charge amount.
-	DistanceMultiplerOvercharge     float32 // The value to multiply the arc distance with when fully overcharged.
-	ExtraArcSplitsMin               float32 // The amount of extra splits this arc can do with minimum charge amount.
-	ExtraArcSplitsOvercharge        float32 // The amount of extra splits this arc can do when fully overcharged.
-	ExtraArcChainsMin               float32 // The amount of extra chains this arc can do with minimum charge amount.
-	ExtraArcChainsOvercharge        float32 // The amount of extra chains this arc can do when fully overcharged.
+	SpeedMultiplierMin              float32 `json:"speed_multiplier_min"`              // The value to multiply the projectile speed with when at the smallest charge amount.
+	SpeedMultiplierOvercharge       float32 `json:"speed_multiplier_overcharge"`       // The value to multiply the projectile speed with when fully overcharged.
+	DamageMultiplierMin             float32 `json:"damage_multiplier_min"`             // The value to multiply the projectile damage with when at the smallest charge amount.
+	DamageMultiplierOvercharge      float32 `json:"damage_multiplier_overcharge"`      // The value to multiply the projectile damage with when fully overcharged.
+	PenetrationMultiplierMin        float32 `json:"penetration_multiplier_min"`        // The value to multiply the projectile penetration with when at the smallest charge amount.
+	PenetrationMultiplierOvercharge float32 `json:"penetration_multiplier_overcharge"` // The value to multiply the projectile penetration with when fully overcharged.
+	DistanceMultiplerMin            float32 `json:"distance_multipler_min"`            // The value to multiply the arc distance with when at the smallest charge amount.
+	DistanceMultiplerOvercharge     float32 `json:"distance_multipler_overcharge"`     // The value to multiply the arc distance with when fully overcharged.
+	ExtraArcSplitsMin               float32 `json:"extra_arc_splits_min"`              // The amount of extra splits this arc can do with minimum charge amount.
+	ExtraArcSplitsOvercharge        float32 `json:"extra_arc_splits_overcharge"`       // The amount of extra splits this arc can do when fully overcharged.
+	ExtraArcChainsMin               float32 `json:"extra_arc_chains_min"`              // The amount of extra chains this arc can do with minimum charge amount.
+	ExtraArcChainsOvercharge        float32 `json:"extra_arc_chains_overcharge"`       // The amount of extra chains this arc can do when fully overcharged.
 }
 
 // Has a charge state and a value, name should be 14 chars long
 type UnknownChargeStruct struct {
-	State enum.ChargeState
-	Value float32
+	State enum.ChargeState `json:"charge_state"`
+	Value float32          `json:"value"`
 }
 
 type WeaponChargeComponent struct {
@@ -65,6 +65,58 @@ type WeaponChargeComponent struct {
 	ExplodeType             enum.ExplosionType
 	StateValue              UnknownChargeStruct
 	_                       [4]uint8
+}
+
+type SimpleWeaponChargeComponent struct {
+	ChargeStateSettings     [3]ChargeStateSetting `json:"charge_state_settings"`       // Min-, Full-, and Over-Charged states
+	ProjMultipliers         ProjectileMultipliers `json:"proj_multipliers"`            // Multipliers of the setting values for the projectile based on the charge amount.
+	ChargeStartSoundID      string                `json:"charge_start_sound_id"`       // [string]Sound to start playing when the chargeup starts.
+	ChargeStopSoundID       string                `json:"charge_stop_sound_id"`        // [string]Sound id to play when the chargeup ends.
+	ReadyToFireSoundID      string                `json:"ready_to_fire_sound_id"`      // [string]Sound id to play when the weapon can fire.
+	DangerOverchargeSoundID string                `json:"danger_overcharge_sound_id"`  // [string]Sound id to play when the chargeup enters the danger zone.
+	ChargeMesh              string                `json:"charge_mesh"`                 // [string]Mesh to set charge value on.
+	ChargeMaterial          string                `json:"charge_material"`             // [string]Material to set charge value on.
+	ChargeVariable          string                `json:"charge_variable"`             // [string]Material variable to set charge value on.
+	ChargeUpMuzzleFlash     string                `json:"charge_up_muzzle_flash"`      // [particles]Particle effect of the muzzle flash while charging.
+	ChargeUpMuzzleFlashLoop string                `json:"charge_up_muzzle_flash_loop"` // [particles]Looping particle effect of the muzzle flash while charging.
+	ChargeAnimID            string                `json:"charge_anim_id"`              // [string]What the animation variable is for rotating the barrel.
+	ChargeEndAnimID         string                `json:"charge_end_anim_id"`          // [string]What the animation variable is for rotating the barrel.
+	ChargeRateAnimID        string                `json:"charge_rate_anim_id"`         // [string]What the animation variable is for rotating the barrel.
+	SpinSpeedAnimID         string                `json:"spin_speed_anim_id"`          // [string]What the animation variable is for rotating the barrel.
+	AutoFireInSafety        bool                  `json:"auto_fire_in_safety"`         // [bool]If disabled, will allow the user to keep the charge as long as they are holding the trigger.
+	ExplodesOnOvercharged   bool                  `json:"explodes_on_overcharged"`     // Unknown bool, name length 24 chars
+	ExplosionAudioEvent     string                `json:"explosion_audio_event"`       // Unknown, name length 22 chars
+	UnknownFloat            float32               `json:"unknown_float"`               // Unknown, probably related to the above
+	DryFireAudioEvent       string                `json:"dry_fire_audio_event"`        // [string].
+	ExplodeType             enum.ExplosionType    `json:"explosion_type"`
+	StateValue              UnknownChargeStruct   `json:"state_value"`
+}
+
+func (w WeaponChargeComponent) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup) any {
+	return SimpleWeaponChargeComponent{
+		ChargeStateSettings:     w.ChargeStateSettings,
+		ProjMultipliers:         w.ProjMultipliers,
+		ChargeStartSoundID:      lookupThinHash(w.ChargeStartSoundID),
+		ChargeStopSoundID:       lookupThinHash(w.ChargeStopSoundID),
+		ReadyToFireSoundID:      lookupThinHash(w.ReadyToFireSoundID),
+		DangerOverchargeSoundID: lookupThinHash(w.DangerOverchargeSoundID),
+		ChargeMesh:              lookupThinHash(w.ChargeMesh),
+		ChargeMaterial:          lookupThinHash(w.ChargeMaterial),
+		ChargeVariable:          lookupThinHash(w.ChargeVariable),
+		ChargeUpMuzzleFlash:     lookupHash(w.ChargeUpMuzzleFlash),
+		ChargeUpMuzzleFlashLoop: lookupHash(w.ChargeUpMuzzleFlashLoop),
+		ChargeAnimID:            lookupThinHash(w.ChargeAnimID),
+		ChargeEndAnimID:         lookupThinHash(w.ChargeEndAnimID),
+		ChargeRateAnimID:        lookupThinHash(w.ChargeRateAnimID),
+		SpinSpeedAnimID:         lookupThinHash(w.SpinSpeedAnimID),
+		AutoFireInSafety:        w.AutoFireInSafety != 0,
+		ExplodesOnOvercharged:   w.ExplodesOnOvercharged != 0,
+		ExplosionAudioEvent:     lookupThinHash(w.ExplosionAudioEvent),
+		UnknownFloat:            w.UnknownFloat,
+		DryFireAudioEvent:       lookupThinHash(w.DryFireAudioEvent),
+		ExplodeType:             w.ExplodeType,
+		StateValue:              w.StateValue,
+	}
 }
 
 func getWeaponChargeComponentData() ([]byte, error) {

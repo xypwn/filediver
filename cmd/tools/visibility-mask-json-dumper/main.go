@@ -60,39 +60,9 @@ func main() {
 		panic(err)
 	}
 
-	result := make(map[string]SimpleVisibilityMaskComponent)
+	result := make(map[string]any)
 	for name, component := range visibilityMasks {
-		simpleCmp := SimpleVisibilityMaskComponent{
-			MaskInfos:      make([]SimpleVisibilityMaskInfo, 0),
-			Randomizations: make([]SimpleVisibilityRandomization, 0),
-		}
-		for _, info := range component.MaskInfos {
-			if info.Name.Value == 0 {
-				break
-			}
-			simpleCmp.MaskInfos = append(simpleCmp.MaskInfos, SimpleVisibilityMaskInfo{
-				Name:        lookupThinHash(info.Name),
-				Index:       info.Index,
-				StartHidden: info.StartHidden != 0,
-			})
-		}
-		for _, rand := range component.Randomizations {
-			if rand.Identifier.Value == 0 {
-				break
-			}
-			maskIndexNames := make([]string, 0)
-			for _, maskIndexName := range rand.MaskIndexNames {
-				if maskIndexName.Value == 0 {
-					break
-				}
-				maskIndexNames = append(maskIndexNames, lookupThinHash(maskIndexName))
-			}
-			simpleCmp.Randomizations = append(simpleCmp.Randomizations, SimpleVisibilityRandomization{
-				Identifier:     lookupThinHash(rand.Identifier),
-				MaskIndexNames: maskIndexNames,
-			})
-		}
-		result[lookupHash(name)] = simpleCmp
+		result[lookupHash(name)] = component.ToSimple(lookupHash, lookupThinHash)
 	}
 
 	output, err := json.MarshalIndent(result, "", "    ")

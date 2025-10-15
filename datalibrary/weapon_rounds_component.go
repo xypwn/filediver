@@ -42,6 +42,44 @@ type WeaponRoundsComponent struct {
 	MagazineAnimVariable stingray.ThinHash // [string]Do we have an animation variable that we care about?
 }
 
+type SimpleWeaponRoundsComponent struct {
+	AmmoInfo             WeaponRoundsAmmoInfo `json:"ammo_info"`              // Ammo info for recoil and spread per magazine.
+	AmmoType             WeaponRoundsAmmoType `json:"ammo_type"`              // Ammo types per magazine.
+	MagazineCapacity     mgl32.Vec2           `json:"magazine_capacity"`      // Capacity in rounds for each magazine.
+	AmmoCapacity         uint32               `json:"ammo_capacity"`          // Maximum number of rounds.
+	AmmoRefill           uint32               `json:"ammo_refill"`            // Number of rounds given on refill.
+	Ammo                 uint32               `json:"ammo"`                   // Starting number of rounds.
+	ReloadAmount         uint32               `json:"reload_amount"`          // Number of rounds to add to the magazine per reload.
+	ReloadThresholds     mgl32.Vec2           `json:"reload_thresholds"`      // Reload is allowed when less than this amount of rounds are left in the magazine (set per magazine). Defaults to 0 which means 'Same as magazine capacity'.
+	Chambered            bool                 `json:"chambered"`              // [bool]Can this weapon hold a round in the chamber while reloading. This makes the max amount of bullets capacity + 1 after reload when weapon has rounds remaining
+	MagazineSwitchAudio  string               `json:"magazine_switch_audio"`  // [wwise]What audio to play when the magazines are switched
+	Magazine0WeaponAnim  string               `json:"magazine0_weapon_anim"`  // [string]What weapon animation to play when switched to magazine 0
+	Magazine0WielderAnim string               `json:"magazine0_wielder_anim"` // [string]What wielder animation to play when switched to magazine 0
+	Magazine1WeaponAnim  string               `json:"magazine1_weapon_anim"`  // [string]What weapon animation to play when switched to magazine 1
+	Magazine1WielderAnim string               `json:"magazine1_wielder_anim"` // [string]What wielder animation to play when switched to magazine 1
+	MagazineAnimVariable string               `json:"magazine_anim_variable"` // [string]Do we have an animation variable that we care about?
+}
+
+func (w WeaponRoundsComponent) ToSimple(_ HashLookup, lookupThinHash ThinHashLookup) any {
+	return SimpleWeaponRoundsComponent{
+		AmmoInfo:             w.AmmoInfo,
+		AmmoType:             w.AmmoType,
+		MagazineCapacity:     w.MagazineCapacity,
+		AmmoCapacity:         w.AmmoCapacity,
+		AmmoRefill:           w.AmmoRefill,
+		Ammo:                 w.Ammo,
+		ReloadAmount:         w.ReloadAmount,
+		ReloadThresholds:     w.ReloadThresholds,
+		Chambered:            w.Chambered != 0,
+		MagazineSwitchAudio:  lookupThinHash(w.MagazineSwitchAudio),
+		Magazine0WeaponAnim:  lookupThinHash(w.Magazine0WeaponAnim),
+		Magazine0WielderAnim: lookupThinHash(w.Magazine0WielderAnim),
+		Magazine1WeaponAnim:  lookupThinHash(w.Magazine1WeaponAnim),
+		Magazine1WielderAnim: lookupThinHash(w.Magazine1WielderAnim),
+		MagazineAnimVariable: lookupThinHash(w.MagazineAnimVariable),
+	}
+}
+
 func getWeaponRoundsComponentData() ([]byte, error) {
 	weaponRoundsHash := Sum("WeaponRoundsComponentData")
 	weaponRoundsHashData := make([]byte, 4)
