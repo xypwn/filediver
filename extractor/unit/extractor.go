@@ -256,9 +256,7 @@ func AddMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_mate
 	weaponHash := getWeaponEntityHashFromUnitHash(ctx.FileID().Name)
 	weaponCustCmpData, weaponErr := datalib.GetWeaponCustomizationComponentDataForHash(weaponHash)
 	var weaponCustCmp datalib.WeaponCustomizationComponent
-	if weaponErr != nil {
-		ctx.Warnf("AddMaterials: no weapon customization component data: %v", weaponErr)
-	} else {
+	if weaponErr == nil {
 		if _, err := binary.Decode(weaponCustCmpData, binary.LittleEndian, &weaponCustCmp); err != nil {
 			ctx.Warnf("AddMaterials: couldn't parse weapon customization component: %v", err)
 			weaponErr = err
