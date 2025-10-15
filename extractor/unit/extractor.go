@@ -1,6 +1,7 @@
 package unit
 
 import (
+	"encoding/binary"
 	"fmt"
 	"io"
 	"maps"
@@ -16,6 +17,7 @@ import (
 	"golang.org/x/text/language"
 
 	datalib "github.com/xypwn/filediver/datalibrary"
+	"github.com/xypwn/filediver/datalibrary/enum"
 	"github.com/xypwn/filediver/extractor"
 	"github.com/xypwn/filediver/extractor/blend_helper"
 	"github.com/xypwn/filediver/extractor/geometry"
@@ -224,9 +226,45 @@ func AddMaterialVariant(ctx *extractor.Context, mat *material.Material, doc *glt
 	return gltf.Index(skinMatIdx), nil
 }
 
+// Most weapons share a name with their entity (what actually has the customization component)
+// but a few do not, so we need to patch those up to get 100% weapon skin export
+// Theoretically we should just be exporting based on entity name rather than unit name, but
+// thats a gigantic can of worms I don't want to get into right now
+func getWeaponEntityHashFromUnitHash(weaponUnit stingray.Hash) stingray.Hash {
+	switch weaponUnit {
+	case stingray.Sum("content/fac_helldivers/equipment/primary_weapons/assault_rifle_penetrator/assault_rifle_penetrator"):
+		weaponUnit = stingray.Hash{Value: 0x43cb1033961a2276}
+	case stingray.Sum("content/fac_helldivers/equipment/primary_weapons/marksman_rifle_vigilance_counter_sniper/marksman_rifle_vigilance_counter_sniper"):
+		weaponUnit = stingray.Hash{Value: 0x4c786785c79d44e7}
+	case stingray.Sum("content/fac_helldivers/equipment/primary_weapons/assault_shotgun_sprayandpray/assault_shotgun_sprayandpray"):
+		weaponUnit = stingray.Hash{Value: 0x5ebaea70c0d060b9}
+	case stingray.Sum("content/fac_helldivers/equipment/primary_weapons/jet_rifle_phoenix/jet_rifle_phoenix"):
+		weaponUnit = stingray.Hash{Value: 0xb6aff2195568767f}
+	case stingray.Sum("content/fac_helldivers/equipment/primary_weapons/assault_rifle_explosive/assault_rifle_explosive"):
+		weaponUnit = stingray.Hash{Value: 0xcf5f176e0e322be1}
+	case stingray.Sum("content/fac_helldivers/equipment/primary_weapons/plasma_rifle_charge/plasma_rifle_charge"):
+		weaponUnit = stingray.Hash{Value: 0xfb3a19078694708a}
+	}
+	return weaponUnit
+}
+
 func AddMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_material.ImageOptions, unitInfo *unit.Info, metadata *datalib.UnitData) ([]geometry.MaterialVariantMap, error) {
 	materialVariants := make([]geometry.MaterialVariantMap, 0)
 	namesToVariantIdx := make(map[string]uint32)
+
+	// Check if this is a weapon with weapon customization component
+	weaponHash := getWeaponEntityHashFromUnitHash(ctx.FileID().Name)
+	weaponCustCmpData, weaponErr := datalib.GetWeaponCustomizationComponentDataForHash(weaponHash)
+	var weaponCustCmp datalib.WeaponCustomizationComponent
+	if weaponErr != nil {
+		ctx.Warnf("AddMaterials: no weapon customization component data: %v", weaponErr)
+	} else {
+		if _, err := binary.Decode(weaponCustCmpData, binary.LittleEndian, &weaponCustCmp); err != nil {
+			ctx.Warnf("AddMaterials: couldn't parse weapon customization component: %v", err)
+			weaponErr = err
+		}
+	}
+
 	for id, resID := range unitInfo.Materials {
 		matR, err := ctx.Open(stingray.NewFileID(resID, stingray.Sum("material")), stingray.DataMain)
 		if err == stingray.ErrFileNotExist {
@@ -263,7 +301,7 @@ func AddMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_mate
 		}
 		materialVariants[namesToVariantIdx["default"]].MaterialHashToIndex[id] = matIdx
 
-		// Handle variants
+		// Handle vehicle variants
 		var skinOverrides []datalib.UnitSkinOverride = make([]datalib.UnitSkinOverride, 0)
 		for _, skinOverrideGroup := range ctx.SkinOverrideGroups() {
 			if !skinOverrideGroup.HasMaterial(id) {
@@ -292,6 +330,93 @@ func AddMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_mate
 				})
 			}
 			materialVariants[namesToVariantIdx[skinName]].MaterialHashToIndex[id] = *skinMatIdx
+		}
+
+		// Handle weapon variants
+		if weaponErr != nil {
+			continue
+		}
+
+		foundPaintScheme := false
+		for _, slot := range weaponCustCmp.CustomizationSlots {
+			if slot == enum.WeaponCustomizationSlot_PaintScheme {
+				foundPaintScheme = true
+				break
+			}
+		}
+		if !foundPaintScheme {
+			continue
+		}
+
+		// This is memoized so we don't actually parse entity deltas every time this is called
+		entityDeltas, err := datalib.ParseEntityDeltas()
+		if err != nil {
+			ctx.Warnf("AddMaterials: couldn't parse entity deltas: %v", err)
+			continue
+		}
+		for _, paintScheme := range ctx.WeaponPaintSchemes() {
+			if paintScheme.NameUpper == "DEFAULT" {
+				continue
+			}
+			delta, ok := entityDeltas[paintScheme.AddPath]
+			if !ok {
+				ctx.Warnf("AddMaterials: no delta for add path %v", ctx.LookupHash(paintScheme.AddPath))
+				continue
+			}
+
+			modifiedComponentData, err := datalib.PatchComponent(datalib.Sum("WeaponCustomizationComponentData"), weaponCustCmpData, delta)
+			if err != nil {
+				ctx.Warnf("AddMaterials: couldn't patch component: %v", err)
+				continue
+			}
+
+			var component datalib.WeaponCustomizationComponent
+			if _, err := binary.Decode(modifiedComponentData, binary.LittleEndian, &component); err != nil {
+				ctx.Warnf("AddMaterials: couldn't parse component: %v", err)
+				continue
+			}
+
+			var tempSkinOverride datalib.UnitSkinOverride
+			tempSkinOverride.Name = cases.Title(language.English).String(paintScheme.NameUpper)
+			tempSkinOverride.ID = paintScheme.ID
+			tempSkinOverride.Overrides = make(map[stingray.ThinHash][]datalib.UnitCustomizationMaterialOverrides)
+			for _, matOverride := range component.MaterialOverride.DefaultWeaponSlotMaterial {
+				if matOverride.MaterialID.Value == 0 {
+					continue
+				}
+				if _, ok := tempSkinOverride.Overrides[matOverride.MaterialID]; !ok {
+					tempSkinOverride.Overrides[matOverride.MaterialID] = make([]datalib.UnitCustomizationMaterialOverrides, 0)
+				}
+				tempSkinOverride.Overrides[matOverride.MaterialID] = append(tempSkinOverride.Overrides[matOverride.MaterialID], matOverride)
+			}
+
+			for _, slotCustomization := range component.MaterialOverride.WeaponSlotMaterialCustomization {
+				for _, matOverride := range slotCustomization.Overrides {
+					if matOverride.MaterialID.Value == 0 {
+						continue
+					}
+					if _, ok := tempSkinOverride.Overrides[matOverride.MaterialID]; !ok {
+						tempSkinOverride.Overrides[matOverride.MaterialID] = make([]datalib.UnitCustomizationMaterialOverrides, 0)
+					}
+					tempSkinOverride.Overrides[matOverride.MaterialID] = append(tempSkinOverride.Overrides[matOverride.MaterialID], matOverride)
+				}
+			}
+
+			skinMatIdx, err := AddMaterialVariant(ctx, mat, doc, imgOpts, id, tempSkinOverride, metadata)
+			if err != nil {
+				// Some materials don't get overriden, that's fine
+				continue
+			}
+
+			if _, ok := namesToVariantIdx[tempSkinOverride.Name]; !ok {
+				namesToVariantIdx[tempSkinOverride.Name] = uint32(len(materialVariants))
+				materialVariants = append(materialVariants, geometry.MaterialVariantMap{
+					Name:                tempSkinOverride.Name,
+					MaterialHashToIndex: make(map[stingray.ThinHash]uint32),
+				})
+			}
+			materialVariants[namesToVariantIdx[tempSkinOverride.Name]].MaterialHashToIndex[id] = *skinMatIdx
+
 		}
 	}
 	return materialVariants, nil

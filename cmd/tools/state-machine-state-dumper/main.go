@@ -172,6 +172,7 @@ func main() {
 			a.ThinHashes,
 			a.ArmorSets,
 			a.SkinOverrideGroups,
+			a.WeaponPaintSchemes,
 			a.LanguageMap,
 			a.DataDir,
 			nil,

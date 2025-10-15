@@ -101,7 +101,7 @@ func getComponentDataForHash(componentType DLHash, resource stingray.Hash) ([]by
 	case Sum("WeaponChargeComponentData"):
 		return getWeaponChargeComponentDataForHash(resource)
 	case Sum("WeaponCustomizationComponentData"):
-		return getWeaponCustomizationComponentDataForHash(resource)
+		return GetWeaponCustomizationComponentDataForHash(resource)
 	case Sum("WeaponDataComponentData"):
 		return getWeaponDataComponentDataForHash(resource)
 	case Sum("WeaponHeatComponentData"):

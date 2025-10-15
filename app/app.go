@@ -19,6 +19,7 @@ import (
 	"github.com/qmuntal/gltf"
 	"github.com/xypwn/filediver/app/appconfig"
 	datalib "github.com/xypwn/filediver/datalibrary"
+	"github.com/xypwn/filediver/datalibrary/enum"
 	"github.com/xypwn/filediver/dds"
 	"github.com/xypwn/filediver/exec"
 	"github.com/xypwn/filediver/extractor"
@@ -108,6 +109,7 @@ type App struct {
 	ThinHashes         map[stingray.ThinHash]string
 	ArmorSets          map[stingray.Hash]datalib.ArmorSet
 	SkinOverrideGroups []datalib.UnitSkinOverrideGroup
+	WeaponPaintSchemes []datalib.WeaponCustomizableItem
 	DataDir            *stingray.DataDir
 	LanguageMap        map[uint32]string
 	Metadata           map[stingray.FileID]FileMetadata
@@ -236,7 +238,7 @@ func getFileMetadata(dataDir *stingray.DataDir) map[stingray.FileID]FileMetadata
 	return metadata
 }
 
-func LoadCustomizationSettings(dataDir *stingray.DataDir, languageMap map[uint32]string) []datalib.UnitCustomizationSettings {
+func LoadSkinOverrides(dataDir *stingray.DataDir, languageMap map[uint32]string) []datalib.UnitSkinOverrideGroup {
 	var getResource datalib.GetResourceFunc = func(id stingray.FileID, typ stingray.DataType) (data []byte, exists bool, err error) {
 		fileInfo, ok := dataDir.Files[id]
 		if !ok || !fileInfo[0].Exists(typ) {
@@ -274,7 +276,41 @@ func LoadCustomizationSettings(dataDir *stingray.DataDir, languageMap map[uint32
 		}
 	}
 
-	return customizationSettings
+	skinOverrideGroups := make([]datalib.UnitSkinOverrideGroup, 0)
+	for _, setting := range customizationSettings {
+		skinOverrideGroups = append(skinOverrideGroups, setting.GetSkinOverrideGroup())
+	}
+
+	return skinOverrideGroups
+}
+
+func LoadPaintSchemes(dataDir *stingray.DataDir, languageMap map[uint32]string) []datalib.WeaponCustomizableItem {
+	var getResource datalib.GetResourceFunc = func(id stingray.FileID, typ stingray.DataType) (data []byte, exists bool, err error) {
+		fileInfo, ok := dataDir.Files[id]
+		if !ok || !fileInfo[0].Exists(typ) {
+			return nil, false, nil
+		}
+		exists = true
+		data, err = dataDir.Read(id, typ)
+		return
+
+	}
+
+	weaponCustomizations, err := datalib.ParseWeaponCustomizationSettings(getResource, languageMap)
+	if err != nil {
+		return nil
+	}
+
+	for _, customization := range weaponCustomizations {
+		if len(customization.Items) == 0 || len(customization.Items[0].Slots) == 0 {
+			continue
+		}
+		if customization.Items[0].Slots[0] == enum.WeaponCustomizationSlot_PaintScheme {
+			return customization.Items
+		}
+	}
+
+	return nil
 }
 
 // Open game dir and read metadata.
@@ -307,19 +343,16 @@ func OpenGameDir(ctx context.Context, gameDir string, hashStrings []string, thin
 		return nil, fmt.Errorf("LoadArmorSetDefinitions: %v", err)
 	}
 
-	customizationSettings := LoadCustomizationSettings(dataDir, mapping)
-	skinOverrideGroups := make([]datalib.UnitSkinOverrideGroup, 0)
-	if customizationSettings != nil {
-		for _, setting := range customizationSettings {
-			skinOverrideGroups = append(skinOverrideGroups, setting.GetSkinOverrideGroup())
-		}
-	}
+	skinOverrideGroups := LoadSkinOverrides(dataDir, mapping)
+
+	weaponPaintSchemes := LoadPaintSchemes(dataDir, mapping)
 
 	return &App{
 		Hashes:             hashesMap,
 		ThinHashes:         thinHashesMap,
 		ArmorSets:          armorSets,
 		SkinOverrideGroups: skinOverrideGroups,
+		WeaponPaintSchemes: weaponPaintSchemes,
 		DataDir:            dataDir,
 		LanguageMap:        mapping,
 		Metadata:           getFileMetadata(dataDir),
@@ -566,6 +599,7 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 		a.ThinHashes,
 		a.ArmorSets,
 		a.SkinOverrideGroups,
+		a.WeaponPaintSchemes,
 		a.LanguageMap,
 		a.DataDir,
 		runner,

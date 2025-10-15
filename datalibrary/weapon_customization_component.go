@@ -239,7 +239,7 @@ func getWeaponCustomizationComponentData() ([]byte, error) {
 	return data, err
 }
 
-func getWeaponCustomizationComponentDataForHash(hash stingray.Hash) ([]byte, error) {
+func GetWeaponCustomizationComponentDataForHash(hash stingray.Hash) ([]byte, error) {
 	WeaponCustomizationCmpDataHash := Sum("WeaponCustomizationComponentData")
 	typelib, err := ParseTypeLib(nil)
 	if err != nil {
@@ -400,7 +400,7 @@ func ParseWeaponCustomizationComponents(getResource GetResourceFunc, stringmap m
 		baseComponent := data[entry.Index]
 
 		// Get data to modify
-		componentData, err := getWeaponCustomizationComponentDataForHash(entry.Resource)
+		componentData, err := GetWeaponCustomizationComponentDataForHash(entry.Resource)
 		if err != nil {
 			result[entry.Resource] = baseComponent
 			continue
