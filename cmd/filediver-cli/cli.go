@@ -16,13 +16,21 @@ import (
 	"github.com/xypwn/filediver/config"
 )
 
-func cliHandleArgs(configStruct any, addExtraArgs func(argp *argparse.Parser)) (dontExit bool, err error) {
+func cliShowHelp(argp *argparse.Parser) {
 	supportsColor := supportscolor.Stdout().SupportsColor
+	color := argparse.NoColor
+	if supportsColor {
+		color = argparse.DefaultColor
+	}
+	fmt.Println(argp.FormatHelpWithColor(color))
+}
+
+func cliHandleArgs(configStruct any, addExtraArgs func(argp *argparse.Parser)) (argp *argparse.Parser, dontExit bool, err error) {
 	args := os.Args[1:]
 
 	if slices.Contains(args, "-c") || slices.Contains(args, "--config") {
 		fmt.Println(`-c option is deprecated; see https://github.com/xypwn/filediver/wiki/10-CLI-Basics`)
-		return false, nil
+		return nil, false, nil
 	}
 
 	showHelp := false
@@ -46,7 +54,7 @@ func cliHandleArgs(configStruct any, addExtraArgs func(argp *argparse.Parser)) (
 		}
 		argpCfg.EpiLog += "Use --help-all to show all options, including advanced options."
 	}
-	argp := argparse.NewParser("filediver", "Helldivers 2 game asset extractor. https://github.com/xypwn/filediver", argpCfg)
+	argp = argparse.NewParser("filediver", "Helldivers 2 game asset extractor. https://github.com/xypwn/filediver", argpCfg)
 	argp.Flag("h", "help", &argparse.Option{Help: "show help page"})
 	argp.Flag("", "help-all", &argparse.Option{Help: "show help including advanced options"})
 
@@ -56,7 +64,7 @@ func cliHandleArgs(configStruct any, addExtraArgs func(argp *argparse.Parser)) (
 
 	fs, err := config.Fields(configStruct)
 	if err != nil {
-		return false, err
+		return nil, false, err
 	}
 
 	formatFieldName := func(field string) string {
@@ -122,16 +130,12 @@ func cliHandleArgs(configStruct any, addExtraArgs func(argp *argparse.Parser)) (
 	}
 
 	if showHelp {
-		color := argparse.NoColor
-		if supportsColor {
-			color = argparse.DefaultColor
-		}
-		fmt.Println(argp.FormatHelpWithColor(color))
-		return false, nil
+		cliShowHelp(argp)
+		return nil, false, nil
 	}
 
 	if err := argp.Parse(args); err != nil {
-		return false, err
+		return nil, false, err
 	}
 
 	err = config.MarshalFunc(configStruct, func(name string) (string, bool) {
@@ -153,5 +157,5 @@ func cliHandleArgs(configStruct any, addExtraArgs func(argp *argparse.Parser)) (
 		}
 	}
 
-	return true, nil
+	return argp, true, nil
 }
