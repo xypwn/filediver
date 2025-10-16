@@ -42,6 +42,56 @@ func (v *VisibilityMaskComponent) Length() int {
 	return i
 }
 
+type SimpleVisibilityMaskInfo struct {
+	Name        string `json:"name"`
+	Index       uint16 `json:"index"`
+	StartHidden bool   `json:"default_hidden"`
+}
+
+type SimpleVisibilityRandomization struct {
+	Identifier     string   `json:"id"`
+	MaskIndexNames []string `json:"mask_index_names,omitempty"`
+}
+
+type SimpleVisibilityMaskComponent struct {
+	MaskInfos      []SimpleVisibilityMaskInfo      `json:"mask_infos,omitempty"`
+	Randomizations []SimpleVisibilityRandomization `json:"randomizations,omitempty"`
+}
+
+func (component VisibilityMaskComponent) ToSimple(lookupHash func(stingray.Hash) string, lookupThinHash func(stingray.ThinHash) string) any {
+	simpleCmp := SimpleVisibilityMaskComponent{
+		MaskInfos:      make([]SimpleVisibilityMaskInfo, 0),
+		Randomizations: make([]SimpleVisibilityRandomization, 0),
+	}
+	for _, info := range component.MaskInfos {
+		if info.Name.Value == 0 {
+			break
+		}
+		simpleCmp.MaskInfos = append(simpleCmp.MaskInfos, SimpleVisibilityMaskInfo{
+			Name:        lookupThinHash(info.Name),
+			Index:       info.Index,
+			StartHidden: info.StartHidden != 0,
+		})
+	}
+	for _, rand := range component.Randomizations {
+		if rand.Identifier.Value == 0 {
+			break
+		}
+		maskIndexNames := make([]string, 0)
+		for _, maskIndexName := range rand.MaskIndexNames {
+			if maskIndexName.Value == 0 {
+				break
+			}
+			maskIndexNames = append(maskIndexNames, lookupThinHash(maskIndexName))
+		}
+		simpleCmp.Randomizations = append(simpleCmp.Randomizations, SimpleVisibilityRandomization{
+			Identifier:     lookupThinHash(rand.Identifier),
+			MaskIndexNames: maskIndexNames,
+		})
+	}
+	return simpleCmp
+}
+
 func ParseVisibilityMasks() (map[stingray.Hash]VisibilityMaskComponent, error) {
 	visibilityMaskHash := Sum("VisibilityMaskComponentData")
 	visibilityMaskHashData := make([]byte, 4)

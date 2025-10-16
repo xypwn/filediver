@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"slices"
 	"strconv"
 
 	"github.com/go-gl/mathgl/mgl32"
@@ -174,6 +173,122 @@ type UnitCustomizationComponent struct {
 	MountedWeaponTextureOverrides []UnitCustomizationMaterialOverrides `json:"mounted_weapon_texture_overrides"`
 }
 
+type SimpleUnitCustomizationMaterialOverrides struct {
+	MaterialID        string `json:"material"`
+	MaterialLut       string `json:"material_lut"`
+	DecalSheet        string `json:"decal_sheet"`
+	PatternLut        string `json:"pattern_lut"`
+	PatternMasksArray string `json:"pattern_masks_array"`
+}
+
+type SimpleUnitCustomizationComponent struct {
+	MaterialsTexturesOverrides    []SimpleUnitCustomizationMaterialOverrides `json:"materials_textures_overrides"`
+	MountedWeaponTextureOverrides []SimpleUnitCustomizationMaterialOverrides `json:"mounted_weapon_texture_overrides"`
+}
+
+type SimpleUnitCustomizationSetting struct {
+	Name           string                           `json:"name"`
+	DebugName      string                           `json:"debug_name"`
+	ID             string                           `json:"id"`
+	Archive        string                           `json:"archive"`
+	Customization  SimpleUnitCustomizationComponent `json:"customization"`
+	Thumbnail      string                           `json:"thumbnail"`
+	UIWidgetColors []mgl32.Vec3                     `json:"ui_widget_colors"`
+}
+
+type SimpleUnitCustomizationSettings struct {
+	ParentCollectionType UnitCustomizationCollectionType         `json:"parent_collection_type"`
+	CollectionType       UnitCustomizationCollectionType         `json:"collection_type"`
+	ObjectName           string                                  `json:"object_name"`
+	SkinName             string                                  `json:"skin_name"`
+	CategoryType         UnitCustomizationCollectionCategoryType `json:"category_type"`
+	Skins                []SimpleUnitCustomizationSetting        `json:"skins,omitempty"`
+	ShowroomOffset       mgl32.Vec3                              `json:"showroom_offset"`
+	ShowroomRotation     mgl32.Vec3                              `json:"showroom_rotation"`
+}
+
+func (customization UnitCustomizationSettings) ToSimple(lookupHash func(stingray.Hash) string, lookupThinHash func(stingray.ThinHash) string) any {
+	simpleSettings := SimpleUnitCustomizationSettings{
+		ParentCollectionType: customization.ParentCollectionType,
+		CollectionType:       customization.CollectionType,
+		ObjectName:           customization.ObjectName,
+		SkinName:             customization.SkinName,
+		CategoryType:         customization.CategoryType,
+		ShowroomOffset:       customization.ShowroomOffset,
+		ShowroomRotation:     customization.ShowroomRotation,
+		Skins:                make([]SimpleUnitCustomizationSetting, 0),
+	}
+	for _, skin := range customization.Skins {
+		simpleSetting := SimpleUnitCustomizationSetting{
+			Name:           skin.Name,
+			DebugName:      skin.DebugName,
+			ID:             lookupThinHash(skin.ID),
+			Archive:        lookupHash(skin.Archive),
+			Thumbnail:      lookupHash(skin.Thumbnail),
+			UIWidgetColors: skin.UIWidgetColors,
+			Customization: SimpleUnitCustomizationComponent{
+				MaterialsTexturesOverrides:    make([]SimpleUnitCustomizationMaterialOverrides, 0),
+				MountedWeaponTextureOverrides: make([]SimpleUnitCustomizationMaterialOverrides, 0),
+			},
+		}
+		for _, mto := range skin.Customization.MaterialsTexturesOverrides {
+			simpleSetting.Customization.MaterialsTexturesOverrides = append(simpleSetting.Customization.MaterialsTexturesOverrides, SimpleUnitCustomizationMaterialOverrides{
+				MaterialID:        lookupThinHash(mto.MaterialID),
+				MaterialLut:       lookupHash(mto.MaterialLut),
+				DecalSheet:        lookupHash(mto.DecalSheet),
+				PatternLut:        lookupHash(mto.PatternLut),
+				PatternMasksArray: lookupHash(mto.PatternMasksArray),
+			})
+		}
+		for _, mwto := range skin.Customization.MountedWeaponTextureOverrides {
+			simpleSetting.Customization.MountedWeaponTextureOverrides = append(simpleSetting.Customization.MountedWeaponTextureOverrides, SimpleUnitCustomizationMaterialOverrides{
+				MaterialID:        lookupThinHash(mwto.MaterialID),
+				MaterialLut:       lookupHash(mwto.MaterialLut),
+				DecalSheet:        lookupHash(mwto.DecalSheet),
+				PatternLut:        lookupHash(mwto.PatternLut),
+				PatternMasksArray: lookupHash(mwto.PatternMasksArray),
+			})
+		}
+		simpleSettings.Skins = append(simpleSettings.Skins, simpleSetting)
+	}
+	return simpleSettings
+}
+
+func (customization UnitCustomizationComponent) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup) any {
+	matOverrides := make([]SimpleUnitCustomizationMaterialOverrides, 0)
+	for _, override := range customization.MaterialsTexturesOverrides {
+		if override.MaterialID.Value == 0 {
+			break
+		}
+		matOverrides = append(matOverrides, SimpleUnitCustomizationMaterialOverrides{
+			MaterialID:        lookupThinHash(override.MaterialID),
+			MaterialLut:       lookupHash(override.MaterialLut),
+			DecalSheet:        lookupHash(override.DecalSheet),
+			PatternLut:        lookupHash(override.PatternLut),
+			PatternMasksArray: lookupHash(override.PatternMasksArray),
+		})
+	}
+
+	mountOverrides := make([]SimpleUnitCustomizationMaterialOverrides, 0)
+	for _, override := range customization.MountedWeaponTextureOverrides {
+		if override.MaterialID.Value == 0 {
+			break
+		}
+		mountOverrides = append(mountOverrides, SimpleUnitCustomizationMaterialOverrides{
+			MaterialID:        lookupThinHash(override.MaterialID),
+			MaterialLut:       lookupHash(override.MaterialLut),
+			DecalSheet:        lookupHash(override.DecalSheet),
+			PatternLut:        lookupHash(override.PatternLut),
+			PatternMasksArray: lookupHash(override.PatternMasksArray),
+		})
+	}
+
+	return SimpleUnitCustomizationComponent{
+		MaterialsTexturesOverrides:    matOverrides,
+		MountedWeaponTextureOverrides: mountOverrides,
+	}
+}
+
 func ParseUnitCustomizationSettings(getResource GetResourceFunc, stringmap map[uint32]string) ([]UnitCustomizationSettings, error) {
 	// I guess this hash_lookup file must be the material add path lookup file or something
 	// Each hash lookup seems to have a slightly different format, so I don't have a general parser
@@ -197,11 +312,6 @@ func ParseUnitCustomizationSettings(getResource GetResourceFunc, stringmap map[u
 	}
 
 	deltas, err := ParseEntityDeltas()
-	if err != nil {
-		return nil, err
-	}
-
-	componentIndicesToHashes, err := ParseComponentIndices()
 	if err != nil {
 		return nil, err
 	}
@@ -238,7 +348,7 @@ func ParseUnitCustomizationSettings(getResource GetResourceFunc, stringmap map[u
 		rawSettingsSlice := make([]rawUnitCustomizationSetting, rawSettings.SkinsCount)
 		_, err := r.Seek(base+int64(rawSettings.SkinsOffset), io.SeekStart)
 		if err != nil {
-			return nil, fmt.Errorf("read seek skins: %v", err)
+			return nil, fmt.Errorf("seek skins: %v", err)
 		}
 
 		if err := binary.Read(r, binary.LittleEndian, &rawSettingsSlice); err != nil {
@@ -273,7 +383,7 @@ func ParseUnitCustomizationSettings(getResource GetResourceFunc, stringmap map[u
 
 			skin.ID = rawSkin.ID
 			skin.Thumbnail = rawSkin.Thumbnail
-			overrideComponentData := make([]byte, len(componentData))
+			var overrideComponentData []byte
 			if rawSkin.AddPath.Value != 0x0 {
 				var ok bool
 				skin.Archive, ok = addPathMap[rawSkin.AddPath.Value]
@@ -286,17 +396,9 @@ func ParseUnitCustomizationSettings(getResource GetResourceFunc, stringmap map[u
 					return nil, fmt.Errorf("could not find %x in entity deltas", rawSkin.AddPath.Value)
 				}
 
-				for _, component := range delta.ModifiedComponents {
-					componentHash, ok := componentIndicesToHashes[component.ComponentIndex]
-					if !ok {
-						return nil, fmt.Errorf("invalid component index in entity deltas?")
-					}
-					if componentHash != Sum("UnitCustomizationComponentData") {
-						continue
-					}
-					for _, componentDelta := range component.Deltas {
-						overrideComponentData = slices.Replace(overrideComponentData, int(componentDelta.Offset), int(componentDelta.Offset)+len(componentDelta.Data), componentDelta.Data...)
-					}
+				overrideComponentData, err = PatchComponent(Sum("UnitCustomizationComponentData"), componentData, delta)
+				if err != nil {
+					return nil, err
 				}
 			}
 
@@ -357,6 +459,31 @@ func ParseUnitCustomizationSettings(getResource GetResourceFunc, stringmap map[u
 		})
 
 		r.Seek(base+int64(header.Size), io.SeekStart)
+	}
+
+	componentMap := make(map[stingray.ThinHash]*UnitCustomizationSetting)
+	for _, customization := range toReturn {
+		if customization.CollectionType == CollectionHellpod {
+			for i := range customization.Skins {
+				if _, ok := componentMap[customization.Skins[i].ID]; ok {
+					continue
+				}
+				componentMap[customization.Skins[i].ID] = &customization.Skins[i]
+			}
+		}
+	}
+
+	for i, customization := range toReturn {
+		if customization.CollectionType != CollectionHellpodRack {
+			continue
+		}
+		for j := range customization.Skins {
+			component, ok := componentMap[customization.Skins[j].ID]
+			if !ok {
+				continue
+			}
+			toReturn[i].Skins[j].Name = component.Name
+		}
 	}
 
 	return toReturn, nil

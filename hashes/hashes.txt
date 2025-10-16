@@ -71632,6 +71632,7 @@ content/fac_helldivers/vehicles/frv/armaments/frv_mg/animations/reload
 content/fac_helldivers/vehicles/frv/armaments/frv_mg/animations/reload_fast
 content/fac_helldivers/vehicles/frv/armaments/frv_mg/frv_mg
 content/fac_helldivers/vehicles/frv/frv
+content/fac_helldivers/vehicles/frv/frv_superearth
 content/fac_helldivers/vehicles/lav/armaments/lav_autocannon/lav_autocannon
 content/fac_helldivers/vehicles/lav/lav
 content/fac_helldivers/vehicles/lav/m_lav

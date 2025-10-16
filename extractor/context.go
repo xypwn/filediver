@@ -26,6 +26,7 @@ type Context struct {
 	thinHashes         map[stingray.ThinHash]string
 	armorSets          map[stingray.Hash]datalib.ArmorSet
 	skinOverrideGroups []datalib.UnitSkinOverrideGroup
+	weaponPaintSchemes []datalib.WeaponCustomizableItem
 	languageMap        map[uint32]string
 	dataDir            *stingray.DataDir
 	runner             *exec.Runner
@@ -52,6 +53,7 @@ func NewContext(
 	thinHashes map[stingray.ThinHash]string,
 	armorSets map[stingray.Hash]datalib.ArmorSet,
 	skinOverrideGroups []datalib.UnitSkinOverrideGroup,
+	weaponPaintSchemes []datalib.WeaponCustomizableItem,
 	languageMap map[uint32]string,
 	dataDir *stingray.DataDir,
 	runner *exec.Runner,
@@ -66,6 +68,7 @@ func NewContext(
 		thinHashes:         thinHashes,
 		armorSets:          armorSets,
 		skinOverrideGroups: skinOverrideGroups,
+		weaponPaintSchemes: weaponPaintSchemes,
 		languageMap:        languageMap,
 		dataDir:            dataDir,
 		runner:             runner,
@@ -189,6 +192,10 @@ func (c *Context) GuessFileArmorSet(fileID stingray.FileID) (datalib.ArmorSet, b
 
 func (c *Context) SkinOverrideGroups() []datalib.UnitSkinOverrideGroup {
 	return c.skinOverrideGroups
+}
+
+func (c *Context) WeaponPaintSchemes() []datalib.WeaponCustomizableItem {
+	return c.weaponPaintSchemes
 }
 
 // Warnf logs a user-visible warning message.

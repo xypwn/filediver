@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 
 	"github.com/xypwn/filediver/stingray"
 )
@@ -62,17 +63,48 @@ type rawComponentEntityDeltaStorage struct {
 
 type ComponentEntityDeltaStorage map[stingray.Hash]EntityDeltaSettings
 
+var parsedDeltas ComponentEntityDeltaStorage = nil
+var indicesToHashes map[uint32]DLHash = nil
+
+func PatchComponent(componentType DLHash, componentData []byte, delta EntityDeltaSettings) ([]byte, error) {
+	if indicesToHashes == nil {
+		if _, err := ParseComponentIndices(); err != nil {
+			return nil, err
+		}
+	}
+	modifiedData := slices.Clone(componentData)
+	for _, component := range delta.ModifiedComponents {
+		componentHash, ok := indicesToHashes[component.ComponentIndex]
+		if !ok {
+			continue
+		}
+
+		if componentHash != componentType {
+			continue
+		}
+
+		for _, componentDelta := range component.Deltas {
+			modifiedData = slices.Replace(modifiedData, int(componentDelta.Offset), int(componentDelta.Offset)+len(componentDelta.Data), componentDelta.Data...)
+		}
+	}
+	return modifiedData, nil
+}
+
 func ParseComponentIndices() (map[uint32]DLHash, error) {
+	if indicesToHashes != nil {
+		return indicesToHashes, nil
+	}
+
 	r := bytes.NewReader(entities)
 
-	toReturn := make(map[uint32]DLHash)
+	indicesToHashes = make(map[uint32]DLHash)
 	hasIndex := false
 	for {
 		var index uint32
 		if hasIndex {
 			if err := binary.Read(r, binary.LittleEndian, &index); err != nil {
 				if errors.Is(err, io.EOF) {
-					return toReturn, nil
+					return indicesToHashes, nil
 				}
 				return nil, fmt.Errorf("ParseComponentIndices: while reading index: %v", err)
 			}
@@ -80,12 +112,12 @@ func ParseComponentIndices() (map[uint32]DLHash, error) {
 		var header DLInstanceHeader
 		if err := binary.Read(r, binary.LittleEndian, &header); err != nil {
 			if errors.Is(err, io.EOF) {
-				return toReturn, nil
+				return indicesToHashes, nil
 			}
 			return nil, fmt.Errorf("ParseComponentIndices: while reading header: %v", err)
 		}
 		if hasIndex {
-			toReturn[index] = header.Type
+			indicesToHashes[index] = header.Type
 		}
 		base, _ := r.Seek(0, io.SeekCurrent)
 		hasIndex = (base+int64(header.Size))%8 != 0
@@ -96,6 +128,10 @@ func ParseComponentIndices() (map[uint32]DLHash, error) {
 }
 
 func ParseEntityDeltas() (ComponentEntityDeltaStorage, error) {
+	if parsedDeltas != nil {
+		return parsedDeltas, nil
+	}
+
 	r := bytes.NewReader(entityDeltas)
 
 	var header DLInstanceHeader
@@ -145,7 +181,7 @@ func ParseEntityDeltas() (ComponentEntityDeltaStorage, error) {
 		return nil, err
 	}
 
-	settingsMap := make(ComponentEntityDeltaStorage)
+	parsedDeltas = make(ComponentEntityDeltaStorage)
 	for _, typeData := range hashmap {
 		if typeData.ResourceID.Value == 0 {
 			continue
@@ -168,9 +204,9 @@ func ParseEntityDeltas() (ComponentEntityDeltaStorage, error) {
 				Deltas:         deltas,
 			})
 		}
-		settingsMap[typeData.ResourceID] = EntityDeltaSettings{
+		parsedDeltas[typeData.ResourceID] = EntityDeltaSettings{
 			ModifiedComponents: modifiedComponents,
 		}
 	}
-	return settingsMap, nil
+	return parsedDeltas, nil
 }
