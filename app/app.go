@@ -494,6 +494,10 @@ func getSourceExtractFunc(extrCfg appconfig.Config, typ string) (extr extractor.
 
 // Returns path to extracted file/directory.
 func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string, extrCfg appconfig.Config, runner *exec.Runner, gltfDoc *gltf.Document, archiveIDs []stingray.Hash, printer Printer) ([]string, error) {
+	if ctxErr := ctx.Err(); errors.Is(ctxErr, context.Canceled) {
+		return nil, ctxErr
+	}
+
 	name, typ := a.LookupHash(id.Name), a.LookupHash(id.Type)
 
 	typeFormats := appconfig.GetTypeFormats(extrCfg)
