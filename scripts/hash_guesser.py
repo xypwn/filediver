@@ -189,9 +189,12 @@ def main():
         hashes = []
         with open(args.hashes_path, "r") as f:
             for line in f:
-                hashes.append(int(line.strip(), base=16))
-                if hashes[-1] > 0xffffffff and not long:
-                    long = True
+                try:
+                    hashes.append(int(line.strip(), base=16))
+                    if hashes[-1] > 0xffffffff and not long:
+                        long = True
+                except ValueError:
+                    continue
         hashes = set(hashes)
         if args.output:
             output_path: Path = args.output
