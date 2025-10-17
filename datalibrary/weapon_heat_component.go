@@ -138,7 +138,7 @@ type SimpleWeaponHeatComponent struct {
 	OverheatAbility               enum.AbilityId            `json:"overheat_ability"`                   // The ability to play when this weapon overheats.
 }
 
-func (h WeaponHeatComponent) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup) any {
+func (h WeaponHeatComponent) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookupStrings StringsLookup) any {
 	heatsinkOverrides := make([]SimpleHeatsinkOverrides, 0)
 	for _, override := range h.HSOverrides {
 		if override.Particles.Value == 0 {

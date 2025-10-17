@@ -244,7 +244,7 @@ type SimpleWeaponDataComponent struct {
 	UnkHash4                               string                         `json:"unk_hash4"`
 }
 
-func (d WeaponDataComponent) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup) any {
+func (d WeaponDataComponent) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookupStrings StringsLookup) any {
 	fireNodes := make([]string, 0)
 	for _, node := range d.FireNodes {
 		if node.Value == 0 {

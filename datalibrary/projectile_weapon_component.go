@@ -163,7 +163,7 @@ type SimpleProjectileWeaponComponent struct {
 	UnknownBool                     bool                          `json:"unknown_bool"`                         // added after strings removed
 }
 
-func (component ProjectileWeaponComponent) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup) any {
+func (component ProjectileWeaponComponent) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookupStrings StringsLookup) any {
 	return SimpleProjectileWeaponComponent{
 		ProjType: component.ProjType,
 		RoundsPerMinute: SimpleRPM{

@@ -19,7 +19,7 @@ type SimpleLocalUnitComponent struct {
 	Scale    float32 `json:"scale"`
 }
 
-func (w LocalUnitComponent) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup) any {
+func (w LocalUnitComponent) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookupStrings StringsLookup) any {
 	return SimpleLocalUnitComponent{
 		UnitPath: lookupHash(w.UnitPath),
 		Scale:    w.Scale,

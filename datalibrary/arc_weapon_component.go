@@ -17,6 +17,7 @@ type ArcWeaponComponent struct {
 	RPCSyncedFireEvents         uint8        // [bool]ONLY USE FOR SINGLE-FIRE/SLOW FIRING WEAPONS. Primarily useful for sniper rifles, explosive one-shots etc. that need the firing event to be highly accurately synced!
 	_                           [2]uint8
 	FireSingleAudioEvent        stingray.ThinHash     // [wwise]The audio event to trigger when doing single-fire (if we don't have looping sounds).
+	UnknownHash                 stingray.ThinHash     // Unknown, name length 27
 	FireFailAudioEvent          stingray.ThinHash     // [wwise]The audio event to trigger when the arc fails to hit anything on the first shot.
 	HapticsFireSingleAudioEvent stingray.ThinHash     // [wwise]The audio event to trigger when doing single-fire (if we don't have looping sounds).
 	FireSourceNode              stingray.ThinHash     // [string]The node to play the firing audio events at.
@@ -31,6 +32,7 @@ type SimpleArcWeaponComponent struct {
 	InfiniteAmmo                bool                        `json:"infinite_ammo"`                   // [bool]True if this projectile weapon can never run out of ammo.
 	RPCSyncedFireEvents         bool                        `json:"rpc_synced_fire_events"`          // [bool]ONLY USE FOR SINGLE-FIRE/SLOW FIRING WEAPONS. Primarily useful for sniper rifles, explosive one-shots etc. that need the firing event to be highly accurately synced!
 	FireSingleAudioEvent        string                      `json:"fire_single_audio_event"`         // [wwise]The audio event to trigger when doing single-fire (if we don't have looping sounds).
+	UnknownHash                 string                      `json:"unknown_event"`                   // Unknown, name length 27
 	FireFailAudioEvent          string                      `json:"fire_fail_audio_event"`           // [wwise]The audio event to trigger when the arc fails to hit anything on the first shot.
 	HapticsFireSingleAudioEvent string                      `json:"haptics_fire_single_audio_event"` // [wwise]The audio event to trigger when doing single-fire (if we don't have looping sounds).
 	FireSourceNode              string                      `json:"fire_source_node"`                // [string]The node to play the firing audio events at.
@@ -39,13 +41,14 @@ type SimpleArcWeaponComponent struct {
 	MuzzleFlashFail             string                      `json:"muzzle_flash_fail"`               // [particles]Particle effect of the muzzle flash, when the arc weapon fails to hit, played on attach_muzzle.
 }
 
-func (a ArcWeaponComponent) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup) any {
+func (a ArcWeaponComponent) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookupStrings StringsLookup) any {
 	return SimpleArcWeaponComponent{
 		Type:                        a.Type,
 		RoundsPerMinute:             a.RoundsPerMinute,
 		InfiniteAmmo:                a.InfiniteAmmo != 0,
 		RPCSyncedFireEvents:         a.RPCSyncedFireEvents != 0,
 		FireSingleAudioEvent:        lookupThinHash(a.FireSingleAudioEvent),
+		UnknownHash:                 lookupThinHash(a.UnknownHash),
 		FireFailAudioEvent:          lookupThinHash(a.FireFailAudioEvent),
 		HapticsFireSingleAudioEvent: lookupThinHash(a.HapticsFireSingleAudioEvent),
 		FireSourceNode:              lookupThinHash(a.FireSourceNode),

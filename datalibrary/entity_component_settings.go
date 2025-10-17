@@ -12,10 +12,11 @@ import (
 
 type HashLookup func(stingray.Hash) string
 type ThinHashLookup func(stingray.ThinHash) string
+type StringsLookup func(uint32) string
 type DLHashLookup func(DLHash) string
 
 type Component interface {
-	ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup) any
+	ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookupStrings StringsLookup) any
 }
 
 type Entity struct {
@@ -28,10 +29,10 @@ type SimpleEntity struct {
 	Components   map[string]any `json:"components"`
 }
 
-func (e Entity) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookupDLHash DLHashLookup) SimpleEntity {
+func (e Entity) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookupDLHash DLHashLookup, lookupStrings StringsLookup) SimpleEntity {
 	components := make(map[string]any)
 	for hash, component := range e.Components {
-		components[lookupDLHash(hash)] = component.ToSimple(lookupHash, lookupThinHash)
+		components[lookupDLHash(hash)] = component.ToSimple(lookupHash, lookupThinHash, lookupStrings)
 	}
 	return SimpleEntity{
 		GameObjectID: lookupThinHash(e.GameObjectID),
@@ -49,7 +50,7 @@ type EntitySettings struct {
 
 type UnimplementedComponent struct{}
 
-func (u UnimplementedComponent) ToSimple(_ HashLookup, _ ThinHashLookup) any {
+func (u UnimplementedComponent) ToSimple(_ HashLookup, _ ThinHashLookup, _ StringsLookup) any {
 	return "Not implemented yet"
 }
 
@@ -57,7 +58,7 @@ type ErrorComponent struct {
 	e error
 }
 
-func (u ErrorComponent) ToSimple(_ HashLookup, _ ThinHashLookup) any {
+func (u ErrorComponent) ToSimple(_ HashLookup, _ ThinHashLookup, _ StringsLookup) any {
 	return u.e.Error()
 }
 
@@ -86,6 +87,10 @@ func getComponentDataForHash(componentType DLHash, resource stingray.Hash) ([]by
 		return getArcWeaponComponentDataForHash(resource)
 	case Sum("BeamWeaponComponentData"):
 		return getBeamWeaponComponentDataForHash(resource)
+	case Sum("CharacterNameComponentData"):
+		return getCharacterNameComponentDataForHash(resource)
+	case Sum("EnemyPackageComponentData"):
+		return getEnemyPackageComponentDataForHash(resource)
 	case Sum("HealthComponentData"):
 		return getHealthComponentDataForHash(resource)
 	case Sum("LocalUnitComponentData"):
@@ -133,6 +138,18 @@ func parseComponent(componentType DLHash, data []byte) (Component, error) {
 		return toReturn, nil
 	case Sum("BeamWeaponComponentData"):
 		var toReturn BeamWeaponComponent
+		if _, err := binary.Decode(data, binary.LittleEndian, &toReturn); err != nil {
+			return nil, err
+		}
+		return toReturn, nil
+	case Sum("CharacterNameComponentData"):
+		var toReturn CharacterNameComponent
+		if _, err := binary.Decode(data, binary.LittleEndian, &toReturn); err != nil {
+			return nil, err
+		}
+		return toReturn, nil
+	case Sum("EnemyPackageComponentData"):
+		var toReturn EnemyPackageComponent
 		if _, err := binary.Decode(data, binary.LittleEndian, &toReturn); err != nil {
 			return nil, err
 		}

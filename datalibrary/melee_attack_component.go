@@ -17,7 +17,7 @@ type MeleeAttackComponent struct {
 	WeightForProne               uint32         `json:"weight_for_prone"`                 // Used to indicate how much weight this override has when trying to pick the final override_melee_ability_for_prone
 }
 
-func (m MeleeAttackComponent) ToSimple(_ HashLookup, _ ThinHashLookup) any {
+func (m MeleeAttackComponent) ToSimple(_ HashLookup, _ ThinHashLookup, _ StringsLookup) any {
 	return m
 }
 

@@ -64,7 +64,7 @@ type SimpleBeamWeaponComponent struct {
 	OnFireStoppedWielderAnimEvent string        `json:"on_fire_stopped_wielder_anim_event"`
 }
 
-func (b BeamWeaponComponent) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup) any {
+func (b BeamWeaponComponent) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookupStrings StringsLookup) any {
 	return SimpleBeamWeaponComponent{
 		Type:                          b.Type,
 		Prisms:                        b.Prisms,
