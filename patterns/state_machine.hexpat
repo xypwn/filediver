@@ -62,8 +62,8 @@ struct AnimationHashList {
     MurmurHash data[parent.parent.hashCount];
 };
 
-struct FloatList {
-    float data[parent.parent.floatCount];
+struct AnimationWeightList {
+    float data[parent.parent.animationWeightCount];
 };
 
 struct NANFloatList {
@@ -119,16 +119,23 @@ struct UnknownVectorList {
     PtrList<UnknownVectors, "relative_to_parents_parent"> vectors;
 };
 
-struct Animation {
+enum StateType : u32 {
+    Clip,
+    Empty,
+    AdditiveClip,
+    Blend
+};
+
+struct State {
     // This is the hash of a string like "Reload" or "reload_fast"
     // It can have Title_Case, underscores, and multiple words per name
     // It'll describe the animation(s) represented here
     MurmurHash name;
-    u32 unk00;
+    StateType type;
     u32 hashCount;
-    RebasedNullablePtr<AnimationHashList, u32, "relative_to_parents_parent"> hashes;
-    u32 floatCount;
-    RebasedNullablePtr<FloatList, u32, "relative_to_parents_parent"> floats;
+    RebasedNullablePtr<AnimationHashList, u32, "relative_to_parents_parent"> animation_hashes;
+    u32 animationWeightCount;
+    RebasedNullablePtr<AnimationWeightList, u32, "relative_to_parents_parent"> animation_weights;
     u32 unk01;
     u32 unk02;
     u32 unk03;
@@ -140,31 +147,34 @@ struct Animation {
     RebasedNullablePtr<UnknownVectorList, u32, "relative_to_parents_parent"> vectors;
     u32 wiiCount;
     RebasedNullablePtr<WeightIDIndexList, u32, "relative_to_parents_parent"> weightIdIndices;
-    u32 unk08;
-    float unk09;
+    ThinMurmurHash end_animation_event;
+    float end_animation_transition_time;
     u32 nanFloatCount;
     RebasedNullablePtr<NANFloatList, u32, "relative_to_parents_parent"> nanFloats;
-    u32 unk10[4];
-    u32 unk11;
-    u32 unk12;
+    u32 unk04[4];
+    u32 unk05;
+    s32 blend_mask_index;
     u32 unkValuesCount;
     RebasedNullablePtr<u32, u32, "relative_to_parents_parent"> unkValues;
     if(unkValuesCount > 1) std::print("unkValuesCount at {:x} is {:d}", $ - 8, unkValuesCount);
+    u32 blend_variable_index;
+    u32 unk06;
+    s32 unk07;
 };
 
-struct AnimationGroup {
+struct Layer {
     u32 magic;
-    u32 unk00;
-    PtrList<Animation, "relative_to_parents_parents_parent"> animations;
+    u32 default_state;
+    PtrList<State, "relative_to_parents_parents_parent"> states;
 };
 
 struct AnimationEventList {
     ThinMurmurHash items[parent.parent.animationEventsCount] [[inline]];
 };
 
-struct ThinHashFloatsList {
-    ThinMurmurHash keys[parent.parent.thinHashFloatsCount];
-    float values[parent.parent.thinHashFloatsCount];
+struct AnimationVariableMapEntryList {
+    ThinMurmurHash keys[parent.parent.animationVariablesCount];
+    float values[parent.parent.animationVariablesCount];
 };
 
 struct UnkFloatArray {
@@ -191,11 +201,11 @@ struct UnkData02List {
 struct StateMachine {
     u32 unk00;
     u32 count;
-    PtrList<AnimationGroup, "relative_to_parents_parent"> *groups : u32;
+    PtrList<Layer, "relative_to_parents_parent"> *layers : u32;
     u32 animationEventsCount;
-    RebasedNullablePtr<ThinHashList, u32, "absolute"> animationEvents;
-    u32 thinHashFloatsCount;
-    RebasedNullablePtr<ThinHashFloatsList, u32, "absolute"> thinHashFloats;
+    RebasedNullablePtr<AnimationEventList, u32, "absolute"> animationEvents;
+    u32 animationVariablesCount;
+    RebasedNullablePtr<AnimationVariableMapEntryList, u32, "absolute"> animationVariablesMap;
     u32 unkIntFloatDataCount;
     RebasedNullablePtr<UnkFloatArrayList, u32, "absolute"> unkIntFloatData;
     u32 unkData00Size;
