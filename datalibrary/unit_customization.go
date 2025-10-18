@@ -254,7 +254,7 @@ func (customization UnitCustomizationSettings) ToSimple(lookupHash func(stingray
 	return simpleSettings
 }
 
-func (customization UnitCustomizationComponent) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup) any {
+func (customization UnitCustomizationComponent) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookupStrings StringsLookup) any {
 	matOverrides := make([]SimpleUnitCustomizationMaterialOverrides, 0)
 	for _, override := range customization.MaterialsTexturesOverrides {
 		if override.MaterialID.Value == 0 {

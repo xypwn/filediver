@@ -23289,3 +23289,12 @@ fx_thumper_piston_down
 fx_thumper_piston_retract
 fx_thumper_piston_up
 directional_shield_draw
+reload_onehand
+reload_onehand_fast
+reload_fast_onehand
+firemode_l
+firemode_r
+firemode_switch_l
+firemode_switch_r
+switch_l
+switch_r

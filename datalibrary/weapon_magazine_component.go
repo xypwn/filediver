@@ -45,7 +45,7 @@ type SimpleWeaponMagazineComponent struct {
 	UnknownBool     bool                  `json:"unknown_bool"`
 }
 
-func (m WeaponMagazineComponent) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup) any {
+func (m WeaponMagazineComponent) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookupStrings StringsLookup) any {
 	var pattern SimpleMagazinePattern
 	pattern.Projectiles = make([]enum.ProjectileType, 0)
 	for _, projectile := range m.Pattern.Projectiles {

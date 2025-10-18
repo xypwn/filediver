@@ -60,7 +60,7 @@ type SimpleWeaponRoundsComponent struct {
 	MagazineAnimVariable string               `json:"magazine_anim_variable"` // [string]Do we have an animation variable that we care about?
 }
 
-func (w WeaponRoundsComponent) ToSimple(_ HashLookup, lookupThinHash ThinHashLookup) any {
+func (w WeaponRoundsComponent) ToSimple(_ HashLookup, lookupThinHash ThinHashLookup, _ StringsLookup) any {
 	return SimpleWeaponRoundsComponent{
 		AmmoInfo:             w.AmmoInfo,
 		AmmoType:             w.AmmoType,

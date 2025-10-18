@@ -127,7 +127,7 @@ type SimpleWeaponCustomizationComponent struct {
 	UnknownThinHash                         string                              `json:"unknown_thin_hash"`
 }
 
-func (component WeaponCustomizationComponent) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup) any {
+func (component WeaponCustomizationComponent) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookupStrings StringsLookup) any {
 	defaultCustomizations := make([]SimpleWeaponDefaultAttachment, 0)
 	for _, defaultCustomization := range component.DefaultCustomizations {
 		if defaultCustomization.Slot == enum.WeaponCustomizationSlot_None {

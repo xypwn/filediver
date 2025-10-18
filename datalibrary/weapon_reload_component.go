@@ -50,7 +50,7 @@ type SimpleWeaponReloadComponent struct {
 	ReloadVONoMagsNoBackpack string                          `json:"reload_vo_no_mags_no_backpack"` // [string]If VO event is present we play this when trying to reload but have no mags and no backpack.
 }
 
-func (w WeaponReloadComponent) ToSimple(_ HashLookup, lookupThinHash ThinHashLookup) any {
+func (w WeaponReloadComponent) ToSimple(_ HashLookup, lookupThinHash ThinHashLookup, _ StringsLookup) any {
 	reloadAnimEvents := make([]SimpleWeaponMagazineAnimEvent, 0)
 	for _, event := range w.ReloadAnimEvents {
 		if event.Type == enum.WeaponReloadEventType_None {

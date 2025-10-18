@@ -291,7 +291,7 @@ type SimpleHealthComponent struct {
 	UnknownBool3                     bool                         `json:"unknown_bool3"`                      // Name length 30 chars
 }
 
-func (w HealthComponent) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup) any {
+func (w HealthComponent) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookupStrings StringsLookup) any {
 	damageableZones := make([]SimpleDamageableZone, 0)
 	for _, zone := range w.DamageableZones {
 		if zone.Info.ZoneName.Value == 0 {

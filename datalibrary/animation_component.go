@@ -40,7 +40,7 @@ type SimpleAnimationComponent struct {
 	IgnoreInvisibileUnitsForLods bool                      `json:"ignore_invisible_units_for_lods"`
 }
 
-func (w AnimationComponent) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup) any {
+func (w AnimationComponent) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookupStrings StringsLookup) any {
 	variables := make([]SimpleAnimationVariable, 0)
 	for _, variable := range w.Variables {
 		if variable.Name.Value == 0 {

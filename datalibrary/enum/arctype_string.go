@@ -14,8 +14,8 @@ func _() {
 	_ = x[ArcType_ArcShotgun-3]
 	_ = x[ArcType_IlluminateObserverLightning-4]
 	_ = x[ArcType_Value_5_Len_21-5]
-	_ = x[ArcType_ArcThrower-6]
-	_ = x[ArcType_Value_7_Len_10-7]
+	_ = x[ArcType_Value_6_Len_10-6]
+	_ = x[ArcType_ArcThrower-7]
 	_ = x[ArcType_Value_8_Len_8-8]
 	_ = x[ArcType_IlluminateObelisk-9]
 	_ = x[ArcType_ArcThrower_MK2-10]
@@ -26,9 +26,9 @@ func _() {
 	_ = x[ArcType_Count-15]
 }
 
-const _ArcType_name = "ArcType_NoneArcType_IlluminateTripodArcType_ArcThrower_MK3ArcType_ArcShotgunArcType_IlluminateObserverLightningArcType_Value_5_Len_21ArcType_ArcThrowerArcType_Value_7_Len_10ArcType_Value_8_Len_8ArcType_IlluminateObeliskArcType_ArcThrower_MK2ArcType_IlluminateSummonerSpawnEffectArcType_TeslaTurretArcType_ArcThrower_MK4ArcType_Value_14_Len_21ArcType_Count"
+const _ArcType_name = "ArcType_NoneArcType_IlluminateTripodArcType_ArcThrower_MK3ArcType_ArcShotgunArcType_IlluminateObserverLightningArcType_Value_5_Len_21ArcType_Value_6_Len_10ArcType_ArcThrowerArcType_Value_8_Len_8ArcType_IlluminateObeliskArcType_ArcThrower_MK2ArcType_IlluminateSummonerSpawnEffectArcType_TeslaTurretArcType_ArcThrower_MK4ArcType_Value_14_Len_21ArcType_Count"
 
-var _ArcType_index = [...]uint16{0, 12, 36, 58, 76, 111, 133, 151, 173, 194, 219, 241, 278, 297, 319, 342, 355}
+var _ArcType_index = [...]uint16{0, 12, 36, 58, 76, 111, 133, 155, 173, 194, 219, 241, 278, 297, 319, 342, 355}
 
 func (i ArcType) String() string {
 	if i >= ArcType(len(_ArcType_index)-1) {

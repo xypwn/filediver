@@ -92,7 +92,7 @@ type SimpleWeaponChargeComponent struct {
 	StateValue              UnknownChargeStruct   `json:"state_value"`
 }
 
-func (w WeaponChargeComponent) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup) any {
+func (w WeaponChargeComponent) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookupStrings StringsLookup) any {
 	return SimpleWeaponChargeComponent{
 		ChargeStateSettings:     w.ChargeStateSettings,
 		ProjMultipliers:         w.ProjMultipliers,

@@ -9,8 +9,8 @@ const (
 	ArcType_ArcShotgun
 	ArcType_IlluminateObserverLightning
 	ArcType_Value_5_Len_21
+	ArcType_Value_6_Len_10
 	ArcType_ArcThrower
-	ArcType_Value_7_Len_10
 	ArcType_Value_8_Len_8
 	ArcType_IlluminateObelisk
 	ArcType_ArcThrower_MK2

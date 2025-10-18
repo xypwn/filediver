@@ -30,7 +30,7 @@ type SimpleUnitComponent struct {
 	OnHotjoinCorpseRepairAbilityPatch enum.AbilityId `json:"on_hotjoin_corpse_repair_ability_patch"`
 }
 
-func (w UnitComponent) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup) any {
+func (w UnitComponent) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookupStrings StringsLookup) any {
 	hiddenVisiblityGroups := make([]string, 0)
 	for _, hash := range w.HiddenVisibilityGroups {
 		if hash.Value == 0 {
