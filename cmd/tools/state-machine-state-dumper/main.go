@@ -63,7 +63,7 @@ func dumpStateMachineStates(ctx *extractor.Context) error {
 	graphml.XSINamespace = "http://www.w3.org/2001/XMLSchema-instance"
 	graphml.XSISchemaLocation = "http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd"
 	graphml.Groups = make([]GraphMLStateGroup, 0)
-	for grpIdx, group := range stateMachine.Groups {
+	for grpIdx, group := range stateMachine.Layers {
 		var graph GraphMLStateGroup
 		graph.EdgeDefault = "directed"
 		graph.Nodes = make([]GraphMLNode, 0)
