@@ -91,6 +91,8 @@ func getComponentDataForHash(componentType DLHash, resource stingray.Hash) ([]by
 		return getCharacterNameComponentDataForHash(resource)
 	case Sum("EnemyPackageComponentData"):
 		return getEnemyPackageComponentDataForHash(resource)
+	case Sum("FactionComponentData"):
+		return getFactionComponentDataForHash(resource)
 	case Sum("HealthComponentData"):
 		return getHealthComponentDataForHash(resource)
 	case Sum("LocalUnitComponentData"):
@@ -99,6 +101,8 @@ func getComponentDataForHash(componentType DLHash, resource stingray.Hash) ([]by
 		return getMeleeAttackComponentDataForHash(resource)
 	case Sum("ProjectileWeaponComponentData"):
 		return getProjectileWeaponComponentDataForHash(resource)
+	case Sum("TruthTransmitterFactionComponentData"):
+		return getTruthTransmitterFactionComponentDataForHash(resource)
 	case Sum("UnitComponentData"):
 		return getUnitComponentDataForHash(resource)
 	case Sum("UnitCustomizationComponentData"):
@@ -154,6 +158,12 @@ func parseComponent(componentType DLHash, data []byte) (Component, error) {
 			return nil, err
 		}
 		return toReturn, nil
+	case Sum("FactionComponentData"):
+		var toReturn FactionComponent
+		if _, err := binary.Decode(data, binary.LittleEndian, &toReturn); err != nil {
+			return nil, err
+		}
+		return toReturn, nil
 	case Sum("HealthComponentData"):
 		var toReturn HealthComponent
 		if _, err := binary.Decode(data, binary.LittleEndian, &toReturn); err != nil {
@@ -174,6 +184,12 @@ func parseComponent(componentType DLHash, data []byte) (Component, error) {
 		return toReturn, nil
 	case Sum("ProjectileWeaponComponentData"):
 		var toReturn ProjectileWeaponComponent
+		if _, err := binary.Decode(data, binary.LittleEndian, &toReturn); err != nil {
+			return nil, err
+		}
+		return toReturn, nil
+	case Sum("TruthTransmitterFactionComponentData"):
+		var toReturn TruthTransmitterFactionComponent
 		if _, err := binary.Decode(data, binary.LittleEndian, &toReturn); err != nil {
 			return nil, err
 		}
