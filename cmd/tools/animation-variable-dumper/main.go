@@ -18,7 +18,7 @@ import (
 	"github.com/xypwn/filediver/stingray/state_machine"
 )
 
-func dumpAnimationNames(a *app.App, fileID stingray.FileID) error {
+func dumpAnimationVariableHashes(a *app.App, fileID stingray.FileID) error {
 	bs, err := a.DataDir.Read(fileID, stingray.DataMain)
 	if err != nil {
 		return err
@@ -27,14 +27,13 @@ func dumpAnimationNames(a *app.App, fileID stingray.FileID) error {
 	if err != nil {
 		return err
 	}
-	for _, group := range stateMachine.Layers {
-		for _, state := range group.States {
-			knownName, ok := a.Hashes[state.Name]
-			if ok {
-				fmt.Println(knownName)
-			} else {
-				fmt.Println(state.Name.String())
-			}
+
+	for _, eventHash := range stateMachine.AnimationVariableNames {
+		knownName, ok := a.ThinHashes[eventHash]
+		if ok {
+			fmt.Println(knownName)
+		} else {
+			fmt.Println(eventHash.String())
 		}
 	}
 	return nil
@@ -69,7 +68,7 @@ func main() {
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
 			prt.NoStatus()
-			prt.Warnf("Animation name dump canceled")
+			prt.Warnf("Animation event hash dump canceled")
 			return
 		} else {
 			prt.Fatalf("%v", err)
@@ -85,10 +84,10 @@ func main() {
 	for fileID := range files {
 		var cfg appconfig.Config
 		config.InitDefault(&cfg)
-		if err := dumpAnimationNames(a, fileID); err != nil {
+		if err := dumpAnimationVariableHashes(a, fileID); err != nil {
 			if errors.Is(err, context.Canceled) {
 				prt.NoStatus()
-				prt.Warnf("Name dump canceled, exiting cleanly")
+				prt.Warnf("Animation event hash canceled, exiting cleanly")
 				return
 			} else {
 				prt.Errorf("%v", err)
