@@ -95,14 +95,81 @@ func AddAnimationSet(ctx *extractor.Context, doc *gltf.Document, unitInfo *unit.
 		return fmt.Errorf("add animation set: failed to load bones with error: %v", err)
 	}
 
+	extras, ok := doc.Extras.(map[string]any)
+	if !ok {
+		extras = make(map[string]any)
+	}
+
+	variableList := make([]map[string]any, 0)
+	for idx, hash := range stateMachine.AnimationVariableNames {
+		variableName := ctx.LookupThinHash(hash)
+		variableList = append(variableList, map[string]any{
+			"name":    variableName,
+			"default": stateMachine.AnimationVariableValues[idx],
+		})
+	}
+	extras["animation_variables"] = variableList
+	doc.Extras = extras
+
+	layers := make([]map[string]any, 0)
+
 	for _, group := range stateMachine.Layers {
+		layerExtras := make(map[string]any)
 		for _, anim := range group.States {
-			err := animation.AddAnimation(ctx, doc, boneInfo, anim)
+			layerExtras, err = animation.AddState(ctx, doc, boneInfo, anim, layerExtras)
 			if err != nil {
 				ctx.Warnf("add animation set: %v", err)
 			}
 		}
+		layers = append(layers, layerExtras)
 	}
+
+	resolvedAnimationEvents := make([]string, 0)
+	for _, event := range stateMachine.AnimationEventHashes {
+		resolvedAnimationEvents = append(resolvedAnimationEvents, ctx.LookupThinHash(event))
+	}
+
+	resolvedBlendMasks := make([]map[string]float32, 0)
+	for _, blendMask := range stateMachine.BlendMaskList {
+		resolved := make(map[string]float32)
+		for boneIdx, value := range blendMask {
+			if value == 0 {
+				continue
+			}
+			boneName := ctx.LookupThinHash(boneInfo.Hashes[boneIdx])
+			resolved[boneName] = value
+		}
+		resolvedBlendMasks = append(resolvedBlendMasks, resolved)
+	}
+
+	extras, ok = doc.Extras.(map[string]any)
+	if !ok {
+		return fmt.Errorf("add animation set: programming error: how?")
+	}
+
+	var stateMachines []map[string]any
+	stateMachinesAny, ok := extras["state_machines"]
+	if !ok {
+		stateMachines = make([]map[string]any, 0)
+	} else {
+		stateMachines, ok = stateMachinesAny.([]map[string]any)
+		if !ok {
+			return fmt.Errorf("add animation set: failed to parse state machines list")
+		}
+	}
+	stateMachines = append(stateMachines, map[string]any{
+		"name":                ctx.LookupHash(unitInfo.StateMachine),
+		"layers":              layers,
+		"animation_events":    resolvedAnimationEvents,
+		"animation_variables": variableList,
+		"blend_masks":         resolvedBlendMasks,
+	})
+
+	extras["state_machines"] = stateMachines
+
+	delete(extras, "animation_variables")
+
+	doc.Extras = extras
 
 	return nil
 }
