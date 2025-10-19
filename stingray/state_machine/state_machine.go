@@ -17,7 +17,9 @@ const (
 	StateType_Clip StateType = iota
 	StateType_Empty
 	StateType_CustomBlend
-	StateType_Blend
+	StateType_Blend1D
+	StateType_Blend2D
+	StateType_Ragdoll
 )
 
 func (s StateType) MarshalText() ([]byte, error) {
@@ -134,8 +136,9 @@ type CustomBlendFunctionType uint32
 
 const (
 	CustomBlendFunctionType_Null         CustomBlendFunctionType = 0x3f800000
-	CustomBlendFunctionType_MatchRange2d CustomBlendFunctionType = 0x7f80000c
+	CustomBlendFunctionType_Divide       CustomBlendFunctionType = 0x7f800003
 	CustomBlendFunctionType_MatchRange   CustomBlendFunctionType = 0x7f80000b
+	CustomBlendFunctionType_MatchRange2d CustomBlendFunctionType = 0x7f80000c
 )
 
 func (c CustomBlendFunctionType) String() string {
@@ -143,6 +146,8 @@ func (c CustomBlendFunctionType) String() string {
 		return fmt.Sprintf("invalid CustomBlendFunctionType: %x", uint32(c))
 	}
 	switch c {
+	case CustomBlendFunctionType_Divide:
+		return "divide"
 	case CustomBlendFunctionType_MatchRange2d:
 		return "match_range_2d"
 	case CustomBlendFunctionType_MatchRange:
@@ -226,7 +231,18 @@ func ParseBlendFunction(data []uint32) ([]CustomBlendFunction, error) {
 					math.Float32frombits(functionData[3]), // t2
 				},
 			})
-		case CustomBlendFunctionType_Null:
+		case CustomBlendFunctionType_Divide:
+			if len(functionData) != 3 {
+				return nil, fmt.Errorf("ParseBlendFunction: divide did not have enough parameters: expected 3, got %v", len(functionData))
+			}
+			toReturn = append(toReturn, CustomBlendFunction{
+				Function: CustomBlendFunctionType(functionData[2]),
+				Parameters: []any{
+					getVariableIdx(functionData[0]),       // Variable 1 index
+					math.Float32frombits(functionData[1]), // t0
+				},
+			})
+		case CustomBlendFunctionType_Null, CustomBlendFunctionType(0):
 			// Do nothing
 		default:
 			params := make([]any, 0)
@@ -262,6 +278,54 @@ func (f CustomBlendFunction) MarshalText() ([]byte, error) {
 		}
 	}
 	return []byte(fmt.Sprintf("%v(%v)", f.Function.String(), params)), nil
+}
+
+func (f CustomBlendFunction) ToDriver(variables []string) (string, error) {
+	switch f.Function {
+	case CustomBlendFunctionType_MatchRange:
+		idx, okIdx := f.Parameters[0].(uint32)
+		t0, okT0 := f.Parameters[1].(float32)
+		t1, okT1 := f.Parameters[2].(float32)
+		t2, okT2 := f.Parameters[3].(float32)
+		if !(okIdx && okT0 && okT1 && okT2) {
+			return "", fmt.Errorf("CustomBlendFunction.ToDriver: invalid parameter types for match_range_2d")
+		}
+		if idx >= uint32(len(variables)) {
+			return "", fmt.Errorf("CustomBlendFunction.ToDriver: variable index exceeds length of provided variable names slice")
+		}
+		variableName := variables[idx]
+		return fmt.Sprintf("smoothstep(%v, %v, %v) - smoothstep(%v, %v, %v)", t0, t1, variableName, t1, t2, variableName), nil
+	case CustomBlendFunctionType_MatchRange2d:
+		idx0, okIdx0 := f.Parameters[0].(uint32)
+		t0, okT0 := f.Parameters[1].(float32)
+		t1, okT1 := f.Parameters[2].(float32)
+		t2, okT2 := f.Parameters[3].(float32)
+		idx1, okIdx1 := f.Parameters[4].(uint32)
+		s0, okS0 := f.Parameters[5].(float32)
+		s1, okS1 := f.Parameters[6].(float32)
+		s2, okS2 := f.Parameters[7].(float32)
+		if !(okIdx0 && okT0 && okT1 && okT2 && okIdx1 && okS0 && okS1 && okS2) {
+			return "", fmt.Errorf("CustomBlendFunction.ToDriver: invalid parameter types for match_range_2d")
+		}
+		if idx0 >= uint32(len(variables)) {
+			return "", fmt.Errorf("CustomBlendFunction.ToDriver: variable index 0 exceeds length of provided variable names slice")
+		}
+		if idx1 >= uint32(len(variables)) {
+			return "", fmt.Errorf("CustomBlendFunction.ToDriver: variable index 1 exceeds length of provided variable names slice")
+		}
+		variableName0 := variables[idx0]
+		variableName1 := variables[idx1]
+		return fmt.Sprintf("(smoothstep(%v, %v, %v) - smoothstep(%v, %v, %v)) * (smoothstep(%v, %v, %v) - smoothstep(%v, %v, %v))", t0, t1, variableName0, t1, t2, variableName0, s0, s1, variableName1, s1, s2, variableName1), nil
+	case CustomBlendFunctionType_Divide:
+		idx, okIdx := f.Parameters[0].(uint32)
+		divisor, ok := f.Parameters[1].(float32)
+		if !(okIdx && ok) {
+			return "", fmt.Errorf("CustomBlendFunction.ToDriver: invalid parameter types for divide")
+		}
+		return fmt.Sprintf("(%v / %v)", variables[idx], divisor), nil
+	default:
+		return "", fmt.Errorf("CustomBlendFunction.ToDriver: unimplemented function %v", f.Function.String())
+	}
 }
 
 type State struct {
