@@ -10,6 +10,7 @@ from bpy.types import BlendData, Image, Object, ShaderNodeGroup, ShaderNodeTexIm
 from pathlib import Path
 from io import BytesIO
 from typing import Optional, Dict, List, Tuple
+from types import ModuleType
 from random import randint
 
 from dds_float16 import DDS
@@ -215,6 +216,145 @@ def add_lut_skin_material(skin_mat: Material, material: dict, textures: Dict[str
     config_nodes["Value"].outputs[0].default_value = float(randint(0, 4))
     return object_mat
 
+def load_shaders(resource_path: str) -> Tuple[ModuleType, Material, Material, Material]:
+    shader_script = bpy.data.texts.load(str(resource_path / "Helldivers2 shader script v1.0.6-1.py"))
+    shader_script.use_fake_user = True
+    shader_module = shader_script.as_module()
+    with bpy.data.libraries.load(str(resource_path / "Helldivers2 Shader v1.0.5.blend")) as (shader_blend, our_blend):
+        our_blend: BlendData # not actually but they share member names 
+        shader_blend: BlendData
+        our_blend.materials = shader_blend.materials
+    shader_mat = bpy.data.materials["HD2 Shader"]
+    shader_mat.use_fake_user = True
+    skin_mat = bpy.data.materials["HD2 Skin"]
+    skin_mat.use_fake_user = True
+    lut_skin_mat = bpy.data.materials["HD2 LUT Skin"]
+    lut_skin_mat.use_fake_user = True
+    return shader_module, shader_mat, skin_mat, lut_skin_mat
+
+def create_empty_texture(name: str, size: Tuple[int, int], fmt: str = 'PNG', colorspace: str = 'sRGB', alpha_mode: str = 'CHANNEL_PACKED') -> Image:
+    unused_texture = bpy.data.images.new(name, size[0], size[1], alpha=True, float_buffer=True)
+    #unused_texture.pixels[3] = 0.0
+    exr = OpenEXR.from_pixels(np.zeros((size[1], size[0], 4), dtype=np.float32)).serialize()
+    unused_texture.use_fake_user = True
+    unused_texture.pack(data=exr, data_len=len(exr))
+    unused_texture.source = "FILE"
+    unused_texture.file_format = fmt
+    unused_texture.colorspace_settings.name = colorspace
+    unused_texture.alpha_mode = alpha_mode
+    return unused_texture
+
+def add_to_armor_set(node: Dict):
+    if node["extras"]["armorSet"] not in bpy.data.collections:
+        bpy.data.collections.new(node["extras"]["armorSet"])
+        bpy.data.scenes[0].collection.children.link(bpy.data.collections[node["extras"]["armorSet"]])
+    collection: Collection = bpy.data.collections[node["extras"]["armorSet"]]
+    obj: Object = None
+    for object in bpy.data.objects:
+        if object.name.startswith(node["name"]) and object.name not in collection.objects:
+            obj = object
+            break
+    if obj is None:
+        return
+    for other in obj.users_collection:
+        other.objects.unlink(obj)
+    collection.objects.link(obj)
+
+def convert_materials(gltf: Dict, node: Dict, variants: List[Dict], hasVariants: bool, materialTextures: Dict[int, Dict[str, Image]], packall: bool, shader_module: ModuleType, shader_mat: Material, skin_mat: Material, lut_skin_mat: Material, unused_texture: Image, unused_secondary_lut: Image):
+    optional_usages = ["decal_sheet", "pattern_masks_array"]
+
+    mesh = gltf["meshes"][node["mesh"]]
+    textures: Dict[str, Image] = {}
+    obj: Object = None
+    for primIdx, primitive in enumerate(mesh["primitives"]):
+        for varIdx in range(len(variants)):
+            if "material" not in primitive:
+                continue
+            materialIndex = primitive["material"]
+            mappings = primitive.get("extensions", {}).get("KHR_materials_variants", {}).get("mappings")
+            if hasVariants and mappings is not None:
+                for mapping in mappings:
+                    if varIdx in mapping["variants"]:
+                        materialIndex = mapping["material"]
+                        break
+            material = gltf["materials"][materialIndex]
+            if obj is None:
+                for item in bpy.data.objects:
+                    if item.active_material and item.active_material.name == material["name"]:
+                        obj: Object = item
+                        break
+            is_pbr = "albedo" in material["extras"] or "albedo_iridescence" in material["extras"] or "normal" in material["extras"]
+            is_tex_array_skin = "color_roughness" in material["extras"] and "normal_specular_ao" in material["extras"] and len(material["extras"]) == 2
+            is_lut_skin = "grayscale_skin" in material["extras"] and "color_roughness_lut" in material["extras"]
+            is_lut = "material_lut" in material["extras"]
+            if materialIndex in materialTextures:
+                textures = materialTextures[materialIndex]
+            else:
+                if len(material["extras"]) == 0 or not any((is_pbr, is_tex_array_skin, is_lut_skin, is_lut)):
+                    continue
+                if not packall and is_pbr:
+                    continue
+                print(f"    Packing textures for material {material['name']}")
+                try:
+                    for usage, texIdx in material["extras"].items():
+                        if type(texIdx) != int:
+                            continue
+                        textures[usage] = add_texture(gltf, texIdx, usage)
+                    for usage in optional_usages:
+                        if usage not in textures:
+                            textures[usage] = unused_texture
+                    materialTextures[materialIndex] = textures
+                except AssertionError as e:
+                    print(f"Error: {e}")
+                    continue
+                if is_pbr:
+                    continue
+
+            key = "HD2 Mat " + material["name"]
+            i = 1
+            while key in bpy.data.materials and bpy.data.materials[key]["gltfId"] != materialIndex:
+                key = "HD2 Mat " + material["name"] + f".{i:03d}"
+                i += 1
+            if not key in bpy.data.materials:
+                print("    Copying template material")
+                if is_lut:
+                    object_mat = add_accurate_material(shader_mat, material, shader_module, unused_secondary_lut, textures)
+                elif is_tex_array_skin:
+                    object_mat = add_skin_material(skin_mat, material, textures)
+                elif is_lut_skin:
+                    object_mat = add_lut_skin_material(lut_skin_mat, material, textures)
+                object_mat["gltfId"] = materialIndex
+            else:
+                print(f"    Found existing material '{key}'")
+                object_mat = bpy.data.materials[key]
+
+            obj.material_slots[primIdx].material = object_mat
+            if hasVariants:
+                # Taken from gltf2 extension
+                mesh = obj.data
+                found = False
+                variant_found = False
+                for i in mesh.gltf2_variant_mesh_data:
+                    if i.material_slot_index == primIdx and i.material == object_mat:
+                        found = True
+                        variant_primitive = i
+                    elif i.material_slot_index == primIdx and varIdx == i.variants[0].variant.variant_idx:
+                        found = True
+                        variant_found = True
+                        variant_primitive = i
+                        i.material = object_mat
+                if not found:
+                    variant_primitive = obj.data.gltf2_variant_mesh_data.add()
+                    variant_primitive.material_slot_index = primIdx
+                    variant_primitive.material = object_mat
+                if not variant_found:
+                    vari = variant_primitive.variants.add()
+                    vari.variant.variant_idx = varIdx
+
+    shader_module.add_bake_uvs(obj)
+    obj.select_set(True)
+    print(f"Applied material to {node['name']}!")
+
 def main():
     parser = ArgumentParser("hd2_accurate_blender_importer")
     parser.add_argument("input_model", type=Path, help="Path to filediver-exported .glb to import into a .blend file")
@@ -256,37 +396,10 @@ def main():
         if tmp_file:
             os.unlink(tmp_file.name)
     print("Loading TheJudSub's HD2 accurate shader")
-    shader_script = bpy.data.texts.load(str(resource_path / "Helldivers2 shader script v1.0.6-1.py"))
-    shader_script.use_fake_user = True
-    shader_module = shader_script.as_module()
-    with bpy.data.libraries.load(str(resource_path / "Helldivers2 Shader v1.0.5.blend")) as (shader_blend, our_blend):
-        our_blend: BlendData # not actually but they share member names 
-        shader_blend: BlendData
-        our_blend.materials = shader_blend.materials
-    shader_mat = bpy.data.materials["HD2 Shader"]
-    shader_mat.use_fake_user = True
-    skin_mat = bpy.data.materials["HD2 Skin"]
-    skin_mat.use_fake_user = True
-    lut_skin_mat = bpy.data.materials["HD2 LUT Skin"]
-    lut_skin_mat.use_fake_user = True
+    shader_module, shader_mat, skin_mat, lut_skin_mat = load_shaders(resource_path)
 
-    optional_usages = ["decal_sheet", "pattern_masks_array"]
-    unused_texture = bpy.data.images.new("unused", 1, 1, alpha=True, float_buffer=True)
-    #unused_texture.pixels[3] = 0.0
-    exr = OpenEXR.from_pixels(np.zeros((1, 1, 4), dtype=np.float32)).serialize()
-    unused_texture.use_fake_user = True
-    unused_texture.pack(data=exr, data_len=len(exr))
-    unused_texture.source = "FILE"
-    unused_texture.file_format = "PNG"
-
-    unused_secondary_lut = bpy.data.images.new("unused_secondary_lut", 23, 1, alpha=True)
-    exr = OpenEXR.from_pixels(np.zeros((1, 23, 4), dtype=np.float32)).serialize()
-    unused_secondary_lut.file_format = "OPEN_EXR"
-    unused_secondary_lut.use_fake_user = True
-    unused_secondary_lut.colorspace_settings.name = "Non-Color"
-    unused_secondary_lut.alpha_mode = "CHANNEL_PACKED"
-    unused_secondary_lut.pack(data=exr, data_len=len(exr))
-    unused_secondary_lut.source = "FILE"
+    unused_texture = create_empty_texture("unused", (1, 1))
+    unused_secondary_lut = create_empty_texture("unused_secondary_lut", (23, 1), fmt='OPEN_EXR', colorspace='Non-Color')
 
     materialTextures: Dict[int, Dict[str, Image]] = {}
 
@@ -301,122 +414,20 @@ def main():
             "name": "default"
         }]
 
-    print("Applying materials to meshes...")
+    print("Applying helldivers customizations...")
     for node in gltf["nodes"]:
-        if "extras" in node and "armorSet" in node["extras"]:
-            if node["extras"]["armorSet"] not in bpy.data.collections:
-                bpy.data.collections.new(node["extras"]["armorSet"])
-                bpy.data.scenes[0].collection.children.link(bpy.data.collections[node["extras"]["armorSet"]])
-            collection: Collection = bpy.data.collections[node["extras"]["armorSet"]]
-            obj: Object = None
-            for object in bpy.data.objects:
-                if object.name.startswith(node["name"]) and object.name not in collection.objects:
-                    obj = object
-                    break
-            if obj is not None:
-                for other in obj.users_collection:
-                    other.objects.unlink(obj)
-                collection.objects.link(obj)
-        if "extras" in node and "default_hidden" in node["extras"] and node["extras"]["default_hidden"] == 1 and node["name"] in bpy.data.objects:
+        if node.get("extras", {}).get("armorSet") is not None:
+            add_to_armor_set(node)
+        if node.get("extras", {}).get("default_hidden") == 1 and node["name"] in bpy.data.objects:
             obj = bpy.data.objects[node["name"]]
             obj.hide_render = True
             obj.hide_set(True)
-        if "mesh" not in node:
-            if node["name"] in bpy.data.objects and "children" in node and gltf["nodes"][node["children"][0]]["name"] == "StingrayEntityRoot":
-                object = bpy.data.objects[node["name"]]
-                object.data.display_type = "WIRE"
-            continue
-        mesh = gltf["meshes"][node["mesh"]]
-        textures: Dict[str, Image] = {}
-        obj = None
-        for primIdx, primitive in enumerate(mesh["primitives"]):
-            for varIdx in range(len(variants)):
-                if "material" not in primitive:
-                    continue
-                materialIndex = primitive["material"]
-                mappings = primitive.get("extensions", {}).get("KHR_materials_variants", {}).get("mappings")
-                if hasVariants and mappings is not None:
-                    for mapping in mappings:
-                        if varIdx in mapping["variants"]:
-                            materialIndex = mapping["material"]
-                            break
-                material = gltf["materials"][materialIndex]
-                if obj is None:
-                    for item in bpy.data.objects:
-                        if item.active_material and item.active_material.name.startswith(material["name"]) and item.name.startswith(node["name"]) and len(mesh["primitives"]) == len(item.material_slots):
-                            obj: Object = item
-                            break
-                is_pbr = "albedo" in material["extras"] or "albedo_iridescence" in material["extras"] or "normal" in material["extras"]
-                is_tex_array_skin = "color_roughness" in material["extras"] and "normal_specular_ao" in material["extras"] and len(material["extras"]) == 2
-                is_lut_skin = "grayscale_skin" in material["extras"] and "color_roughness_lut" in material["extras"]
-                is_lut = "material_lut" in material["extras"]
-                if materialIndex in materialTextures:
-                    textures = materialTextures[materialIndex]
-                else:
-                    if len(material["extras"]) == 0 or not any((is_pbr, is_tex_array_skin, is_lut_skin, is_lut)):
-                        continue
-                    if not args.packall and is_pbr:
-                        continue
-                    print(f"    Packing textures for material {material['name']}")
-                    try:
-                        for usage, texIdx in material["extras"].items():
-                            if type(texIdx) != int:
-                                continue
-                            textures[usage] = add_texture(gltf, texIdx, usage)
-                        for usage in optional_usages:
-                            if usage not in textures:
-                                textures[usage] = unused_texture
-                        materialTextures[materialIndex] = textures
-                    except AssertionError as e:
-                        print(f"Error: {e}")
-                        continue
-                    if is_pbr:
-                        continue
-
-                key = "HD2 Mat " + material["name"]
-                i = 1
-                while key in bpy.data.materials and bpy.data.materials[key]["gltfId"] != materialIndex:
-                    key = "HD2 Mat " + material["name"] + f".{i:03d}"
-                    i += 1
-                if not key in bpy.data.materials:
-                    print("    Copying template material")
-                    if is_lut:
-                        object_mat = add_accurate_material(shader_mat, material, shader_module, unused_secondary_lut, textures)
-                    elif is_tex_array_skin:
-                        object_mat = add_skin_material(skin_mat, material, textures)
-                    elif is_lut_skin:
-                        object_mat = add_lut_skin_material(lut_skin_mat, material, textures)
-                    object_mat["gltfId"] = materialIndex
-                else:
-                    print(f"    Found existing material '{key}'")
-                    object_mat = bpy.data.materials[key]
-
-                obj.material_slots[primIdx].material = object_mat
-                if hasVariants:
-                    # Taken from gltf2 extension
-                    mesh = obj.data
-                    found = False
-                    variant_found = False
-                    for i in mesh.gltf2_variant_mesh_data:
-                        if i.material_slot_index == primIdx and i.material == object_mat:
-                            found = True
-                            variant_primitive = i
-                        elif i.material_slot_index == primIdx and varIdx == i.variants[0].variant.variant_idx:
-                            found = True
-                            variant_found = True
-                            variant_primitive = i
-                            i.material = object_mat
-                    if not found:
-                        variant_primitive = obj.data.gltf2_variant_mesh_data.add()
-                        variant_primitive.material_slot_index = primIdx
-                        variant_primitive.material = object_mat
-                    if not variant_found:
-                        vari = variant_primitive.variants.add()
-                        vari.variant.variant_idx = varIdx
-
-        shader_module.add_bake_uvs(obj)
-        obj.select_set(True)
-        print(f"Applied material to {node['name']}!")
+        if "mesh" in node:
+            convert_materials(gltf, node, variants, hasVariants, materialTextures, args.packall, shader_module, shader_mat, skin_mat, lut_skin_mat, unused_texture, unused_secondary_lut)
+        children = node.get("children")
+        if node["name"] in bpy.data.objects and children is not None and gltf["nodes"][children[0]]["name"] == "StingrayEntityRoot":
+            object = bpy.data.objects[node["name"]]
+            object.data.display_type = "WIRE"
 
     if hasVariants:
         # Reset to default variant
