@@ -156,33 +156,33 @@ func addState(ctx *extractor.Context, doc *gltf.Document, boneInfo *bones.Info, 
 	return &toReturn, nil
 }
 
-func AddStateMachine(ctx *extractor.Context, doc *gltf.Document, unitInfo *unit.Info) error {
+func AddStateMachine(ctx *extractor.Context, doc *gltf.Document, unitInfo *unit.Info) (int32, error) {
 	if unitInfo.StateMachine.Value == 0 {
 		// No state machine to add, but not an error
-		return nil
+		return -1, nil
 	}
 
 	smMainR, err := ctx.Open(stingray.NewFileID(unitInfo.StateMachine, stingray.Sum("state_machine")), stingray.DataMain)
 	if err == stingray.ErrFileNotExist {
-		return fmt.Errorf("add state machine: unit's state machine %v does not exist", unitInfo.StateMachine.String())
+		return -1, fmt.Errorf("add state machine: unit's state machine %v does not exist", unitInfo.StateMachine.String())
 	}
 	if err != nil {
-		return fmt.Errorf("add state machine: failed to open state machine main file with error: %v", err)
+		return -1, fmt.Errorf("add state machine: failed to open state machine main file with error: %v", err)
 	}
 
 	stateMachine, err := state_machine.LoadStateMachine(smMainR)
 	if err != nil {
-		return fmt.Errorf("add state machine: failed to load state machine with error: %v", err)
+		return -1, fmt.Errorf("add state machine: failed to load state machine with error: %v", err)
 	}
 
 	bonesMainR, err := ctx.Open(stingray.NewFileID(unitInfo.BonesHash, stingray.Sum("bones")), stingray.DataMain)
 	if err == stingray.ErrFileNotExist {
-		return fmt.Errorf("add state machine: unit's bones file %v does not exist", unitInfo.BonesHash.String())
+		return -1, fmt.Errorf("add state machine: unit's bones file %v does not exist", unitInfo.BonesHash.String())
 	}
 
 	boneInfo, err := bones.LoadBones(bonesMainR)
 	if err != nil {
-		return fmt.Errorf("add state machine: failed to load bones with error: %v", err)
+		return -1, fmt.Errorf("add state machine: failed to load bones with error: %v", err)
 	}
 
 	variableList := make([]gltfAnimationVariable, 0)
@@ -241,9 +241,10 @@ func AddStateMachine(ctx *extractor.Context, doc *gltf.Document, unitInfo *unit.
 	} else {
 		stateMachines, ok = stateMachinesAny.([]gltfStateMachine)
 		if !ok {
-			return fmt.Errorf("add state machine: failed to parse state machines list")
+			return -1, fmt.Errorf("add state machine: failed to parse state machines list")
 		}
 	}
+	index := int32(len(stateMachines))
 	stateMachines = append(stateMachines, gltfStateMachine{
 		NameHash:           unitInfo.StateMachine,
 		Name:               ctx.LookupHash(unitInfo.StateMachine),
@@ -256,5 +257,5 @@ func AddStateMachine(ctx *extractor.Context, doc *gltf.Document, unitInfo *unit.
 	extras["state_machines"] = stateMachines
 	doc.Extras = extras
 
-	return nil
+	return index, nil
 }
