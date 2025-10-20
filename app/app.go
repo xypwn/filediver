@@ -238,7 +238,7 @@ func getFileMetadata(dataDir *stingray.DataDir) map[stingray.FileID]FileMetadata
 	return metadata
 }
 
-func LoadSkinOverrides(dataDir *stingray.DataDir, languageMap map[uint32]string) []datalib.UnitSkinOverrideGroup {
+func LoadSkinOverrides(dataDir *stingray.DataDir, languageMap map[uint32]string) ([]datalib.UnitSkinOverrideGroup, error) {
 	var getResource datalib.GetResourceFunc = func(id stingray.FileID, typ stingray.DataType) (data []byte, exists bool, err error) {
 		fileInfo, ok := dataDir.Files[id]
 		if !ok || !fileInfo[0].Exists(typ) {
@@ -247,12 +247,11 @@ func LoadSkinOverrides(dataDir *stingray.DataDir, languageMap map[uint32]string)
 		exists = true
 		data, err = dataDir.Read(id, typ)
 		return
-
 	}
 
 	customizationSettings, err := datalib.ParseUnitCustomizationSettings(getResource, languageMap)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("error parsing unit customization settings: %v\n", err)
 	}
 
 	var hellpodIdx int = -1
@@ -281,10 +280,10 @@ func LoadSkinOverrides(dataDir *stingray.DataDir, languageMap map[uint32]string)
 		skinOverrideGroups = append(skinOverrideGroups, setting.GetSkinOverrideGroup())
 	}
 
-	return skinOverrideGroups
+	return skinOverrideGroups, nil
 }
 
-func LoadPaintSchemes(dataDir *stingray.DataDir, languageMap map[uint32]string) []datalib.WeaponCustomizableItem {
+func LoadPaintSchemes(dataDir *stingray.DataDir, languageMap map[uint32]string) ([]datalib.WeaponCustomizableItem, error) {
 	var getResource datalib.GetResourceFunc = func(id stingray.FileID, typ stingray.DataType) (data []byte, exists bool, err error) {
 		fileInfo, ok := dataDir.Files[id]
 		if !ok || !fileInfo[0].Exists(typ) {
@@ -298,7 +297,7 @@ func LoadPaintSchemes(dataDir *stingray.DataDir, languageMap map[uint32]string) 
 
 	weaponCustomizations, err := datalib.ParseWeaponCustomizationSettings(getResource, languageMap)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("error parsing weapon customization settings: %v", err)
 	}
 
 	for _, customization := range weaponCustomizations {
@@ -306,11 +305,11 @@ func LoadPaintSchemes(dataDir *stingray.DataDir, languageMap map[uint32]string) 
 			continue
 		}
 		if customization.Items[0].Slots[0] == enum.WeaponCustomizationSlot_PaintScheme {
-			return customization.Items
+			return customization.Items, nil
 		}
 	}
 
-	return nil
+	return nil, fmt.Errorf("could not find any weapon customization settings?")
 }
 
 // Open game dir and read metadata.
@@ -340,12 +339,18 @@ func OpenGameDir(ctx context.Context, gameDir string, hashStrings []string, thin
 
 	armorSets, err := datalib.LoadArmorSetDefinitions(mapping)
 	if err != nil {
-		return nil, fmt.Errorf("LoadArmorSetDefinitions: %v", err)
+		return nil, fmt.Errorf("error loading armor set definitions: %v", err)
 	}
 
-	skinOverrideGroups := LoadSkinOverrides(dataDir, mapping)
+	skinOverrideGroups, err := LoadSkinOverrides(dataDir, mapping)
+	if err != nil {
+		return nil, fmt.Errorf("error loading skin overrides: %v", err)
+	}
 
-	weaponPaintSchemes := LoadPaintSchemes(dataDir, mapping)
+	weaponPaintSchemes, err := LoadPaintSchemes(dataDir, mapping)
+	if err != nil {
+		return nil, fmt.Errorf("error loading weapon paint schemes: %v", err)
+	}
 
 	return &App{
 		Hashes:             hashesMap,
