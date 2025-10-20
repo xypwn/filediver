@@ -375,6 +375,25 @@ Options:`)
 					unknownBone[bone.NameHash.String()] = true
 				}
 			}
+			for _, light := range unitInfo.Lights {
+				if *optThinToFind != "" && stingray.Sum(*optThinToFind).Thin() == light.NameHash {
+					unitName, exists := a.Hashes[id.Name]
+					if !exists {
+						unitName = id.Name.String()
+					}
+					fmt.Printf("%v.unit\n", unitName)
+					unitCount++
+					break
+				} else if *optThinToFind != "" {
+					continue
+				}
+
+				if name, exists := a.ThinHashes[light.NameHash]; exists {
+					knownBone[name] = true
+				} else {
+					unknownBone[light.NameHash.String()] = true
+				}
+			}
 			for mat := range unitInfo.Materials {
 				if *optThinToFind != "" && stingray.Sum(*optThinToFind).Thin() == mat {
 					unitName, exists := a.Hashes[id.Name]
