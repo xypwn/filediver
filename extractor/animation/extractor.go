@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/go-gl/mathgl/mgl32"
@@ -14,7 +15,6 @@ import (
 	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/stingray/animation"
 	"github.com/xypwn/filediver/stingray/bones"
-	"github.com/xypwn/filediver/stingray/state_machine"
 )
 
 func ExtractAnimationJson(ctx *extractor.Context) error {
@@ -66,7 +66,7 @@ func getTargetNode(doc *gltf.Document, boneInfo *bones.Info, boneIdx uint32) (ui
 	return 0, fmt.Errorf("could not find bone %v in document", boneInfo.NameMap[boneInfo.Hashes[boneIdx]])
 }
 
-func addAnimation(ctx *extractor.Context, doc *gltf.Document, boneInfo *bones.Info, path stingray.Hash) (uint32, error) {
+func AddAnimation(ctx *extractor.Context, doc *gltf.Document, boneInfo *bones.Info, path stingray.Hash) (uint32, error) {
 	cfg := ctx.Config()
 
 	mainR, err := ctx.Open(stingray.NewFileID(path, stingray.Sum("animation")), stingray.DataMain)
@@ -310,7 +310,18 @@ func addAnimation(ctx *extractor.Context, doc *gltf.Document, boneInfo *bones.In
 	}
 	animationName := ctx.LookupHash(path)
 	if strings.Contains(animationName, "/") {
-		animationName = filepath.Base(animationName)
+		pathList := make([]string, 0)
+		pathList = append(pathList, filepath.Base(animationName))
+		curr := filepath.Dir(animationName)
+		for !strings.Contains(filepath.Base(curr), "animation") && len(curr) > len("animation") {
+			pathList = append(pathList, filepath.Base(curr))
+			curr = filepath.Dir(curr)
+		}
+		animationParent := filepath.Dir(curr)
+		pathList = append(pathList, filepath.Base(curr))
+		pathList = append(pathList, filepath.Base(animationParent))
+		slices.Reverse(pathList)
+		animationName = strings.Join(pathList, "/")
 	}
 	animationIdx := uint32(len(doc.Animations))
 	doc.Animations = append(doc.Animations, &gltf.Animation{
@@ -319,100 +330,4 @@ func addAnimation(ctx *extractor.Context, doc *gltf.Document, boneInfo *bones.In
 		Channels: channels,
 	})
 	return animationIdx, nil
-}
-
-func AddState(ctx *extractor.Context, doc *gltf.Document, boneInfo *bones.Info, state state_machine.State, layerExtras map[string]any) (map[string]any, error) {
-	var animationMap map[string]uint32
-	var stateMap map[string]map[string]any
-	var animationVariables []map[string]any
-	var ok bool
-
-	animationMapAny, contains := layerExtras["animations"]
-	if !contains {
-		animationMap = make(map[string]uint32)
-	} else {
-		animationMap, ok = animationMapAny.(map[string]uint32)
-		if !ok {
-			return layerExtras, fmt.Errorf("AddAnimation: programming error: failed to read existing animations map from document")
-		}
-	}
-
-	stateMapAny, contains := layerExtras["states"]
-	if !contains {
-		stateMap = make(map[string]map[string]any)
-	} else {
-		stateMap, ok = stateMapAny.(map[string]map[string]any)
-		if !ok {
-			return layerExtras, fmt.Errorf("AddAnimation: programming error: failed to read existing states map from document")
-		}
-	}
-
-	docExtras, ok := doc.Extras.(map[string]any)
-	if !ok {
-		return layerExtras, fmt.Errorf("AddAnimation: programming error: could not convert extras in document to map[string]any")
-	}
-
-	animVarsAny, contains := docExtras["animation_variables"]
-	if !contains {
-		return layerExtras, fmt.Errorf("AddAnimation: programming error: no animation variables in document")
-	}
-	animationVariables, ok = animVarsAny.([]map[string]any)
-	if !ok {
-		return layerExtras, fmt.Errorf("AddAnimation: programming error: failed to read existing animation variables from document")
-	}
-
-	stateAnimations := make([]map[string]any, 0)
-	for _, path := range state.AnimationHashes {
-		if _, contains := animationMap[ctx.LookupHash(path)]; !contains {
-			animationIdx, err := addAnimation(ctx, doc, boneInfo, path)
-			if err != nil {
-				return layerExtras, err
-			}
-			animationMap[ctx.LookupHash(path)] = animationIdx
-		}
-		animationIdx := animationMap[ctx.LookupHash(path)]
-		stateAnimations = append(stateAnimations, map[string]any{
-			"name":  ctx.LookupHash(path),
-			"index": animationIdx,
-		})
-	}
-	stateName := ctx.LookupHash(state.Name)
-	stateMap[stateName] = map[string]any{
-		"type":       state.Type.String(),
-		"animations": stateAnimations,
-		"blend_mask": state.BlendSetMaskIndex,
-	}
-	if state.Type == state_machine.StateType_Blend1D {
-		stateMap[stateName]["blend_variable"] = animationVariables[state.BlendVariableIndex]["name"]
-	}
-
-	animationVariableNames := make([]string, 0)
-	for _, variable := range animationVariables {
-		nameAny, contains := variable["name"]
-		if !contains {
-			return layerExtras, fmt.Errorf("AddAnimation: programming error: animation variable did not contain a name")
-		}
-		name, ok := nameAny.(string)
-		if !ok {
-			return layerExtras, fmt.Errorf("AddAnimation: programming error: animation variable name was not a string")
-		}
-		animationVariableNames = append(animationVariableNames, name)
-	}
-
-	if len(state.CustomBlendFuncDefinition) > 0 {
-		blendDrivers := make([]string, 0)
-		for _, blend := range state.CustomBlendFuncDefinition {
-			driver, err := blend.ToDriver(animationVariableNames)
-			if err != nil {
-				return layerExtras, err
-			}
-			blendDrivers = append(blendDrivers, driver)
-		}
-		stateMap[stateName]["custom_blend_functions"] = blendDrivers
-	}
-
-	layerExtras["animations"] = animationMap
-	layerExtras["states"] = stateMap
-
-	return layerExtras, nil
 }

@@ -174,6 +174,10 @@ func IsNaN(val uint32) bool {
 	return val&0x7f800000 == 0x7f800000 && val&0x007fffff != 0
 }
 
+func IsInf(val uint32) bool {
+	return val&0x7f800000 == 0x7f800000 && val&0x007fffff == 0
+}
+
 func UnNaNBox(val uint32) uint32 {
 	return val & 0x007fffff
 }
@@ -232,15 +236,20 @@ func ParseBlendFunction(data []uint32) ([]CustomBlendFunction, error) {
 				},
 			})
 		case CustomBlendFunctionType_Divide:
-			if len(functionData) != 3 {
-				return nil, fmt.Errorf("ParseBlendFunction: divide did not have enough parameters: expected 3, got %v", len(functionData))
+			// if len(functionData) != 3 {
+			// 	return nil, fmt.Errorf("ParseBlendFunction: divide did not have enough parameters: expected 3, got %v", len(functionData))
+			// }
+			params := make([]any, 0)
+			for _, param := range functionData[:len(functionData)-1] {
+				if IsNaN(param) || IsInf(param) {
+					params = append(params, getVariableIdx(param))
+				} else {
+					params = append(params, math.Float32frombits(param))
+				}
 			}
 			toReturn = append(toReturn, CustomBlendFunction{
-				Function: CustomBlendFunctionType(functionData[2]),
-				Parameters: []any{
-					getVariableIdx(functionData[0]),       // Variable 1 index
-					math.Float32frombits(functionData[1]), // t0
-				},
+				Function:   CustomBlendFunctionType(functionData[len(functionData)-1]),
+				Parameters: params,
 			})
 		case CustomBlendFunctionType_Null, CustomBlendFunctionType(0):
 			// Do nothing
@@ -317,12 +326,23 @@ func (f CustomBlendFunction) ToDriver(variables []string) (string, error) {
 		variableName1 := variables[idx1]
 		return fmt.Sprintf("(smoothstep(%v, %v, %v) - smoothstep(%v, %v, %v)) * (smoothstep(%v, %v, %v) - smoothstep(%v, %v, %v))", t0, t1, variableName0, t1, t2, variableName0, s0, s1, variableName1, s1, s2, variableName1), nil
 	case CustomBlendFunctionType_Divide:
-		idx, okIdx := f.Parameters[0].(uint32)
-		divisor, ok := f.Parameters[1].(float32)
-		if !(okIdx && ok) {
-			return "", fmt.Errorf("CustomBlendFunction.ToDriver: invalid parameter types for divide")
+		parameters := ""
+		for idx, paramAny := range f.Parameters {
+			switch param := paramAny.(type) {
+			case uint32:
+				if param < uint32(len(variables)) {
+					parameters += variables[param]
+					break
+				}
+				parameters += fmt.Sprintf("invalid variable %v", param)
+			case float32:
+				parameters += fmt.Sprintf("%.1f", param)
+			}
+			if idx < len(f.Parameters)-1 {
+				parameters += ", "
+			}
 		}
-		return fmt.Sprintf("(%v / %v)", variables[idx], divisor), nil
+		return fmt.Sprintf("(%v)", parameters), nil
 	default:
 		return "", fmt.Errorf("CustomBlendFunction.ToDriver: unimplemented function %v", f.Function.String())
 	}
