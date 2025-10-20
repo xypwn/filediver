@@ -37,21 +37,21 @@ func ExtractStateMachineJson(ctx *extractor.Context) error {
 		})
 	}
 
-	for groupIdx, group := range stateMachine.Layers {
-		for animIdx, animation := range group.States {
-			stateMachine.Layers[groupIdx].States[animIdx].ResolvedName = ctx.LookupHash(animation.Name)
-			if animation.EmitEndEvent.Value != 0 {
-				stateMachine.Layers[groupIdx].States[animIdx].ResolvedEmitEndEvent = ctx.LookupThinHash(animation.EmitEndEvent)
+	for layerIdx, layer := range stateMachine.Layers {
+		for stateIdx, state := range layer.States {
+			stateMachine.Layers[layerIdx].States[stateIdx].ResolvedName = ctx.LookupHash(state.Name)
+			if state.EmitEndEvent.Value != 0 {
+				stateMachine.Layers[layerIdx].States[stateIdx].ResolvedEmitEndEvent = ctx.LookupThinHash(state.EmitEndEvent)
 			}
 			resolvedAnimationHashes := make([]string, 0)
-			for _, hash := range animation.AnimationHashes {
+			for _, hash := range state.AnimationHashes {
 				resolvedAnimationHashes = append(resolvedAnimationHashes, ctx.LookupHash(hash))
 			}
-			stateMachine.Layers[groupIdx].States[animIdx].ResolvedAnimationHashes = resolvedAnimationHashes
-			stateMachine.Layers[groupIdx].States[animIdx].ResolvedStateTransitions = make(map[string]state_machine.Link)
-			for eventNameHash, transitionLink := range animation.StateTransitions {
+			stateMachine.Layers[layerIdx].States[stateIdx].ResolvedAnimationHashes = resolvedAnimationHashes
+			stateMachine.Layers[layerIdx].States[stateIdx].ResolvedStateTransitions = make(map[string]state_machine.Link)
+			for eventNameHash, transitionLink := range state.StateTransitions {
 				transitionLink.ResolvedName = ctx.LookupThinHash(transitionLink.Name)
-				stateMachine.Layers[groupIdx].States[animIdx].ResolvedStateTransitions[ctx.LookupThinHash(eventNameHash)] = transitionLink
+				stateMachine.Layers[layerIdx].States[stateIdx].ResolvedStateTransitions[ctx.LookupThinHash(eventNameHash)] = transitionLink
 			}
 		}
 	}
@@ -71,57 +71,144 @@ func ExtractStateMachineJson(ctx *extractor.Context) error {
 	return err
 }
 
-func AddAnimationSet(ctx *extractor.Context, doc *gltf.Document, unitInfo *unit.Info) error {
+type gltfStateAnimation struct {
+	Path  stingray.Hash `json:"-"`
+	Name  string        `json:"name"`
+	Index uint32        `json:"index"`
+}
+
+type gltfState struct {
+	NameHash             stingray.Hash           `json:"-"`
+	Name                 string                  `json:"name"`
+	Type                 state_machine.StateType `json:"type"`
+	Animations           []gltfStateAnimation    `json:"animations,omitempty"`
+	BlendMask            int32                   `json:"blend_mask"`
+	BlendVariableIndex   uint32                  `json:"-"`
+	BlendVariable        string                  `json:"blend_variable,omitempty"`
+	CustomBlendFunctions []string                `json:"custom_blend_functions,omitempty"`
+}
+
+type gltfAnimationVariable struct {
+	NameHash stingray.ThinHash `json:"-"`
+	Name     string            `json:"name"`
+	Default  float32           `json:"default"`
+}
+
+type gltfLayer struct {
+	DefaultState uint32      `json:"default_state"`
+	States       []gltfState `json:"states"`
+}
+
+type gltfStateMachine struct {
+	NameHash           stingray.Hash           `json:"-"`
+	Name               string                  `json:"name"`
+	Layers             []gltfLayer             `json:"layers"`
+	AnimationEvents    []string                `json:"animation_events,omitempty"`
+	AnimationVariables []gltfAnimationVariable `json:"animation_variables,omitempty"`
+	BlendMasks         []map[string]float32    `json:"blend_masks,omitempty"`
+}
+
+func addState(ctx *extractor.Context, doc *gltf.Document, boneInfo *bones.Info, state state_machine.State, animationMap map[stingray.Hash]uint32, animationVariables []gltfAnimationVariable) (*gltfState, error) {
+	stateAnimations := make([]gltfStateAnimation, 0)
+	for _, path := range state.AnimationHashes {
+		if _, contains := animationMap[path]; !contains {
+			animationIdx, err := animation.AddAnimation(ctx, doc, boneInfo, path)
+			if err != nil {
+				return nil, err
+			}
+			animationMap[path] = animationIdx
+		}
+		animationIdx := animationMap[path]
+		stateAnimations = append(stateAnimations, gltfStateAnimation{
+			Path:  path,
+			Name:  ctx.LookupHash(path),
+			Index: animationIdx,
+		})
+	}
+	toReturn := gltfState{
+		NameHash:   state.Name,
+		Name:       ctx.LookupHash(state.Name),
+		Type:       state.Type,
+		Animations: stateAnimations,
+		BlendMask:  state.BlendSetMaskIndex,
+	}
+	if state.Type == state_machine.StateType_Blend1D {
+		toReturn.BlendVariable = animationVariables[state.BlendVariableIndex].Name
+	}
+
+	animationVariableNames := make([]string, 0)
+	for _, variable := range animationVariables {
+		animationVariableNames = append(animationVariableNames, variable.Name)
+	}
+
+	if len(state.CustomBlendFuncDefinition) > 0 {
+		blendDrivers := make([]string, 0)
+		for _, blend := range state.CustomBlendFuncDefinition {
+			driver, err := blend.ToDriver(animationVariableNames)
+			if err != nil {
+				return nil, err
+			}
+			blendDrivers = append(blendDrivers, driver)
+		}
+		toReturn.CustomBlendFunctions = blendDrivers
+	}
+
+	return &toReturn, nil
+}
+
+func AddStateMachine(ctx *extractor.Context, doc *gltf.Document, unitInfo *unit.Info) error {
+	if unitInfo.StateMachine.Value == 0 {
+		// No state machine to add, but not an error
+		return nil
+	}
+
 	smMainR, err := ctx.Open(stingray.NewFileID(unitInfo.StateMachine, stingray.Sum("state_machine")), stingray.DataMain)
 	if err == stingray.ErrFileNotExist {
-		return fmt.Errorf("add animation set: unit's state machine %v does not exist", unitInfo.StateMachine.String())
+		return fmt.Errorf("add state machine: unit's state machine %v does not exist", unitInfo.StateMachine.String())
 	}
 	if err != nil {
-		return fmt.Errorf("add animation set: failed to open state machine main file with error: %v", err)
+		return fmt.Errorf("add state machine: failed to open state machine main file with error: %v", err)
 	}
 
 	stateMachine, err := state_machine.LoadStateMachine(smMainR)
 	if err != nil {
-		return fmt.Errorf("add animation set: failed to load state machine with error: %v", err)
+		return fmt.Errorf("add state machine: failed to load state machine with error: %v", err)
 	}
 
 	bonesMainR, err := ctx.Open(stingray.NewFileID(unitInfo.BonesHash, stingray.Sum("bones")), stingray.DataMain)
 	if err == stingray.ErrFileNotExist {
-		return fmt.Errorf("add animation set: unit's bones file %v does not exist", unitInfo.BonesHash.String())
+		return fmt.Errorf("add state machine: unit's bones file %v does not exist", unitInfo.BonesHash.String())
 	}
 
 	boneInfo, err := bones.LoadBones(bonesMainR)
 	if err != nil {
-		return fmt.Errorf("add animation set: failed to load bones with error: %v", err)
+		return fmt.Errorf("add state machine: failed to load bones with error: %v", err)
 	}
 
-	extras, ok := doc.Extras.(map[string]any)
-	if !ok {
-		extras = make(map[string]any)
-	}
-
-	variableList := make([]map[string]any, 0)
+	variableList := make([]gltfAnimationVariable, 0)
 	for idx, hash := range stateMachine.AnimationVariableNames {
-		variableName := ctx.LookupThinHash(hash)
-		variableList = append(variableList, map[string]any{
-			"name":    variableName,
-			"default": stateMachine.AnimationVariableValues[idx],
+		variableList = append(variableList, gltfAnimationVariable{
+			NameHash: hash,
+			Name:     ctx.LookupThinHash(hash),
+			Default:  stateMachine.AnimationVariableValues[idx],
 		})
 	}
-	extras["animation_variables"] = variableList
-	doc.Extras = extras
 
-	layers := make([]map[string]any, 0)
-
-	for _, group := range stateMachine.Layers {
-		layerExtras := make(map[string]any)
-		for _, anim := range group.States {
-			layerExtras, err = animation.AddState(ctx, doc, boneInfo, anim, layerExtras)
+	layers := make([]gltfLayer, 0)
+	animationMap := make(map[stingray.Hash]uint32)
+	for _, layer := range stateMachine.Layers {
+		var outLayer gltfLayer
+		outLayer.DefaultState = layer.DefaultState
+		outLayer.States = make([]gltfState, 0)
+		for _, state := range layer.States {
+			gltfState, err := addState(ctx, doc, boneInfo, state, animationMap, variableList)
 			if err != nil {
-				ctx.Warnf("add animation set: %v", err)
+				ctx.Warnf("add state machine: %v", err)
+				continue
 			}
+			outLayer.States = append(outLayer.States, *gltfState)
 		}
-		layers = append(layers, layerExtras)
+		layers = append(layers, outLayer)
 	}
 
 	resolvedAnimationEvents := make([]string, 0)
@@ -142,33 +229,31 @@ func AddAnimationSet(ctx *extractor.Context, doc *gltf.Document, unitInfo *unit.
 		resolvedBlendMasks = append(resolvedBlendMasks, resolved)
 	}
 
-	extras, ok = doc.Extras.(map[string]any)
+	extras, ok := doc.Extras.(map[string]any)
 	if !ok {
-		return fmt.Errorf("add animation set: programming error: how?")
+		extras = make(map[string]any)
 	}
 
-	var stateMachines []map[string]any
+	var stateMachines []gltfStateMachine
 	stateMachinesAny, ok := extras["state_machines"]
 	if !ok {
-		stateMachines = make([]map[string]any, 0)
+		stateMachines = make([]gltfStateMachine, 0)
 	} else {
-		stateMachines, ok = stateMachinesAny.([]map[string]any)
+		stateMachines, ok = stateMachinesAny.([]gltfStateMachine)
 		if !ok {
-			return fmt.Errorf("add animation set: failed to parse state machines list")
+			return fmt.Errorf("add state machine: failed to parse state machines list")
 		}
 	}
-	stateMachines = append(stateMachines, map[string]any{
-		"name":                ctx.LookupHash(unitInfo.StateMachine),
-		"layers":              layers,
-		"animation_events":    resolvedAnimationEvents,
-		"animation_variables": variableList,
-		"blend_masks":         resolvedBlendMasks,
+	stateMachines = append(stateMachines, gltfStateMachine{
+		NameHash:           unitInfo.StateMachine,
+		Name:               ctx.LookupHash(unitInfo.StateMachine),
+		Layers:             layers,
+		AnimationEvents:    resolvedAnimationEvents,
+		AnimationVariables: variableList,
+		BlendMasks:         resolvedBlendMasks,
 	})
 
 	extras["state_machines"] = stateMachines
-
-	delete(extras, "animation_variables")
-
 	doc.Extras = extras
 
 	return nil
