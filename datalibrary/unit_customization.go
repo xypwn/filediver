@@ -384,22 +384,23 @@ func ParseUnitCustomizationSettings(getResource GetResourceFunc, stringmap map[u
 			skin.ID = rawSkin.ID
 			skin.Thumbnail = rawSkin.Thumbnail
 			var overrideComponentData []byte
-			if rawSkin.AddPath.Value != 0x0 {
-				var ok bool
-				skin.Archive, ok = addPathMap[rawSkin.AddPath.Value]
-				if !ok {
-					return nil, fmt.Errorf("could not find %x in hash lookup table", rawSkin.AddPath.Value)
-				}
+			if rawSkin.AddPath.Value == 0x0 {
+				continue
+			}
 
-				delta, ok := deltas[rawSkin.AddPath]
-				if !ok {
-					return nil, fmt.Errorf("could not find %x in entity deltas", rawSkin.AddPath.Value)
-				}
+			skin.Archive, ok = addPathMap[rawSkin.AddPath.Value]
+			if !ok {
+				return nil, fmt.Errorf("could not find %x in hash lookup table", rawSkin.AddPath.Value)
+			}
 
-				overrideComponentData, err = PatchComponent(Sum("UnitCustomizationComponentData"), componentData, delta)
-				if err != nil {
-					return nil, err
-				}
+			delta, ok := deltas[rawSkin.AddPath]
+			if !ok {
+				return nil, fmt.Errorf("could not find %x in entity deltas", rawSkin.AddPath.Value)
+			}
+
+			overrideComponentData, err = PatchComponent(Sum("UnitCustomizationComponentData"), componentData, delta)
+			if err != nil {
+				return nil, fmt.Errorf("error patching component data: %v", err)
 			}
 
 			var matOverrides UnitCustomizationComponent
