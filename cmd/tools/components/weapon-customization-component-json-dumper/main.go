@@ -40,6 +40,9 @@ func main() {
 
 	knownHashes := app.ParseHashes(hashes.Hashes)
 	knownThinHashes := app.ParseHashes(hashes.ThinHashes)
+	lookupString := func(val uint32) string {
+		return fmt.Sprintf("%x", val)
+	}
 
 	a, err := app.OpenGameDir(ctx, gameDir, knownHashes, knownThinHashes, stingray_strings.LanguageFriendlyNameToHash["English (US)"], func(curr int, total int) {
 		prt.Statusf("Opening game directory %.0f%%", float64(curr)/float64(total)*100)
@@ -76,7 +79,7 @@ func main() {
 
 	result := make(map[string]any)
 	for name, component := range weaponCustomizationComponents {
-		result[a.LookupHash(name)] = component.ToSimple(a.LookupHash, a.LookupThinHash)
+		result[a.LookupHash(name)] = component.ToSimple(a.LookupHash, a.LookupThinHash, lookupString)
 	}
 
 	output, err := json.MarshalIndent(result, "", "    ")
