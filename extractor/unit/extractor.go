@@ -596,7 +596,10 @@ func ConvertBuffer(fMain, fGPU io.ReadSeeker, filename stingray.Hash, ctx *extra
 		skin = gltf.Index(AddSkeleton(ctx, doc, unitInfo, filename, armorSetName))
 		parent = doc.Skins[*skin].Skeleton
 		if animationsEnabled {
-			state_machine.AddAnimationSet(ctx, doc, unitInfo)
+			err := state_machine.AddStateMachine(ctx, doc, unitInfo)
+			if err != nil {
+				return fmt.Errorf("add state machine: %v", err)
+			}
 		}
 		AddLights(ctx, doc, unitInfo, parent)
 	} else {
