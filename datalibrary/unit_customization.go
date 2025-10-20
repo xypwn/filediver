@@ -299,7 +299,7 @@ func ParseUnitCustomizationSettings(getResource GetResourceFunc, stringmap map[u
 	}, stingray.DataMain)
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error getting hash lookup resource: %v", err)
 	}
 
 	if !ok {
@@ -308,17 +308,17 @@ func ParseUnitCustomizationSettings(getResource GetResourceFunc, stringmap map[u
 
 	addPathMap, err := parseHashLookup(bytes.NewReader(hashLookupData))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error parsing hash lookup: %v", err)
 	}
 
 	deltas, err := ParseEntityDeltas()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error parsing entity deltas: %v", err)
 	}
 
 	matTextOverridesLen, mountedWeaponOverridesLen, err := getOverrideArrayLengths(nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error getting override array lengths: %v", err)
 	}
 
 	r := bytes.NewReader(unitCustomizationSettings)
@@ -357,11 +357,11 @@ func ParseUnitCustomizationSettings(getResource GetResourceFunc, stringmap map[u
 
 		unitHash, err := rawSettings.CollectionType.Unit()
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error getting unit for collection type: %v", err)
 		}
 		componentData, err := getUnitCustomizationComponentDataForHash(unitHash)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error getting unit customization component data for hash %v: %v", unitHash.String(), err)
 		}
 		skins := make([]UnitCustomizationSetting, 0)
 		for _, rawSkin := range rawSettingsSlice {
@@ -384,22 +384,23 @@ func ParseUnitCustomizationSettings(getResource GetResourceFunc, stringmap map[u
 			skin.ID = rawSkin.ID
 			skin.Thumbnail = rawSkin.Thumbnail
 			var overrideComponentData []byte
-			if rawSkin.AddPath.Value != 0x0 {
-				var ok bool
-				skin.Archive, ok = addPathMap[rawSkin.AddPath.Value]
-				if !ok {
-					return nil, fmt.Errorf("could not find %x in hash lookup table", rawSkin.AddPath.Value)
-				}
+			if rawSkin.AddPath.Value == 0x0 {
+				continue
+			}
 
-				delta, ok := deltas[rawSkin.AddPath]
-				if !ok {
-					return nil, fmt.Errorf("could not find %x in entity deltas", rawSkin.AddPath.Value)
-				}
+			skin.Archive, ok = addPathMap[rawSkin.AddPath.Value]
+			if !ok {
+				return nil, fmt.Errorf("could not find %x in hash lookup table", rawSkin.AddPath.Value)
+			}
 
-				overrideComponentData, err = PatchComponent(Sum("UnitCustomizationComponentData"), componentData, delta)
-				if err != nil {
-					return nil, err
-				}
+			delta, ok := deltas[rawSkin.AddPath]
+			if !ok {
+				return nil, fmt.Errorf("could not find %x in entity deltas", rawSkin.AddPath.Value)
+			}
+
+			overrideComponentData, err = PatchComponent(Sum("UnitCustomizationComponentData"), componentData, delta)
+			if err != nil {
+				return nil, fmt.Errorf("error patching component data: %v", err)
 			}
 
 			var matOverrides UnitCustomizationComponent
@@ -407,11 +408,11 @@ func ParseUnitCustomizationSettings(getResource GetResourceFunc, stringmap map[u
 			mountedWeaponTextureOverrides := make([]UnitCustomizationMaterialOverrides, mountedWeaponOverridesLen)
 			length, err := binary.Decode(overrideComponentData, binary.LittleEndian, &materialsTexturesOverrides)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("error decoding material texture overrides: %v", err)
 			}
 			_, err = binary.Decode(overrideComponentData[length:], binary.LittleEndian, &mountedWeaponTextureOverrides)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("error decoding mounted weapon texture overrides: %v", err)
 			}
 			matOverrides.MaterialsTexturesOverrides = make([]UnitCustomizationMaterialOverrides, 0)
 			matOverrides.MountedWeaponTextureOverrides = make([]UnitCustomizationMaterialOverrides, 0)

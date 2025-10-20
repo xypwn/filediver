@@ -250,7 +250,7 @@ func GetWeaponCustomizationComponentDataForHash(hash stingray.Hash) ([]byte, err
 	var ok bool
 	weaponCustomizationCmpDataType, ok = typelib.Types[WeaponCustomizationCmpDataHash]
 	if !ok {
-		return nil, fmt.Errorf("could not find ProjectileWeaponComponentData hash in dl_library")
+		return nil, fmt.Errorf("could not find WeaponCustomizationComponentData hash in dl_library")
 	}
 
 	if len(weaponCustomizationCmpDataType.Members) != 2 {
