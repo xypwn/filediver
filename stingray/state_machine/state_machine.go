@@ -6,9 +6,14 @@ import (
 	"io"
 	"math"
 	"slices"
+	"strings"
 
 	"github.com/xypwn/filediver/stingray"
 )
+
+// If a variable name would be invalid (starts with a number), then prepend this prefix
+// to correct the issue
+const VariableNamePrefix string = "var_"
 
 // See https://help.autodesk.com/view/Stingray/ENU/?guid=__stingray_help_animation_animation_controllers_anim_ctrlr_states_html
 type StateType uint32
@@ -165,6 +170,11 @@ type CustomBlendVariableType uint32
 
 const CustomBlendVariableType_VariableBase CustomBlendVariableType = 0x7f900000
 
+type DriverInformation struct {
+	Expression string   `json:"expression"`
+	Variables  []string `json:"variables"`
+}
+
 type CustomBlendFunction struct {
 	Function   CustomBlendFunctionType
 	Parameters []any
@@ -289,7 +299,18 @@ func (f CustomBlendFunction) MarshalText() ([]byte, error) {
 	return []byte(fmt.Sprintf("%v(%v)", f.Function.String(), params)), nil
 }
 
-func (f CustomBlendFunction) ToDriver(variables []string) (string, error) {
+func getVariable(variables []string, idx uint32) (string, error) {
+	if idx > uint32(len(variables)) {
+		return "", fmt.Errorf("out of range")
+	}
+	variable := variables[idx]
+	if strings.ContainsAny(variable[:1], "0123456789") {
+		return VariableNamePrefix + variable, nil
+	}
+	return variable, nil
+}
+
+func (f CustomBlendFunction) ToDriver(variables []string) (*DriverInformation, error) {
 	switch f.Function {
 	case CustomBlendFunctionType_MatchRange:
 		idx, okIdx := f.Parameters[0].(uint32)
@@ -297,13 +318,16 @@ func (f CustomBlendFunction) ToDriver(variables []string) (string, error) {
 		t1, okT1 := f.Parameters[2].(float32)
 		t2, okT2 := f.Parameters[3].(float32)
 		if !(okIdx && okT0 && okT1 && okT2) {
-			return "", fmt.Errorf("CustomBlendFunction.ToDriver: invalid parameter types for match_range_2d")
+			return nil, fmt.Errorf("CustomBlendFunction.ToDriver: invalid parameter types for match_range_2d")
 		}
-		if idx >= uint32(len(variables)) {
-			return "", fmt.Errorf("CustomBlendFunction.ToDriver: variable index exceeds length of provided variable names slice")
+		variableName, err := getVariable(variables, idx)
+		if err != nil {
+			return nil, fmt.Errorf("variable index 0 %v", err)
 		}
-		variableName := variables[idx]
-		return fmt.Sprintf("smoothstep(%v, %v, %v) - smoothstep(%v, %v, %v)", t0, t1, variableName, t1, t2, variableName), nil
+		return &DriverInformation{
+			Expression: fmt.Sprintf("smoothstep(%v, %v, %v) - smoothstep(%v, %v, %v)", t0, t1, variableName, t1, t2, variableName),
+			Variables:  []string{variableName},
+		}, nil
 	case CustomBlendFunctionType_MatchRange2d:
 		idx0, okIdx0 := f.Parameters[0].(uint32)
 		t0, okT0 := f.Parameters[1].(float32)
@@ -314,24 +338,33 @@ func (f CustomBlendFunction) ToDriver(variables []string) (string, error) {
 		s1, okS1 := f.Parameters[6].(float32)
 		s2, okS2 := f.Parameters[7].(float32)
 		if !(okIdx0 && okT0 && okT1 && okT2 && okIdx1 && okS0 && okS1 && okS2) {
-			return "", fmt.Errorf("CustomBlendFunction.ToDriver: invalid parameter types for match_range_2d")
+			return nil, fmt.Errorf("CustomBlendFunction.ToDriver: invalid parameter types for match_range_2d")
 		}
-		if idx0 >= uint32(len(variables)) {
-			return "", fmt.Errorf("CustomBlendFunction.ToDriver: variable index 0 exceeds length of provided variable names slice")
+		variableName0, err := getVariable(variables, idx0)
+		if err != nil {
+			return nil, fmt.Errorf("variable index 0 %v", err)
 		}
-		if idx1 >= uint32(len(variables)) {
-			return "", fmt.Errorf("CustomBlendFunction.ToDriver: variable index 1 exceeds length of provided variable names slice")
+		variableName1, err := getVariable(variables, idx1)
+		if err != nil {
+			return nil, fmt.Errorf("variable index 1 %v", err)
 		}
-		variableName0 := variables[idx0]
-		variableName1 := variables[idx1]
-		return fmt.Sprintf("(smoothstep(%v, %v, %v) - smoothstep(%v, %v, %v)) * (smoothstep(%v, %v, %v) - smoothstep(%v, %v, %v))", t0, t1, variableName0, t1, t2, variableName0, s0, s1, variableName1, s1, s2, variableName1), nil
+		return &DriverInformation{
+			Expression: fmt.Sprintf("(smoothstep(%v, %v, %v) - smoothstep(%v, %v, %v)) * (smoothstep(%v, %v, %v) - smoothstep(%v, %v, %v))", t0, t1, variableName0, t1, t2, variableName0, s0, s1, variableName1, s1, s2, variableName1),
+			Variables:  []string{variableName0, variableName1},
+		}, nil
 	case CustomBlendFunctionType_Divide:
 		parameters := ""
+		driverVariables := make([]string, 0)
 		for idx, paramAny := range f.Parameters {
 			switch param := paramAny.(type) {
 			case uint32:
 				if param < uint32(len(variables)) {
-					parameters += variables[param]
+					variable, err := getVariable(variables, param)
+					if err != nil {
+						return nil, fmt.Errorf("param index %v %v", idx, err)
+					}
+					parameters += variable
+					driverVariables = append(driverVariables, variable)
 					break
 				}
 				parameters += fmt.Sprintf("invalid variable %v", param)
@@ -342,9 +375,12 @@ func (f CustomBlendFunction) ToDriver(variables []string) (string, error) {
 				parameters += ", "
 			}
 		}
-		return fmt.Sprintf("(%v)", parameters), nil
+		return &DriverInformation{
+			Expression: fmt.Sprintf("(%v)", parameters),
+			Variables:  driverVariables,
+		}, nil
 	default:
-		return "", fmt.Errorf("CustomBlendFunction.ToDriver: unimplemented function %v", f.Function.String())
+		return nil, fmt.Errorf("CustomBlendFunction.ToDriver: unimplemented function %v", f.Function.String())
 	}
 }
 

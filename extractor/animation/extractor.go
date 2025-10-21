@@ -66,6 +66,25 @@ func getTargetNode(doc *gltf.Document, boneInfo *bones.Info, boneIdx uint32) (ui
 	return 0, fmt.Errorf("could not find bone %v in document", boneInfo.NameMap[boneInfo.Hashes[boneIdx]])
 }
 
+func NameAnimation(ctx *extractor.Context, path stingray.Hash) string {
+	animationName := ctx.LookupHash(path)
+	if strings.Contains(animationName, "/") {
+		pathList := make([]string, 0)
+		pathList = append(pathList, filepath.Base(animationName))
+		curr := filepath.Dir(animationName)
+		for !strings.Contains(filepath.Base(curr), "animation") && len(curr) > len("animation") {
+			pathList = append(pathList, filepath.Base(curr))
+			curr = filepath.Dir(curr)
+		}
+		animationParent := filepath.Dir(curr)
+		pathList = append(pathList, filepath.Base(curr))
+		pathList = append(pathList, filepath.Base(animationParent))
+		slices.Reverse(pathList)
+		animationName = strings.Join(pathList, "/")
+	}
+	return animationName
+}
+
 func AddAnimation(ctx *extractor.Context, doc *gltf.Document, boneInfo *bones.Info, path stingray.Hash) (uint32, error) {
 	cfg := ctx.Config()
 
@@ -308,21 +327,7 @@ func AddAnimation(ctx *extractor.Context, doc *gltf.Document, boneInfo *bones.In
 		samplers = append(samplers, scaleSampler)
 		channels = append(channels, scaleChannel)
 	}
-	animationName := ctx.LookupHash(path)
-	if strings.Contains(animationName, "/") {
-		pathList := make([]string, 0)
-		pathList = append(pathList, filepath.Base(animationName))
-		curr := filepath.Dir(animationName)
-		for !strings.Contains(filepath.Base(curr), "animation") && len(curr) > len("animation") {
-			pathList = append(pathList, filepath.Base(curr))
-			curr = filepath.Dir(curr)
-		}
-		animationParent := filepath.Dir(curr)
-		pathList = append(pathList, filepath.Base(curr))
-		pathList = append(pathList, filepath.Base(animationParent))
-		slices.Reverse(pathList)
-		animationName = strings.Join(pathList, "/")
-	}
+	animationName := NameAnimation(ctx, path)
 	animationIdx := uint32(len(doc.Animations))
 	doc.Animations = append(doc.Animations, &gltf.Animation{
 		Name:     animationName,

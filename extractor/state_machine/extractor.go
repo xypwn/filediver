@@ -3,6 +3,7 @@ package state_machine
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/qmuntal/gltf"
 	"github.com/xypwn/filediver/extractor"
@@ -78,14 +79,14 @@ type gltfStateAnimation struct {
 }
 
 type gltfState struct {
-	NameHash             stingray.Hash           `json:"-"`
-	Name                 string                  `json:"name"`
-	Type                 state_machine.StateType `json:"type"`
-	Animations           []gltfStateAnimation    `json:"animations,omitempty"`
-	BlendMask            int32                   `json:"blend_mask"`
-	BlendVariableIndex   uint32                  `json:"-"`
-	BlendVariable        string                  `json:"blend_variable,omitempty"`
-	CustomBlendFunctions []string                `json:"custom_blend_functions,omitempty"`
+	NameHash             stingray.Hash                      `json:"-"`
+	Name                 string                             `json:"name"`
+	Type                 state_machine.StateType            `json:"type"`
+	Animations           []gltfStateAnimation               `json:"animations,omitempty"`
+	BlendMask            int32                              `json:"blend_mask"`
+	BlendVariableIndex   uint32                             `json:"-"`
+	BlendVariable        string                             `json:"blend_variable,omitempty"`
+	CustomBlendFunctions []*state_machine.DriverInformation `json:"custom_blend_functions,omitempty"`
 }
 
 type gltfAnimationVariable struct {
@@ -106,6 +107,7 @@ type gltfStateMachine struct {
 	AnimationEvents    []string                `json:"animation_events,omitempty"`
 	AnimationVariables []gltfAnimationVariable `json:"animation_variables,omitempty"`
 	BlendMasks         []map[string]float32    `json:"blend_masks,omitempty"`
+	AllBones           []string                `json:"all_bones,omitempty"`
 }
 
 func addState(ctx *extractor.Context, doc *gltf.Document, boneInfo *bones.Info, state state_machine.State, animationMap map[stingray.Hash]uint32, animationVariables []gltfAnimationVariable) (*gltfState, error) {
@@ -121,7 +123,7 @@ func addState(ctx *extractor.Context, doc *gltf.Document, boneInfo *bones.Info, 
 		animationIdx := animationMap[path]
 		stateAnimations = append(stateAnimations, gltfStateAnimation{
 			Path:  path,
-			Name:  ctx.LookupHash(path),
+			Name:  animation.NameAnimation(ctx, path),
 			Index: animationIdx,
 		})
 	}
@@ -142,7 +144,7 @@ func addState(ctx *extractor.Context, doc *gltf.Document, boneInfo *bones.Info, 
 	}
 
 	if len(state.CustomBlendFuncDefinition) > 0 {
-		blendDrivers := make([]string, 0)
+		blendDrivers := make([]*state_machine.DriverInformation, 0)
 		for _, blend := range state.CustomBlendFuncDefinition {
 			driver, err := blend.ToDriver(animationVariableNames)
 			if err != nil {
@@ -187,11 +189,15 @@ func AddStateMachine(ctx *extractor.Context, doc *gltf.Document, unitInfo *unit.
 
 	variableList := make([]gltfAnimationVariable, 0)
 	for idx, hash := range stateMachine.AnimationVariableNames {
-		variableList = append(variableList, gltfAnimationVariable{
+		anim_var := gltfAnimationVariable{
 			NameHash: hash,
 			Name:     ctx.LookupThinHash(hash),
 			Default:  stateMachine.AnimationVariableValues[idx],
-		})
+		}
+		if strings.ContainsAny(anim_var.Name[:1], "0123456789") {
+			anim_var.Name = state_machine.VariableNamePrefix + anim_var.Name
+		}
+		variableList = append(variableList, anim_var)
 	}
 
 	layers := make([]gltfLayer, 0)
@@ -229,6 +235,11 @@ func AddStateMachine(ctx *extractor.Context, doc *gltf.Document, unitInfo *unit.
 		resolvedBlendMasks = append(resolvedBlendMasks, resolved)
 	}
 
+	allBones := make([]string, 0)
+	for _, name := range boneInfo.Hashes {
+		allBones = append(allBones, ctx.LookupThinHash(name))
+	}
+
 	extras, ok := doc.Extras.(map[string]any)
 	if !ok {
 		extras = make(map[string]any)
@@ -252,6 +263,7 @@ func AddStateMachine(ctx *extractor.Context, doc *gltf.Document, unitInfo *unit.
 		AnimationEvents:    resolvedAnimationEvents,
 		AnimationVariables: variableList,
 		BlendMasks:         resolvedBlendMasks,
+		AllBones:           allBones,
 	})
 
 	extras["state_machines"] = stateMachines
