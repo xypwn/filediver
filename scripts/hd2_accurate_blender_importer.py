@@ -1,4 +1,5 @@
 import bpy
+import bpy.props
 import json
 import os
 import sys
@@ -6,12 +7,27 @@ import struct
 import tempfile
 import numpy as np
 from argparse import ArgumentParser
-from bpy.types import BlendData, Image, Object, ShaderNodeGroup, ShaderNodeTexImage, Material, Collection
+from bpy.types import (
+    BlendData,
+    Image,
+    Object,
+    ShaderNodeGroup,
+    ShaderNodeTexImage,
+    Material,
+    Collection,
+    Armature,
+    ActionKeyframeStrip,
+    PoseBone,
+    ActionConstraint,
+)
 from pathlib import Path
 from io import BytesIO
-from typing import Optional, Dict, List, Tuple
+from typing import Optional, Dict, List, Tuple, Union
 from types import ModuleType
 from random import randint
+from dataclasses import dataclass
+from copy import deepcopy
+import math
 
 from dds_float16 import DDS
 from openexr.types import OpenEXR
@@ -355,6 +371,176 @@ def convert_materials(gltf: Dict, node: Dict, variants: List[Dict], hasVariants:
     obj.select_set(True)
     print(f"Applied material to {node['name']}!")
 
+def hide_visibility_group(node: Dict):
+    obj: Object = bpy.data.objects[node["name"]]
+    obj.hide_render = True
+    obj.hide_set(True)
+
+@dataclass
+class GLTFAnimation:
+    name: str
+    index: int
+
+@dataclass
+class GLTFDriverInformation:
+    expression: str
+    variables: List[str]
+
+@dataclass
+class GLTFState:
+    name: str
+    type: str
+    blend_mask: int
+    animations: List[GLTFAnimation] = None
+    blend_variable: str = None
+    custom_blend_functions: List[GLTFDriverInformation] = None
+    
+    @classmethod
+    def from_json(cls, data: dict) -> 'GLTFState':
+        animations = None
+        custom_blend_functions = None
+        if "animations" in data:
+            animations = [GLTFAnimation(**animation) for animation in data["animations"]]
+            del data["animations"]
+        if "custom_blend_functions" in data:
+            custom_blend_functions = [GLTFDriverInformation(**blend_function) for blend_function in data["custom_blend_functions"]]
+            del data["custom_blend_functions"]
+        return cls(animations=animations, custom_blend_functions=custom_blend_functions, **data)
+
+@dataclass
+class GLTFLayer:
+    default_state: int
+    states: List[GLTFState]
+    
+    @classmethod
+    def from_json(cls, data: dict) -> 'GLTFLayer':
+        states = [GLTFState.from_json(state) for state in data["states"]]
+        del data["states"]
+        return cls(states=states, **data)
+
+@dataclass
+class GLTFVariable:
+    name: str
+    default: float
+
+@dataclass
+class GLTFStateMachine:
+    name: str
+    layers: List[GLTFLayer]
+    animation_events: List[str]
+    animation_variables: List[GLTFVariable]
+    blend_masks: List[Dict[str, float]]
+    all_bones: List[str]
+    
+    @classmethod
+    def from_json(cls, data: dict) -> 'GLTFStateMachine':
+        # don't be destructive for no reason
+        data = deepcopy(data)
+        layers = [GLTFLayer.from_json(layer) for layer in data["layers"]]
+        animation_variables = [GLTFVariable(**variable) for variable in data["animation_variables"]]
+        del data["animation_variables"]
+        del data["layers"]
+        return cls(layers=layers, animation_variables=animation_variables, **data)
+
+def no_set(self, val):
+    return
+
+def add_state_machine(gltf: Dict, node: Dict):
+    obj: Object = bpy.data.objects[node["name"]]
+    assert type(obj.data) is Armature
+    controller = GLTFStateMachine.from_json(gltf["extras"]["state_machines"][0])
+    print(f"    Adding state machine {controller.name} to {obj.name}")
+    print(f"        Adding {len(controller.animation_variables)} variables")
+
+    for variable in controller.animation_variables:
+        obj[variable.name] = float(variable.default)
+        obj.id_properties_ui(variable.name).update(min=0.0, max=2.0)
+
+    state_machine_empty = bpy.data.objects.new(obj.name+".state_machine", None)
+    state_machine_empty.parent = obj
+    state_machine_empty.empty_display_type = 'SINGLE_ARROW'
+    state_machine_empty.hide_select = True
+    state_machine_empty.hide_viewport = True
+    for collection in obj.users_collection:
+        collection.objects.link(state_machine_empty)
+
+    for layerIdx, layer in enumerate(controller.layers):
+        layer_empty = bpy.data.objects.new(f"{obj.name} layer {layerIdx}", None)
+        layer_empty.parent = state_machine_empty
+        layer_empty.empty_display_size = 0.1
+        layer_empty.empty_display_type = 'CUBE'
+        layer_empty["state"] = layer.default_state
+        layer_empty.id_properties_ui("state").update(min=0, max=len(layer.states)-1)
+        for collection in obj.users_collection:
+            collection.objects.link(layer_empty)
+
+        layer_action = bpy.data.actions.new(f"{obj.name} layer {layerIdx}")
+        slot = layer_action.slots.new('OBJECT', obj.name)
+        anim = layer_empty.animation_data_create()
+        anim.action = layer_action
+        anim.action_slot = slot
+        layer_empty.keyframe_insert(data_path='["state"]', frame=1.0)
+        for action_layer in layer_action.layers:
+            for strip in action_layer.strips:
+                if strip.type != 'KEYFRAME':
+                    continue
+                strip: ActionKeyframeStrip
+                bag = strip.channelbag(slot)
+                for curve in bag.fcurves:
+                    for frame in curve.keyframe_points:
+                        frame.interpolation = 'CONSTANT'
+
+        track = obj.animation_data.nla_tracks.new()
+        track.name = layer_action.name
+        nla_strip = track.strips.new(layer_action.name, start=1, action=layer_action)
+        nla_strip.action_frame_end = 250.0
+        obj.animation_data.action = layer_action
+        for stateIdx, state in enumerate(layer.states):
+            objects_to_constrain: List[Tuple[PoseBone, float]] = []
+            if state.blend_mask != -1:
+                for key, value in controller.blend_masks[state.blend_mask].items():
+                    objects_to_constrain.append((obj.pose.bones.get(key), float(value)))
+            else:
+                for name in controller.all_bones:
+                    objects_to_constrain.append((obj.pose.bones.get(name), 1.0))
+            if state.animations is None:
+                continue
+            for animIdx, animation in enumerate(state.animations):
+                animation_action = bpy.data.actions[animation.name]
+                for cObj, mask_influence in objects_to_constrain:
+                    constraint: ActionConstraint = cObj.constraints.new('ACTION')
+                    constraint.name = f"{cObj.name} layer {layerIdx} state {stateIdx} animation {animIdx}"
+                    constraint.action = animation_action
+                    constraint.use_eval_time = True
+                    influence_driver_expression = f"({mask_influence}) * float(state == {stateIdx})"
+                    variables = [(layer_empty, "state")]
+                    if state.type == "StateType_CustomBlend" and state.custom_blend_functions is not None and animIdx < len(state.custom_blend_functions):
+                        influence_driver_expression += f" * {state.custom_blend_functions[animIdx].expression}"
+                        variables.extend(zip([obj] * len(state.custom_blend_functions[animIdx].variables), state.custom_blend_functions[animIdx].variables))
+                    influence = constraint.driver_add("influence")
+                    for vObj, variableName in variables:
+                        variable = influence.driver.variables.new()
+                        variable.targets[0].id = vObj
+                        variable.targets[0].data_path = f'["{variableName}"]'
+                        variable.name = variableName
+                    influence.driver.expression = influence_driver_expression
+
+                    animation_track = obj.animation_data.nla_tracks.get(animation.name)
+                    animation_strip = animation_track.strips[0]
+                    time = constraint.driver_add("eval_time")
+                    if state.type == "StateType_Blend1D":
+                        variable = time.driver.variables.new()
+                        variable.targets[0].id = obj
+                        variable.targets[0].data_path = f'["{state.blend_variable}"]'
+                        variable.name = state.blend_variable
+                        time.driver.expression = f"clamp({state.blend_variable})"
+                    else:
+                        time.driver.expression = f"fmod(frame, max(1.0, {animation_strip.frame_end - animation_strip.frame_start})) / max(1.0, {animation_strip.frame_end - animation_strip.frame_start})"
+                    constraint.frame_start = int(animation_strip.frame_start)-1
+                    constraint.frame_end = int(round(animation_strip.frame_end))-1
+
+    obj.animation_data.action = None
+
 def main():
     parser = ArgumentParser("hd2_accurate_blender_importer")
     parser.add_argument("input_model", type=Path, help="Path to filediver-exported .glb to import into a .blend file")
@@ -419,14 +605,14 @@ def main():
         if node.get("extras", {}).get("armorSet") is not None:
             add_to_armor_set(node)
         if node.get("extras", {}).get("default_hidden") == 1 and node["name"] in bpy.data.objects:
-            obj = bpy.data.objects[node["name"]]
-            obj.hide_render = True
-            obj.hide_set(True)
+            hide_visibility_group(node)
         if "mesh" in node:
             convert_materials(gltf, node, variants, hasVariants, materialTextures, args.packall, shader_module, shader_mat, skin_mat, lut_skin_mat, unused_texture, unused_secondary_lut)
+        if "state_machine" in node.get("extras", {}):
+            add_state_machine(gltf, node)
         children = node.get("children")
         if node["name"] in bpy.data.objects and children is not None and gltf["nodes"][children[0]]["name"] == "StingrayEntityRoot":
-            object = bpy.data.objects[node["name"]]
+            object: Object = bpy.data.objects[node["name"]]
             object.data.display_type = "WIRE"
 
     if hasVariants:
