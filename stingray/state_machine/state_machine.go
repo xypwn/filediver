@@ -41,8 +41,10 @@ type rawState struct {
 	AnimationWeightCount       uint32
 	AnimationWeightListOffset  uint32
 	Unk01                      uint32
-	Unk02                      uint32
-	Unk03                      uint32
+	Loop                       bool
+	_                          [3]uint8
+	Additive                   bool
+	_                          [3]uint8
 	AnimationEventCount        uint32
 	AnimationEventListOffset   uint32
 	StateTransitionLinksCount  uint32
@@ -55,7 +57,9 @@ type rawState struct {
 	EndTransitionTime          float32
 	CustomBlendFuncCount       uint32
 	CustomBlendFuncOffset      uint32
-	Unk04                      [4]uint32
+	UnknownIntsCount           uint32
+	UnknownIntsOffset          uint32
+	Unk04                      [2]uint32
 	Unk05                      uint32
 	BlendSetMaskIndex          int32
 	UnkValuesCount             uint32
@@ -63,6 +67,7 @@ type rawState struct {
 	BlendVariableIndex         uint32
 	Unk06                      uint32
 	Unk07                      int32
+	RagdollName                stingray.ThinHash
 }
 
 type rawLayer struct {
@@ -169,6 +174,19 @@ func (c CustomBlendFunctionType) MarshalText() ([]byte, error) {
 type CustomBlendVariableType uint32
 
 const CustomBlendVariableType_VariableBase CustomBlendVariableType = 0x7f900000
+
+type DriverType uint32
+
+const (
+	DriverType_Influence DriverType = iota
+	DriverType_EvalTime
+)
+
+func (s DriverType) MarshalText() ([]byte, error) {
+	return []byte(s.String()), nil
+}
+
+//go:generate go run golang.org/x/tools/cmd/stringer -type=DriverType
 
 type DriverInformation struct {
 	Expression string   `json:"expression"`
@@ -391,6 +409,9 @@ type State struct {
 	AnimationHashes           []stingray.Hash            `json:"-"`
 	ResolvedAnimationHashes   []string                   `json:"animations,omitempty"`
 	AnimationWeights          []float32                  `json:"animation_weights,omitempty"`
+	Unk01                     uint32                     `json:"unk01"`
+	Loop                      bool                       `json:"loop"`
+	Additive                  bool                       `json:"additive"`
 	StateTransitions          map[stingray.ThinHash]Link `json:"-"`
 	ResolvedStateTransitions  map[string]Link            `json:"state_transitions,omitempty"`
 	CustomBlendFuncDefinition []CustomBlendFunction      `json:"custom_blend_function,omitempty"`
@@ -400,6 +421,12 @@ type State struct {
 	EndTransitionTime         float32                    `json:"end_transition_time,omitzero"`
 	BlendSetMaskIndex         int32                      `json:"blend_set_mask_index"`
 	BlendVariableIndex        uint32                     `json:"blend_variable_index"`
+	Unk04                     [2]uint32                  `json:"unk04"`
+	Unk05                     uint32                     `json:"unk05"`
+	Unk06                     uint32                     `json:"unk06"`
+	Unk07                     int32                      `json:"unk07"`
+	RagdollName               stingray.ThinHash          `json:"-"`
+	ResolvedRagdollName       string                     `json:"ragdoll_name,omitempty"`
 }
 
 type Layer struct {
@@ -495,6 +522,14 @@ func LoadStateMachine(r io.ReadSeeker) (*StateMachine, error) {
 				state.EmitEndEvent = rawAnim.EmitEndEvent
 				state.EndTransitionTime = rawAnim.EndTransitionTime
 				state.Type = rawAnim.Type
+				state.Additive = rawAnim.Additive
+				state.Unk01 = rawAnim.Unk01
+				state.Loop = rawAnim.Loop
+				state.Unk04 = rawAnim.Unk04
+				state.Unk05 = rawAnim.Unk05
+				state.Unk06 = rawAnim.Unk06
+				state.Unk07 = rawAnim.Unk07
+				state.RagdollName = rawAnim.RagdollName
 				state.BlendVariableIndex = rawAnim.BlendVariableIndex
 				state.AnimationHashes = make([]stingray.Hash, rawAnim.AnimationHashCount)
 				if rawAnim.AnimationHashesOffset != 0 {
