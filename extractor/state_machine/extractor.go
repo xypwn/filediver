@@ -44,6 +44,9 @@ func ExtractStateMachineJson(ctx *extractor.Context) error {
 			if state.EmitEndEvent.Value != 0 {
 				stateMachine.Layers[layerIdx].States[stateIdx].ResolvedEmitEndEvent = ctx.LookupThinHash(state.EmitEndEvent)
 			}
+			if state.RagdollName.Value != 0 {
+				stateMachine.Layers[layerIdx].States[stateIdx].ResolvedRagdollName = ctx.LookupThinHash(state.RagdollName)
+			}
 			resolvedAnimationHashes := make([]string, 0)
 			for _, hash := range state.AnimationHashes {
 				resolvedAnimationHashes = append(resolvedAnimationHashes, ctx.LookupHash(hash))
@@ -83,10 +86,13 @@ type gltfState struct {
 	Name                 string                             `json:"name"`
 	Type                 state_machine.StateType            `json:"type"`
 	Animations           []gltfStateAnimation               `json:"animations,omitempty"`
+	Loop                 bool                               `json:"loop"`
+	Additive             bool                               `json:"additive"`
 	BlendMask            int32                              `json:"blend_mask"`
 	BlendVariableIndex   uint32                             `json:"-"`
 	BlendVariable        string                             `json:"blend_variable,omitempty"`
 	CustomBlendFunctions []*state_machine.DriverInformation `json:"custom_blend_functions,omitempty"`
+	RagdollName          string                             `json:"ragdoll_name,omitempty"`
 }
 
 type gltfAnimationVariable struct {
@@ -132,10 +138,15 @@ func addState(ctx *extractor.Context, doc *gltf.Document, boneInfo *bones.Info, 
 		Name:       ctx.LookupHash(state.Name),
 		Type:       state.Type,
 		Animations: stateAnimations,
+		Loop:       state.Loop,
+		Additive:   state.Additive,
 		BlendMask:  state.BlendSetMaskIndex,
 	}
 	if state.Type == state_machine.StateType_Blend1D {
 		toReturn.BlendVariable = animationVariables[state.BlendVariableIndex].Name
+	}
+	if state.RagdollName.Value != 0 {
+		toReturn.RagdollName = ctx.LookupThinHash(state.RagdollName)
 	}
 
 	animationVariableNames := make([]string, 0)

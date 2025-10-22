@@ -392,8 +392,11 @@ class GLTFState:
     type: str
     blend_mask: int
     animations: List[GLTFAnimation] = None
+    loop: bool = True
+    additive: bool = True
     blend_variable: str = None
     custom_blend_functions: List[GLTFDriverInformation] = None
+    ragdoll_name: str = None
     
     @classmethod
     def from_json(cls, data: dict) -> 'GLTFState':

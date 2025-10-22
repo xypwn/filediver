@@ -154,8 +154,10 @@ struct State {
     u32 animationWeightCount;
     RebasedNullablePtr<AnimationWeightList, u32, "relative_to_parents_parent"> animation_weights;
     u32 unk01;
-    u32 unk02;
-    u32 unk03;
+    bool loop;
+    padding[3];
+    bool additive;
+    padding[3];
     u32 eventCount;
     RebasedNullablePtr<AnimationEventLinkIndexList, u32, "relative_to_parents_parent"> animation_events;
     u32 linkCount;
@@ -179,7 +181,7 @@ struct State {
     u32 blend_variable_index;
     u32 unk06;
     s32 unk07;
-    u32 unk08;
+    ThinMurmurHash ragdoll_name;
     u32 unknownInts2Count;
     RebasedNullableListPtr<u32, u32, "relative_to_parents_parent", unknownInts2Count> unknownInts2;
 };
