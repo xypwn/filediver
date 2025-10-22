@@ -1,5 +1,4 @@
 import bpy
-import bpy.props
 import json
 import os
 import sys
@@ -408,6 +407,8 @@ class GLTFAnimation:
 class GLTFDriverInformation:
     expression: str
     variables: List[str]
+    limits: List[Tuple[float, float, float]]
+    type: str
 
 @dataclass
 class GLTFState:
@@ -480,7 +481,7 @@ def add_state_machine(gltf: Dict, node: Dict):
 
     for variable in controller.animation_variables:
         obj[variable.name] = float(variable.default)
-        obj.id_properties_ui(variable.name).update(min=0.0, max=2.0)
+        obj.id_properties_ui(variable.name).update(min=variable.default, max=variable.default, default=variable.default)
 
     state_machine_empty = bpy.data.objects.new(obj.name+".state_machine", None)
     state_machine_empty.parent = obj
@@ -531,6 +532,15 @@ def add_state_machine(gltf: Dict, node: Dict):
                     objects_to_constrain.append((obj.pose.bones.get(name), 1.0))
             if state.animations is None:
                 continue
+            time_blend_function = None
+            if state.type == "StateType_CustomBlend" and len(state.animations) != len(state.custom_blend_functions) or state.type == "StateType_Clip" and state.custom_blend_functions is not None:
+                for i, time_blend_fn in enumerate(state.custom_blend_functions):
+                    if time_blend_fn.type == "DriverType_EvalTime":
+                        time_blend_function = time_blend_fn
+                        state.custom_blend_functions.pop(i)
+                        break
+                if len(state.custom_blend_functions) == 0:
+                    state.custom_blend_functions = None
             for animIdx, animation in enumerate(state.animations):
                 animation_action = bpy.data.actions[animation.name]
                 for cObj, mask_influence in objects_to_constrain:
@@ -538,6 +548,10 @@ def add_state_machine(gltf: Dict, node: Dict):
                     constraint.name = f"{cObj.name} layer {layerIdx} state {stateIdx} animation {animIdx}"
                     constraint.action = animation_action
                     constraint.use_eval_time = True
+                    if mask_influence == 1:
+                        constraint.mix_mode = 'REPLACE'
+                    else:
+                        constraint.mix_mode = 'AFTER_SPLIT'
                     influence_driver_expression = f"({mask_influence}) * float(state == {stateIdx})"
                     variables = [(layer_empty, "state")]
                     if state.type == "StateType_CustomBlend" and state.custom_blend_functions is not None and animIdx < len(state.custom_blend_functions):
@@ -549,6 +563,20 @@ def add_state_machine(gltf: Dict, node: Dict):
                         variable.targets[0].id = vObj
                         variable.targets[0].data_path = f'["{variableName}"]'
                         variable.name = variableName
+                        manager: IDPropertyUIManager = vObj.id_properties_ui(variableName)
+                        manager_dict = manager.as_dict()
+                        if state.custom_blend_functions is None or variableName not in state.custom_blend_functions[animIdx].variables:
+                            continue
+                        varIdx = state.custom_blend_functions[animIdx].variables.index(variableName)
+                        limits = state.custom_blend_functions[animIdx].limits[varIdx]
+                        if limits[1] < manager_dict["min"]:
+                            manager.update(min=limits[1], soft_min=limits[1])
+                        if limits[1] > manager_dict["max"]:
+                            manager.update(max=limits[1], soft_max=limits[1])
+                        manager_dict = manager.as_dict()
+                        if manager_dict["max"] - manager_dict["min"] > 10:
+                            manager.update(step=1.0)
+
                     influence.driver.expression = influence_driver_expression
 
                     animation_track = obj.animation_data.nla_tracks.get(animation.name)
@@ -559,11 +587,37 @@ def add_state_machine(gltf: Dict, node: Dict):
                         variable.targets[0].id = obj
                         variable.targets[0].data_path = f'["{state.blend_variable}"]'
                         variable.name = state.blend_variable
+                        manager: IDPropertyUIManager = obj.id_properties_ui(state.blend_variable)
+                        manager.update(min=0.0, max=1.0, soft_min=0.0, soft_max=1.0)
                         time.driver.expression = f"clamp({state.blend_variable})"
+                    elif not state.loop:
+                        layer_empty["start_frame"] = float(1.0)
+                        manager: IDPropertyUIManager = layer_empty.id_properties_ui("start_frame")
+                        manager.update(min=0.0, max=math.inf)
+                        variable = time.driver.variables.new()
+                        variable.targets[0].id = layer_empty
+                        variable.targets[0].data_path = '["start_frame"]'
+                        variable.name = "start_frame"
+                        time.driver.expression = f"clamp((frame - start_frame) / {animation_strip.frame_end - animation_strip.frame_start})"
+                    elif time_blend_function is not None:
+                        if time_blend_function.expression != "0.0":
+                            variable = time.driver.variables.new()
+                            variable.targets[0].id = obj
+                            variable.targets[0].data_path = f'["{time_blend_function.variables[0]}"]'
+                            variable.name = time_blend_function.variables[0]
+                            manager: IDPropertyUIManager = obj.id_properties_ui(time_blend_function.variables[0])
+                            if manager.as_dict()["max"] < time_blend_function.limits[0][1]:
+                                manager.update(max=math.inf, soft_max=math.inf)
+                            variableFps = time.driver.variables.new()
+                            variableFps.targets[0].id_type = 'SCENE'
+                            variableFps.targets[0].id = bpy.data.scenes[0]
+                            variableFps.targets[0].data_path = "render.fps"
+                            variableFps.name = "fps"
+                        time.driver.expression = time_blend_function.expression
                     else:
                         time.driver.expression = f"fmod(frame, max(1.0, {animation_strip.frame_end - animation_strip.frame_start})) / max(1.0, {animation_strip.frame_end - animation_strip.frame_start})"
                     constraint.frame_start = int(animation_strip.frame_start)-1
-                    constraint.frame_end = int(round(animation_strip.frame_end))-1
+                    constraint.frame_end = int(animation_strip.frame_end)
 
     obj.animation_data.action = None
 
@@ -618,7 +672,8 @@ def main():
     variants = gltf.get("extensions", {}).get("KHR_materials_variants", {}).get("variants")
     hasVariants = variants is not None
 
-    if hasVariants:
+    if hasVariants and not bpy.context.preferences.addons['io_scene_gltf2'].preferences.KHR_materials_variants_ui:
+        print("Enabling variants UI")
         bpy.context.preferences.addons['io_scene_gltf2'].preferences.KHR_materials_variants_ui = True
 
     if variants is None:
