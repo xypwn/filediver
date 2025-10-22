@@ -145,8 +145,9 @@ const (
 type CustomBlendFunctionType uint32
 
 const (
+	CustomBlendFunctionType_ConstantZero CustomBlendFunctionType = 0x0
 	CustomBlendFunctionType_Null         CustomBlendFunctionType = 0x3f800000
-	CustomBlendFunctionType_Divide       CustomBlendFunctionType = 0x7f800003
+	CustomBlendFunctionType_Time         CustomBlendFunctionType = 0x7f800003
 	CustomBlendFunctionType_MatchRange   CustomBlendFunctionType = 0x7f80000b
 	CustomBlendFunctionType_MatchRange2d CustomBlendFunctionType = 0x7f80000c
 )
@@ -156,8 +157,8 @@ func (c CustomBlendFunctionType) String() string {
 		return fmt.Sprintf("invalid CustomBlendFunctionType: %x", uint32(c))
 	}
 	switch c {
-	case CustomBlendFunctionType_Divide:
-		return "divide"
+	case CustomBlendFunctionType_Time:
+		return "time"
 	case CustomBlendFunctionType_MatchRange2d:
 		return "match_range_2d"
 	case CustomBlendFunctionType_MatchRange:
@@ -189,8 +190,10 @@ func (s DriverType) MarshalText() ([]byte, error) {
 //go:generate go run golang.org/x/tools/cmd/stringer -type=DriverType
 
 type DriverInformation struct {
-	Expression string   `json:"expression"`
-	Variables  []string `json:"variables"`
+	Expression string       `json:"expression"`
+	Variables  []string     `json:"variables"`
+	Limits     [][3]float32 `json:"limits"`
+	Type       DriverType   `json:"type"`
 }
 
 type CustomBlendFunction struct {
@@ -263,23 +266,23 @@ func ParseBlendFunction(data []uint32) ([]CustomBlendFunction, error) {
 					math.Float32frombits(functionData[3]), // t2
 				},
 			})
-		case CustomBlendFunctionType_Divide:
-			// if len(functionData) != 3 {
-			// 	return nil, fmt.Errorf("ParseBlendFunction: divide did not have enough parameters: expected 3, got %v", len(functionData))
-			// }
-			params := make([]any, 0)
-			for _, param := range functionData[:len(functionData)-1] {
-				if IsNaN(param) || IsInf(param) {
-					params = append(params, getVariableIdx(param))
-				} else {
-					params = append(params, math.Float32frombits(param))
-				}
+		case CustomBlendFunctionType_Time:
+			if len(functionData) == 3 {
+				toReturn = append(toReturn, CustomBlendFunction{
+					Function: CustomBlendFunctionType(functionData[2]),
+					Parameters: []any{
+						getVariableIdx(functionData[0]),       // Variable index
+						math.Float32frombits(functionData[1]), // Maximum?
+					},
+				})
 			}
+		case CustomBlendFunctionType_ConstantZero:
+			// Maybe this is just any float with a constant value, not just zero?
+			// Need to check more instances of this
 			toReturn = append(toReturn, CustomBlendFunction{
-				Function:   CustomBlendFunctionType(functionData[len(functionData)-1]),
-				Parameters: params,
+				Function: CustomBlendFunctionType(functionData[0]),
 			})
-		case CustomBlendFunctionType_Null, CustomBlendFunctionType(0):
+		case CustomBlendFunctionType_Null:
 			// Do nothing
 		default:
 			params := make([]any, 0)
@@ -343,8 +346,10 @@ func (f CustomBlendFunction) ToDriver(variables []string) (*DriverInformation, e
 			return nil, fmt.Errorf("variable index 0 %v", err)
 		}
 		return &DriverInformation{
-			Expression: fmt.Sprintf("smoothstep(%v, %v, %v) - smoothstep(%v, %v, %v)", t0, t1, variableName, t1, t2, variableName),
+			Expression: fmt.Sprintf("(clamp((%v - %v) / (%v - %v), 0.0, 1.0) - clamp((%v - %v) / (%v - %v), 0.0, 1.0))", variableName, t0, t1, t0, variableName, t1, t2, t1),
 			Variables:  []string{variableName},
+			Limits:     [][3]float32{{t0, t1, t2}},
+			Type:       DriverType_Influence,
 		}, nil
 	case CustomBlendFunctionType_MatchRange2d:
 		idx0, okIdx0 := f.Parameters[0].(uint32)
@@ -366,11 +371,37 @@ func (f CustomBlendFunction) ToDriver(variables []string) (*DriverInformation, e
 		if err != nil {
 			return nil, fmt.Errorf("variable index 1 %v", err)
 		}
+
 		return &DriverInformation{
-			Expression: fmt.Sprintf("(smoothstep(%v, %v, %v) - smoothstep(%v, %v, %v)) * (smoothstep(%v, %v, %v) - smoothstep(%v, %v, %v))", t0, t1, variableName0, t1, t2, variableName0, s0, s1, variableName1, s1, s2, variableName1),
-			Variables:  []string{variableName0, variableName1},
+			Expression: fmt.Sprintf("(clamp((%v - %v) / (%v - %v), 0.0, 1.0) - clamp((%v - %v) / (%v - %v), 0.0, 1.0)) * (clamp((%v - %v) / (%v - %v), 0.0, 1.0) - clamp((%v - %v) / (%v - %v), 0.0, 1.0))", variableName0, t0, t1, t0, variableName0, t1, t2, t1, variableName1, s0, s1, s0, variableName1, s1, s2, s1),
+			Variables: []string{
+				variableName0,
+				variableName1,
+			},
+			Limits: [][3]float32{
+				{t0, t1, t2},
+				{s0, s1, s2},
+			},
+			Type: DriverType_Influence,
 		}, nil
-	case CustomBlendFunctionType_Divide:
+	case CustomBlendFunctionType_Time:
+		if len(f.Parameters) == 2 {
+			idx, okIdx := f.Parameters[0].(uint32)
+			max, okMax := f.Parameters[1].(float32)
+			if !(okIdx && okMax) {
+				return nil, fmt.Errorf("CustomBlendFunction.ToDriver: invalid parameter types for retiming function")
+			}
+			variableName, err := getVariable(variables, idx)
+			if err != nil {
+				return nil, fmt.Errorf("variable index %v", err)
+			}
+			return &DriverInformation{
+				Expression: fmt.Sprintf("0.0 if (%v == 0) else (fmod(frame * (%v / %v), fps) / fps)", variableName, variableName, max),
+				Variables:  []string{variableName},
+				Limits:     [][3]float32{{0.0, max, -1.0}},
+				Type:       DriverType_EvalTime,
+			}, nil
+		}
 		parameters := ""
 		driverVariables := make([]string, 0)
 		for idx, paramAny := range f.Parameters {
@@ -396,6 +427,13 @@ func (f CustomBlendFunction) ToDriver(variables []string) (*DriverInformation, e
 		return &DriverInformation{
 			Expression: fmt.Sprintf("(%v)", parameters),
 			Variables:  driverVariables,
+		}, nil
+	case CustomBlendFunctionType_ConstantZero:
+		return &DriverInformation{
+			Expression: "0.0",
+			Variables:  []string{},
+			Limits:     [][3]float32{},
+			Type:       DriverType_EvalTime,
 		}, nil
 	default:
 		return nil, fmt.Errorf("CustomBlendFunction.ToDriver: unimplemented function %v", f.Function.String())
