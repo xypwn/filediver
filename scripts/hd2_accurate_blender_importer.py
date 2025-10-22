@@ -32,6 +32,29 @@ import math
 from dds_float16 import DDS
 from openexr.types import OpenEXR
 
+class IDPropertyUIManager:
+    def update(subtype=None, min=None, max=None, soft_min=None, soft_max=None, precision=None, step=None, default=None, id_type=None, items=None, description=None):
+        """
+        Update the RNA information of the IDProperty used for interaction and
+        display in the user interface. The required types for many of the keyword
+        arguments depend on the type of the property.
+        """
+    def update_from(ui_manager_source: 'IDPropertyUIManager'):
+        """
+        Copy UI data from an IDProperty in the source group to a property in this group.
+          If the source property has no UI data, the target UI data will be reset if it exists.
+          :raises TypeError: If the types of the two properties don't match.
+        """
+    def as_dict() -> dict:
+        """
+        Return a dictionary of the property's RNA UI data. The fields in the
+        returned dictionary and their types will depend on the property's type.
+        """
+    def clear():
+        """
+        Remove the RNA UI data from this IDProperty.
+        """
+
 class GLTFChunk:
     def __init__(self, length: int, type: str, data: bytes) -> None:
         self.length = length
