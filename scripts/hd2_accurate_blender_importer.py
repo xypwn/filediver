@@ -548,10 +548,10 @@ def add_state_machine(gltf: Dict, node: Dict):
                     constraint.name = f"{cObj.name} layer {layerIdx} state {stateIdx} animation {animIdx}"
                     constraint.action = animation_action
                     constraint.use_eval_time = True
-                    if mask_influence == 1:
-                        constraint.mix_mode = 'REPLACE'
-                    else:
+                    if mask_influence != 1 or state.additive:
                         constraint.mix_mode = 'AFTER_SPLIT'
+                    else:
+                        constraint.mix_mode = 'REPLACE'
                     influence_driver_expression = f"({mask_influence}) * float(state == {stateIdx})"
                     variables = [(layer_empty, "state")]
                     if state.type == "StateType_CustomBlend" and state.custom_blend_functions is not None and animIdx < len(state.custom_blend_functions):
