@@ -58,6 +58,7 @@ func parseWwiseDep(dataDir *stingray.DataDir, fileID stingray.FileID) (string, e
 	validMagicNums := [][4]byte{
 		{0xd8, '/', 'v', 'x'},   // < patch 1.003.200
 		{0x85, 0xf1, 0xa3, 'x'}, // >= patch 1.003.200
+		{0xb1, 0xf2, 0xa3, 'x'}, // >= patch 1.410.000
 	}
 	if !slices.Contains(validMagicNums, magicNum) {
 		return "", fmt.Errorf("invalid magic number, got: %s", strconv.Quote(string(magicNum[:])))

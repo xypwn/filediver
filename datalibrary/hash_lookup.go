@@ -96,178 +96,178 @@ func parseHashLookup(r io.Reader) (map[uint64]stingray.Hash, error) {
 	}
 
 	if err := binary.Read(r, binary.LittleEndian, &hashLookup.HashCount1); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read hash_count_01 %v", err)
 	}
 	hashLookup.Hashes1 = make([]stingray.Hash, hashLookup.HashCount1)
 	if err := binary.Read(r, binary.LittleEndian, &hashLookup.Hashes1); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read hashes_01 %v", err)
 	}
 
 	if err := binary.Read(r, binary.LittleEndian, &hashLookup.HashMap1EntryCount); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read hash_map_01_entry_count %v", err)
 	}
 	hashLookup.HashMap1 = make([]hashLookupMapEntry, hashLookup.HashMap1EntryCount)
 	if err := binary.Read(r, binary.LittleEndian, &hashLookup.HashMap1); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read hash_map_01 %v", err)
 	}
 
 	if err := binary.Read(r, binary.LittleEndian, &hashLookup.HashCount2); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read hash_count_02 %v", err)
 	}
 	hashLookup.Hashes2 = make([]stingray.Hash, hashLookup.HashCount2)
 	if err := binary.Read(r, binary.LittleEndian, &hashLookup.Hashes2); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read hashes_02 %v", err)
 	}
 
 	if err := binary.Read(r, binary.LittleEndian, &hashLookup.UnknownTypeIndicator); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read unk_type_ind %v", err)
 	}
 	if err := binary.Read(r, binary.LittleEndian, &hashLookup.Hashes2MappingCount); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read hashes_02_mapping_count %v", err)
 	}
 	hashLookup.Hashes2Mapping = make([]hashLookupHashMapping, hashLookup.Hashes2MappingCount)
 	if err := binary.Read(r, binary.LittleEndian, &hashLookup.Hashes2Mapping); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read hashes_02_mapping %v", err)
 	}
 
 	if err := binary.Read(r, binary.LittleEndian, &hashLookup.ThinHashMap1EntryCount); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read thin_hash_map_01_entry_count %v", err)
 	}
 	hashLookup.ThinHashMap1 = make([]hashLookupThinMapEntry, hashLookup.ThinHashMap1EntryCount)
 	if err := binary.Read(r, binary.LittleEndian, &hashLookup.ThinHashMap1); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read thin_hash_map_01 %v", err)
 	}
 
 	if err := binary.Read(r, binary.LittleEndian, &hashLookup.HashCount3); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read hash_count_03 %v", err)
 	}
 	hashLookup.Hashes3 = make([]stingray.Hash, hashLookup.HashCount3)
 	if err := binary.Read(r, binary.LittleEndian, &hashLookup.Hashes3); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read hashes_03 %v", err)
 	}
 
 	if err := binary.Read(r, binary.LittleEndian, &hashLookup.HashMap2EntryCount); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read hash_map_02_entry_count %v", err)
 	}
 	hashLookup.HashMap2 = make([]hashLookupMapEntry, hashLookup.HashMap2EntryCount)
 	if err := binary.Read(r, binary.LittleEndian, &hashLookup.HashMap2); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read hash_map_02 %v", err)
 	}
 
 	if err := binary.Read(r, binary.LittleEndian, &hashLookup.LookupTreeCount1); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read lookup_tree_count_01 %v", err)
 	}
 	hashLookup.LookupTrees1 = make([]hashLookupTree, 0)
 	for i := uint32(0); i < hashLookup.LookupTreeCount1; i++ {
 		var tree hashLookupTree
 		if err := binary.Read(r, binary.LittleEndian, &tree.Type); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("read lookup_trees_01 type %v", err)
 		}
 		if err := binary.Read(r, binary.LittleEndian, &tree.UnkInt); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("read lookup_trees_01 unkint %v", err)
 		}
 		if err := binary.Read(r, binary.LittleEndian, &tree.EntryCount); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("read lookup_trees_01 entry_count %v", err)
 		}
 		tree.Entries = make([]hashLookupMapEntry, tree.EntryCount)
 		if err := binary.Read(r, binary.LittleEndian, &tree.Entries); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("read lookup_trees_01 entries %v", err)
 		}
 		hashLookup.LookupTrees1 = append(hashLookup.LookupTrees1, tree)
 	}
 
 	if err := binary.Read(r, binary.LittleEndian, &hashLookup.HashMap3EntryCount); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read hash_map_03_entry_count %v", err)
 	}
 	hashLookup.HashMap3 = make([]hashLookupMapEntry, hashLookup.HashMap3EntryCount)
 	if err := binary.Read(r, binary.LittleEndian, &hashLookup.HashMap3); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read hash_map_03 %v", err)
 	}
 
 	if err := binary.Read(r, binary.LittleEndian, &hashLookup.LookupTreeCount2); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read lookup_tree_count_02 %v", err)
 	}
 	hashLookup.LookupTrees2 = make([]hashLookupTree, 0)
 	for i := uint32(0); i < hashLookup.LookupTreeCount2; i++ {
 		var tree hashLookupTree
 		if err := binary.Read(r, binary.LittleEndian, &tree.Type); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("read lookup_trees_02 type %v", err)
 		}
 		if err := binary.Read(r, binary.LittleEndian, &tree.UnkInt); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("read lookup_trees_02 unkint %v", err)
 		}
 		if err := binary.Read(r, binary.LittleEndian, &tree.EntryCount); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("read lookup_trees_02 entry_count %v", err)
 		}
 		tree.Entries = make([]hashLookupMapEntry, tree.EntryCount)
 		if err := binary.Read(r, binary.LittleEndian, &tree.Entries); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("read lookup_trees_02 entries %v", err)
 		}
 		hashLookup.LookupTrees2 = append(hashLookup.LookupTrees2, tree)
 	}
 
 	if err := binary.Read(r, binary.LittleEndian, &hashLookup.HashMap4EntryCount); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read hash_map_04_entry_count %v", err)
 	}
 	hashLookup.HashMap4 = make([]hashLookupMapEntry, hashLookup.HashMap4EntryCount)
 	if err := binary.Read(r, binary.LittleEndian, &hashLookup.HashMap4); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read hash_map_04 %v", err)
 	}
 
 	if err := binary.Read(r, binary.LittleEndian, &hashLookup.LookupTreeCount3); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read lookup_tree_count_03 %v", err)
 	}
 	hashLookup.LookupTrees3 = make([]hashLookupTree, 0)
 	for i := uint32(0); i < hashLookup.LookupTreeCount3; i++ {
 		var tree hashLookupTree
 		if err := binary.Read(r, binary.LittleEndian, &tree.Type); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("read lookup_trees_03 type %v", err)
 		}
 		if err := binary.Read(r, binary.LittleEndian, &tree.UnkInt); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("read lookup_trees_03 unkint %v", err)
 		}
 		if err := binary.Read(r, binary.LittleEndian, &tree.EntryCount); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("read lookup_trees_03 entry_count %v", err)
 		}
 		tree.Entries = make([]hashLookupMapEntry, tree.EntryCount)
 		if err := binary.Read(r, binary.LittleEndian, &tree.Entries); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("read lookup_trees_03 entries %v", err)
 		}
 		hashLookup.LookupTrees3 = append(hashLookup.LookupTrees3, tree)
 	}
 
 	if err := binary.Read(r, binary.LittleEndian, &hashLookup.HashMap5EntryCount); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read hash_map_05_entry_count %v", err)
 	}
 	hashLookup.HashMap5 = make([]hashLookupMapEntry, hashLookup.HashMap5EntryCount)
 	if err := binary.Read(r, binary.LittleEndian, &hashLookup.HashMap5); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read hash_map_05 %v", err)
 	}
 
 	if err := binary.Read(r, binary.LittleEndian, &hashLookup.LookupTreeCount4); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read lookup_tree_count_04 %v", err)
 	}
 	hashLookup.LookupTrees4 = make([]hashLookupTree, 0)
-	for i := uint32(0); i < hashLookup.LookupTreeCount3; i++ {
+	for i := uint32(0); i < hashLookup.LookupTreeCount4; i++ {
 		var tree hashLookupTree
 		if err := binary.Read(r, binary.LittleEndian, &tree.Type); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("read lookup_trees_04 type %v", err)
 		}
 		if err := binary.Read(r, binary.LittleEndian, &tree.UnkInt); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("read lookup_trees_04 unkint %v", err)
 		}
 		if err := binary.Read(r, binary.LittleEndian, &tree.EntryCount); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("read lookup_trees_04 entry_count %v", err)
 		}
 		tree.Entries = make([]hashLookupMapEntry, tree.EntryCount)
 		if err := binary.Read(r, binary.LittleEndian, &tree.Entries); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("read lookup_trees_04 entries %v", err)
 		}
 		hashLookup.LookupTrees4 = append(hashLookup.LookupTrees4, tree)
 	}
 
 	if err := binary.Read(r, binary.LittleEndian, &hashLookup.DEADBEE7); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read deadbeet %v", err)
 	}
 
 	if hashLookup.DEADBEE7 != 0xDEADBEE7 {

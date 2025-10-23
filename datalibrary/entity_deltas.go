@@ -120,7 +120,19 @@ func ParseComponentIndices() (map[uint32]DLHash, error) {
 			indicesToHashes[index] = header.Type
 		}
 		base, _ := r.Seek(0, io.SeekCurrent)
-		hasIndex = (base+int64(header.Size))%8 != 0
+		nextLDLD := base + int64(header.Size) + 4
+		if _, err := r.Seek(nextLDLD, io.SeekStart); err != nil {
+			return nil, fmt.Errorf("ParseComponentIndices: while seeking next instance: %v", err)
+		}
+		var ldld uint32
+		if err := binary.Read(r, binary.LittleEndian, &ldld); err != nil {
+			if errors.Is(err, io.EOF) {
+				return indicesToHashes, nil
+			}
+			return nil, fmt.Errorf("ParseComponentIndices: while reading expected LDLD value: %v", err)
+		}
+
+		hasIndex = ldld != 0x444c444c
 		if _, err := r.Seek(base+int64(header.Size), io.SeekStart); err != nil {
 			return nil, fmt.Errorf("ParseComponentIndices: while seeking next instance: %v", err)
 		}

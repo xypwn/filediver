@@ -263,7 +263,9 @@ struct DLItem {
     }
     padding[size-sizeof(data)];
     if(!std::mem::reached(std::mem::size())) {
-        std::mem::AlignTo<8> align;
+        if (std::mem::read_unsigned($+4, 4) != 0x444c444c) {
+            u32 index;
+        }
     }
 } [[format("dltype")]];
 
@@ -276,4 +278,4 @@ struct DLBin {
 };
 
 //DLBin dlbin @0x00;
-DLItem item @0x5cecd8;
+DLItem item @0x5f0bbc;
