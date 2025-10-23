@@ -67,6 +67,7 @@ class Passive(IntEnum):
     BALLISTIC_PADDING = 20
     DESERT_STORMER = 21
     FEET_FIRST = 31
+    SOME_NEW_PASSIVE = 32
 
 class MurmurHash:
     def __init__(self, value: int):
@@ -74,8 +75,6 @@ class MurmurHash:
 
     def __str__(self):
         return f"0x{self.value:016x}"
-
-ARMOR_SET_OFFSET = 0xe50000
 
 class Piece:
     def __init__(self,
@@ -145,10 +144,10 @@ class Body:
         self.unk02 = unk02
 
     @classmethod
-    def parse(cls, data: BytesIO) -> 'Body':
+    def parse(cls, data: BytesIO, base: int) -> 'Body':
         bodyType, unk00, offset, unk01, count, unk02 = struct.unpack("<IIIIII", data.read(24))
         prev = data.tell()
-        data.seek((offset&0xffffff)-ARMOR_SET_OFFSET)
+        data.seek(base+offset)
         pieces = [Piece.parse(data) for _ in range(count)]
         data.seek(prev)
         return cls(BodyType(bodyType), unk00, pieces, unk01, count, unk02)
@@ -179,12 +178,12 @@ class HelldiverCustomizationKit:
         self.unk02 = unk02
     
     @classmethod
-    def parse(cls, data: BytesIO) -> 'HelldiverCustomizationKit':
+    def parse(cls, data: BytesIO, base: int) -> 'HelldiverCustomizationKit':
         _id, dlc_id, set_id, name_upper, name_cased, description, rarity, passive = struct.unpack("<IIIIIIII", data.read(32))
         triad, kit_type, unk01, offset, unk02, count, unk03 = struct.unpack("<QIIIIII", data.read(32))
         prev = data.tell()
-        data.seek((offset&0xffffff)-ARMOR_SET_OFFSET)
-        body_types = [Body.parse(data) for _ in range(count)]
+        data.seek(base+offset)
+        body_types = [Body.parse(data, base) for _ in range(count)]
         data.seek(prev)
         return cls(_id, dlc_id, set_id, name_upper, name_cased, description, rarity, Passive(passive), MurmurHash(triad), Kit(kit_type), unk01, body_types, unk02, count, unk03)
     
@@ -434,7 +433,7 @@ class DlBinItem:
         contentEnd = data.tell()
         if kind == DLItemType.ArmorCustomization.value:
             data.seek(contentStart)
-            content = HelldiverCustomizationKit.parse(data)
+            content = HelldiverCustomizationKit.parse(data, contentStart)
             data.seek(contentEnd)
         elif kind == DLItemType.UnitCustomization.value:
             data.seek(contentStart)

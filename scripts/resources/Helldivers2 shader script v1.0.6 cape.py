@@ -6306,41 +6306,43 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     HD2_Shader.links.new(group_input_1.outputs[3], alpha_cutoff_node.inputs[0])
     HD2_Shader.links.new(alpha_cutoff_node.outputs[0], principled_bsdf_001.inputs[4])
     #Weight
-    principled_bsdf_001.inputs[6].default_value = 0.0
+    if 'Weight' in principled_bsdf_001.inputs:
+        principled_bsdf_001.inputs['Weight'].default_value = 0.0
     #Subsurface Weight
-    principled_bsdf_001.inputs[7].default_value = 0.0
+    principled_bsdf_001.inputs['Subsurface Weight'].default_value = 0.0
     #Subsurface Radius
-    principled_bsdf_001.inputs[8].default_value = (1.0, 0.20000000298023224, 0.10000000149011612)
+    principled_bsdf_001.inputs['Subsurface Radius'].default_value = (1.0, 0.20000000298023224, 0.10000000149011612)
     #Subsurface Scale
-    principled_bsdf_001.inputs[9].default_value = 0.05000000074505806
+    principled_bsdf_001.inputs['Subsurface Scale'].default_value = 0.05000000074505806
     #Subsurface IOR
-    principled_bsdf_001.inputs[10].default_value = 1.399999976158142
+    if 'Subsurface IOR' in principled_bsdf_001.inputs:
+        principled_bsdf_001.inputs['Subsurface IOR'].default_value = 1.399999976158142
     #Subsurface Anisotropy
-    principled_bsdf_001.inputs[11].default_value = 0.0
+    principled_bsdf_001.inputs['Subsurface Anisotropy'].default_value = 0.0
     #Specular Tint
-    principled_bsdf_001.inputs[13].default_value = (1.0, 1.0, 1.0, 1.0)
+    principled_bsdf_001.inputs['Specular Tint'].default_value = (1.0, 1.0, 1.0, 1.0)
     #Anisotropic
-    principled_bsdf_001.inputs[14].default_value = 0.0
+    principled_bsdf_001.inputs['Anisotropic'].default_value = 0.0
     #Anisotropic Rotation
-    principled_bsdf_001.inputs[15].default_value = 0.0
+    principled_bsdf_001.inputs['Anisotropic Rotation'].default_value = 0.0
     #Tangent
-    principled_bsdf_001.inputs[16].default_value = (0.0, 0.0, 0.0)
+    principled_bsdf_001.inputs['Tangent'].default_value = (0.0, 0.0, 0.0)
     #Transmission Weight
-    principled_bsdf_001.inputs[17].default_value = 0.0
+    principled_bsdf_001.inputs['Transmission Weight'].default_value = 0.0
     #Coat IOR
-    principled_bsdf_001.inputs[20].default_value = 1.4500000476837158
+    principled_bsdf_001.inputs['Coat IOR'].default_value = 1.4500000476837158
     #Coat Tint
-    principled_bsdf_001.inputs[21].default_value = (1.0, 1.0, 1.0, 1.0)
+    principled_bsdf_001.inputs['Coat Tint'].default_value = (1.0, 1.0, 1.0, 1.0)
     #Sheen Weight
-    principled_bsdf_001.inputs[23].default_value = 0.0
+    principled_bsdf_001.inputs['Sheen Weight'].default_value = 0.0
     #Sheen Roughness
-    principled_bsdf_001.inputs[24].default_value = 0.5
+    principled_bsdf_001.inputs['Sheen Roughness'].default_value = 0.5
     #Sheen Tint
-    principled_bsdf_001.inputs[25].default_value = (1.0, 1.0, 1.0, 1.0)
+    principled_bsdf_001.inputs['Sheen Tint'].default_value = (1.0, 1.0, 1.0, 1.0)
     #Emission Color
-    principled_bsdf_001.inputs[26].default_value = (1.0, 1.0, 1.0, 1.0)
+    principled_bsdf_001.inputs['Emission Color'].default_value = (1.0, 1.0, 1.0, 1.0)
     #Emission Strength
-    principled_bsdf_001.inputs[27].default_value = 0.0
+    principled_bsdf_001.inputs['Emission Strength'].default_value = 0.0
     
     #node Normal Map
     normal_map = HD2_Shader.nodes.new("ShaderNodeNormalMap")
@@ -11314,23 +11316,23 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     #clamp_018.Result -> math_223.Value
     HD2_Shader.links.new(clamp_018.outputs[0], math_223.inputs[1])
     #clamp_018.Result -> principled_bsdf_001.Metallic
-    HD2_Shader.links.new(clamp_018.outputs[0], principled_bsdf_001.inputs[1])
+    HD2_Shader.links.new(clamp_018.outputs[0], principled_bsdf_001.inputs['Metallic'])
     #mix_033.Result -> separate_xyz_036.Vector
     HD2_Shader.links.new(mix_033.outputs[2], separate_xyz_036.inputs[0])
     #normal_map_001.Normal -> principled_bsdf_001.Normal
-    HD2_Shader.links.new(normal_map_001.outputs[0], principled_bsdf_001.inputs[5])
+    HD2_Shader.links.new(normal_map_001.outputs[0], principled_bsdf_001.inputs['Normal'])
     #normal_map.Normal -> principled_bsdf_001.Coat Normal
-    HD2_Shader.links.new(normal_map.outputs[0], principled_bsdf_001.inputs[22])
+    HD2_Shader.links.new(normal_map.outputs[0], principled_bsdf_001.inputs['Coat Normal'])
     #math_181.Value -> principled_bsdf_001.Coat Roughness
-    HD2_Shader.links.new(math_181.outputs[0], principled_bsdf_001.inputs[19])
+    HD2_Shader.links.new(math_181.outputs[0], principled_bsdf_001.inputs['Coat Roughness'])
     #math_181.Value -> principled_bsdf_001.Roughness
-    HD2_Shader.links.new(math_181.outputs[0], principled_bsdf_001.inputs[2])
+    HD2_Shader.links.new(math_181.outputs[0], principled_bsdf_001.inputs['Roughness'])
     #math_224.Value -> principled_bsdf_001.Coat Weight
-    HD2_Shader.links.new(math_224.outputs[0], principled_bsdf_001.inputs[18])
+    HD2_Shader.links.new(math_224.outputs[0], principled_bsdf_001.inputs['Coat Weight'])
     #math_223.Value -> math_225.Value
     HD2_Shader.links.new(math_223.outputs[0], math_225.inputs[0])
     #math_225.Value -> principled_bsdf_001.Specular IOR Level
-    HD2_Shader.links.new(math_225.outputs[0], principled_bsdf_001.inputs[12])
+    HD2_Shader.links.new(math_225.outputs[0], principled_bsdf_001.inputs['Specular IOR Level'])
     #vector_math_021.Vector -> vector_math_089.Vector
     HD2_Shader.links.new(vector_math_021.outputs[0], vector_math_089.inputs[1])
     #alpha_cutoff_node -> Transparency mix factor
