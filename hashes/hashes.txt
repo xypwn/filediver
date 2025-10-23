@@ -876,9 +876,9 @@ Group_State/Ragdoll_fixed
 Group_State/Ragdoll_landed
 Group_State/Reload
 Group_State/Reload_Fast
+Group_State/Reload_Fast_Onehand
 Group_State/Reload_Onehand
 Group_State/Reload_Onehand_Fast
-Group_State/Reload_Fast_Onehand
 Group_State/Rotator_Loop
 Group_State/Rotator_Stop_0
 Group_State/Spawn_Bughole_Left
@@ -71232,6 +71232,9 @@ content/fac_helldivers/equipment/backpacks/bomb_backpack/animation/up
 content/fac_helldivers/equipment/backpacks/bomb_backpack/bomb_backpack
 content/fac_helldivers/equipment/backpacks/bomb_backpack/materials/bomb_backpack
 content/fac_helldivers/equipment/backpacks/bomb_backpack/textures/bomb_backpack_nac
+content/fac_helldivers/equipment/backpacks/c4_charge_backpack/c4_charge
+content/fac_helldivers/equipment/backpacks/c4_charge_backpack/c4_charge_backpack
+content/fac_helldivers/equipment/backpacks/c4_charge_backpack/c4_charge_detonator
 content/fac_helldivers/equipment/backpacks/directional_energy_shield/directional_energy_shield
 content/fac_helldivers/equipment/backpacks/directional_energy_shield/directional_energy_shield_backpack
 content/fac_helldivers/equipment/backpacks/displacement_backpack/animation/charging
@@ -71380,6 +71383,7 @@ content/fac_helldivers/equipment/primary_weapons/assault_rifle_rico/animation/id
 content/fac_helldivers/equipment/primary_weapons/assault_rifle_rico/animation/reload
 content/fac_helldivers/equipment/primary_weapons/assault_rifle_rico/animation/reload_fast
 content/fac_helldivers/equipment/primary_weapons/assault_rifle_rico/assault_rifle_rico
+content/fac_helldivers/equipment/primary_weapons/assault_rifle_whisper/assault_rifle_whisper
 content/fac_helldivers/equipment/primary_weapons/assault_shotgun/animation/auto
 content/fac_helldivers/equipment/primary_weapons/assault_shotgun/animation/fire
 content/fac_helldivers/equipment/primary_weapons/assault_shotgun/animation/reload
@@ -71457,6 +71461,7 @@ content/fac_helldivers/equipment/primary_weapons/lmg_stalwart/animations/reload_
 content/fac_helldivers/equipment/primary_weapons/lmg_stalwart/lmg_stalwart
 content/fac_helldivers/equipment/primary_weapons/lmg_stalwart/textures/lmg_stalwart_nac
 content/fac_helldivers/equipment/primary_weapons/marksman_rifle/marksman_rifle
+content/fac_helldivers/equipment/primary_weapons/marksman_rifle_justice/marksman_rifle_justice
 content/fac_helldivers/equipment/primary_weapons/marksman_rifle_vigilance/animation/cover_closed
 content/fac_helldivers/equipment/primary_weapons/marksman_rifle_vigilance/animation/cover_open
 content/fac_helldivers/equipment/primary_weapons/marksman_rifle_vigilance/animation/fire
@@ -71578,6 +71583,8 @@ content/fac_helldivers/equipment/sidearm_weapons/automatic_pistol/animation/relo
 content/fac_helldivers/equipment/sidearm_weapons/automatic_pistol/animation/reload_fast_onehand
 content/fac_helldivers/equipment/sidearm_weapons/automatic_pistol/animation/reload_onehand
 content/fac_helldivers/equipment/sidearm_weapons/automatic_pistol/automatic_pistol
+content/fac_helldivers/equipment/sidearm_weapons/caustic_dart_gun/caustic_dart_gun
+content/fac_helldivers/equipment/sidearm_weapons/caustic_dart_gun/caustic_dart_gun_cylinder
 content/fac_helldivers/equipment/sidearm_weapons/energy_revolver/animation/empty
 content/fac_helldivers/equipment/sidearm_weapons/energy_revolver/animation/idle
 content/fac_helldivers/equipment/sidearm_weapons/energy_revolver/animation/overload
@@ -71815,11 +71822,13 @@ content/fac_helldivers/equipment/throwables/he_grenade/he_grenade
 content/fac_helldivers/equipment/throwables/he_grenade/textures/he_grenade_nac
 content/fac_helldivers/equipment/throwables/impact_grenade/impact_grenade
 content/fac_helldivers/equipment/throwables/impact_grenade/textures/impact_grenade_nac
+content/fac_helldivers/equipment/throwables/impact_smoke_grenade/impact_smoke_grenade
 content/fac_helldivers/equipment/throwables/incendiary_grenade/incendiary_grenade
 content/fac_helldivers/equipment/throwables/incendiary_grenade/textures/incendiary_grenade_nac
 content/fac_helldivers/equipment/throwables/incendiary_impact_grenade/incendiary_impact_grenade
 content/fac_helldivers/equipment/throwables/incendiary_mine/incendiary_mine
 content/fac_helldivers/equipment/throwables/incendiary_mine/textures/incendiary_mine_nac
+content/fac_helldivers/equipment/throwables/luring_mine/luring_mine
 content/fac_helldivers/equipment/throwables/self_destruct_drone/animation/closed
 content/fac_helldivers/equipment/throwables/self_destruct_drone/animation/deploy
 content/fac_helldivers/equipment/throwables/self_destruct_drone/animation/idle_add
@@ -77851,7 +77860,6 @@ slide/fire_homing
 slide/fire_lock
 slide/fire_lock_homing
 slide/idle
-slide_release
 slope_scale_depth_bias
 slope_timer
 slug
