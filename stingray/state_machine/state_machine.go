@@ -345,6 +345,12 @@ func (f CustomBlendFunction) ToDriver(variables []string) (*DriverInformation, e
 		if err != nil {
 			return nil, fmt.Errorf("variable index 0 %v", err)
 		}
+		if t0 == t1 {
+			t0 -= 1
+		}
+		if t1 == t2 {
+			t2 += 1
+		}
 		return &DriverInformation{
 			Expression: fmt.Sprintf("(clamp((%v - %v) / (%v - %v), 0.0, 1.0) - clamp((%v - %v) / (%v - %v), 0.0, 1.0))", variableName, t0, t1, t0, variableName, t1, t2, t1),
 			Variables:  []string{variableName},
