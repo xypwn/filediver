@@ -548,6 +548,7 @@ def add_state_machine(gltf: Dict, node: Dict):
                     constraint.name = f"{cObj.name} layer {layerIdx} state {stateIdx} animation {animIdx}"
                     constraint.action = animation_action
                     constraint.use_eval_time = True
+                    constraint.show_expanded = False
                     if mask_influence != 1 or state.additive:
                         constraint.mix_mode = 'AFTER_SPLIT'
                     else:
