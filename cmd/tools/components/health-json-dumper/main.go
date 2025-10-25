@@ -39,19 +39,29 @@ func main() {
 		return hash.String()
 	}
 
-	projectileWeaponComponents, err := datalib.ParseProjectileWeaponComponents()
+	lookupString := func(val uint32) string {
+		return fmt.Sprintf("%x", val)
+	}
+
+	_, components, err := datalib.ParseHealthComponentsArray()
 	if err != nil {
 		panic(err)
 	}
 
-	result := make(map[string]any)
-	for name, component := range projectileWeaponComponents {
-		result[lookupHash(name)] = component.ToSimple(lookupHash, lookupThinHash)
+	fmt.Println("[")
+	for _, component := range components {
+		output, err := json.MarshalIndent(component.ToSimple(lookupHash, lookupThinHash, lookupString), "    ", "    ")
+		if err != nil {
+			fmt.Printf("    \"Error: %v\",\n", err)
+			continue
+		}
+		fmt.Printf("    %v,\n", string(output))
 	}
+	fmt.Println("]")
 
-	output, err := json.MarshalIndent(result, "", "    ")
-	if err != nil {
-		panic(err)
-	}
-	fmt.Print(string(output))
+	// output, err := json.MarshalIndent(result, "", "    ")
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// fmt.Print(string(output))
 }
