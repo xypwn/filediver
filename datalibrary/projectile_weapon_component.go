@@ -52,9 +52,7 @@ type ProjectileWeaponComponent struct {
 	HapticsFireLoopStartAudioEvent  stingray.ThinHash // [wwise]The looping audio event to start when starting to fire.
 	HapticsFireLoopStopAudioEvent   stingray.ThinHash // [wwise]The looping audio event to play when stopping fire.
 	HapticsFireSingleAudioEvent     stingray.ThinHash // [wwise]The audio event to trigger when doing single-fire (if we don't have looping sounds).
-	UnknownFireLoopStartAudioEvent  stingray.ThinHash // Unknown, added after strings were removed
-	UnknownFireLoopStopAudioEvent   stingray.ThinHash // Unknown, added after strings were removed
-	UnknownFireSingleAudioEvent     stingray.ThinHash // Unknown, added after strings were removed
+	_                               [4]uint8
 	FireLoopCameraShake             stingray.Hash     // [camera_shake]The camera shake to run when firing
 	FireLoopCameraShakeRadius       mgl32.Vec2        // Inner/outer camera shake radiuses when firing.
 	SilencedFireLoopStartAudioEvent stingray.ThinHash // [wwise]The looping audio event to start when starting to fire with suppressor.
@@ -141,9 +139,6 @@ type SimpleProjectileWeaponComponent struct {
 	HapticsFireLoopStartAudioEvent  string                        `json:"haptics_fire_loop_start_audio_event"`  // [wwise]The looping audio event to start when starting to fire.
 	HapticsFireLoopStopAudioEvent   string                        `json:"haptics_fire_loop_stop_audio_event"`   // [wwise]The looping audio event to play when stopping fire.
 	HapticsFireSingleAudioEvent     string                        `json:"haptics_fire_single_audio_event"`      // [wwise]The audio event to trigger when doing single-fire (if we don't have looping sounds).
-	UnknownFireLoopStartAudioEvent  string                        `json:"unknown_fire_loop_start_audio_event"`  // Unknown, added after strings were removed
-	UnknownFireLoopStopAudioEvent   string                        `json:"unknown_fire_loop_stop_audio_event"`   // Unknown, added after strings were removed
-	UnknownFireSingleAudioEvent     string                        `json:"unknown_fire_single_audio_event"`      // Unknown, added after strings were removed
 	FireLoopCameraShake             string                        `json:"fire_loop_camera_shake"`               // [camera_shake]The camera shake to run when firing
 	FireLoopCameraShakeRadius       mgl32.Vec2                    `json:"fire_loop_camera_shake_radius"`        // Inner/outer camera shake radiuses when firing.
 	SilencedFireLoopStartAudioEvent string                        `json:"silenced_fire_loop_start_audio_event"` // [wwise]The looping audio event to start when starting to fire with suppressor.
@@ -238,9 +233,6 @@ func (component ProjectileWeaponComponent) ToSimple(lookupHash HashLookup, looku
 		HapticsFireLoopStartAudioEvent:  lookupThinHash(component.HapticsFireLoopStartAudioEvent),
 		HapticsFireLoopStopAudioEvent:   lookupThinHash(component.HapticsFireLoopStopAudioEvent),
 		HapticsFireSingleAudioEvent:     lookupThinHash(component.HapticsFireSingleAudioEvent),
-		UnknownFireLoopStartAudioEvent:  lookupThinHash(component.UnknownFireLoopStartAudioEvent),
-		UnknownFireLoopStopAudioEvent:   lookupThinHash(component.UnknownFireLoopStopAudioEvent),
-		UnknownFireSingleAudioEvent:     lookupThinHash(component.UnknownFireSingleAudioEvent),
 		FireLoopCameraShake:             lookupHash(component.FireLoopCameraShake),
 		FireLoopCameraShakeRadius:       component.FireLoopCameraShakeRadius,
 		SilencedFireLoopStartAudioEvent: lookupThinHash(component.SilencedFireLoopStartAudioEvent),
