@@ -117,6 +117,7 @@ type gltfStateMachine struct {
 }
 
 func addState(ctx *extractor.Context, doc *gltf.Document, boneInfo *bones.Info, state state_machine.State, animationMap map[stingray.Hash]uint32, animationVariables []gltfAnimationVariable) (*gltfState, error) {
+	cfg := ctx.Config()
 	stateAnimations := make([]gltfStateAnimation, 0)
 	for _, path := range state.AnimationHashes {
 		if _, contains := animationMap[path]; !contains {
@@ -132,6 +133,9 @@ func addState(ctx *extractor.Context, doc *gltf.Document, boneInfo *bones.Info, 
 			Name:  animation.NameAnimation(ctx, path),
 			Index: animationIdx,
 		})
+	}
+	if !cfg.Model.EnableAnimationController {
+		return nil, nil
 	}
 	toReturn := gltfState{
 		NameHash:   state.Name,
@@ -170,6 +174,8 @@ func addState(ctx *extractor.Context, doc *gltf.Document, boneInfo *bones.Info, 
 }
 
 func AddStateMachine(ctx *extractor.Context, doc *gltf.Document, unitInfo *unit.Info) (int32, error) {
+	cfg := ctx.Config()
+
 	if unitInfo.StateMachine.Value == 0 {
 		// No state machine to add, but not an error
 		return -1, nil
@@ -223,9 +229,16 @@ func AddStateMachine(ctx *extractor.Context, doc *gltf.Document, unitInfo *unit.
 				ctx.Warnf("add state machine: %v", err)
 				continue
 			}
+			if gltfState == nil {
+				continue
+			}
 			outLayer.States = append(outLayer.States, *gltfState)
 		}
 		layers = append(layers, outLayer)
+	}
+
+	if !cfg.Model.EnableAnimationController {
+		return -1, nil
 	}
 
 	resolvedAnimationEvents := make([]string, 0)
