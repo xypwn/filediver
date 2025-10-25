@@ -43,12 +43,13 @@ type Config struct {
 		TexturesFormat string `cfg:"depends=Material.Format=textures options=png,dds help='format of individual textures if Format is textures'"`
 	} `cfg:"tags=t:material help='see unit options'"`
 	Model struct {
-		Format           string `cfg:"options=blend,glb,raw help='model export format'"`
-		IncludeLODS      bool   `cfg:"help='include meshes of all levels-of-detail'"`
-		EnableAnimations bool   `cfg:"help='export model animations, can take much longer'"`
-		JoinComponents   bool   `cfg:"tags=advanced help='join UDIM components'"`
-		BoundingBoxes    bool   `cfg:"tags=advanced help='export model bounding boxes'"`
-		NoBones          bool   `cfg:"tags=advanced help='don\\'t include bones'"`
+		Format                    string `cfg:"options=blend,glb,raw help='model export format'"`
+		IncludeLODS               bool   `cfg:"help='include meshes of all levels-of-detail'"`
+		EnableAnimations          bool   `cfg:"help='export model animations, can take much longer'"`
+		EnableAnimationController bool   `cfg:"tags=advanced depends=Model.EnableAnimations help='export model animation controller, can take even longer and will add many constraints to the output blend file'"`
+		JoinComponents            bool   `cfg:"tags=advanced help='join UDIM components'"`
+		BoundingBoxes             bool   `cfg:"tags=advanced help='export model bounding boxes'"`
+		NoBones                   bool   `cfg:"tags=advanced help='don\\'t include bones'"`
 	} `cfg:"tags=t:unit,t:geometry_group,t:prefab help='see unit options'"`
 	Animation struct {
 		Format string `cfg:"options=json,raw"`
