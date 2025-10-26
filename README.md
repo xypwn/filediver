@@ -86,7 +86,7 @@ This app builds on a lot of work from other people. This includes:
 ### Setup blender importer for development
 - `uv venv --python 3.11`
 - `uv pip install -r scripts/requirements.txt`
-- set env `FILEDIVER_BLENDER_IMPORTER_COMMAND="uv run scripts/hd2_accurate_blender_importer.py"`
+- `set FILEDIVER_BLENDER_IMPORTER_COMMAND=uv run scripts/hd2_accurate_blender_importer.py` (CMD) or `$env:FILEDIVER_BLENDER_IMPORTER_COMMAND="uv run scripts/hd2_accurate_blender_importer.py"` (PowerShell)
 
 ## License
 Copyright (c) filediver contributors
