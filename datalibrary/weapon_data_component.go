@@ -111,8 +111,10 @@ type WeaponDataComponent struct {
 	Ergonomics                             float32 // How responsive is the weapon when turning, aiming and shooting?
 	ConstrainedAimLeading                  uint8   // [bool]If set, the camera may not get too far away from the aim direction.
 	AllowFPV                               uint8   // [bool]Allow First Person View on this weapon
+	UnknownBool                            uint8   // [bool]Unknown, name length 11
 	AllowAiming                            uint8   // [bool]Allow aiming on this weapon
-	_                                      uint8
+	UnknownBool2                           uint8   // [bool]Unknown, name length 14
+	_                                      [3]uint8
 	CrosshairType                          enum.CrosshairWeaponType // What does this weapons crosshair look like.
 	FirstPersonSightNodes                  [4]OpticSetting          // [string]The chain of bones to the sight of the weapon for first person view.
 	FirstPersonCameraNode                  stingray.ThinHash        // Not sure. name length should be 23 chars in snake_case
@@ -128,6 +130,7 @@ type WeaponDataComponent struct {
 	ThirdPersonAimAudioEventNodeID         stingray.ThinHash // [string]Node at where the on/exit aim down sights sounds are played.
 	FireModeChangedAudioEvent              stingray.ThinHash // [wwise]Sound id to play when changing fire mode
 	OnFireRoundsRemainingAnimationVariable stingray.ThinHash // [string]Animation variable to set to the normalized value of the remaining amount of rounds every time we fire our weapon.
+	_                                      [4]uint8
 	OnFireRoundEffects                     [8]EffectSetting  // Extra particle effect to play when firing a round for this weapon. This effect is fire-and-forget.
 	OnFireRoundNodeScales                  [2]UnitNodeScale  // Node to be scaled firing a round for this weapon.
 	OnFireRoundAnimEvent                   stingray.ThinHash // [string]Animation event to trigger every time we fire a round.
@@ -208,6 +211,8 @@ type SimpleWeaponDataComponent struct {
 	ConstrainedAimLeading                  bool                           `json:"constrained_aim_leading"`                     // [bool]If set, the camera may not get too far away from the aim direction.
 	AllowFPV                               bool                           `json:"allow_fpv"`                                   // [bool]Allow First Person View on this weapon
 	AllowAiming                            bool                           `json:"allow_aiming"`                                // [bool]Allow aiming on this weapon
+	UnknownBool                            bool                           `json:"unknown_bool"`                                // [bool]Unknown
+	UnknownBool2                           bool                           `json:"unknown_bool2"`                               // [bool]Unknown
 	CrosshairType                          enum.CrosshairWeaponType       `json:"crosshair_type"`                              // What does this weapons crosshair look like.
 	FirstPersonSightNodes                  []SimpleOpticSetting           `json:"first_person_sight_nodes,omitempty"`          // [string]The chain of bones to the sight of the weapon for first person view.
 	FirstPersonCameraNode                  string                         `json:"first_person_camera_node"`                    // Not sure. name length should be 23 chars in snake_case
@@ -351,6 +356,8 @@ func (d WeaponDataComponent) ToSimple(lookupHash HashLookup, lookupThinHash Thin
 		ConstrainedAimLeading:                  d.ConstrainedAimLeading != 0,
 		AllowFPV:                               d.AllowFPV != 0,
 		AllowAiming:                            d.AllowAiming != 0,
+		UnknownBool:                            d.UnknownBool != 0,
+		UnknownBool2:                           d.UnknownBool2 != 0,
 		CrosshairType:                          d.CrosshairType,
 		FirstPersonSightNodes:                  fpSightNodes,
 		FirstPersonCameraNode:                  lookupThinHash(d.FirstPersonCameraNode),
