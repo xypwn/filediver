@@ -23250,7 +23250,6 @@ debug_switch_old
 bipod_open
 oil_pump_valve_open
 lock_hinge_open
-action_aim_optimized
 shoot_orbital
 action_burrow_peek
 stock_closed_pepper
