@@ -10,15 +10,15 @@ func _() {
 	var x [1]struct{}
 	_ = x[StateType_Clip-0]
 	_ = x[StateType_Empty-1]
-	_ = x[StateType_CustomBlend-2]
-	_ = x[StateType_Blend1D-3]
-	_ = x[StateType_Blend2D-4]
+	_ = x[StateType_Blend-2]
+	_ = x[StateType_Time-3]
+	_ = x[StateType_Unknown-4]
 	_ = x[StateType_Ragdoll-5]
 }
 
-const _StateType_name = "StateType_ClipStateType_EmptyStateType_CustomBlendStateType_Blend1DStateType_Blend2DStateType_Ragdoll"
+const _StateType_name = "StateType_ClipStateType_EmptyStateType_BlendStateType_TimeStateType_UnknownStateType_Ragdoll"
 
-var _StateType_index = [...]uint8{0, 14, 29, 50, 67, 84, 101}
+var _StateType_index = [...]uint8{0, 14, 29, 44, 58, 75, 92}
 
 func (i StateType) String() string {
 	if i >= StateType(len(_StateType_index)-1) {

@@ -9,12 +9,12 @@ func _() {
 	// Re-run the stringer command to generate them again.
 	var x [1]struct{}
 	_ = x[DriverType_Influence-0]
-	_ = x[DriverType_EvalTime-1]
+	_ = x[DriverType_PlaybackSpeed-1]
 }
 
-const _DriverType_name = "DriverType_InfluenceDriverType_EvalTime"
+const _DriverType_name = "DriverType_InfluenceDriverType_PlaybackSpeed"
 
-var _DriverType_index = [...]uint8{0, 20, 39}
+var _DriverType_index = [...]uint8{0, 20, 44}
 
 func (i DriverType) String() string {
 	if i >= DriverType(len(_DriverType_index)-1) {

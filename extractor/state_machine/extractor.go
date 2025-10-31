@@ -146,7 +146,7 @@ func addState(ctx *extractor.Context, doc *gltf.Document, boneInfo *bones.Info, 
 		Additive:   state.Additive,
 		BlendMask:  state.BlendSetMaskIndex,
 	}
-	if state.Type == state_machine.StateType_Blend1D {
+	if state.Type == state_machine.StateType_Time {
 		toReturn.BlendVariable = animationVariables[state.BlendVariableIndex].Name
 	}
 	if state.RagdollName.Value != 0 {
