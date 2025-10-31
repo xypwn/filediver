@@ -139,8 +139,15 @@ struct UnknownVectorList {
 enum StateType : u32 {
     Clip,
     Empty,
-    AdditiveClip,
-    Blend
+    CustomBlend,
+    Blend1D,
+    Blend2D,
+    Ragdoll,
+};
+
+struct IntFloatEntry {
+    u32 index;
+    float value;
 };
 
 struct State {
@@ -184,6 +191,15 @@ struct State {
     ThinMurmurHash ragdoll_name;
     u32 unknownInts2Count;
     RebasedNullableListPtr<u32, u32, "relative_to_parents_parent", unknownInts2Count> unknownInts2;
+    u32 unknownIntFloatMapCount;
+    RebasedNullableListPtr<IntFloatEntry, u32,  "relative_to_parents_parent", unknownIntFloatMapCount> unknownIntFloatMap;
+    u32 unk08;
+    u32 unk09;
+    u32 unk10;
+    u32 unk11;
+    if (unk08 != 0 || unk09 != 0 || unk10 != 0 || unk11 != 0) {
+        std::print("data in gaps in state {:x}", name.value);
+    }
 };
 
 struct Layer {
