@@ -492,6 +492,7 @@ def add_state_machine(gltf: Dict, node: Dict):
         collection.objects.link(state_machine_empty)
 
     for layerIdx, layer in enumerate(controller.layers):
+        print(f"        Adding layer {layerIdx}")
         layer_empty = bpy.data.objects.new(f"{obj.name} layer {layerIdx}", None)
         layer_empty.parent = state_machine_empty
         layer_empty.empty_display_size = 0.1
@@ -523,6 +524,7 @@ def add_state_machine(gltf: Dict, node: Dict):
         nla_strip.action_frame_end = 250.0
         obj.animation_data.action = layer_action
         for stateIdx, state in enumerate(layer.states):
+            print(f"            Adding state {stateIdx+1}/{len(layer.states)}", end="\r")
             objects_to_constrain: List[Tuple[PoseBone, float]] = []
             if state.blend_mask != -1:
                 for key, value in controller.blend_masks[state.blend_mask].items():
@@ -532,11 +534,11 @@ def add_state_machine(gltf: Dict, node: Dict):
                     objects_to_constrain.append((obj.pose.bones.get(name), 1.0))
             if state.animations is None:
                 continue
-            time_blend_function = None
-            if state.type == "StateType_CustomBlend" and len(state.animations) != len(state.custom_blend_functions) or state.type == "StateType_Clip" and state.custom_blend_functions is not None:
+            playback_speed_function = None
+            if state.type == "StateType_Blend" and len(state.animations) != len(state.custom_blend_functions) or state.type == "StateType_Clip" and state.custom_blend_functions is not None:
                 for i, time_blend_fn in enumerate(state.custom_blend_functions):
-                    if time_blend_fn.type == "DriverType_EvalTime":
-                        time_blend_function = time_blend_fn
+                    if time_blend_fn.type == "DriverType_PlaybackSpeed":
+                        playback_speed_function = time_blend_fn
                         state.custom_blend_functions.pop(i)
                         break
                 if len(state.custom_blend_functions) == 0:
@@ -555,7 +557,7 @@ def add_state_machine(gltf: Dict, node: Dict):
                         constraint.mix_mode = 'REPLACE'
                     influence_driver_expression = f"({mask_influence}) * float(state == {stateIdx})"
                     variables = [(layer_empty, "state")]
-                    if state.type == "StateType_CustomBlend" and state.custom_blend_functions is not None and animIdx < len(state.custom_blend_functions):
+                    if state.type == "StateType_Blend" and state.custom_blend_functions is not None and animIdx < len(state.custom_blend_functions):
                         influence_driver_expression += f" * {state.custom_blend_functions[animIdx].expression}"
                         variables.extend(zip([obj] * len(state.custom_blend_functions[animIdx].variables), state.custom_blend_functions[animIdx].variables))
                     influence = constraint.driver_add("influence")
@@ -583,7 +585,7 @@ def add_state_machine(gltf: Dict, node: Dict):
                     animation_track = obj.animation_data.nla_tracks.get(animation.name)
                     animation_strip = animation_track.strips[0]
                     time = constraint.driver_add("eval_time")
-                    if state.type == "StateType_Blend1D":
+                    if state.type == "StateType_Time":
                         variable = time.driver.variables.new()
                         variable.targets[0].id = obj
                         variable.targets[0].data_path = f'["{state.blend_variable}"]'
@@ -600,25 +602,28 @@ def add_state_machine(gltf: Dict, node: Dict):
                         variable.targets[0].data_path = '["start_frame"]'
                         variable.name = "start_frame"
                         time.driver.expression = f"clamp((frame - start_frame) / {animation_strip.frame_end - animation_strip.frame_start})"
-                    elif time_blend_function is not None:
-                        if time_blend_function.expression != "0.0":
-                            variable = time.driver.variables.new()
-                            variable.targets[0].id = obj
-                            variable.targets[0].data_path = f'["{time_blend_function.variables[0]}"]'
-                            variable.name = time_blend_function.variables[0]
-                            manager: IDPropertyUIManager = obj.id_properties_ui(time_blend_function.variables[0])
-                            if manager.as_dict()["max"] < time_blend_function.limits[0][1]:
-                                manager.update(max=math.inf, soft_max=math.inf)
+                    elif playback_speed_function is not None:
+                        if playback_speed_function.expression != "0.0":
+                            for playbackVarIdx, var in playback_speed_function.variables:
+                                variable = time.driver.variables.new()
+                                variable.targets[0].id = obj
+                                variable.targets[0].data_path = f'["{var}"]'
+                                variable.name = var
+                                manager: IDPropertyUIManager = obj.id_properties_ui(var)
+                                if manager.as_dict()["max"] < playback_speed_function.limits[playbackVarIdx][1]:
+                                    manager.update(max=math.inf, soft_max=math.inf)
                             variableFps = time.driver.variables.new()
                             variableFps.targets[0].id_type = 'SCENE'
                             variableFps.targets[0].id = bpy.data.scenes[0]
                             variableFps.targets[0].data_path = "render.fps"
                             variableFps.name = "fps"
-                        time.driver.expression = time_blend_function.expression
+                        time.driver.expression = f"(fmod(frame * ({playback_speed_function.expression}), fps) / fps)"
                     else:
                         time.driver.expression = f"fmod(frame, max(1.0, {animation_strip.frame_end - animation_strip.frame_start})) / max(1.0, {animation_strip.frame_end - animation_strip.frame_start})"
                     constraint.frame_start = int(animation_strip.frame_start)-1
                     constraint.frame_end = int(animation_strip.frame_end)
+        if len(layer.states) > 0:
+            print()
 
     obj.animation_data.action = None
 

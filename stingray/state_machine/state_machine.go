@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"math/rand"
 	"slices"
 	"strings"
 
@@ -21,9 +22,9 @@ type StateType uint32
 const (
 	StateType_Clip StateType = iota
 	StateType_Empty
-	StateType_CustomBlend
-	StateType_Blend1D
-	StateType_Blend2D
+	StateType_Blend
+	StateType_Time
+	StateType_Unknown
 	StateType_Ragdoll
 )
 
@@ -68,6 +69,10 @@ type rawState struct {
 	Unk06                      uint32
 	Unk07                      int32
 	RagdollName                stingray.ThinHash
+	UnkIntsCount               uint32
+	UnkIntsOffset              uint32
+	UnkIntFloatCount           uint32
+	UnkIntFloatOffset          uint32
 }
 
 type rawLayer struct {
@@ -128,6 +133,11 @@ type IndexedVector struct {
 	Z     float32 `json:"z"`
 }
 
+type IntFloatPair struct {
+	Index uint32  `json:"index"`
+	Value float32 `json:"value"`
+}
+
 type Vectors struct {
 	Unk00 uint32          `json:"-"`
 	Count uint32          `json:"-"`
@@ -140,31 +150,120 @@ const (
 	Token_Function CustomBlendToken = 0x7f800000
 	Token_Variable CustomBlendToken = 0x7f900000
 	Token_Stop     CustomBlendToken = 0x7fa00000
+	Token_Mask     CustomBlendToken = 0x7ff00000
 )
 
 type CustomBlendFunctionType uint32
 
 const (
-	CustomBlendFunctionType_ConstantZero CustomBlendFunctionType = 0x0
-	CustomBlendFunctionType_Null         CustomBlendFunctionType = 0x3f800000
-	CustomBlendFunctionType_Time         CustomBlendFunctionType = 0x7f800003
+	CustomBlendFunctionType_Add          CustomBlendFunctionType = 0x7f800000
+	CustomBlendFunctionType_Sub          CustomBlendFunctionType = 0x7f800001
+	CustomBlendFunctionType_Mult         CustomBlendFunctionType = 0x7f800002
+	CustomBlendFunctionType_Divide       CustomBlendFunctionType = 0x7f800003
+	CustomBlendFunctionType_Negate       CustomBlendFunctionType = 0x7f800004
+	CustomBlendFunctionType_UnaryPlus    CustomBlendFunctionType = 0x7f800005
+	CustomBlendFunctionType_Sin          CustomBlendFunctionType = 0x7f800006
+	CustomBlendFunctionType_Cos          CustomBlendFunctionType = 0x7f800007
+	CustomBlendFunctionType_Abs          CustomBlendFunctionType = 0x7f800008
+	CustomBlendFunctionType_Match        CustomBlendFunctionType = 0x7f800009
+	CustomBlendFunctionType_Match2d      CustomBlendFunctionType = 0x7f80000a
 	CustomBlendFunctionType_MatchRange   CustomBlendFunctionType = 0x7f80000b
 	CustomBlendFunctionType_MatchRange2d CustomBlendFunctionType = 0x7f80000c
+	CustomBlendFunctionType_Rand         CustomBlendFunctionType = 0x7f80000d
+	CustomBlendFunctionType_Clamp        CustomBlendFunctionType = 0x7f800012 // No clue what this actually is unfortunately, seems like it might be helldivers custom? Guessing that its clamp but might be wrong
+	CustomBlendFunctionType_None         CustomBlendFunctionType = 0x7f80ffff
 )
 
 func (c CustomBlendFunctionType) String() string {
-	if c&0xffff0000 != 0x7f800000 {
-		return fmt.Sprintf("invalid CustomBlendFunctionType: %x", uint32(c))
-	}
 	switch c {
-	case CustomBlendFunctionType_Time:
-		return "time"
-	case CustomBlendFunctionType_MatchRange2d:
-		return "match_range_2d"
+	case CustomBlendFunctionType_Add:
+		return "add"
+	case CustomBlendFunctionType_Sub:
+		return "subtract"
+	case CustomBlendFunctionType_Mult:
+		return "multiply"
+	case CustomBlendFunctionType_Divide:
+		return "divide"
+	case CustomBlendFunctionType_Negate:
+		return "negate"
+	case CustomBlendFunctionType_UnaryPlus:
+		return "unary_plus"
+	case CustomBlendFunctionType_Sin:
+		return "sin"
+	case CustomBlendFunctionType_Cos:
+		return "cos"
+	case CustomBlendFunctionType_Abs:
+		return "abs"
+	case CustomBlendFunctionType_Match:
+		return "match"
+	case CustomBlendFunctionType_Match2d:
+		return "match_2d"
 	case CustomBlendFunctionType_MatchRange:
 		return "match_range"
+	case CustomBlendFunctionType_MatchRange2d:
+		return "match_range_2d"
+	case CustomBlendFunctionType_Rand:
+		return "rand"
+	case CustomBlendFunctionType_Clamp:
+		return "clamp"
 	default:
+		if c&0xffff0000 != 0x7f800000 {
+			return fmt.Sprintf("invalid CustomBlendFunctionType: %x", uint32(c))
+		}
 		return fmt.Sprintf("CustomBlendFunctionType(%v)", uint32(c) & ^uint32(0x7f800000))
+	}
+}
+
+func (c CustomBlendFunctionType) Operator() string {
+	switch c {
+	case CustomBlendFunctionType_Add, CustomBlendFunctionType_UnaryPlus:
+		return "+"
+	case CustomBlendFunctionType_Sub, CustomBlendFunctionType_Negate:
+		return "-"
+	case CustomBlendFunctionType_Mult:
+		return "*"
+	case CustomBlendFunctionType_Divide:
+		return "/"
+	case CustomBlendFunctionType_Sin:
+		return "sin"
+	case CustomBlendFunctionType_Cos:
+		return "cos"
+	case CustomBlendFunctionType_Abs:
+		return "abs"
+	case CustomBlendFunctionType_Match:
+		return "match"
+	case CustomBlendFunctionType_Match2d:
+		return "match_2d"
+	case CustomBlendFunctionType_MatchRange:
+		return "match_range"
+	case CustomBlendFunctionType_MatchRange2d:
+		return "match_range_2d"
+	case CustomBlendFunctionType_Rand:
+		return "rand"
+	case CustomBlendFunctionType_Clamp:
+		return "clamp"
+	default:
+		if c&0xffff0000 != 0x7f800000 {
+			return fmt.Sprintf("invalid CustomBlendFunctionType: %x", uint32(c))
+		}
+		return fmt.Sprintf("CustomBlendFunctionType(%v)", uint32(c) & ^uint32(0x7f800000))
+	}
+}
+
+func (c CustomBlendFunctionType) OperandCount() int {
+	switch c {
+	case CustomBlendFunctionType_Negate, CustomBlendFunctionType_UnaryPlus, CustomBlendFunctionType_Sin, CustomBlendFunctionType_Cos, CustomBlendFunctionType_Abs:
+		return 1
+	case CustomBlendFunctionType_Add, CustomBlendFunctionType_Sub, CustomBlendFunctionType_Mult, CustomBlendFunctionType_Divide, CustomBlendFunctionType_Match, CustomBlendFunctionType_Rand:
+		return 2
+	case CustomBlendFunctionType_Clamp:
+		return 3
+	case CustomBlendFunctionType_MatchRange, CustomBlendFunctionType_Match2d:
+		return 4
+	case CustomBlendFunctionType_MatchRange2d:
+		return 8
+	default:
+		return -1
 	}
 }
 
@@ -180,7 +279,7 @@ type DriverType uint32
 
 const (
 	DriverType_Influence DriverType = iota
-	DriverType_EvalTime
+	DriverType_PlaybackSpeed
 )
 
 func (s DriverType) MarshalText() ([]byte, error) {
@@ -197,8 +296,8 @@ type DriverInformation struct {
 }
 
 type CustomBlendFunction struct {
-	Function   CustomBlendFunctionType
-	Parameters []any
+	DriverType
+	Postfix []uint32
 }
 
 func IsNaN(val uint32) bool {
@@ -230,94 +329,37 @@ func ParseBlendFunction(data []uint32) ([]CustomBlendFunction, error) {
 		if endPos == -1 {
 			return toReturn, nil
 		}
-		functionData := data[:endPos]
-		switch CustomBlendFunctionType(functionData[len(functionData)-1]) {
-		case CustomBlendFunctionType_MatchRange2d:
-			// match_range_2d (variable_1, t0, t1, t2, variable_2, s0, s1, s2)
-			// https://help.autodesk.com/view/Stingray/ENU/?guid=__stingray_help_animation_animation_controllers_custom_blend_states_html
-			if len(functionData) != 9 {
-				return nil, fmt.Errorf("ParseBlendFunction: match_range_2d did not have enough parameters: expected 9, got %v", len(functionData))
-			}
-			toReturn = append(toReturn, CustomBlendFunction{
-				Function: CustomBlendFunctionType(functionData[8]),
-				Parameters: []any{
-					getVariableIdx(functionData[0]),       // Variable 1 index
-					math.Float32frombits(functionData[1]), // t0
-					math.Float32frombits(functionData[2]), // t1
-					math.Float32frombits(functionData[3]), // t2
-					getVariableIdx(functionData[4]),       // Variable 2 index
-					math.Float32frombits(functionData[5]), // s0
-					math.Float32frombits(functionData[6]), // s1
-					math.Float32frombits(functionData[7]), // s2
-				},
-			})
-		case CustomBlendFunctionType_MatchRange:
-			// match_range(variable_1, t0, t1, t2)
-			// https://help.autodesk.com/view/Stingray/ENU/?guid=__stingray_help_animation_animation_controllers_custom_blend_states_html
-			if len(functionData) != 5 {
-				return nil, fmt.Errorf("ParseBlendFunction: match_range did not have enough parameters: expected 5, got %v", len(functionData))
-			}
-			toReturn = append(toReturn, CustomBlendFunction{
-				Function: CustomBlendFunctionType(functionData[4]),
-				Parameters: []any{
-					getVariableIdx(functionData[0]),       // Variable 1 index
-					math.Float32frombits(functionData[1]), // t0
-					math.Float32frombits(functionData[2]), // t1
-					math.Float32frombits(functionData[3]), // t2
-				},
-			})
-		case CustomBlendFunctionType_Time:
-			if len(functionData) == 3 {
-				toReturn = append(toReturn, CustomBlendFunction{
-					Function: CustomBlendFunctionType(functionData[2]),
-					Parameters: []any{
-						getVariableIdx(functionData[0]),       // Variable index
-						math.Float32frombits(functionData[1]), // Maximum?
-					},
-				})
-			}
-		case CustomBlendFunctionType_ConstantZero:
-			// Maybe this is just any float with a constant value, not just zero?
-			// Need to check more instances of this
-			toReturn = append(toReturn, CustomBlendFunction{
-				Function: CustomBlendFunctionType(functionData[0]),
-			})
-		case CustomBlendFunctionType_Null:
-			// Do nothing
-		default:
-			params := make([]any, 0)
-			for _, val := range functionData[:len(functionData)-1] {
-				if IsNaN(val) {
-					params = append(params, UnNaNBox(val))
-				} else {
-					params = append(params, math.Float32frombits(val))
-				}
-			}
-			toReturn = append(toReturn, CustomBlendFunction{
-				Function:   CustomBlendFunctionType(functionData[len(functionData)-1]),
-				Parameters: params,
-			})
+
+		var kind DriverType = DriverType_PlaybackSpeed
+		if len(toReturn) > 0 {
+			kind = DriverType_Influence
 		}
+		toReturn = append(toReturn, CustomBlendFunction{
+			DriverType: kind,
+			Postfix:    data[:endPos],
+		})
+
 		data = data[endPos+1:]
 	}
 }
 
 func (f CustomBlendFunction) MarshalText() ([]byte, error) {
-	params := ""
-	for idx, paramAny := range f.Parameters {
-		switch param := paramAny.(type) {
-		case uint32:
-			params += fmt.Sprintf("animation_variables[%x]", param)
-		case float32:
-			params += fmt.Sprintf("%.1f", param)
-		default:
-			return nil, fmt.Errorf("parameter of invalid type in blend function")
+	operandStack, err := f.ParsePostfix()
+	if err != nil {
+		return nil, err
+	}
+	toReturn := ""
+	for idx, operand := range operandStack {
+		marshalled, err := operand.MarshalText()
+		if err != nil {
+			return nil, err
 		}
-		if idx+1 < len(f.Parameters) {
-			params += ", "
+		toReturn += string(marshalled)
+		if idx < len(operandStack)-1 {
+			toReturn += ", "
 		}
 	}
-	return []byte(fmt.Sprintf("%v(%v)", f.Function.String(), params)), nil
+	return []byte(toReturn), nil
 }
 
 func getVariable(variables []string, idx uint32) (string, error) {
@@ -331,119 +373,295 @@ func getVariable(variables []string, idx uint32) (string, error) {
 	return variable, nil
 }
 
-func (f CustomBlendFunction) ToDriver(variables []string) (*DriverInformation, error) {
-	switch f.Function {
-	case CustomBlendFunctionType_MatchRange:
-		idx, okIdx := f.Parameters[0].(uint32)
-		t0, okT0 := f.Parameters[1].(float32)
-		t1, okT1 := f.Parameters[2].(float32)
-		t2, okT2 := f.Parameters[3].(float32)
-		if !(okIdx && okT0 && okT1 && okT2) {
-			return nil, fmt.Errorf("CustomBlendFunction.ToDriver: invalid parameter types for match_range_2d")
-		}
-		variableName, err := getVariable(variables, idx)
-		if err != nil {
-			return nil, fmt.Errorf("variable index 0 %v", err)
-		}
-		if t0 == t1 {
-			t0 -= 1
-		}
-		if t1 == t2 {
-			t2 += 1
-		}
-		return &DriverInformation{
-			Expression: fmt.Sprintf("(clamp((%v - %v) / (%v - %v), 0.0, 1.0) - clamp((%v - %v) / (%v - %v), 0.0, 1.0))", variableName, t0, t1, t0, variableName, t1, t2, t1),
-			Variables:  []string{variableName},
-			Limits:     [][3]float32{{t0, t1, t2}},
-			Type:       DriverType_Influence,
-		}, nil
-	case CustomBlendFunctionType_MatchRange2d:
-		idx0, okIdx0 := f.Parameters[0].(uint32)
-		t0, okT0 := f.Parameters[1].(float32)
-		t1, okT1 := f.Parameters[2].(float32)
-		t2, okT2 := f.Parameters[3].(float32)
-		idx1, okIdx1 := f.Parameters[4].(uint32)
-		s0, okS0 := f.Parameters[5].(float32)
-		s1, okS1 := f.Parameters[6].(float32)
-		s2, okS2 := f.Parameters[7].(float32)
-		if !(okIdx0 && okT0 && okT1 && okT2 && okIdx1 && okS0 && okS1 && okS2) {
-			return nil, fmt.Errorf("CustomBlendFunction.ToDriver: invalid parameter types for match_range_2d")
-		}
-		variableName0, err := getVariable(variables, idx0)
-		if err != nil {
-			return nil, fmt.Errorf("variable index 0 %v", err)
-		}
-		variableName1, err := getVariable(variables, idx1)
-		if err != nil {
-			return nil, fmt.Errorf("variable index 1 %v", err)
-		}
+type postFixNode struct {
+	Operator CustomBlendFunctionType
+	Operands []postFixNode
+	Value    uint32
+}
 
-		return &DriverInformation{
-			Expression: fmt.Sprintf("(clamp((%v - %v) / (%v - %v), 0.0, 1.0) - clamp((%v - %v) / (%v - %v), 0.0, 1.0)) * (clamp((%v - %v) / (%v - %v), 0.0, 1.0) - clamp((%v - %v) / (%v - %v), 0.0, 1.0))", variableName0, t0, t1, t0, variableName0, t1, t2, t1, variableName1, s0, s1, s0, variableName1, s1, s2, s1),
-			Variables: []string{
-				variableName0,
-				variableName1,
-			},
-			Limits: [][3]float32{
-				{t0, t1, t2},
-				{s0, s1, s2},
-			},
-			Type: DriverType_Influence,
-		}, nil
-	case CustomBlendFunctionType_Time:
-		if len(f.Parameters) == 2 {
-			idx, okIdx := f.Parameters[0].(uint32)
-			max, okMax := f.Parameters[1].(float32)
-			if !(okIdx && okMax) {
-				return nil, fmt.Errorf("CustomBlendFunction.ToDriver: invalid parameter types for retiming function")
-			}
-			variableName, err := getVariable(variables, idx)
+func (n postFixNode) ToExpression(variables []string) string {
+	switch n.Operator {
+	case CustomBlendFunctionType_None:
+		if IsNaN(n.Value) {
+			idx := getVariableIdx(n.Value)
+			variable, err := getVariable(variables, idx)
 			if err != nil {
-				return nil, fmt.Errorf("variable index %v", err)
+				panic(err)
 			}
-			return &DriverInformation{
-				Expression: fmt.Sprintf("0.0 if (%v == 0) else (fmod(frame * (%v / %v), fps) / fps)", variableName, variableName, max),
-				Variables:  []string{variableName},
-				Limits:     [][3]float32{{0.0, max, -1.0}},
-				Type:       DriverType_EvalTime,
-			}, nil
+			return variable
 		}
-		parameters := ""
-		driverVariables := make([]string, 0)
-		for idx, paramAny := range f.Parameters {
-			switch param := paramAny.(type) {
-			case uint32:
-				if param < uint32(len(variables)) {
-					variable, err := getVariable(variables, param)
-					if err != nil {
-						return nil, fmt.Errorf("param index %v %v", idx, err)
-					}
-					parameters += variable
-					driverVariables = append(driverVariables, variable)
-					break
-				}
-				parameters += fmt.Sprintf("invalid variable %v", param)
-			case float32:
-				parameters += fmt.Sprintf("%.1f", param)
-			}
-			if idx < len(f.Parameters)-1 {
-				parameters += ", "
-			}
+		return fmt.Sprintf("%.3f", math.Float32frombits(n.Value))
+	case CustomBlendFunctionType_Add, CustomBlendFunctionType_Sub, CustomBlendFunctionType_Mult, CustomBlendFunctionType_Divide:
+		return fmt.Sprintf("(%v) %v (%v)",
+			n.Operands[0].ToExpression(variables),
+			n.Operator.Operator(),
+			n.Operands[1].ToExpression(variables),
+		)
+	case CustomBlendFunctionType_Abs, CustomBlendFunctionType_Cos, CustomBlendFunctionType_Sin, CustomBlendFunctionType_Negate, CustomBlendFunctionType_UnaryPlus:
+		return fmt.Sprintf("%v(%v)",
+			n.Operator.Operator(),
+			n.Operands[0].ToExpression(variables),
+		)
+	case CustomBlendFunctionType_Match:
+		variable := n.Operands[0].ToExpression(variables)
+		constant := n.Operands[1].ToExpression(variables)
+		return fmt.Sprintf("clamp(((%v) - (%v) - 1.0), 0.0, 1.0) - clamp(((%v) - (%v)), 0.0, 1.0)",
+			variable,
+			constant,
+			variable,
+			constant,
+		)
+	case CustomBlendFunctionType_MatchRange:
+		variable := n.Operands[0].ToExpression(variables)
+		minimum := n.Operands[1].ToExpression(variables)
+		center := n.Operands[2].ToExpression(variables)
+		maximum := n.Operands[3].ToExpression(variables)
+		if minimum == center {
+			n.Operands[1].Value = math.Float32bits(math.Float32frombits(n.Operands[1].Value) - 1.0)
+			minimum = n.Operands[1].ToExpression(variables)
 		}
-		return &DriverInformation{
-			Expression: fmt.Sprintf("(%v)", parameters),
-			Variables:  driverVariables,
-		}, nil
-	case CustomBlendFunctionType_ConstantZero:
-		return &DriverInformation{
-			Expression: "0.0",
-			Variables:  []string{},
-			Limits:     [][3]float32{},
-			Type:       DriverType_EvalTime,
-		}, nil
-	default:
-		return nil, fmt.Errorf("CustomBlendFunction.ToDriver: unimplemented function %v", f.Function.String())
+		if maximum == center {
+			n.Operands[3].Value = math.Float32bits(math.Float32frombits(n.Operands[3].Value) + 1.0)
+			maximum = n.Operands[3].ToExpression(variables)
+		}
+		return fmt.Sprintf("clamp(((%v) - (%v)) / ((%v) - (%v)), 0.0, 1.0) - clamp(((%v) - (%v)) / ((%v) - (%v)), 0.0, 1.0)",
+			variable,
+			minimum,
+			center,
+			minimum,
+			variable,
+			center,
+			maximum,
+			center,
+		)
+	case CustomBlendFunctionType_Match2d:
+		variable0 := n.Operands[0].ToExpression(variables)
+		constant0 := n.Operands[1].ToExpression(variables)
+		variable1 := n.Operands[2].ToExpression(variables)
+		constant1 := n.Operands[3].ToExpression(variables)
+		return fmt.Sprintf("(clamp(((%v) - (%v) - 1.0), 0.0, 1.0) - clamp(((%v) - (%v)), 0.0, 1.0)) * (clamp(((%v) - (%v) - 1.0), 0.0, 1.0) - clamp(((%v) - (%v)), 0.0, 1.0))",
+			variable0,
+			constant0,
+			variable0,
+			constant0,
+			variable1,
+			constant1,
+			variable1,
+			constant1,
+		)
+	case CustomBlendFunctionType_MatchRange2d:
+		variable0 := n.Operands[0].ToExpression(variables)
+		minimum0 := n.Operands[1].ToExpression(variables)
+		center0 := n.Operands[2].ToExpression(variables)
+		maximum0 := n.Operands[3].ToExpression(variables)
+		variable1 := n.Operands[4].ToExpression(variables)
+		minimum1 := n.Operands[5].ToExpression(variables)
+		center1 := n.Operands[6].ToExpression(variables)
+		maximum1 := n.Operands[7].ToExpression(variables)
+		if minimum0 == center0 {
+			n.Operands[1].Value = math.Float32bits(math.Float32frombits(n.Operands[1].Value) - 1.0)
+			minimum0 = n.Operands[1].ToExpression(variables)
+		}
+		if minimum1 == center1 {
+			n.Operands[5].Value = math.Float32bits(math.Float32frombits(n.Operands[5].Value) - 1.0)
+			minimum1 = n.Operands[5].ToExpression(variables)
+		}
+		if maximum0 == center0 {
+			n.Operands[3].Value = math.Float32bits(math.Float32frombits(n.Operands[3].Value) + 1.0)
+			maximum0 = n.Operands[3].ToExpression(variables)
+		}
+		if maximum1 == center1 {
+			n.Operands[7].Value = math.Float32bits(math.Float32frombits(n.Operands[7].Value) + 1.0)
+			maximum1 = n.Operands[7].ToExpression(variables)
+		}
+		return fmt.Sprintf("(clamp(((%v) - (%v)) / ((%v) - (%v)), 0.0, 1.0) - clamp(((%v) - (%v)) / ((%v) - (%v)), 0.0, 1.0)) * (clamp(((%v) - (%v)) / ((%v) - (%v)), 0.0, 1.0) - clamp(((%v) - (%v)) / ((%v) - (%v)), 0.0, 1.0))",
+			variable0,
+			minimum0,
+			center0,
+			minimum0,
+			variable0,
+			center0,
+			maximum0,
+			center0,
+			variable1,
+			minimum1,
+			center1,
+			minimum1,
+			variable1,
+			center1,
+			maximum1,
+			center1,
+		)
+	case CustomBlendFunctionType_Clamp:
+		return fmt.Sprintf("%v(%v, %v, %v)",
+			n.Operator.Operator(),
+			n.Operands[0].ToExpression(variables),
+			n.Operands[1].ToExpression(variables),
+			n.Operands[2].ToExpression(variables),
+		)
+	case CustomBlendFunctionType_Rand:
+		if n.Operands[0].Operator == CustomBlendFunctionType_None && n.Operands[1].Operator == CustomBlendFunctionType_None {
+			return fmt.Sprintf("%.3f", rand.Float32()*(math.Float32frombits(n.Operands[1].Value)-math.Float32frombits(n.Operands[0].Value)))
+		} else {
+			return "4.000" // https://xkcd.com/221/
+		}
 	}
+	panic("unknown blend function!")
+}
+
+func (n postFixNode) MarshalText() ([]byte, error) {
+	if n.Operator == CustomBlendFunctionType_None {
+		if IsNaN(n.Value) {
+			idx := getVariableIdx(n.Value)
+			return []byte(fmt.Sprintf("animation_variables[%v]", idx)), nil
+		}
+		return []byte(fmt.Sprintf("%.3f", math.Float32frombits(n.Value))), nil
+	}
+	params := ""
+	for idx, operand := range n.Operands {
+		str, err := operand.MarshalText()
+		if err != nil {
+			return nil, err
+		}
+		params += string(str)
+		if idx < len(n.Operands)-1 {
+			params += ", "
+		}
+	}
+	return []byte(fmt.Sprintf("%v(%v)", n.Operator.String(), params)), nil
+}
+
+func (n postFixNode) Variables() []uint32 {
+	if n.Operator == CustomBlendFunctionType_None && IsNaN(n.Value) {
+		return []uint32{getVariableIdx(n.Value)}
+	}
+	toReturn := make([]uint32, 0)
+	for _, child := range n.Operands {
+		toReturn = append(toReturn, child.Variables()...)
+	}
+	return toReturn
+}
+
+func (n postFixNode) Limits() map[uint32][2]float32 {
+	switch n.Operator {
+	case CustomBlendFunctionType_Match:
+		if n.Operands[0].Operator == CustomBlendFunctionType_None && n.Operands[1].Operator == CustomBlendFunctionType_None {
+			toReturn := make(map[uint32][2]float32)
+			toReturn[getVariableIdx(n.Operands[0].Value)] = [2]float32{math.Float32frombits(n.Operands[1].Value), math.Float32frombits(n.Operands[1].Value)}
+			return toReturn
+		}
+	case CustomBlendFunctionType_MatchRange:
+		if n.Operands[0].Operator == CustomBlendFunctionType_None && n.Operands[2].Operator == CustomBlendFunctionType_None {
+			toReturn := make(map[uint32][2]float32)
+			toReturn[getVariableIdx(n.Operands[0].Value)] = [2]float32{math.Float32frombits(n.Operands[2].Value), math.Float32frombits(n.Operands[2].Value)}
+			return toReturn
+		}
+	case CustomBlendFunctionType_Match2d:
+		if n.Operands[0].Operator == CustomBlendFunctionType_None && n.Operands[1].Operator == CustomBlendFunctionType_None || n.Operands[2].Operator == CustomBlendFunctionType_None && n.Operands[3].Operator == CustomBlendFunctionType_None {
+			toReturn := make(map[uint32][2]float32)
+			if n.Operands[0].Operator == CustomBlendFunctionType_None {
+				toReturn[getVariableIdx(n.Operands[0].Value)] = [2]float32{math.Float32frombits(n.Operands[1].Value), math.Float32frombits(n.Operands[1].Value)}
+			}
+			if n.Operands[2].Operator == CustomBlendFunctionType_None {
+				toReturn[getVariableIdx(n.Operands[2].Value)] = [2]float32{math.Float32frombits(n.Operands[3].Value), math.Float32frombits(n.Operands[3].Value)}
+			}
+			return toReturn
+		}
+	case CustomBlendFunctionType_MatchRange2d:
+		if n.Operands[0].Operator == CustomBlendFunctionType_None && n.Operands[2].Operator == CustomBlendFunctionType_None || n.Operands[4].Operator == CustomBlendFunctionType_None && n.Operands[6].Operator == CustomBlendFunctionType_None {
+			toReturn := make(map[uint32][2]float32)
+			if n.Operands[0].Operator == CustomBlendFunctionType_None {
+				toReturn[getVariableIdx(n.Operands[0].Value)] = [2]float32{math.Float32frombits(n.Operands[2].Value), math.Float32frombits(n.Operands[2].Value)}
+			}
+			if n.Operands[4].Operator == CustomBlendFunctionType_None {
+				toReturn[getVariableIdx(n.Operands[4].Value)] = [2]float32{math.Float32frombits(n.Operands[6].Value), math.Float32frombits(n.Operands[6].Value)}
+			}
+			return toReturn
+		}
+	}
+	toReturn := make(map[uint32][2]float32)
+	for _, operand := range n.Operands {
+		curr := operand.Limits()
+		for key, newLimits := range curr {
+			if limits, contains := toReturn[key]; contains {
+				if newLimits[0] < limits[0] {
+					limits[0] = newLimits[0]
+				}
+				if newLimits[1] > limits[1] {
+					limits[1] = newLimits[1]
+				}
+				toReturn[key] = limits
+				continue
+			}
+			toReturn[key] = newLimits
+		}
+	}
+	return toReturn
+}
+
+func (f CustomBlendFunction) ParsePostfix() ([]postFixNode, error) {
+	operandStack := make([]postFixNode, 0)
+	for _, value := range f.Postfix {
+		if CustomBlendToken(value)&Token_Mask != Token_Function {
+			operandStack = append(operandStack, postFixNode{Operator: CustomBlendFunctionType_None, Operands: make([]postFixNode, 0), Value: value})
+			continue
+		}
+		fnType := CustomBlendFunctionType(value)
+		if len(operandStack) < fnType.OperandCount() {
+			return nil, fmt.Errorf("too few operands for function %v", fnType.String())
+		}
+		if fnType.OperandCount() == -1 {
+			return nil, fmt.Errorf("unknown function type %v (%x)", fnType.String(), value)
+		}
+		operands := make([]postFixNode, 0)
+		for i := len(operandStack) - fnType.OperandCount(); i < len(operandStack); i++ {
+			operands = append(operands, operandStack[i])
+		}
+		node := postFixNode{
+			Operator: fnType,
+			Operands: operands,
+		}
+		operandStack = operandStack[:len(operandStack)-fnType.OperandCount()]
+		operandStack = append(operandStack, node)
+	}
+	return operandStack, nil
+}
+
+func (f CustomBlendFunction) ToDriver(variables []string) (*DriverInformation, error) {
+	operandStack, err := f.ParsePostfix()
+	if err != nil {
+		return nil, err
+	}
+	if len(operandStack) != 1 {
+		return nil, fmt.Errorf("failed to parse postfix expression for custom blend function (expected a single expression)")
+	}
+	variableIndices := operandStack[0].Variables()
+	expression := operandStack[0].ToExpression(variables)
+	limits := operandStack[0].Limits()
+	usedVariables := make([]string, 0)
+	variableLimits := make([][3]float32, 0)
+	dedupeMap := make(map[uint32]bool)
+	for _, idx := range variableIndices {
+		if _, contains := dedupeMap[idx]; contains {
+			continue
+		}
+		variable, err := getVariable(variables, idx)
+		if err != nil {
+			return nil, err
+		}
+		usedVariables = append(usedVariables, variable)
+		if currLimit, contains := limits[idx]; contains {
+			variableLimits = append(variableLimits, [3]float32{currLimit[0], currLimit[1], 0.0})
+		} else {
+			variableLimits = append(variableLimits, [3]float32{0.0, 0.0, 0.0})
+		}
+	}
+	return &DriverInformation{
+		Expression: expression,
+		Variables:  usedVariables,
+		Limits:     variableLimits,
+		Type:       f.DriverType,
+	}, nil
 }
 
 type State struct {
@@ -471,6 +689,8 @@ type State struct {
 	Unk07                     int32                      `json:"unk07"`
 	RagdollName               stingray.ThinHash          `json:"-"`
 	ResolvedRagdollName       string                     `json:"ragdoll_name,omitempty"`
+	UnkInts                   []uint32                   `json:"unkInts,omitempty"`
+	UnkIntFloatMap            []IntFloatPair             `json:"unkIntFloatPairs,omitempty"`
 }
 
 type Layer struct {
@@ -616,6 +836,26 @@ func LoadStateMachine(r io.ReadSeeker) (*StateMachine, error) {
 					}
 				}
 
+				state.UnkInts = make([]uint32, rawAnim.UnkIntsCount)
+				if rawAnim.UnkIntsOffset != 0 {
+					if _, err := r.Seek(int64(rawSM.AnimationGroupsOffset+groupOffset+animationOffset+rawAnim.UnkIntsOffset), io.SeekStart); err != nil {
+						return nil, fmt.Errorf("seek animation link list %08x: %v", rawSM.AnimationGroupsOffset+groupOffset+animationOffset+rawAnim.UnkIntsOffset, err)
+					}
+					if err := binary.Read(r, binary.LittleEndian, &state.UnkInts); err != nil {
+						return nil, fmt.Errorf("read animation link list %08x: %v", rawSM.AnimationGroupsOffset+groupOffset+animationOffset+rawAnim.UnkIntsOffset, err)
+					}
+				}
+
+				state.UnkIntFloatMap = make([]IntFloatPair, rawAnim.UnkIntFloatCount)
+				if rawAnim.UnkIntFloatOffset != 0 {
+					if _, err := r.Seek(int64(rawSM.AnimationGroupsOffset+groupOffset+animationOffset+rawAnim.UnkIntFloatOffset), io.SeekStart); err != nil {
+						return nil, fmt.Errorf("seek animation link list %08x: %v", rawSM.AnimationGroupsOffset+groupOffset+animationOffset+rawAnim.UnkIntFloatOffset, err)
+					}
+					if err := binary.Read(r, binary.LittleEndian, &state.UnkIntFloatMap); err != nil {
+						return nil, fmt.Errorf("read animation link list %08x: %v", rawSM.AnimationGroupsOffset+groupOffset+animationOffset+rawAnim.UnkIntFloatOffset, err)
+					}
+				}
+
 				for _, event := range rawAnimationEvents {
 					if event.Index < 0 {
 						continue
@@ -653,6 +893,9 @@ func LoadStateMachine(r io.ReadSeeker) (*StateMachine, error) {
 				blendFunctions, err := ParseBlendFunction(rawBlendFunctions)
 				if err != nil {
 					return nil, err
+				}
+				if len(blendFunctions) > 0 && len(blendFunctions) == len(state.AnimationHashes) {
+					blendFunctions[0].DriverType = DriverType_Influence
 				}
 				state.CustomBlendFuncDefinition = blendFunctions
 
