@@ -32,9 +32,13 @@ func ExtractAnimationJson(ctx *extractor.Context) error {
 		anim.Header.ResolvedHashes = append(anim.Header.ResolvedHashes, ctx.LookupHash(hash))
 	}
 
-	anim.Header.ResolvedHashes2 = make([]string, 0)
-	for _, hash := range anim.Header.Hashes2 {
-		anim.Header.ResolvedHashes2 = append(anim.Header.ResolvedHashes2, ctx.LookupHash(hash))
+	anim.Header.ResolvedBeats = make([]animation.Beat, 0)
+	for _, beat := range anim.Header.Beats {
+		anim.Header.ResolvedBeats = append(anim.Header.ResolvedBeats, animation.Beat{
+			TimeStamp: beat.TimeStamp,
+			NameHash:  beat.Name,
+			Name:      ctx.LookupThinHash(beat.Name),
+		})
 	}
 
 	text, err := json.Marshal(anim)
@@ -197,14 +201,16 @@ func AddAnimation(ctx *extractor.Context, doc *gltf.Document, boneInfo *bones.In
 		}
 	}
 
-	if cfg.Unit.SampleAnimations {
-		extras, ok := doc.Extras.(map[string]any)
-		if !ok {
-			extras = make(map[string]any)
-		}
-		extras["frameRate"] = cfg.Unit.AnimationSampleRate
-		doc.Extras = extras
+	extras, ok := doc.Extras.(map[string]any)
+	if !ok {
+		extras = make(map[string]any)
 	}
+	if cfg.Unit.SampleAnimations {
+		extras["frameRate"] = cfg.Unit.AnimationSampleRate
+	} else {
+		extras["frameRate"] = 30
+	}
+	doc.Extras = extras
 
 	samplers := make([]*gltf.AnimationSampler, 0)
 	channels := make([]*gltf.Channel, 0)
@@ -327,10 +333,22 @@ func AddAnimation(ctx *extractor.Context, doc *gltf.Document, boneInfo *bones.In
 		samplers = append(samplers, scaleSampler)
 		channels = append(channels, scaleChannel)
 	}
+
+	beats := make([]animation.Beat, 0)
+	for _, rawBeat := range animInfo.Header.Beats {
+		beats = append(beats, animation.Beat{
+			TimeStamp: rawBeat.TimeStamp,
+			Name:      ctx.LookupThinHash(rawBeat.Name),
+		})
+	}
+
 	animationName := NameAnimation(ctx, path)
 	animationIdx := uint32(len(doc.Animations))
 	doc.Animations = append(doc.Animations, &gltf.Animation{
-		Name:     animationName,
+		Name: animationName,
+		Extras: map[string]any{
+			"beats": beats,
+		},
 		Samplers: samplers,
 		Channels: channels,
 	})

@@ -36,7 +36,7 @@ type Config struct {
 		AllTextures         bool   `cfg:"tags=advanced help='include all referenced textures, including wounds, marks etc. and unknown ones'"`
 		AccurateOnly        bool   `cfg:"tags=advanced"`
 		SampleAnimations    bool   `cfg:"help='more accurate for now, as spline interpolation conversion isn\\'t implemented yet'"`
-		AnimationSampleRate int    `cfg:"depends=Unit.SampleAnimations range=12...144 default=24"`
+		AnimationSampleRate int    `cfg:"depends=Unit.SampleAnimations range=12...144 default=30"`
 	} `cfg:"help='general unit settings, affects materials, models and animations'"`
 	Material struct {
 		Format         string `cfg:"options=blend,glb,textures,raw help='material export format; textures dumps all referenced textures into a folder'"`

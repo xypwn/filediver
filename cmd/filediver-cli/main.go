@@ -14,6 +14,7 @@ import (
 	"runtime/pprof"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"syscall"
 	"text/tabwriter"
@@ -32,6 +33,7 @@ import (
 	"github.com/xypwn/filediver/extractor/single_glb_helper"
 	"github.com/xypwn/filediver/hashes"
 	"github.com/xypwn/filediver/stingray"
+	"github.com/xypwn/filediver/stingray/animation"
 	stingray_strings "github.com/xypwn/filediver/stingray/strings"
 	"github.com/xypwn/filediver/stingray/unit"
 )
@@ -340,16 +342,22 @@ Options:`)
 		knownLight := make(map[string]bool)
 		knownMat := make(map[string]bool)
 		knownMatVariant := make(map[string]bool)
+		knownBeat := make(map[string]bool)
 		unknownBone := make(map[string]bool)
 		unknownLight := make(map[string]bool)
 		unknownMat := make(map[string]bool)
 		unknownMatVariant := make(map[string]bool)
+		unknownBeat := make(map[string]bool)
+
 		fileCount := 0
 		for _, id := range sortedFileIDs {
 			if id.Type == stingray.Sum("unit") {
 				fileCount += handleUnitThinHashes(prt, a, id, optThinToFind, knownBone, unknownBone, knownLight, unknownLight, knownMat, unknownMat)
+			} else if id.Type == stingray.Sum("animation") {
+				fileCount += handleAnimationBeats(prt, a, id, optThinToFind, knownBeat, unknownBeat)
 			}
 		}
+
 		for _, skinOverrideGroup := range a.SkinOverrideGroups {
 			for _, skinOverride := range skinOverrideGroup.Skins {
 				if name, exists := a.ThinHashes[skinOverride.ID]; exists {
@@ -359,6 +367,7 @@ Options:`)
 				}
 			}
 		}
+
 		for _, paintScheme := range a.WeaponPaintSchemes {
 			if name, exists := a.ThinHashes[paintScheme.ID]; exists {
 				knownMatVariant[name] = true
@@ -367,7 +376,7 @@ Options:`)
 			}
 		}
 
-		knownSorted := make([]string, len(knownBone)+len(knownMat)+len(knownLight)+len(knownMatVariant))
+		knownSorted := make([]string, len(knownBone)+len(knownMat)+len(knownLight)+len(knownMatVariant)+len(knownBeat))
 		i := 0
 		for name := range knownBone {
 			knownSorted[i] = name
@@ -385,8 +394,12 @@ Options:`)
 			knownSorted[i] = name
 			i++
 		}
+		for name := range knownBeat {
+			knownSorted[i] = name
+			i++
+		}
 
-		unknownSorted := make([]string, len(unknownBone)+len(unknownMat)+len(unknownLight)+len(unknownMatVariant))
+		unknownSorted := make([]string, len(unknownBone)+len(unknownMat)+len(unknownLight)+len(unknownMatVariant)+len(unknownBeat))
 		i = 0
 		for name := range unknownBone {
 			unknownSorted[i] = name
@@ -401,6 +414,10 @@ Options:`)
 			i++
 		}
 		for name := range unknownMatVariant {
+			unknownSorted[i] = name
+			i++
+		}
+		for name := range unknownBeat {
 			unknownSorted[i] = name
 			i++
 		}
@@ -455,6 +472,18 @@ Options:`)
 				fmt.Println(mat)
 			}
 			printed = len(unknownMat) + len(knownMat) + len(knownMatVariant) + len(unknownMatVariant)
+		case "beat":
+			knownOffset := len(knownBone) + len(knownLight) + len(knownMat) + len(knownMatVariant)
+			unknownOffset := len(unknownBone) + len(unknownLight) + len(unknownMat) + len(unknownMatVariant)
+			slices.Sort(knownSorted[knownOffset : knownOffset+len(knownBeat)])
+			slices.Sort(unknownSorted[unknownOffset : unknownOffset+len(unknownBeat)])
+			for _, mat := range knownSorted[knownOffset : knownOffset+len(knownBeat)] {
+				fmt.Println(mat)
+			}
+			for _, mat := range unknownSorted[unknownOffset : unknownOffset+len(unknownBeat)] {
+				fmt.Println(mat)
+			}
+			printed = len(unknownBeat) + len(knownBeat)
 		case "all":
 			slices.Sort(knownSorted)
 			slices.Sort(unknownSorted)
@@ -625,4 +654,43 @@ func handleUnitThinHashes(prt app.Printer, a *app.App, id stingray.FileID, optTh
 	}
 
 	return unitCount
+}
+
+func handleAnimationBeats(prt app.Printer, a *app.App, id stingray.FileID, optThinToFind *string, knownBeat, unknownBeat map[string]bool) int {
+	b, err := a.DataDir.Read(id, stingray.DataMain)
+	if err != nil {
+		prt.Errorf("opening %v.animation's main file: %v", err)
+		return 0
+	}
+	clip, err := animation.LoadAnimation(bytes.NewReader(b))
+
+	fileCount := 0
+	for _, beat := range clip.Header.Beats {
+		if *optThinToFind != "" && stingray.Sum(*optThinToFind).Thin() == beat.Name {
+			animName, exists := a.Hashes[id.Name]
+			if !exists {
+				animName = id.Name.String()
+			}
+			fmt.Printf("%v.animation\n", animName)
+			fileCount++
+			break
+		} else if val, err := strconv.ParseInt(*optThinToFind, 0, 32); err == nil && val == int64(beat.Name.Value) {
+			animName, exists := a.Hashes[id.Name]
+			if !exists {
+				animName = id.Name.String()
+			}
+			fmt.Printf("%v.animation\n", animName)
+			fileCount++
+			break
+		} else if *optThinToFind != "" {
+			continue
+		}
+
+		if name, exists := a.ThinHashes[beat.Name]; exists {
+			knownBeat[name] = true
+		} else {
+			unknownBeat[beat.Name.String()] = true
+		}
+	}
+	return fileCount
 }

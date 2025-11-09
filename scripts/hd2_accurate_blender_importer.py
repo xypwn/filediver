@@ -7,6 +7,8 @@ import tempfile
 import numpy as np
 from argparse import ArgumentParser
 from bpy.types import (
+    Action,
+    ActionPoseMarkers,
     BlendData,
     Image,
     Object,
@@ -24,7 +26,7 @@ from io import BytesIO
 from typing import Optional, Dict, List, Tuple, Union
 from types import ModuleType
 from random import randint
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from copy import deepcopy
 import math
 
@@ -456,17 +458,21 @@ class GLTFStateMachine:
     layers: List[GLTFLayer]
     animation_events: List[str]
     animation_variables: List[GLTFVariable]
-    blend_masks: List[Dict[str, float]]
-    all_bones: List[str]
+    blend_masks: List[Dict[str, float]] = field(default_factory=list)
+    all_bones: List[str] = field(default_factory=list)
     
     @classmethod
     def from_json(cls, data: dict) -> 'GLTFStateMachine':
         # don't be destructive for no reason
         data = deepcopy(data)
-        layers = [GLTFLayer.from_json(layer) for layer in data["layers"]]
-        animation_variables = [GLTFVariable(**variable) for variable in data["animation_variables"]]
-        del data["animation_variables"]
-        del data["layers"]
+        layers = []
+        if "layers" in data:
+            layers = [GLTFLayer.from_json(layer) for layer in data["layers"]]
+            del data["layers"]
+        animation_variables = []
+        if "animation_variables" in data:
+            animation_variables = [GLTFVariable(**variable) for variable in data["animation_variables"]]
+            del data["animation_variables"]
         return cls(layers=layers, animation_variables=animation_variables, **data)
 
 def no_set(self, val):
@@ -546,6 +552,8 @@ def add_state_machine(gltf: Dict, node: Dict):
             for animIdx, animation in enumerate(state.animations):
                 animation_action = bpy.data.actions[animation.name]
                 for cObj, mask_influence in objects_to_constrain:
+                    if cObj is None:
+                        continue
                     constraint: ActionConstraint = cObj.constraints.new('ACTION')
                     constraint.name = f"{cObj.name} layer {layerIdx} state {stateIdx} animation {animIdx}"
                     constraint.action = animation_action
@@ -555,6 +563,16 @@ def add_state_machine(gltf: Dict, node: Dict):
                         constraint.mix_mode = 'AFTER_SPLIT'
                     else:
                         constraint.mix_mode = 'REPLACE'
+                    # enabled = constraint.driver_add("enabled")
+                    # state_var = enabled.driver.variables.new()
+                    # state_var.targets[0].id = layer_empty
+                    # state_var.targets[0].data_path = '["state"]'
+                    # state_var.name = "state"
+                    # enabled.driver.expression = f"state == {stateIdx}"
+
+                    # influence_driver_expression = f"{mask_influence}"
+                    # variables: List[Tuple[Object, str]] = []
+
                     influence_driver_expression = f"({mask_influence}) * float(state == {stateIdx})"
                     variables = [(layer_empty, "state")]
                     if state.type == "StateType_Blend" and state.custom_blend_functions is not None and animIdx < len(state.custom_blend_functions):
@@ -566,12 +584,12 @@ def add_state_machine(gltf: Dict, node: Dict):
                         variable.targets[0].id = vObj
                         variable.targets[0].data_path = f'["{variableName}"]'
                         variable.name = variableName
-                        manager: IDPropertyUIManager = vObj.id_properties_ui(variableName)
-                        manager_dict = manager.as_dict()
                         if state.custom_blend_functions is None or variableName not in state.custom_blend_functions[animIdx].variables:
                             continue
                         varIdx = state.custom_blend_functions[animIdx].variables.index(variableName)
                         limits = state.custom_blend_functions[animIdx].limits[varIdx]
+                        manager: IDPropertyUIManager = vObj.id_properties_ui(variableName)
+                        manager_dict = manager.as_dict()
                         if limits[1] < manager_dict["min"]:
                             manager.update(min=limits[1], soft_min=limits[1])
                         if limits[1] > manager_dict["max"]:
@@ -701,6 +719,17 @@ def main():
         if node["name"] in bpy.data.objects and children is not None and gltf["nodes"][children[0]]["name"] == "StingrayEntityRoot":
             object: Object = bpy.data.objects[node["name"]]
             object.data.display_type = "WIRE"
+
+    if "animations" in gltf and len(gltf["animations"]) > 0:
+        print("Applying animation beats")
+        for animation in gltf["animations"]:
+            if animation["name"] not in bpy.data.actions or animation.get("extras", {}).get("beats") is None:
+                continue
+            for beat in animation["extras"]["beats"]:
+                action: Action = bpy.data.actions[animation["name"]]
+                markers: ActionPoseMarkers = action.pose_markers
+                beat_marker = markers.new(beat["name"])
+                beat_marker.frame = round(beat["timestamp"] * bpy.context.scene.render.fps) + 1
 
     if hasVariants:
         # Reset to default variant
