@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/hellflame/argparse"
 	"github.com/jwalton/go-supportscolor"
 	"github.com/xypwn/filediver/app"
 	"github.com/xypwn/filediver/app/appconfig"
@@ -18,7 +19,7 @@ import (
 	"github.com/xypwn/filediver/stingray/physics"
 )
 
-func dumpPhysicsNames(a *app.App, fileID stingray.FileID) error {
+func dumpPhysicsNames(a *app.App, fileID stingray.FileID, withHashes bool) error {
 	bs, err := a.DataDir.Read(fileID, stingray.DataMain)
 	if err != nil {
 		return err
@@ -30,11 +31,16 @@ func dumpPhysicsNames(a *app.App, fileID stingray.FileID) error {
 	}
 	physicsSuffix := string(physics.NameEnd[:23])
 	knownName, ok := a.Hashes[fileID.Name]
+	var toPrint string
 	if ok {
-		fmt.Println(knownName)
+		toPrint = knownName
 	} else {
-		fmt.Println(physicsSuffix)
+		toPrint = physicsSuffix
 	}
+	if withHashes {
+		toPrint += ": " + fileID.Name.String()
+	}
+	fmt.Println(toPrint)
 	return err
 }
 
@@ -51,6 +57,12 @@ func main() {
 		<-sigs
 		cancel()
 	}()
+
+	parser := argparse.NewParser("physics-name-dumper", "", &argparse.ParserConfig{DisableDefaultShowHelp: true})
+	withHashes := parser.Flag("i", "include-hashes", &argparse.Option{})
+	if err := parser.Parse(nil); err != nil {
+		prt.Fatalf("argparser: %v", err)
+	}
 
 	gameDir, err := app.DetectGameDir()
 	if err != nil {
@@ -82,7 +94,7 @@ func main() {
 	for fileID := range files {
 		var cfg appconfig.Config
 		config.InitDefault(&cfg)
-		if err := dumpPhysicsNames(a, fileID); err != nil {
+		if err := dumpPhysicsNames(a, fileID, *withHashes); err != nil {
 			if errors.Is(err, context.Canceled) {
 				prt.NoStatus()
 				prt.Warnf("Name dump canceled, exiting cleanly")
