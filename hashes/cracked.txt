@@ -6637,3 +6637,4 @@ content/fac_helldivers/hellpod/weapon_rack/weapon_rack_medic_backpack
 content/fac_helldivers/hellpod/weapon_rack/weapon_rack_melee_flag
 content/fac_helldivers/hellpod/weapon_rack/weapon_rack_mini_missile_silo
 content/fac_helldivers/hellpod/weapon_rack/weapon_rack_shoulder_mounted_camera
+content/fac_helldivers/hellpod/weapon_rack/weapon_rack_c4_charge_backpack
