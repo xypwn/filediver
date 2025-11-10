@@ -1016,6 +1016,7 @@ ChargeState
 ElementDamage
 MaterialVariableValue
 EnemyTagSwap
+AiSquadMemberComponentData
 
 // ======== Enums and Values ========
 HelldiverCustomizationPassiveBonus
