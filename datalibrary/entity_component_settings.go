@@ -99,6 +99,8 @@ func getComponentDataForHash(componentType DLHash, resource stingray.Hash) ([]by
 		return getDepositComponentDataForHash(resource)
 	case Sum("EnemyPackageComponentData"):
 		return getEnemyPackageComponentDataForHash(resource)
+	case Sum("EquipmentComponentData"):
+		return getEquipmentComponentDataForHash(resource)
 	case Sum("HealthComponentData"):
 		return getHealthComponentDataForHash(resource)
 	case Sum("HellpodComponentData"):
@@ -198,6 +200,12 @@ func parseComponent(componentType DLHash, data []byte) (Component, error) {
 		return toReturn, nil
 	case Sum("EnemyPackageComponentData"):
 		var toReturn EnemyPackageComponent
+		if _, err := binary.Decode(data, binary.LittleEndian, &toReturn); err != nil {
+			return nil, err
+		}
+		return toReturn, nil
+	case Sum("EquipmentComponentData"):
+		var toReturn EquipmentComponent
 		if _, err := binary.Decode(data, binary.LittleEndian, &toReturn); err != nil {
 			return nil, err
 		}
