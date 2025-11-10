@@ -1014,6 +1014,8 @@ FireMode
 ChargeStateSetting
 ChargeState
 ElementDamage
+MaterialVariableValue
+EnemyTagSwap
 
 // ======== Enums and Values ========
 HelldiverCustomizationPassiveBonus
