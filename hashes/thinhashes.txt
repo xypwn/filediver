@@ -24013,3 +24013,5 @@ arm_wrestle_enter_done
 arm_wrestle_exit_done
 arm_mine
 transition_beat
+ivory_legion
+iron_fleet
