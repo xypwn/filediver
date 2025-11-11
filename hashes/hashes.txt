@@ -68553,6 +68553,7 @@ content/env_cyborg/gameplay/spawner_factory/animation/pre_destruction
 content/env_cyborg/gameplay/spawner_factory/cyborg_spawner_factory
 content/env_cyborg/gameplay/spawner_factory/cyborg_spawner_factory_conscript_airborne
 content/env_cyborg/gameplay/spawner_factory/cyborg_spawner_factory_conscript_assault
+content/env_cyborg/gameplay/spawner_factory/cyborg_spawner_factory_conscript_base
 content/env_cyborg/gameplay/spawner_factory/cyborg_spawner_factory_conscript_phalanx
 content/env_cyborg/gameplay/spawner_factory/cyborg_spawner_factory_conscript_standard
 content/env_cyborg/gameplay_structures/cy_explosive_battery_01
@@ -70689,6 +70690,8 @@ content/fac_bugs/cha_dragon/animations/mouth_closed
 content/fac_bugs/cha_dragon/animations/spew
 content/fac_bugs/cha_dragon/cha_dragon
 content/fac_bugs/cha_hive_lord/cha_hive_lord
+content/fac_bugs/cha_hive_lord/cha_hive_lord_back_shell
+content/fac_bugs/cha_hive_lord/cha_hive_lord_front_shell
 content/fac_bugs/cha_hive_lord/cha_hive_lord_l_leg
 content/fac_bugs/cha_hive_lord/cha_hive_lord_l_mandible
 content/fac_bugs/cha_hive_lord/cha_hive_lord_r_leg
@@ -70893,14 +70896,18 @@ content/fac_cyborgs/cha_conscript/cha_conscript_elite
 content/fac_cyborgs/cha_conscript/cha_conscript_flamer
 content/fac_cyborgs/cha_conscript/cha_conscript_iron_fleet
 content/fac_cyborgs/cha_conscript/cha_conscript_ivory_legion
+content/fac_cyborgs/cha_conscript/cha_conscript_ivory_legion_tier_2
 content/fac_cyborgs/cha_conscript/cha_conscript_jump
 content/fac_cyborgs/cha_conscript/cha_conscript_jump_melee
 content/fac_cyborgs/cha_conscript/cha_conscript_melee
 content/fac_cyborgs/cha_conscript/cha_conscript_mra
 content/fac_cyborgs/cha_conscript/cha_conscript_normal
 content/fac_cyborgs/cha_conscript/cha_conscript_scout
+content/fac_cyborgs/cha_conscript/cha_conscript_scout_walker_rider
 content/fac_cyborgs/cha_conscript/cha_conscript_shotgun
+content/fac_cyborgs/cha_conscript/cha_conscript_tier_1
 content/fac_cyborgs/cha_conscript/cha_conscript_tier_2
+content/fac_cyborgs/cha_conscript/cha_conscript_tier_3
 content/fac_cyborgs/cha_conscript/m_cha_conscript
 content/fac_cyborgs/cha_conscript/materials/m_conscript
 content/fac_cyborgs/cha_conscript/textures/cha_conscript_nac
@@ -71001,6 +71008,7 @@ content/fac_cyborgs/emplacements/cyborg_emplacement_mg/animations/wind_up
 content/fac_cyborgs/emplacements/cyborg_emplacement_mg/animations/yaw
 content/fac_cyborgs/emplacements/cyborg_emplacement_mg/cyborg_emplacement_mg
 content/fac_cyborgs/equipment/attachment/lieutenant_flag/lieutenant_flag
+content/fac_cyborgs/equipment/attachment/lieutenant_flag/lieutenant_flag_ivory_legion
 content/fac_cyborgs/equipment/backpacks/conscript_backpack_lmg/conscript_backpack_lmg
 content/fac_cyborgs/equipment/backpacks/conscript_backpack_lmg/textures/backpack_nac
 content/fac_cyborgs/equipment/backpacks/conscript_jumppack/conscript_jumppack
@@ -71028,6 +71036,7 @@ content/fac_cyborgs/equipment/weapons/lieutenant_cannon/animations/fire
 content/fac_cyborgs/equipment/weapons/lieutenant_cannon/lieutenant_cannon
 content/fac_cyborgs/equipment/weapons/lieutenant_launcher/lieutenant_launcher
 content/fac_cyborgs/equipment/weapons/lieutenant_saw/lieutenant_saw
+content/fac_cyborgs/equipment/weapons/lieutenant_saw/lieutenant_saw_ivory_legion
 content/fac_cyborgs/equipment/weapons/soldier_chainsaw/animation/full_rev
 content/fac_cyborgs/equipment/weapons/soldier_chainsaw/animation/idle
 content/fac_cyborgs/equipment/weapons/soldier_chainsaw/animation/power_off
@@ -71995,6 +72004,7 @@ content/fac_helldivers/hellpod/expandable_cover/animations/undeploy
 content/fac_helldivers/hellpod/expandable_cover/animations/undeployed
 content/fac_helldivers/hellpod/expandable_cover/animations/up
 content/fac_helldivers/hellpod/expandable_cover/expandable_cover
+content/fac_helldivers/hellpod/expandable_cover/expandable_cover_grenade_launcher
 content/fac_helldivers/hellpod/expandable_cover/textures/expandable_cover_nac
 content/fac_helldivers/hellpod/flag_rack/flag_rack
 content/fac_helldivers/hellpod/flamethrower_turret/animation/deploy
@@ -72028,6 +72038,8 @@ content/fac_helldivers/hellpod/hellpod/animation/undeploy
 content/fac_helldivers/hellpod/hellpod/animation/undeployed
 content/fac_helldivers/hellpod/hellpod/hellpod
 content/fac_helldivers/hellpod/hellpod/hellpod_cutter
+content/fac_helldivers/hellpod/hellpod/hellpod_extraction_beacon
+content/fac_helldivers/hellpod/hellpod/hellpod_initial_spawn
 content/fac_helldivers/hellpod/hellpod/hellpod_payload
 content/fac_helldivers/hellpod/hellpod/hellpod_reinforce
 content/fac_helldivers/hellpod/hellpod/hellpod_ship
@@ -72164,7 +72176,10 @@ content/fac_helldivers/hellpod/weapon_rack/weapon_rack_automatic_cannon
 content/fac_helldivers/hellpod/weapon_rack/weapon_rack_ballistic_shield
 content/fac_helldivers/hellpod/weapon_rack/weapon_rack_ballistic_shield_small
 content/fac_helldivers/hellpod/weapon_rack/weapon_rack_c4_charge_backpack
+content/fac_helldivers/hellpod/weapon_rack/weapon_rack_carry_data
+content/fac_helldivers/hellpod/weapon_rack/weapon_rack_chem_gun
 content/fac_helldivers/hellpod/weapon_rack/weapon_rack_cover
+content/fac_helldivers/hellpod/weapon_rack/weapon_rack_cover_small_cube
 content/fac_helldivers/hellpod/weapon_rack/weapon_rack_darkfluid_backpack
 content/fac_helldivers/hellpod/weapon_rack/weapon_rack_directional_energy_shield
 content/fac_helldivers/hellpod/weapon_rack/weapon_rack_displacement_backpack
@@ -72203,8 +72218,11 @@ content/fac_helldivers/hellpod/weapon_rack/weapon_rack_plasma_blaster
 content/fac_helldivers/hellpod/weapon_rack/weapon_rack_prospector
 content/fac_helldivers/hellpod/weapon_rack/weapon_rack_railgun
 content/fac_helldivers/hellpod/weapon_rack/weapon_rack_recoilless_rifle
+content/fac_helldivers/hellpod/weapon_rack/weapon_rack_remote_explosives
 content/fac_helldivers/hellpod/weapon_rack/weapon_rack_shoulder_mounted_camera
 content/fac_helldivers/hellpod/weapon_rack/weapon_rack_sniper_rifle
+content/fac_helldivers/hellpod/weapon_rack/weapon_rack_spire_sterilizer
+content/fac_helldivers/hellpod/weapon_rack/weapon_rack_support_backpack
 content/fac_helldivers/stratagem
 content/fac_helldivers/vehicles/combat_walker/animations/enter
 content/fac_helldivers/vehicles/combat_walker/animations/exit
@@ -72504,6 +72522,8 @@ content/fac_illuminate/equipment/weapons/pathfinder_lightspear/animations/opened
 content/fac_illuminate/equipment/weapons/pathfinder_lightspear/animations/shoot
 content/fac_illuminate/equipment/weapons/pathfinder_lightspear/pathfinder_lightspear
 content/fac_illuminate/vehicles/armaments/illuminate_turret_warmachine/illuminate_turret_wm_cannon
+content/fac_illuminate/vehicles/armaments/illuminate_turret_warmachine/illuminate_turret_wm_cannon_head_l
+content/fac_illuminate/vehicles/armaments/illuminate_turret_warmachine/illuminate_turret_wm_cannon_head_r
 content/fac_illuminate/vehicles/illuminate_attack_ship/animation/idle
 content/fac_illuminate/vehicles/illuminate_attack_ship/animation/pose
 content/fac_illuminate/vehicles/illuminate_attack_ship/animation/shake
@@ -72608,6 +72628,7 @@ content/fac_super_earth/cha_seaf/cha_seaf_5
 content/fac_super_earth/cha_seaf/cha_seaf_6
 content/fac_super_earth/cha_seaf/cha_seaf_7
 content/fac_super_earth/cha_seaf/cha_seaf_8
+content/fac_super_earth/cha_seaf/cha_seaf_city_civ
 content/fac_super_earth/cha_seaf/cha_seaf_civ
 content/fac_super_earth/cha_seaf/cha_seaf_soldier_male
 content/fac_super_earth/cha_seaf/textures/m_seaf_soldier_albedo
@@ -72632,6 +72653,7 @@ content/fac_super_earth/mannequin/mannequin
 content/fac_super_earth/tutorial/cha_tutorial_bot_store
 content/fac_super_earth/tutorial/cha_tutorial_helldiver_passenger
 content/fac_super_earth/tutorial/helldiver_dummy
+content/fac_super_earth/tutorial/helldiver_dummy_hatch_adjusted
 content/fac_super_earth/tutorial/safety_turret
 content/fac_super_earth/tutorial/stab_machine
 content/fac_super_earth/tutorial/target_turret
@@ -73057,7 +73079,10 @@ content/objectives/obj_common/colony_relay/colony_relay_01/animations/pitch
 content/objectives/obj_common/colony_relay/colony_relay_01/animations/yaw
 content/objectives/obj_common/colony_relay/colony_relay_01/colony_relay_platform_01
 content/objectives/obj_common/colony_relay/colony_relay_01/objective_colony_relay
+content/objectives/obj_common/colony_relay/colony_relay_01/objective_colony_relay_alarm_light
 content/objectives/obj_common/colony_relay/colony_relay_01/objective_colony_relay_terminal
+content/objectives/obj_common/colony_relay/colony_relay_01/objective_colony_relay_tower_light
+content/objectives/obj_common/colony_relay/colony_relay_01/objective_colony_relay_tower_terminal
 content/objectives/obj_common/colony_relay/colony_relay_02
 content/objectives/obj_common/colony_relay/colony_relay_03
 content/objectives/obj_common/colony_relay/colony_relay_04/objective_colony_relay
@@ -73372,6 +73397,8 @@ content/objectives/obj_cyborgs/cyborg_orbital_cannon/cy_fleet_ship_02
 content/objectives/obj_cyborgs/cyborg_orbital_cannon/cy_fleet_ship_03
 content/objectives/obj_cyborgs/cyborg_orbital_cannon/cy_fleet_ship_04
 content/objectives/obj_cyborgs/cyborg_orbital_cannon/cy_orbital_cannon
+content/objectives/obj_cyborgs/cyborg_orbital_cannon/cy_orbital_cannon_ammo_carry
+content/objectives/obj_cyborgs/cyborg_orbital_cannon/cy_orbital_cannon_ammo_dispenser
 content/objectives/obj_cyborgs/cyborg_orbital_cannon/objective_orbital_cannon_terminal
 content/objectives/obj_cyborgs/cyborg_raise_flag/deploy_flag_area_marker_bot_base
 content/objectives/obj_cyborgs/cyborg_remains_backpack/cy_remains_backpack
@@ -73416,6 +73443,7 @@ content/objectives/obj_illuminate/il_artifact_01/il_artifact_03
 content/objectives/obj_illuminate/il_artifact_01/il_artifact_04
 content/objectives/obj_illuminate/il_crashed_harvester/il_crashed_harvester
 content/objectives/obj_illuminate/il_encounter_ship/il_encounter_ship_landed
+content/objectives/obj_illuminate/il_encounter_ship/il_encounter_ship_landed_door_shield
 content/objectives/obj_illuminate/il_encounter_ship/il_encounter_ship_landed_shield
 content/objectives/obj_illuminate/il_monolith/il_monolith
 content/objectives/obj_illuminate/il_monolith/textures/il_monolith_emissive
