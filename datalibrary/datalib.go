@@ -278,6 +278,7 @@ type rawDLMemberDesc struct {
 
 type DLMemberDesc struct {
 	Name         string      `json:"name"`
+	NameOffset   uint32      `json:"name_offset"`
 	Comment      string      `json:"comment,omitempty"`
 	Type         DLType      `json:"type_flags"`
 	TypeID       DLHash      `json:"type"`
@@ -299,12 +300,14 @@ type rawDLTypeDesc struct {
 }
 
 type DLTypeDesc struct {
-	Name      string         `json:"name"`
-	Flags     DLTypeFlags    `json:"flags"`
-	Size      uint32         `json:"size"`
-	Alignment uint32         `json:"alignment"`
-	Members   []DLMemberDesc `json:"members,omitempty"`
-	Comment   string         `json:"comment,omitempty"`
+	Name          string         `json:"name"`
+	NameOffset    uint32         `json:"name_offset"`
+	Flags         DLTypeFlags    `json:"flags"`
+	Size          uint32         `json:"size"`
+	Alignment     uint32         `json:"alignment"`
+	Members       []DLMemberDesc `json:"members,omitempty"`
+	Comment       string         `json:"comment,omitempty"`
+	CommentOffset uint32         `json:"comment_offset,omitzero"`
 }
 
 type rawDLEnumDesc struct {
@@ -338,10 +341,11 @@ type DLEnumValueDesc struct {
 }
 
 type DLEnumDesc struct {
-	Name    string            `json:"name"`
-	Flags   DLTypeFlags       `json:"flags"`
-	Storage DLTypeStorage     `json:"storage"`
-	Values  []DLEnumValueDesc `json:"values"`
+	Name       string            `json:"name"`
+	NameOffset uint32            `json:"name_offset"`
+	Flags      DLTypeFlags       `json:"flags"`
+	Storage    DLTypeStorage     `json:"storage"`
+	Values     []DLEnumValueDesc `json:"values"`
 }
 
 type DLTypeLib struct {
@@ -416,7 +420,7 @@ func ParseTypeLib(data []byte) (*DLTypeLib, error) {
 		if offset == math.MaxUint32 {
 			return ""
 		} else if value, contains := DLHashesToStrings[hash]; (len(stringsData) == 0 || bytes.IndexByte(stringsData[offset:], 0) == -1) && !contains {
-			text = strconv.FormatUint(uint64(hash), 16) + " (offset: 0x" + strconv.FormatUint(uint64(offset), 16) + ")"
+			text = strconv.FormatUint(uint64(hash), 16)
 		} else if contains {
 			text = value
 		} else {
@@ -462,6 +466,7 @@ func ParseTypeLib(data []byte) (*DLTypeLib, error) {
 			}
 			members = append(members, DLMemberDesc{
 				Name:         getDLUnhashedText(memberDescs[i].NameOffset),
+				NameOffset:   memberDescs[i].NameOffset,
 				Comment:      getDLUnhashedText(memberDescs[i].CommentOffset),
 				Type:         memberDescs[i].Type,
 				TypeID:       memberDescs[i].TypeID,
@@ -473,13 +478,19 @@ func ParseTypeLib(data []byte) (*DLTypeLib, error) {
 			})
 		}
 
+		var commentOffset uint32 = 0
+		if typeDesc.CommentOffset != math.MaxUint32 {
+			commentOffset = typeDesc.CommentOffset
+		}
 		Types[typeHashes[hashIdx]] = DLTypeDesc{
-			Name:      getDLText(typeHashes[hashIdx], typeDesc.NameOffset),
-			Flags:     typeDesc.Flags,
-			Size:      typeDesc.Size.GetNative(),
-			Alignment: typeDesc.Alignment.GetNative(),
-			Members:   members,
-			Comment:   getDLUnhashedText(typeDesc.CommentOffset),
+			Name:          getDLText(typeHashes[hashIdx], typeDesc.NameOffset),
+			NameOffset:    typeDesc.NameOffset,
+			Flags:         typeDesc.Flags,
+			Size:          typeDesc.Size.GetNative(),
+			Alignment:     typeDesc.Alignment.GetNative(),
+			Members:       members,
+			Comment:       getDLUnhashedText(typeDesc.CommentOffset),
+			CommentOffset: commentOffset,
 		}
 	}
 
@@ -513,10 +524,11 @@ func ParseTypeLib(data []byte) (*DLTypeLib, error) {
 		}
 
 		Enums[enumHashes[hashIdx]] = DLEnumDesc{
-			Name:    enumName,
-			Flags:   enumDesc.Flags,
-			Storage: enumDesc.Storage,
-			Values:  values,
+			Name:       enumName,
+			NameOffset: enumDesc.NameOffset,
+			Flags:      enumDesc.Flags,
+			Storage:    enumDesc.Storage,
+			Values:     values,
 		}
 	}
 
