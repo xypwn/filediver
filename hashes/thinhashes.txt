@@ -24015,3 +24015,5 @@ arm_mine
 transition_beat
 ivory_legion
 iron_fleet
+right_gun
+left_gun
