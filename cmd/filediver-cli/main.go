@@ -34,6 +34,7 @@ import (
 	"github.com/xypwn/filediver/hashes"
 	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/stingray/animation"
+	"github.com/xypwn/filediver/stingray/state_machine"
 	stingray_strings "github.com/xypwn/filediver/stingray/strings"
 	"github.com/xypwn/filediver/stingray/unit"
 )
@@ -343,18 +344,23 @@ Options:`)
 		knownMat := make(map[string]bool)
 		knownMatVariant := make(map[string]bool)
 		knownBeat := make(map[string]bool)
+		knownEvent := make(map[string]bool)
+		knownAnimationVariable := make(map[string]bool)
 		unknownBone := make(map[string]bool)
 		unknownLight := make(map[string]bool)
 		unknownMat := make(map[string]bool)
 		unknownMatVariant := make(map[string]bool)
 		unknownBeat := make(map[string]bool)
-
+		unknownEvent := make(map[string]bool)
+		unknownAnimationVariable := make(map[string]bool)
 		fileCount := 0
 		for _, id := range sortedFileIDs {
 			if id.Type == stingray.Sum("unit") {
 				fileCount += handleUnitThinHashes(prt, a, id, optThinToFind, knownBone, unknownBone, knownLight, unknownLight, knownMat, unknownMat)
 			} else if id.Type == stingray.Sum("animation") {
 				fileCount += handleAnimationBeats(prt, a, id, optThinToFind, knownBeat, unknownBeat)
+			} else if id.Type == stingray.Sum("state_machine") {
+				fileCount += handleStateMachineThinHashes(prt, a, id, optThinToFind, knownEvent, unknownEvent, knownAnimationVariable, unknownAnimationVariable)
 			}
 		}
 
@@ -376,7 +382,7 @@ Options:`)
 			}
 		}
 
-		knownSorted := make([]string, len(knownBone)+len(knownMat)+len(knownLight)+len(knownMatVariant)+len(knownBeat))
+		knownSorted := make([]string, len(knownBone)+len(knownMat)+len(knownLight)+len(knownMatVariant)+len(knownBeat)+len(knownEvent)+len(knownAnimationVariable))
 		i := 0
 		for name := range knownBone {
 			knownSorted[i] = name
@@ -398,8 +404,16 @@ Options:`)
 			knownSorted[i] = name
 			i++
 		}
+		for name := range knownEvent {
+			knownSorted[i] = name
+			i++
+		}
+		for name := range knownAnimationVariable {
+			knownSorted[i] = name
+			i++
+		}
 
-		unknownSorted := make([]string, len(unknownBone)+len(unknownMat)+len(unknownLight)+len(unknownMatVariant)+len(unknownBeat))
+		unknownSorted := make([]string, len(unknownBone)+len(unknownMat)+len(unknownLight)+len(unknownMatVariant)+len(unknownBeat)+len(unknownEvent)+len(unknownAnimationVariable))
 		i = 0
 		for name := range unknownBone {
 			unknownSorted[i] = name
@@ -418,6 +432,14 @@ Options:`)
 			i++
 		}
 		for name := range unknownBeat {
+			unknownSorted[i] = name
+			i++
+		}
+		for name := range unknownEvent {
+			unknownSorted[i] = name
+			i++
+		}
+		for name := range unknownAnimationVariable {
 			unknownSorted[i] = name
 			i++
 		}
@@ -484,6 +506,30 @@ Options:`)
 				fmt.Println(mat)
 			}
 			printed = len(unknownBeat) + len(knownBeat)
+		case "event":
+			knownOffset := len(knownBone) + len(knownLight) + len(knownMat) + len(knownMatVariant) + len(knownBeat)
+			unknownOffset := len(unknownBone) + len(unknownLight) + len(unknownMat) + len(unknownMatVariant) + len(unknownBeat)
+			slices.Sort(knownSorted[knownOffset : knownOffset+len(knownEvent)])
+			slices.Sort(unknownSorted[unknownOffset : unknownOffset+len(unknownEvent)])
+			for _, mat := range knownSorted[knownOffset : knownOffset+len(knownEvent)] {
+				fmt.Println(mat)
+			}
+			for _, mat := range unknownSorted[unknownOffset : unknownOffset+len(unknownEvent)] {
+				fmt.Println(mat)
+			}
+			printed = len(unknownEvent) + len(knownEvent)
+		case "animation_variable":
+			knownOffset := len(knownBone) + len(knownLight) + len(knownMat) + len(knownMatVariant) + len(knownBeat) + len(knownEvent)
+			unknownOffset := len(unknownBone) + len(unknownLight) + len(unknownMat) + len(unknownMatVariant) + len(unknownBeat) + len(unknownEvent)
+			slices.Sort(knownSorted[knownOffset : knownOffset+len(knownAnimationVariable)])
+			slices.Sort(unknownSorted[unknownOffset : unknownOffset+len(unknownAnimationVariable)])
+			for _, mat := range knownSorted[knownOffset : knownOffset+len(knownAnimationVariable)] {
+				fmt.Println(mat)
+			}
+			for _, mat := range unknownSorted[unknownOffset : unknownOffset+len(unknownAnimationVariable)] {
+				fmt.Println(mat)
+			}
+			printed = len(unknownAnimationVariable) + len(knownAnimationVariable)
 		case "all":
 			slices.Sort(knownSorted)
 			slices.Sort(unknownSorted)
@@ -690,6 +736,72 @@ func handleAnimationBeats(prt app.Printer, a *app.App, id stingray.FileID, optTh
 			knownBeat[name] = true
 		} else {
 			unknownBeat[beat.Name.String()] = true
+		}
+	}
+	return fileCount
+}
+
+func handleStateMachineThinHashes(prt app.Printer, a *app.App, id stingray.FileID, optThinToFind *string, knownEvent, unknownEvent, knownAnimationVariable, unknownAnimationVariable map[string]bool) int {
+	b, err := a.DataDir.Read(id, stingray.DataMain)
+	if err != nil {
+		prt.Errorf("opening %v.state_machine's main file: %v", err)
+		return 0
+	}
+	stateMachine, err := state_machine.LoadStateMachine(bytes.NewReader(b))
+
+	fileCount := 0
+	for _, event := range stateMachine.AnimationEventHashes {
+		if *optThinToFind != "" && stingray.Sum(*optThinToFind).Thin() == event {
+			stateMachineName, exists := a.Hashes[id.Name]
+			if !exists {
+				stateMachineName = id.Name.String()
+			}
+			fmt.Printf("%v.state_machine\n", stateMachineName)
+			fileCount = 1
+			break
+		} else if val, err := strconv.ParseInt(*optThinToFind, 0, 32); err == nil && val == int64(event.Value) {
+			stateMachineName, exists := a.Hashes[id.Name]
+			if !exists {
+				stateMachineName = id.Name.String()
+			}
+			fmt.Printf("%v.state_machine\n", stateMachineName)
+			fileCount = 1
+			break
+		} else if *optThinToFind != "" {
+			continue
+		}
+
+		if name, exists := a.ThinHashes[event]; exists {
+			knownEvent[name] = true
+		} else {
+			unknownEvent[event.String()] = true
+		}
+	}
+	for _, variable := range stateMachine.AnimationVariableNames {
+		if *optThinToFind != "" && stingray.Sum(*optThinToFind).Thin() == variable {
+			stateMachineName, exists := a.Hashes[id.Name]
+			if !exists {
+				stateMachineName = id.Name.String()
+			}
+			fmt.Printf("%v.state_machine\n", stateMachineName)
+			fileCount = 1
+			break
+		} else if val, err := strconv.ParseInt(*optThinToFind, 0, 32); err == nil && val == int64(variable.Value) {
+			stateMachineName, exists := a.Hashes[id.Name]
+			if !exists {
+				stateMachineName = id.Name.String()
+			}
+			fmt.Printf("%v.state_machine\n", stateMachineName)
+			fileCount = 1
+			break
+		} else if *optThinToFind != "" {
+			continue
+		}
+
+		if name, exists := a.ThinHashes[variable]; exists {
+			knownAnimationVariable[name] = true
+		} else {
+			unknownAnimationVariable[variable.String()] = true
 		}
 	}
 	return fileCount
