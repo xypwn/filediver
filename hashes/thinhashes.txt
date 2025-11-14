@@ -24198,3 +24198,11 @@ damageable_vent_01
 damageable_vent_02
 damageable_vent_03
 damageable_vent_04
+front_right_wheel_damaged
+front_right_wheel_fine
+front_left_wheel_damaged
+front_left_wheel_fine
+rear_right_wheel_damaged
+rear_right_wheel_fine
+rear_left_wheel_damaged
+rear_left_wheel_fine
