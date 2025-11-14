@@ -1017,6 +1017,7 @@ ElementDamage
 MaterialVariableValue
 EnemyTagSwap
 AiSquadMemberComponentData
+SeekingMissileDeviationSettings
 
 // ======== Enums and Values ========
 HelldiverCustomizationPassiveBonus
