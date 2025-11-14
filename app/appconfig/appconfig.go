@@ -45,6 +45,7 @@ type Config struct {
 	Model struct {
 		Format                    string `cfg:"options=blend,glb,raw help='model export format'"`
 		IncludeLODS               bool   `cfg:"help='include meshes of all levels-of-detail'"`
+		IncludeGibs               bool   `cfg:"help='include meshes with gib materials'"`
 		EnableAnimations          bool   `cfg:"help='export model animations, can take much longer'"`
 		EnableAnimationController bool   `cfg:"tags=advanced depends=Model.EnableAnimations help='export model animation controller, can take even longer and will add many constraints to the output blend file'"`
 		JoinComponents            bool   `cfg:"tags=advanced help='join UDIM components'"`
