@@ -764,7 +764,7 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, na
 		var previousPositionAccessor, previousNormalAccessor *gltf.Accessor
 		var visibilityMasks map[uint16]map[string]any
 		for j, group := range header.Groups {
-			// Check if this group is a gib or collision mesh, if it is skip it unless include_lods is set
+			// Check if this group is a gib or collision mesh, if it is skip it unless include gibs or include lods is set
 			var materialName string
 			if int(group.MaterialIdx) < len(header.Materials) {
 				if _, contains := ctx.ThinHashes()[header.Materials[group.MaterialIdx]]; contains {
@@ -777,7 +777,11 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, na
 				materialName = "unknown"
 			}
 
-			if (strings.Contains(materialName, "gibs") || strings.Contains(materialName, "collis")) && !cfg.Model.IncludeLODS {
+			if strings.Contains(materialName, "gibs") && !cfg.Model.IncludeGibs {
+				continue
+			}
+
+			if strings.Contains(materialName, "collis") && !cfg.Model.IncludeLODS {
 				continue
 			}
 
@@ -941,7 +945,8 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, na
 			}
 			visibilityMasks = make(map[uint16]map[string]any)
 			udimIndexAccessors := make(map[uint32]uint32)
-			if !cfg.Model.JoinComponents {
+			visiblityMaskLength := mask.Length()
+			if !cfg.Model.JoinComponents && visiblityMaskLength > 0 {
 				texcoordIndex, ok := groupAttr[gltf.TEXCOORD_0]
 				// Don't separate udims of LODs or shadow meshes, unless this is LOD1 and we don't have an LOD0
 				if ok && (!isLOD(groupName, true, hasBaseModel) || ((!hasLOD0 && !hasBaseModel) && strings.Contains(groupName, "LOD1") && !strings.Contains(groupName, "shadow"))) {
@@ -954,7 +959,7 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, na
 						for udim, indices := range UDIMs {
 							udimIndexAccessors[udim] = modeler.WriteIndices(doc, indices)
 						}
-						for i := 0; contains && i < mask.Length(); i++ {
+						for i := 0; contains && i < visiblityMaskLength; i++ {
 							visibilityMasks[mask.MaskInfos[i].Index] = map[string]any{
 								"name":           ctx.LookupThinHash(mask.MaskInfos[i].Name),
 								"index":          mask.MaskInfos[i].Index,
@@ -964,7 +969,8 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, na
 					}
 				}
 			}
-			if cfg.Model.JoinComponents || (cfg.Model.IncludeLODS && (isLOD(groupName, true, hasBaseModel))) {
+			includeLOD := (cfg.Model.IncludeLODS && (isLOD(groupName, true, hasBaseModel)))
+			if (cfg.Model.JoinComponents || visiblityMaskLength == 0) && !isLOD(groupName, true, hasBaseModel) || includeLOD {
 				udimIndexAccessors[0] = *groupIndices
 			}
 
