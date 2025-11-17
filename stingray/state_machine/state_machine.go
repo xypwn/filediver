@@ -390,9 +390,9 @@ func (n postFixNode) ToExpression(variables []string) string {
 			}
 			return variable
 		}
-		return fmt.Sprintf("%.3f", math.Float32frombits(n.Value))
+		return fmt.Sprintf("%.1f", math.Float32frombits(n.Value))
 	case CustomBlendFunctionType_Add, CustomBlendFunctionType_Sub, CustomBlendFunctionType_Mult, CustomBlendFunctionType_Divide:
-		return fmt.Sprintf("(%v) %v (%v)",
+		return fmt.Sprintf("(%v)%v(%v)",
 			n.Operands[0].ToExpression(variables),
 			n.Operator.Operator(),
 			n.Operands[1].ToExpression(variables),
@@ -405,7 +405,7 @@ func (n postFixNode) ToExpression(variables []string) string {
 	case CustomBlendFunctionType_Match:
 		variable := n.Operands[0].ToExpression(variables)
 		constant := n.Operands[1].ToExpression(variables)
-		return fmt.Sprintf("clamp(((%v) - (%v) - 1.0), 0.0, 1.0) - clamp(((%v) - (%v)), 0.0, 1.0)",
+		return fmt.Sprintf("clamp(((%v)-(%v)-1.0),0.0,1.0)-clamp(((%v)-(%v)),0.0,1.0)",
 			variable,
 			constant,
 			variable,
@@ -424,7 +424,7 @@ func (n postFixNode) ToExpression(variables []string) string {
 			n.Operands[3].Value = math.Float32bits(math.Float32frombits(n.Operands[3].Value) + 1.0)
 			maximum = n.Operands[3].ToExpression(variables)
 		}
-		return fmt.Sprintf("clamp(((%v) - (%v)) / ((%v) - (%v)), 0.0, 1.0) - clamp(((%v) - (%v)) / ((%v) - (%v)), 0.0, 1.0)",
+		return fmt.Sprintf("clamp(((%v)-(%v))/((%v)-(%v)),0.0,1.0)-clamp(((%v)-(%v))/((%v)-(%v)),0.0,1.0)",
 			variable,
 			minimum,
 			center,
@@ -439,7 +439,7 @@ func (n postFixNode) ToExpression(variables []string) string {
 		constant0 := n.Operands[1].ToExpression(variables)
 		variable1 := n.Operands[2].ToExpression(variables)
 		constant1 := n.Operands[3].ToExpression(variables)
-		return fmt.Sprintf("(clamp(((%v) - (%v) - 1.0), 0.0, 1.0) - clamp(((%v) - (%v)), 0.0, 1.0)) * (clamp(((%v) - (%v) - 1.0), 0.0, 1.0) - clamp(((%v) - (%v)), 0.0, 1.0))",
+		return fmt.Sprintf("(clamp(((%v)-(%v)-1.0),0.0,1.0)-clamp(((%v)-(%v)),0.0,1.0))*(clamp(((%v)-(%v)-1.0),0.0,1.0)-clamp(((%v)-(%v)),0.0,1.0))",
 			variable0,
 			constant0,
 			variable0,
@@ -474,7 +474,7 @@ func (n postFixNode) ToExpression(variables []string) string {
 			n.Operands[7].Value = math.Float32bits(math.Float32frombits(n.Operands[7].Value) + 1.0)
 			maximum1 = n.Operands[7].ToExpression(variables)
 		}
-		return fmt.Sprintf("(clamp(((%v) - (%v)) / ((%v) - (%v)), 0.0, 1.0) - clamp(((%v) - (%v)) / ((%v) - (%v)), 0.0, 1.0)) * (clamp(((%v) - (%v)) / ((%v) - (%v)), 0.0, 1.0) - clamp(((%v) - (%v)) / ((%v) - (%v)), 0.0, 1.0))",
+		return fmt.Sprintf("(clamp(((%v)-(%v))/((%v)-(%v)),0.0,1.0)-clamp(((%v)-(%v))/((%v)-(%v)),0.0,1.0))*(clamp(((%v)-(%v))/((%v)-(%v)),0.0,1.0)-clamp(((%v)-(%v))/((%v)-(%v)),0.0,1.0))",
 			variable0,
 			minimum0,
 			center0,
@@ -493,7 +493,7 @@ func (n postFixNode) ToExpression(variables []string) string {
 			center1,
 		)
 	case CustomBlendFunctionType_Clamp:
-		return fmt.Sprintf("%v(%v, %v, %v)",
+		return fmt.Sprintf("%v(%v,%v,%v)",
 			n.Operator.Operator(),
 			n.Operands[0].ToExpression(variables),
 			n.Operands[1].ToExpression(variables),
