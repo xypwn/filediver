@@ -25,7 +25,7 @@ type EquipmentComponent struct {
 	WieldAnimation                stingray.ThinHash // [string]Name of the animation to play on the wielder when wielding.
 	PickupAnimation               stingray.ThinHash // [string]Name of the animation to play on the wielder when picking up otherwise fallback to wield animation.
 	HolsterAnimation              stingray.ThinHash // [string]Name of the animation to play on the wielder when holstering.
-	UnknownHash2                  stingray.ThinHash // unknown, name length 14
+	DropAnimation                 stingray.ThinHash // [string]Name of the animation to play on the wielder when dropping.
 	AmmocheckAnimation            stingray.ThinHash // [string]Name of the animation to play on the wielder when checking ammo.
 	UnknownBool                   uint8             // unknown, name length 30
 	UnknownBool2                  uint8             // unknown, name length 20
@@ -80,7 +80,7 @@ type SimpleEquipmentComponent struct {
 	WieldAnimation                string                   `json:"wield_animation"`
 	PickupAnimation               string                   `json:"pickup_animation"`
 	HolsterAnimation              string                   `json:"holster_animation"`
-	UnknownHash2                  string                   `json:"unknown_hash2"`
+	DropAnimation                 string                   `json:"drop_animation"`
 	AmmocheckAnimation            string                   `json:"ammocheck_animation"`
 	UnknownBool                   bool                     `json:"unknown_bool"`
 	UnknownBool2                  bool                     `json:"unknown_bool2"`
@@ -133,7 +133,7 @@ func (w EquipmentComponent) ToSimple(lookupHash HashLookup, lookupThinHash ThinH
 		WieldAnimation:                lookupThinHash(w.WieldAnimation),
 		PickupAnimation:               lookupThinHash(w.PickupAnimation),
 		HolsterAnimation:              lookupThinHash(w.HolsterAnimation),
-		UnknownHash2:                  lookupThinHash(w.UnknownHash2),
+		DropAnimation:                 lookupThinHash(w.DropAnimation),
 		AmmocheckAnimation:            lookupThinHash(w.AmmocheckAnimation),
 		UnknownBool:                   w.UnknownBool != 0,
 		UnknownBool2:                  w.UnknownBool2 != 0,
