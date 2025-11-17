@@ -572,11 +572,13 @@ def add_state_machine(gltf: Dict, node: Dict):
 
                     # influence_driver_expression = f"{mask_influence}"
                     # variables: List[Tuple[Object, str]] = []
-
-                    influence_driver_expression = f"({mask_influence}) * float(state == {stateIdx})"
+                    if mask_influence == 1.0:
+                        influence_driver_expression = f"float(state=={stateIdx})"
+                    else:
+                        influence_driver_expression = f"({mask_influence})*float(state=={stateIdx})"
                     variables = [(layer_empty, "state")]
                     if state.type == "StateType_Blend" and state.custom_blend_functions is not None and animIdx < len(state.custom_blend_functions):
-                        influence_driver_expression += f" * {state.custom_blend_functions[animIdx].expression}"
+                        influence_driver_expression += f"*{state.custom_blend_functions[animIdx].expression}"
                         variables.extend(zip([obj] * len(state.custom_blend_functions[animIdx].variables), state.custom_blend_functions[animIdx].variables))
                     influence = constraint.driver_add("influence")
                     for vObj, variableName in variables:
@@ -621,21 +623,26 @@ def add_state_machine(gltf: Dict, node: Dict):
                         variable.name = "start_frame"
                         time.driver.expression = f"clamp((frame - start_frame) / {animation_strip.frame_end - animation_strip.frame_start})"
                     elif playback_speed_function is not None:
-                        if playback_speed_function.expression != "0.0":
-                            for playbackVarIdx, var in playback_speed_function.variables:
-                                variable = time.driver.variables.new()
-                                variable.targets[0].id = obj
-                                variable.targets[0].data_path = f'["{var}"]'
-                                variable.name = var
-                                manager: IDPropertyUIManager = obj.id_properties_ui(var)
-                                if manager.as_dict()["max"] < playback_speed_function.limits[playbackVarIdx][1]:
-                                    manager.update(max=math.inf, soft_max=math.inf)
-                            variableFps = time.driver.variables.new()
-                            variableFps.targets[0].id_type = 'SCENE'
-                            variableFps.targets[0].id = bpy.data.scenes[0]
-                            variableFps.targets[0].data_path = "render.fps"
-                            variableFps.name = "fps"
-                        time.driver.expression = f"(fmod(frame * ({playback_speed_function.expression}), fps) / fps)"
+                        try:
+                            value = float(playback_speed_function.expression)
+                            if value == 0:
+                                playback_speed_function.expression = "1.0"
+                        except:
+                            pass
+                        for playbackVarIdx, var in enumerate(playback_speed_function.variables):
+                            variable = time.driver.variables.new()
+                            variable.targets[0].id = obj
+                            variable.targets[0].data_path = f'["{var}"]'
+                            variable.name = var
+                            manager: IDPropertyUIManager = obj.id_properties_ui(var)
+                            if manager.as_dict()["max"] < playback_speed_function.limits[playbackVarIdx][1]:
+                                manager.update(max=math.inf, soft_max=math.inf)
+                        variableFps = time.driver.variables.new()
+                        variableFps.targets[0].id_type = 'SCENE'
+                        variableFps.targets[0].id = bpy.data.scenes[0]
+                        variableFps.targets[0].data_path = "render.fps"
+                        variableFps.name = "fps"
+                        time.driver.expression = f"(fmod(frame*({playback_speed_function.expression}),fps)/fps)"
                     else:
                         time.driver.expression = f"fmod(frame, max(1.0, {animation_strip.frame_end - animation_strip.frame_start})) / max(1.0, {animation_strip.frame_end - animation_strip.frame_start})"
                     constraint.frame_start = int(animation_strip.frame_start)-1
