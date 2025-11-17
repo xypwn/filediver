@@ -1,0 +1,46 @@
+package enum
+
+type DangerWarningType uint32
+
+const (
+	DangerWarningType_None DangerWarningType = iota
+	DangerWarningType_EnemyOrbital
+	DangerWarningType_EnemyAA
+	DangerWarningType_IonStorm
+	DangerWarningType_IntenseHeat
+	DangerWarningType_ExtremeCold
+	DangerWarningType_Earthquake
+	DangerWarningType_MeteorShower
+	DangerWarningType_VolcanicActivity
+	DangerWarningType_FireTornado
+	DangerWarningType_Value_10_Len_27
+	DangerWarningType_Value_11_Len_27
+	DangerWarningType_Value_12_Len_27
+	DangerWarningType_Value_13_Len_26
+	DangerWarningType_Value_14_Len_28
+	DangerWarningType_StratagemBlocker
+	DangerWarningType_Value_16_Len_36
+	DangerWarningType_Modifier_StratagemSlowCallIn
+	DangerWarningType_Modifier_StratagemLongerCooldown
+	DangerWarningType_Modifier_StratagemOrbitalAccuracy
+	DangerWarningType_Modifier_MissionTimerReduced
+	DangerWarningType_Modifier_HiddenObjectives
+	DangerWarningType_Modifier_SporeBlackout
+	DangerWarningType_Modifier_FogGenerator
+	DangerWarningType_Modifier_StratagemLoadoutCount
+	DangerWarningType_Value_25_Len_42
+	DangerWarningType_Value_26_Len_42
+	DangerWarningType_Value_27_Len_39
+	DangerWarningType_Value_28_Len_47
+	DangerWarningType_Value_29_Len_32
+	DangerWarningType_Value_30_Len_40
+	DangerWarningType_Value_31_Len_46
+	DangerWarningType_Value_32_Len_42
+	DangerWarningType_Count
+)
+
+func (p DangerWarningType) MarshalText() ([]byte, error) {
+	return []byte(p.String()), nil
+}
+
+//go:generate go run golang.org/x/tools/cmd/stringer -type=DangerWarningType

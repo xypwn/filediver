@@ -85,22 +85,54 @@ func getComponentDataForHash(componentType DLHash, resource stingray.Hash) ([]by
 		return getAnimationComponentDataForHash(resource)
 	case Sum("ArcWeaponComponentData"):
 		return getArcWeaponComponentDataForHash(resource)
+	case Sum("AttachableComponentData"):
+		return getAttachableComponentDataForHash(resource)
 	case Sum("AvatarComponentData"):
 		return getAvatarComponentDataForHash(resource)
 	case Sum("BeamWeaponComponentData"):
 		return getBeamWeaponComponentDataForHash(resource)
 	case Sum("CharacterNameComponentData"):
 		return getCharacterNameComponentDataForHash(resource)
+	case Sum("DangerWarningComponentData"):
+		return getDangerWarningComponentDataForHash(resource)
+	case Sum("DepositComponentData"):
+		return getDepositComponentDataForHash(resource)
 	case Sum("EnemyPackageComponentData"):
 		return getEnemyPackageComponentDataForHash(resource)
+	case Sum("EquipmentComponentData"):
+		return getEquipmentComponentDataForHash(resource)
+	case Sum("FactionComponentData"):
+		return getFactionComponentDataForHash(resource)
 	case Sum("HealthComponentData"):
 		return getHealthComponentDataForHash(resource)
+	case Sum("HellpodComponentData"):
+		return getHellpodComponentDataForHash(resource)
+	case Sum("HellpodPayloadComponentData"):
+		return getHellpodPayloadComponentDataForHash(resource)
+	case Sum("HellpodRackComponentData"):
+		return getHellpodRackComponentDataForHash(resource)
+	case Sum("InventoryComponentData"):
+		return getInventoryComponentDataForHash(resource)
+	case Sum("LoadoutPackageComponentData"):
+		return getLoadoutPackageComponentDataForHash(resource)
 	case Sum("LocalUnitComponentData"):
 		return getLocalUnitComponentDataForHash(resource)
+	case Sum("MaterialSwapComponentData"):
+		return getMaterialSwapComponentDataForHash(resource)
+	case Sum("MaterialVariablesComponentData"):
+		return getMaterialVariablesComponentDataForHash(resource)
 	case Sum("MeleeAttackComponentData"):
 		return getMeleeAttackComponentDataForHash(resource)
+	case Sum("MountComponentData"):
+		return getMountComponentDataForHash(resource)
 	case Sum("ProjectileWeaponComponentData"):
 		return getProjectileWeaponComponentDataForHash(resource)
+	case Sum("SeekingMissileComponentData"):
+		return getSeekingMissileComponentDataForHash(resource)
+	case Sum("SpottableComponentData"):
+		return getSpottableComponentDataForHash(resource)
+	case Sum("TagComponentData"):
+		return getTagComponentDataForHash(resource)
 	case Sum("UnitComponentData"):
 		return getUnitComponentDataForHash(resource)
 	case Sum("UnitCustomizationComponentData"):
@@ -119,6 +151,8 @@ func getComponentDataForHash(componentType DLHash, resource stingray.Hash) ([]by
 		return getWeaponReloadComponentDataForHash(resource)
 	case Sum("WeaponRoundsComponentData"):
 		return getWeaponRoundsComponentDataForHash(resource)
+	case Sum("VisibilityMaskComponentData"):
+		return getVisibilityMaskComponentDataForHash(resource)
 	default:
 		return nil, fmt.Errorf("Not implemented yet!")
 	}
@@ -134,6 +168,12 @@ func parseComponent(componentType DLHash, data []byte) (Component, error) {
 		return toReturn, nil
 	case Sum("ArcWeaponComponentData"):
 		var toReturn ArcWeaponComponent
+		if _, err := binary.Decode(data, binary.LittleEndian, &toReturn); err != nil {
+			return nil, err
+		}
+		return toReturn, nil
+	case Sum("AttachableComponentData"):
+		var toReturn AttachableComponent
 		if _, err := binary.Decode(data, binary.LittleEndian, &toReturn); err != nil {
 			return nil, err
 		}
@@ -156,8 +196,32 @@ func parseComponent(componentType DLHash, data []byte) (Component, error) {
 			return nil, err
 		}
 		return toReturn, nil
+	case Sum("DangerWarningComponentData"):
+		var toReturn DangerWarningComponent
+		if _, err := binary.Decode(data, binary.LittleEndian, &toReturn); err != nil {
+			return nil, err
+		}
+		return toReturn, nil
+	case Sum("DepositComponentData"):
+		var toReturn DepositComponent
+		if _, err := binary.Decode(data, binary.LittleEndian, &toReturn); err != nil {
+			return nil, err
+		}
+		return toReturn, nil
 	case Sum("EnemyPackageComponentData"):
 		var toReturn EnemyPackageComponent
+		if _, err := binary.Decode(data, binary.LittleEndian, &toReturn); err != nil {
+			return nil, err
+		}
+		return toReturn, nil
+	case Sum("EquipmentComponentData"):
+		var toReturn EquipmentComponent
+		if _, err := binary.Decode(data, binary.LittleEndian, &toReturn); err != nil {
+			return nil, err
+		}
+		return toReturn, nil
+	case Sum("FactionComponentData"):
+		var toReturn FactionComponent
 		if _, err := binary.Decode(data, binary.LittleEndian, &toReturn); err != nil {
 			return nil, err
 		}
@@ -168,8 +232,50 @@ func parseComponent(componentType DLHash, data []byte) (Component, error) {
 			return nil, err
 		}
 		return toReturn, nil
+	case Sum("HellpodComponentData"):
+		var toReturn HellpodComponent
+		if _, err := binary.Decode(data, binary.LittleEndian, &toReturn); err != nil {
+			return nil, err
+		}
+		return toReturn, nil
+	case Sum("HellpodPayloadComponentData"):
+		var toReturn HellpodPayloadComponent
+		if _, err := binary.Decode(data, binary.LittleEndian, &toReturn); err != nil {
+			return nil, err
+		}
+		return toReturn, nil
+	case Sum("HellpodRackComponentData"):
+		var toReturn HellpodRackComponent
+		if _, err := binary.Decode(data, binary.LittleEndian, &toReturn); err != nil {
+			return nil, err
+		}
+		return toReturn, nil
+	case Sum("InventoryComponentData"):
+		var toReturn InventoryComponent
+		if _, err := binary.Decode(data, binary.LittleEndian, &toReturn); err != nil {
+			return nil, err
+		}
+		return toReturn, nil
+	case Sum("LoadoutPackageComponentData"):
+		var toReturn LoadoutPackageComponent
+		if _, err := binary.Decode(data, binary.LittleEndian, &toReturn); err != nil {
+			return nil, err
+		}
+		return toReturn, nil
 	case Sum("LocalUnitComponentData"):
 		var toReturn LocalUnitComponent
+		if _, err := binary.Decode(data, binary.LittleEndian, &toReturn); err != nil {
+			return nil, err
+		}
+		return toReturn, nil
+	case Sum("MaterialSwapComponentData"):
+		var toReturn MaterialSwapComponent
+		if _, err := binary.Decode(data, binary.LittleEndian, &toReturn); err != nil {
+			return nil, err
+		}
+		return toReturn, nil
+	case Sum("MaterialVariablesComponentData"):
+		var toReturn MaterialVariablesComponent
 		if _, err := binary.Decode(data, binary.LittleEndian, &toReturn); err != nil {
 			return nil, err
 		}
@@ -180,8 +286,32 @@ func parseComponent(componentType DLHash, data []byte) (Component, error) {
 			return nil, err
 		}
 		return toReturn, nil
+	case Sum("MountComponentData"):
+		var toReturn MountComponent
+		if _, err := binary.Decode(data, binary.LittleEndian, &toReturn); err != nil {
+			return nil, err
+		}
+		return toReturn, nil
 	case Sum("ProjectileWeaponComponentData"):
 		var toReturn ProjectileWeaponComponent
+		if _, err := binary.Decode(data, binary.LittleEndian, &toReturn); err != nil {
+			return nil, err
+		}
+		return toReturn, nil
+	case Sum("SeekingMissileComponentData"):
+		var toReturn SeekingMissileComponent
+		if _, err := binary.Decode(data, binary.LittleEndian, &toReturn); err != nil {
+			return nil, err
+		}
+		return toReturn, nil
+	case Sum("SpottableComponentData"):
+		var toReturn SpottableComponent
+		if _, err := binary.Decode(data, binary.LittleEndian, &toReturn); err != nil {
+			return nil, err
+		}
+		return toReturn, nil
+	case Sum("TagComponentData"):
+		var toReturn TagComponent
 		if _, err := binary.Decode(data, binary.LittleEndian, &toReturn); err != nil {
 			return nil, err
 		}
@@ -305,6 +435,12 @@ func parseComponent(componentType DLHash, data []byte) (Component, error) {
 		return toReturn, nil
 	case Sum("WeaponRoundsComponentData"):
 		var toReturn WeaponRoundsComponent
+		if _, err := binary.Decode(data, binary.LittleEndian, &toReturn); err != nil {
+			return nil, err
+		}
+		return toReturn, nil
+	case Sum("VisibilityMaskComponentData"):
+		var toReturn VisibilityMaskComponent
 		if _, err := binary.Decode(data, binary.LittleEndian, &toReturn); err != nil {
 			return nil, err
 		}
