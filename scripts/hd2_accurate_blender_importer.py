@@ -26,7 +26,7 @@ from io import BytesIO
 from typing import Optional, Dict, List, Tuple, Union
 from types import ModuleType
 from random import randint
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 from copy import deepcopy
 import math
 
@@ -413,6 +413,13 @@ class GLTFDriverInformation:
     type: str
 
 @dataclass
+class GLTFStateTransition:
+    index: int
+    blend_time: float
+    type: str
+    beat: str
+
+@dataclass
 class GLTFState:
     name: str
     type: str
@@ -423,18 +430,35 @@ class GLTFState:
     blend_variable: str = None
     custom_blend_functions: List[GLTFDriverInformation] = None
     ragdoll_name: str = None
+    state_transitions: Dict[str, GLTFStateTransition] = None
     
     @classmethod
     def from_json(cls, data: dict) -> 'GLTFState':
         animations = None
         custom_blend_functions = None
+        state_transitions = None
         if "animations" in data:
             animations = [GLTFAnimation(**animation) for animation in data["animations"]]
             del data["animations"]
         if "custom_blend_functions" in data:
             custom_blend_functions = [GLTFDriverInformation(**blend_function) for blend_function in data["custom_blend_functions"]]
             del data["custom_blend_functions"]
-        return cls(animations=animations, custom_blend_functions=custom_blend_functions, **data)
+        if "state_transitions" in data:
+            state_transitions = {}
+            for event, transition in data["state_transitions"].items():
+                state_transitions[event] = GLTFStateTransition(**transition)
+            del data["state_transitions"]
+        return cls(animations=animations, custom_blend_functions=custom_blend_functions, state_transitions=state_transitions, **data)
+
+    def to_dict(self) -> dict:
+        to_return = asdict(self)
+        if self.animations != None:
+            to_return["animations"] = [asdict(animation) for animation in self.animations]
+        if self.custom_blend_functions != None:
+            to_return["custom_blend_functions"] = [asdict(fn) for fn in self.custom_blend_functions]
+        if self.state_transitions != None:
+            to_return["state_transitions"] = {key:asdict(transition) for key, transition in self.state_transitions.items()}
+        return to_return
 
 @dataclass
 class GLTFLayer:
@@ -446,6 +470,12 @@ class GLTFLayer:
         states = [GLTFState.from_json(state) for state in data["states"]]
         del data["states"]
         return cls(states=states, **data)
+    
+    def to_dict(self) -> dict:
+        return {
+            "default_state": self.default_state,
+            "states": [state.to_dict() for state in self.states]
+        }
 
 @dataclass
 class GLTFVariable:
@@ -474,6 +504,16 @@ class GLTFStateMachine:
             animation_variables = [GLTFVariable(**variable) for variable in data["animation_variables"]]
             del data["animation_variables"]
         return cls(layers=layers, animation_variables=animation_variables, **data)
+    
+    def to_dict(self) -> dict:
+        return {
+            "name": self.name,
+            "layers": [layer.to_dict() for layer in self.layers],
+            "animation_events": self.animation_events,
+            "animation_variables": [asdict(variable) for variable in self.animation_variables],
+            "blend_masks": self.blend_masks,
+            "all_bones": self.all_bones
+        }
 
 def no_set(self, val):
     return
@@ -496,6 +536,10 @@ def add_state_machine(gltf: Dict, node: Dict):
     state_machine_empty.hide_viewport = True
     for collection in obj.users_collection:
         collection.objects.link(state_machine_empty)
+
+    state_machine_text = bpy.data.texts.new(obj.name+".state_machine.json")
+    state_machine_text.from_string(json.dumps(gltf["extras"]["state_machines"][0], separators=(",", ":")))
+    state_machine_empty["text"] = state_machine_text
 
     for layerIdx, layer in enumerate(controller.layers):
         print(f"        Adding layer {layerIdx}")
@@ -649,6 +693,11 @@ def add_state_machine(gltf: Dict, node: Dict):
                     constraint.frame_end = int(animation_strip.frame_end)
         if len(layer.states) > 0:
             print()
+        layer_empty = None
+        layer_action = None
+        track = None
+        nla_strip = None
+        anim = None
 
     obj.animation_data.action = None
 
