@@ -2,6 +2,29 @@ import std.mem;
 import type.float16;
 import std.core;
 
+// import stingray; // Not sure where to put custom library files yet =/
+// stingray.hexpat
+import std.io;
+
+using ThinMurmurHash;
+using MurmurHash;
+
+fn formatThinHash(ThinMurmurHash hash) {
+    return std::format("{:08X}", hash.value);
+};
+
+fn formatHash(MurmurHash hash) {
+    return std::format("{:016X}", hash.value);
+};
+
+struct ThinMurmurHash {
+    u32 value;
+} [[format("formatThinHash")]];
+
+struct MurmurHash {
+    u64 value;
+} [[format("formatHash")]];
+// end stingray.hexpat
 
 struct Position<auto cmp> {
     if (cmp) {
@@ -95,15 +118,20 @@ bitfield boneCompression {
     scl : 1;
 };
 
+struct Beat {
+    float time;
+    ThinMurmurHash name;
+};
+
 struct AnimationHeader {
     u32 unk00;
     u32 boneCount;
     float animationLength;
     u32 sizeBytes;
     u32 hashesCount;
-    u32 hashes2Count;
+    u32 beatCount;
     u64 hashes[hashesCount];
-    u64 hashes2[hashes2Count];
+    Beat beats[beatCount];
     u16 unk02;
     be boneCompression compressions[boneCount];
     if ($ % 2 != 0) {
