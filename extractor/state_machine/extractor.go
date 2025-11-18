@@ -14,6 +14,20 @@ import (
 	"github.com/xypwn/filediver/stingray/unit"
 )
 
+func resolveTransitions(ctx *extractor.Context, state state_machine.State) map[string]state_machine.Link {
+	if state.StateTransitions == nil {
+		return nil
+	}
+	toReturn := make(map[string]state_machine.Link)
+	for eventNameHash, transitionLink := range state.StateTransitions {
+		if transitionLink.Beat.Value != 0 {
+			transitionLink.ResolvedBeat = ctx.LookupThinHash(transitionLink.Beat)
+		}
+		toReturn[ctx.LookupThinHash(eventNameHash)] = transitionLink
+	}
+	return toReturn
+}
+
 func ExtractStateMachineJson(ctx *extractor.Context) error {
 	r, err := ctx.Open(ctx.FileID(), stingray.DataMain)
 	if err != nil {
@@ -52,11 +66,7 @@ func ExtractStateMachineJson(ctx *extractor.Context) error {
 				resolvedAnimationHashes = append(resolvedAnimationHashes, ctx.LookupHash(hash))
 			}
 			stateMachine.Layers[layerIdx].States[stateIdx].ResolvedAnimationHashes = resolvedAnimationHashes
-			stateMachine.Layers[layerIdx].States[stateIdx].ResolvedStateTransitions = make(map[string]state_machine.Link)
-			for eventNameHash, transitionLink := range state.StateTransitions {
-				transitionLink.ResolvedName = ctx.LookupThinHash(transitionLink.Name)
-				stateMachine.Layers[layerIdx].States[stateIdx].ResolvedStateTransitions[ctx.LookupThinHash(eventNameHash)] = transitionLink
-			}
+			stateMachine.Layers[layerIdx].States[stateIdx].ResolvedStateTransitions = resolveTransitions(ctx, state)
 		}
 	}
 
@@ -93,6 +103,7 @@ type gltfState struct {
 	BlendVariable        string                             `json:"blend_variable,omitempty"`
 	CustomBlendFunctions []*state_machine.DriverInformation `json:"custom_blend_functions,omitempty"`
 	RagdollName          string                             `json:"ragdoll_name,omitempty"`
+	Transitions          map[string]state_machine.Link      `json:"state_transitions,omitempty"`
 }
 
 type gltfAnimationVariable struct {
@@ -138,13 +149,14 @@ func addState(ctx *extractor.Context, doc *gltf.Document, boneInfo *bones.Info, 
 		return nil, nil
 	}
 	toReturn := gltfState{
-		NameHash:   state.Name,
-		Name:       ctx.LookupHash(state.Name),
-		Type:       state.Type,
-		Animations: stateAnimations,
-		Loop:       state.Loop,
-		Additive:   state.Additive,
-		BlendMask:  state.BlendSetMaskIndex,
+		NameHash:    state.Name,
+		Name:        ctx.LookupHash(state.Name),
+		Type:        state.Type,
+		Animations:  stateAnimations,
+		Loop:        state.Loop,
+		Additive:    state.Additive,
+		BlendMask:   state.BlendSetMaskIndex,
+		Transitions: state.ResolvedStateTransitions,
 	}
 	if state.Type == state_machine.StateType_Time {
 		toReturn.BlendVariable = animationVariables[state.BlendVariableIndex].Name
@@ -224,6 +236,9 @@ func AddStateMachine(ctx *extractor.Context, doc *gltf.Document, unitInfo *unit.
 		outLayer.DefaultState = layer.DefaultState
 		outLayer.States = make([]gltfState, 0)
 		for _, state := range layer.States {
+			if cfg.Model.EnableAnimationController {
+				state.ResolvedStateTransitions = resolveTransitions(ctx, state)
+			}
 			gltfState, err := addState(ctx, doc, boneInfo, state, animationMap, variableList)
 			if err != nil {
 				ctx.Warnf("add state machine: %v", err)

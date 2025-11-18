@@ -34,6 +34,23 @@ func (s StateType) MarshalText() ([]byte, error) {
 
 //go:generate go run golang.org/x/tools/cmd/stringer -type=StateType
 
+type LinkType uint32
+
+const (
+	LinkType_Immediate LinkType = iota
+	LinkType_WaitEnd
+	LinkType_SyncBeatClosestImmediate
+	LinkType_WaitUntilBeat
+	LinkType_SyncPercentageImmediate
+	LinkType_SyncInversePercentageImmediate
+)
+
+func (s LinkType) MarshalText() ([]byte, error) {
+	return []byte(s.String()), nil
+}
+
+//go:generate go run golang.org/x/tools/cmd/stringer -type=LinkType
+
 type rawState struct {
 	Name                       stingray.Hash
 	Type                       StateType
@@ -114,16 +131,16 @@ type AnimationEvent struct {
 type rawLink struct {
 	Index     uint32
 	BlendTime float32
-	Type      uint32
-	Name      stingray.ThinHash
+	Type      LinkType
+	Beat      stingray.ThinHash
 }
 
 type Link struct {
 	Index        uint32            `json:"index"`
 	BlendTime    float32           `json:"blend_time"`
-	Type         uint32            `json:"type_enum"`
-	Name         stingray.ThinHash `json:"-"`
-	ResolvedName string            `json:"name"`
+	Type         LinkType          `json:"type"`
+	Beat         stingray.ThinHash `json:"-"`
+	ResolvedBeat string            `json:"beat"`
 }
 
 type IndexedVector struct {
@@ -865,8 +882,8 @@ func LoadStateMachine(r io.ReadSeeker) (*StateMachine, error) {
 							Index:        0xFFFFFFFF,
 							BlendTime:    -1.0,
 							Type:         0xFFFFFFFF,
-							Name:         stingray.ThinHash{Value: 0xFFFFFFFF},
-							ResolvedName: "invalid",
+							Beat:         stingray.ThinHash{Value: 0xFFFFFFFF},
+							ResolvedBeat: "invalid",
 						}
 						continue
 					}
@@ -876,7 +893,7 @@ func LoadStateMachine(r io.ReadSeeker) (*StateMachine, error) {
 						Index:     rawLink.Index,
 						BlendTime: rawLink.BlendTime,
 						Type:      rawLink.Type,
-						Name:      rawLink.Name,
+						Beat:      rawLink.Beat,
 					}
 				}
 
