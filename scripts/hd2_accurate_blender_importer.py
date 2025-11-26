@@ -33,6 +33,8 @@ import math
 from dds_float16 import DDS
 from openexr.types import OpenEXR
 
+from resources.filediver_animation_controller_ui import filediver_animation_state, filediver_state_transition, register
+
 class IDPropertyUIManager:
     def update(subtype=None, min=None, max=None, soft_min=None, soft_max=None, precision=None, step=None, default=None, id_type=None, items=None, description=None):
         """
@@ -519,6 +521,7 @@ def no_set(self, val):
     return
 
 def add_state_machine(gltf: Dict, node: Dict):
+    register()
     obj: Object = bpy.data.objects[node["name"]]
     assert type(obj.data) is Armature
     controller = GLTFStateMachine.from_json(gltf["extras"]["state_machines"][0])
@@ -547,7 +550,7 @@ def add_state_machine(gltf: Dict, node: Dict):
         layer_empty.parent = state_machine_empty
         layer_empty.empty_display_size = 0.1
         layer_empty.empty_display_type = 'CUBE'
-        layer_empty["state"] = layer.default_state
+        layer_empty.state = layer.default_state
         layer_empty.id_properties_ui("state").update(min=0, max=len(layer.states)-1)
         for collection in obj.users_collection:
             collection.objects.link(layer_empty)
@@ -557,7 +560,7 @@ def add_state_machine(gltf: Dict, node: Dict):
         anim = layer_empty.animation_data_create()
         anim.action = layer_action
         anim.action_slot = slot
-        layer_empty.keyframe_insert(data_path='["state"]', frame=1.0)
+        layer_empty.keyframe_insert(data_path='state', frame=1.0)
         for action_layer in layer_action.layers:
             for strip in action_layer.strips:
                 if strip.type != 'KEYFRAME':
@@ -575,6 +578,18 @@ def add_state_machine(gltf: Dict, node: Dict):
         obj.animation_data.action = layer_action
         for stateIdx, state in enumerate(layer.states):
             print(f"            Adding state {stateIdx+1}/{len(layer.states)}", end="\r")
+            
+            filediver_state: filediver_animation_state = layer_empty.filediver_layer_states.add()
+            filediver_state.name = state.name
+            if state.state_transitions is not None:
+                for event, transition in state.state_transitions.items():
+                    filediver_transition: filediver_state_transition = filediver_state.transitions.add()
+                    filediver_transition.event = event
+                    filediver_transition.state_index = transition.index
+                    filediver_transition.blend_time = transition.blend_time
+                    filediver_transition.link_type = transition.type
+                    filediver_transition.beat = transition.beat
+            
             objects_to_constrain: List[Tuple[PoseBone, float]] = []
             if state.blend_mask != -1:
                 for key, value in controller.blend_masks[state.blend_mask].items():
@@ -610,7 +625,7 @@ def add_state_machine(gltf: Dict, node: Dict):
                     # enabled = constraint.driver_add("enabled")
                     # state_var = enabled.driver.variables.new()
                     # state_var.targets[0].id = layer_empty
-                    # state_var.targets[0].data_path = '["state"]'
+                    # state_var.targets[0].data_path = 'state'
                     # state_var.name = "state"
                     # enabled.driver.expression = f"state == {stateIdx}"
 
@@ -667,12 +682,6 @@ def add_state_machine(gltf: Dict, node: Dict):
                         variable.name = "start_frame"
                         time.driver.expression = f"clamp((frame - start_frame) / {animation_strip.frame_end - animation_strip.frame_start})"
                     elif playback_speed_function is not None:
-                        try:
-                            value = float(playback_speed_function.expression)
-                            if value == 0:
-                                playback_speed_function.expression = "1.0"
-                        except:
-                            pass
                         for playbackVarIdx, var in enumerate(playback_speed_function.variables):
                             variable = time.driver.variables.new()
                             variable.targets[0].id = obj
