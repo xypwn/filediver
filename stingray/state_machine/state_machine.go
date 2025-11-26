@@ -911,7 +911,7 @@ func LoadStateMachine(r io.ReadSeeker) (*StateMachine, error) {
 				if err != nil {
 					return nil, err
 				}
-				if len(blendFunctions) > 0 && len(blendFunctions) == len(state.AnimationHashes) {
+				if len(blendFunctions) > 0 && len(blendFunctions) == len(state.AnimationHashes) && (state.Type == StateType_Blend || state.Type == StateType_Time) {
 					blendFunctions[0].DriverType = DriverType_Influence
 				}
 				state.CustomBlendFuncDefinition = blendFunctions
