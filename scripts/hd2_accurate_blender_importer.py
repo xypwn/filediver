@@ -3,6 +3,7 @@ import json
 import os
 import sys
 import struct
+import tempfile
 import numpy as np
 from argparse import ArgumentParser
 from bpy.types import BlendData, Image, Object, ShaderNodeGroup, ShaderNodeTexImage, Material, Collection
@@ -53,18 +54,17 @@ def load_glb(path: Path, debug: bool) -> dict:
     gltf["chunks"] = chunks[1:]
     return gltf
 
-def write_glb(path: Path, gltf: dict) -> int:
+# f: output file; must be a file-like object
+def write_glb(f: any, gltf: dict) -> int:
     chunks: List[GLTFChunk] = gltf["chunks"]
     written = 0
-    path.mkdir
     json_data = json.dumps({key: value for key, value in gltf.items() if key != "chunks"}, separators=(',',':')).encode()
     chunks = [GLTFChunk(len(json_data), "JSON", json_data)] + chunks
-    with path.open("wb") as f:
-        written += f.write(b"glTF")
-        written += f.write(struct.pack("<II", 2, 12 + 8 * len(chunks) + sum([chunk.length for chunk in chunks])))
-        for chunk in chunks:
-            written += f.write(struct.pack("<I4s", chunk.length, chunk.type.encode()))
-            written += f.write(chunk.data)
+    written += f.write(b"glTF")
+    written += f.write(struct.pack("<II", 2, 12 + 8 * len(chunks) + sum([chunk.length for chunk in chunks])))
+    for chunk in chunks:
+        written += f.write(struct.pack("<I4s", chunk.length, chunk.type.encode()))
+        written += f.write(chunk.data)
     return written
 
 def get_data(gltf: dict, bufferViewIdx: int) -> bytes:
@@ -239,18 +239,22 @@ def main():
     bpy.ops.object.delete()
     bpy.ops.outliner.orphans_purge()
     print(f"Loading {input_model.name}")
+    tmp_file = None
     try:
         path = input_model
         if str(path) == "-":
-            path = Path("tmp.glb")
-            write_glb(path, gltf)
+            tmp_file = tempfile.NamedTemporaryFile(prefix="filediver-", delete=False)
+            print(f"Writing glb to temporary file {tmp_file.name}")
+            write_glb(tmp_file, gltf)
+            tmp_file.close()
+            path = tmp_file.name
         if "extras" in gltf and "frameRate" in gltf["extras"]:
             print(f'Setting FPS to {gltf["extras"]["frameRate"]}')
             bpy.context.scene.render.fps = gltf["extras"]["frameRate"]
         bpy.ops.import_scene.gltf(filepath=str(path), bone_heuristic="TEMPERANCE")
     finally:
-        if str(input_model) == "-":
-            path.unlink()
+        if tmp_file:
+            os.unlink(tmp_file.name)
     print("Loading TheJudSub's HD2 accurate shader")
     shader_script = bpy.data.texts.load(str(resource_path / "Helldivers2 shader script v1.0.6-1.py"))
     shader_script.use_fake_user = True
