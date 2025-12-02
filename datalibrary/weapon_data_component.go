@@ -93,27 +93,36 @@ type WeaponDataComponent struct {
 	PrimaryFireMode                        enum.FireMode      // The primary fire mode (0 = ignored, 1 = auto, 2 = single, 3 = burst, 4 = charge safety on, 5 = charge safety off.)
 	SecondaryFireMode                      enum.FireMode      // The secondary fire mode
 	TertiaryFireMode                       enum.FireMode      // The tertiary fire mode
+	QuaternaryFireMode                     enum.FireMode      // The quaternary fire mode
+	UnknownMinigunStruct                   [24]uint8          // a struct introduced with the minigun patch, namelen 32
 	FunctionInfo                           WeaponFunctionInfo // Settings for the different functions this weapon has.
-	_                                      [4]uint8
-	Crosshair                              stingray.Hash // [material]The crosshair material.
-	AlwaysShowCrosshair                    uint8         // [bool]Should we always show the crosshair when wielding this weapon?)
+	Crosshair                              stingray.Hash      // [material]The crosshair material.
+	AlwaysShowCrosshair                    uint8              // [bool]Should we always show the crosshair when wielding this weapon?)
 	_                                      [3]uint8
 	FireNodes                              [24]stingray.ThinHash // [string]The nodes from where to spawn weapon output. If more than one, it will cycle through them.
 	AimSourceNode                          stingray.ThinHash     // [string]The node from where we check for blocked aim. On mounted weapons, this is usually the muzzle, while on carried weapons it is usually the root. This is because the muzzle moves a lot as part of the block animation, leading to oscillations.
 	SimultaneousFire                       uint8                 // [bool]If set, it fires one round from each fire node on single fire.
 	_                                      [3]uint8
-	ScopeResponsiveness                    float32    // How quickly the scope/sight follows changes in aim and movement.
 	ScopeCrosshair                         mgl32.Vec2 // Crosshair position on screen in [-1, 1] range.
-	ScopeOffset                            mgl32.Vec3 // X=Right, Y=Up, Z=Forward. Offset of the sight node relative to the default. Is added to the customization settings for applied customizations that affect it.
+	UnknownVec3                            mgl32.Vec3 // Unknown vec3, namelen 33, introduced with minigun
+	Unknown2dVec                           mgl32.Vec2 // Unknown vec2, namelen 24, introduced with minigun
+	UnknownMinigunBool                     uint8      // unknown bool, namelen 27, introduced with minigun
+	_                                      [3]uint8
 	ScopeZeroing                           mgl32.Vec3 // What are the different stages of zeroing we are allowed to have?
 	ScopeLensHidesWeapon                   uint8      // [bool]Should we hide the weapon when looking through the scope lens? Should be applied for optics that have high zoom.
 	_                                      [3]uint8
 	Ergonomics                             float32 // How responsive is the weapon when turning, aiming and shooting?
-	ConstrainedAimLeading                  uint8   // [bool]If set, the camera may not get too far away from the aim direction.
-	AllowFPV                               uint8   // [bool]Allow First Person View on this weapon
-	UnknownBool                            uint8   // [bool]Unknown, name length 11
-	AllowAiming                            uint8   // [bool]Allow aiming on this weapon
-	UnknownBool2                           uint8   // [bool]Unknown, name length 14
+	UnknownFloat                           float32 // Name len 31, introduced with minigun
+	UnknownMinigunBool2                    uint8   // Name len 38, introduced with minigun
+	_                                      [3]uint8
+	Unknown2dVec2                          mgl32.Vec2        // Unknown vec2, namelen 40, introduced with minigun
+	ConstrainedAimLeading                  uint8             // [bool]If set, the camera may not get too far away from the aim direction.
+	AllowFPV                               uint8             // [bool]Allow First Person View on this weapon
+	AllowAiming                            uint8             // [bool]Allow aiming on this weapon
+	FirePreventsMovement                   uint8             // [bool]Unknown, name length 23
+	StartFiringMinigunAnimationEvent       stingray.ThinHash // Unknown thin hash, introduced with minigun, name len 42
+	StopFiringMinigunAnimationEvent        stingray.ThinHash // Unknown thin hash, introduced with minigun, name len 41
+	UnknownBool2                           uint8             // [bool]Unknown, name length 14
 	_                                      [3]uint8
 	CrosshairType                          enum.CrosshairWeaponType // What does this weapons crosshair look like.
 	FirstPersonSightNodes                  [4]OpticSetting          // [string]The chain of bones to the sight of the weapon for first person view.
@@ -196,22 +205,30 @@ type SimpleWeaponDataComponent struct {
 	PrimaryFireMode                        enum.FireMode                  `json:"primary_fire_mode"`                           // The primary fire mode (0 = ignored, 1 = auto, 2 = single, 3 = burst, 4 = charge safety on, 5 = charge safety off.)
 	SecondaryFireMode                      enum.FireMode                  `json:"secondary_fire_mode"`                         // The secondary fire mode
 	TertiaryFireMode                       enum.FireMode                  `json:"tertiary_fire_mode"`                          // The tertiary fire mode
+	QuaternaryFireMode                     enum.FireMode                  `json:"quat_fire_mode"`                              // minigun
+	UnknownMinigunStruct                   [24]uint8                      `json:"unknown_minigun"`                             // minigun
 	FunctionInfo                           WeaponFunctionInfo             `json:"function_info"`                               // Settings for the different functions this weapon has.
 	Crosshair                              string                         `json:"crosshair"`                                   // [material]The crosshair material.
 	AlwaysShowCrosshair                    bool                           `json:"always_show_crosshair"`                       // [bool]Should we always show the crosshair when wielding this weapon?)
 	FireNodes                              []string                       `json:"fire_nodes,omitempty"`                        // [string]The nodes from where to spawn weapon output. If more than one, it will cycle through them.
 	AimSourceNode                          string                         `json:"aim_source_node"`                             // [string]The node from where we check for blocked aim. On mounted weapons, this is usually the muzzle, while on carried weapons it is usually the root. This is because the muzzle moves a lot as part of the block animation, leading to oscillations.
 	SimultaneousFire                       bool                           `json:"simultaneous_fire"`                           // [bool]If set, it fires one round from each fire node on single fire.
-	ScopeResponsiveness                    float32                        `json:"scope_responsiveness"`                        // How quickly the scope/sight follows changes in aim and movement.
 	ScopeCrosshair                         mgl32.Vec2                     `json:"scope_crosshair"`                             // Crosshair position on screen in [-1, 1] range.
-	ScopeOffset                            mgl32.Vec3                     `json:"scope_offset"`                                // X=Right, Y=Up, Z=Forward. Offset of the sight node relative to the default. Is added to the customization settings for applied customizations that affect it.
+	UnknownVec3                            mgl32.Vec3                     `json:"unknown_vec3"`                                // unknown vec 3
+	Unknown2dVec                           mgl32.Vec2                     `json:"unknown_2d_vector"`                           // unknown
+	UnknownMinigunBool                     bool                           `json:"unknown_minigun_bool"`                        // unknown
 	ScopeZeroing                           mgl32.Vec3                     `json:"scope_zeroing"`                               // What are the different stages of zeroing we are allowed to have?
 	ScopeLensHidesWeapon                   bool                           `json:"scope_lens_hides_weapon"`                     // [bool]Should we hide the weapon when looking through the scope lens? Should be applied for optics that have high zoom.
 	Ergonomics                             float32                        `json:"ergonomics"`                                  // How responsive is the weapon when turning, aiming and shooting?
+	UnknownFloat                           float32                        `json:"unknown_float"`                               // unknown
+	UnknownMinigunBool2                    bool                           `json:"unknown_minigun_bool_2"`                      // unknown
+	Unknown2dVec2                          mgl32.Vec2                     `json:"unknown_2d_vec_2"`                            // unknown
 	ConstrainedAimLeading                  bool                           `json:"constrained_aim_leading"`                     // [bool]If set, the camera may not get too far away from the aim direction.
 	AllowFPV                               bool                           `json:"allow_fpv"`                                   // [bool]Allow First Person View on this weapon
 	AllowAiming                            bool                           `json:"allow_aiming"`                                // [bool]Allow aiming on this weapon
-	UnknownBool                            bool                           `json:"unknown_bool"`                                // [bool]Unknown
+	FirePreventsMovement                   bool                           `json:"fire_prevents_movement"`                      // [bool]Unknown
+	StartFiringMinigunAnimationEvent       string                         `json:"start_firing_minigun_animation_event"`        // unknown
+	StopFiringMinigunAnimationEvent        string                         `json:"stop_firing_minigun_animation_event"`         // unknown
 	UnknownBool2                           bool                           `json:"unknown_bool2"`                               // [bool]Unknown
 	CrosshairType                          enum.CrosshairWeaponType       `json:"crosshair_type"`                              // What does this weapons crosshair look like.
 	FirstPersonSightNodes                  []SimpleOpticSetting           `json:"first_person_sight_nodes,omitempty"`          // [string]The chain of bones to the sight of the weapon for first person view.
@@ -341,22 +358,30 @@ func (d WeaponDataComponent) ToSimple(lookupHash HashLookup, lookupThinHash Thin
 		PrimaryFireMode:                        d.PrimaryFireMode,
 		SecondaryFireMode:                      d.SecondaryFireMode,
 		TertiaryFireMode:                       d.TertiaryFireMode,
+		QuaternaryFireMode:                     d.QuaternaryFireMode,
+		UnknownMinigunStruct:                   d.UnknownMinigunStruct,
 		FunctionInfo:                           d.FunctionInfo,
 		Crosshair:                              lookupHash(d.Crosshair),
 		AlwaysShowCrosshair:                    d.AlwaysShowCrosshair != 0,
 		FireNodes:                              fireNodes,
 		AimSourceNode:                          lookupThinHash(d.AimSourceNode),
 		SimultaneousFire:                       d.SimultaneousFire != 0,
-		ScopeResponsiveness:                    d.ScopeResponsiveness,
 		ScopeCrosshair:                         d.ScopeCrosshair,
-		ScopeOffset:                            d.ScopeOffset,
+		UnknownVec3:                            d.UnknownVec3,
+		Unknown2dVec:                           d.Unknown2dVec,
+		UnknownMinigunBool:                     d.UnknownMinigunBool != 0,
 		ScopeZeroing:                           d.ScopeZeroing,
 		ScopeLensHidesWeapon:                   d.ScopeLensHidesWeapon != 0,
 		Ergonomics:                             d.Ergonomics,
+		UnknownFloat:                           d.UnknownFloat,
+		UnknownMinigunBool2:                    d.UnknownMinigunBool2 != 0,
+		Unknown2dVec2:                          d.Unknown2dVec2,
 		ConstrainedAimLeading:                  d.ConstrainedAimLeading != 0,
 		AllowFPV:                               d.AllowFPV != 0,
 		AllowAiming:                            d.AllowAiming != 0,
-		UnknownBool:                            d.UnknownBool != 0,
+		FirePreventsMovement:                   d.FirePreventsMovement != 0,
+		StartFiringMinigunAnimationEvent:       lookupThinHash(d.StartFiringMinigunAnimationEvent),
+		StopFiringMinigunAnimationEvent:        lookupThinHash(d.StopFiringMinigunAnimationEvent),
 		UnknownBool2:                           d.UnknownBool2 != 0,
 		CrosshairType:                          d.CrosshairType,
 		FirstPersonSightNodes:                  fpSightNodes,
