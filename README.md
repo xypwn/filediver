@@ -11,6 +11,9 @@
 An unofficial Helldivers 2 game asset extractor.
 </div>
 
+## Note regarding `prod_slim`
+**Filediver doesn't work on prod_slim at the moment. If you want to use Filediver, please use the "fat"/`prod_legacy` version. See [#159](https://github.com/xypwn/filediver/issues/159).**
+
 ## Download
 ### Filediver GUI (graphical interface with preview)
 ![GUI Screenshot](screenshots/gui.png)
