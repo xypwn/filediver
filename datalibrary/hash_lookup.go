@@ -13,17 +13,19 @@ type hashLookup0x7056 struct {
 	Parents                []hashLookupParent
 	HashCount1             uint32
 	Hashes1                []stingray.Hash
-	HashMap1EntryCount     uint32
-	HashMap1               []hashLookupMapEntry
 	HashCount2             uint32
 	Hashes2                []stingray.Hash
+	HashMap1EntryCount     uint32
+	HashMap1               []hashLookupMapEntry
+	HashCount3             uint32
+	Hashes3                []stingray.Hash
 	UnknownTypeIndicator   uint32
 	Hashes2MappingCount    uint32
 	Hashes2Mapping         []hashLookupHashMapping
 	ThinHashMap1EntryCount uint32
 	ThinHashMap1           []hashLookupThinMapEntry
-	HashCount3             uint32
-	Hashes3                []stingray.Hash
+	HashCount4             uint32
+	Hashes4                []stingray.Hash
 	HashMap2EntryCount     uint32
 	HashMap2               []hashLookupMapEntry
 	LookupTreeCount1       uint32
@@ -103,6 +105,14 @@ func parseHashLookup(r io.Reader) (map[uint64]stingray.Hash, error) {
 		return nil, fmt.Errorf("read hashes_01 %v", err)
 	}
 
+	if err := binary.Read(r, binary.LittleEndian, &hashLookup.HashCount2); err != nil {
+		return nil, fmt.Errorf("read hash_count_02 %v", err)
+	}
+	hashLookup.Hashes2 = make([]stingray.Hash, hashLookup.HashCount2)
+	if err := binary.Read(r, binary.LittleEndian, &hashLookup.Hashes2); err != nil {
+		return nil, fmt.Errorf("read hashes_02 %v", err)
+	}
+
 	if err := binary.Read(r, binary.LittleEndian, &hashLookup.HashMap1EntryCount); err != nil {
 		return nil, fmt.Errorf("read hash_map_01_entry_count %v", err)
 	}
@@ -111,12 +121,12 @@ func parseHashLookup(r io.Reader) (map[uint64]stingray.Hash, error) {
 		return nil, fmt.Errorf("read hash_map_01 %v", err)
 	}
 
-	if err := binary.Read(r, binary.LittleEndian, &hashLookup.HashCount2); err != nil {
-		return nil, fmt.Errorf("read hash_count_02 %v", err)
+	if err := binary.Read(r, binary.LittleEndian, &hashLookup.HashCount3); err != nil {
+		return nil, fmt.Errorf("read hash_count_03 %v", err)
 	}
-	hashLookup.Hashes2 = make([]stingray.Hash, hashLookup.HashCount2)
-	if err := binary.Read(r, binary.LittleEndian, &hashLookup.Hashes2); err != nil {
-		return nil, fmt.Errorf("read hashes_02 %v", err)
+	hashLookup.Hashes3 = make([]stingray.Hash, hashLookup.HashCount3)
+	if err := binary.Read(r, binary.LittleEndian, &hashLookup.Hashes3); err != nil {
+		return nil, fmt.Errorf("read hashes_03 %v", err)
 	}
 
 	if err := binary.Read(r, binary.LittleEndian, &hashLookup.UnknownTypeIndicator); err != nil {
@@ -138,12 +148,12 @@ func parseHashLookup(r io.Reader) (map[uint64]stingray.Hash, error) {
 		return nil, fmt.Errorf("read thin_hash_map_01 %v", err)
 	}
 
-	if err := binary.Read(r, binary.LittleEndian, &hashLookup.HashCount3); err != nil {
-		return nil, fmt.Errorf("read hash_count_03 %v", err)
+	if err := binary.Read(r, binary.LittleEndian, &hashLookup.HashCount4); err != nil {
+		return nil, fmt.Errorf("read hash_count_04 %v", err)
 	}
-	hashLookup.Hashes3 = make([]stingray.Hash, hashLookup.HashCount3)
-	if err := binary.Read(r, binary.LittleEndian, &hashLookup.Hashes3); err != nil {
-		return nil, fmt.Errorf("read hashes_03 %v", err)
+	hashLookup.Hashes4 = make([]stingray.Hash, hashLookup.HashCount4)
+	if err := binary.Read(r, binary.LittleEndian, &hashLookup.Hashes4); err != nil {
+		return nil, fmt.Errorf("read hashes_04 %v", err)
 	}
 
 	if err := binary.Read(r, binary.LittleEndian, &hashLookup.HashMap2EntryCount); err != nil {

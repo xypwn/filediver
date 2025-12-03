@@ -68634,7 +68634,14 @@ content/env_cyborg/samples/textures/automaton_super_sample_01_nar
 content/env_cyborg/signs/sign_electricity_01
 content/env_cyborg/signs/sign_propaganda_01
 content/env_cyborg/signs/sign_spawner_01
+content/env_cyborg/signs/sign_up_01
 content/env_cyborg/utilities/communication_tower_01
+content/env_illuminate/architecture/il_ruin_block_01
+content/env_illuminate/architecture/il_ruin_block_02
+content/env_illuminate/architecture/il_ruin_block_roof
+content/env_illuminate/architecture/il_ruin_pillar
+content/env_illuminate/architecture/il_ruin_rubble
+content/env_illuminate/architecture/il_ruin_stair
 content/env_illuminate/cables/il_cable_greeble_01
 content/env_illuminate/cables/il_cable_greeble_02
 content/env_illuminate/cables/il_cable_greeble_03
@@ -68658,9 +68665,12 @@ content/env_illuminate/debris/il_generic_debris_01
 content/env_illuminate/debris/il_generic_debris_03
 content/env_illuminate/debris/il_generic_debris_04
 content/env_illuminate/debris/il_generic_debris_05
+content/env_illuminate/gameplay/il_spawner
+content/env_illuminate/gameplay/il_spawner_01
 content/env_illuminate/gameplay/il_spawner_guy_staff
 content/env_illuminate/gameplay/il_teslatower
 content/env_illuminate/gameplay/il_turret_01
+content/env_illuminate/gameplay/il_turret_tactical_obj
 content/env_illuminate/gameplay/materials/m_il_teslatower
 content/env_illuminate/gameplay/textures/il_teslatower_emissive
 content/env_illuminate/gameplay/textures/il_teslatower_mask
@@ -71153,6 +71163,7 @@ content/fac_helldivers/discoverables/health_pack_discoverable_01/health_pack_dis
 content/fac_helldivers/discoverables/health_pack_discoverable_01/health_pack_discoverable_03
 content/fac_helldivers/discoverables/health_pack_discoverable_01/health_pack_discoverable_04
 content/fac_helldivers/discovereables/health_pack_discoverable
+content/fac_helldivers/equipment/attachment/magazine/assault_rifle_grenadier_magazine_standard
 content/fac_helldivers/equipment/attachment/magazine/assault_rifle_helghast_magazine
 content/fac_helldivers/equipment/attachment/magazine/assault_rifle_karbin_magazine_standard
 content/fac_helldivers/equipment/attachment/magazine/assault_rifle_large_calibre_mag_standard
@@ -71366,10 +71377,12 @@ content/fac_helldivers/equipment/backpacks/hover_backpack/textures/hover_backpac
 content/fac_helldivers/equipment/backpacks/jumppack_backpack/jumppack_backpack
 content/fac_helldivers/equipment/backpacks/medic_backpack/m_medic_backpack
 content/fac_helldivers/equipment/backpacks/medic_backpack/medic_backpack
+content/fac_helldivers/equipment/backpacks/minigun_backpack/minigun_backpack
 content/fac_helldivers/equipment/backpacks/recoilless_rifle_backpack/recoilless_rifle_backpack
 content/fac_helldivers/equipment/melee_weapons/ceremonial_saber/ceremonial_saber
 content/fac_helldivers/equipment/melee_weapons/ceremonial_saber/ceremonial_saber_scabbard
 content/fac_helldivers/equipment/melee_weapons/ceremonial_saber/textures/ceremonial_saber_nac
+content/fac_helldivers/equipment/melee_weapons/chainsaw_greatsword/chainsaw_greatsword
 content/fac_helldivers/equipment/melee_weapons/electric_baton/animation/draw
 content/fac_helldivers/equipment/melee_weapons/electric_baton/animation/folded
 content/fac_helldivers/equipment/melee_weapons/electric_baton/animation/holster
@@ -71410,6 +71423,7 @@ content/fac_helldivers/equipment/primary_weapons/assault_rifle/assault_rifle
 content/fac_helldivers/equipment/primary_weapons/assault_rifle/assault_rifle_ap
 content/fac_helldivers/equipment/primary_weapons/assault_rifle/assault_rifle_exp
 content/fac_helldivers/equipment/primary_weapons/assault_rifle_explosive/assault_rifle_explosive
+content/fac_helldivers/equipment/primary_weapons/assault_rifle_grenadier/assault_rifle_grenadier
 content/fac_helldivers/equipment/primary_weapons/assault_rifle_helghast/animation/eject_cover_close
 content/fac_helldivers/equipment/primary_weapons/assault_rifle_helghast/animation/eject_cover_open
 content/fac_helldivers/equipment/primary_weapons/assault_rifle_helghast/animation/fire
@@ -71596,6 +71610,7 @@ content/fac_helldivers/equipment/primary_weapons/pump_shotgun_plasma/animation/p
 content/fac_helldivers/equipment/primary_weapons/pump_shotgun_plasma/animation/reload
 content/fac_helldivers/equipment/primary_weapons/pump_shotgun_plasma/pump_shotgun_plasma
 content/fac_helldivers/equipment/primary_weapons/pump_shotgun_slug/pump_shotgun_slug
+content/fac_helldivers/equipment/primary_weapons/shotgun_double_freedom/shotgun_double_freedom
 content/fac_helldivers/equipment/primary_weapons/shotgun_nacho/animation/fire
 content/fac_helldivers/equipment/primary_weapons/shotgun_nacho/animation/idle
 content/fac_helldivers/equipment/primary_weapons/shotgun_nacho/animation/pump
@@ -71838,6 +71853,7 @@ content/fac_helldivers/equipment/support_weapons/machinegun/animation/reload
 content/fac_helldivers/equipment/support_weapons/machinegun/animation/reload_fast
 content/fac_helldivers/equipment/support_weapons/machinegun/machinegun
 content/fac_helldivers/equipment/support_weapons/machinegun/textures/machinegun_nac
+content/fac_helldivers/equipment/support_weapons/minigun/minigun
 content/fac_helldivers/equipment/support_weapons/missile_launcher/missile_launcher
 content/fac_helldivers/equipment/support_weapons/plasma_blaster/animation/coils_down
 content/fac_helldivers/equipment/support_weapons/plasma_blaster/animation/coils_overcharge
@@ -73462,6 +73478,7 @@ content/objectives/obj_illuminate/il_mothership/il_mothership_tentacles_vista
 content/objectives/obj_illuminate/il_mothership/il_mothership_vista
 content/objectives/obj_illuminate/il_mothership/textures/il_mothership_albedo
 content/objectives/obj_illuminate/il_mothership/textures/il_mothership_nar
+content/objectives/obj_illuminate/il_sarcophagus/il_sarcophagus
 content/objectives/obj_illuminate/il_stratagem_scrambler/il_scrambler_battery
 content/objectives/obj_illuminate/il_stratagem_scrambler/il_stratagem_scrambler
 content/objectives/obj_illuminate/il_stratagem_scrambler/materials/m_il_strategem_scrambler
