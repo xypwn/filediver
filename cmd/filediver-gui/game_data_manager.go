@@ -236,11 +236,14 @@ func (gd *GameDataLoad) loadGameData(ctx context.Context, gameDir string) {
 }
 
 // GoLoadGameData asynchronously loads the game data.
-// Pass empty string to gameDir to auto-detect.
+// Pass string "<auto-detect>" or empty string to gameDir to auto-detect.
 func (gd *GameDataLoad) GoLoadGameData(ctx context.Context, gameDir string) {
 	gd.Progress = 0
 	gd.Result = nil
 	gd.Err = nil
 	gd.Done = false
+	if gameDir == "<auto-detect>" {
+		gameDir = ""
+	}
 	go gd.loadGameData(ctx, gameDir)
 }

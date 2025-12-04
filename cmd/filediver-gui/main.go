@@ -261,7 +261,7 @@ func (a *guiApp) onInitWindow(state *imgui_wrapper.State) error {
 		a.goCheckForUpdates(true)
 	}
 
-	a.gameDataLoad.GoLoadGameData(a.ctx, "")
+	a.gameDataLoad.GoLoadGameData(a.ctx, a.extractorConfig.Gamedir)
 
 	return nil
 }
@@ -1018,11 +1018,7 @@ func (a *guiApp) drawExtractorConfigWindow() {
 		if widgets.ConfigEditor(&a.extractorConfig, &a.extractorConfigShowAdvanced, &a.extractorConfigSearchQuery) {
 			if a.extractorConfig.Gamedir != prevExtrCfg.Gamedir {
 				a.gameData = nil
-				gameDir := ""
-				if a.extractorConfig.Gamedir != "<auto-detect>" {
-					gameDir = a.extractorConfig.Gamedir
-				}
-				a.gameDataLoad.GoLoadGameData(a.ctx, gameDir)
+				a.gameDataLoad.GoLoadGameData(a.ctx, a.extractorConfig.Gamedir)
 			}
 			if a.extractorConfig != prevExtrCfg {
 				if err := a.extractorConfig.Save(a.extractorConfigPath); err != nil {
