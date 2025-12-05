@@ -3806,6 +3806,7 @@ butt_jiggle
 button
 button_base
 c_100461763
+c_ammo
 c_ammo_box_01
 c_ammo_box_02
 c_ammo_box_03
@@ -3818,6 +3819,10 @@ c_antenna_01
 c_antenna_01_01
 c_antenna_01_02
 c_antenna_02
+c_antenna_03
+c_antenna_04
+c_antenna_05
+c_antenna_06
 c_antenna_telescope_0
 c_antenna_telescope_1
 c_antenna_telescope_2
@@ -3912,6 +3917,7 @@ c_box_08
 c_br_door
 c_br_susp_down
 c_br_susp_up
+c_briefcase
 c_bug_corpse_scavenger_01
 c_bug_corpse_warrior_01
 c_bug_corpse_warrior_03
@@ -4317,6 +4323,7 @@ c_door
 c_door1
 c_door_l
 c_door_r
+c_drill
 c_drum
 c_elevation_01
 c_elevation_02
@@ -4368,6 +4375,7 @@ c_front_leg_3_l
 c_front_leg_3_r
 c_front_top_panel_2
 c_front_wing
+c_fuel
 c_fusebox_01
 c_generator_01
 c_generator_02
@@ -4532,6 +4540,7 @@ c_headstone_01
 c_headstone_02
 c_headstone_03
 c_headstone_04
+c_heatsink
 c_hinge
 c_hinge1
 c_hinge2
@@ -4670,6 +4679,7 @@ c_left_arm3
 c_left_foot
 c_left_wing
 c_legendarium_sample_01
+c_lid
 c_lid_1
 c_lid_2
 c_lock
@@ -4700,6 +4710,7 @@ c_middle_leg_3_l
 c_middle_leg_3_l_convex
 c_middle_leg_3_r
 c_middle_leg_3_r_convex
+c_missile
 c_mouth
 c_mov
 c_mov_6
@@ -4845,6 +4856,7 @@ c_movement_9
 c_movement_91
 c_movement_96
 c_movement_mesh
+c_nav
 c_navigation
 c_navigation1
 c_navigation11
@@ -4882,6 +4894,7 @@ c_navmesh9
 c_navmesh_01
 c_neck
 c_neck1
+c_occlusion
 c_optic
 c_pads_shoulderplate_mesh
 c_panel
@@ -4937,6 +4950,7 @@ c_r_thigh_02
 c_r_thigh_mesh
 c_r_top_strut_01
 c_r_top_strut_02
+c_rack
 c_rail
 c_ramp
 c_ramp1
