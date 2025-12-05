@@ -1018,6 +1018,25 @@ MaterialVariableValue
 EnemyTagSwap
 AiSquadMemberComponentData
 SeekingMissileDeviationSettings
+AbilitySettings
+EffectSwitcherComponentData
+EffectSwitcherComponent
+FriendlyNpcComponentData
+FriendlyNpcComponent
+GibEntityComponentData
+GibEntityComponent
+LevitationAreaComponentData
+LevitationAreaComponent
+ProjectileClusterComponentData
+ProjectileClusterComponent
+RandomSlotComponentData
+RandomSlotComponent
+SearchlightEnemyComponentData
+SearchlightEnemyComponent
+ShieldControllerComponentData
+ShieldControllerComponent
+ShieldShapeType
+SurfaceEffectInfo
 
 // ======== Enums and Values ========
 HelldiverCustomizationPassiveBonus
