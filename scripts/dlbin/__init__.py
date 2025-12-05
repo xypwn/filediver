@@ -68,6 +68,7 @@ class Passive(IntEnum):
     DESERT_STORMER = 21
     FEET_FIRST = 31
     SOME_NEW_PASSIVE = 32
+    ROCK_SOLID = 33
 
 class MurmurHash:
     def __init__(self, value: int):
