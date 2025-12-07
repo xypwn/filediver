@@ -10,6 +10,7 @@ import (
 	"cmp"
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -277,23 +278,63 @@ func findDSARChunkForDSAAEntry(dsar *DSARStructure, ent DSAAEntry) (entryIndex i
 	return idx, nil
 }
 
-type SlimBundleInfo struct {
+func loadSingleArchiveBundleFromPath(path string) (_ *DSARStructure, _ *Archive, err error) {
+	name := filepath.Base(path)
+	defer func() {
+		if err != nil {
+			err = fmt.Errorf("loading single-archive bundle %s: %w", name, err)
+		}
+	}()
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer f.Close()
+	dsar, err := LoadDSARStructure(f)
+	if err != nil {
+		return nil, nil, fmt.Errorf("loading DSAR: %w", err)
+	}
+	if len(dsar.Chunks) == 0 {
+		return nil, nil, fmt.Errorf("expected DSAR bundle to have at least one chunk")
+	}
+	data, err := ReadDSARChunkData(f, dsar.Chunks[0])
+	if err != nil {
+		return nil, nil, err
+	}
+	archive, err := LoadArchive(name, bytes.NewReader(data))
+	if err != nil {
+		return nil, nil, err
+	}
+	return dsar, archive, nil
+}
+
+type NXABundleInfo struct {
 	DSAR     *DSARStructure
 	Filename string
 }
 
 func openDataDirSlim(ctx context.Context, dirPath string, onProgress func(curr, total int)) (_ *DataDir, err error) {
+	dirEntries, err := os.ReadDir(dirPath)
+	if err != nil {
+		return nil, err
+	}
 	dsaa, err := loadDSAAFromBundlesNXA(filepath.Join(dirPath, "bundles.nxa"))
 	if err != nil {
 		return nil, err
 	}
-	bundles := make([]SlimBundleInfo, len(dsaa.NXAFilenames))
+	totalProgress := 0
+	totalProgressCandidates := len(dsaa.Archives) + len(dirEntries)
+
+	//
+	// NXA-bundled archives
+	//
+	bundles := make([]NXABundleInfo, len(dsaa.NXAFilenames))
 	for i, filename := range dsaa.NXAFilenames {
 		dsar, err := loadBundleFromPath(filepath.Join(dirPath, filename))
 		if err != nil {
 			return nil, err
 		}
-		bundles[i] = SlimBundleInfo{
+		bundles[i] = NXABundleInfo{
 			DSAR:     dsar,
 			Filename: filename,
 		}
@@ -301,13 +342,28 @@ func openDataDirSlim(ctx context.Context, dirPath string, onProgress func(curr, 
 	archiveToFiles := make(map[Hash][]FileID)
 	fileToInfos := make(map[FileID][]FileInfo)
 	archiveDSAAIndices := make(map[Hash][NumDataType]int)
-	for i, arItem := range dsaa.Archives {
+	addArchive := func(archive *Archive) {
+		for _, fileData := range archive.Files {
+			var file FileInfo
+			file.ArchiveID = archive.ID
+			for typ := range NumDataType {
+				file.Files[typ] = Locus{
+					Offset: fileData.Offsets[typ],
+					Size:   fileData.Sizes[typ],
+				}
+			}
+			archiveToFiles[archive.ID] = append(archiveToFiles[archive.ID], fileData.ID)
+			fileToInfos[fileData.ID] = append(fileToInfos[fileData.ID], file)
+		}
+	}
+	for _, arItem := range dsaa.Archives {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
 		if onProgress != nil {
-			onProgress(i, len(dsaa.Archives))
+			onProgress(totalProgress, totalProgressCandidates)
 		}
+		totalProgress++
 		if path.Ext(arItem.Filename) != "" {
 			continue
 		}
@@ -334,18 +390,7 @@ func openDataDirSlim(ctx context.Context, dirPath string, onProgress func(curr, 
 		if err != nil {
 			return nil, fmt.Errorf("loading archive %s from %s: %w", arItem.Filename, bundle.Filename, err)
 		}
-		for _, fileData := range archive.Files {
-			var file FileInfo
-			file.ArchiveID = archive.ID
-			for typ := range NumDataType {
-				file.Files[typ] = Locus{
-					Offset: fileData.Offsets[typ],
-					Size:   fileData.Sizes[typ],
-				}
-			}
-			archiveToFiles[archive.ID] = append(archiveToFiles[archive.ID], fileData.ID)
-			fileToInfos[fileData.ID] = append(fileToInfos[fileData.ID], file)
-		}
+		addArchive(archive)
 	}
 	for i, arItem := range dsaa.Archives {
 		ext := path.Ext(arItem.Filename)
@@ -371,58 +416,134 @@ func openDataDirSlim(ctx context.Context, dirPath string, onProgress func(curr, 
 		archiveDSAAIndices[hash] = idxs
 	}
 
+	//
+	// Single-archive DSAR bundles
+	//
+	singleArchiveBundles := make(map[Hash][NumDataType]*DSARStructure)
+	for _, dirEntry := range dirEntries {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		if onProgress != nil {
+			onProgress(totalProgress, totalProgressCandidates)
+		}
+		totalProgress++
+		if !dirEntry.Type().IsRegular() {
+			continue
+		}
+		if path.Ext(dirEntry.Name()) != "" {
+			continue
+		}
+		dsar, archive, err := loadSingleArchiveBundleFromPath(filepath.Join(dirPath, dirEntry.Name()))
+		if err != nil {
+			return nil, err
+		}
+		addArchive(archive)
+		var dsars [NumDataType]*DSARStructure
+		dsars[DataMain] = dsar
+		for _, typ := range []DataType{DataStream, DataGPU} {
+			name := dirEntry.Name() + typ.ArchiveFileExtension()
+			f, err := os.Open(filepath.Join(dirPath, name))
+			if err != nil {
+				if errors.Is(err, os.ErrNotExist) {
+					continue
+				}
+				return nil, fmt.Errorf("opening single-archive bundle %s: %w", name, err)
+			}
+			dsar, err := LoadDSARStructure(f)
+			f.Close()
+			if err != nil {
+				return nil, fmt.Errorf("loading single-archive DSAR bundle %s: %w", name, err)
+			}
+			dsars[typ] = dsar
+		}
+		singleArchiveBundles[archive.ID] = dsars
+	}
+
 	return &DataDir{
-		Path:               dirPath,
-		Archives:           archiveToFiles,
-		Files:              fileToInfos,
-		IsSlimEdition:      true,
-		DSAA:               dsaa,
-		ArchiveDSAAIndices: archiveDSAAIndices,
-		Bundles:            bundles,
+		Path:                 dirPath,
+		Archives:             archiveToFiles,
+		Files:                fileToInfos,
+		IsSlimEdition:        true,
+		DSAA:                 dsaa,
+		ArchiveDSAAIndices:   archiveDSAAIndices,
+		Bundles:              bundles,
+		SingleArchiveBundles: singleArchiveBundles,
 	}, nil
 }
 
 func readNBytesSlim(d *DataDir, file FileInfo, typ DataType, nBytes int) ([]byte, error) {
-	archiveIndices, ok := d.ArchiveDSAAIndices[file.ArchiveID]
-	if !ok {
-		return nil, fmt.Errorf("archive does not exist in DSAA archive table")
-	}
 	fileOffset := file.Files[typ].Offset // offset in archive
-	archiveIndex := archiveIndices[typ]
-	arItem := d.DSAA.Archives[archiveIndex]
-	// Archive item entries are sorted by archive offset, so we
-	// can binary search.
-	entIdx, ok := slices.BinarySearchFunc(arItem.Entries, fileOffset, func(ent DSAAEntry, offs uint64) int {
-		return cmp.Compare(uint64(ent.ArchiveOffset), offs)
-	})
-	if !ok {
-		entIdx--
-		if entIdx < 0 || entIdx >= len(arItem.Entries) {
-			return nil, fmt.Errorf("unable to find matching DSAA entry for file")
+
+	var chkIdx int
+	var nTrimStart uint64 // how much we "overshot" with the chunk's archive offset
+	var dsarFilename string
+	var chunks []DSARChunk
+
+	if dsar := d.SingleArchiveBundles[file.ArchiveID][typ]; dsar == nil {
+		// NXA bundle archive case (most common)
+
+		archiveIndices, ok := d.ArchiveDSAAIndices[file.ArchiveID]
+		if !ok {
+			return nil, fmt.Errorf("archive does not exist in DSAA archive table")
 		}
-	}
-	ent := arItem.Entries[entIdx]
-	nTrimStart := fileOffset - uint64(ent.ArchiveOffset)
+		archiveIndex := archiveIndices[typ]
+		arItem := d.DSAA.Archives[archiveIndex]
+		// Archive item entries are sorted by archive offset, so we
+		// can binary search.
+		entIdx, ok := slices.BinarySearchFunc(arItem.Entries, fileOffset, func(ent DSAAEntry, offs uint64) int {
+			return cmp.Compare(uint64(ent.ArchiveOffset), offs)
+		})
+		if !ok {
+			entIdx--
+			if entIdx < 0 || entIdx >= len(arItem.Entries) {
+				return nil, fmt.Errorf("unable to find matching DSAA entry for file")
+			}
+		}
+		ent := arItem.Entries[entIdx]
 
-	bundle := d.Bundles[ent.BundleIndex]
-	dsar := bundle.DSAR
-	chkIdx, err := findDSARChunkForDSAAEntry(dsar, ent)
-	if err != nil {
-		return nil, err
+		bundle := d.Bundles[ent.BundleIndex]
+		dsar := bundle.DSAR
+		var err error
+		chkIdx, err = findDSARChunkForDSAAEntry(dsar, ent)
+		if err != nil {
+			return nil, err
+		}
+
+		nTrimStart = fileOffset - uint64(ent.ArchiveOffset)
+		dsarFilename = bundle.Filename
+		chunks = dsar.Chunks
+	} else {
+		// Single-archive bundle case (e.g. localized audio)
+
+		var ok bool
+		chkIdx, ok = slices.BinarySearchFunc(dsar.Chunks, fileOffset, func(chk DSARChunk, uncompOffs uint64) int {
+			return cmp.Compare(chk.UncompressedOffset, uint64(uncompOffs))
+		})
+		if !ok {
+			chkIdx--
+			if chkIdx < 0 || chkIdx >= len(dsar.Chunks) {
+				return nil, fmt.Errorf("unable to find matching DSAR chunk for file")
+			}
+		}
+
+		nTrimStart = fileOffset - uint64(dsar.Chunks[chkIdx].UncompressedOffset)
+		dsarFilename = fmt.Sprintf("%016x%v", file.ArchiveID.Value, typ.ArchiveFileExtension())
+		chunks = dsar.Chunks
 	}
 
-	f, err := os.Open(filepath.Join(d.Path, bundle.Filename))
+	f, err := os.Open(filepath.Join(d.Path, dsarFilename))
 	if err != nil {
-		return nil, fmt.Errorf("opening bundle file %s: %w", bundle.Filename, err)
+		return nil, fmt.Errorf("opening bundle file %s: %w", dsarFilename, err)
 	}
 	defer f.Close()
 
 	var b bytes.Buffer
 	currChkIdx := chkIdx
 	for b.Len()-int(nTrimStart) < nBytes {
-		data, err := ReadDSARChunkData(f, dsar.Chunks[currChkIdx])
+		data, err := ReadDSARChunkData(f, chunks[currChkIdx])
 		if err != nil {
-			return nil, fmt.Errorf("reading DSAR chunk %d in %s: %w", currChkIdx, bundle.Filename, err)
+			return nil, fmt.Errorf("reading DSAR chunk %d in %s: %w", currChkIdx, dsarFilename, err)
 		}
 		b.Write(data)
 		currChkIdx++

@@ -48,9 +48,10 @@ type DataDir struct {
 	// game is prod_slim.
 	IsSlimEdition bool
 	// === SLIM EDITION ONLY FIELDS === //
-	DSAA               *DSAA
-	ArchiveDSAAIndices map[Hash][NumDataType]int
-	Bundles            []SlimBundleInfo
+	DSAA                 *DSAA
+	ArchiveDSAAIndices   map[Hash][NumDataType]int
+	Bundles              []NXABundleInfo
+	SingleArchiveBundles map[Hash][NumDataType]*DSARStructure // single-archive DSAR bundles that are non-NXA, e.g. localized audio
 	// === END                      === //
 }
 
