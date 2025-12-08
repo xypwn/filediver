@@ -476,7 +476,6 @@ func readNBytesSlim(d *DataDir, file FileInfo, typ DataType, nBytes int) ([]byte
 	fileOffset := file.Files[typ].Offset // offset in archive
 
 	var chkIdx int
-	var nTrimStart uint64 // how much we "overshot" with the chunk's archive offset
 	var dsarFilename string
 	var chunks []DSARChunk
 
@@ -495,6 +494,8 @@ func readNBytesSlim(d *DataDir, file FileInfo, typ DataType, nBytes int) ([]byte
 			return cmp.Compare(uint64(ent.ArchiveOffset), offs)
 		})
 		if !ok {
+			// DSAA entries often aren't aligned with file beginnings.
+
 			entIdx--
 			if entIdx < 0 || entIdx >= len(arItem.Entries) {
 				return nil, fmt.Errorf("unable to find matching DSAA entry for file")
@@ -509,8 +510,15 @@ func readNBytesSlim(d *DataDir, file FileInfo, typ DataType, nBytes int) ([]byte
 		if err != nil {
 			return nil, err
 		}
+		nBytesUndershot := fileOffset - uint64(ent.ArchiveOffset)
+		for nBytesUndershot > 0 {
+			nBytesUndershot -= uint64(dsar.Chunks[chkIdx].UncompressedSize)
+			chkIdx++
+		}
+		if nBytesUndershot != 0 {
+			return nil, fmt.Errorf("expected the beginning of file to be aligned with beginning of a DSAR chunk")
+		}
 
-		nTrimStart = fileOffset - uint64(ent.ArchiveOffset)
 		dsarFilename = bundle.Filename
 		chunks = dsar.Chunks
 	} else {
@@ -521,13 +529,9 @@ func readNBytesSlim(d *DataDir, file FileInfo, typ DataType, nBytes int) ([]byte
 			return cmp.Compare(chk.UncompressedOffset, uint64(uncompOffs))
 		})
 		if !ok {
-			chkIdx--
-			if chkIdx < 0 || chkIdx >= len(dsar.Chunks) {
-				return nil, fmt.Errorf("unable to find matching DSAR chunk for file")
-			}
+			return nil, fmt.Errorf("unable to find matching DSAR chunk for file")
 		}
 
-		nTrimStart = fileOffset - uint64(dsar.Chunks[chkIdx].UncompressedOffset)
 		dsarFilename = fmt.Sprintf("%016x%v", file.ArchiveID.Value, typ.ArchiveFileExtension())
 		chunks = dsar.Chunks
 	}
@@ -540,7 +544,7 @@ func readNBytesSlim(d *DataDir, file FileInfo, typ DataType, nBytes int) ([]byte
 
 	var b bytes.Buffer
 	currChkIdx := chkIdx
-	for b.Len()-int(nTrimStart) < nBytes {
+	for b.Len() < nBytes {
 		data, err := ReadDSARChunkData(f, chunks[currChkIdx])
 		if err != nil {
 			return nil, fmt.Errorf("reading DSAR chunk %d in %s: %w", currChkIdx, dsarFilename, err)
@@ -548,5 +552,5 @@ func readNBytesSlim(d *DataDir, file FileInfo, typ DataType, nBytes int) ([]byte
 		b.Write(data)
 		currChkIdx++
 	}
-	return b.Bytes()[nTrimStart:], nil
+	return b.Bytes(), nil
 }
