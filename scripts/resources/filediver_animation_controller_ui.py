@@ -1,4 +1,9 @@
 import bpy
+try:
+    import bpy.stub_internal
+except:
+    pass
+from typing import Set
 
 link_types = [
     ("LinkType_Immediate", "Immediate", "", 0),
@@ -19,10 +24,31 @@ class filediver_state_transition(bpy.types.PropertyGroup):
 class filediver_animation_state(bpy.types.PropertyGroup):
     name: bpy.props.StringProperty()
     transitions: bpy.props.CollectionProperty(type=filediver_state_transition)
+    active_index: bpy.props.IntProperty()
 
-class SCENE_UL_filediver_animation_events(bpy.types.UIList):
+class SCENE_UL_filediver_animation_states(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         layout.prop(item, "name", text="", emboss=False)
+
+class SCENE_UL_filediver_animation_events(bpy.types.UIList):
+    def draw_item(self, context, layout: bpy.types.UILayout, data, item, icon, active_data, active_propname, index):
+        layout.prop(item, "event", text="", emboss=False)
+
+class AnimationTransitionOperator(bpy.types.Operator):
+    bl_idname = "object.fd_transition_animation"
+    bl_label = "Send Animation Event"
+
+    bl_options = {'REGISTER', 'UNDO'}
+
+    state_machine: bpy.props.PointerProperty(type=bpy.types.Object)
+    state:  bpy.props.PointerProperty(type=filediver_animation_state)
+
+    def execute(self, context: bpy.types.Context) -> Set["bpy.stub_internal.rna_enums.OperatorReturnItems"]:
+        if self.state_machine is None:
+            self.report({'DEBUG'}, "cancelled")
+            return {'CANCELLED'}
+        self.report({'DEBUG'}, self.state_machine.name)
+        return {'FINISHED'}
 
 def not_a_controller(row: bpy.types.UILayout):
     row.label(text="No animation controller selected")
@@ -56,24 +82,40 @@ class SCENE_PT_filediver_animation_controller(bpy.types.Panel):
         row.label(text=state_machine.name)
         sorted_layers = sorted(state_machine.children, key=lambda x: int(x.name.split()[-1]))
         for layer in sorted_layers:
-            row = layout.row()
-            row.label(text=layer.name)
-            col = row.column()
-            col.template_list("SCENE_UL_filediver_animation_events", "", layer, "filediver_layer_states", layer, "state")
+            header, body = layout.panel(layer.name)
+            header.label(text=layer.name)
+            if body is None:
+                continue
+            body.label(text="States")
+            body.template_list("SCENE_UL_filediver_animation_states", "", layer, "filediver_layer_states", layer, "state")
+            if len(layer.filediver_layer_states[layer.state].transitions) == 0:
+                continue
+            body.label(text="Events")
+            body.template_list("SCENE_UL_filediver_animation_events", "", layer.filediver_layer_states[layer.state], "transitions", layer.filediver_layer_states[layer.state], "active_index")
+            op: bpy.types.OperatorProperties = body.operator(AnimationTransitionOperator.bl_idname)
+            op.id_data
+            # op.id_data["state"] = layer.filediver_layer_states[layer.state]
+
 
 def register():
     bpy.utils.register_class(filediver_state_transition)
     bpy.utils.register_class(filediver_animation_state)
+    bpy.utils.register_class(AnimationTransitionOperator)
+    bpy.utils.register_class(SCENE_UL_filediver_animation_states)
     bpy.utils.register_class(SCENE_UL_filediver_animation_events)
     bpy.utils.register_class(SCENE_PT_filediver_animation_controller)
     bpy.types.Object.filediver_layer_states = bpy.props.CollectionProperty(type=filediver_animation_state)
     bpy.types.Object.state = bpy.props.IntProperty()
+    AnimationTransitionOperator.state_machine = bpy.props.PointerProperty(type=bpy.types.Object)
+    AnimationTransitionOperator.state = bpy.props.PointerProperty(type=filediver_animation_state)
 
 def unregister():
     bpy.utils.unregister_class(filediver_animation_state)
     bpy.utils.unregister_class(filediver_state_transition)
+    bpy.utils.unregister_class(AnimationTransitionOperator)
     bpy.utils.unregister_class(SCENE_PT_filediver_animation_controller)
     bpy.utils.unregister_class(SCENE_UL_filediver_animation_events)
+    bpy.utils.unregister_class(SCENE_UL_filediver_animation_states)
 
 if __name__ == "__main__":
     register()
