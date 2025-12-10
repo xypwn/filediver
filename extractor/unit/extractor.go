@@ -218,7 +218,7 @@ func AddMaterialVariant(ctx *extractor.Context, mat *material.Material, doc *glt
 		skinMat.Textures[stingray.Sum("pattern_masks_array").Thin()] = override[idx].PatternMasksArray
 	}
 
-	skinMatIdx, err := extr_material.AddMaterial(ctx, &skinMat, doc, imgOpts, skinOverride.ID.String()+" "+ctx.LookupThinHash(materialId), metadata)
+	skinMatIdx, err := extr_material.AddMaterial(ctx, &skinMat, doc, imgOpts, ctx.LookupThinHash(skinOverride.ID)+" "+ctx.LookupThinHash(materialId), metadata)
 	if err != nil {
 		return nil, err
 	}
