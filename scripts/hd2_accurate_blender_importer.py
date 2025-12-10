@@ -323,10 +323,7 @@ def main():
             continue
         mesh = gltf["meshes"][node["mesh"]]
         textures: Dict[str, Image] = {}
-        if node["name"] in bpy.data.objects:
-            obj: Object = bpy.data.objects[node["name"]]
-        else:
-            obj = None
+        obj = None
         for primIdx, primitive in enumerate(mesh["primitives"]):
             for varIdx in range(len(variants)):
                 if "material" not in primitive:
@@ -339,7 +336,7 @@ def main():
                             materialIndex = mapping["material"]
                             break
                 material = gltf["materials"][materialIndex]
-                if node["name"] not in bpy.data.objects and obj is None:
+                if obj is None:
                     for item in bpy.data.objects:
                         if item.active_material and item.active_material.name == material["name"]:
                             obj: Object = item
