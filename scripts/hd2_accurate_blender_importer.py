@@ -303,15 +303,20 @@ def main():
 
     print("Applying materials to meshes...")
     for node in gltf["nodes"]:
-        if "extras" in node and "armorSet" in node["extras"] and node["name"] in bpy.data.objects:
+        if "extras" in node and "armorSet" in node["extras"]:
             if node["extras"]["armorSet"] not in bpy.data.collections:
                 bpy.data.collections.new(node["extras"]["armorSet"])
                 bpy.data.scenes[0].collection.children.link(bpy.data.collections[node["extras"]["armorSet"]])
             collection: Collection = bpy.data.collections[node["extras"]["armorSet"]]
-            obj = bpy.data.objects[node["name"]]
-            for other in obj.users_collection:
-                other.objects.unlink(obj)
-            collection.objects.link(obj)
+            obj: Object = None
+            for object in bpy.data.objects:
+                if object.name.startswith(node["name"]) and object.name not in collection.objects:
+                    obj = object
+                    break
+            if obj is not None:
+                for other in obj.users_collection:
+                    other.objects.unlink(obj)
+                collection.objects.link(obj)
         if "extras" in node and "default_hidden" in node["extras"] and node["extras"]["default_hidden"] == 1 and node["name"] in bpy.data.objects:
             obj = bpy.data.objects[node["name"]]
             obj.hide_render = True
