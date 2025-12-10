@@ -116,8 +116,8 @@ func main() {
 		})
 		optThinHashListMode = argp.String("b", "list-thins", &argparse.Option{
 			Default: "none",
-			Choices: []any{"none", "unknown", "known", "bone", "material", "all"},
-			Help:    "if not none, list [option] thin hashes referenced in included unit files, then exit"},
+			Choices: []any{"none", "unknown", "known", "bone", "light", "material", "beat", "event", "animation_variable", "all"},
+			Help:    "if not none, list [option] thin hashes referenced in included animation, unit, or state_machine files, then exit"},
 		)
 		optHelpMetadata = argp.Flag("", "help-metadata", &argparse.Option{
 			Help: `show metadata filter syntax help`,
@@ -336,69 +336,43 @@ Options:`)
 		}
 	} else if *optThinHashListMode != "none" || *optThinToFind != "" {
 		knownBone := make(map[string]bool)
+		knownLight := make(map[string]bool)
 		knownMat := make(map[string]bool)
+		knownMatVariant := make(map[string]bool)
 		unknownBone := make(map[string]bool)
+		unknownLight := make(map[string]bool)
 		unknownMat := make(map[string]bool)
-		unitCount := 0
+		unknownMatVariant := make(map[string]bool)
+		fileCount := 0
 		for _, id := range sortedFileIDs {
-			if id.Type != stingray.Sum("unit") {
-				continue
+			if id.Type == stingray.Sum("unit") {
+				fileCount += handleUnitThinHashes(prt, a, id, optThinToFind, knownBone, unknownBone, knownLight, unknownLight, knownMat, unknownMat)
 			}
-			b, err := a.DataDir.Read(id, stingray.DataMain)
-			if err != nil {
-				prt.Errorf("opening %v.unit's main file: %v", err)
-				continue
-			}
-
-			unitInfo, err := unit.LoadInfo(bytes.NewReader(b))
-			if err != nil {
-				prt.Errorf("loading info from %v.unit: %v", id.Name.String(), err)
-				continue
-			}
-
-			for _, bone := range unitInfo.Bones {
-				if *optThinToFind != "" && stingray.Sum(*optThinToFind).Thin() == bone.NameHash {
-					unitName, exists := a.Hashes[id.Name]
-					if !exists {
-						unitName = id.Name.String()
-					}
-					fmt.Printf("%v.unit\n", unitName)
-					unitCount++
-					break
-				} else if *optThinToFind != "" {
-					continue
-				}
-
-				if name, exists := a.ThinHashes[bone.NameHash]; exists {
-					knownBone[name] = true
+		}
+		for _, skinOverrideGroup := range a.SkinOverrideGroups {
+			for _, skinOverride := range skinOverrideGroup.Skins {
+				if name, exists := a.ThinHashes[skinOverride.ID]; exists {
+					knownMatVariant[name] = true
 				} else {
-					unknownBone[bone.NameHash.String()] = true
-				}
-			}
-			for mat := range unitInfo.Materials {
-				if *optThinToFind != "" && stingray.Sum(*optThinToFind).Thin() == mat {
-					unitName, exists := a.Hashes[id.Name]
-					if !exists {
-						unitName = id.Name.String()
-					}
-					fmt.Printf("%v.unit\n", unitName)
-					unitCount++
-					break
-				} else if *optThinToFind != "" {
-					continue
-				}
-
-				if name, exists := a.ThinHashes[mat]; exists {
-					knownMat[name] = true
-				} else {
-					unknownMat[mat.String()] = true
+					unknownMatVariant[skinOverride.ID.String()] = true
 				}
 			}
 		}
+		for _, paintScheme := range a.WeaponPaintSchemes {
+			if name, exists := a.ThinHashes[paintScheme.ID]; exists {
+				knownMatVariant[name] = true
+			} else {
+				unknownMatVariant[paintScheme.ID.String()] = true
+			}
+		}
 
-		knownSorted := make([]string, len(knownBone)+len(knownMat))
+		knownSorted := make([]string, len(knownBone)+len(knownMat)+len(knownLight)+len(knownMatVariant))
 		i := 0
 		for name := range knownBone {
+			knownSorted[i] = name
+			i++
+		}
+		for name := range knownLight {
 			knownSorted[i] = name
 			i++
 		}
@@ -406,14 +380,26 @@ Options:`)
 			knownSorted[i] = name
 			i++
 		}
+		for name := range knownMatVariant {
+			knownSorted[i] = name
+			i++
+		}
 
-		unknownSorted := make([]string, len(unknownBone)+len(unknownMat))
+		unknownSorted := make([]string, len(unknownBone)+len(unknownMat)+len(unknownLight)+len(unknownMatVariant))
 		i = 0
 		for name := range unknownBone {
 			unknownSorted[i] = name
 			i++
 		}
+		for name := range unknownLight {
+			unknownSorted[i] = name
+			i++
+		}
 		for name := range unknownMat {
+			unknownSorted[i] = name
+			i++
+		}
+		for name := range unknownMatVariant {
 			unknownSorted[i] = name
 			i++
 		}
@@ -444,16 +430,30 @@ Options:`)
 				fmt.Println(bone)
 			}
 			printed = len(unknownBone) + len(knownBone)
+		case "light":
+			knownOffset := len(knownBone)
+			unknownOffset := len(unknownBone)
+			slices.Sort(knownSorted[knownOffset : knownOffset+len(knownLight)])
+			slices.Sort(unknownSorted[unknownOffset : unknownOffset+len(unknownLight)])
+			for _, light := range knownSorted[knownOffset : knownOffset+len(knownLight)] {
+				fmt.Println(light)
+			}
+			for _, light := range unknownSorted[unknownOffset : unknownOffset+len(unknownLight)] {
+				fmt.Println(light)
+			}
+			printed = len(knownLight) + len(unknownLight)
 		case "material":
-			slices.Sort(knownSorted[len(knownBone):])
-			slices.Sort(unknownSorted[len(unknownBone):])
-			for _, mat := range knownSorted[len(knownBone):] {
+			knownOffset := len(knownBone) + len(knownLight)
+			unknownOffset := len(unknownBone) + len(unknownLight)
+			slices.Sort(knownSorted[knownOffset : knownOffset+len(knownMat)+len(knownMatVariant)])
+			slices.Sort(unknownSorted[unknownOffset : unknownOffset+len(unknownMat)+len(unknownMatVariant)])
+			for _, mat := range knownSorted[knownOffset : knownOffset+len(knownMat)+len(knownMatVariant)] {
 				fmt.Println(mat)
 			}
-			for _, mat := range unknownSorted[len(unknownBone):] {
+			for _, mat := range unknownSorted[unknownOffset : unknownOffset+len(unknownMat)+len(unknownMatVariant)] {
 				fmt.Println(mat)
 			}
-			printed = len(unknownMat) + len(knownMat)
+			printed = len(unknownMat) + len(knownMat) + len(knownMatVariant) + len(unknownMatVariant)
 		case "all":
 			slices.Sort(knownSorted)
 			slices.Sort(unknownSorted)
@@ -467,10 +467,10 @@ Options:`)
 		}
 
 		if showRedirectHint && printed > 127 {
-			prt.Infof("Listed %v bones or materials (you should probably redirect this to a file)", printed)
+			prt.Infof("Listed %v thin hashes (you should probably redirect this to a file)", printed)
 		}
 		if *optThinToFind != "" {
-			prt.Infof("Listed %v units with bone or material '%v' == 0x%08x", unitCount, *optThinToFind, stingray.Sum(*optThinToFind).Thin().Value)
+			prt.Infof("Listed %v files with thin hash '%v' == 0x%08x", fileCount, *optThinToFind, stingray.Sum(*optThinToFind).Thin().Value)
 		}
 	} else {
 		prt.Infof("Extracting files...")
@@ -532,4 +532,79 @@ Options:`)
 		prt.NoStatus()
 		prt.Infof("Extracted %v/%v matching files", numExtrFiles, len(files))
 	}
+}
+
+func handleUnitThinHashes(prt app.Printer, a *app.App, id stingray.FileID, optThinToFind *string, knownBone, unknownBone, knownLight, unknownLight, knownMat, unknownMat map[string]bool) int {
+	b, err := a.DataDir.Read(id, stingray.DataMain)
+	if err != nil {
+		prt.Errorf("opening %v.unit's main file: %v", err)
+		return 0
+	}
+
+	unitInfo, err := unit.LoadInfo(bytes.NewReader(b))
+	if err != nil {
+		prt.Errorf("loading info from %v.unit: %v", id.Name.String(), err)
+		return 0
+	}
+
+	unitCount := 0
+	for _, bone := range unitInfo.Bones {
+		if *optThinToFind != "" && stingray.Sum(*optThinToFind).Thin() == bone.NameHash {
+			unitName, exists := a.Hashes[id.Name]
+			if !exists {
+				unitName = id.Name.String()
+			}
+			fmt.Printf("%v.unit\n", unitName)
+			unitCount++
+			break
+		} else if *optThinToFind != "" {
+			continue
+		}
+
+		if name, exists := a.ThinHashes[bone.NameHash]; exists {
+			knownBone[name] = true
+		} else {
+			unknownBone[bone.NameHash.String()] = true
+		}
+	}
+	for _, light := range unitInfo.Lights {
+		if *optThinToFind != "" && stingray.Sum(*optThinToFind).Thin() == light.NameHash {
+			unitName, exists := a.Hashes[id.Name]
+			if !exists {
+				unitName = id.Name.String()
+			}
+			fmt.Printf("%v.unit\n", unitName)
+			unitCount++
+			break
+		} else if *optThinToFind != "" {
+			continue
+		}
+
+		if name, exists := a.ThinHashes[light.NameHash]; exists {
+			knownLight[name] = true
+		} else {
+			unknownLight[light.NameHash.String()] = true
+		}
+	}
+	for mat := range unitInfo.Materials {
+		if *optThinToFind != "" && stingray.Sum(*optThinToFind).Thin() == mat {
+			unitName, exists := a.Hashes[id.Name]
+			if !exists {
+				unitName = id.Name.String()
+			}
+			fmt.Printf("%v.unit\n", unitName)
+			unitCount++
+			break
+		} else if *optThinToFind != "" {
+			continue
+		}
+
+		if name, exists := a.ThinHashes[mat]; exists {
+			knownMat[name] = true
+		} else {
+			unknownMat[mat.String()] = true
+		}
+	}
+
+	return unitCount
 }
