@@ -322,7 +322,7 @@ def convert_materials(gltf: Dict, node: Dict, variants: List[Dict], hasVariants:
             material = gltf["materials"][materialIndex]
             if obj is None:
                 for item in bpy.data.objects:
-                    if item.active_material and item.active_material.name == material["name"]:
+                    if item.active_material and item.active_material.name == material["name"] and len(item.material_slots) == len(mesh["primitives"]):
                         obj: Object = item
                         break
             is_pbr = "albedo" in material["extras"] or "albedo_iridescence" in material["extras"] or "normal" in material["extras"]
