@@ -8792,6 +8792,14 @@ g_corrupted_v1_shadow_LOD1
 g_corrupted_v1_shadow_LOD2
 g_corrupted_v1_shadow_LOD3
 g_corrupted_v2
+g_corrupted_v2_LOD1
+g_corrupted_v2_LOD2
+g_corrupted_v2_LOD3
+g_corrupted_v2_LOD4
+g_corrupted_v2_shadow
+g_corrupted_v2_shadow_LOD1
+g_corrupted_v2_shadow_LOD2
+g_corrupted_v2_shadow_LOD3
 g_counter_corner_01
 g_counter_corner_01_LOD1
 g_counter_corner_01_LOD2
@@ -24515,3 +24523,4 @@ g_siege_engine_shadow_LOD3
 g_cyborg_elite
 g_cyborg_elite_armor
 g_cyborg_elite_female
+g_il_sarcophagus
