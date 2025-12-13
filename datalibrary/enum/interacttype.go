@@ -1,0 +1,63 @@
+package enum
+
+type InteractType uint32
+
+const (
+	InteractType_None InteractType = iota
+	InteractType_PickupWeaponPrimary
+	InteractType_PickupWeaponSidearm
+	InteractType_PickupWeaponSupport
+	InteractType_PickupAmmo
+	InteractType_PickupHealth
+	InteractType_PickupGrenades
+	InteractType_PickupSupplies
+	InteractType_PickupSuppliesFromRack
+	InteractType_PickupLootGeneric
+	InteractType_PickupLootSample
+	InteractType_PickupSampleContainer
+	InteractType_PickupHellpod
+	InteractType_PickupThrowable
+	InteractType_PressButton
+	InteractType_PickupSnowball
+	InteractType_Heal
+	InteractType_Objective
+	InteractType_VehicleEntry
+	InteractType_VehicleStorage
+	InteractType_Lever
+	InteractType_MenuScreen
+	InteractType_MenuScreenHostOnly
+	InteractType_MenuScreenClientOnly
+	InteractType_ArmExplosive
+	InteractType_Elevator
+	InteractType_Minigame
+	InteractType_AssistedReload
+	InteractType_PickupBackpack
+	InteractType_ObjectiveTerminal
+	InteractType_PickupCarryable
+	InteractType_DropOffCarryable
+	InteractType_Talk
+	InteractType_RequestMailRewards
+	InteractType_BallDispenser
+	InteractType_SyncEmote
+	InteractType_Assignment
+	InteractType_Discovery
+	InteractType_ExtractionEntry
+	InteractType_TutorialExtractionEntry
+	InteractType_BackpackGive
+	InteractType_PickupLootIntel
+	InteractType_EnableReinforce
+	InteractType_Stim
+	InteractType_StimFake
+	InteractType_AssignmentTalk
+	InteractType_StateSwitch
+	InteractType_DeployCarryable
+	InteractType_Inspect
+	InteractType_ExplorationReward
+	InteractType_SuperEarthCache
+)
+
+func (p InteractType) MarshalText() ([]byte, error) {
+	return []byte(p.String()), nil
+}
+
+//go:generate go run golang.org/x/tools/cmd/stringer -type=InteractType
