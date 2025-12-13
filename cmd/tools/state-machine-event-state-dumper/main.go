@@ -2,12 +2,13 @@ package main
 
 import (
 	"context"
-	"encoding/xml"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strconv"
+	"slices"
 	"syscall"
 
 	"github.com/hellflame/argparse"
@@ -21,33 +22,18 @@ import (
 	"github.com/xypwn/filediver/stingray/state_machine"
 )
 
-type GraphMLNode struct {
-	ResolvedName            string   `xml:"id,attr"`
-	ResolvedAnimationHashes []string `xml:"animations,omitempty"`
+type eventAnimationInfo struct {
+	Name string `json:"name"`
+	Hash string `json:"hex_id"`
+	ID   uint64 `json:"id"`
 }
 
-type GraphMLEdge struct {
-	ResolvedEvent string `xml:"desc"`
-	Source        string `xml:"source,attr"`
-	Target        string `xml:"target,attr"`
+type eventAnimations struct {
+	Event       string               `json:"event"`
+	Animations  []eventAnimationInfo `json:"animations"`
+	AddedHashes []stingray.Hash      `json:"-"`
 }
 
-type GraphMLStateGroup struct {
-	EdgeDefault string        `xml:"edgedefault,attr"`
-	Nodes       []GraphMLNode `xml:"node"`
-	Edges       []GraphMLEdge `xml:"edge"`
-}
-
-type GraphMLStateMachine struct {
-	XMLName           xml.Name            `xml:"graphml"`
-	Namespace         string              `xml:"xmlns,attr"`
-	XSINamespace      string              `xml:"xmlns:xsi,attr"`
-	XSISchemaLocation string              `xml:"xsi:schemaLocation,attr"`
-	Groups            []GraphMLStateGroup `xml:"graph,omitempty"`
-}
-
-// Dumping the state machine as a bunch of graphml graphs
-// Sorta kinda useful maybe?
 func dumpStateMachineStates(ctx *extractor.Context) error {
 	r, err := ctx.Open(ctx.FileID(), stingray.DataMain)
 	if err != nil {
@@ -58,50 +44,86 @@ func dumpStateMachineStates(ctx *extractor.Context) error {
 		return err
 	}
 
-	var graphml GraphMLStateMachine
-	graphml.Namespace = "http://graphml.graphdrawing.org/xmlns"
-	graphml.XSINamespace = "http://www.w3.org/2001/XMLSchema-instance"
-	graphml.XSISchemaLocation = "http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd"
-	graphml.Groups = make([]GraphMLStateGroup, 0)
-	for grpIdx, group := range stateMachine.Layers {
-		var graph GraphMLStateGroup
-		graph.EdgeDefault = "directed"
-		graph.Nodes = make([]GraphMLNode, 0)
-		graph.Edges = make([]GraphMLEdge, 0)
-		for _, state := range group.States {
-			node := GraphMLNode{
-				ResolvedName:            ctx.LookupHash(state.Name),
-				ResolvedAnimationHashes: make([]string, 0),
-			}
-			for _, hash := range state.AnimationHashes {
-				node.ResolvedAnimationHashes = append(node.ResolvedAnimationHashes, ctx.LookupHash(hash))
-			}
-			graph.Nodes = append(graph.Nodes, node)
-			for key, transition := range state.StateTransitions {
-				graph.Edges = append(graph.Edges, GraphMLEdge{
-					ResolvedEvent: ctx.LookupThinHash(key),
-					Source:        ctx.LookupHash(state.Name),
-					Target:        ctx.LookupHash(group.States[transition.Index].Name),
-				})
+	layers := make(map[string][]eventAnimations, 0)
+	for idx, layer := range stateMachine.Layers {
+		layerAnimations := make([]eventAnimations, 0)
+		eventOrder := make([]string, 0)
+		eventAnimationMap := make(map[string]eventAnimations)
+		for _, state := range layer.States {
+			for _, event := range stateMachine.AnimationEventHashes {
+				transition, contains := state.StateTransitions[event]
+				if !contains {
+					continue
+				}
+				transitionState := layer.States[transition.Index]
+				resolvedEvent := ctx.LookupThinHash(event)
+				eventAnimation, contains := eventAnimationMap[resolvedEvent]
+				if !contains {
+					eventAnimation = eventAnimations{
+						Event:       resolvedEvent,
+						Animations:  make([]eventAnimationInfo, 0),
+						AddedHashes: make([]stingray.Hash, 0),
+					}
+					eventOrder = append(eventOrder, resolvedEvent)
+				}
+				for _, animation := range transitionState.AnimationHashes {
+					if slices.Contains(eventAnimation.AddedHashes, animation) {
+						continue
+					}
+					eventAnimation.AddedHashes = append(eventAnimation.AddedHashes, animation)
+					eventAnimation.Animations = append(eventAnimation.Animations, eventAnimationInfo{
+						Name: ctx.LookupHash(animation),
+						ID:   animation.Value,
+						Hash: animation.String(),
+					})
+				}
+				eventAnimationMap[resolvedEvent] = eventAnimation
 			}
 		}
-		graphml.Groups = []GraphMLStateGroup{graph}
-
-		marshalled, err := xml.MarshalIndent(graphml, "", "    ")
-		if err != nil {
-			return nil
+		for _, event := range eventOrder {
+			layerAnimations = append(layerAnimations, eventAnimationMap[event])
 		}
-
-		writer, err := ctx.CreateFile("/group_" + strconv.FormatUint(uint64(grpIdx), 10) + ".graphml")
-		if err != nil {
-			return nil
-		}
-		defer writer.Close()
-		writer.Write([]byte(xml.Header))
-		writer.Write(marshalled)
+		layers[fmt.Sprintf("layer_%v", idx)] = layerAnimations
 	}
 
-	return nil
+	f, err := ctx.CreateFile(".animation_events.json")
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	if _, err = f.Write([]byte("{\n")); err != nil {
+		return err
+	}
+
+	for i := 0; i < len(layers); i++ {
+		layerName := fmt.Sprintf("layer_%v", i)
+		layer, contains := layers[layerName]
+		if !contains {
+			continue
+		}
+		result, err := json.MarshalIndent(layer, "    ", "    ")
+		if err != nil {
+			return err
+		}
+		_, err = f.Write([]byte(fmt.Sprintf("    \"%v\": %v", layerName, string(result))))
+		if err != nil {
+			return err
+		}
+		if i < len(layers)-1 {
+			_, err = f.Write([]byte(","))
+			if err != nil {
+				return err
+			}
+		}
+		_, err = f.Write([]byte("\n"))
+		if err != nil {
+			return err
+		}
+	}
+
+	_, err = f.Write([]byte("}\n"))
+	return err
 }
 
 func main() {

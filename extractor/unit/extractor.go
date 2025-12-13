@@ -422,8 +422,12 @@ func AddMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_mate
 
 func AddPrefabMetadata(ctx *extractor.Context, doc *gltf.Document, filename stingray.Hash, parent *uint32, skin *uint32, meshNodes []uint32, armorSetName *string) {
 	if armorSetName != nil {
-		extras := map[string]any{"armorSet": *armorSetName}
 		for _, node := range meshNodes {
+			extras, ok := doc.Nodes[node].Extras.(map[string]any)
+			if !ok {
+				extras = make(map[string]any)
+			}
+			extras["armorSet"] = *armorSetName
 			doc.Nodes[node].Extras = extras
 		}
 	}
@@ -588,15 +592,25 @@ func ConvertBuffer(fMain, fGPU io.ReadSeeker, filename stingray.Hash, ctx *extra
 	}
 
 	bonesEnabled := !cfg.Model.NoBones
-	animationsEnabled := cfg.Model.EnableAnimations
 
 	var skin *uint32 = nil
 	var parent *uint32 = nil
 	if bonesEnabled && len(unitInfo.Bones) > 2 {
 		skin = gltf.Index(AddSkeleton(ctx, doc, unitInfo, filename, armorSetName))
 		parent = doc.Skins[*skin].Skeleton
-		if animationsEnabled {
-			state_machine.AddAnimationSet(ctx, doc, unitInfo)
+		if cfg.Model.EnableAnimations {
+			index, err := state_machine.AddStateMachine(ctx, doc, unitInfo)
+			if err != nil {
+				return fmt.Errorf("add state machine: %v", err)
+			}
+			if index >= 0 {
+				extras, ok := doc.Nodes[*parent].Extras.(map[string]any)
+				if !ok {
+					extras = make(map[string]any)
+				}
+				extras["state_machine"] = index
+				doc.Nodes[*parent].Extras = extras
+			}
 		}
 		AddLights(ctx, doc, unitInfo, parent)
 	} else {
