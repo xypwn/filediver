@@ -343,7 +343,7 @@ def main():
                 material = gltf["materials"][materialIndex]
                 if obj is None:
                     for item in bpy.data.objects:
-                        if item.active_material and item.active_material.name == material["name"]:
+                        if item.active_material and item.active_material.name == material["name"] and len(mesh["primitives"]) == len(obj.material_slots):
                             obj: Object = item
                             break
                 is_pbr = "albedo" in material["extras"] or "albedo_iridescence" in material["extras"] or "normal" in material["extras"]
