@@ -21,6 +21,9 @@ class filediver_state_transition(bpy.types.PropertyGroup):
     link_type: bpy.props.EnumProperty(items=link_types)
     beat: bpy.props.StringProperty()
 
+class filediver_event_name(bpy.types.PropertyGroup):
+    event: bpy.props.StringProperty()
+
 class filediver_animation_state(bpy.types.PropertyGroup):
     name: bpy.props.StringProperty()
     transitions: bpy.props.CollectionProperty(type=filediver_state_transition)
@@ -40,9 +43,6 @@ class AnimationTransitionOperator(bpy.types.Operator):
 
     bl_options = {'REGISTER', 'UNDO'}
 
-    state_machine: bpy.props.PointerProperty(type=bpy.types.Object)
-    state:  bpy.props.PointerProperty(type=filediver_animation_state)
-
     def execute(self, context: bpy.types.Context) -> Set["bpy.stub_internal.rna_enums.OperatorReturnItems"]:
         if self.state_machine is None:
             self.report({'DEBUG'}, "cancelled")
@@ -57,16 +57,15 @@ class SCENE_PT_filediver_animation_controller(bpy.types.Panel):
     bl_label = "Filediver Animation Controller Info"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = "Stingray"
+    bl_category = "Filediver"
 
     def draw(self, context):
         layout = self.layout
-        row = layout.row()
 
         if not context.active_object:
-            return not_a_controller(row)
+            return not_a_controller(layout)
         if not (context.active_object.data is None or type(context.active_object.data) == bpy.types.Armature):
-            return not_a_controller(row)
+            return not_a_controller(layout)
         
         state_machine = None
         if ".state_machine" in context.active_object.name:
@@ -77,35 +76,47 @@ class SCENE_PT_filediver_animation_controller(bpy.types.Panel):
                     state_machine = child
                     break
         if state_machine is None:
-            return not_a_controller(row)
-        
+            return not_a_controller(layout)
+
+        row = layout.row()
         row.label(text=state_machine.name)
         sorted_layers = sorted(state_machine.children, key=lambda x: int(x.name.split()[-1]))
+        used_events: Set[str] = set()
         for layer in sorted_layers:
             header, body = layout.panel(layer.name)
             header.label(text=layer.name)
             if body is None:
                 continue
             body.label(text="States")
-            body.template_list("SCENE_UL_filediver_animation_states", "", layer, "filediver_layer_states", layer, "state")
+            body.template_list("SCENE_UL_filediver_animation_states", f"list_{layer.name}", layer, "filediver_layer_states", layer, "state")
             if len(layer.filediver_layer_states[layer.state].transitions) == 0:
                 continue
-            body.label(text="Events")
-            body.template_list("SCENE_UL_filediver_animation_events", "", layer.filediver_layer_states[layer.state], "transitions", layer.filediver_layer_states[layer.state], "active_index")
-            op: bpy.types.OperatorProperties = body.operator(AnimationTransitionOperator.bl_idname)
-            op.id_data
-            # op.id_data["state"] = layer.filediver_layer_states[layer.state]
-
+            for transition in layer.filediver_layer_states[layer.state].transitions:
+                transition: filediver_state_transition
+                used_events.add(transition.event)
+            # body.label(text="Events")
+            # body.template_list("SCENE_UL_filediver_animation_events", "", layer.filediver_layer_states[layer.state], "transitions", layer.filediver_layer_states[layer.state], "active_index")
+            # op: bpy.types.OperatorProperties = body.operator(AnimationTransitionOperator.bl_idname)
+        state_machine.filediver_active_transitions.clear()
+        for event in sorted(list(used_events)):
+            transition = state_machine.filediver_active_transitions.add()
+            transition.event = event
+        header, body = layout.panel(f"{state_machine.name}_events")
+        header.label(text="Animation Events")
+        body.template_list("SCENE_UL_filediver_animation_events", "", state_machine, "filediver_active_transitions", state_machine, "filediver_transition_index")
 
 def register():
     bpy.utils.register_class(filediver_state_transition)
     bpy.utils.register_class(filediver_animation_state)
+    bpy.utils.register_class(filediver_event_name)
     bpy.utils.register_class(AnimationTransitionOperator)
     bpy.utils.register_class(SCENE_UL_filediver_animation_states)
     bpy.utils.register_class(SCENE_UL_filediver_animation_events)
     bpy.utils.register_class(SCENE_PT_filediver_animation_controller)
     bpy.types.Object.filediver_layer_states = bpy.props.CollectionProperty(type=filediver_animation_state)
     bpy.types.Object.state = bpy.props.IntProperty()
+    bpy.types.Object.filediver_active_transitions = bpy.props.CollectionProperty(type=filediver_event_name)
+    bpy.types.Object.filediver_transition_index = bpy.props.IntProperty()
     AnimationTransitionOperator.state_machine = bpy.props.PointerProperty(type=bpy.types.Object)
     AnimationTransitionOperator.state = bpy.props.PointerProperty(type=filediver_animation_state)
 
