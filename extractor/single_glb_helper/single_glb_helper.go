@@ -27,12 +27,12 @@ func CreateCloseableGltfDocument(outDir string, name string, formatBlend bool, r
 		if formatBlend {
 			err := blend_helper.ExportBlend(doc, outPath+".blend", runner)
 			if err != nil {
-				return fmt.Errorf("closing %v.blend: %v", outPath, err)
+				return fmt.Errorf("closing %v.blend: %w", outPath, err)
 			}
 		} else {
 			err := exportGLB(doc, outPath+".glb")
 			if err != nil {
-				return fmt.Errorf("closing %v.glb: %v", outPath, err)
+				return fmt.Errorf("closing %v.glb: %w", outPath, err)
 			}
 		}
 		return nil

@@ -14,6 +14,7 @@ import (
 	fnt "github.com/xypwn/filediver/cmd/filediver-gui/fonts"
 	"github.com/xypwn/filediver/cmd/filediver-gui/textutils"
 	"github.com/xypwn/filediver/exec"
+	"github.com/xypwn/filediver/extractor/blend_helper"
 	"github.com/xypwn/filediver/extractor/single_glb_helper"
 	"github.com/xypwn/filediver/hashes"
 	"github.com/xypwn/filediver/stingray"
@@ -155,6 +156,20 @@ func (gd *GameData) GoExport(extractCtx context.Context, files []stingray.FileID
 			}
 		}
 
+		handleErr := func(err error) (canceled bool) {
+			if errors.Is(err, context.Canceled) {
+				ex.Lock()
+				ex.Canceled = true
+				ex.Unlock()
+				canceled = true
+			} else if scriptErr := (&blend_helper.ScriptExitError{}); errors.As(err, &scriptErr) {
+				printer.Errorf("%v", scriptErr.FullError())
+			} else {
+				printer.Errorf("%v", err)
+			}
+			return
+		}
+
 		for _, fileID := range files {
 			currFileName := gd.LookupHash(fileID.Name) + "." + gd.LookupHash(fileID.Type)
 			ex.Lock()
@@ -168,13 +183,8 @@ func (gd *GameData) GoExport(extractCtx context.Context, files []stingray.FileID
 			}
 			_, err := gd.ExtractFile(extractCtx, fileID, outDir, cfg, runner, gltfDoc, archiveIDs, printer)
 			if err != nil {
-				if errors.Is(err, context.Canceled) {
-					ex.Lock()
-					ex.Canceled = true
-					ex.Unlock()
+				if canceled := handleErr(err); canceled {
 					break
-				} else {
-					printer.Errorf("%v", err)
 				}
 			}
 
@@ -187,7 +197,9 @@ func (gd *GameData) GoExport(extractCtx context.Context, files []stingray.FileID
 		}
 		for _, close := range documentsToClose {
 			if err := close(); err != nil {
-				printer.Errorf("%v", err)
+				if canceled := handleErr(err); canceled {
+					break
+				}
 			}
 		}
 	}()
