@@ -33,7 +33,8 @@ import math
 from dds_float16 import DDS
 from openexr.types import OpenEXR
 
-from resources.filediver_animation_controller_ui import filediver_animation_state, filediver_state_transition, register
+from resources.filediver_animation_controller_ui import filediver_animation_state, filediver_state_transition, register as register_ui
+from resources.filediver_drivers import register as register_drivers
 
 class IDPropertyUIManager:
     def update(subtype=None, min=None, max=None, soft_min=None, soft_max=None, precision=None, step=None, default=None, id_type=None, items=None, description=None):
@@ -393,7 +394,8 @@ def convert_materials(gltf: Dict, node: Dict, variants: List[Dict], hasVariants:
                     vari = variant_primitive.variants.add()
                     vari.variant.variant_idx = varIdx
 
-    shader_module.add_bake_uvs(obj)
+    if len(obj.data.uv_layers) > 0:
+        shader_module.add_bake_uvs(obj)
     obj.select_set(True)
     print(f"Applied material to {node['name']}!")
 
@@ -521,7 +523,7 @@ def no_set(self, val):
     return
 
 def add_state_machine(gltf: Dict, node: Dict):
-    register()
+    register_ui()
     obj: Object = bpy.data.objects[node["name"]]
     assert type(obj.data) is Armature
     controller = GLTFStateMachine.from_json(gltf["extras"]["state_machines"][0])
@@ -540,9 +542,25 @@ def add_state_machine(gltf: Dict, node: Dict):
     for collection in obj.users_collection:
         collection.objects.link(state_machine_empty)
 
-    state_machine_text = bpy.data.texts.new(obj.name+".state_machine.json")
-    state_machine_text.from_string(json.dumps(gltf["extras"]["state_machines"][0], separators=(",", ":")))
-    state_machine_empty["text"] = state_machine_text
+    # state_machine_text = bpy.data.texts.new(obj.name+".state_machine.json")
+    # state_machine_text.from_string(json.dumps(gltf["extras"]["state_machines"][0], separators=(",", ":")))
+    # state_machine_empty["text"] = state_machine_text
+
+    if "filediver_drivers.py" not in bpy.data.texts:
+        path = Path(os.path.realpath(__file__)).parent / "resources" / "filediver_drivers.py"
+        drivers = bpy.data.texts.load(filepath=str(path), internal=True)
+        drivers.use_module = True
+        drivers.use_fake_user = True
+        register_drivers()
+    
+    if "filediver_animation_controller_ui.py" not in bpy.data.texts:
+        path = Path(os.path.realpath(__file__)).parent / "resources" / "filediver_animation_controller_ui.py"
+        #animation_controller_ui = bpy.data.texts.new("filediver_animation_controller_ui.py")
+        animation_controller_ui = bpy.data.texts.load(filepath=str(path), internal=True)
+        animation_controller_ui.name = "filediver_animation_controller_ui.py"
+        
+        animation_controller_ui.use_module = True
+        animation_controller_ui.use_fake_user = True
 
     for layerIdx, layer in enumerate(controller.layers):
         print(f"        Adding layer {layerIdx}")
@@ -551,7 +569,6 @@ def add_state_machine(gltf: Dict, node: Dict):
         layer_empty.empty_display_size = 0.1
         layer_empty.empty_display_type = 'CUBE'
         layer_empty.state = layer.default_state
-        layer_empty.id_properties_ui("state").update(min=0, max=len(layer.states)-1)
         for collection in obj.users_collection:
             collection.objects.link(layer_empty)
 
@@ -581,6 +598,7 @@ def add_state_machine(gltf: Dict, node: Dict):
             
             filediver_state: filediver_animation_state = layer_empty.filediver_layer_states.add()
             filediver_state.name = state.name
+            filediver_state.loop = state.loop
             if state.state_transitions is not None:
                 for event, transition in state.state_transitions.items():
                     filediver_transition: filediver_state_transition = filediver_state.transitions.add()
@@ -631,20 +649,18 @@ def add_state_machine(gltf: Dict, node: Dict):
 
                     # influence_driver_expression = f"{mask_influence}"
                     # variables: List[Tuple[Object, str]] = []
-                    if mask_influence == 1.0:
-                        influence_driver_expression = f"float(state=={stateIdx})"
-                    else:
-                        influence_driver_expression = f"({mask_influence})*float(state=={stateIdx})"
-                    variables = [(layer_empty, "state")]
+
+                    influence_driver_expression = f"infl({stateIdx},{mask_influence},s,n,t)"
+                    variables = [(layer_empty, "state", "s"), (layer_empty, "next_state", "n"), (layer_empty, "state_transition", "t")]
                     if state.type == "StateType_Blend" and state.custom_blend_functions is not None and animIdx < len(state.custom_blend_functions):
                         influence_driver_expression += f"*{state.custom_blend_functions[animIdx].expression}"
-                        variables.extend(zip([obj] * len(state.custom_blend_functions[animIdx].variables), state.custom_blend_functions[animIdx].variables))
+                        variables.extend(zip([obj] * len(state.custom_blend_functions[animIdx].variables), state.custom_blend_functions[animIdx].variables, [None] * len(state.custom_blend_functions[animIdx].variables)))
                     influence = constraint.driver_add("influence")
-                    for vObj, variableName in variables:
+                    for vObj, variableName, shortName in variables:
                         variable = influence.driver.variables.new()
                         variable.targets[0].id = vObj
                         variable.targets[0].data_path = f'["{variableName}"]'
-                        variable.name = variableName
+                        variable.name = variableName if shortName is None else shortName
                         if state.custom_blend_functions is None or variableName not in state.custom_blend_functions[animIdx].variables:
                             continue
                         varIdx = state.custom_blend_functions[animIdx].variables.index(variableName)
@@ -673,12 +689,11 @@ def add_state_machine(gltf: Dict, node: Dict):
                         manager.update(min=0.0, max=1.0, soft_min=0.0, soft_max=1.0)
                         time.driver.expression = f"clamp({state.blend_variable})"
                     elif not state.loop:
-                        layer_empty["start_frame"] = float(1.0)
-                        manager: IDPropertyUIManager = layer_empty.id_properties_ui("start_frame")
-                        manager.update(min=0.0, max=math.inf)
+                        layer_empty.start_frame = float(1.0)
+                        layer_empty.keyframe_insert(data_path="start_frame", frame=1.0)
                         variable = time.driver.variables.new()
                         variable.targets[0].id = layer_empty
-                        variable.targets[0].data_path = '["start_frame"]'
+                        variable.targets[0].data_path = "start_frame"
                         variable.name = "start_frame"
                         time.driver.expression = f"clamp((frame - start_frame) / {animation_strip.frame_end - animation_strip.frame_start})"
                     elif playback_speed_function is not None:
