@@ -28,6 +28,7 @@ import (
 	"github.com/xypwn/filediver/app"
 	"github.com/xypwn/filediver/app/appconfig"
 	"github.com/xypwn/filediver/exec"
+	"github.com/xypwn/filediver/extractor/blend_helper"
 	"github.com/xypwn/filediver/extractor/single_glb_helper"
 	"github.com/xypwn/filediver/hashes"
 	"github.com/xypwn/filediver/stingray"
@@ -475,6 +476,19 @@ Options:`)
 	} else {
 		prt.Infof("Extracting files...")
 
+		handleErr := func(err error) (canceled, failed bool) {
+			if errors.Is(err, context.Canceled) {
+				canceled = true
+			} else if scriptErr := (&blend_helper.ScriptExitError{}); errors.As(err, &scriptErr) {
+				prt.Errorf("%v", scriptErr.FullError())
+				failed = true
+			} else {
+				prt.Errorf("%v", err)
+				failed = true
+			}
+			return
+		}
+
 		var documents map[string]*gltf.Document = make(map[string]*gltf.Document)
 		var documentsToClose []func() error
 		if cfg.Unit.SingleFile {
@@ -513,19 +527,23 @@ Options:`)
 			if _, err := a.ExtractFile(ctx, id, *optOutDir, cfg, runner, document, inclArchiveIDs, prt); err == nil {
 				numExtrFiles++
 			} else {
-				if errors.Is(err, context.Canceled) {
+				if canceled, _ := handleErr(err); canceled {
 					prt.NoStatus()
 					prt.Warnf("Extraction canceled, exiting cleanly")
 					return
-				} else {
-					prt.Errorf("%v", err)
 				}
 			}
 		}
 
 		for _, close := range documentsToClose {
 			if err := close(); err != nil {
-				prt.Errorf("%v", err)
+				if canceled, failed := handleErr(err); canceled {
+					prt.NoStatus()
+					prt.Warnf("Extraction canceled, exiting cleanly")
+					return
+				} else if failed {
+					prt.Fatalf("Extraction failed due to error when closing combined document")
+				}
 			}
 		}
 
