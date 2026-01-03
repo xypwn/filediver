@@ -11,7 +11,7 @@ from typing import Optional
 import os
 import math
 
-ScriptVersion = "_1.0.6 "
+ScriptVersion = "_1.0.7"
 
 class NODE_PT_MAINPANEL(bpy.types.Panel):
     bl_label = "Helldivers 2 Shader"
@@ -31,7 +31,10 @@ def get_current_material_name():
     obj = bpy.context.active_object
     if obj is not None:
         if obj.material_slots:
-            return obj.material_slots[0].name
+            toReturn = obj.material_slots[0].name
+            if len(toReturn) >= (60 - len(ScriptVersion)):
+                toReturn = toReturn[:60 - len(ScriptVersion)]
+            return toReturn
     return None
 
 def create_HD2_Shader(context, operator, group_name, material: Optional[Material] = None, obj: Optional[Object] = None):
