@@ -33,7 +33,7 @@ import math
 from dds_float16 import DDS
 from openexr.types import OpenEXR
 
-from resources.filediver_animation_controller_ui import filediver_animation_state, filediver_state_transition, register as register_ui
+from resources.filediver_animation_controller_ui import filediver_animation_state, filediver_state_transition, filediver_animation_variable, register as register_ui
 from resources.filediver_drivers import register as register_drivers
 
 class IDPropertyUIManager:
@@ -555,7 +555,6 @@ def add_state_machine(gltf: Dict, node: Dict):
     
     if "filediver_animation_controller_ui.py" not in bpy.data.texts:
         path = Path(os.path.realpath(__file__)).parent / "resources" / "filediver_animation_controller_ui.py"
-        #animation_controller_ui = bpy.data.texts.new("filediver_animation_controller_ui.py")
         animation_controller_ui = bpy.data.texts.load(filepath=str(path), internal=True)
         animation_controller_ui.name = "filediver_animation_controller_ui.py"
         
@@ -615,6 +614,11 @@ def add_state_machine(gltf: Dict, node: Dict):
             else:
                 for name in controller.all_bones:
                     objects_to_constrain.append((obj.pose.bones.get(name), 1.0))
+            variable_list = ["state", "next_state", "state_transition"]
+            for variableName in variable_list:
+                filediver_variable: filediver_animation_variable = filediver_state.variables.add()
+                filediver_variable.name = variableName
+                filediver_variable.obj = layer_empty
             if state.animations is None:
                 continue
             playback_speed_function = None
@@ -640,15 +644,6 @@ def add_state_machine(gltf: Dict, node: Dict):
                         constraint.mix_mode = 'AFTER_SPLIT'
                     else:
                         constraint.mix_mode = 'REPLACE'
-                    # enabled = constraint.driver_add("enabled")
-                    # state_var = enabled.driver.variables.new()
-                    # state_var.targets[0].id = layer_empty
-                    # state_var.targets[0].data_path = 'state'
-                    # state_var.name = "state"
-                    # enabled.driver.expression = f"state == {stateIdx}"
-
-                    # influence_driver_expression = f"{mask_influence}"
-                    # variables: List[Tuple[Object, str]] = []
 
                     influence_driver_expression = f"infl({stateIdx},{mask_influence},s,n,t)"
                     variables = [(layer_empty, "state", "s"), (layer_empty, "next_state", "n"), (layer_empty, "state_transition", "t")]
@@ -661,6 +656,11 @@ def add_state_machine(gltf: Dict, node: Dict):
                         variable.targets[0].id = vObj
                         variable.targets[0].data_path = f'["{variableName}"]'
                         variable.name = variableName if shortName is None else shortName
+                        if variableName not in variable_list:
+                            filediver_variable: filediver_animation_variable = filediver_state.variables.add()
+                            filediver_variable.name = variableName
+                            filediver_variable.obj = vObj
+                            variable_list.append(variableName)
                         if state.custom_blend_functions is None or variableName not in state.custom_blend_functions[animIdx].variables:
                             continue
                         varIdx = state.custom_blend_functions[animIdx].variables.index(variableName)
@@ -685,6 +685,11 @@ def add_state_machine(gltf: Dict, node: Dict):
                         variable.targets[0].id = obj
                         variable.targets[0].data_path = f'["{state.blend_variable}"]'
                         variable.name = state.blend_variable
+                        if state.blend_variable not in variable_list:
+                            filediver_variable: filediver_animation_variable = filediver_state.variables.add()
+                            filediver_variable.name = state.blend_variable
+                            filediver_variable.obj = obj
+                            variable_list.append(state.blend_variable)
                         manager: IDPropertyUIManager = obj.id_properties_ui(state.blend_variable)
                         manager.update(min=0.0, max=1.0, soft_min=0.0, soft_max=1.0)
                         time.driver.expression = f"clamp({state.blend_variable})"
@@ -695,6 +700,11 @@ def add_state_machine(gltf: Dict, node: Dict):
                         variable.targets[0].id = layer_empty
                         variable.targets[0].data_path = "start_frame"
                         variable.name = "start_frame"
+                        if "start_frame" not in variable_list:
+                            filediver_variable: filediver_animation_variable = filediver_state.variables.add()
+                            filediver_variable.name = "start_frame"
+                            filediver_variable.obj = layer_empty
+                            variable_list.append("start_frame")
                         time.driver.expression = f"clamp((frame - start_frame) / {animation_strip.frame_end - animation_strip.frame_start})"
                     elif playback_speed_function is not None:
                         for playbackVarIdx, var in enumerate(playback_speed_function.variables):
@@ -702,6 +712,11 @@ def add_state_machine(gltf: Dict, node: Dict):
                             variable.targets[0].id = obj
                             variable.targets[0].data_path = f'["{var}"]'
                             variable.name = var
+                            if var not in variable_list:
+                                filediver_variable: filediver_animation_variable = filediver_state.variables.add()
+                                filediver_variable.name = var
+                                filediver_variable.obj = obj
+                                variable_list.append(var)
                             manager: IDPropertyUIManager = obj.id_properties_ui(var)
                             if manager.as_dict()["max"] < playback_speed_function.limits[playbackVarIdx][1]:
                                 manager.update(max=math.inf, soft_max=math.inf)
