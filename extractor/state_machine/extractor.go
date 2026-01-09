@@ -104,6 +104,7 @@ type gltfState struct {
 	CustomBlendFunctions []*state_machine.DriverInformation `json:"custom_blend_functions,omitempty"`
 	RagdollName          string                             `json:"ragdoll_name,omitempty"`
 	Transitions          map[string]state_machine.Link      `json:"state_transitions,omitempty"`
+	EmitEndEvent         string                             `json:"emit_end_event,omitempty"`
 }
 
 type gltfAnimationVariable struct {
@@ -163,6 +164,9 @@ func addState(ctx *extractor.Context, doc *gltf.Document, boneInfo *bones.Info, 
 	}
 	if state.RagdollName.Value != 0 {
 		toReturn.RagdollName = ctx.LookupThinHash(state.RagdollName)
+	}
+	if state.EmitEndEvent.Value != 0 {
+		toReturn.EmitEndEvent = ctx.LookupThinHash(state.EmitEndEvent)
 	}
 
 	animationVariableNames := make([]string, 0)

@@ -5,6 +5,9 @@ except:
     pass
 from typing import Set, Optional
 
+import math
+import bl_math
+
 link_types = [
     ("LinkType_Immediate", "Immediate", "", 0),
     ("LinkType_WaitEnd", "WaitEnd", "", 1),
@@ -31,19 +34,49 @@ class filediver_animation_variable(bpy.types.PropertyGroup):
     name: bpy.props.StringProperty()
     obj: bpy.props.PointerProperty(type=bpy.types.Object)
 
+FILEDIVER_ANIMATION_VARIABLES = ["state", "next_state", "state_transition", "start_frame", "phase_frame"]
+
 class filediver_animation_state(bpy.types.PropertyGroup):
     name: bpy.props.StringProperty()
+    type: bpy.props.StringProperty()
+    emit_end_event: bpy.props.StringProperty()
     animations: bpy.props.CollectionProperty(type=filediver_animation)
     loop: bpy.props.BoolProperty()
     transitions: bpy.props.CollectionProperty(type=filediver_state_transition)
     active_index: bpy.props.IntProperty()
     variables: bpy.props.CollectionProperty(type=filediver_animation_variable)
+    frequency_expr: bpy.props.StringProperty()
+    animation_length: bpy.props.FloatProperty()
 
     def get_transition(self, event: str) -> Optional[filediver_state_transition]:
         for transition in self.transitions:
             if event == transition.event:
                 return transition
         return None
+    
+    def get_next_end_frame(self, frame: int) -> int:
+        if self.frequency_expr == "" and self.animation_length == 0.0:
+            return frame
+        eval_globals = {
+            'fps': bpy.data.scenes[0].render.fps,
+            'frame': frame,
+            'floor': math.floor,
+            'clamp': bl_math.clamp
+        }
+        for variable in self.variables:
+            variable: filediver_animation_variable
+            if variable.name in eval_globals:
+                continue
+            eval_globals[variable.name] = variable.obj.get(variable.name)
+
+        if self.animation_length > 0 and eval_globals["start_frame"] + self.animation_length > frame:
+            return int(math.ceil(eval_globals["start_frame"] + self.animation_length))
+        elif self.animation_length > 0 and eval_globals["start_frame"] + self.animation_length <= frame:
+            return frame
+        frequency = eval(self.frequency_expr, eval_globals)
+        period = float(eval_globals["fps"]) / frequency
+        return int(math.ceil(eval_globals["phase_frame"] + period * (((frame - eval_globals["phase_frame"]) // period)+1)))
+
 
 class SCENE_UL_filediver_animation_states(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
@@ -70,60 +103,73 @@ class OBJECT_OT_fd_transition_animation(bpy.types.Operator):
         #self.report({'DEBUG'}, self.state_machine_name)
         state_machine = context.scene.objects[self.state_machine_name]
         sorted_layers = sorted(state_machine.children, key=lambda x: int(x.name.split()[-1]))
-        for layer in sorted_layers:
-            layer: bpy.types.Object
-            if layer.state >= len(layer.filediver_layer_states):
-                print("layer.state >= len(states)")
-                continue
-            state: filediver_animation_state = layer.filediver_layer_states[layer.state]
-            transition = state.get_transition(self.event)
-            if transition is None:
-                print("transition is None")
-                continue
-            new_state: filediver_animation_state = layer.filediver_layer_states[transition.state_index]
-            old_state = layer.state
-            layer.filediver_applying_transition = True
-            if transition.link_type in ("LinkType_Immediate", "LinkType_SyncPercentageImmediate"):
-                start_frame = context.scene.frame_current
-                end_frame = context.scene.frame_current+int(context.scene.render.fps*transition.blend_time)
-            # elif transition.link_type == "LinkType_WaitEnd":
-            #     start_frame = 0
-            #     end_frame = 0
-            else:
-                self.report({'DEBUG'}, transition.link_type)
+        end_events = [(context.scene.frame_current, self.event)]
+        old_frame = context.scene.frame_current
+        while len(end_events) > 0:
+            current_frame, current_event = end_events.pop(0)
+            context.scene.frame_set(current_frame)
+            for layer in sorted_layers:
+                layer: bpy.types.Object
+                if layer.state >= len(layer.filediver_layer_states):
+                    print("layer.state >= len(states)")
+                    continue
+                state: filediver_animation_state = layer.filediver_layer_states[layer.state]
+                transition = state.get_transition(current_event)
+                if transition is None:
+                    print("transition is None")
+                    continue
+                new_state: filediver_animation_state = layer.filediver_layer_states[transition.state_index]
+                old_state = layer.state
+                layer.filediver_applying_transition = True
+                if transition.link_type in ("LinkType_Immediate", "LinkType_SyncPercentageImmediate"):
+                    start_frame = current_frame
+                    end_frame = current_frame+int(context.scene.render.fps*transition.blend_time)
+                elif transition.link_type == "LinkType_WaitEnd":
+                    end_frame = state.get_next_end_frame(current_frame)
+                    start_frame = end_frame - int(context.scene.render.fps*transition.blend_time)
+                else:
+                    self.report({'DEBUG'}, transition.link_type)
 
-            # apply transition keyframes
-            print(f"Adding keyframes to layer {layer.name} for event {self.event}")
-            layer.state = transition.state_index
-            layer.state_transition = 0
-            layer.keyframe_insert(data_path="state_transition", frame=start_frame)
-            if start_frame != end_frame:
-                layer.next_state = transition.state_index
-                layer.keyframe_insert(data_path="next_state", frame=start_frame)
-                layer.keyframe_insert(data_path="state", frame=end_frame+1)
-                layer.state_transition = 1
-                layer.keyframe_insert(data_path="state_transition", frame=end_frame)
+                # apply transition keyframes
+                print(f"Adding keyframes to layer {layer.name} for event {current_event}")
+                layer.state = transition.state_index
                 layer.state_transition = 0
-                layer.keyframe_insert(data_path="state_transition", frame=end_frame+1)
-            else:
-                layer.keyframe_insert(data_path="state", frame=start_frame)
-            layer.next_state = -1
-            layer.keyframe_insert(data_path="next_state", frame=end_frame+1)
+                layer.keyframe_insert(data_path="state_transition", frame=start_frame)
+                if start_frame != end_frame:
+                    layer.next_state = transition.state_index
+                    layer.keyframe_insert(data_path="next_state", frame=start_frame)
+                    layer.keyframe_insert(data_path="state", frame=end_frame+1)
+                    layer.state_transition = 1
+                    layer.keyframe_insert(data_path="state_transition", frame=end_frame)
+                    layer.state_transition = 0
+                    layer.keyframe_insert(data_path="state_transition", frame=end_frame+1)
+                else:
+                    layer.keyframe_insert(data_path="state", frame=start_frame)
+                layer.next_state = -1
+                layer.keyframe_insert(data_path="next_state", frame=end_frame+1)
 
-            if not new_state.loop:
-                layer.start_frame = float(context.scene.frame_current)
-                layer.keyframe_insert(data_path="start_frame", frame=start_frame)
+                if not new_state.loop:
+                    layer.start_frame = float(current_frame)
+                    layer.keyframe_insert(data_path="start_frame", frame=start_frame)
+                else:
+                    layer.phase_frame = float(current_frame)
+                    layer.keyframe_insert(data_path="phase_frame", frame=start_frame)
 
-            strips: bpy.types.ActionKeyframeStrip = layer.animation_data.action.layers[0].strips[0]
-            fcurves = strips.channelbag(layer.animation_data.action_slot).fcurves
-            for fcurve in fcurves:
-                interpolation = 'CONSTANT'
-                if "state_transition" in fcurve.data_path:
-                    interpolation = 'LINEAR'
-                for keyframe in fcurve.keyframe_points:
-                    keyframe.interpolation = interpolation
-            layer.state = old_state
-            layer.filediver_applying_transition = False
+                if new_state.emit_end_event != "":
+                    end_events.append((new_state.get_next_end_frame(end_frame+1), new_state.emit_end_event))
+
+                strips: bpy.types.ActionKeyframeStrip = layer.animation_data.action.layers[0].strips[0]
+                fcurves = strips.channelbag(layer.animation_data.action_slot).fcurves
+                for fcurve in fcurves:
+                    interpolation = 'CONSTANT'
+                    if "state_transition" in fcurve.data_path:
+                        interpolation = 'LINEAR'
+                    for keyframe in fcurve.keyframe_points:
+                        keyframe.interpolation = interpolation
+                layer.state = old_state
+                layer.filediver_applying_transition = False
+
+        context.scene.frame_set(old_frame)
 
         return {'FINISHED'}
 
@@ -176,7 +222,8 @@ class SCENE_PT_filediver_animation_controller(bpy.types.Panel):
             body.label(text="States")
             body.template_list("SCENE_UL_filediver_animation_states", f"list_{layer.name}", layer, "filediver_layer_states", layer, "state")
             for variable in layer.filediver_layer_states[layer.state].variables:
-                if variable.name in ["state", "next_state", "state_transition", "start_frame"]:
+                if variable.name in FILEDIVER_ANIMATION_VARIABLES:
+                    # filediver animation variables are not accessed as custom properties
                     body.prop(variable.obj, variable.name)
                     continue
                 body.prop(variable.obj, f'["{variable.name}"]')
@@ -249,6 +296,7 @@ def register():
     bpy.types.Object.next_state = bpy.props.IntProperty(default=-1)
     bpy.types.Object.state_transition = bpy.props.FloatProperty(min=0, max=1)
     bpy.types.Object.start_frame = bpy.props.FloatProperty()
+    bpy.types.Object.phase_frame = bpy.props.FloatProperty()
     bpy.types.Object.filediver_applying_transition = bpy.props.BoolProperty()
     bpy.types.Object.filediver_active_transitions = bpy.props.CollectionProperty(type=filediver_event_name)
     bpy.types.Object.filediver_transition_index = bpy.props.IntProperty(update=update_controller_events)

@@ -435,6 +435,7 @@ class GLTFState:
     custom_blend_functions: List[GLTFDriverInformation] = None
     ragdoll_name: str = None
     state_transitions: Dict[str, GLTFStateTransition] = None
+    emit_end_event: str = None
     
     @classmethod
     def from_json(cls, data: dict) -> 'GLTFState':
@@ -597,7 +598,12 @@ def add_state_machine(gltf: Dict, node: Dict):
             
             filediver_state: filediver_animation_state = layer_empty.filediver_layer_states.add()
             filediver_state.name = state.name
+            filediver_state.type = state.type
             filediver_state.loop = state.loop
+            if state.emit_end_event is not None:
+                filediver_state.emit_end_event = state.emit_end_event
+            filediver_state.frequency_expr = ""
+            filediver_state.animation_length = 0.0
             if state.state_transitions is not None:
                 for event, transition in state.state_transitions.items():
                     filediver_transition: filediver_state_transition = filediver_state.transitions.add()
@@ -654,7 +660,10 @@ def add_state_machine(gltf: Dict, node: Dict):
                     for vObj, variableName, shortName in variables:
                         variable = influence.driver.variables.new()
                         variable.targets[0].id = vObj
-                        variable.targets[0].data_path = f'["{variableName}"]'
+                        if variableName not in ["state", "next_state", "state_transition"]:
+                            variable.targets[0].data_path = f'["{variableName}"]'
+                        else:
+                            variable.targets[0].data_path = variableName
                         variable.name = variableName if shortName is None else shortName
                         if variableName not in variable_list:
                             filediver_variable: filediver_animation_variable = filediver_state.variables.add()
@@ -706,6 +715,7 @@ def add_state_machine(gltf: Dict, node: Dict):
                             filediver_variable.obj = layer_empty
                             variable_list.append("start_frame")
                         time.driver.expression = f"clamp((frame - start_frame) / {animation_strip.frame_end - animation_strip.frame_start})"
+                        filediver_state.animation_length = animation_strip.frame_end - animation_strip.frame_start
                     elif playback_speed_function is not None:
                         for playbackVarIdx, var in enumerate(playback_speed_function.variables):
                             variable = time.driver.variables.new()
@@ -725,9 +735,40 @@ def add_state_machine(gltf: Dict, node: Dict):
                         variableFps.targets[0].id = bpy.data.scenes[0]
                         variableFps.targets[0].data_path = "render.fps"
                         variableFps.name = "fps"
-                        time.driver.expression = f"(fmod(frame*({playback_speed_function.expression}),fps)/fps)"
+                        layer_empty.phase_frame = float(1.0)
+                        layer_empty.keyframe_insert(data_path="phase_frame", frame=1.0)
+                        variableStart = time.driver.variables.new()
+                        variableStart.targets[0].id = layer_empty
+                        variableStart.targets[0].data_path = "phase_frame"
+                        variableStart.name = "phase_frame"
+                        if "phase_frame" not in variable_list:
+                            filediver_variable: filediver_animation_variable = filediver_state.variables.add()
+                            filediver_variable.name = "phase_frame"
+                            filediver_variable.obj = layer_empty
+                            variable_list.append("phase_frame")
+                        time.driver.expression = f"((frame-phase_frame)/fps)*({playback_speed_function.expression})-floor(((frame-phase_frame)/fps)*({playback_speed_function.expression}))"
+                        if filediver_state.frequency_expr == "":
+                            filediver_state.frequency_expr = playback_speed_function.expression
                     else:
-                        time.driver.expression = f"fmod(frame, max(1.0, {animation_strip.frame_end - animation_strip.frame_start})) / max(1.0, {animation_strip.frame_end - animation_strip.frame_start})"
+                        variableFps = time.driver.variables.new()
+                        variableFps.targets[0].id_type = 'SCENE'
+                        variableFps.targets[0].id = bpy.data.scenes[0]
+                        variableFps.targets[0].data_path = "render.fps"
+                        variableFps.name = "fps"
+                        layer_empty.start_frame = float(1.0)
+                        layer_empty.keyframe_insert(data_path="start_frame", frame=1.0)
+                        variableStart = time.driver.variables.new()
+                        variableStart.targets[0].id = layer_empty
+                        variableStart.targets[0].data_path = "start_frame"
+                        variableStart.name = "start_frame"
+                        if "start_frame" not in variable_list:
+                            filediver_variable: filediver_animation_variable = filediver_state.variables.add()
+                            filediver_variable.name = "start_frame"
+                            filediver_variable.obj = layer_empty
+                            variable_list.append("start_frame")
+                        time.driver.expression = f"((frame-start_frame)/(fps*{animation_strip.frame_end - animation_strip.frame_start}))-floor((frame-start_frame)/(fps*{animation_strip.frame_end - animation_strip.frame_start}))"
+                        if filediver_state.frequency_expr == "":
+                            filediver_state.frequency_expr = f"(1/{animation_strip.frame_end - animation_strip.frame_start})"
                     constraint.frame_start = int(animation_strip.frame_start)-1
                     constraint.frame_end = int(animation_strip.frame_end)
         if len(layer.states) > 0:
@@ -737,6 +778,12 @@ def add_state_machine(gltf: Dict, node: Dict):
         track = None
         nla_strip = None
         anim = None
+
+    for variable in controller.animation_variables:
+        properties: IDPropertyUIManager = obj.id_properties_ui(variable.name)
+        prop_dict: dict = properties.as_dict()
+        if prop_dict["max"] == prop_dict["min"]:
+            properties.update(min=-math.inf, max=math.inf, soft_min=-math.inf, soft_max=math.inf)
 
     obj.animation_data.action = None
 
