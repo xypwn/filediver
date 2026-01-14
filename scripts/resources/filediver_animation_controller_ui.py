@@ -215,12 +215,13 @@ class SCENE_PT_filediver_animation_controller(bpy.types.Panel):
 
         sorted_layers = sorted(state_machine.children, key=lambda x: int(x.name.split()[-1]))
         for layer in sorted_layers:
-            header, body = layout.panel(layer.name)
+            header, body = layout.panel(layer.name, default_closed=True)
             header.label(text=layer.name)
             if body is None:
                 continue
             body.label(text="States")
             body.template_list("SCENE_UL_filediver_animation_states", f"list_{layer.name}", layer, "filediver_layer_states", layer, "state")
+            body.label(text="Variables")
             for variable in layer.filediver_layer_states[layer.state].variables:
                 if variable.name in FILEDIVER_ANIMATION_VARIABLES:
                     # filediver animation variables are not accessed as custom properties
