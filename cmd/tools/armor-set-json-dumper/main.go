@@ -97,27 +97,35 @@ func main() {
 		panic(err)
 	}
 
-	armorSets, err := datalib.LoadArmorSetDefinitions(a.LanguageMap, passiveBonuses)
+	armorSets, err := datalib.LoadArmorSetArray(a.LanguageMap, passiveBonuses)
 	if err != nil {
 		panic(err)
 	}
 
 	result := make([]SimpleHelldiverCustomizationKit, 0)
-	for archive, armor := range armorSets {
+	for _, armor := range armorSets {
 		bodyTypes := make([]BodyType, 0)
+		slim := BodyType{
+			Type:   datalib.BodyTypeSlim,
+			Pieces: make([]SimplePiece, 0),
+		}
+		stocky := BodyType{
+			Type:   datalib.BodyTypeStocky,
+			Pieces: make([]SimplePiece, 0),
+		}
+		anytype := BodyType{
+			Type:   datalib.BodyTypeAny,
+			Pieces: make([]SimplePiece, 0),
+		}
 		for path, unitData := range armor.UnitMetadata {
 			var bodyType *BodyType
-			for _, item := range bodyTypes {
-				if item.Type == unitData.BodyType {
-					bodyType = &item
-				}
-			}
-			if bodyType == nil {
-				bodyTypes = append(bodyTypes, BodyType{
-					Type:   unitData.BodyType,
-					Pieces: make([]SimplePiece, 0),
-				})
-				bodyType = &bodyTypes[len(bodyTypes)-1]
+			switch unitData.BodyType {
+			case datalib.BodyTypeAny:
+				bodyType = &anytype
+			case datalib.BodyTypeSlim:
+				bodyType = &slim
+			case datalib.BodyTypeStocky:
+				bodyType = &stocky
 			}
 
 			bodyType.Pieces = append(bodyType.Pieces, SimplePiece{
@@ -136,6 +144,15 @@ func main() {
 				ToneVariations:    a.LookupHash(unitData.ToneVariations),
 			})
 		}
+		if len(anytype.Pieces) > 0 {
+			bodyTypes = append(bodyTypes, anytype)
+		}
+		if len(slim.Pieces) > 0 {
+			bodyTypes = append(bodyTypes, slim)
+		}
+		if len(stocky.Pieces) > 0 {
+			bodyTypes = append(bodyTypes, stocky)
+		}
 		passiveDescription := make([]string, 0)
 		for _, modifier := range armor.Passive.PassiveModifiers {
 			passiveDescription = append(passiveDescription, modifier.Description)
@@ -151,7 +168,7 @@ func main() {
 				Name:        armor.Passive.Name,
 				Description: passiveDescription,
 			},
-			Archive:   a.LookupHash(archive),
+			Archive:   a.LookupHash(armor.Archive),
 			Type:      armor.Type,
 			BodyTypes: bodyTypes,
 		})
