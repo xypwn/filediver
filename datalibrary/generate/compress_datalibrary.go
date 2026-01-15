@@ -34,6 +34,7 @@ func main() {
 	filenames := []string{
 		"dl_library.dl_typelib",
 		"generated_customization_armor_sets.dl_bin",
+		"generated_customization_passive_bonuses.dl_bin",
 		"generated_unit_customization_settings.dl_bin",
 		"generated_weapon_customization_settings.dl_bin",
 		"generated_entities.dl_bin",

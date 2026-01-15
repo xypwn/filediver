@@ -21,6 +21,10 @@ import (
 var customizationArmorSetsCompressed []byte
 var customizationArmorSets []byte
 
+//go:embed generated_customization_passive_bonuses.dl_bin.gz
+var customizationPassiveBonusesCompressed []byte
+var customizationPassiveBonuses []byte
+
 //go:embed generated_unit_customization_settings.dl_bin.gz
 var unitCustomizationSettingsCompressed []byte
 var unitCustomizationSettings []byte
@@ -83,6 +87,7 @@ func init() {
 	goDecompress(&entities, entitiesCompressed)
 	goDecompress(&entityDeltas, entityDeltasCompressed)
 	goDecompress(&customizationArmorSets, customizationArmorSetsCompressed)
+	goDecompress(&customizationPassiveBonuses, customizationPassiveBonusesCompressed)
 	goDecompress(&unitCustomizationSettings, unitCustomizationSettingsCompressed)
 	goDecompress(&weaponCustomizationSettings, weaponCustomizationSettingsCompressed)
 	goDecompress(&typelib, typelibCompressed)

@@ -50,6 +50,10 @@ func (b CustomizationKitSlot) String() string {
 	return "Unknown"
 }
 
+func (p CustomizationKitSlot) MarshalText() ([]byte, error) {
+	return []byte(p.String()), nil
+}
+
 type CustomizationKitPieceType uint32
 
 const (
@@ -70,6 +74,10 @@ func (b CustomizationKitPieceType) String() string {
 	return "Unknown"
 }
 
+func (p CustomizationKitPieceType) MarshalText() ([]byte, error) {
+	return []byte(p.String()), nil
+}
+
 type CustomizationKitWeight uint32
 
 const (
@@ -88,6 +96,10 @@ func (b CustomizationKitWeight) String() string {
 		return "heavy"
 	}
 	return "Unknown"
+}
+
+func (p CustomizationKitWeight) MarshalText() ([]byte, error) {
+	return []byte(p.String()), nil
 }
 
 type Piece struct {
@@ -130,6 +142,10 @@ func (b CustomizationKitBodyType) String() string {
 	return "Unknown"
 }
 
+func (p CustomizationKitBodyType) MarshalText() ([]byte, error) {
+	return []byte(p.String()), nil
+}
+
 type Body struct {
 	Type          CustomizationKitBodyType
 	Unk00         uint32
@@ -158,6 +174,10 @@ func (v CustomizationKitType) String() string {
 	}
 }
 
+func (p CustomizationKitType) MarshalText() ([]byte, error) {
+	return []byte(p.String()), nil
+}
+
 type CustomizationKitRarity uint32
 
 const (
@@ -180,82 +200,8 @@ func (v CustomizationKitRarity) String() string {
 	}
 }
 
-type CustomizationKitPassive uint32
-
-const (
-	PassiveNone                 CustomizationKitPassive = 0
-	PassivePadding              CustomizationKitPassive = 1
-	PassiveTactician            CustomizationKitPassive = 2
-	PassiveFireSupport          CustomizationKitPassive = 3
-	PassiveUnk01                CustomizationKitPassive = 4
-	PassiveExperimental         CustomizationKitPassive = 5
-	PassiveCombatEngineer       CustomizationKitPassive = 6
-	PassiveCombatMedic          CustomizationKitPassive = 7
-	PassiveBattleHardened       CustomizationKitPassive = 8
-	PassiveHero                 CustomizationKitPassive = 9
-	PassiveReinforcedEpaulettes CustomizationKitPassive = 10
-	PassiveFireResistant        CustomizationKitPassive = 11
-	PassivePeakPhysique         CustomizationKitPassive = 12
-	PassiveGasResistant         CustomizationKitPassive = 13
-	PassiveUnflinching          CustomizationKitPassive = 14
-	PassiveAcclimated           CustomizationKitPassive = 15
-	PassiveSiegeReady           CustomizationKitPassive = 16
-	PassiveIntegratedExplosives CustomizationKitPassive = 17
-	PassiveGunslinger           CustomizationKitPassive = 18
-	PassiveAdrenoDefibrillator  CustomizationKitPassive = 19
-	PassiveBallisticPadding     CustomizationKitPassive = 20
-	PassiveFeetFirst            CustomizationKitPassive = 30
-)
-
-func (v CustomizationKitPassive) String() string {
-	switch v {
-	case PassiveNone:
-		return "None"
-	case PassivePadding:
-		return "Extra Padding"
-	case PassiveTactician:
-		return "Scout"
-	case PassiveFireSupport:
-		return "Fortified"
-	case PassiveUnk01:
-		return "UNKNOWN"
-	case PassiveExperimental:
-		return "Electrical Conduit"
-	case PassiveCombatEngineer:
-		return "Engineering Kit"
-	case PassiveCombatMedic:
-		return "Med-Kit"
-	case PassiveBattleHardened:
-		return "Servo-Assisted"
-	case PassiveHero:
-		return "Democracy Protects"
-	case PassiveFireResistant:
-		return "Inflammable"
-	case PassivePeakPhysique:
-		return "Peak Physique"
-	case PassiveGasResistant:
-		return "Advanced Filtration"
-	case PassiveUnflinching:
-		return "Unflinching"
-	case PassiveAcclimated:
-		return "Acclimated"
-	case PassiveSiegeReady:
-		return "Siege-Ready"
-	case PassiveIntegratedExplosives:
-		return "Integrated Explosives"
-	case PassiveGunslinger:
-		return "Gunslinger"
-	case PassiveAdrenoDefibrillator:
-		return "Adreno-Defibrillator"
-	case PassiveReinforcedEpaulettes:
-		return "Reinforced Epaulettes"
-	case PassiveBallisticPadding:
-		return "Ballistic Padding"
-	case PassiveFeetFirst:
-		return "Feet First"
-	default:
-		return fmt.Sprint(uint32(v))
-	}
+func (p CustomizationKitRarity) MarshalText() ([]byte, error) {
+	return []byte(p.String()), nil
 }
 
 type HelldiverCustomizationKit struct {
@@ -266,7 +212,7 @@ type HelldiverCustomizationKit struct {
 	NameCased        uint32
 	Description      uint32
 	Rarity           CustomizationKitRarity
-	Passive          CustomizationKitPassive
+	Passive          uint32
 	Archive          stingray.Hash
 	Type             CustomizationKitType
 	Unk00            uint32
@@ -291,15 +237,19 @@ type UnitData struct {
 }
 
 type ArmorSet struct {
-	Name         string
+	Id           uint32
+	DlcId        uint32
 	SetId        uint32
-	Passive      CustomizationKitPassive
+	Name         string
+	Description  string
+	Rarity       CustomizationKitRarity
+	Passive      *HelldiverCustomizationPassiveBonusSettings
 	Type         CustomizationKitType
 	UnitMetadata map[stingray.Hash]UnitData
 }
 
 // Map of archive hash to armor set
-func LoadArmorSetDefinitions(strings map[uint32]string) (map[stingray.Hash]ArmorSet, error) {
+func LoadArmorSetDefinitions(strings map[uint32]string, passives map[uint32]HelldiverCustomizationPassiveBonusSettings) (map[stingray.Hash]ArmorSet, error) {
 	r := bytes.NewReader(customizationArmorSets)
 
 	getNameIfContained := func(casedId, upperId uint32) string {
@@ -340,10 +290,21 @@ func LoadArmorSetDefinitions(strings map[uint32]string) (map[stingray.Hash]Armor
 			return nil, fmt.Errorf("reading bodies at address %x: %v", base+kit.BodyArrayAddress, err)
 		}
 
+		var passive *HelldiverCustomizationPassiveBonusSettings = nil
+		if passives != nil {
+			if passiveVal, ok := passives[kit.Passive]; ok {
+				passive = &passiveVal
+			}
+		}
+
 		armorSet := ArmorSet{
-			Name:         getNameIfContained(kit.NameCased, kit.NameUpper),
+			Id:           kit.Id,
+			DlcId:        kit.DlcId,
 			SetId:        kit.SetId,
-			Passive:      kit.Passive,
+			Name:         getNameIfContained(kit.NameCased, kit.NameUpper),
+			Description:  getNameIfContained(kit.Description, 0),
+			Rarity:       kit.Rarity,
+			Passive:      passive,
 			Type:         kit.Type,
 			UnitMetadata: make(map[stingray.Hash]UnitData),
 		}
