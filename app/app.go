@@ -23,6 +23,7 @@ import (
 	"github.com/xypwn/filediver/dds"
 	"github.com/xypwn/filediver/exec"
 	"github.com/xypwn/filediver/extractor"
+	extr_ah_bin "github.com/xypwn/filediver/extractor/ah_bin"
 	extr_animation "github.com/xypwn/filediver/extractor/animation"
 	extr_bik "github.com/xypwn/filediver/extractor/bik"
 	extr_bones "github.com/xypwn/filediver/extractor/bones"
@@ -593,6 +594,8 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 			extr = extr_package.ExtractPackageJSON
 		case "bones":
 			extr = extr_bones.ExtractBonesJSON
+		case "ah_bin":
+			extr = extr_ah_bin.ExtractAhBinJSON
 		default:
 			extr = getSourceExtractFunc(extrCfg, typ)
 		}
