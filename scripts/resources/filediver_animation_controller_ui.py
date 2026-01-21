@@ -130,9 +130,47 @@ class SCENE_UL_filediver_animation_states(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         layout.prop(item, "name", text="", emboss=False)
 
+    def filter_items(self, context, data, property) -> Tuple[List[int], List[int]]:
+        filter_flags: List[int] = []
+        new_item_order: List[int] = []
+
+        events = getattr(data, property)
+
+        helpers = bpy.types.UI_UL_list
+
+        if self.filter_name:
+            filter_flags = helpers.filter_items_by_name(self.filter_name, self.bitflag_filter_item, events, "name", reverse=self.use_filter_sort_reverse)
+
+        if not filter_flags:
+            filter_flags = [self.bitflag_filter_item] * len(events)
+        elif self.use_filter_invert:
+            for i in range(len(filter_flags)):
+                filter_flags[i] = filter_flags[i] ^ self.bitflag_filter_item
+
+        return filter_flags, new_item_order
+
 class SCENE_UL_filediver_animation_events(bpy.types.UIList):
     def draw_item(self, context, layout: bpy.types.UILayout, data, item, icon, active_data, active_propname, index):
         layout.prop(item, "event", text="", emboss=False)
+
+    def filter_items(self, context, data, property) -> Tuple[List[int], List[int]]:
+        filter_flags: List[int] = []
+        new_item_order: List[int] = []
+
+        events = getattr(data, property)
+
+        helpers = bpy.types.UI_UL_list
+
+        if self.filter_name:
+            filter_flags = helpers.filter_items_by_name(self.filter_name, self.bitflag_filter_item, events, "event", reverse=self.use_filter_sort_reverse)
+
+        if not filter_flags:
+            filter_flags = [self.bitflag_filter_item] * len(events)
+        elif self.use_filter_invert:
+            for i in range(len(filter_flags)):
+                filter_flags[i] = filter_flags[i] ^ self.bitflag_filter_item
+
+        return filter_flags, new_item_order
 
 class OBJECT_OT_fd_transition_animation(bpy.types.Operator):
     bl_idname = "object.fd_transition_animation"
