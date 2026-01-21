@@ -281,6 +281,26 @@ class OBJECT_OT_fd_remove_transition(bpy.types.Operator):
 
         return {'FINISHED'}
 
+class OBJECT_OT_fd_remove_all_transitions(bpy.types.Operator):
+    bl_idname = "object.fd_remove_all_transitions"
+    bl_label = "Remove All"
+
+    bl_options = {'REGISTER', 'UNDO'}
+
+    state_machine_name: bpy.props.StringProperty()
+
+    def execute(self, context: bpy.types.Context) -> Set["bpy.stub_internal.rna_enums.OperatorReturnItems"]:
+        if self.state_machine_name is None:
+            self.report({'DEBUG'}, "cancelled")
+            return {'CANCELLED'}
+
+        state_machine = context.scene.objects[self.state_machine_name]
+        for group in state_machine.filediver_keyframe_groups:
+            group.remove()
+        state_machine.filediver_keyframe_groups.clear()
+
+        return {'FINISHED'}
+
 def not_a_controller(row: bpy.types.UILayout):
     row.label(text="No animation controller selected")
 
@@ -335,6 +355,8 @@ class SCENE_PT_filediver_animation_controller(bpy.types.Panel):
                 delete_props.state_machine_name = state_machine.name
                 delete_props.group_id = group.group_id
                 ids.add(group.group_id)
+            delete_props = box.operator(OBJECT_OT_fd_remove_all_transitions.bl_idname)
+            delete_props.state_machine_name = state_machine.name
         else:
             box.label(text="None")
 
@@ -419,6 +441,7 @@ def register():
     bpy.utils.register_class(filediver_keyframe_group)
     bpy.utils.register_class(OBJECT_OT_fd_transition_animation)
     bpy.utils.register_class(OBJECT_OT_fd_remove_transition)
+    bpy.utils.register_class(OBJECT_OT_fd_remove_all_transitions)
     bpy.utils.register_class(SCENE_UL_filediver_animation_states)
     bpy.utils.register_class(SCENE_UL_filediver_animation_events)
     bpy.utils.register_class(SCENE_PT_filediver_animation_controller)
@@ -442,6 +465,7 @@ def unregister():
     bpy.utils.unregister_class(filediver_state_transition)
     bpy.utils.unregister_class(filediver_animation_variable)
     bpy.utils.unregister_class(filediver_animation)
+    bpy.utils.unregister_class(OBJECT_OT_fd_remove_all_transitions)
     bpy.utils.unregister_class(OBJECT_OT_fd_remove_transition)
     bpy.utils.unregister_class(OBJECT_OT_fd_transition_animation)
     bpy.utils.unregister_class(SCENE_PT_filediver_animation_controller)
