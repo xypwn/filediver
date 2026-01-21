@@ -341,24 +341,24 @@ class SCENE_PT_filediver_animation_controller(bpy.types.Panel):
         else:
             transition_props.event = ""
 
-        box = layout.box()
-        box.label(text="Sent Events")
-        if len(state_machine.filediver_keyframe_groups) > 0:
+        header, body = layout.panel(state_machine.name + "_event_list", default_closed=False)
+        header.label(text="Sent Events")
+        if body is not None and len(state_machine.filediver_keyframe_groups) > 0:
             ids = set()
             for group in state_machine.filediver_keyframe_groups:
                 group: filediver_keyframe_group
                 if group.group_id in ids:
                     continue
-                row = box.row()
+                row = body.row()
                 row.label(text=group.event + f" @ frame {int(group.start)}")
                 delete_props = row.operator(OBJECT_OT_fd_remove_transition.bl_idname)
                 delete_props.state_machine_name = state_machine.name
                 delete_props.group_id = group.group_id
                 ids.add(group.group_id)
-            delete_props = box.operator(OBJECT_OT_fd_remove_all_transitions.bl_idname)
+            delete_props = body.operator(OBJECT_OT_fd_remove_all_transitions.bl_idname)
             delete_props.state_machine_name = state_machine.name
-        else:
-            box.label(text="None")
+        elif body is not None:
+            body.label(text="None")
 
 
         sorted_layers = sorted(state_machine.children, key=lambda x: int(x.name.split()[-1]))
