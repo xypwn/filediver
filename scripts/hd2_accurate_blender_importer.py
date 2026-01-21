@@ -577,7 +577,18 @@ def add_state_machine(gltf: Dict, node: Dict):
         anim = layer_empty.animation_data_create()
         anim.action = layer_action
         anim.action_slot = slot
-        layer_empty.keyframe_insert(data_path='state', frame=1.0)
+        # layer_empty.keyframe_insert(data_path='state', frame=1.0)
+        layer_action.layers.new("Layer")
+        layer_action.layers[0].strips.new()
+        layer_strip: bpy.types.ActionStrip = layer_empty.animation_data.action.layers[0].strips[0]
+        layer_keyframe_strip: bpy.types.ActionKeyframeStrip = None
+        if layer_strip.type == "KEYFRAME":
+            layer_keyframe_strip = layer_strip
+        layer_channelbag = layer_keyframe_strip.channelbags.new(slot=slot)
+        layer_fcurves = layer_channelbag.fcurves
+        state_curve = layer_fcurves.new("state")
+        keyframe = state_curve.keyframe_points.insert(1, layer.default_state)
+        keyframe.interpolation = 'CONSTANT'
         for action_layer in layer_action.layers:
             for strip in action_layer.strips:
                 if strip.type != 'KEYFRAME':
@@ -703,8 +714,18 @@ def add_state_machine(gltf: Dict, node: Dict):
                         manager.update(min=0.0, max=1.0, soft_min=0.0, soft_max=1.0)
                         time.driver.expression = f"clamp({state.blend_variable})"
                     elif not state.loop:
-                        layer_empty.start_frame = float(1.0)
-                        layer_empty.keyframe_insert(data_path="start_frame", frame=1.0)
+                        layer_strip: bpy.types.ActionStrip = layer_empty.animation_data.action.layers[0].strips[0]
+                        layer_keyframe_strip: bpy.types.ActionKeyframeStrip = None
+                        if layer_strip.type == "KEYFRAME":
+                            layer_keyframe_strip = layer_strip
+                        layer_channelbag = layer_keyframe_strip.channelbags[0]
+                        layer_fcurves = layer_channelbag.fcurves
+                        start_curve = layer_fcurves.find("start_frame")
+                        if start_curve is None:
+                            start_curve = layer_fcurves.new("start_frame")
+                        keyframe = start_curve.keyframe_points.insert(1, 1)
+                        keyframe.interpolation = 'CONSTANT'
+
                         variable = time.driver.variables.new()
                         variable.targets[0].id = layer_empty
                         variable.targets[0].data_path = "start_frame"
@@ -735,8 +756,19 @@ def add_state_machine(gltf: Dict, node: Dict):
                         variableFps.targets[0].id = bpy.data.scenes[0]
                         variableFps.targets[0].data_path = "render.fps"
                         variableFps.name = "fps"
-                        layer_empty.phase_frame = float(1.0)
-                        layer_empty.keyframe_insert(data_path="phase_frame", frame=1.0)
+
+                        layer_strip: bpy.types.ActionStrip = layer_empty.animation_data.action.layers[0].strips[0]
+                        layer_keyframe_strip: bpy.types.ActionKeyframeStrip = None
+                        if layer_strip.type == "KEYFRAME":
+                            layer_keyframe_strip = layer_strip
+                        layer_channelbag = layer_keyframe_strip.channelbags[0]
+                        layer_fcurves = layer_channelbag.fcurves
+                        phase_curve = layer_fcurves.find("phase_frame")
+                        if phase_curve is None:
+                            phase_curve = layer_fcurves.new("phase_frame")
+                        keyframe = phase_curve.keyframe_points.insert(1, 1)
+                        keyframe.interpolation = 'CONSTANT'
+
                         variableStart = time.driver.variables.new()
                         variableStart.targets[0].id = layer_empty
                         variableStart.targets[0].data_path = "phase_frame"
@@ -755,8 +787,19 @@ def add_state_machine(gltf: Dict, node: Dict):
                         variableFps.targets[0].id = bpy.data.scenes[0]
                         variableFps.targets[0].data_path = "render.fps"
                         variableFps.name = "fps"
-                        layer_empty.start_frame = float(1.0)
-                        layer_empty.keyframe_insert(data_path="start_frame", frame=1.0)
+
+                        layer_strip: bpy.types.ActionStrip = layer_empty.animation_data.action.layers[0].strips[0]
+                        layer_keyframe_strip: bpy.types.ActionKeyframeStrip = None
+                        if layer_strip.type == "KEYFRAME":
+                            layer_keyframe_strip = layer_strip
+                        layer_channelbag = layer_keyframe_strip.channelbags[0]
+                        layer_fcurves = layer_channelbag.fcurves
+                        start_curve = layer_fcurves.find("start_frame")
+                        if start_curve is None:
+                            start_curve = layer_fcurves.new("start_frame")
+                        keyframe = start_curve.keyframe_points.insert(1, 1)
+                        keyframe.interpolation = 'CONSTANT'
+
                         variableStart = time.driver.variables.new()
                         variableStart.targets[0].id = layer_empty
                         variableStart.targets[0].data_path = "start_frame"

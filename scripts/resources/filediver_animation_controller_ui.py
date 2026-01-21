@@ -3,10 +3,11 @@ try:
     import bpy.stub_internal
 except:
     pass
-from typing import Set, Optional
+from typing import Set, Optional, List, Tuple
 
 import math
 import bl_math
+import random
 
 link_types = [
     ("LinkType_Immediate", "Immediate", "", 0),
@@ -34,7 +35,54 @@ class filediver_animation_variable(bpy.types.PropertyGroup):
     name: bpy.props.StringProperty()
     obj: bpy.props.PointerProperty(type=bpy.types.Object)
 
+class filediver_curve(bpy.types.PropertyGroup):
+    data_path: bpy.props.StringProperty()
+
+class filediver_frame(bpy.types.PropertyGroup):
+    index: bpy.props.FloatProperty()
+
+class filediver_keyframe_group(bpy.types.PropertyGroup):
+    start: bpy.props.FloatProperty()
+    end: bpy.props.FloatProperty()
+    event: bpy.props.StringProperty()
+    group_id: bpy.props.FloatProperty()
+    action: bpy.props.PointerProperty(type=bpy.types.Action)
+    fcurves_path: bpy.props.StringProperty()
+    curves: bpy.props.CollectionProperty(type=filediver_curve)
+
+    def resolve(self) -> List[bpy.types.Keyframe]:
+        action: bpy.types.Action = self.action
+        fcurves: bpy.types.ActionChannelbagFCurves = action.path_resolve(self.fcurves_path)
+        to_return: List[bpy.types.Keyframe] = []
+        for curve in self.curves:
+            curve: filediver_curve
+            fcurve = fcurves.find(curve.data_path)
+            for keyframe in fcurve.keyframe_points:
+                if keyframe.back == self.group_id:
+                    to_return.append(keyframe)
+        return to_return
+
+    def remove(self) -> None:
+        action: bpy.types.Action = self.action
+        fcurves: bpy.types.ActionChannelbagFCurves = action.path_resolve(self.fcurves_path)
+        to_remove = 0
+        for curve in self.curves:
+            curve: filediver_curve
+            fcurve = fcurves.find(curve.data_path)
+            for keyframe in fcurve.keyframe_points:
+                if keyframe.back == self.group_id:
+                    to_remove += 1
+            while to_remove > 0:
+                fcurve = fcurves.find(curve.data_path)
+                for keyframe in fcurve.keyframe_points:
+                    if keyframe.back == self.group_id:
+                        fcurve.keyframe_points.remove(keyframe, fast=True)
+                        to_remove -= 1
+                        break
+
+
 FILEDIVER_ANIMATION_VARIABLES = ["state", "next_state", "state_transition", "start_frame", "phase_frame"]
+FILEDIVER_MAX_FLOAT_INT = 9007199254740992
 
 class filediver_animation_state(bpy.types.PropertyGroup):
     name: bpy.props.StringProperty()
@@ -105,11 +153,39 @@ class OBJECT_OT_fd_transition_animation(bpy.types.Operator):
         sorted_layers = sorted(state_machine.children, key=lambda x: int(x.name.split()[-1]))
         end_events = [(context.scene.frame_current, self.event)]
         old_frame = context.scene.frame_current
+
+        def insert_keyframe(points: bpy.types.FCurveKeyframePoints, frame: float, value: float, interpolation: "bpy.stub_internal.rna_enums.BeztripleInterpolationModeItems", group_id: float):
+            keyframe = points.insert(frame, value, options={'FAST'})
+            keyframe.interpolation = interpolation
+            keyframe.back = group_id
+
         while len(end_events) > 0:
             current_frame, current_event = end_events.pop(0)
             context.scene.frame_set(current_frame)
+            group_id = float(random.randrange(FILEDIVER_MAX_FLOAT_INT))
             for layer in sorted_layers:
                 layer: bpy.types.Object
+                layer_strip: bpy.types.ActionStrip = layer.animation_data.action.layers[0].strips[0]
+                layer_keyframe_strip: bpy.types.ActionKeyframeStrip = None
+                if layer_strip.type == "KEYFRAME":
+                    layer_keyframe_strip = layer_strip
+                layer_channelbag = layer_keyframe_strip.channelbags[0]
+                layer_fcurves = layer_channelbag.fcurves
+
+                state_curve = layer_fcurves.find("state")
+                if state_curve is None:
+                    state_curve = layer_fcurves.new("state")
+
+                next_state_curve = layer_fcurves.find("next_state")
+                if next_state_curve is None:
+                    next_state_curve = layer_fcurves.new("next_state")
+
+                transition_curve = layer_fcurves.find("state_transition")
+                if transition_curve is None:
+                    transition_curve = layer_fcurves.new("state_transition")
+
+                start_curve = None
+                phase_curve = None
                 if layer.state >= len(layer.filediver_layer_states):
                     print("layer.state >= len(states)")
                     continue
@@ -132,44 +208,76 @@ class OBJECT_OT_fd_transition_animation(bpy.types.Operator):
 
                 # apply transition keyframes
                 print(f"Adding keyframes to layer {layer.name} for event {current_event}")
-                layer.state = transition.state_index
-                layer.state_transition = 0
-                layer.keyframe_insert(data_path="state_transition", frame=start_frame)
+                insert_keyframe(transition_curve.keyframe_points, start_frame, 0, 'LINEAR', group_id)
                 if start_frame != end_frame:
-                    layer.next_state = transition.state_index
-                    layer.keyframe_insert(data_path="next_state", frame=start_frame)
-                    layer.keyframe_insert(data_path="state", frame=end_frame+1)
-                    layer.state_transition = 1
-                    layer.keyframe_insert(data_path="state_transition", frame=end_frame)
-                    layer.state_transition = 0
-                    layer.keyframe_insert(data_path="state_transition", frame=end_frame+1)
+                    insert_keyframe(next_state_curve.keyframe_points, start_frame, transition.state_index, 'CONSTANT', group_id)
+                    insert_keyframe(state_curve.keyframe_points, end_frame+1, transition.state_index, 'CONSTANT', group_id)
+                    insert_keyframe(transition_curve.keyframe_points, end_frame, 1, 'LINEAR', group_id)
+                    insert_keyframe(transition_curve.keyframe_points, end_frame+1, 0, 'LINEAR', group_id)
                 else:
-                    layer.keyframe_insert(data_path="state", frame=start_frame)
-                layer.next_state = -1
-                layer.keyframe_insert(data_path="next_state", frame=end_frame+1)
+                    insert_keyframe(state_curve.keyframe_points, start_frame, transition.state_index, 'CONSTANT', group_id)
+
+                insert_keyframe(next_state_curve.keyframe_points, end_frame+1, -1, 'CONSTANT', group_id)
 
                 if not new_state.loop:
-                    layer.start_frame = float(current_frame)
-                    layer.keyframe_insert(data_path="start_frame", frame=start_frame)
+                    start_curve = layer_fcurves.find("start_frame")
+                    if start_curve is None:
+                        start_curve = layer_fcurves.new("start_frame")
+                    insert_keyframe(start_curve.keyframe_points, start_frame, float(current_frame), 'CONSTANT', group_id)
                 else:
-                    layer.phase_frame = float(current_frame)
-                    layer.keyframe_insert(data_path="phase_frame", frame=start_frame)
+                    phase_curve = layer_fcurves.find("phase_frame")
+                    if phase_curve is None:
+                        phase_curve = layer_fcurves.new("phase_frame")
+                    insert_keyframe(phase_curve.keyframe_points, start_frame, float(current_frame), 'CONSTANT', group_id)
 
                 if new_state.emit_end_event != "":
                     end_events.append((new_state.get_next_end_frame(end_frame+1), new_state.emit_end_event))
 
-                strips: bpy.types.ActionKeyframeStrip = layer.animation_data.action.layers[0].strips[0]
-                fcurves = strips.channelbag(layer.animation_data.action_slot).fcurves
-                for fcurve in fcurves:
-                    interpolation = 'CONSTANT'
-                    if "state_transition" in fcurve.data_path:
-                        interpolation = 'LINEAR'
-                    for keyframe in fcurve.keyframe_points:
-                        keyframe.interpolation = interpolation
-                layer.state = old_state
+                key_group: filediver_keyframe_group = state_machine.filediver_keyframe_groups.add()
+                key_group.start = start_frame
+                key_group.end = end_frame
+                for curve in [state_curve, next_state_curve, transition_curve, start_curve, phase_curve]:
+                    curve: Optional[bpy.types.FCurve]
+                    if curve is None:
+                        continue
+                    fd_curve: filediver_curve = key_group.curves.add()
+                    fd_curve.data_path = curve.data_path
+                key_group.event = current_event
+                key_group.group_id = group_id
+                key_group.fcurves_path = layer_fcurves.path_from_id()
+                key_group.action = layer.animation_data.action
+
                 layer.filediver_applying_transition = False
 
         context.scene.frame_set(old_frame)
+
+        return {'FINISHED'}
+
+class OBJECT_OT_fd_remove_transition(bpy.types.Operator):
+    bl_idname = "object.fd_remove_transition"
+    bl_label = "Remove"
+
+    bl_options = {'REGISTER', 'UNDO'}
+
+    state_machine_name: bpy.props.StringProperty()
+    group_id: bpy.props.FloatProperty()
+
+    def execute(self, context: bpy.types.Context) -> Set["bpy.stub_internal.rna_enums.OperatorReturnItems"]:
+        if self.state_machine_name is None:
+            self.report({'DEBUG'}, "cancelled")
+            return {'CANCELLED'}
+
+        state_machine = context.scene.objects[self.state_machine_name]
+        to_remove = []
+        for index, group in enumerate(state_machine.filediver_keyframe_groups):
+            group: filediver_keyframe_group
+            if group.group_id != self.group_id:
+                continue
+            group.remove()
+            to_remove.append(index)
+
+        for index in reversed(to_remove):
+            state_machine.filediver_keyframe_groups.remove(index)
 
         return {'FINISHED'}
 
@@ -212,6 +320,24 @@ class SCENE_PT_filediver_animation_controller(bpy.types.Panel):
             transition_props.event = state_machine.filediver_active_transitions[state_machine.filediver_transition_index].event
         else:
             transition_props.event = ""
+
+        box = layout.box()
+        box.label(text="Sent Events")
+        if len(state_machine.filediver_keyframe_groups) > 0:
+            ids = set()
+            for group in state_machine.filediver_keyframe_groups:
+                group: filediver_keyframe_group
+                if group.group_id in ids:
+                    continue
+                row = box.row()
+                row.label(text=group.event + f" @ frame {int(group.start)}")
+                delete_props = row.operator(OBJECT_OT_fd_remove_transition.bl_idname)
+                delete_props.state_machine_name = state_machine.name
+                delete_props.group_id = group.group_id
+                ids.add(group.group_id)
+        else:
+            box.label(text="None")
+
 
         sorted_layers = sorted(state_machine.children, key=lambda x: int(x.name.split()[-1]))
         for layer in sorted_layers:
@@ -288,11 +414,16 @@ def register():
     bpy.utils.register_class(filediver_state_transition)
     bpy.utils.register_class(filediver_animation_state)
     bpy.utils.register_class(filediver_event_name)
+    bpy.utils.register_class(filediver_curve)
+    bpy.utils.register_class(filediver_frame)
+    bpy.utils.register_class(filediver_keyframe_group)
     bpy.utils.register_class(OBJECT_OT_fd_transition_animation)
+    bpy.utils.register_class(OBJECT_OT_fd_remove_transition)
     bpy.utils.register_class(SCENE_UL_filediver_animation_states)
     bpy.utils.register_class(SCENE_UL_filediver_animation_events)
     bpy.utils.register_class(SCENE_PT_filediver_animation_controller)
     bpy.types.Object.filediver_layer_states = bpy.props.CollectionProperty(type=filediver_animation_state)
+    bpy.types.Object.filediver_keyframe_groups = bpy.props.CollectionProperty(type=filediver_keyframe_group)
     bpy.types.Object.state = bpy.props.IntProperty(update=update_layer_state)
     bpy.types.Object.next_state = bpy.props.IntProperty(default=-1)
     bpy.types.Object.state_transition = bpy.props.FloatProperty(min=0, max=1)
@@ -303,11 +434,15 @@ def register():
     bpy.types.Object.filediver_transition_index = bpy.props.IntProperty(update=update_controller_events)
 
 def unregister():
+    bpy.utils.unregister_class(filediver_keyframe_group)
+    bpy.utils.unregister_class(filediver_frame)
+    bpy.utils.unregister_class(filediver_curve)
     bpy.utils.unregister_class(filediver_event_name)
     bpy.utils.unregister_class(filediver_animation_state)
     bpy.utils.unregister_class(filediver_state_transition)
     bpy.utils.unregister_class(filediver_animation_variable)
     bpy.utils.unregister_class(filediver_animation)
+    bpy.utils.unregister_class(OBJECT_OT_fd_remove_transition)
     bpy.utils.unregister_class(OBJECT_OT_fd_transition_animation)
     bpy.utils.unregister_class(SCENE_PT_filediver_animation_controller)
     bpy.utils.unregister_class(SCENE_UL_filediver_animation_events)
