@@ -729,14 +729,53 @@ def add_state_machine(gltf: Dict, node: Dict):
                         variable = time.driver.variables.new()
                         variable.targets[0].id = layer_empty
                         variable.targets[0].data_path = "start_frame"
-                        variable.name = "start_frame"
+                        variable.name = "sf"
                         if "start_frame" not in variable_list:
                             filediver_variable: filediver_animation_variable = filediver_state.variables.add()
                             filediver_variable.name = "start_frame"
                             filediver_variable.obj = layer_empty
                             variable_list.append("start_frame")
-                        time.driver.expression = f"clamp((frame - start_frame) / {animation_strip.frame_end - animation_strip.frame_start})"
+
+                        variable = time.driver.variables.new()
+                        variable.targets[0].id = layer_empty
+                        variable.targets[0].data_path = "next_start_frame"
+                        variable.name = "nsf"
+                        if "next_start_frame" not in variable_list:
+                            filediver_variable: filediver_animation_variable = filediver_state.variables.add()
+                            filediver_variable.name = "next_start_frame"
+                            filediver_variable.obj = layer_empty
+                            variable_list.append("next_start_frame")
+
+                        # Adding current_state and next_state
+                        for vObj, variableName, shortName in variables[:2]:
+                            variable = time.driver.variables.new()
+                            variable.targets[0].id = vObj
+                            variable.targets[0].data_path = variableName
+                            variable.name = variableName if shortName is None else shortName
+                            if variableName not in variable_list:
+                                filediver_variable: filediver_animation_variable = filediver_state.variables.add()
+                                filediver_variable.name = variableName
+                                filediver_variable.obj = vObj
+                                variable_list.append(variableName)
+
+                        if playback_speed_function is not None:
+                            for playbackVarIdx, var in enumerate(playback_speed_function.variables):
+                                variable = time.driver.variables.new()
+                                variable.targets[0].id = obj
+                                variable.targets[0].data_path = f'["{var}"]'
+                                variable.name = var
+                                if var not in variable_list:
+                                    filediver_variable: filediver_animation_variable = filediver_state.variables.add()
+                                    filediver_variable.name = var
+                                    filediver_variable.obj = obj
+                                    variable_list.append(var)
+                                manager: IDPropertyUIManager = obj.id_properties_ui(var)
+                                if manager.as_dict()["max"] < playback_speed_function.limits[playbackVarIdx][1]:
+                                    manager.update(max=math.inf, soft_max=math.inf)
+                        time.driver.expression = f"clamp(((frame - start({stateIdx},s,n,sf,nsf)) * {playback_speed_function.expression if playback_speed_function is not None else 1.0}) / {animation_strip.frame_end - animation_strip.frame_start})"
                         filediver_state.animation_length = animation_strip.frame_end - animation_strip.frame_start
+                        if filediver_state.frequency_expr == "" and playback_speed_function is not None:
+                            filediver_state.frequency_expr = playback_speed_function.expression
                     elif playback_speed_function is not None:
                         for playbackVarIdx, var in enumerate(playback_speed_function.variables):
                             variable = time.driver.variables.new()
@@ -769,16 +808,45 @@ def add_state_machine(gltf: Dict, node: Dict):
                         keyframe = phase_curve.keyframe_points.insert(1, 1)
                         keyframe.interpolation = 'CONSTANT'
 
+                        next_phase_curve = layer_fcurves.find("next_phase_frame")
+                        if next_phase_curve is None:
+                            next_phase_curve = layer_fcurves.new("next_phase_frame")
+                        keyframe = next_phase_curve.keyframe_points.insert(1, 1)
+                        keyframe.interpolation = 'CONSTANT'
+
                         variableStart = time.driver.variables.new()
                         variableStart.targets[0].id = layer_empty
                         variableStart.targets[0].data_path = "phase_frame"
-                        variableStart.name = "phase_frame"
+                        variableStart.name = "pf"
                         if "phase_frame" not in variable_list:
                             filediver_variable: filediver_animation_variable = filediver_state.variables.add()
                             filediver_variable.name = "phase_frame"
                             filediver_variable.obj = layer_empty
                             variable_list.append("phase_frame")
-                        time.driver.expression = f"((frame-phase_frame)/fps)*({playback_speed_function.expression})-floor(((frame-phase_frame)/fps)*({playback_speed_function.expression}))"
+
+                        variableStart = time.driver.variables.new()
+                        variableStart.targets[0].id = layer_empty
+                        variableStart.targets[0].data_path = "next_phase_frame"
+                        variableStart.name = "npf"
+                        if "next_phase_frame" not in variable_list:
+                            filediver_variable: filediver_animation_variable = filediver_state.variables.add()
+                            filediver_variable.name = "next_phase_frame"
+                            filediver_variable.obj = layer_empty
+                            variable_list.append("next_phase_frame")
+
+                        # Adding current_state and next_state
+                        for vObj, variableName, shortName in variables[:2]:
+                            variable = time.driver.variables.new()
+                            variable.targets[0].id = vObj
+                            variable.targets[0].data_path = variableName
+                            variable.name = variableName if shortName is None else shortName
+                            if variableName not in variable_list:
+                                filediver_variable: filediver_animation_variable = filediver_state.variables.add()
+                                filediver_variable.name = variableName
+                                filediver_variable.obj = vObj
+                                variable_list.append(variableName)
+
+                        time.driver.expression = f"((frame-start({stateIdx},s,n,pf,npf))/fps)*({playback_speed_function.expression})-floor(((frame-start({stateIdx},s,n,pf,npf))/fps)*({playback_speed_function.expression}))"
                         if filediver_state.frequency_expr == "":
                             filediver_state.frequency_expr = playback_speed_function.expression
                     else:
@@ -799,17 +867,45 @@ def add_state_machine(gltf: Dict, node: Dict):
                             start_curve = layer_fcurves.new("start_frame")
                         keyframe = start_curve.keyframe_points.insert(1, 1)
                         keyframe.interpolation = 'CONSTANT'
+                        next_start_curve = layer_fcurves.find("next_start_frame")
+                        if next_start_curve is None:
+                            next_start_curve = layer_fcurves.new("next_start_frame")
+                        keyframe = next_start_curve.keyframe_points.insert(1, 1)
+                        keyframe.interpolation = 'CONSTANT'
 
                         variableStart = time.driver.variables.new()
                         variableStart.targets[0].id = layer_empty
                         variableStart.targets[0].data_path = "start_frame"
-                        variableStart.name = "start_frame"
+                        variableStart.name = "sf"
                         if "start_frame" not in variable_list:
                             filediver_variable: filediver_animation_variable = filediver_state.variables.add()
                             filediver_variable.name = "start_frame"
                             filediver_variable.obj = layer_empty
                             variable_list.append("start_frame")
-                        time.driver.expression = f"((frame-start_frame)/(fps*{animation_strip.frame_end - animation_strip.frame_start}))-floor((frame-start_frame)/(fps*{animation_strip.frame_end - animation_strip.frame_start}))"
+
+                        variableStart = time.driver.variables.new()
+                        variableStart.targets[0].id = layer_empty
+                        variableStart.targets[0].data_path = "next_start_frame"
+                        variableStart.name = "nsf"
+                        if "next_start_frame" not in variable_list:
+                            filediver_variable: filediver_animation_variable = filediver_state.variables.add()
+                            filediver_variable.name = "next_start_frame"
+                            filediver_variable.obj = layer_empty
+                            variable_list.append("next_start_frame")
+
+                        # Adding current_state and next_state
+                        for vObj, variableName, shortName in variables[:2]:
+                            variable = time.driver.variables.new()
+                            variable.targets[0].id = vObj
+                            variable.targets[0].data_path = variableName
+                            variable.name = variableName if shortName is None else shortName
+                            if variableName not in variable_list:
+                                filediver_variable: filediver_animation_variable = filediver_state.variables.add()
+                                filediver_variable.name = variableName
+                                filediver_variable.obj = vObj
+                                variable_list.append(variableName)
+
+                        time.driver.expression = f"((frame-start({stateIdx},s,n,sf,nsf))/(fps*{animation_strip.frame_end - animation_strip.frame_start}))-floor((frame-start({stateIdx},s,n,sf,nsf))/(fps*{animation_strip.frame_end - animation_strip.frame_start}))"
                         if filediver_state.frequency_expr == "":
                             filediver_state.frequency_expr = f"(1/{animation_strip.frame_end - animation_strip.frame_start})"
                     constraint.frame_start = int(animation_strip.frame_start)-1

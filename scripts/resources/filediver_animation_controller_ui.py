@@ -3,7 +3,7 @@ try:
     import bpy.stub_internal
 except:
     pass
-from typing import Set, Optional, List, Tuple
+from typing import Set, Optional, List, Tuple, Dict, Any
 
 import math
 import bl_math
@@ -81,7 +81,7 @@ class filediver_keyframe_group(bpy.types.PropertyGroup):
                         break
 
 
-FILEDIVER_ANIMATION_VARIABLES = ["state", "next_state", "state_transition", "start_frame", "phase_frame"]
+FILEDIVER_ANIMATION_VARIABLES = ["state", "next_state", "state_transition", "start_frame", "next_start_frame", "phase_frame", "next_phase_frame"]
 FILEDIVER_MAX_FLOAT_INT = 9007199254740992
 
 class filediver_animation_state(bpy.types.PropertyGroup):
@@ -96,15 +96,7 @@ class filediver_animation_state(bpy.types.PropertyGroup):
     frequency_expr: bpy.props.StringProperty()
     animation_length: bpy.props.FloatProperty()
 
-    def get_transition(self, event: str) -> Optional[filediver_state_transition]:
-        for transition in self.transitions:
-            if event == transition.event:
-                return transition
-        return None
-    
-    def get_next_end_frame(self, frame: int) -> int:
-        if self.frequency_expr == "" and self.animation_length == 0.0:
-            return frame
+    def __get_eval_globals(self, frame: int) -> Dict[str, Any]:
         eval_globals = {
             'fps': bpy.data.scenes[0].render.fps,
             'frame': frame,
@@ -117,14 +109,58 @@ class filediver_animation_state(bpy.types.PropertyGroup):
                 continue
             eval_globals[variable.name] = variable.obj.get(variable.name)
 
-        if self.animation_length > 0 and eval_globals["start_frame"] + self.animation_length > frame:
-            return int(math.ceil(eval_globals["start_frame"] + self.animation_length))
-        elif self.animation_length > 0 and eval_globals["start_frame"] + self.animation_length <= frame:
+        return eval_globals
+
+    def get_transition(self, event: str) -> Optional[filediver_state_transition]:
+        for transition in self.transitions:
+            if event == transition.event:
+                return transition
+        return None
+    
+    def get_next_end_frame(self, frame: int) -> int:
+        if self.frequency_expr == "" and self.animation_length == 0.0:
+            return frame
+
+        eval_globals = self.__get_eval_globals(frame)
+
+        if self.animation_length > 0 and eval_globals["start_frame"] + int(math.ceil(self.animation_length)) > frame:
+            return int(math.ceil(eval_globals["start_frame"] + math.ceil(self.animation_length)))
+        elif self.animation_length > 0 and eval_globals["start_frame"] + int(math.ceil(self.animation_length)) <= frame:
             return frame
         frequency = eval(self.frequency_expr, eval_globals)
+        if frequency == 0:
+            return frame
         period = float(eval_globals["fps"]) / frequency
         return int(math.ceil(eval_globals["phase_frame"] + period * (((frame - eval_globals["phase_frame"]) // period)+1)))
 
+    def get_animation_percentage(self, frame: int) -> float:
+        if self.frequency_expr == "" and self.animation_length == 0.0:
+            return 1.0
+
+        eval_globals = self.__get_eval_globals(frame)
+
+        if self.animation_length > 0:
+            return bl_math.clamp(float(frame - eval_globals["start_frame"]) / self.animation_length)
+
+        frequency = eval(self.frequency_expr, eval_globals)
+        if frequency == 0:
+            return 0.0
+        period = float(eval_globals["fps"]) / frequency
+        return math.fmod(frame - eval_globals["phase_frame"], period) / period
+
+    # Returns the animation length, or the period for a looping animation, in frames
+    def get_animation_length(self, frame: int) -> int:
+        if self.frequency_expr == "" and self.animation_length == 0.0:
+            return 0
+
+        eval_globals = self.__get_eval_globals(frame)
+
+        if self.animation_length > 0:
+            return int(math.ceil(self.animation_length))
+        frequency = eval(self.frequency_expr, eval_globals)
+        if frequency == 0:
+            return 0
+        return int(math.ceil(float(eval_globals["fps"]) / frequency))
 
 class SCENE_UL_filediver_animation_states(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
@@ -223,7 +259,9 @@ class OBJECT_OT_fd_transition_animation(bpy.types.Operator):
                     transition_curve = layer_fcurves.new("state_transition")
 
                 start_curve = None
+                next_start_curve = None
                 phase_curve = None
+                next_phase_curve = None
                 if layer.state >= len(layer.filediver_layer_states):
                     print("layer.state >= len(states)")
                     continue
@@ -233,16 +271,33 @@ class OBJECT_OT_fd_transition_animation(bpy.types.Operator):
                     print("transition is None")
                     continue
                 new_state: filediver_animation_state = layer.filediver_layer_states[transition.state_index]
-                old_state = layer.state
+                old_state: int = layer.state
                 layer.filediver_applying_transition = True
-                if transition.link_type in ("LinkType_Immediate", "LinkType_SyncPercentageImmediate"):
+                if transition.link_type == "LinkType_Immediate":
+                    start_frame = current_frame
+                    end_frame = current_frame+int(context.scene.render.fps*transition.blend_time)
+                    animation_start = float(current_frame)
+                elif transition.link_type == "LinkType_SyncPercentageImmediate":
+                    percentage = state.get_animation_percentage(current_frame)
+                    next_length = new_state.get_animation_length(current_frame)
+                    next_end = new_state.get_next_end_frame(current_frame)
+                    animation_start = next_end - int(next_length * percentage)
+                    start_frame = current_frame
+                    end_frame = current_frame+int(context.scene.render.fps*transition.blend_time)
+                elif transition.link_type == "LinkType_SyncInversePercentageImmediate":
+                    percentage = state.get_animation_percentage(current_frame)
+                    next_length = new_state.get_animation_length(current_frame)
+                    next_end = new_state.get_next_end_frame(current_frame)
+                    animation_start = next_end - int(next_length * (1.0-percentage))
                     start_frame = current_frame
                     end_frame = current_frame+int(context.scene.render.fps*transition.blend_time)
                 elif transition.link_type == "LinkType_WaitEnd":
                     end_frame = state.get_next_end_frame(current_frame)
                     start_frame = end_frame - int(context.scene.render.fps*transition.blend_time)
+                    animation_start = end_frame+1
                 else:
-                    self.report({'DEBUG'}, transition.link_type)
+                    self.report({'ERROR'}, transition.link_type)
+                    return {'CANCELLED'}
 
                 # apply transition keyframes
                 print(f"Adding keyframes to layer {layer.name} for event {current_event}")
@@ -261,15 +316,36 @@ class OBJECT_OT_fd_transition_animation(bpy.types.Operator):
                     start_curve = layer_fcurves.find("start_frame")
                     if start_curve is None:
                         start_curve = layer_fcurves.new("start_frame")
-                    insert_keyframe(start_curve.keyframe_points, start_frame, float(current_frame), 'CONSTANT', group_id)
+                    next_start_curve = layer_fcurves.find("next_start_frame")
+                    if next_start_curve is None:
+                        next_start_curve = layer_fcurves.new("next_start_frame")
+                    if start_frame != end_frame:
+                        insert_keyframe(start_curve.keyframe_points, end_frame+1, animation_start, 'CONSTANT', group_id)
+                        insert_keyframe(next_start_curve.keyframe_points, start_frame, animation_start, 'CONSTANT', group_id)
+                    else:
+                        insert_keyframe(start_curve.keyframe_points, start_frame, animation_start, 'CONSTANT', group_id)
                 else:
                     phase_curve = layer_fcurves.find("phase_frame")
                     if phase_curve is None:
                         phase_curve = layer_fcurves.new("phase_frame")
-                    insert_keyframe(phase_curve.keyframe_points, start_frame, float(current_frame), 'CONSTANT', group_id)
+                    next_phase_curve = layer_fcurves.find("next_phase_frame")
+                    if next_phase_curve is None:
+                        next_phase_curve = layer_fcurves.new("next_phase_frame")
+                    if start_frame != end_frame:
+                        insert_keyframe(phase_curve.keyframe_points, end_frame+1, animation_start, 'CONSTANT', group_id)
+                        insert_keyframe(next_phase_curve.keyframe_points, start_frame, animation_start, 'CONSTANT', group_id)
+                    else:
+                        insert_keyframe(phase_curve.keyframe_points, start_frame, animation_start, 'CONSTANT', group_id)
+
 
                 if new_state.emit_end_event != "":
+                    old_start = layer.start_frame
+                    old_phase = layer.phase_frame
+                    layer.start_frame = animation_start
+                    layer.phase_frame = animation_start
                     end_events.append((new_state.get_next_end_frame(end_frame+1), new_state.emit_end_event))
+                    layer.start_frame = old_start
+                    layer.phase_frame = old_phase
 
                 key_group: filediver_keyframe_group = state_machine.filediver_keyframe_groups.add()
                 key_group.start = start_frame
@@ -489,7 +565,9 @@ def register():
     bpy.types.Object.next_state = bpy.props.IntProperty(default=-1)
     bpy.types.Object.state_transition = bpy.props.FloatProperty(min=0, max=1)
     bpy.types.Object.start_frame = bpy.props.FloatProperty()
+    bpy.types.Object.next_start_frame = bpy.props.FloatProperty()
     bpy.types.Object.phase_frame = bpy.props.FloatProperty()
+    bpy.types.Object.next_phase_frame = bpy.props.FloatProperty()
     bpy.types.Object.filediver_applying_transition = bpy.props.BoolProperty()
     bpy.types.Object.filediver_active_transitions = bpy.props.CollectionProperty(type=filediver_event_name)
     bpy.types.Object.filediver_transition_index = bpy.props.IntProperty(update=update_controller_events)
