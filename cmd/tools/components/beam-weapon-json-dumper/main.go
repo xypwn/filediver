@@ -39,6 +39,10 @@ func main() {
 		return hash.String()
 	}
 
+	lookupString := func(val uint32) string {
+		return fmt.Sprintf("%x", val)
+	}
+
 	beamWeaponComponents, err := datalib.ParseBeamWeaponComponents()
 	if err != nil {
 		panic(err)
@@ -46,7 +50,7 @@ func main() {
 
 	result := make(map[string]any)
 	for name, component := range beamWeaponComponents {
-		result[lookupHash(name)] = component.ToSimple(lookupHash, lookupThinHash)
+		result[lookupHash(name)] = component.ToSimple(lookupHash, lookupThinHash, lookupString)
 	}
 
 	output, err := json.MarshalIndent(result, "", "    ")

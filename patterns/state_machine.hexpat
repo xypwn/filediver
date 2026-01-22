@@ -28,6 +28,10 @@ struct MurmurHash {
 
 #pragma pattern_limit 4194304
 
+fn relative_to_parents_parents_parents_parent(u128 offset) {
+    return addressof(parent.parent.parent.parent.parent);
+};
+
 fn relative_to_parents_parents_parent(u128 offset) {
     return addressof(parent.parent.parent.parent);
 };
@@ -53,6 +57,19 @@ struct RebasedNullablePtr<T, P, auto base_fn_name> {
     }
 };
 
+struct List<T, auto count> {
+    T items[count] [[inline]];
+};
+
+struct RebasedNullableListPtr<T, P, auto base_fn_name, auto count> {
+    P val = std::mem::read_unsigned($, sizeof(P));
+    if(val == 0x0) {
+        padding[sizeof(P)];
+    } else {
+        List<T, count>* data : P [[pointer_base(base_fn_name), inline]];
+    }
+};
+
 struct PtrList<T, auto base> {
     u32 count;
     RebasedNullablePtr<T, u32, base> ptrs[count];
@@ -62,12 +79,12 @@ struct AnimationHashList {
     MurmurHash data[parent.parent.hashCount];
 };
 
-struct FloatList {
-    float data[parent.parent.floatCount];
+struct AnimationWeightList {
+    float data[parent.parent.animationWeightCount];
 };
 
-struct NANFloatList {
-    float data[parent.parent.nanFloatCount];
+struct BlendFunctionDataList {
+    float data[parent.parent.blendFunctionDataCount];
 };
 
 struct AnimationEventLinkIndex {
@@ -119,19 +136,35 @@ struct UnknownVectorList {
     PtrList<UnknownVectors, "relative_to_parents_parent"> vectors;
 };
 
-struct Animation {
+enum StateType : u32 {
+    Clip,
+    Empty,
+    CustomBlend,
+    Blend1D,
+    Blend2D,
+    Ragdoll,
+};
+
+struct IntFloatEntry {
+    u32 index;
+    float value;
+};
+
+struct State {
     // This is the hash of a string like "Reload" or "reload_fast"
     // It can have Title_Case, underscores, and multiple words per name
     // It'll describe the animation(s) represented here
     MurmurHash name;
-    u32 unk00;
+    StateType type;
     u32 hashCount;
-    RebasedNullablePtr<AnimationHashList, u32, "relative_to_parents_parent"> hashes;
-    u32 floatCount;
-    RebasedNullablePtr<FloatList, u32, "relative_to_parents_parent"> floats;
+    RebasedNullablePtr<AnimationHashList, u32, "relative_to_parents_parent"> animation_hashes;
+    u32 animationWeightCount;
+    RebasedNullablePtr<AnimationWeightList, u32, "relative_to_parents_parent"> animation_weights;
     u32 unk01;
-    u32 unk02;
-    u32 unk03;
+    bool loop;
+    padding[3];
+    bool additive;
+    padding[3];
     u32 eventCount;
     RebasedNullablePtr<AnimationEventLinkIndexList, u32, "relative_to_parents_parent"> animation_events;
     u32 linkCount;
@@ -140,40 +173,57 @@ struct Animation {
     RebasedNullablePtr<UnknownVectorList, u32, "relative_to_parents_parent"> vectors;
     u32 wiiCount;
     RebasedNullablePtr<WeightIDIndexList, u32, "relative_to_parents_parent"> weightIdIndices;
-    u32 unk08;
-    float unk09;
-    u32 nanFloatCount;
-    RebasedNullablePtr<NANFloatList, u32, "relative_to_parents_parent"> nanFloats;
-    u32 unk10[4];
-    u32 unk11;
-    u32 unk12;
+    ThinMurmurHash end_animation_event;
+    float end_animation_transition_time;
+    u32 blendFunctionDataCount;
+    RebasedNullablePtr<BlendFunctionDataList, u32, "relative_to_parents_parent"> blendFunctionDatas;
+    u32 unknownIntsCount;
+    RebasedNullableListPtr<u32, u32, "relative_to_parents_parent", unknownIntsCount> unknownInts;
+    u32 unk04[2];
+    u32 unk05;
+    s32 blend_mask_index;
     u32 unkValuesCount;
     RebasedNullablePtr<u32, u32, "relative_to_parents_parent"> unkValues;
     if(unkValuesCount > 1) std::print("unkValuesCount at {:x} is {:d}", $ - 8, unkValuesCount);
+    u32 blend_variable_index;
+    u32 unk06;
+    s32 unk07;
+    ThinMurmurHash ragdoll_name;
+    u32 unknownInts2Count;
+    RebasedNullableListPtr<u32, u32, "relative_to_parents_parent", unknownInts2Count> unknownInts2;
+    u32 unknownIntFloatMapCount;
+    RebasedNullableListPtr<IntFloatEntry, u32,  "relative_to_parents_parent", unknownIntFloatMapCount> unknownIntFloatMap;
+    u32 unk08;
+    u32 unk09;
+    u32 unk10;
+    u32 unk11;
+    if (unk08 != 0 || unk09 != 0 || unk10 != 0 || unk11 != 0) {
+        std::print("data in gaps in state {:x}", name.value);
+    }
 };
 
-struct AnimationGroup {
+struct Layer {
     u32 magic;
-    u32 unk00;
-    PtrList<Animation, "relative_to_parents_parents_parent"> animations;
+    u32 default_state;
+    PtrList<State, "relative_to_parents_parents_parent"> states;
 };
 
 struct AnimationEventList {
     ThinMurmurHash items[parent.parent.animationEventsCount] [[inline]];
 };
 
-struct ThinHashFloatsList {
-    ThinMurmurHash keys[parent.parent.thinHashFloatsCount];
-    float values[parent.parent.thinHashFloatsCount];
+struct AnimationVariableMapEntryList {
+    ThinMurmurHash keys[parent.parent.animationVariablesCount];
+    float values[parent.parent.animationVariablesCount];
 };
 
-struct UnkFloatArray {
-    u32 count;
-    float unkFloats[count];
+struct BlendMask {
+    u32 boneCount;
+    float boneWeights[boneCount];
 };
 
-struct UnkFloatArrayList {
-    PtrList<UnkFloatArray, "relative_to_parents_parent"> list;
+struct BlendMaskList {
+    PtrList<BlendMask, "relative_to_parents_parent"> list;
 };
 
 struct UnkData00List {
@@ -188,22 +238,37 @@ struct UnkData02List {
     u8 items[parent.parent.unkData02Size];
 };
 
+struct RagdollInfo {
+    u32 boneIdx;
+    float matrix[9];
+    MurmurHash maybeHash;
+    u32 someEnum;
+    u32 unk00;
+};
+
+struct RagdollInfoList {
+    RagdollInfo items[parent.parent.ragdollInfoCount];
+};
+
 struct StateMachine {
     u32 unk00;
-    u32 count;
-    PtrList<AnimationGroup, "relative_to_parents_parent"> *groups : u32;
-    u32 animationEventsCount;
-    RebasedNullablePtr<ThinHashList, u32, "absolute"> animationEvents;
-    u32 thinHashFloatsCount;
-    RebasedNullablePtr<ThinHashFloatsList, u32, "absolute"> thinHashFloats;
-    u32 unkIntFloatDataCount;
-    RebasedNullablePtr<UnkFloatArrayList, u32, "absolute"> unkIntFloatData;
+    u32 layerCount [[hidden]];
+    PtrList<Layer, "relative_to_parents_parent"> *layers : u32;
+    u32 animationEventsCount [[hidden]];
+    RebasedNullablePtr<AnimationEventList, u32, "absolute"> animationEvents;
+    u32 animationVariablesCount [[hidden]];
+    RebasedNullablePtr<AnimationVariableMapEntryList, u32, "absolute"> animationVariablesMap;
+    u32 blendMaskCount [[hidden]];
+    RebasedNullablePtr<BlendMaskList, u32, "absolute"> blendMaskData;
     u32 unkData00Size;
     RebasedNullablePtr<UnkData00List, u32, "absolute"> unkData;
     u32 unkData01Size;
     RebasedNullablePtr<UnkData01List, u32, "absolute"> unkShorts;
     u32 unkData02Size;
     RebasedNullablePtr<UnkData02List, u32, "absolute"> unkBytes;
+    u32 unk01[2];
+    u32 ragdollInfoCount [[hidden]];
+    RebasedNullablePtr<RagdollInfoList, u32, "absolute"> ragdollInfos;
 };
 
 StateMachine stateMachine @0x00;

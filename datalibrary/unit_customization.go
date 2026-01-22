@@ -381,10 +381,18 @@ func ParseUnitCustomizationSettings(getResource GetResourceFunc, stringmap map[u
 				return nil, fmt.Errorf("read uiwidgetcolors: %v", err)
 			}
 
+			name, ok := stringmap[rawSkin.Name]
+			if !ok {
+				skin.Name = strconv.FormatUint(uint64(rawSkin.Name), 16)
+			} else {
+				skin.Name = name
+			}
+
 			skin.ID = rawSkin.ID
 			skin.Thumbnail = rawSkin.Thumbnail
 			var overrideComponentData []byte
 			if rawSkin.AddPath.Value == 0x0 {
+				skins = append(skins, skin)
 				continue
 			}
 
@@ -430,19 +438,16 @@ func ParseUnitCustomizationSettings(getResource GetResourceFunc, stringmap map[u
 			}
 			skin.Customization = matOverrides
 
-			name, ok := stringmap[rawSkin.Name]
-			if !ok {
-				skin.Name = strconv.FormatUint(uint64(rawSkin.Name), 16)
-			} else {
-				skin.Name = name
-			}
-
 			skins = append(skins, skin)
 		}
 
 		objectName, ok := stringmap[rawSettings.ObjectName]
 		if !ok {
-			objectName = strconv.FormatUint(uint64(rawSettings.ObjectName), 16)
+			if rawSettings.CollectionType == CollectionHellpodRack {
+				objectName = "HELLPOD RACK"
+			} else {
+				objectName = strconv.FormatUint(uint64(rawSettings.ObjectName), 16)
+			}
 		}
 		skinName, ok := stringmap[rawSettings.SkinName]
 		if !ok {

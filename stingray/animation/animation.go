@@ -199,17 +199,28 @@ func (b BoneInitialState) MarshalJSON() ([]byte, error) {
 	})
 }
 
+type rawBeat struct {
+	TimeStamp float32
+	Name      stingray.ThinHash
+}
+
+type Beat struct {
+	TimeStamp float32           `json:"timestamp"` // Timestamp of beat in seconds
+	NameHash  stingray.ThinHash `json:"-"`
+	Name      string            `json:"name"`
+}
+
 type AnimationHeader struct {
 	Unk00                 uint32               `json:"-"`
 	BoneCount             uint32               `json:"boneCount"`
 	AnimationLength       float32              `json:"length"`
 	Size                  uint32               `json:"-"`
 	HashesCount           uint32               `json:"-"` // These may or may not be hashes
-	Hashes2Count          uint32               `json:"-"` // but they're definitely 8 bytes
+	BeatCount             uint32               `json:"-"` // but they're definitely 8 bytes
 	Hashes                []stingray.Hash      `json:"-"` // wide as far as I've seen
 	ResolvedHashes        []string             `json:"hashes"`
-	Hashes2               []stingray.Hash      `json:"-"`
-	ResolvedHashes2       []string             `json:"hashes2"`
+	Beats                 []rawBeat            `json:"-"`
+	ResolvedBeats         []Beat               `json:"beats"`
 	Unk02                 uint16               `json:"unk02"`
 	TransformCompressions []InitialCompression `json:"transformCompressions"`
 	InitialTransforms     []BoneInitialState   `json:"initialTransforms"`
@@ -486,7 +497,7 @@ type Animation struct {
 }
 
 func loadAnimationHeader(r io.ReadSeeker) (*AnimationHeader, error) {
-	var unk00, boneCount, size, hashesCount, hashes2Count uint32
+	var unk00, boneCount, size, hashesCount, beatCount uint32
 	var animationLength float32
 	var unk02 uint16
 
@@ -510,7 +521,7 @@ func loadAnimationHeader(r io.ReadSeeker) (*AnimationHeader, error) {
 		return nil, err
 	}
 
-	if err := binary.Read(r, binary.LittleEndian, &hashes2Count); err != nil {
+	if err := binary.Read(r, binary.LittleEndian, &beatCount); err != nil {
 		return nil, err
 	}
 
@@ -519,8 +530,8 @@ func loadAnimationHeader(r io.ReadSeeker) (*AnimationHeader, error) {
 		return nil, err
 	}
 
-	hashes2 := make([]stingray.Hash, hashes2Count)
-	if err := binary.Read(r, binary.LittleEndian, &hashes2); err != nil {
+	beats := make([]rawBeat, beatCount)
+	if err := binary.Read(r, binary.LittleEndian, &beats); err != nil {
 		return nil, err
 	}
 
@@ -597,9 +608,9 @@ func loadAnimationHeader(r io.ReadSeeker) (*AnimationHeader, error) {
 		AnimationLength:       animationLength,
 		Size:                  size,
 		HashesCount:           hashesCount,
-		Hashes2Count:          hashes2Count,
+		BeatCount:             beatCount,
 		Hashes:                hashes,
-		Hashes2:               hashes2,
+		Beats:                 beats,
 		Unk02:                 unk02,
 		TransformCompressions: transformCompressions,
 		InitialTransforms:     initialTransforms,

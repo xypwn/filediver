@@ -36,19 +36,21 @@ type Config struct {
 		AllTextures         bool   `cfg:"tags=advanced help='include all referenced textures, including wounds, marks etc. and unknown ones'"`
 		AccurateOnly        bool   `cfg:"tags=advanced"`
 		SampleAnimations    bool   `cfg:"help='more accurate for now, as spline interpolation conversion isn\\'t implemented yet'"`
-		AnimationSampleRate int    `cfg:"depends=Unit.SampleAnimations range=12...144 default=24"`
+		AnimationSampleRate int    `cfg:"depends=Unit.SampleAnimations range=12...144 default=30"`
 	} `cfg:"help='general unit settings, affects materials, models and animations'"`
 	Material struct {
 		Format         string `cfg:"options=blend,glb,textures,raw help='material export format; textures dumps all referenced textures into a folder'"`
 		TexturesFormat string `cfg:"depends=Material.Format=textures options=png,dds help='format of individual textures if Format is textures'"`
 	} `cfg:"tags=t:material help='see unit options'"`
 	Model struct {
-		Format           string `cfg:"options=blend,glb,raw help='model export format'"`
-		IncludeLODS      bool   `cfg:"help='include meshes of all levels-of-detail'"`
-		EnableAnimations bool   `cfg:"help='export model animations, can take much longer'"`
-		JoinComponents   bool   `cfg:"tags=advanced help='join UDIM components'"`
-		BoundingBoxes    bool   `cfg:"tags=advanced help='export model bounding boxes'"`
-		NoBones          bool   `cfg:"tags=advanced help='don\\'t include bones'"`
+		Format                    string `cfg:"options=blend,glb,raw help='model export format'"`
+		IncludeLODS               bool   `cfg:"help='include meshes of all levels-of-detail'"`
+		IncludeGibs               bool   `cfg:"help='include meshes with gib materials'"`
+		EnableAnimations          bool   `cfg:"help='export model animations, can take much longer'"`
+		EnableAnimationController bool   `cfg:"tags=advanced depends=Model.EnableAnimations help='export model animation controller, can take even longer and will add many constraints to the output blend file'"`
+		JoinComponents            bool   `cfg:"tags=advanced help='join UDIM components'"`
+		BoundingBoxes             bool   `cfg:"tags=advanced help='export model bounding boxes'"`
+		NoBones                   bool   `cfg:"tags=advanced help='don\\'t include bones'"`
 	} `cfg:"tags=t:unit,t:geometry_group,t:prefab help='see unit options'"`
 	Animation struct {
 		Format string `cfg:"options=json,raw"`
