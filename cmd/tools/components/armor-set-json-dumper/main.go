@@ -6,10 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 
 	"github.com/jwalton/go-supportscolor"
@@ -155,28 +153,7 @@ func main() {
 		if len(stocky.Pieces) > 0 {
 			bodyTypes = append(bodyTypes, stocky)
 		}
-		passiveDescription := make([]string, 0)
-		for _, modifier := range armor.Passive.PassiveModifiers {
-			var desc string
-			switch modifier.ModifierType {
-			case datalib.ModifierTypeAdd:
-				desc = strings.ReplaceAll(modifier.Description, "#BONUS", fmt.Sprintf("%d", int(modifier.Value)))
-				desc = strings.ReplaceAll(desc, "#SIGN", "+")
-			case datalib.ModifierTypeMultiply:
-				percent := int(math.Round(math.Abs(float64(modifier.Value-1.0) * 100)))
-				desc = strings.ReplaceAll(modifier.Description, "#BONUS", fmt.Sprintf("%d%%", percent))
-				if math.Signbit(float64(modifier.Value - 1.0)) {
-					desc = strings.ReplaceAll(desc, "#SIGN", "-")
-				} else {
-					desc = strings.ReplaceAll(desc, "#SIGN", "+")
-				}
-			case datalib.ModifierTypeTime:
-				desc = strings.ReplaceAll(modifier.Description, "#BONUS", fmt.Sprintf("%.1f seconds", modifier.Value))
-			case datalib.ModifierTypeSet:
-				desc = modifier.Description
-			}
-			passiveDescription = append(passiveDescription, desc)
-		}
+		passiveDescription := armor.Passive.ResolveDescription()
 		result = append(result, SimpleHelldiverCustomizationKit{
 			Id:          armor.Id,
 			DlcId:       armor.DlcId,

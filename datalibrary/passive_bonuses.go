@@ -5,6 +5,8 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"math"
+	"strings"
 
 	"github.com/xypwn/filediver/stingray"
 )
@@ -38,6 +40,28 @@ type HelldiverCustomizationPassiveBonusModifier struct {
 	Description  string                                         `json:"description"`
 }
 
+func (modifier HelldiverCustomizationPassiveBonusModifier) ResolveDescription() string {
+	var desc string
+	switch modifier.ModifierType {
+	case ModifierTypeAdd:
+		desc = strings.ReplaceAll(modifier.Description, "#BONUS", fmt.Sprintf("%d", int(modifier.Value)))
+		desc = strings.ReplaceAll(desc, "#SIGN", "+")
+	case ModifierTypeMultiply:
+		percent := int(math.Round(math.Abs(float64(modifier.Value-1.0) * 100)))
+		desc = strings.ReplaceAll(modifier.Description, "#BONUS", fmt.Sprintf("%d%%", percent))
+		if math.Signbit(float64(modifier.Value - 1.0)) {
+			desc = strings.ReplaceAll(desc, "#SIGN", "-")
+		} else {
+			desc = strings.ReplaceAll(desc, "#SIGN", "+")
+		}
+	case ModifierTypeTime:
+		desc = strings.ReplaceAll(modifier.Description, "#BONUS", fmt.Sprintf("%.1f seconds", modifier.Value))
+	case ModifierTypeSet:
+		desc = modifier.Description
+	}
+	return desc
+}
+
 type HelldiverCustomizationStatModifier struct {
 	Stat      uint32  `json:"stat"`
 	UnkFloat1 float32 `json:"unkfloat1"`
@@ -62,6 +86,14 @@ type HelldiverCustomizationPassiveBonusSettings struct {
 	PassiveModifiers []HelldiverCustomizationPassiveBonusModifier `json:"passive_modifiers"`
 	StatModifiers    []HelldiverCustomizationStatModifier         `json:"stat_modifiers,omitempty"`
 	SomeString       string                                       `json:"some_string"`
+}
+
+func (passive *HelldiverCustomizationPassiveBonusSettings) ResolveDescription() []string {
+	passiveDescription := make([]string, 0)
+	for _, modifier := range passive.PassiveModifiers {
+		passiveDescription = append(passiveDescription, modifier.ResolveDescription())
+	}
+	return passiveDescription
 }
 
 func LoadPassiveBonusDefinitions(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookupStrings StringsLookup) (map[uint32]HelldiverCustomizationPassiveBonusSettings, error) {
