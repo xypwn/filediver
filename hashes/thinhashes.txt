@@ -24115,6 +24115,7 @@ ammocheck_stalwart
 ammocheck_laserrifle
 ammocheck_lasercannon
 ammocheck_recoilless
+ammocheck_grenade
 ammocheck_grenadelauncher
 ammocheck_grenadepistol
 ammocheck_railgun
