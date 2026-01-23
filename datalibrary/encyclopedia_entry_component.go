@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/xypwn/filediver/stingray"
 )
@@ -26,33 +27,40 @@ type EncyclopediaEntryComponent struct {
 }
 
 type SimpleEncyclopediaEntryComponent struct {
-	LocName               string `json:"loc_name"`
-	LocNamePlural         string `json:"loc_name_plural"`
-	LocNameUpper          string `json:"loc_name_upper"`
-	LocNameShort          string `json:"loc_name_short"`
-	LocNameShortUpper     string `json:"loc_name_short_upper"`
-	Description           string `json:"description"`
-	DescriptionUpper      string `json:"description_upper"`
-	DescriptionShort      string `json:"description_short"`
-	DescriptionShortUpper string `json:"description_short_upper"`
-	Prefix                string `json:"prefix"`
-	Fluff                 string `json:"fluff"`
+	LocName               string `json:"loc_name,omitempty"`
+	LocNamePlural         string `json:"loc_name_plural,omitempty"`
+	LocNameUpper          string `json:"loc_name_upper,omitempty"`
+	LocNameShort          string `json:"loc_name_short,omitempty"`
+	LocNameShortUpper     string `json:"loc_name_short_upper,omitempty"`
+	Description           string `json:"description,omitempty"`
+	DescriptionUpper      string `json:"description_upper,omitempty"`
+	DescriptionShort      string `json:"description_short,omitempty"`
+	DescriptionShortUpper string `json:"description_short_upper,omitempty"`
+	Prefix                string `json:"prefix,omitempty"`
+	Fluff                 string `json:"fluff,omitempty"`
 	Icon                  string `json:"icon"`
 }
 
 func (w EncyclopediaEntryComponent) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookupStrings StringsLookup) any {
+	emptyIfNotFound := func(stringId uint32) string {
+		toReturn := lookupStrings(stringId)
+		if strings.Contains(toReturn, "String ID not found") {
+			return ""
+		}
+		return toReturn
+	}
 	return SimpleEncyclopediaEntryComponent{
-		LocName:               lookupStrings(w.LocName),
-		LocNamePlural:         lookupStrings(w.LocNamePlural),
-		LocNameUpper:          lookupStrings(w.LocNameUpper),
-		LocNameShort:          lookupStrings(w.LocNameShort),
-		LocNameShortUpper:     lookupStrings(w.LocNameShortUpper),
-		Description:           lookupStrings(w.Description),
-		DescriptionUpper:      lookupStrings(w.DescriptionUpper),
-		DescriptionShort:      lookupStrings(w.DescriptionShort),
-		DescriptionShortUpper: lookupStrings(w.DescriptionShortUpper),
-		Prefix:                lookupStrings(w.Prefix),
-		Fluff:                 lookupStrings(w.Fluff),
+		LocName:               emptyIfNotFound(w.LocName),
+		LocNamePlural:         emptyIfNotFound(w.LocNamePlural),
+		LocNameUpper:          emptyIfNotFound(w.LocNameUpper),
+		LocNameShort:          emptyIfNotFound(w.LocNameShort),
+		LocNameShortUpper:     emptyIfNotFound(w.LocNameShortUpper),
+		Description:           emptyIfNotFound(w.Description),
+		DescriptionUpper:      emptyIfNotFound(w.DescriptionUpper),
+		DescriptionShort:      emptyIfNotFound(w.DescriptionShort),
+		DescriptionShortUpper: emptyIfNotFound(w.DescriptionShortUpper),
+		Prefix:                emptyIfNotFound(w.Prefix),
+		Fluff:                 emptyIfNotFound(w.Fluff),
 		Icon:                  lookupHash(w.Icon),
 	}
 }
