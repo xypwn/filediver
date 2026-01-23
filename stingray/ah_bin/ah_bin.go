@@ -1,12 +1,17 @@
 package ah_bin
 
 import (
+	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 
+	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/util"
 )
+
+var NotFound error = errors.New("did not find any ah_bin files")
 
 type BuildInfo struct {
 	Commit   string `json:"commit"`
@@ -107,4 +112,19 @@ func LoadBuildInfo(r io.Reader) (*BuildInfo, error) {
 		Second:   second,
 		BuildId:  buildId,
 	}, nil
+}
+
+func LoadFromDataDir(dataDir *stingray.DataDir) (*BuildInfo, error) {
+	ahBinType := stingray.Sum("ah_bin")
+	for fileId := range dataDir.Files {
+		if fileId.Type != ahBinType {
+			continue
+		}
+		ahBinData, err := dataDir.Read(fileId, stingray.DataMain)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read %v.ah_bin", fileId.Name.String())
+		}
+		return LoadBuildInfo(bytes.NewReader(ahBinData))
+	}
+	return nil, NotFound
 }

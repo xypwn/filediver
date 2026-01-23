@@ -8,11 +8,15 @@ import (
 	"github.com/qmuntal/gltf"
 	"github.com/xypwn/filediver/exec"
 	"github.com/xypwn/filediver/extractor/blend_helper"
+	"github.com/xypwn/filediver/stingray/ah_bin"
 )
 
-func CreateCloseableGltfDocument(outDir string, name string, formatBlend bool, runner *exec.Runner) (*gltf.Document, func(doc *gltf.Document) error) {
+func CreateCloseableGltfDocument(outDir string, name string, formatBlend bool, runner *exec.Runner, buildInfo *ah_bin.BuildInfo) (*gltf.Document, func(doc *gltf.Document) error) {
 	document := gltf.NewDocument()
 	document.Asset.Generator = "https://github.com/xypwn/filediver"
+	if buildInfo != nil {
+		document.Scenes[0].Extras = map[string]any{"Helldivers 2 Version": buildInfo.Version}
+	}
 	document.Samplers = append(document.Samplers, &gltf.Sampler{
 		MagFilter: gltf.MagLinear,
 		MinFilter: gltf.MinLinear,

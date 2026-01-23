@@ -581,7 +581,7 @@ Options:`)
 				default:
 					panic("unknown format: " + key)
 				}
-				doc, close := single_glb_helper.CreateCloseableGltfDocument(*optOutDir, name, formatBlend, runner)
+				doc, close := single_glb_helper.CreateCloseableGltfDocument(*optOutDir, name, formatBlend, runner, a.GameBuildInfo)
 				documents[key] = doc
 				documentsToClose = append(documentsToClose, func() error { return close(doc) })
 			}

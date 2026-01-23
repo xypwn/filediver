@@ -40,6 +40,9 @@ func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gl
 	if doc == nil {
 		doc = gltf.NewDocument()
 		doc.Asset.Generator = "https://github.com/xypwn/filediver"
+		if ctx.BuildInfo() != nil {
+			doc.Scenes[0].Extras = map[string]any{"Helldivers 2 Version": ctx.BuildInfo().Version}
+		}
 		doc.Samplers = append(doc.Samplers, &gltf.Sampler{
 			MagFilter: gltf.MagLinear,
 			MinFilter: gltf.MinLinear,
