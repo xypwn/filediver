@@ -13,6 +13,7 @@ import (
 	datalib "github.com/xypwn/filediver/datalibrary"
 	"github.com/xypwn/filediver/exec"
 	"github.com/xypwn/filediver/stingray"
+	"github.com/xypwn/filediver/stingray/ah_bin"
 )
 
 // Context is what's passed to the extractor when
@@ -27,6 +28,7 @@ type Context struct {
 	armorSets          map[stingray.Hash]datalib.ArmorSet
 	skinOverrideGroups []datalib.UnitSkinOverrideGroup
 	weaponPaintSchemes []datalib.WeaponCustomizableItem
+	gameBuildInfo      *ah_bin.BuildInfo
 	languageMap        map[uint32]string
 	dataDir            *stingray.DataDir
 	runner             *exec.Runner
@@ -54,6 +56,7 @@ func NewContext(
 	armorSets map[stingray.Hash]datalib.ArmorSet,
 	skinOverrideGroups []datalib.UnitSkinOverrideGroup,
 	weaponPaintSchemes []datalib.WeaponCustomizableItem,
+	gameBuildInfo *ah_bin.BuildInfo,
 	languageMap map[uint32]string,
 	dataDir *stingray.DataDir,
 	runner *exec.Runner,
@@ -69,6 +72,7 @@ func NewContext(
 		armorSets:          armorSets,
 		skinOverrideGroups: skinOverrideGroups,
 		weaponPaintSchemes: weaponPaintSchemes,
+		gameBuildInfo:      gameBuildInfo,
 		languageMap:        languageMap,
 		dataDir:            dataDir,
 		runner:             runner,
@@ -166,6 +170,10 @@ func (c *Context) ThinHashes() map[stingray.ThinHash]string {
 // LanguageMap returns a map of localization strings.
 func (c *Context) LanguageMap() map[uint32]string {
 	return c.languageMap
+}
+
+func (c *Context) BuildInfo() *ah_bin.BuildInfo {
+	return c.gameBuildInfo
 }
 
 // GuessFileArmorSet uses the selected archives (-t option)

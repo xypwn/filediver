@@ -23,6 +23,7 @@ import (
 	"github.com/xypwn/filediver/dds"
 	"github.com/xypwn/filediver/exec"
 	"github.com/xypwn/filediver/extractor"
+	extr_ah_bin "github.com/xypwn/filediver/extractor/ah_bin"
 	extr_animation "github.com/xypwn/filediver/extractor/animation"
 	extr_bik "github.com/xypwn/filediver/extractor/bik"
 	extr_bones "github.com/xypwn/filediver/extractor/bones"
@@ -37,6 +38,7 @@ import (
 	extr_wwise "github.com/xypwn/filediver/extractor/wwise"
 	"github.com/xypwn/filediver/steampath"
 	"github.com/xypwn/filediver/stingray"
+	"github.com/xypwn/filediver/stingray/ah_bin"
 	stingray_strings "github.com/xypwn/filediver/stingray/strings"
 	stingray_wwise "github.com/xypwn/filediver/stingray/wwise"
 	"github.com/xypwn/filediver/wwise"
@@ -114,6 +116,7 @@ type App struct {
 	DataDir            *stingray.DataDir
 	LanguageMap        map[uint32]string
 	Metadata           map[stingray.FileID]FileMetadata
+	GameBuildInfo      *ah_bin.BuildInfo
 }
 
 // Automatically gets most wwise-related hashes by reading the game files
@@ -338,6 +341,11 @@ func OpenGameDir(ctx context.Context, gameDir string, hashStrings []string, thin
 
 	mapping := stingray_strings.LoadLanguageMap(dataDir, language)
 
+	buildInfo, err := ah_bin.LoadFromDataDir(dataDir)
+	if err != nil && err != ah_bin.NotFound {
+		return nil, fmt.Errorf("error loading game build info: %v", err)
+	}
+
 	armorSets, err := datalib.LoadArmorSetDefinitions(mapping)
 	if err != nil {
 		return nil, fmt.Errorf("error loading armor set definitions: %v", err)
@@ -362,6 +370,7 @@ func OpenGameDir(ctx context.Context, gameDir string, hashStrings []string, thin
 		DataDir:            dataDir,
 		LanguageMap:        mapping,
 		Metadata:           getFileMetadata(dataDir),
+		GameBuildInfo:      buildInfo,
 	}, nil
 }
 
@@ -593,6 +602,8 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 			extr = extr_package.ExtractPackageJSON
 		case "bones":
 			extr = extr_bones.ExtractBonesJSON
+		case "ah_bin":
+			extr = extr_ah_bin.ExtractAhBinJSON
 		default:
 			extr = getSourceExtractFunc(extrCfg, typ)
 		}
@@ -610,6 +621,7 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 		a.ArmorSets,
 		a.SkinOverrideGroups,
 		a.WeaponPaintSchemes,
+		a.GameBuildInfo,
 		a.LanguageMap,
 		a.DataDir,
 		runner,

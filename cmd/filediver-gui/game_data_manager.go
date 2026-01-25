@@ -150,7 +150,7 @@ func (gd *GameData) GoExport(extractCtx context.Context, files []stingray.FileID
 				default:
 					panic("unknown format: " + key)
 				}
-				doc, close := single_glb_helper.CreateCloseableGltfDocument(outDir, name, formatBlend, runner)
+				doc, close := single_glb_helper.CreateCloseableGltfDocument(outDir, name, formatBlend, runner, gd.GameBuildInfo)
 				documents[key] = doc
 				documentsToClose = append(documentsToClose, func() error { return close(doc) })
 			}
