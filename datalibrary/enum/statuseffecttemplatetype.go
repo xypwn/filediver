@@ -1,0 +1,43 @@
+package enum
+
+type StatusEffectTemplateType uint32
+
+const (
+	StatusEffectTemplateType_None StatusEffectTemplateType = iota
+	StatusEffectTemplateType_Flamethrower
+	StatusEffectTemplateType_Barbwire
+	StatusEffectTemplateType_Fire
+	StatusEffectTemplateType_Acid_Splash
+	StatusEffectTemplateType_Acid_Stream
+	StatusEffectTemplateType_Water
+	StatusEffectTemplateType_Electric
+	StatusEffectTemplateType_NukeRadiation
+	StatusEffectTemplateType_Snow
+	StatusEffectTemplateType_Mud
+	StatusEffectTemplateType_Sand
+	StatusEffectTemplateType_Pure_Damage
+	StatusEffectTemplateType_Thornbush
+	StatusEffectTemplateType_Smoke
+	StatusEffectTemplateType_StaticField
+	StatusEffectTemplateType_Gas
+	StatusEffectTemplateType_Hidden
+	StatusEffectTemplateType_ExtremeCold
+	StatusEffectTemplateType_Value_19_Len_36
+	StatusEffectTemplateType_Freezing
+	StatusEffectTemplateType_Value_21_Len_37
+	StatusEffectTemplateType_Value_22_Len_39
+	StatusEffectTemplateType_Value_23_Len_34
+	StatusEffectTemplateType_Value_24_Len_34
+	StatusEffectTemplateType_Value_25_Len_33
+	StatusEffectTemplateType_Value_26_Len_34
+	StatusEffectTemplateType_Value_27_Len_34
+	StatusEffectTemplateType_Value_28_Len_34
+	StatusEffectTemplateType_Value_29_Len_29
+	StatusEffectTemplateType_Count
+)
+
+func (p StatusEffectTemplateType) MarshalText() ([]byte, error) {
+	return []byte(p.String()), nil
+}
+
+//go:generate go run golang.org/x/tools/cmd/stringer -type=StatusEffectTemplateType
