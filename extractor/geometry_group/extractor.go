@@ -76,7 +76,7 @@ func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gl
 		var skin *uint32 = nil
 		var parent *uint32 = nil
 		if bonesEnabled && len(unitInfo.Bones) > 2 {
-			skin = gltf.Index(extr_unit.AddSkeleton(ctx, doc, unitInfo, unitHash, nil))
+			skin = gltf.Index(extr_unit.AddSkeleton(ctx, doc, unitInfo, unitHash, nil, nil))
 			parent = doc.Skins[*skin].Skeleton
 		} else {
 			unitName := ctx.LookupHash(unitHash)
