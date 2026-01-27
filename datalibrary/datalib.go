@@ -17,6 +17,10 @@ import (
 	"github.com/xypwn/filediver/hashes"
 )
 
+//go:embed generated_arc_settings.dl_bin.gz
+var arcSettingsCompressed []byte
+var arcSettings []byte
+
 //go:embed generated_customization_armor_sets.dl_bin.gz
 var customizationArmorSetsCompressed []byte
 var customizationArmorSets []byte
@@ -86,6 +90,7 @@ func init() {
 	// Reduces binary size by ~33MB.
 	goDecompress(&entities, entitiesCompressed)
 	goDecompress(&entityDeltas, entityDeltasCompressed)
+	goDecompress(&arcSettings, arcSettingsCompressed)
 	goDecompress(&customizationArmorSets, customizationArmorSetsCompressed)
 	goDecompress(&customizationPassiveBonuses, customizationPassiveBonusesCompressed)
 	goDecompress(&unitCustomizationSettings, unitCustomizationSettingsCompressed)
@@ -357,6 +362,11 @@ type DLTypeLib struct {
 	DLTypeLibHeader `json:"header"`
 	Types           map[DLHash]DLTypeDesc `json:"types,omitempty"`
 	Enums           map[DLHash]DLEnumDesc `json:"enums,omitempty"`
+}
+
+type DLArray struct {
+	Offset int64
+	Count  uint64
 }
 
 var parsedTypelib *DLTypeLib = nil
