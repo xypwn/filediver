@@ -6882,3 +6882,5 @@ Group_State/Stop
 Ready
 Base/crawl/crawl
 Group_State/Primed_Enter
+content/fac_helldivers/equipment/throwables/energy_shield_grenade/energy_shield_grenade
+content/fac_helldivers/equipment/backpacks/belt_fed_grenade_launcher_backpack/belt_fed_grenade_launcher_backpack_hose
