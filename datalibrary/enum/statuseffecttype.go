@@ -9,24 +9,26 @@ const (
 	StatusEffectType_Deaf
 	StatusEffectType_Confusion
 	StatusEffectType_Fire
-	StatusEffectType_Value_6_Len_10
+	StatusEffectType_Value_6_Len_27
+	StatusEffectType_Value_7_Len_21
 	StatusEffectType_Slowed
 	StatusEffectType_Rooted
 	StatusEffectType_Acid_Splash
 	StatusEffectType_Acid_Stream
 	StatusEffectType_Thermite
 	StatusEffectType_Cyborg_Fire
-	StatusEffectType_Value_13_Len_6
+	StatusEffectType_Value_14_Len_23
 	StatusEffectType_Sand
 	StatusEffectType_Mud
 	StatusEffectType_Snow
 	StatusEffectType_Submerged
 	StatusEffectType_Thornbush
+	StatusEffectType_Value_20_Len_23
 	StatusEffectType_Barbwire
 	StatusEffectType_BushSmall
 	StatusEffectType_BushLarge
 	StatusEffectType_Pure_Damage
-	StatusEffectType_StimVisual
+	StatusEffectType_Value_25_Len_23
 	StatusEffectType_StimStamina
 	StatusEffectType_StimHeal
 	StatusEffectType_DownedStimHeal
@@ -43,31 +45,32 @@ const (
 	StatusEffectType_StunMassive
 	StatusEffectType_StunIlluminate
 	StatusEffectType_Gas
-	StatusEffectType_Value_40_Len_9
-	StatusEffectType_Value_41_Len_13
-	StatusEffectType_Value_42_Len_19
-	StatusEffectType_Value_43_Len_19
+	StatusEffectType_Value_42_Len_26
+	StatusEffectType_Value_43_Len_30
+	StatusEffectType_Value_44_Len_36
+	StatusEffectType_Value_45_Len_36
 	StatusEffectType_Flashlighted
 	StatusEffectType_Smoke_Covered
 	StatusEffectType_BackpackChemicals
 	StatusEffectType_IntenseHeat
 	StatusEffectType_ExtremeCold
-	StatusEffectType_Value_49_Len_6
-	StatusEffectType_Value_50_Len_9
-	StatusEffectType_Value_51_Len_9
-	StatusEffectType_Value_52_Len_9
-	StatusEffectType_Value_53_Len_8
-	StatusEffectType_Value_54_Len_9
-	StatusEffectType_Value_55_Len_9
-	StatusEffectType_Value_56_Len_9
-	StatusEffectType_Value_57_Len_10
-	StatusEffectType_Value_58_Len_17
-	StatusEffectType_Value_59_Len_19
-	StatusEffectType_Value_60_Len_19
-	StatusEffectType_Value_61_Len_19
-	StatusEffectType_Value_62_Len_12
-	StatusEffectType_Value_63_Len_28
-	StatusEffectType_Value_64_Len_19
+	StatusEffectType_Value_51_Len_23
+	StatusEffectType_Value_52_Len_26
+	StatusEffectType_Value_53_Len_26
+	StatusEffectType_Value_54_Len_26
+	StatusEffectType_Value_55_Len_25
+	StatusEffectType_Value_56_Len_26
+	StatusEffectType_Value_57_Len_26
+	StatusEffectType_Value_58_Len_26
+	StatusEffectType_Value_59_Len_27
+	StatusEffectType_Value_60_Len_34
+	StatusEffectType_Value_61_Len_36
+	StatusEffectType_Value_62_Len_36
+	StatusEffectType_Value_63_Len_36
+	StatusEffectType_Value_64_Len_29
+	StatusEffectType_Value_65_Len_45
+	StatusEffectType_Value_66_Len_36
+	StatusEffectType_Value_67_Len_25
 	StatusEffectType_Count
 )
 
