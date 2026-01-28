@@ -819,7 +819,7 @@ func (tok *InstructionToken) quintenaryOpGLSL(opType ShaderOpcodeType, cbs []Con
 
 	toReturn += fmt.Sprintf(
 		"%v = %v;",
-		tok.operands[0].ToGLSL(cbs, isg, osg, res, masks[0], true),
+		tok.operands[0].ToGLSL(cbs, isg, osg, res, masks[0], true, false),
 		expr,
 	)
 

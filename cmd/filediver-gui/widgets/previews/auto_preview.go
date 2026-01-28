@@ -156,10 +156,6 @@ func (pv *AutoPreview) LoadFile(ctx context.Context, fileID stingray.FileID, max
 	switch fileID.Type {
 	case stingray.Sum("unit"):
 		pv.activeType = AutoPreviewUnit
-		// if err := loadFiles(stingray.DataMain, stingray.DataGPU); err != nil {
-		// 	pv.err = err
-		// 	return
-		// }
 		if err := pv.previews.rawUnit.LoadUnit(
 			ctx, fileID,
 			pv.getResourceGenerator(true),
