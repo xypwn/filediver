@@ -6,7 +6,8 @@ const (
 	BeamType_None BeamType = iota
 	BeamType_LaserCannon
 	BeamType_BotTorch
-	BeamType_Medium_Focused
+	BeamType_ShoulderMountedCamera
+	BeamType_TripodEye_Wide
 	BeamType_Medium_Wide
 	BeamType_Medium
 	BeamType_ObserverEye
@@ -14,16 +15,19 @@ const (
 	BeamType_Small
 	BeamType_TripodEye
 	BeamType_PhysGun
-	BeamType_Unknown_Len_6
+	BeamType_Turret
 	BeamType_Large_Heavy
 	BeamType_Large_Light
-	BeamType_Large_Focused
-	BeamType_Large_Unfocused
+	BeamType_Value_15_Len_33
+	BeamType_Value_16_Len_22
+	BeamType_Wm_Cannon
+	BeamType_TripodEye_Heavy
 	BeamType_Large
-	BeamType_Unknown_Len_11
-	BeamType_Unknown_Len_15
+	BeamType_Drone_Laser
+	BeamType_Value_21_Len_24
 	BeamType_OutcastFlashbeamChargeup
-	BeamType_Unknown_Len_14
+	BeamType_Turret_Tactical
+	BeamType_Medium_Focused
 	BeamType_Count
 )
 

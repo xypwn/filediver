@@ -21,6 +21,10 @@ import (
 var arcSettingsCompressed []byte
 var arcSettings []byte
 
+//go:embed generated_beam_settings.dl_bin.gz
+var beamSettingsCompressed []byte
+var beamSettings []byte
+
 //go:embed generated_damage_settings.dl_bin.gz
 var damageSettingsCompressed []byte
 var damageSettings []byte
@@ -103,6 +107,7 @@ func init() {
 	goDecompress(&entities, entitiesCompressed)
 	goDecompress(&entityDeltas, entityDeltasCompressed)
 	goDecompress(&arcSettings, arcSettingsCompressed)
+	goDecompress(&beamSettings, beamSettingsCompressed)
 	goDecompress(&customizationArmorSets, customizationArmorSetsCompressed)
 	goDecompress(&customizationPassiveBonuses, customizationPassiveBonusesCompressed)
 	goDecompress(&damageSettings, damageSettingsCompressed)
