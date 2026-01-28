@@ -16,7 +16,8 @@ type DamageStatusEffectInfo struct {
 
 type rawDamageInfo struct {
 	Type                     enum.DamageInfoType
-	Damage                   [2]int32
+	Damage                   int32
+	DurableDamage            int32
 	ArmorPenetrationPerAngle [4]uint32
 	DemolitionStrength       uint32
 	ForceStrength            uint32
@@ -27,7 +28,8 @@ type rawDamageInfo struct {
 
 type DamageInfo struct {
 	Type                     enum.DamageInfoType      `json:"type"`
-	Damage                   []int32                  `json:"damage"`
+	Damage                   int32                    `json:"damage"`
+	DurableDamage            int32                    `json:"durable_damage"`
 	ArmorPenetrationPerAngle []uint32                 `json:"armor_penetration_per_angle"`
 	DemolitionStrength       uint32                   `json:"demolition_strength"`
 	ForceStrength            uint32                   `json:"force_strength"`
@@ -56,7 +58,8 @@ func (a rawDamageInfo) Resolve(lookupHash HashLookup, lookupThinHash ThinHashLoo
 	}
 	return DamageInfo{
 		Type:                     a.Type,
-		Damage:                   a.Damage[:],
+		Damage:                   a.Damage,
+		DurableDamage:            a.DurableDamage,
 		ArmorPenetrationPerAngle: a.ArmorPenetrationPerAngle[:],
 		DemolitionStrength:       a.DemolitionStrength,
 		ForceStrength:            a.ForceStrength,
