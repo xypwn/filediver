@@ -39,6 +39,7 @@ func main() {
 		"generated_customization_passive_bonuses.dl_bin",
 		"generated_damage_settings.dl_bin",
 		"generated_environment_settings.dl_bin",
+		"generated_explosion_settings.dl_bin",
 		"generated_projectile_settings.dl_bin",
 		"generated_unit_customization_settings.dl_bin",
 		"generated_weapon_customization_settings.dl_bin",

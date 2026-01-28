@@ -37,6 +37,10 @@ var projectileSettings []byte
 var environmentSettingsCompressed []byte
 var environmentSettings []byte
 
+//go:embed generated_explosion_settings.dl_bin.gz
+var explosionSettingsCompressed []byte
+var explosionSettings []byte
+
 //go:embed generated_customization_armor_sets.dl_bin.gz
 var customizationArmorSetsCompressed []byte
 var customizationArmorSets []byte
@@ -112,6 +116,7 @@ func init() {
 	goDecompress(&customizationPassiveBonuses, customizationPassiveBonusesCompressed)
 	goDecompress(&damageSettings, damageSettingsCompressed)
 	goDecompress(&environmentSettings, environmentSettingsCompressed)
+	goDecompress(&explosionSettings, explosionSettingsCompressed)
 	goDecompress(&projectileSettings, projectileSettingsCompressed)
 	goDecompress(&unitCustomizationSettings, unitCustomizationSettingsCompressed)
 	goDecompress(&weaponCustomizationSettings, weaponCustomizationSettingsCompressed)
