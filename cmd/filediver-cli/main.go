@@ -59,6 +59,7 @@ func main() {
 
 	// CLI options
 	var optList *bool
+	var optListArchives *bool
 	var optThinToFind *string
 	var optOutDir *string
 	var optInclGlob *string
@@ -76,6 +77,9 @@ func main() {
 	if argp, dontExit, err := cliHandleArgs(&cfg, func(argp *argparse.Parser) {
 		optList = argp.Flag("l", "list", &argparse.Option{
 			Help: "list all files without extracting anything; format: known_name.known_type, name_hash.type_hash <- archives...",
+		})
+		optListArchives = argp.Flag("la", "list-archives", &argparse.Option{
+			Help: "list all archives without extracting anything",
 		})
 		optThinToFind = argp.String("f", "find-thin", &argparse.Option{
 			Help: "search for given thinhash (bone or material) name and print the unit file(s) containing it, then exit",
@@ -254,7 +258,7 @@ Options:`)
 	var knownThinHashes []string
 	knownThinHashes = append(knownThinHashes, app.ParseHashes(hashes.ThinHashes)...)
 
-	if !(*optList || *optThinHashListMode != "none" || *optThinToFind != "") {
+	if !(*optList || *optListArchives || *optThinHashListMode != "none" || *optThinToFind != "") {
 		prt.Infof("Output directory: \"%v\"", *optOutDir)
 	}
 
@@ -337,6 +341,22 @@ Options:`)
 				id.Name.String(), id.Type.String(),
 				strings.Join(archiveIDStrings, ", "),
 			)
+		}
+	} else if *optListArchives {
+		archiveIDStrings := make(map[string]bool)
+		for _, id := range sortedFileIDs {
+			for _, file := range a.DataDir.Files[id] {
+				// Archive filenames are not 0x prefixed
+				archiveIDStrings[fmt.Sprintf("%016x", file.ArchiveID.Value)] = true
+			}
+		}
+		sortedArchiveIDStrings := make([]string, 0)
+		for id := range archiveIDStrings {
+			sortedArchiveIDStrings = append(sortedArchiveIDStrings, id)
+		}
+		slices.Sort(sortedArchiveIDStrings)
+		for _, id := range sortedArchiveIDStrings {
+			fmt.Printf("%v\n", id)
 		}
 	} else if *optThinHashListMode != "none" || *optThinToFind != "" {
 		knownBone := make(map[string]bool)
