@@ -665,29 +665,6 @@ func RawUnitPreview(name string, pv *RawUnitPreviewState, lookupHash func(stingr
 		},
 	)
 
-	nextPos := imgui.CursorScreenPos()
-	offsetY := imgui.Vec2{
-		X: 0,
-		Y: float32(len(pv.objects[pv.fileName].LODs))*imutils.CheckboxHeight() + imutils.S(10),
-	}
-	imgui.SetCursorScreenPos(nextPos.Sub(offsetY))
-	imgui.IndentV(imutils.S(10))
-	for idx := range pv.objects[pv.fileName].LODs {
-		name, ok := lookupThinHash(pv.objects[pv.fileName].LODs[idx].Name)
-		if !ok {
-			name = pv.objects[pv.fileName].LODs[idx].Name.String()
-		}
-		var vtxCount, idxCount uint32 = 0, 0
-		for _, group := range pv.objects[pv.fileName].LODs[idx].Groups {
-			vtxCount += group.NumVertices
-			idxCount += group.NumIndices
-		}
-		imgui.Checkbox(fmt.Sprintf("%v %v - %v vertices", fnt.I("Deployed_code"), name, vtxCount), &pv.objects[pv.fileName].LODs[idx].Enabled)
-	}
-	imgui.Unindent()
-
-	imgui.SetCursorScreenPos(nextPos)
-
 	if imgui.Button(fnt.I("Home")) {
 		pv.viewRotation = mgl32.Vec2{}
 		pv.zoomToFit = true
@@ -734,13 +711,13 @@ func RawUnitPreview(name string, pv *RawUnitPreviewState, lookupHash func(stingr
 	imgui.BeginDisabledV(pv.numUdims <= 1)
 	if imgui.Button("UDims Selection") {
 		imgui.OpenPopupStr("UDims")
-		imgui.SetNextWindowPos(viewPos.Sub(imutils.SVec2(120, 0)))
+		imgui.SetNextWindowPos(viewPos.Sub(imutils.SVec2(240, 0)))
+		imgui.SetNextWindowSize(imgui.NewVec2(imutils.S(240), viewSize.Y))
 	}
 	if pv.numUdims <= 1 {
 		imgui.SetItemTooltip("Mesh has no UDims")
 	}
 	imgui.EndDisabled()
-	imgui.SetNextWindowSize(imutils.SVec2(120, viewSize.Y))
 	if imgui.InternalBeginPopupEx(imgui.IDStr("UDims"), imgui.WindowFlagsNoTitleBar|imgui.WindowFlagsNoSavedSettings) {
 		if imgui.Button("Reset") {
 			pv.udimsSelected = pv.udimsShownDefault
@@ -822,6 +799,35 @@ Drag to toggle multiple items (right-click to cancel)`)
 			}
 		}
 	}
+
+	// LOD selection
+	imgui.SameLine()
+	imgui.BeginDisabledV(len(pv.objects[pv.fileName].LODs) <= 1)
+	if imgui.Button("Mesh Selection") {
+		imgui.OpenPopupStr("LODs")
+		imgui.SetNextWindowPos(viewPos.Sub(imutils.SVec2(240, 0)))
+		//imgui.SetNextWindowSize(imgui.NewVec2(imutils.S(240), viewSize.Y))
+	}
+	if len(pv.objects[pv.fileName].LODs) <= 1 {
+		imgui.SetItemTooltip("Unit has no LODs")
+	}
+	imgui.EndDisabled()
+	if imgui.InternalBeginPopupEx(imgui.IDStr("LODs"), imgui.WindowFlagsNoTitleBar|imgui.WindowFlagsNoSavedSettings) {
+		for idx := range pv.objects[pv.fileName].LODs {
+			name, ok := lookupThinHash(pv.objects[pv.fileName].LODs[idx].Name)
+			if !ok {
+				name = pv.objects[pv.fileName].LODs[idx].Name.String()
+			}
+			var vtxCount, idxCount uint32 = 0, 0
+			for _, group := range pv.objects[pv.fileName].LODs[idx].Groups {
+				vtxCount += group.NumVertices
+				idxCount += group.NumIndices
+			}
+			imgui.Checkbox(fmt.Sprintf("%v %v - %v vertices", fnt.I("Deployed_code"), name, vtxCount), &pv.objects[pv.fileName].LODs[idx].Enabled)
+		}
+		imgui.EndPopup()
+	}
+
 	pv.activeUDimListItem = nextActiveUDimListItem
 	pv.hoveredUDimListItem = nextHoveredUDimListItem
 
