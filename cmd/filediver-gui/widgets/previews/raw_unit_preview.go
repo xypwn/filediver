@@ -372,10 +372,11 @@ func (pv *RawUnitPreviewState) LoadUnit(ctx context.Context, fileID stingray.Fil
 				break
 			}
 		}
+		lodname, ok := thinhashes[bones[idx]]
 		lodInfo := rawUnitPreviewLOD{
 			Name:     bones[idx],
 			MeshInfo: meshInfos[idx],
-			Enabled:  true,
+			Enabled:  !ok || !strings.Contains(lodname, "culling"),
 			Matrix:   lodModelMatrix,
 		}
 		object.LODs = append(object.LODs, lodInfo)
@@ -384,6 +385,7 @@ func (pv *RawUnitPreviewState) LoadUnit(ctx context.Context, fileID stingray.Fil
 	pv.objects[fileID.Name.Value] = object
 	pv.fileName = fileID.Name.Value
 
+	pv.numUdims = 0
 	visibilityMasks, err := datalib.ParseVisibilityMasks()
 	if err != nil {
 		return err
@@ -400,6 +402,7 @@ func (pv *RawUnitPreviewState) LoadUnit(ctx context.Context, fileID stingray.Fil
 				name = info.Name.String()
 			}
 			pv.udimNames[info.Index] = name
+			pv.numUdims++
 		}
 	}
 	pv.udimsSelected = pv.udimsShownDefault
