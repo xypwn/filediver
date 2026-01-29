@@ -175,9 +175,11 @@ type LightArray struct {
 type MeshLayoutItemType uint32
 
 const (
-	ItemPosition   MeshLayoutItemType = 0
-	ItemNormal     MeshLayoutItemType = 1
-	ItemUVCoords   MeshLayoutItemType = 4
+	ItemPosition MeshLayoutItemType = iota
+	ItemNormal
+	ItemTangent
+	ItemBinormal
+	ItemUVCoords
 	ItemBoneIdx    MeshLayoutItemType = 6
 	ItemBoneWeight MeshLayoutItemType = 7
 )
