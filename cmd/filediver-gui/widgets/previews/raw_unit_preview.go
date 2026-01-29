@@ -300,14 +300,18 @@ func (pv *RawUnitPreviewState) LoadUnit(ctx context.Context, fileID stingray.Fil
 			return 0
 		case unit.ItemNormal:
 			return 1
+		case unit.ItemTangent:
+			return 2
+		case unit.ItemBinormal:
+			return 3
 		case unit.ItemUVCoords:
-			return 2 + (item.Layer << 4)
-		case unit.ItemBoneIdx:
-			return 3 + (item.Layer << 4)
-		case unit.ItemBoneWeight:
 			return 4 + (item.Layer << 4)
+		case unit.ItemBoneIdx:
+			return 5 + (item.Layer << 4)
+		case unit.ItemBoneWeight:
+			return 6 + (item.Layer << 4)
 		}
-		return 0
+		return 0xffffffff
 	}
 
 	getLayoutType := func(item unit.MeshLayoutItem) uint32 {
