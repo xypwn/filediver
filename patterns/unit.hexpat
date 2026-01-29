@@ -166,8 +166,11 @@ struct MeshGroupList {
 enum MeshLayoutItemType : u32 {
     Position,
     Normal,
-    UVCoords = 4,
-    BoneIdx = 6,
+    Tangent,
+    Binormal,
+    UVCoords,
+    Color,
+    BoneIdx,
     BoneWeight
 };
 
@@ -354,7 +357,7 @@ u32 MeshDataOffset = 4;
 
 fn calculateMeshDataOffset(u32 meshOffset) {
     while(
-        (meshOffset + MeshDataOffset) < std::mem::size() 
+        (meshOffset + MeshDataOffset) < std::mem::size()
         && std::mem::read_unsigned(meshOffset + MeshDataOffset, 1) == 0x00
     ) {
         MeshDataOffset = MeshDataOffset + 1;
