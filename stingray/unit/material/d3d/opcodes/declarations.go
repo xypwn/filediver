@@ -280,6 +280,184 @@ func (s *DclResource) ToGLSL(_ []ConstantBuffer, _, _ []Element, _ []ResourceBin
 	return toReturn + "\n"
 }
 
+type DclInputControlPointCount struct {
+	opcode uint32
+	data   []uint8
+}
+
+const CONTROL_POINT_COUNT_MASK uint32 = 0x0001f800
+const CONTROL_POINT_COUNT_SHIFT = 11
+
+func (i *DclInputControlPointCount) Count() uint8 {
+	return uint8((i.opcode & CONTROL_POINT_COUNT_MASK) >> CONTROL_POINT_COUNT_SHIFT)
+}
+
+func (i *DclInputControlPointCount) ToGLSL(_ []ConstantBuffer, _, _ []Element, _ []ResourceBinding) string {
+	return fmt.Sprintf("// Declare Input Control Point Count: %v\n", i.Count())
+}
+
+type DclOutputControlPointCount struct {
+	opcode uint32
+	data   []uint8
+}
+
+func (i *DclOutputControlPointCount) Count() uint8 {
+	return uint8((i.opcode & CONTROL_POINT_COUNT_MASK) >> CONTROL_POINT_COUNT_SHIFT)
+}
+
+func (i *DclOutputControlPointCount) ToGLSL(_ []ConstantBuffer, _, _ []Element, _ []ResourceBinding) string {
+	return fmt.Sprintf("// Declare Output Control Point Count: %v\n", i.Count())
+}
+
+type TESSELLATOR_DOMAIN uint8
+
+const (
+	TESSELLATOR_DOMAIN_UNDEFINED TESSELLATOR_DOMAIN = iota
+	TESSELLATOR_DOMAIN_ISOLINE
+	TESSELLATOR_DOMAIN_TRI
+	TESSELLATOR_DOMAIN_QUAD
+)
+
+func (i TESSELLATOR_DOMAIN) ToString() string {
+	switch i {
+	case TESSELLATOR_DOMAIN_UNDEFINED:
+		return "UNDEFINED"
+	case TESSELLATOR_DOMAIN_ISOLINE:
+		return "ISOLINE"
+	case TESSELLATOR_DOMAIN_TRI:
+		return "TRI"
+	case TESSELLATOR_DOMAIN_QUAD:
+		return "QUAD"
+	}
+	return "unknown tessellator domain"
+}
+
+type DclTessDomain struct {
+	opcode uint32
+	data   []uint8
+}
+
+const TESS_DOMAIN_MASK = 0x00001800
+const TESS_DOMAIN_SHIFT = 11
+
+func (i *DclTessDomain) TessellatorDomain() TESSELLATOR_DOMAIN {
+	return TESSELLATOR_DOMAIN((i.opcode & TESS_DOMAIN_MASK) >> TESS_DOMAIN_SHIFT)
+}
+
+func (i *DclTessDomain) ToGLSL(_ []ConstantBuffer, _, _ []Element, _ []ResourceBinding) string {
+	return fmt.Sprintf("// Declare Tesselator Domain: %v\n", i.TessellatorDomain().ToString())
+}
+
+type TESSELLATOR_PARTITIONING uint8
+
+const (
+	TESSELLATOR_PARTITIONING_UNDEFINED TESSELLATOR_PARTITIONING = iota
+	TESSELLATOR_PARTITIONING_INTEGER
+	TESSELLATOR_PARTITIONING_POW2
+	TESSELLATOR_PARTITIONING_FRACTIONAL_ODD
+	TESSELLATOR_PARTITIONING_FRACTIONAL_EVEN
+)
+
+func (i TESSELLATOR_PARTITIONING) ToString() string {
+	switch i {
+	case TESSELLATOR_PARTITIONING_UNDEFINED:
+		return "UNDEFINED"
+	case TESSELLATOR_PARTITIONING_INTEGER:
+		return "INTEGER"
+	case TESSELLATOR_PARTITIONING_POW2:
+		return "POW2"
+	case TESSELLATOR_PARTITIONING_FRACTIONAL_ODD:
+		return "FRACTIONAL_ODD"
+	case TESSELLATOR_PARTITIONING_FRACTIONAL_EVEN:
+		return "FRACTIONAL_EVEN"
+	}
+	return "unknown tessellator partitioning"
+}
+
+type DclTessPartitioning struct {
+	opcode uint32
+	data   []uint8
+}
+
+const TESS_PARTITIONING_MASK = 0x00003800
+const TESS_PARTITIONING_SHIFT = 11
+
+func (i *DclTessPartitioning) TessellatorPartitioning() TESSELLATOR_PARTITIONING {
+	return TESSELLATOR_PARTITIONING((i.opcode & TESS_PARTITIONING_MASK) >> TESS_PARTITIONING_SHIFT)
+}
+
+func (i *DclTessPartitioning) ToGLSL(_ []ConstantBuffer, _, _ []Element, _ []ResourceBinding) string {
+	return fmt.Sprintf("// Declare Tesselator Partitioning: %v\n", i.TessellatorPartitioning().ToString())
+}
+
+type TESSELLATOR_OUTPUT uint8
+
+const (
+	TESSELLATOR_OUTPUT_UNDEFINED TESSELLATOR_OUTPUT = iota
+	TESSELLATOR_OUTPUT_POINT
+	TESSELLATOR_OUTPUT_LINE
+	TESSELLATOR_OUTPUT_TRIANGLE_CW
+	TESSELLATOR_OUTPUT_TRIANGLE_CCW
+)
+
+func (i TESSELLATOR_OUTPUT) ToString() string {
+	switch i {
+	case TESSELLATOR_OUTPUT_UNDEFINED:
+		return "UNDEFINED"
+	case TESSELLATOR_OUTPUT_POINT:
+		return "INTEGER"
+	case TESSELLATOR_OUTPUT_LINE:
+		return "POW2"
+	case TESSELLATOR_OUTPUT_TRIANGLE_CW:
+		return "FRACTIONAL_ODD"
+	case TESSELLATOR_OUTPUT_TRIANGLE_CCW:
+		return "FRACTIONAL_EVEN"
+	}
+	return "unknown tessellator output"
+}
+
+type DclTessOutputPrimitive struct {
+	opcode uint32
+	data   []uint8
+}
+
+const TESS_OUTPUT_MASK = 0x00003800
+const TESS_OUTPUT_SHIFT = 11
+
+func (i *DclTessOutputPrimitive) TessellatorOutput() TESSELLATOR_OUTPUT {
+	return TESSELLATOR_OUTPUT((i.opcode & TESS_OUTPUT_MASK) >> TESS_OUTPUT_SHIFT)
+}
+
+func (i *DclTessOutputPrimitive) ToGLSL(_ []ConstantBuffer, _, _ []Element, _ []ResourceBinding) string {
+	return fmt.Sprintf("// Declare Tesselator Output Primitive: %v\n", i.TessellatorOutput().ToString())
+}
+
+type DclHSMaxTessFactor struct {
+	opcode uint32
+	data   []uint8
+}
+
+func (i *DclHSMaxTessFactor) ToGLSL(_ []ConstantBuffer, _, _ []Element, _ []ResourceBinding) string {
+	var factor float32
+	if _, err := binary.Decode(i.data, binary.LittleEndian, &factor); err != nil {
+		panic(err)
+	}
+	return fmt.Sprintf("// Declare Hull Shader Max Tesselator Factor: %v\n", factor)
+}
+
+type DclHSForkPhaseInstanceCount struct {
+	opcode uint32
+	data   []uint8
+}
+
+func (i *DclHSForkPhaseInstanceCount) ToGLSL(_ []ConstantBuffer, _, _ []Element, _ []ResourceBinding) string {
+	var count uint32
+	if _, err := binary.Decode(i.data, binary.LittleEndian, &count); err != nil {
+		panic(err)
+	}
+	return fmt.Sprintf("// Declare Hull Shader Fork Phase Instance Count: %v\n", count)
+}
+
 type INTERPOLATION_MODE uint8
 
 const (
@@ -313,6 +491,19 @@ func (i INTERPOLATION_MODE) ToString() string {
 		return "LINEAR_NOPERSPECTIVE_SAMPLE"
 	}
 	return "unknown interpolation mode"
+}
+
+type DclInput struct {
+	opcode uint32
+	data   []uint8
+}
+
+func (i *DclInput) ToGLSL(_ []ConstantBuffer, _, _ []Element, _ []ResourceBinding) string {
+	operand, err := ParseOperand(bytes.NewReader(i.data), ShaderOpcodeType(i.opcode&TYPE_MASK))
+	if err != nil {
+		panic(err)
+	}
+	return fmt.Sprintf("// Declare Input: v%v%v\n", operand.Indices[0].Value, operand.Swizzle())
 }
 
 type DclInputPS struct {
@@ -417,6 +608,66 @@ func (n NAME) ToString() string {
 
 const NAME_MASK = 0x0000ffff
 
+type DclInputSIV struct {
+	opcode uint32
+	data   []uint8
+}
+
+func (i *DclInputSIV) ToGLSL(_ []ConstantBuffer, _, _ []Element, _ []ResourceBinding) string {
+	r := bytes.NewReader(i.data)
+	operand, err := ParseOperand(r, ShaderOpcodeType(i.opcode&TYPE_MASK))
+	if err != nil {
+		panic(err)
+	}
+	var nameToken uint32
+	err = binary.Read(r, binary.LittleEndian, &nameToken)
+	if err != nil {
+		panic(err)
+	}
+	name := NAME(nameToken & NAME_MASK)
+	return fmt.Sprintf("// Declare Input SIV: v%v%v, %v\n", operand.Indices[0].Value, operand.Swizzle(), name.ToString())
+}
+
+type DclInputSGV struct {
+	opcode uint32
+	data   []uint8
+}
+
+func (i *DclInputSGV) ToGLSL(_ []ConstantBuffer, _, _ []Element, _ []ResourceBinding) string {
+	r := bytes.NewReader(i.data)
+	operand, err := ParseOperand(r, ShaderOpcodeType(i.opcode&TYPE_MASK))
+	if err != nil {
+		panic(err)
+	}
+	var nameToken uint32
+	err = binary.Read(r, binary.LittleEndian, &nameToken)
+	if err != nil {
+		panic(err)
+	}
+	name := NAME(nameToken & NAME_MASK)
+	return fmt.Sprintf("// Declare Input SGV: v%v%v, %v\n", operand.Indices[0].Value, operand.Swizzle(), name.ToString())
+}
+
+type DclInputPSSGV struct {
+	opcode uint32
+	data   []uint8
+}
+
+func (i *DclInputPSSGV) ToGLSL(_ []ConstantBuffer, _, _ []Element, _ []ResourceBinding) string {
+	r := bytes.NewReader(i.data)
+	operand, err := ParseOperand(r, ShaderOpcodeType(i.opcode&TYPE_MASK))
+	if err != nil {
+		panic(err)
+	}
+	var nameToken uint32
+	err = binary.Read(r, binary.LittleEndian, &nameToken)
+	if err != nil {
+		panic(err)
+	}
+	name := NAME(nameToken & NAME_MASK)
+	return fmt.Sprintf("// Declare Input Pixel Shader SGV: v%v%v, %v\n", operand.Indices[0].Value, operand.Swizzle(), name.ToString())
+}
+
 type DclInputPSSIV struct {
 	opcode uint32
 	data   []uint8
@@ -452,6 +703,45 @@ func (i *DclOutput) ToGLSL(_ []ConstantBuffer, _, _ []Element, _ []ResourceBindi
 		panic(err)
 	}
 	return fmt.Sprintf("// Declare Output: o%v%v\n", operand.Indices[0].Value, operand.Swizzle())
+}
+
+type DclOutputSIV struct {
+	opcode uint32
+	data   []uint8
+}
+
+func (i *DclOutputSIV) ToGLSL(_ []ConstantBuffer, _, _ []Element, _ []ResourceBinding) string {
+	r := bytes.NewReader(i.data)
+	operand, err := ParseOperand(r, ShaderOpcodeType(i.opcode&TYPE_MASK))
+	if err != nil {
+		panic(err)
+	}
+	var nameToken uint32
+	err = binary.Read(r, binary.LittleEndian, &nameToken)
+	if err != nil {
+		panic(err)
+	}
+	name := NAME(nameToken & NAME_MASK)
+	return fmt.Sprintf("// Declare Output SIV: o%v%v, %v\n", operand.Indices[0].Value, operand.Swizzle(), name.ToString())
+}
+
+type DclIndexRange struct {
+	opcode uint32
+	data   []uint8
+}
+
+func (i *DclIndexRange) ToGLSL(_ []ConstantBuffer, _, _ []Element, _ []ResourceBinding) string {
+	r := bytes.NewReader(i.data)
+	operand, err := ParseOperand(r, ShaderOpcodeType(i.opcode&TYPE_MASK))
+	if err != nil {
+		panic(err)
+	}
+	var count uint32
+	err = binary.Read(r, binary.LittleEndian, &count)
+	if err != nil {
+		panic(err)
+	}
+	return fmt.Sprintf("// Declare Index Range: reg %v%v, %v\n", operand.Indices[0].Value, operand.Swizzle(), count)
 }
 
 type DclTemps struct {
@@ -528,8 +818,63 @@ func ParseDeclaration(opcode uint32, data []uint8) (Opcode, error) {
 			opcode: opcode,
 			data:   data,
 		}, nil
+	case OPCODE_11_DCL_INPUT_CONTROL_POINT_COUNT:
+		return &DclInputControlPointCount{
+			opcode: opcode,
+			data:   data,
+		}, nil
+	case OPCODE_11_DCL_OUTPUT_CONTROL_POINT_COUNT:
+		return &DclOutputControlPointCount{
+			opcode: opcode,
+			data:   data,
+		}, nil
+	case OPCODE_11_DCL_TESS_DOMAIN:
+		return &DclTessDomain{
+			opcode: opcode,
+			data:   data,
+		}, nil
+	case OPCODE_11_DCL_TESS_PARTITIONING:
+		return &DclTessPartitioning{
+			opcode: opcode,
+			data:   data,
+		}, nil
+	case OPCODE_11_DCL_TESS_OUTPUT_PRIMITIVE:
+		return &DclTessOutputPrimitive{
+			opcode: opcode,
+			data:   data,
+		}, nil
+	case OPCODE_11_DCL_HS_MAX_TESSFACTOR:
+		return &DclHSMaxTessFactor{
+			opcode: opcode,
+			data:   data,
+		}, nil
+	case OPCODE_11_DCL_HS_FORK_PHASE_INSTANCE_COUNT:
+		return &DclHSForkPhaseInstanceCount{
+			opcode: opcode,
+			data:   data,
+		}, nil
+	case OPCODE_DCL_INPUT:
+		return &DclInput{
+			opcode: opcode,
+			data:   data,
+		}, nil
+	case OPCODE_DCL_INPUT_SGV:
+		return &DclInputSGV{
+			opcode: opcode,
+			data:   data,
+		}, nil
+	case OPCODE_DCL_INPUT_SIV:
+		return &DclInputSIV{
+			opcode: opcode,
+			data:   data,
+		}, nil
 	case OPCODE_DCL_INPUT_PS:
 		return &DclInputPS{
+			opcode: opcode,
+			data:   data,
+		}, nil
+	case OPCODE_DCL_INPUT_PS_SGV:
+		return &DclInputPSSGV{
 			opcode: opcode,
 			data:   data,
 		}, nil
@@ -540,6 +885,16 @@ func ParseDeclaration(opcode uint32, data []uint8) (Opcode, error) {
 		}, nil
 	case OPCODE_DCL_OUTPUT:
 		return &DclOutput{
+			opcode: opcode,
+			data:   data,
+		}, nil
+	case OPCODE_DCL_OUTPUT_SIV:
+		return &DclOutputSIV{
+			opcode: opcode,
+			data:   data,
+		}, nil
+	case OPCODE_DCL_INDEX_RANGE:
+		return &DclIndexRange{
 			opcode: opcode,
 			data:   data,
 		}, nil
@@ -554,5 +909,5 @@ func ParseDeclaration(opcode uint32, data []uint8) (Opcode, error) {
 			data:   data,
 		}, nil
 	}
-	return nil, fmt.Errorf("unimplemented declaration opcode")
+	return nil, fmt.Errorf("unimplemented declaration opcode %v", opType.ToString())
 }

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"math/bits"
 )
 
 type InstructionToken struct {
@@ -22,15 +23,61 @@ func (tok *InstructionToken) Saturate() bool {
 func (tok *InstructionToken) ToGLSL(cbs []ConstantBuffer, isg, osg []Element, res []ResourceBinding) string {
 	opType := ShaderOpcodeType(tok.opcode & TYPE_MASK)
 	switch len(tok.operands) {
+	case 0:
+		return tok.noParamsGLSL(opType, cbs, isg, osg, res)
+	case 1:
+		return tok.singleParamsGLSL(opType, cbs, isg, osg, res)
 	case 2:
 		return tok.unaryOpGLSL(opType, cbs, isg, osg, res)
 	case 3:
 		return tok.binaryOpGLSL(opType, cbs, isg, osg, res)
 	case 4:
 		return tok.trinaryOpGLSL(opType, cbs, isg, osg, res)
+	case 5:
+		return tok.quatenaryOpGLSL(opType, cbs, isg, osg, res)
 	default:
 		return fmt.Sprintf("// %v instruction not implemented! %v extensions, %v operands\n", opType.ToString(), len(tok.extensions), len(tok.operands))
 	}
+}
+
+func (tok *InstructionToken) noParamsGLSL(opType ShaderOpcodeType, cbs []ConstantBuffer, isg, osg []Element, res []ResourceBinding) string {
+	toReturn := fmt.Sprintf("// No Param Op %v\n", opType.ToString())
+
+	switch opType {
+	case OPCODE_LOOP:
+		toReturn += "while(true) {\n"
+	case OPCODE_ENDLOOP, OPCODE_ENDIF:
+		toReturn += "}\n"
+	case OPCODE_BREAK:
+		toReturn += "break;\n"
+	case OPCODE_RET:
+		toReturn += "return;\n"
+	case OPCODE_ELSE:
+		toReturn += "} else {\n"
+	default:
+		toReturn += "// Not implemented!\n"
+	}
+	return toReturn
+}
+
+func (tok *InstructionToken) singleParamsGLSL(opType ShaderOpcodeType, cbs []ConstantBuffer, isg, osg []Element, res []ResourceBinding) string {
+	toReturn := fmt.Sprintf("// Single Param Op %v\n", opType.ToString())
+
+	switch opType {
+	case OPCODE_BREAKC:
+		toReturn += fmt.Sprintf(
+			"if (bool(%v)) { break; }\n",
+			tok.operands[0].ToGLSL(cbs, isg, osg, res, tok.operands[0].Mask(), false),
+		)
+	case OPCODE_IF:
+		toReturn += fmt.Sprintf(
+			"if (bool(%v)) {\n",
+			tok.operands[0].ToGLSL(cbs, isg, osg, res, tok.operands[0].Mask(), false),
+		)
+	default:
+		toReturn += "// Not implemented!\n"
+	}
+	return toReturn
 }
 
 func (tok *InstructionToken) unaryOpGLSL(opType ShaderOpcodeType, cbs []ConstantBuffer, isg, osg []Element, res []ResourceBinding) string {
@@ -147,6 +194,11 @@ func (tok *InstructionToken) unaryOpGLSL(opType ShaderOpcodeType, cbs []Constant
 			operand,
 			operand,
 		)
+	case OPCODE_INEG:
+		expr = fmt.Sprintf(
+			"-%v",
+			tok.operands[1].ToGLSL(cbs, isg, osg, res, masks[1], false),
+		)
 	default:
 		expr = fmt.Sprintf(
 			"%v /* Unimplemented */",
@@ -220,18 +272,102 @@ func (tok *InstructionToken) binaryOpGLSL(opType ShaderOpcodeType, cbs []Constan
 	case OPCODE_LD:
 		// ld dest[.mask], srcAddress[.swizzle], srcResource[.swizzle]
 		// gvec texelFetch(gsampler sampler​, ivec texCoord);
-		expr = fmt.Sprintf(
-			"texelFetch(%v, floatBitsToInt(%v))%v",
-			tok.operands[2].ToGLSL(cbs, isg, osg, res, 0x0, true),
-			tok.operands[1].ToGLSL(cbs, isg, osg, res, masks[1], true),
-			tok.operands[2].SwizzleMask(masks[2]),
-		)
+
+		rb := tok.operands[2].ResourceBinding(res)
+		if rb == nil {
+			panic(fmt.Errorf("ld operand 2 must be a resource binding"))
+		}
+		dim := rb.ViewDimension.Dimensions()
+		if dim < 1 {
+			panic(fmt.Errorf("ld operand 2 must be a known resource binding"))
+		}
+
+		switch rb.ViewDimension {
+		case BUFFER:
+			expr = fmt.Sprintf(
+				"texelFetch(%v, floatBitsToInt(%v))%v",
+				tok.operands[2].ToGLSL(cbs, isg, osg, res, 0x0, true),
+				tok.operands[1].ToGLSL(cbs, isg, osg, res, (1<<dim)-1, true),
+				tok.operands[2].SwizzleMask(masks[2]),
+			)
+		default:
+			expr = fmt.Sprintf(
+				"texelFetch(%v, floatBitsToInt(%v), 0)%v",
+				tok.operands[2].ToGLSL(cbs, isg, osg, res, 0x0, true),
+				tok.operands[1].ToGLSL(cbs, isg, osg, res, (1<<dim)-1, true),
+				tok.operands[2].SwizzleMask(masks[2]),
+			)
+		}
 	case OPCODE_RESINFO:
 		expr = fmt.Sprintf(
 			"textureSize(%v, %v)%v",
 			tok.operands[2].ToGLSL(cbs, isg, osg, res, 0x0, true),
 			tok.operands[1].ToGLSL(cbs, isg, osg, res, masks[1], true),
 			tok.operands[2].SwizzleMask(masks[2]),
+		)
+	case OPCODE_GE, OPCODE_UGE, OPCODE_IGE:
+		if bits.OnesCount8(masks[0]) == 1 {
+			expr = fmt.Sprintf(
+				"intBitsToFloat(int(%v %v %v))",
+				tok.operands[1].ToGLSL(cbs, isg, osg, res, masks[1], false),
+				opType.ToOperator(),
+				tok.operands[2].ToGLSL(cbs, isg, osg, res, masks[2], false),
+			)
+			break
+		}
+		expr = fmt.Sprintf(
+			"intBitsToFloat(ivec%v(greaterThanEqual(%v, %v)))",
+			bits.OnesCount8(masks[0]),
+			tok.operands[1].ToGLSL(cbs, isg, osg, res, masks[1], false),
+			tok.operands[2].ToGLSL(cbs, isg, osg, res, masks[2], false),
+		)
+	case OPCODE_LT, OPCODE_ULT, OPCODE_ILT:
+		if bits.OnesCount8(masks[0]) == 1 {
+			expr = fmt.Sprintf(
+				"intBitsToFloat(int(%v %v %v))",
+				tok.operands[1].ToGLSL(cbs, isg, osg, res, masks[1], false),
+				opType.ToOperator(),
+				tok.operands[2].ToGLSL(cbs, isg, osg, res, masks[2], false),
+			)
+			break
+		}
+		expr = fmt.Sprintf(
+			"intBitsToFloat(ivec%v(lessThan(%v, %v)))",
+			bits.OnesCount8(masks[0]),
+			tok.operands[1].ToGLSL(cbs, isg, osg, res, masks[1], false),
+			tok.operands[2].ToGLSL(cbs, isg, osg, res, masks[2], false),
+		)
+	case OPCODE_EQ, OPCODE_IEQ:
+		if bits.OnesCount8(masks[0]) == 1 {
+			expr = fmt.Sprintf(
+				"intBitsToFloat(int(%v %v %v))",
+				tok.operands[1].ToGLSL(cbs, isg, osg, res, masks[1], false),
+				opType.ToOperator(),
+				tok.operands[2].ToGLSL(cbs, isg, osg, res, masks[2], false),
+			)
+			break
+		}
+		expr = fmt.Sprintf(
+			"intBitsToFloat(ivec%v(equal(%v, %v)))",
+			bits.OnesCount8(masks[0]),
+			tok.operands[1].ToGLSL(cbs, isg, osg, res, masks[1], false),
+			tok.operands[2].ToGLSL(cbs, isg, osg, res, masks[2], false),
+		)
+	case OPCODE_NE, OPCODE_INE:
+		if bits.OnesCount8(masks[0]) == 1 {
+			expr = fmt.Sprintf(
+				"intBitsToFloat(int(%v %v %v))",
+				tok.operands[1].ToGLSL(cbs, isg, osg, res, masks[1], false),
+				opType.ToOperator(),
+				tok.operands[2].ToGLSL(cbs, isg, osg, res, masks[2], false),
+			)
+			break
+		}
+		expr = fmt.Sprintf(
+			"intBitsToFloat(ivec%v(notEqual(%v, %v)))",
+			bits.OnesCount8(masks[0]),
+			tok.operands[1].ToGLSL(cbs, isg, osg, res, masks[1], false),
+			tok.operands[2].ToGLSL(cbs, isg, osg, res, masks[2], false),
 		)
 	default:
 		expr = fmt.Sprintf(
@@ -320,8 +456,25 @@ func (tok *InstructionToken) trinaryOpGLSL(opType ShaderOpcodeType, cbs []Consta
 			tok.operands[2].ToGLSL(cbs, isg, osg, res, masks[2], false),
 			tok.operands[3].ToGLSL(cbs, isg, osg, res, masks[3], false),
 		)
-	//case OPCODE_SAMPLE:
+	case OPCODE_SAMPLE:
+		// sample dest[.mask], srcAddress[.swizzle], srcResource[.swizzle], srcSampler
+		// gvec texelFetch(gsampler sampler​, ivec texCoord);
 
+		rb := tok.operands[2].ResourceBinding(res)
+		if rb == nil {
+			panic(fmt.Errorf("sample operand 2 must be a resource binding"))
+		}
+		dim := rb.ViewDimension.Dimensions()
+		if dim < 1 {
+			panic(fmt.Errorf("sample operand 2 must be a known resource binding"))
+		}
+
+		expr = fmt.Sprintf(
+			"texture(%v, %v)%v",
+			tok.operands[2].ToGLSL(cbs, isg, osg, res, 0x0, true),
+			tok.operands[1].ToGLSL(cbs, isg, osg, res, (1<<dim)-1, true),
+			tok.operands[2].SwizzleMask(masks[2]),
+		)
 	default:
 		expr = fmt.Sprintf(
 			"%v %v %v /* Unimplemented */",
@@ -334,21 +487,13 @@ func (tok *InstructionToken) trinaryOpGLSL(opType ShaderOpcodeType, cbs []Consta
 	if tok.Saturate() {
 		expr = fmt.Sprintf("clamp(%v, 0.0, 1.0)", expr)
 	}
-	if opType.ReturnNumberType() != internalNumberTypeFloat {
-		expr = fmt.Sprintf("%v(%v)", opType.ReturnNumberType().BitcastToFloat(), expr)
+	returnNumberType := opType.ReturnNumberType()
+	if opType == OPCODE_SAMPLE {
+		rb := tok.operands[2].ResourceBinding(res)
+		returnNumberType = rb.ReturnType.ToOpcodeNumberType()
 	}
-
-	toReturn += fmt.Sprintf(
-		"%v = %v;",
-		tok.operands[0].ToGLSL(cbs, isg, osg, res, masks[0], true),
-		expr,
-	)
-
-	if tok.Saturate() {
-		expr = fmt.Sprintf("clamp(%v, 0.0, 1.0)", expr)
-	}
-	if opType.ReturnNumberType() != internalNumberTypeFloat {
-		expr = fmt.Sprintf("%v(%v)", opType.ReturnNumberType().BitcastToFloat(), expr)
+	if returnNumberType != internalNumberTypeFloat {
+		expr = fmt.Sprintf("%v(%v)", returnNumberType.BitcastToFloat(), expr)
 	}
 
 	toReturn += fmt.Sprintf(
@@ -358,6 +503,50 @@ func (tok *InstructionToken) trinaryOpGLSL(opType ShaderOpcodeType, cbs []Consta
 	)
 
 	return toReturn + "\n"
+}
+
+var EncounteredBFI = false
+
+func (tok *InstructionToken) quatenaryOpGLSL(opType ShaderOpcodeType, cbs []ConstantBuffer, isg, osg []Element, res []ResourceBinding) string {
+	toReturn := fmt.Sprintf("// Quatenary Op %v\n", opType.ToString())
+	masks := [5]uint8{tok.operands[0].Mask(), tok.operands[0].Mask(), tok.operands[0].Mask(), tok.operands[0].Mask(), tok.operands[0].Mask()}
+	//var expr string
+	switch opType {
+	case OPCODE_11_BFI:
+		if !EncounteredBFI {
+			EncounteredBFI = true
+			toReturn += "uvec4 bitmask;\n"
+		}
+		if bits.OnesCount8(masks[0]) == 1 {
+			toReturn += fmt.Sprintf(
+				"bitmask.x = (((1 << %v)-1) << %v) & 0xffffffff;\n%v = ((%v << %v) & bitmask.x) | (%v & ~bitmask.x);\n",
+				tok.operands[1].ToGLSL(cbs, isg, osg, res, masks[1], false),
+				tok.operands[2].ToGLSL(cbs, isg, osg, res, masks[2], false),
+				tok.operands[0].ToGLSL(cbs, isg, osg, res, masks[0], true),
+				tok.operands[3].ToGLSL(cbs, isg, osg, res, masks[3], false),
+				tok.operands[2].ToGLSL(cbs, isg, osg, res, masks[2], false),
+				tok.operands[4].ToGLSL(cbs, isg, osg, res, masks[4], false),
+			)
+			break
+		}
+		bitmaskSwizzle := "xyzw"[:bits.OnesCount8(masks[0])]
+		toReturn += fmt.Sprintf(
+			"bitmask.%v = (((uvec%v(1) << %v)-uvec%v(1)) << %v) & 0xffffffff;\n%v = ((%v << %v) & bitmask.%v) | (%v & ~bitmask.%v);\n",
+			bitmaskSwizzle,
+			bits.OnesCount8(masks[0]),
+			tok.operands[1].ToGLSL(cbs, isg, osg, res, masks[1], false),
+			bits.OnesCount8(masks[0]),
+			tok.operands[2].ToGLSL(cbs, isg, osg, res, masks[2], false),
+			tok.operands[0].ToGLSL(cbs, isg, osg, res, masks[0], true),
+			tok.operands[3].ToGLSL(cbs, isg, osg, res, masks[3], false),
+			tok.operands[2].ToGLSL(cbs, isg, osg, res, masks[2], false),
+			bitmaskSwizzle,
+			tok.operands[4].ToGLSL(cbs, isg, osg, res, masks[4], false),
+			bitmaskSwizzle,
+		)
+	}
+
+	return toReturn
 }
 
 func ParseInstruction(opcode uint32, data []uint8) (Opcode, error) {

@@ -229,6 +229,19 @@ struct RDEF {
 };
 
 struct Element {
+    //u32 unk0;
+    string *name : u32 [[pointer_base("relative_to_parents_parents_parent")]];
+    u32 semantic_index;
+    u32 system_value_type;
+    u32 component_type;
+    u32 register;
+    u8 mask;
+    u8 rw_mask;
+    padding[2];
+    //u32 unk1;
+};
+
+struct OldElement {
     u32 unk0;
     string *name : u32 [[pointer_base("relative_to_parents_parents_parent")]];
     u32 semantic_index;
@@ -246,14 +259,19 @@ struct ISGN {
     List<Element, element_count> *elements : u32 [[pointer_base("relative_to_parent")]];
 };
 
-struct ISG1 {
+struct OSGN {
     u32 element_count;
     List<Element, element_count> *elements : u32 [[pointer_base("relative_to_parent")]];
 };
 
+struct ISG1 {
+    u32 element_count;
+    List<OldElement, element_count> *elements : u32 [[pointer_base("relative_to_parent")]];
+};
+
 struct OSG1 {
     u32 element_count;
-    List<Element, element_count> *elements : u32 [[pointer_base("relative_to_parent")]];
+    List<OldElement, element_count> *elements : u32 [[pointer_base("relative_to_parent")]];
 };
 
 enum D3D10_SB_TOKENIZED_PROGRAM_TYPE : u16 {
@@ -627,6 +645,9 @@ struct Part {
     } else if(header.name == "OSG1") {
         OSG1 data;
         padding[header.size - sizeof(data)];
+    } else if(header.name == "OSGN") {
+        OSGN data;
+        padding[header.size - sizeof(data)];
     } else if(header.name == "SHEX") {
         SHEX data;
         padding[header.size - sizeof(data)];
@@ -644,5 +665,4 @@ struct DXBC {
     Pointer<Part> parts[header.parts];
 };
 
-DXBC dxbc @0x9ed90;
-DXBC dxbc2 @0xbcfa0;
+DXBC dxbc @0x0;
