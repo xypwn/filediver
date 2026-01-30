@@ -4,7 +4,8 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"strconv"
+	"math"
+	"strings"
 )
 
 type OPERAND_NUM_COMPONENTS uint8
@@ -603,20 +604,20 @@ func ParseOperand(r io.Reader, parent ShaderOpcodeType) (*Operand, error) {
 	if err != nil {
 		return nil, fmt.Errorf("no operand present")
 	}
-	fmt.Printf("Read operand token 0 %v\n", strconv.FormatUint(uint64(operand.Token), 2))
+	//fmt.Printf("Read operand token 0 %v\n", strconv.FormatUint(uint64(operand.Token), 2))
 
 	if operand.Extended() {
 		err = binary.Read(r, binary.LittleEndian, &extOperand)
 		if err != nil {
 			return nil, fmt.Errorf("operand token 0 marked as extended, but no extended token was present")
 		}
-		fmt.Printf("Read operand token 1 %v\n", strconv.FormatUint(uint64(extOperand.Token), 2))
+		//fmt.Printf("Read operand token 1 %v\n", strconv.FormatUint(uint64(extOperand.Token), 2))
 	}
 
 	indices := make([]OperandIndex, 0)
 	for i := uint8(0); i < uint8(operand.IndexDimension()); i++ {
 		repr := operand.IndexRepresentation(i)
-		fmt.Printf("Operand index %v - representation %v\n", i, repr.ToString())
+		//fmt.Printf("Operand index %v - representation %v\n", i, repr.ToString())
 		var value uint64
 		var register *Operand
 		switch repr {
@@ -787,11 +788,29 @@ func (o *Operand) ToString() string {
 			toReturn += fmt.Sprintf(" *   %v: %v\n", i, val)
 		}
 	default:
-		toReturn += " *   None\n"
+		toReturn += fmt.Sprintf(" *   None %v\n", o.parentOpcode.ToString())
 	}
 	toReturn += " */\n"
 
 	return toReturn + "\n"
+}
+
+func (o *Operand) ResourceBinding(res []ResourceBinding) *ResourceBinding {
+	operandType := o.OperandToken0.Type()
+	if operandType != OPERAND_TYPE_RESOURCE {
+		return nil
+	}
+	var rb *ResourceBinding
+	for i := range res {
+		if res[i].InputType != TEXTURE {
+			continue
+		}
+		if res[i].BindPoint == uint32(o.Indices[0].Value) {
+			rb = &res[i]
+			break
+		}
+	}
+	return rb
 }
 
 func (o *Operand) ToGLSL(cbs []ConstantBuffer, isg, osg []Element, res []ResourceBinding, mask uint8, isResult bool) string {
@@ -817,13 +836,21 @@ func (o *Operand) ToGLSL(cbs []ConstantBuffer, isg, osg []Element, res []Resourc
 		case internalNumberTypeDouble:
 			imm, _ := o.GetImmediateDouble()
 			if len(imm) == 1 {
-				immediate += fmt.Sprintf("%.6f", imm[0])
+				if math.IsNaN(imm[0]) {
+					immediate += "uintBitsToFloat(0xFFC00000u)"
+				} else {
+					immediate += fmt.Sprintf("%.6f", imm[0])
+				}
 			} else {
 				for i, val := range imm {
 					if mask&(1<<i) == 0 {
 						continue
 					}
-					immediate += fmt.Sprintf("%.6f", val)
+					if math.IsNaN(val) {
+						immediate += "uintBitsToFloat(0xFFC00000u)"
+					} else {
+						immediate += fmt.Sprintf("%.6f", val)
+					}
 					added += 1
 					if i+1 < len(imm) && added < maskCount {
 						immediate += ", "
@@ -833,13 +860,21 @@ func (o *Operand) ToGLSL(cbs []ConstantBuffer, isg, osg []Element, res []Resourc
 		case internalNumberTypeFloat, internalNumberTypeUnknown:
 			imm, _ := o.GetImmediateFloat()
 			if len(imm) == 1 {
-				immediate += fmt.Sprintf("%.6f", imm[0])
+				if math.IsNaN(float64(imm[0])) {
+					immediate += "uintBitsToFloat(0xFFC00000u)"
+				} else {
+					immediate += fmt.Sprintf("%.6f", imm[0])
+				}
 			} else {
 				for i, val := range imm {
 					if mask&(1<<i) == 0 {
 						continue
 					}
-					immediate += fmt.Sprintf("%.6f", val)
+					if math.IsNaN(float64(val)) {
+						immediate += "uintBitsToFloat(0xFFC00000u)"
+					} else {
+						immediate += fmt.Sprintf("%.6f", val)
+					}
 					added += 1
 					if i+1 < len(imm) && added < maskCount {
 						immediate += ", "
@@ -894,17 +929,21 @@ func (o *Operand) ToGLSL(cbs []ConstantBuffer, isg, osg []Element, res []Resourc
 			panic("x swizzle should be set for constant buffer operand")
 		}
 		offset := uint32(o.Indices[1].Value*16) + uint32(swizzle[0])*4
-		variable, err := cbs[o.Indices[0].Value].VariableFromOffset(offset)
+		variable, index, err := cbs[o.Indices[0].Value].VariableFromOffset(offset)
 		if err != nil {
 			panic(err)
 		}
-		toReturn = variable.Name + variable.SwizzleFromSrc(swizzle, mask)
+		if variable.Class.GLSLClass() == "mat" {
+			toReturn = variable.Name + fmt.Sprintf("[%v]", index) + variable.SwizzleFromSrc(swizzle, mask)
+		} else {
+			toReturn = variable.Name + variable.SwizzleFromSrc(swizzle, mask)
+		}
 	} else if operandType == OPERAND_TYPE_IMMEDIATE_CONSTANT_BUFFER {
 		toReturn = fmt.Sprintf("%v[floatBitsToInt(%v)]%v", operandType.ToGLSL(), o.Indices[0].ToGLSL(cbs, isg, osg, res, mask, true), o.SwizzleMask(mask))
 	} else if operandType == OPERAND_TYPE_INPUT {
-		toReturn = fmt.Sprintf("%v%v", isg[o.Indices[0].Value].NameWithIndex(), o.SwizzleMask(mask))
+		toReturn = fmt.Sprintf("%v%v", isg[o.Indices[0].Value].NameWithIndex(true), o.SwizzleMask(mask))
 	} else if operandType == OPERAND_TYPE_OUTPUT {
-		toReturn = fmt.Sprintf("%v%v", osg[o.Indices[0].Value].NameWithIndex(), o.SwizzleMask(mask))
+		toReturn = fmt.Sprintf("%v%v", osg[o.Indices[0].Value].NameWithIndex(false), o.SwizzleMask(mask))
 	} else if operandType == OPERAND_TYPE_RESOURCE {
 		var rb *ResourceBinding
 		for i := range res {
@@ -919,7 +958,7 @@ func (o *Operand) ToGLSL(cbs []ConstantBuffer, isg, osg []Element, res []Resourc
 		if rb == nil {
 			return fmt.Sprintf("resource binding %v not found", o.Indices[0].Value)
 		}
-		return rb.Name
+		return strings.TrimLeft(rb.Name, "_")
 	} else if operandType == OPERAND_TYPE_NULL {
 		return "null"
 	} else {

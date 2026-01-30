@@ -336,21 +336,21 @@ type ConstantBuffer struct {
 	Type      ConstantBufferType
 }
 
-func (cb *ConstantBuffer) VariableFromOffset(offset uint32) (*Variable, error) {
+func (cb *ConstantBuffer) VariableFromOffset(offset uint32) (*Variable, uint32, error) {
 	if offset >= cb.Size {
-		return nil, fmt.Errorf("offset out of range")
+		return nil, 0, fmt.Errorf("offset out of range")
 	}
 	for i, variable := range cb.Variables {
 		if variable.BufferOffset == offset || i+1 == len(cb.Variables) {
-			return &cb.Variables[i], nil
+			return &cb.Variables[i], (offset - variable.BufferOffset) / 16, nil
 		}
 		nextVar := cb.Variables[i+1]
 		if nextVar.BufferOffset <= offset {
 			continue
 		}
-		return &cb.Variables[i], nil
+		return &cb.Variables[i], (offset - variable.BufferOffset) / 16, nil
 	}
-	return nil, fmt.Errorf("should be unreachable")
+	return nil, 0, fmt.Errorf("should be unreachable")
 }
 
 type SystemValueType uint32
@@ -474,31 +474,30 @@ type Element struct {
 }
 
 func (e Element) ToGLSL(isInput bool) string {
-	var result string
+	direction := "out"
 	if isInput {
-		result = fmt.Sprintf("layout(location = %v) in ", e.Register)
-	} else {
-		result = "out "
+		direction = "in"
 	}
+	result := fmt.Sprintf("layout(location = %v) %v ", e.Register, direction)
 
 	switch e.Mask {
 	case 0x1:
 		result += e.ComponentType.GLSLType()
-	case 0x3:
+	case 0x2, 0x3:
 		result += fmt.Sprintf("%vvec2", e.ComponentType.GLSLPrefix())
-	case 0x7:
+	case 0x4, 0x5, 0x6, 0x7:
 		result += fmt.Sprintf("%vvec3", e.ComponentType.GLSLPrefix())
-	case 0xF:
+	case 0x8, 0x9, 0xA, 0xB, 0xC, 0xD, 0xE, 0xF:
 		result += fmt.Sprintf("%vvec4", e.ComponentType.GLSLPrefix())
 	default:
-		panic(fmt.Sprintf("Element with unexpected mask %x", e.Mask))
+		panic(fmt.Sprintf("Element with unexpected mask %x - %v", e.Mask, e.ComponentType))
 	}
 
-	result += fmt.Sprintf(" %v; // %v", e.NameWithIndex(), e.SystemValue.ToString())
+	result += fmt.Sprintf(" %v; // %v", e.NameWithIndex(isInput), e.SystemValue.ToString())
 	return result
 }
 
-func (e Element) NameWithIndex() string {
+func (e Element) NameWithIndex(isInput bool) string {
 	semantic := ""
 	switch e.SystemValue {
 	case SV_POSITION:
@@ -506,7 +505,11 @@ func (e Element) NameWithIndex() string {
 	default:
 		semantic = strconv.Itoa(int(e.SemanticIndex))
 	}
-	return fmt.Sprintf("%v%v", e.Name, semantic)
+	prefix := "i"
+	if !isInput {
+		prefix = "o"
+	}
+	return fmt.Sprintf("%v%v%v", prefix, e.Name, semantic)
 }
 
 type ShaderInputType uint32
@@ -594,6 +597,20 @@ func (srrt ShaderResourceReturnType) ToString() string {
 	return "unknown shader resource return type"
 }
 
+func (srrt ShaderResourceReturnType) ToOpcodeNumberType() opcodeNumberType {
+	switch srrt {
+	case SINT:
+		return internalNumberTypeInt
+	case UINT:
+		return internalNumberTypeUInt
+	case UNORM, SNORM, FLOAT:
+		return internalNumberTypeFloat
+	case DOUBLE:
+		return internalNumberTypeDouble
+	}
+	return internalNumberTypeUnknown
+}
+
 func (srrt ShaderResourceReturnType) GLSLPrefix() string {
 	switch srrt {
 	case SINT:
@@ -673,6 +690,30 @@ func (srvd ShaderResourceViewDimension) ToGLSL() string {
 	return "unknown sampler type"
 }
 
+func (srvd ShaderResourceViewDimension) Dimensions() int {
+	switch srvd {
+	case BUFFER:
+		return 1
+	case TEXTURE_1D:
+		return 1
+	case TEXTURE_1D_ARRAY:
+		return 2
+	case TEXTURE_2D:
+		return 2
+	case TEXTURE_2D_ARRAY:
+		return 3
+	case TEXTURE_2D_MULTISAMPLED:
+		return 2
+	case TEXTURE_3D:
+		return 3
+	case TEXTURE_CUBE:
+		return 3
+	case TEXTURE_CUBE_ARRAY:
+		return 4
+	}
+	return -1
+}
+
 type ShaderInputFlags uint32
 
 const (
@@ -730,8 +771,8 @@ func (rb ResourceBinding) ToString() string {
 }
 
 func (rb ResourceBinding) ToGLSL() string {
-	// if rb.InputType != TEXTURE {
-	return rb.ToString()
-	// }
-	// return fmt.Sprintf("uniform %v%v %v;\n", rb.ReturnType.GLSLPrefix(), rb.ViewDimension.ToGLSL(), rb.Name)
+	if rb.InputType != TEXTURE {
+		return rb.ToString()
+	}
+	return fmt.Sprintf("uniform %v%v %v;\n", rb.ReturnType.GLSLPrefix(), rb.ViewDimension.ToGLSL(), strings.TrimLeft(rb.Name, "_"))
 }
