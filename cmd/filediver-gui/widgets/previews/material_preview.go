@@ -171,6 +171,16 @@ func MaterialPreview(name string, pv *MaterialPreviewState) {
 			fmt.Fprintf(&infoB, "Size=(%v,%v)\nFormat=%v\nPath=%v\n", ddsPv.imageSize.X, ddsPv.imageSize.Y, ddsPv.ddsInfo.DXT10Header.DXGIFormat, texturePath)
 			ddsPv.offset = pv.offset
 			ddsPv.zoom = pv.zoom
+			if ddsPv.linearFiltering != pv.linearFiltering {
+				filter := int32(gl.NEAREST)
+				if pv.linearFiltering {
+					filter = gl.LINEAR
+				}
+				gl.BindTexture(gl.TEXTURE_2D, ddsPv.textureID)
+				gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter)
+				gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter)
+				gl.BindTexture(gl.TEXTURE_2D, 0)
+			}
 			ddsPv.linearFiltering = pv.linearFiltering
 			if ddsPv.imageHasAlpha {
 				ddsPv.ignoreAlpha = pv.ignoreAlpha
@@ -248,6 +258,7 @@ func MaterialPreview(name string, pv *MaterialPreviewState) {
 			}
 			gl.BindTexture(gl.TEXTURE_2D, nextDdsPv.textureID)
 			gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter)
+			gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter)
 			if nextDdsPv.imageHasAlpha {
 				gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_SWIZZLE_A, swizzleA)
 			}
@@ -277,6 +288,7 @@ func MaterialPreview(name string, pv *MaterialPreviewState) {
 		}
 		gl.BindTexture(gl.TEXTURE_2D, ddsPv.textureID)
 		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter)
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter)
 		gl.BindTexture(gl.TEXTURE_2D, 0)
 	}
 	imgui.EndDisabled()
