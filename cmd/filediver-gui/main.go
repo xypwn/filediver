@@ -315,14 +315,16 @@ func (a *guiApp) onDraw(state *imgui_wrapper.State) {
 		if imgui.InternalDockBuilderGetNode(id).CData == nil {
 			imgui.InternalDockBuilderAddNodeV(id, imgui.DockNodeFlags(imgui.DockNodeFlagsDockSpace))
 			imgui.InternalDockBuilderSetNodeSize(id, dockSpaceSize)
-			var leftID, topLeftID, bottomLeftID, rightID imgui.ID
+			var leftID, topLeftID, bottomLeftID, rightID, topRightID, bottomRightID imgui.ID
 			imgui.InternalDockBuilderSplitNode(id, imgui.DirLeft, 0.5, &leftID, &rightID)
 			imgui.InternalDockBuilderSplitNode(leftID, imgui.DirDown, 0.4, &bottomLeftID, &topLeftID)
+			imgui.InternalDockBuilderSplitNode(rightID, imgui.DirDown, 0.4, &bottomRightID, &topRightID)
 			imgui.InternalDockBuilderDockWindow(fnt.I("View_list")+" Browser", topLeftID)
 			imgui.InternalDockBuilderDockWindow(fnt.I("File_export")+" Export", bottomLeftID)
 			imgui.InternalDockBuilderDockWindow(fnt.I("Settings_applications")+" Extractor config", bottomLeftID)
-			imgui.InternalDockBuilderDockWindow(fnt.I("Preview")+" Preview", rightID)
-			imgui.InternalDockBuilderDockWindow(fnt.I("Tag")+" Metadata", rightID)
+			imgui.InternalDockBuilderDockWindow(fnt.I("Preview")+" Preview", topRightID)
+			imgui.InternalDockBuilderDockWindow(fnt.I("Tag")+" Metadata", topRightID)
+			imgui.InternalDockBuilderDockWindow(fnt.I("Display_settings")+" Material Settings", bottomRightID)
 			imgui.InternalDockBuilderFinish(id)
 		}
 		imgui.DockSpaceV(id, imgui.NewVec2(0, 0), 0, winClass)
