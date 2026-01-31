@@ -12,6 +12,7 @@ import (
 	"github.com/AllenDang/cimgui-go/imgui"
 	"github.com/go-gl/gl/v3.2-core/gl"
 	fnt "github.com/xypwn/filediver/cmd/filediver-gui/fonts"
+	"github.com/xypwn/filediver/cmd/filediver-gui/glutils"
 	"github.com/xypwn/filediver/cmd/filediver-gui/imutils"
 	"github.com/xypwn/filediver/cmd/filediver-gui/widgets"
 	"github.com/xypwn/filediver/dds"
@@ -29,6 +30,10 @@ type MaterialPreviewState struct {
 	settingsVisible  bool
 	baseMaterial     stingray.Hash
 	baseMaterialName string
+
+	meshPreviewBuffer *PreviewMeshBuffer
+	fb                *widgets.GLViewState
+	program           uint32
 
 	offset          imgui.Vec2
 	zoom            float32
@@ -51,13 +56,18 @@ func (pv *MaterialPreviewState) Delete() {
 			state.Delete()
 		}
 	}
+	pv.fb.Delete()
+	gl.DeleteProgram(pv.program)
+	if pv.meshPreviewBuffer != nil {
+		pv.meshPreviewBuffer.DeleteObjects()
+	}
 }
 
 func (pv *MaterialPreviewState) LoadMaterial(mat *material.Material, getResource GetResourceFunc, hashes map[stingray.Hash]string, thinhashes map[stingray.ThinHash]string) error {
 	if mat == nil {
 		return fmt.Errorf("attempted to load nil material")
 	}
-
+	var err error
 	pv.Delete()
 	clear(pv.textures)
 	pv.textureKeys = nil
@@ -66,6 +76,23 @@ func (pv *MaterialPreviewState) LoadMaterial(mat *material.Material, getResource
 	pv.settingKeys = nil
 	pv.settingsVisible = true
 	pv.baseMaterial = stingray.Hash{}
+	pv.meshPreviewBuffer, err = getPlane()
+	if err != nil {
+		return err
+	}
+
+	pv.fb, err = widgets.NewGLView()
+	if err != nil {
+		return err
+	}
+
+	pv.program, err = glutils.CreateProgramFromSources(PreviewShaderCode,
+		"shaders/3.glsl.vert",
+		"shaders/3.glsl.frag",
+	)
+	if err != nil {
+		return err
+	}
 
 	sortedTextureUsages := slices.SortedFunc(maps.Keys(mat.Textures), stingray.ThinHash.Cmp)
 	for _, key := range sortedTextureUsages {

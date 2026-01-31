@@ -5,8 +5,6 @@ import (
 	"cmp"
 	"context"
 
-	"embed"
-
 	"fmt"
 	"math"
 	"strings"
@@ -25,47 +23,6 @@ import (
 	geometrygroup "github.com/xypwn/filediver/stingray/unit/geometry_group"
 )
 
-//go:embed shaders/*
-var rawUnitPreviewShaderCode embed.FS
-
-// // stingray coords to OpenGL coords
-// var stingrayToGLCoords = mgl32.Mat4FromRows(
-// 	mgl32.Vec4{1, 0, 0, 0},
-// 	mgl32.Vec4{0, 0, 1, 0},
-// 	mgl32.Vec4{0, -1, 0, 0},
-// 	mgl32.Vec4{0, 0, 0, 1},
-// )
-
-type rawUnitPreviewMeshBuffer struct {
-	vao uint32 // vertex array object
-	ibo uint32 // index buffer object
-	vbo uint32 // vertex buffer object
-
-	numVertices int32
-	numIndices  int32
-	idxStride   int32
-}
-
-func (obj *rawUnitPreviewMeshBuffer) genObjects() {
-	gl.GenVertexArrays(1, &obj.vao)
-	gl.GenBuffers(1, &obj.vbo)
-	gl.GenBuffers(1, &obj.ibo)
-
-	gl.BindVertexArray(obj.vao)
-	defer gl.BindVertexArray(0)
-
-	gl.BindBuffer(gl.ARRAY_BUFFER, obj.vbo)
-	defer gl.BindBuffer(gl.ARRAY_BUFFER, 0)
-
-	gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, obj.ibo)
-}
-
-func (obj rawUnitPreviewMeshBuffer) deleteObjects() {
-	gl.DeleteVertexArrays(1, &obj.vao)
-	gl.DeleteBuffers(1, &obj.vbo)
-	gl.DeleteBuffers(1, &obj.ibo)
-}
-
 type rawUnitPreviewLOD struct {
 	Name    stingray.ThinHash
 	Enabled bool
@@ -75,7 +32,7 @@ type rawUnitPreviewLOD struct {
 
 type rawUnitPreviewObject struct {
 	Name    stingray.Hash
-	Buffers []rawUnitPreviewMeshBuffer
+	Buffers []PreviewMeshBuffer
 	LODs    []rawUnitPreviewLOD
 	Matrix  mgl32.Mat4
 }
@@ -160,7 +117,7 @@ func NewRawUnitPreview() (*RawUnitPreviewState, error) {
 		return nil, err
 	}
 
-	pv.program, err = glutils.CreateProgramFromSources(rawUnitPreviewShaderCode,
+	pv.program, err = glutils.CreateProgramFromSources(PreviewShaderCode,
 		"shaders/raw_unit.vert",
 		"shaders/raw_unit.frag",
 	)
@@ -201,7 +158,7 @@ func (pv *RawUnitPreviewState) Delete() {
 	gl.DeleteProgram(pv.program)
 	for model := range pv.objects {
 		for _, mesh := range pv.objects[model].Buffers {
-			mesh.deleteObjects()
+			mesh.DeleteObjects()
 		}
 	}
 }
@@ -277,10 +234,6 @@ func (pv *RawUnitPreviewState) LoadUnit(ctx context.Context, fileID stingray.Fil
 			return fmt.Errorf("%v.unit does not have gpu data", fileID.Name.String())
 		}
 
-		if err != nil {
-			return err
-		}
-
 		for _, unitInfo := range info.MeshInfos {
 			meshInfos = append(meshInfos, geometry.MeshInfo{
 				Groups:          unitInfo.Groups,
@@ -294,77 +247,17 @@ func (pv *RawUnitPreviewState) LoadUnit(ctx context.Context, fileID stingray.Fil
 		return fmt.Errorf("Number of LOD names != number of LOD infos for file %v.unit!", fileID.Name.String())
 	}
 
-	getLayoutIdx := func(item unit.MeshLayoutItem) uint32 {
-		switch item.Type {
-		case unit.ItemPosition:
-			return 0
-		case unit.ItemNormal:
-			return 1
-		case unit.ItemTangent:
-			return 2
-		case unit.ItemBinormal:
-			return 3
-		case unit.ItemUVCoords:
-			return 4 + (item.Layer << 4)
-		case unit.ItemBoneIdx:
-			return 5 + (item.Layer << 4)
-		case unit.ItemBoneWeight:
-			return 6 + (item.Layer << 4)
-		}
-		return 0xffffffff
-	}
-
-	getLayoutType := func(item unit.MeshLayoutItem) uint32 {
-		switch item.Format {
-		case unit.FormatF32, unit.FormatVec2F, unit.FormatVec3F, unit.FormatVec4F:
-			return gl.FLOAT
-		case unit.FormatF16, unit.FormatVec2F16, unit.FormatVec3F16, unit.FormatVec4F16:
-			return gl.HALF_FLOAT
-		case unit.FormatU32, unit.FormatVec2U32, unit.FormatVec3U32, unit.FormatVec4U32:
-			return gl.UNSIGNED_INT
-		case unit.FormatS32:
-			return gl.INT
-		case unit.FormatS8, unit.FormatVec2S8, unit.FormatVec3S8, unit.FormatVec4S8:
-			return gl.BYTE
-		case unit.FormatVec4R10G10B10A2_TYPELESS, unit.FormatVec4R10G10B10A2_UNORM:
-			return gl.UNSIGNED_INT
-		}
-		return 0
-	}
-
 	object := rawUnitPreviewObject{
 		Name:    fileID.Name,
-		Buffers: make([]rawUnitPreviewMeshBuffer, 0),
+		Buffers: make([]PreviewMeshBuffer, 0),
 		LODs:    make([]rawUnitPreviewLOD, 0),
 		Matrix:  mgl32.Ident4(),
 	}
 
 	for _, layout := range meshLayouts {
-		meshBuffer := rawUnitPreviewMeshBuffer{}
-		meshBuffer.genObjects()
-		meshBuffer.numVertices = int32(layout.NumVertices)
-		meshBuffer.numIndices = int32(layout.NumIndices)
-		meshBuffer.idxStride = int32(layout.IndicesSize / layout.NumIndices)
-
-		gl.BindVertexArray(meshBuffer.vao)
-		gl.BindBuffer(gl.ARRAY_BUFFER, meshBuffer.vbo)
-		gl.BufferData(gl.ARRAY_BUFFER, int(layout.PositionsSize), gl.Ptr(&gpuData[layout.VertexOffset]), gl.STATIC_DRAW)
-		gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, int(layout.IndicesSize), gl.Ptr(&gpuData[layout.IndexOffset]), gl.STATIC_DRAW)
-
-		var offset uintptr = 0
-		for idx := range layout.NumItems {
-			layoutIdx := getLayoutIdx(layout.Items[idx])
-			gl.VertexAttribPointerWithOffset(
-				layoutIdx,
-				int32(layout.Items[idx].Format.Type().Components()),
-				getLayoutType(layout.Items[idx]),
-				false,
-				int32(layout.VertexStride),
-				offset,
-			)
-			gl.EnableVertexAttribArray(layoutIdx)
-			offset += uintptr(layout.Items[idx].Format.Size())
-		}
+		meshBuffer := PreviewMeshBuffer{}
+		meshBuffer.GenObjects()
+		meshBuffer.LoadLayout(layout, gpuData)
 		object.Buffers = append(object.Buffers, meshBuffer)
 	}
 
