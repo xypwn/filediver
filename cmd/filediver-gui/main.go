@@ -323,6 +323,7 @@ func (a *guiApp) onDraw(state *imgui_wrapper.State) {
 			imgui.InternalDockBuilderDockWindow(fnt.I("File_export")+" Export", bottomLeftID)
 			imgui.InternalDockBuilderDockWindow(fnt.I("Settings_applications")+" Extractor config", bottomLeftID)
 			imgui.InternalDockBuilderDockWindow(fnt.I("Preview")+" Preview", topRightID)
+			imgui.InternalDockBuilderDockWindow(fnt.I("View_in_ar")+" Shader Preview", topRightID)
 			imgui.InternalDockBuilderDockWindow(fnt.I("Tag")+" Metadata", topRightID)
 			imgui.InternalDockBuilderDockWindow(fnt.I("Display_settings")+" Material Settings", bottomRightID)
 			imgui.InternalDockBuilderFinish(id)

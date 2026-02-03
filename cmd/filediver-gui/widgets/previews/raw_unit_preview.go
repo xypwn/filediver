@@ -307,33 +307,6 @@ func (pv *RawUnitPreviewState) LoadUnit(ctx context.Context, fileID stingray.Fil
 	return nil
 }
 
-func (pv *RawUnitPreviewState) computeMVP(aspectRatio float32) (
-	normal mgl32.Mat3,
-	viewPosition mgl32.Vec3,
-	view mgl32.Mat4,
-	projection mgl32.Mat4,
-) {
-	normal = pv.model.Inv().Transpose().Mat3()
-	{
-		mat := mgl32.Ident3()
-		mat = mat.Mul3(mgl32.Rotate3DY(pv.viewRotation[0]))
-		mat = mat.Mul3(mgl32.Rotate3DX(pv.viewRotation[1]))
-		viewPosition = mat.Mul3x1(mgl32.Vec3{0, 0, pv.viewDistance})
-	}
-	view = mgl32.LookAt(
-		viewPosition[0], viewPosition[1], viewPosition[2],
-		0, 0, 0,
-		0, 1, 0,
-	)
-	projection = mgl32.Perspective(
-		pv.vfov,
-		aspectRatio,
-		0.001,
-		32768,
-	)
-	return
-}
-
 // var aabbIndices = [12 * 3]uint32{
 // 	1, 2, 0,
 // 	1, 3, 2,
@@ -401,7 +374,7 @@ func RawUnitPreview(name string, pv *RawUnitPreviewState, lookupHash func(stingr
 			gl.ClearColor(0.2, 0.2, 0.2, 1)
 			gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 
-			_, _, view, projection := pv.computeMVP(size.X / size.Y)
+			_, _, view, projection := ComputeMVP(pv.model, pv.viewRotation, pv.viewDistance, pv.vfov, size.X/size.Y)
 
 			// Draw object
 			gl.Enable(gl.DEPTH_TEST)
@@ -440,7 +413,7 @@ func RawUnitPreview(name string, pv *RawUnitPreviewState, lookupHash func(stingr
 			if pv.zoomToFit && false {
 				pv.viewDistance = pv.maxViewDistance
 
-				_, viewPosition, view, projection := pv.computeMVP(size.X / size.Y)
+				_, viewPosition, view, projection := ComputeMVP(pv.model, pv.viewRotation, pv.viewDistance, pv.vfov, size.X/size.Y)
 
 				fitVertexCamDistDelta := func(vertex mgl32.Vec3) float32 {
 					v := vertex.Vec4(1.0)

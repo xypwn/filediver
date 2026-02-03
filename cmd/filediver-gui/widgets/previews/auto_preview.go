@@ -246,13 +246,13 @@ func (pv *AutoPreviewState) LoadFile(ctx context.Context, fileID stingray.FileID
 			pv.err = err
 			return
 		}
-		data, err := material.Load(bytes.NewReader(data[stingray.DataMain]))
+		mat, err := material.Load(bytes.NewReader(data[stingray.DataMain]))
 		if err != nil {
 			pv.err = fmt.Errorf("loading material: %w", err)
 			return
 		}
 
-		err = pv.state.material.LoadMaterial(data, pv.getResource, pv.hashes, pv.thinhashes)
+		err = pv.state.material.LoadMaterial(fileID, mat, pv.getResource, pv.hashes, pv.thinhashes)
 		if err != nil {
 			pv.err = fmt.Errorf("loading material state: %w", err)
 			return
