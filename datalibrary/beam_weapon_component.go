@@ -18,7 +18,6 @@ type BeamPrisms struct {
 	HeavyHeatGenerationMul float32       `json:"heavy_heat_generation_mul"`
 }
 
-// ScopeResponsiveness           float32       // How quickly the scope/sight follows changes in aim and movement.
 type BeamWeaponComponent struct {
 	Type                          enum.BeamType // Type of beam it fires.
 	Prisms                        BeamPrisms    // Beam Prism Settings for weapons with the weapon function.
