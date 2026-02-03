@@ -109,16 +109,8 @@ func (d *DXBC) ToGLSL() string {
 	toReturn := "#version 420 core\n\n"
 
 	for i, cbuf := range d.ResourceDefinitions.ConstantBuffers {
-		toReturn += fmt.Sprintf("/* Constant Buffer %v: %v\n", i, cbuf.Name)
-		toReturn += fmt.Sprintf(" * Type: %v\n", cbuf.Type.ToString())
-		toReturn += fmt.Sprintf(" * Size: %v\n", cbuf.Size)
-		toReturn += fmt.Sprintf(" * Flags: %v\n", cbuf.Flags.ToString())
-		toReturn += " */\n"
-		toReturn += fmt.Sprintf("layout(binding = %v) uniform %v {\n", i, cbuf.Name)
-		for _, variable := range cbuf.Variables {
-			toReturn += fmt.Sprintf("    %v\n", variable.ToGLSL())
-		}
-		toReturn += "};\n\n"
+		toReturn += cbuf.ToGLSL(i)
+		toReturn += "\n\n"
 	}
 
 	for _, rbind := range d.ResourceDefinitions.ResourceBindings {

@@ -8,6 +8,7 @@ import (
 
 	"github.com/AllenDang/cimgui-go/imgui"
 	"github.com/go-gl/gl/v3.2-core/gl"
+	"github.com/go-gl/mathgl/mgl32"
 	"github.com/xypwn/filediver/dds"
 	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/stingray/unit"
@@ -297,4 +298,31 @@ func getPlane() (*PreviewMeshBuffer, error) {
 	}, gpuData)
 
 	return &meshPreviewBuffer, nil
+}
+
+func ComputeMVP(model mgl32.Mat4, viewRotation mgl32.Vec2, viewDistance, vfov, aspectRatio float32) (
+	normal mgl32.Mat3,
+	viewPosition mgl32.Vec3,
+	view mgl32.Mat4,
+	projection mgl32.Mat4,
+) {
+	normal = model.Inv().Transpose().Mat3()
+	{
+		mat := mgl32.Ident3()
+		mat = mat.Mul3(mgl32.Rotate3DY(viewRotation[0]))
+		mat = mat.Mul3(mgl32.Rotate3DX(viewRotation[1]))
+		viewPosition = mat.Mul3x1(mgl32.Vec3{0, 0, viewDistance})
+	}
+	view = mgl32.LookAt(
+		viewPosition[0], viewPosition[1], viewPosition[2],
+		0, 0, 0,
+		0, 1, 0,
+	)
+	projection = mgl32.Perspective(
+		vfov,
+		aspectRatio,
+		0.001,
+		32768,
+	)
+	return
 }
