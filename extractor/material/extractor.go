@@ -320,8 +320,51 @@ func combineIlluminateOcclusionMetallicRoughness(narImg, dataImg image.Image) er
 	return nil
 }
 
-// Combines illuminate data and NAR into a gltf compliant ao, metallic, roughness map and returns the index
-func writeIlluminateOcclusionMetallicRoughnessTexture(ctx *extractor.Context, doc *gltf.Document, narId, ilDataId stingray.Hash, imgOpts *ImageOptions) (uint32, error) {
+func combineTankOcclusionMetallicRoughness(narImg, dataImg image.Image) error {
+	narToDataX := float32(dataImg.Bounds().Size().X) / float32(narImg.Bounds().Size().X)
+	narToDataY := float32(dataImg.Bounds().Size().Y) / float32(narImg.Bounds().Size().Y)
+
+	narImgNRGBA, ok := narImg.(*image.NRGBA)
+	if !ok {
+		return fmt.Errorf("combineIlluminateOcclusionMetallicRoughness: unsupported NAR image type")
+	}
+	dataImgNRGBA, ok := dataImg.(*image.NRGBA)
+	if !ok {
+		return fmt.Errorf("combineIlluminateOcclusionMetallicRoughness: unsupported illuminate data image type")
+	}
+
+	/**
+	 * NAR:
+	 *	R - normal X
+	 *	G - normal Y
+	 *	B - ambient occlusion
+	 *	A - roughness
+	 */
+	/**
+	 * base_color_metal_map:
+	 *	R - base color
+	 *	G - base color
+	 *	B - base color
+	 *	A - metalness
+	 */
+
+	for iY := narImgNRGBA.Rect.Min.Y; iY < narImgNRGBA.Rect.Max.Y; iY++ {
+		for iX := narImgNRGBA.Rect.Min.X; iX < narImgNRGBA.Rect.Max.X; iX++ {
+			narIdx := narImgNRGBA.PixOffset(iX, iY)
+			dataIdx := dataImgNRGBA.PixOffset(min(int(float32(iX)*narToDataX), dataImgNRGBA.Rect.Max.X-1), min(int(float32(iY)*narToDataY), dataImgNRGBA.Rect.Max.Y-1))
+			// Move NAR ambient occlusion to red channel
+			narImgNRGBA.Pix[narIdx] = narImgNRGBA.Pix[narIdx+2]
+			// Move NAR roughness to green channel
+			narImgNRGBA.Pix[narIdx+1] = narImgNRGBA.Pix[narIdx+3]
+			// Move base_color_metal_map data to blue channel
+			narImgNRGBA.Pix[narIdx+2] = dataImgNRGBA.Pix[dataIdx+3]
+		}
+	}
+	return nil
+}
+
+// Combines illuminate data/metallic intensity map/base color metal map and NAR into a gltf compliant ao, metallic, roughness map and returns the index
+func writeOcclusionMetallicRoughnessTexture(ctx *extractor.Context, doc *gltf.Document, narId, ilDataId stingray.Hash, combineOMR func(image.Image, image.Image) error, imgOpts *ImageOptions) (uint32, error) {
 	// Check if we've already added this texture
 	textureName := narId.String() + "_" + ilDataId.String() + "_orm"
 	for j, texture := range doc.Textures {
@@ -355,7 +398,7 @@ func writeIlluminateOcclusionMetallicRoughnessTexture(ctx *extractor.Context, do
 		return 0, fmt.Errorf("NAR or illuminate data are texture arrays, not sure how to handle")
 	}
 
-	if err := combineIlluminateOcclusionMetallicRoughness(narTex.Image, ilDataTex.Image); err != nil {
+	if err := combineOMR(narTex.Image, ilDataTex.Image); err != nil {
 		return 0, err
 	}
 
@@ -567,6 +610,16 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 			}
 			emissiveStrength = emissiveStrengthSetting[0]
 			albedoPostProcess = postProcessToOpaque
+		case "base_color_metal_map":
+			index, err := writeTexture(ctx, doc, mat.Textures[texUsage], albedoPostProcess, imgOpts, "")
+			if err != nil {
+				ctx.Warnf("writeTexture: %v: %v", texUsageStr, err)
+				continue
+			}
+			baseColorTexture = &gltf.TextureInfo{
+				Index: index,
+			}
+			albedoPostProcess = postProcessToOpaque
 		case "emissive_map":
 			emissiveColorSetting, ok := mat.Settings[stingray.Sum("emissive_color").Thin()]
 			if !ok {
@@ -679,7 +732,7 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 			}
 			usedTextures[texUsageStr] = index
 			normalPostProcess = postProcessReconstructNormalZ
-		case "NAR", "normal_xy_ao_rough_map":
+		case "NAR", "normal_xy_ao_rough_map", "nar":
 			hash := mat.Textures[texUsage]
 			index, err := writeTexture(ctx, doc, hash, postProcessReconstructNormalZ, imgOpts, "")
 			if err != nil {
@@ -689,15 +742,22 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 			normalTexture = &gltf.NormalTexture{
 				Index: gltf.Index(index),
 			}
+			combineORM := combineIlluminateOcclusionMetallicRoughness
 			illuminateDataHash, ok := mat.Textures[stingray.Sum("illuminate_data").Thin()]
 			if !ok {
 				// Did they just rename it from illuminate data?
 				illuminateDataHash, ok = mat.Textures[stingray.Sum("metallic_intensity_map").Thin()]
 			}
+			if !ok {
+				illuminateDataHash, ok = mat.Textures[stingray.Sum("base_color_metal_map").Thin()]
+				if ok {
+					combineORM = combineTankOcclusionMetallicRoughness
+				}
+			}
 			if metallicRoughnessTexture == nil && ok {
-				metallicRoughnessIndex, err := writeIlluminateOcclusionMetallicRoughnessTexture(ctx, doc, hash, illuminateDataHash, imgOpts)
+				metallicRoughnessIndex, err := writeOcclusionMetallicRoughnessTexture(ctx, doc, hash, illuminateDataHash, combineORM, imgOpts)
 				if err != nil {
-					ctx.Warnf("writeIlluminateOcclusionMetallicRoughnessTexture: %v", err)
+					ctx.Warnf("writeOcclusionMetallicRoughnessTexture: %v", err)
 					continue
 				}
 				metallicRoughnessTexture = &gltf.TextureInfo{
@@ -705,9 +765,9 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 				}
 			}
 			if occlusionTexture == nil && ok {
-				occlusionIndex, err := writeIlluminateOcclusionMetallicRoughnessTexture(ctx, doc, hash, illuminateDataHash, imgOpts)
+				occlusionIndex, err := writeOcclusionMetallicRoughnessTexture(ctx, doc, hash, illuminateDataHash, combineORM, imgOpts)
 				if err != nil {
-					ctx.Warnf("writeIlluminateOcclusionMetallicRoughnessTexture: %v", err)
+					ctx.Warnf("writeOcclusionMetallicRoughnessTexture: %v", err)
 					continue
 				}
 				occlusionTexture = &gltf.OcclusionTexture{
@@ -732,9 +792,9 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 				narHash, ok = mat.Textures[stingray.Sum("nar").Thin()]
 			}
 			if metallicRoughnessTexture == nil && ok {
-				metallicRoughnessIndex, err := writeIlluminateOcclusionMetallicRoughnessTexture(ctx, doc, narHash, hash, imgOpts)
+				metallicRoughnessIndex, err := writeOcclusionMetallicRoughnessTexture(ctx, doc, narHash, hash, combineIlluminateOcclusionMetallicRoughness, imgOpts)
 				if err != nil {
-					ctx.Warnf("writeIlluminateOcclusionMetallicRoughnessTexture: %v", err)
+					ctx.Warnf("writeOcclusionMetallicRoughnessTexture: %v", err)
 					continue
 				}
 				metallicRoughnessTexture = &gltf.TextureInfo{
@@ -742,9 +802,9 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 				}
 			}
 			if occlusionTexture == nil && ok {
-				occlusionIndex, err := writeIlluminateOcclusionMetallicRoughnessTexture(ctx, doc, narHash, hash, imgOpts)
+				occlusionIndex, err := writeOcclusionMetallicRoughnessTexture(ctx, doc, narHash, hash, combineIlluminateOcclusionMetallicRoughness, imgOpts)
 				if err != nil {
-					ctx.Warnf("writeIlluminateOcclusionMetallicRoughnessTexture: %v", err)
+					ctx.Warnf("writeOcclusionMetallicRoughnessTexture: %v", err)
 					continue
 				}
 				occlusionTexture = &gltf.OcclusionTexture{
