@@ -6882,3 +6882,7 @@ Group_State/Stop
 Ready
 Base/crawl/crawl
 Group_State/Primed_Enter
+content/fac_helldivers/equipment/support_weapons/expendable_massive_rocket_launcher/expendable_massive_rocket_launcher
+content/env_super_earth/wartorn/wartorn_shuttle_gunship_legs
+content/env_super_earth/wartorn/wartorn_shuttle_gunship_hull
+content/env_super_earth/wartorn/wartorn_shuttle_gunship_engine

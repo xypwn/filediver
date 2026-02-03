@@ -463,6 +463,7 @@ Base/Deactivated
 Base/Dialogue_Enter
 Base/Dialogue_Exit
 Base/Dialogue_Idle
+Base/Dormant
 Base/Fire
 Base/Generic_Idle
 Base/Generic_Idle_Extra
@@ -481,6 +482,7 @@ Base/attack_spew_enter
 Base/burrow
 Base/calm_down
 Base/combat_taunts
+Base/crawl/crawl
 Base/digging
 Base/explode
 Base/fire
@@ -751,6 +753,7 @@ Group_State/Arms_Deactivate
 Group_State/Attack
 Group_State/Attack_execute
 Group_State/Belly_Thrusters_Idle
+Group_State/Blocker
 Group_State/Bridge/Aim_Horizontal
 Group_State/Bridge/bridge_add
 Group_State/Charge_Impact_Null
@@ -858,6 +861,9 @@ Group_State/Pitch
 Group_State/Power_Off
 Group_State/Power_On
 Group_State/Prepare_Drill
+Group_State/Primed
+Group_State/Primed_Enter
+Group_State/Priming
 Group_State/Prone/Backpack_Dispense
 Group_State/Prone/Crawl
 Group_State/Prone/Empty_State
@@ -906,11 +912,13 @@ Group_State/Standing/Jog
 Group_State/Standing/Move
 Group_State/Standing/Sprint
 Group_State/Standing/Walk
+Group_State/Start
 Group_State/Start_Rotator
 Group_State/Stim/stab
 Group_State/Stim/stim
 Group_State/Stomp_Left_0
 Group_State/Stomp_Right_0
+Group_State/Stop
 Group_State/Tail
 Group_State/Tail_Aggro
 Group_State/Tail_Idle_1
@@ -1016,6 +1024,7 @@ Group_State/destroyed_body_left
 Group_State/destroyed_body_right
 Group_State/dormant
 Group_State/downed
+Group_State/draw
 Group_State/drilling
 Group_State/dropship_fall
 Group_State/dropship_hang
@@ -1083,6 +1092,7 @@ Group_State/hit_small_back
 Group_State/hit_small_front
 Group_State/hit_small_left
 Group_State/hit_small_right
+Group_State/holster
 Group_State/horizontal_swipe
 Group_State/idle
 Group_State/idle_a
@@ -1099,6 +1109,7 @@ Group_State/init
 Group_State/initiate_pump_fast
 Group_State/initiate_pump_slow
 Group_State/jog
+Group_State/kinematic
 Group_State/l_gear_compression
 Group_State/laser_add
 Group_State/launch_rocket
@@ -1234,6 +1245,7 @@ Group_State/sniper_crouch_idle
 Group_State/spawn
 Group_State/spawn_door
 Group_State/spawn_spawner_1
+Group_State/spew
 Group_State/spew_end
 Group_State/spew_execute
 Group_State/spit_spike_execute
@@ -1280,6 +1292,7 @@ Group_State/walk_back
 Group_State/walk_idle_attack
 Group_State/warp_in
 Group_State/warp_out
+Group_State/weapon
 Group_State/wheels_moving
 Group_State/wheels_moving_back
 Group_State/wind_down
@@ -1648,6 +1661,7 @@ Ragdoll_States/Default
 Ragdoll_States/Ragdoll
 Ragdoll_States/fixed
 Raised_Idle
+Ready
 Recoil/Null
 Recoil/Recoil
 Recoil/Recoil_Overarching
@@ -1989,6 +2003,7 @@ active_banks(core/wwise/lua/wwise_bank_reference
 active_banksm
 active_events
 active_events	name
+active_homing
 actor
 actor_template
 adapt_exposure
@@ -2130,6 +2145,8 @@ back_buffer
 back_buffer_size
 back_left
 back_right
+backpack_deploy
+backpack_undeploy
 backup/attack_flight
 backup/fly
 backup/fly_1
@@ -2187,6 +2204,7 @@ base/Retract
 base/Thump
 base/attack_moving_combo
 base/attack_stationary_spin
+base/crawling/crawling
 base/death_fire
 base/death_gas
 base/death_shoot
@@ -2194,9 +2212,11 @@ base/deploy
 base/deployed
 base/dormant
 base/draw
+base/emerge
 base/extend_barrel
 base/extended_idle
 base/fire
+base/hesitate
 base/hesitate_fwd
 base/idle
 base/idle_closed
@@ -2216,6 +2236,7 @@ base/run_charge
 base/run_charge_into
 base/run_charge_stop
 base/shoot
+base/submerge
 base/wait
 base/walk
 base/walk_damaged
@@ -2453,6 +2474,8 @@ cd33575a-f8ce-4e8b-8aac-6a3e62051ec2
 cd8f2898-5821-4e3f-8348-a7d2f3c869d2
 cea884a8-efa2-4941-a71b-8732bf4fe38c
 cf607d4e-2916-4843-8e0c-b0a6d9d3caa2
+chain_advance
+chain_idle
 change
 channel
 channel_radius
@@ -2461,6 +2484,7 @@ channels_referenced
 character
 character_trigger
 charge
+charging
 chart_id_texture
 chart_max_time
 chm
@@ -70655,6 +70679,9 @@ content/env_super_earth/wartorn/textures/shuttle_interior_mra
 content/env_super_earth/wartorn/textures/shuttle_interior_n
 content/env_super_earth/wartorn/wartorn_frv_01
 content/env_super_earth/wartorn/wartorn_lav_01
+content/env_super_earth/wartorn/wartorn_shuttle_gunship_engine
+content/env_super_earth/wartorn/wartorn_shuttle_gunship_hull
+content/env_super_earth/wartorn/wartorn_shuttle_gunship_legs
 content/fac_bugs/cha_alpha_charger/cha_alpha_charger
 content/fac_bugs/cha_boomer/animations/additive_none
 content/fac_bugs/cha_boomer/animations/alarm
@@ -71836,6 +71863,7 @@ content/fac_helldivers/equipment/support_weapons/chemgun/animation/idle
 content/fac_helldivers/equipment/support_weapons/chemgun/animation/reload
 content/fac_helldivers/equipment/support_weapons/chemgun/chemgun
 content/fac_helldivers/equipment/support_weapons/chemgun/textures/chemgun_nac
+content/fac_helldivers/equipment/support_weapons/expendable_massive_rocket_launcher/expendable_massive_rocket_launcher
 content/fac_helldivers/equipment/support_weapons/expendable_napalm_launcher/expendable_napalm_launcher
 content/fac_helldivers/equipment/support_weapons/faf_missile_helghast/faf_missile_helghast
 content/fac_helldivers/equipment/support_weapons/faf_missile_launcher/animation/assisted_reload
@@ -76115,6 +76143,7 @@ dest_rect
 destroy_manual_source flow_callback_context_world
 destroy_unit
 destroy_unit_actor
+detached
 dev
 dev_lightmap_texel_visualization
 dev_selection
@@ -76134,6 +76163,7 @@ direction_map
 directional
 disabled
 discard
+discharge
 display_histogram
 display_histogram:default:PLATFORM_WIN32:RENDERER_D3D11
 display_name
@@ -76161,6 +76191,7 @@ draw_add
 draw_as_quad
 draw_order
 draw_sub
+drill
 driver_idle
 drop_backpack
 dummy_camera
@@ -76836,6 +76867,7 @@ h_scale
 habs/containers/case_02
 half_height
 hammer_back
+hammer_up
 has_constant_color
 has_data
 has_event
@@ -76895,8 +76927,12 @@ histogram
 hiz_depth
 hkp_raycast_batch
 holster
+hose_attach
+hose_connect
 hose_cooldown
 hose_counter_idle
+hose_detach
+hose_unconnected
 htm
 html
 hud
@@ -76917,14 +76953,19 @@ idle/Turning
 idle_01
 idle_02
 idle_03
+idle_active
 idle_add
 idle_back_left
 idle_back_right
+idle_backpack
 idle_engine
 idle_fired
 idle_folded
 idle_front_right
+idle_hellpod
+idle_homing
 idle_lowered
+idle_open
 ies
 ies_atlas
 ies_atlas_size
@@ -77268,6 +77309,7 @@ mb_tile_max_v
 mc3
 md
 memory_garbage_collect
+menu_idle
 merge_boxes	Math
 merge_skydome_motion_vectors
 merge_skydome_motion_vectors:default:PLATFORM_WIN32:RENDERER_D3D11
@@ -77438,6 +77480,7 @@ open
 open_destroyed
 open_door
 open_enter
+open_exit
 open_hatch
 open_idle
 open_idle_
@@ -78088,6 +78131,7 @@ shadow_scale_slice0
 shadow_scale_slice1
 shadow_scale_slice2
 shadow_scale_slice3
+shaker
 shape
 shape_template
 sheath
@@ -78118,6 +78162,7 @@ slide/fire_homing
 slide/fire_lock
 slide/fire_lock_homing
 slide/idle
+slide_release
 slope_scale_depth_bias
 slope_timer
 slug
@@ -78155,6 +78200,7 @@ speedtrees
 sphere
 sphere_radius
 spin
+spinner
 spinning
 spline_distance_to_borders
 spline_length
@@ -78825,42 +78871,3 @@ zip
 ~=core/stingray_renderer/shading_environment_components/water_surface
 ~S=core/stingray_renderer/shading_environment_components/water_surface
 ~jw)=
-hose_attach
-chain_idle
-hammer_up
-idle_backpack
-open_exit
-idle_hellpod
-menu_idle
-idle_open
-slide_release
-idle_active
-chain_advance
-hose_connect
-backpack_deploy
-hose_detach
-base/emerge
-base/hesitate
-active_homing
-idle_homing
-base/submerge
-base/crawling/crawling
-hose_unconnected
-charging
-detached
-discharge
-drill
-shaker
-spinner
-backpack_undeploy
-Group_State/draw
-Group_State/holster
-Group_State/kinematic
-Group_State/spew
-Group_State/weapon
-Base/Dormant
-Group_State/Blocker
-Group_State/Primed
-Group_State/Priming
-Group_State/Start
-Group_State/Stop

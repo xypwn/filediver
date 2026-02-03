@@ -11,30 +11,34 @@ func _() {
 	_ = x[BeamType_None-0]
 	_ = x[BeamType_LaserCannon-1]
 	_ = x[BeamType_BotTorch-2]
-	_ = x[BeamType_Medium_Focused-3]
-	_ = x[BeamType_Medium_Wide-4]
-	_ = x[BeamType_Medium-5]
-	_ = x[BeamType_ObserverEye-6]
-	_ = x[BeamType_LaserCannon_Turret-7]
-	_ = x[BeamType_Small-8]
-	_ = x[BeamType_TripodEye-9]
-	_ = x[BeamType_PhysGun-10]
-	_ = x[BeamType_Unknown_Len_6-11]
-	_ = x[BeamType_Large_Heavy-12]
-	_ = x[BeamType_Large_Light-13]
-	_ = x[BeamType_Large_Focused-14]
-	_ = x[BeamType_Large_Unfocused-15]
-	_ = x[BeamType_Large-16]
-	_ = x[BeamType_Unknown_Len_11-17]
-	_ = x[BeamType_Unknown_Len_15-18]
-	_ = x[BeamType_OutcastFlashbeamChargeup-19]
-	_ = x[BeamType_Unknown_Len_14-20]
-	_ = x[BeamType_Count-21]
+	_ = x[BeamType_ShoulderMountedCamera-3]
+	_ = x[BeamType_TripodEye_Wide-4]
+	_ = x[BeamType_Medium_Wide-5]
+	_ = x[BeamType_Medium-6]
+	_ = x[BeamType_ObserverEye-7]
+	_ = x[BeamType_LaserCannon_Turret-8]
+	_ = x[BeamType_Small-9]
+	_ = x[BeamType_TripodEye-10]
+	_ = x[BeamType_PhysGun-11]
+	_ = x[BeamType_Turret-12]
+	_ = x[BeamType_Large_Heavy-13]
+	_ = x[BeamType_Large_Light-14]
+	_ = x[BeamType_Value_15_Len_33-15]
+	_ = x[BeamType_Value_16_Len_22-16]
+	_ = x[BeamType_Wm_Cannon-17]
+	_ = x[BeamType_TripodEye_Heavy-18]
+	_ = x[BeamType_Large-19]
+	_ = x[BeamType_Drone_Laser-20]
+	_ = x[BeamType_Value_21_Len_24-21]
+	_ = x[BeamType_OutcastFlashbeamChargeup-22]
+	_ = x[BeamType_Turret_Tactical-23]
+	_ = x[BeamType_Medium_Focused-24]
+	_ = x[BeamType_Count-25]
 }
 
-const _BeamType_name = "BeamType_NoneBeamType_LaserCannonBeamType_BotTorchBeamType_Medium_FocusedBeamType_Medium_WideBeamType_MediumBeamType_ObserverEyeBeamType_LaserCannon_TurretBeamType_SmallBeamType_TripodEyeBeamType_PhysGunBeamType_Unknown_Len_6BeamType_Large_HeavyBeamType_Large_LightBeamType_Large_FocusedBeamType_Large_UnfocusedBeamType_LargeBeamType_Unknown_Len_11BeamType_Unknown_Len_15BeamType_OutcastFlashbeamChargeupBeamType_Unknown_Len_14BeamType_Count"
+const _BeamType_name = "BeamType_NoneBeamType_LaserCannonBeamType_BotTorchBeamType_ShoulderMountedCameraBeamType_TripodEye_WideBeamType_Medium_WideBeamType_MediumBeamType_ObserverEyeBeamType_LaserCannon_TurretBeamType_SmallBeamType_TripodEyeBeamType_PhysGunBeamType_TurretBeamType_Large_HeavyBeamType_Large_LightBeamType_Value_15_Len_33BeamType_Value_16_Len_22BeamType_Wm_CannonBeamType_TripodEye_HeavyBeamType_LargeBeamType_Drone_LaserBeamType_Value_21_Len_24BeamType_OutcastFlashbeamChargeupBeamType_Turret_TacticalBeamType_Medium_FocusedBeamType_Count"
 
-var _BeamType_index = [...]uint16{0, 13, 33, 50, 73, 93, 108, 128, 155, 169, 187, 203, 225, 245, 265, 287, 311, 325, 348, 371, 404, 427, 441}
+var _BeamType_index = [...]uint16{0, 13, 33, 50, 80, 103, 123, 138, 158, 185, 199, 217, 233, 248, 268, 288, 312, 336, 354, 378, 392, 412, 436, 469, 493, 516, 530}
 
 func (i BeamType) String() string {
 	if i >= BeamType(len(_BeamType_index)-1) {

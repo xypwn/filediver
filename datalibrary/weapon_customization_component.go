@@ -49,6 +49,7 @@ type WeaponCustomizationComponent struct {
 	OpticsPath                              stingray.Hash                    // [unit]Path to the optics/scope unit.
 	MagazinePath                            stingray.Hash                    // [unit]Path to the magazine unit.
 	MagazineSecondaryPath                   stingray.Hash                    // [unit]Path to the second magazine unit.
+	UnknownHash                             stingray.Hash                    // [unit]Path to some unit (name length 22).
 	MuzzlePath                              stingray.Hash                    // [unit]Path to the muzzle unit.
 	OpticsCrosshairParams                   mgl32.Vec2                       // Offset and scale applied to the crosshair node in the optics unit. X=Forward offset, Y=Scale.
 	Unknown0Path                            stingray.Hash                    // Paintscheme path? 26 chars long
@@ -108,6 +109,7 @@ type SimpleWeaponCustomizationComponent struct {
 	OpticsPath                              string                              `json:"optics_path"`
 	MagazinePath                            string                              `json:"magazine_path"`
 	MagazineSecondaryPath                   string                              `json:"magazine_secondary_path"`
+	UnknownHash                             string                              `json:"unknown_hash"`
 	MuzzlePath                              string                              `json:"muzzle_path"`
 	OpticsCrosshairParams                   mgl32.Vec2                          `json:"optics_crosshair_params"`
 	Unknown0Path                            string                              `json:"unknown0_path"`
@@ -188,6 +190,7 @@ func (component WeaponCustomizationComponent) ToSimple(lookupHash HashLookup, lo
 		OpticsPath:            lookupHash(component.OpticsPath),
 		MagazinePath:          lookupHash(component.MagazinePath),
 		MagazineSecondaryPath: lookupHash(component.MagazineSecondaryPath),
+		UnknownHash:           lookupHash(component.UnknownHash),
 		MuzzlePath:            lookupHash(component.MuzzlePath),
 		OpticsCrosshairParams: component.OpticsCrosshairParams,
 		Unknown0Path:          lookupHash(component.Unknown0Path),

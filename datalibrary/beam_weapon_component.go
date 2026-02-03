@@ -18,10 +18,10 @@ type BeamPrisms struct {
 	HeavyHeatGenerationMul float32       `json:"heavy_heat_generation_mul"`
 }
 
+// ScopeResponsiveness           float32       // How quickly the scope/sight follows changes in aim and movement.
 type BeamWeaponComponent struct {
 	Type                          enum.BeamType // Type of beam it fires.
 	Prisms                        BeamPrisms    // Beam Prism Settings for weapons with the weapon function.
-	ScopeResponsiveness           float32       // How quickly the scope/sight follows changes in aim and movement.
 	ScopeCrosshair                mgl32.Vec2    // Crosshair position on screen in [-1, 1] range.
 	FocalDistances                mgl32.Vec3    // The focal distances of the weapon's lens
 	UseFirenodePose               float32
@@ -32,6 +32,7 @@ type BeamWeaponComponent struct {
 	FireLoopStartAudioEvent       stingray.ThinHash // [wwise] The looping audio event to start when starting to fire.
 	FireLoopStopAudioEvent        stingray.ThinHash // [wwise] The looping audio event to play when stopping fire.
 	FireSingleAudioEvent          stingray.ThinHash // [wwise]The audio event to trigger when doing single-fire (if we don't have looping sounds).
+	UnkAudioEvent                 stingray.ThinHash // name length 27
 	_                             [4]uint8
 	MuzzleFlash                   stingray.Hash     // [particles]Muzzle flash effect
 	NoiseTimer                    float32           // How often does the weapon make noise?
@@ -40,35 +41,44 @@ type BeamWeaponComponent struct {
 	DryFireRepeatAudioEvent       stingray.ThinHash // [wwise]The wwise sound id to play when repeatedly dry firing.
 	OnFireStartedWielderAnimEvent stingray.ThinHash // [string]Animation event to trigger on the wielder when we start firing.
 	OnFireStoppedWielderAnimEvent stingray.ThinHash // [string]Animation event to trigger on the wielder when we stop firing.
+	UnkBool                       uint8             // name length 19
+	_                             [3]uint8
+	UnkInt                        int32 // name length 16
+	UnkInt2                       int32 // name length 19
+	_                             [4]uint8
 }
 
 type SimpleBeamWeaponComponent struct {
-	Type                          enum.BeamType `json:"beam_type"`
-	Prisms                        BeamPrisms    `json:"beam_prisms"`
-	ScopeResponsiveness           float32       `json:"scope_responsiveness"`
-	ScopeCrosshair                mgl32.Vec2    `json:"scope_crosshair"`
-	FocalDistances                mgl32.Vec3    `json:"focal_distances"`
-	UseFirenodePose               float32       `json:"use_firenode_pose"`
-	UseMidiEventSystem            bool          `json:"use_midi_event_system"`
-	MidiTimingRandomization       mgl32.Vec2    `json:"midi_timing_randomization"`
-	MidiStopDelay                 float32       `json:"midi_stop_delay"`
-	FireLoopStartAudioEvent       string        `json:"fire_loop_start_audio_delay"`
-	FireLoopStopAudioEvent        string        `json:"fire_loop_stop_audio_event"`
-	FireSingleAudioEvent          string        `json:"fire_single_audio_event"`
-	MuzzleFlash                   string        `json:"muzzle_flash"`
-	NoiseTimer                    float32       `json:"noise_timer"`
-	FireSourceNode                string        `json:"fire_source_node"`
-	DryFireAudioEvent             string        `json:"dry_fire_audio_event"`
-	DryFireRepeatAudioEvent       string        `json:"dry_fire_repeat_audio_event"`
-	OnFireStartedWielderAnimEvent string        `json:"on_fire_started_wielder_anim_event"`
-	OnFireStoppedWielderAnimEvent string        `json:"on_fire_stopped_wielder_anim_event"`
+	Type   enum.BeamType `json:"beam_type"`
+	Prisms BeamPrisms    `json:"beam_prisms"`
+	//ScopeResponsiveness           float32       `json:"scope_responsiveness"`
+	ScopeCrosshair                mgl32.Vec2 `json:"scope_crosshair"`
+	FocalDistances                mgl32.Vec3 `json:"focal_distances"`
+	UseFirenodePose               float32    `json:"use_firenode_pose"`
+	UseMidiEventSystem            bool       `json:"use_midi_event_system"`
+	MidiTimingRandomization       mgl32.Vec2 `json:"midi_timing_randomization"`
+	MidiStopDelay                 float32    `json:"midi_stop_delay"`
+	FireLoopStartAudioEvent       string     `json:"fire_loop_start_audio_delay"`
+	FireLoopStopAudioEvent        string     `json:"fire_loop_stop_audio_event"`
+	FireSingleAudioEvent          string     `json:"fire_single_audio_event"`
+	UnkAudioEvent                 string     `json:"unk_audio_event"` // name length 27
+	MuzzleFlash                   string     `json:"muzzle_flash"`
+	NoiseTimer                    float32    `json:"noise_timer"`
+	FireSourceNode                string     `json:"fire_source_node"`
+	DryFireAudioEvent             string     `json:"dry_fire_audio_event"`
+	DryFireRepeatAudioEvent       string     `json:"dry_fire_repeat_audio_event"`
+	OnFireStartedWielderAnimEvent string     `json:"on_fire_started_wielder_anim_event"`
+	OnFireStoppedWielderAnimEvent string     `json:"on_fire_stopped_wielder_anim_event"`
+	UnkBool                       bool       `json:"unk_bool"`
+	UnkInt                        int32      `json:"unk_int"`
+	UnkInt2                       int32      `json:"unk_int2"`
 }
 
 func (b BeamWeaponComponent) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookupStrings StringsLookup) any {
 	return SimpleBeamWeaponComponent{
-		Type:                          b.Type,
-		Prisms:                        b.Prisms,
-		ScopeResponsiveness:           b.ScopeResponsiveness,
+		Type:   b.Type,
+		Prisms: b.Prisms,
+		//ScopeResponsiveness:           b.ScopeResponsiveness,
 		ScopeCrosshair:                b.ScopeCrosshair,
 		FocalDistances:                b.FocalDistances,
 		UseFirenodePose:               b.UseFirenodePose,
@@ -78,6 +88,7 @@ func (b BeamWeaponComponent) ToSimple(lookupHash HashLookup, lookupThinHash Thin
 		FireLoopStartAudioEvent:       lookupThinHash(b.FireLoopStartAudioEvent),
 		FireLoopStopAudioEvent:        lookupThinHash(b.FireLoopStopAudioEvent),
 		FireSingleAudioEvent:          lookupThinHash(b.FireSingleAudioEvent),
+		UnkAudioEvent:                 lookupThinHash(b.UnkAudioEvent),
 		MuzzleFlash:                   lookupHash(b.MuzzleFlash),
 		NoiseTimer:                    b.NoiseTimer,
 		FireSourceNode:                lookupThinHash(b.FireSourceNode),
@@ -85,6 +96,9 @@ func (b BeamWeaponComponent) ToSimple(lookupHash HashLookup, lookupThinHash Thin
 		DryFireRepeatAudioEvent:       lookupThinHash(b.DryFireRepeatAudioEvent),
 		OnFireStartedWielderAnimEvent: lookupThinHash(b.OnFireStartedWielderAnimEvent),
 		OnFireStoppedWielderAnimEvent: lookupThinHash(b.OnFireStoppedWielderAnimEvent),
+		UnkBool:                       b.UnkBool != 0,
+		UnkInt:                        b.UnkInt,
+		UnkInt2:                       b.UnkInt2,
 	}
 }
 
