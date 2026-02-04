@@ -46,7 +46,7 @@ func (tok *InstructionToken) noParamsGLSL(opType ShaderOpcodeType, cbs []Constan
 	switch opType {
 	case OPCODE_LOOP:
 		toReturn += "while(true) {\n"
-	case OPCODE_ENDLOOP, OPCODE_ENDIF:
+	case OPCODE_ENDLOOP, OPCODE_ENDIF, OPCODE_ENDSWITCH:
 		toReturn += "}\n"
 	case OPCODE_BREAK:
 		toReturn += "break;\n"
@@ -54,6 +54,8 @@ func (tok *InstructionToken) noParamsGLSL(opType ShaderOpcodeType, cbs []Constan
 		toReturn += "return;\n"
 	case OPCODE_ELSE:
 		toReturn += "} else {\n"
+	case OPCODE_DEFAULT:
+		toReturn += "default:\n"
 	default:
 		toReturn += "// Not implemented!\n"
 	}
@@ -72,6 +74,16 @@ func (tok *InstructionToken) singleParamsGLSL(opType ShaderOpcodeType, cbs []Con
 	case OPCODE_IF:
 		toReturn += fmt.Sprintf(
 			"if (bool(%v)) {\n",
+			tok.operands[0].ToGLSL(cbs, isg, osg, res, tok.operands[0].Mask(), false),
+		)
+	case OPCODE_SWITCH:
+		toReturn += fmt.Sprintf(
+			"switch (%v) {\n",
+			tok.operands[0].ToGLSL(cbs, isg, osg, res, tok.operands[0].Mask(), false),
+		)
+	case OPCODE_CASE:
+		toReturn += fmt.Sprintf(
+			"case %v:\n",
 			tok.operands[0].ToGLSL(cbs, isg, osg, res, tok.operands[0].Mask(), false),
 		)
 	default:
@@ -510,7 +522,7 @@ var EncounteredBFI = false
 func (tok *InstructionToken) quatenaryOpGLSL(opType ShaderOpcodeType, cbs []ConstantBuffer, isg, osg []Element, res []ResourceBinding) string {
 	toReturn := fmt.Sprintf("// Quatenary Op %v\n", opType.ToString())
 	masks := [5]uint8{tok.operands[0].Mask(), tok.operands[0].Mask(), tok.operands[0].Mask(), tok.operands[0].Mask(), tok.operands[0].Mask()}
-	//var expr string
+	var expr string
 	switch opType {
 	case OPCODE_11_BFI:
 		if !EncounteredBFI {
@@ -544,9 +556,50 @@ func (tok *InstructionToken) quatenaryOpGLSL(opType ShaderOpcodeType, cbs []Cons
 			tok.operands[4].ToGLSL(cbs, isg, osg, res, masks[4], false),
 			bitmaskSwizzle,
 		)
+	case OPCODE_SAMPLE_L:
+		// sample dest[.mask], srcAddress[.swizzle], srcResource[.swizzle], srcSampler, srcLOD
+		// gvec texelFetch(gsampler sampler​, ivec texCoord);
+
+		rb := tok.operands[2].ResourceBinding(res)
+		if rb == nil {
+			panic(fmt.Errorf("sample operand 2 must be a resource binding"))
+		}
+		dim := rb.ViewDimension.Dimensions()
+		if dim < 1 {
+			panic(fmt.Errorf("sample operand 2 must be a known resource binding"))
+		}
+
+		expr = fmt.Sprintf(
+			"textureLod(%v, %v, %v)%v",
+			tok.operands[2].ToGLSL(cbs, isg, osg, res, 0x0, true),
+			tok.operands[1].ToGLSL(cbs, isg, osg, res, (1<<dim)-1, true),
+			tok.operands[4].ToGLSL(cbs, isg, osg, res, 0x0, false),
+			tok.operands[2].SwizzleMask(masks[2]),
+		)
 	}
 
-	return toReturn
+	if len(expr) == 0 {
+		return toReturn
+	}
+	if tok.Saturate() {
+		expr = fmt.Sprintf("clamp(%v, 0.0, 1.0)", expr)
+	}
+	returnNumberType := opType.ReturnNumberType()
+	if opType == OPCODE_SAMPLE_L {
+		rb := tok.operands[2].ResourceBinding(res)
+		returnNumberType = rb.ReturnType.ToOpcodeNumberType()
+	}
+	if returnNumberType != internalNumberTypeFloat {
+		expr = fmt.Sprintf("%v(%v)", returnNumberType.BitcastToFloat(), expr)
+	}
+
+	toReturn += fmt.Sprintf(
+		"%v = %v;",
+		tok.operands[0].ToGLSL(cbs, isg, osg, res, masks[0], true),
+		expr,
+	)
+
+	return toReturn + "\n"
 }
 
 func ParseInstruction(opcode uint32, data []uint8) (Opcode, error) {
