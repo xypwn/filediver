@@ -72,7 +72,10 @@ type ProjectileWeaponComponent struct {
 	WeaponFunctionProjectileType    enum.ProjectileType // If we have the Programmable Ammo weapon function and we switch to it, what should our projectile type be?
 	UnknownParticleHash             stingray.Hash       // added after strings removed
 	UnknownBool                     uint8               // added after strings removed
-	_                               [11]uint8
+	_                               [3]uint8
+	UnknownEnum                     uint32    // name length 35
+	UnknownArray                    [3]uint32 // name length 19
+	_                               [4]uint8
 }
 
 type SimpleWeaponCasingEffectInfo struct {

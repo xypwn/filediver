@@ -50,9 +50,12 @@ type DamageableZoneInfo struct {
 	OnDownedAudioEventNode             stingray.ThinHash     // [string]The audio node to use when this damage zone goes into constitution.
 	OnDownedLocomotionSet              stingray.ThinHash     // [string]The name of the locomotion set to activate when it goes into constitution. It will not trigger if another zone that affects locomotion is dead. In this case the locomotion set 'crawling' will be triggered.
 	OnDamageScriptEvent                stingray.ThinHash     // [string]The script event to trigger when this damage zone takes damage.
+	UnknownThinHash                    stingray.ThinHash     // name length 26
 	DamageMultiplier                   enum.DamageMultiplier // Damage Multiplier
 	DamageMultiplierDPS                enum.DamageMultiplier // Damage Multipler for DPS weapons
 	ProjectileDurableResistance        float32               // Projectiles have 2 damages - Normal and Durable. This indicates how much it should scale the damage between the 2 values [Normal] -> [Durable].
+	UnkFloat                           float32               // name length 33
+	UnkFloat2                          float32               // name length 44
 	Armor                              uint32                // Armor
 	ArmorAngleCheck                    uint8                 // [bool]Whether or not projectiles should check for armor penetration boost on hit.
 	_                                  [3]uint8
@@ -89,7 +92,7 @@ type DamageableZoneInfo struct {
 	UnknownFloat3                      float32               // Unknown, 30 chars long
 	UnknownBool2                       uint8                 // Unknown, 9 chars long
 	UnknownBool3                       uint8                 // Unknown, 14 chars long
-	_                                  [2]uint8
+	_                                  [6]uint8
 }
 
 type DamageableZone struct {

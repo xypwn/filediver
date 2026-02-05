@@ -422,7 +422,6 @@ func AddMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_mate
 				})
 			}
 			materialVariants[namesToVariantIdx[tempSkinOverride.Name]].MaterialHashToIndex[id] = *skinMatIdx
-
 		}
 	}
 	return materialVariants, nil
