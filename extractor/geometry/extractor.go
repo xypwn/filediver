@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"math"
 	"slices"
 	"strings"
 
@@ -52,6 +53,34 @@ func convertFloat16Slice(gpuR io.ReadSeeker, data []byte, tmpArr []uint16, extra
 	}
 	data = append(data, make([]byte, extra*4)...)
 	return data, size, nil
+}
+
+// 32-bit abs
+func abs32(f float32) float32 {
+	// See std math.Abs.
+	return math.Float32frombits(math.Float32bits(f) &^ (1 << 31))
+}
+
+func calcTangent(normal mgl32.Vec4) mgl32.Vec4 {
+	tangentBaseChoice := abs32(normal.Z()) < abs32(normal.Y())
+
+	// The following if statement is NOT in the actual shader.
+	// This is to correct some special cases, which probably
+	// came to be because the shader uses float16 and we're
+	// using float32.
+	if mgl32.FloatEqualThreshold(normal.X(), -1, 1e-6) ||
+		mgl32.FloatEqualThreshold(normal.X(), 1, 1e-6) {
+		tangentBaseChoice = !tangentBaseChoice
+	}
+
+	var tangent mgl32.Vec3 // tangentBase is orthogonal to normal
+	if tangentBaseChoice {
+		tangent = (mgl32.Vec3{normal.Y(), -normal.X(), 0}).Normalize()
+	} else {
+		tangent = (mgl32.Vec3{normal.Z(), 0, -normal.X()}).Normalize()
+	}
+
+	return tangent.Vec4(normal.W())
 }
 
 func convertVertices(gpuR io.ReadSeeker, layout unit.MeshLayout) ([]byte, [][]AccessorInfo, error) {
@@ -140,12 +169,33 @@ func convertVertices(gpuR io.ReadSeeker, layout unit.MeshLayout) ([]byte, [][]Ac
 				if err != nil {
 					return nil, nil, fmt.Errorf("converting float16 slice: %v", err)
 				}
+				if item.Type == unit.ItemNormal && item.Format == unit.FormatVec4F16 {
+					tmpFloats := make([]float32, item.Format.Type().Components())
+					_, err := binary.Decode(data[len(data)-int(size):], binary.LittleEndian, &tmpFloats)
+					if err != nil {
+						return nil, nil, fmt.Errorf("converting float16 normal slice: %v", err)
+					}
+					data = data[:len(data)-int(size)]
+					data, err = binary.Append(data, binary.LittleEndian, tmpFloats[:3])
+					tangent := calcTangent(mgl32.Vec4(tmpFloats))
+					data, err = binary.Append(data, binary.LittleEndian, tangent)
+				}
 				if vertex == 0 {
-					accessorStructure = append(accessorStructure, []AccessorInfo{{
+					accessorInfos := []AccessorInfo{{
 						AccessorType:  accessorType,
 						ComponentType: gltf.ComponentFloat,
 						Size:          size,
-					}})
+					}}
+					if item.Type == unit.ItemNormal && item.Format == unit.FormatVec4F16 {
+						accessorInfos[0].AccessorType = gltf.AccessorVec3
+						accessorInfos[0].Size = 12
+						accessorInfos = append(accessorInfos, AccessorInfo{
+							AccessorType:  gltf.AccessorVec4,
+							ComponentType: gltf.ComponentFloat,
+							Size:          16,
+						})
+					}
+					accessorStructure = append(accessorStructure, accessorInfos)
 				}
 			case unit.FormatF32:
 				fallthrough
@@ -184,12 +234,33 @@ func convertVertices(gpuR io.ReadSeeker, layout unit.MeshLayout) ([]byte, [][]Ac
 					}
 					item.Format = unit.FormatVec4F
 				}
+				if item.Type == unit.ItemNormal && item.Format == unit.FormatVec4F {
+					tmpFloats := make([]float32, item.Format.Type().Components())
+					_, err := binary.Decode(data[len(data)-16:], binary.LittleEndian, &tmpFloats)
+					if err != nil {
+						return nil, nil, fmt.Errorf("converting float16 normal slice: %v", err)
+					}
+					data = data[:len(data)-16]
+					data, err = binary.Append(data, binary.LittleEndian, tmpFloats[:3])
+					tangent := calcTangent(mgl32.Vec4(tmpFloats))
+					data, err = binary.Append(data, binary.LittleEndian, tangent)
+				}
 				if vertex == 0 {
-					accessorStructure = append(accessorStructure, []AccessorInfo{{
+					accessorInfos := []AccessorInfo{{
 						AccessorType:  item.Format.Type(),
 						ComponentType: item.Format.ComponentType(),
 						Size:          uint32(item.Format.Size()),
-					}})
+					}}
+					if item.Type == unit.ItemNormal && item.Format == unit.FormatVec4F {
+						accessorInfos[0].AccessorType = gltf.AccessorVec3
+						accessorInfos[0].Size = 12
+						accessorInfos = append(accessorInfos, AccessorInfo{
+							AccessorType:  gltf.AccessorVec4,
+							ComponentType: gltf.ComponentFloat,
+							Size:          16,
+						})
+					}
+					accessorStructure = append(accessorStructure, accessorInfos)
 				}
 			default:
 				return nil, nil, fmt.Errorf("Unknown format %v for type %v", item.Format.String(), item.Type.String())
