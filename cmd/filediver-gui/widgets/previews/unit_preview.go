@@ -281,6 +281,9 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 	if len(mesh.Positions) == 0 {
 		return fmt.Errorf("mesh contains no positions")
 	}
+	if len(mesh.Normals) == 0 {
+		return fmt.Errorf("mesh contains no normals")
+	}
 	if len(mesh.UVCoords) == 0 || len(mesh.UVCoords[0]) == 0 {
 		return fmt.Errorf("mesh contains no UV coordinates")
 	}
