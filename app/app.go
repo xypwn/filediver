@@ -346,7 +346,30 @@ func OpenGameDir(ctx context.Context, gameDir string, hashStrings []string, thin
 		return nil, fmt.Errorf("error loading game build info: %v", err)
 	}
 
-	armorSets, err := datalib.LoadArmorSetDefinitions(mapping)
+	lookupHash := func(hash stingray.Hash) string {
+		if name, ok := hashesMap[hash]; ok {
+			return name
+		}
+		return hash.String()
+	}
+
+	lookupThinHash := func(hash stingray.ThinHash) string {
+		if name, ok := thinHashesMap[hash]; ok {
+			return name
+		}
+		return hash.String()
+	}
+
+	lookupString := func(stringId uint32) string {
+		if name, ok := mapping[stringId]; ok {
+			return name
+		}
+		return strconv.FormatUint(uint64(stringId), 10)
+	}
+
+	passives, err := datalib.LoadPassiveBonusDefinitions(lookupHash, lookupThinHash, lookupString)
+
+	armorSets, err := datalib.LoadArmorSetDefinitions(mapping, passives)
 	if err != nil {
 		return nil, fmt.Errorf("error loading armor set definitions: %v", err)
 	}
@@ -522,6 +545,14 @@ func (a *App) LookupThinHash(hash stingray.ThinHash) string {
 		return name
 	}
 	return hash.String()
+}
+
+// Prints string if string id is known.
+func (a *App) LookupString(stringId uint32) string {
+	if name, ok := a.LanguageMap[stringId]; ok {
+		return name
+	}
+	return strconv.FormatUint(uint64(stringId), 10)
 }
 
 func getSourceExtractFunc(extrCfg appconfig.Config, typ string) (extr extractor.ExtractFunc) {

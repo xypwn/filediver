@@ -62,7 +62,7 @@ func main() {
 
 	result := make(map[string]any)
 	for name, component := range visibilityMasks {
-		result[lookupHash(name)] = component.ToSimple(lookupHash, lookupThinHash)
+		result[lookupHash(name)] = component.ToSimple(lookupHash, lookupThinHash, func(hash uint32) string { return "" })
 	}
 
 	output, err := json.MarshalIndent(result, "", "    ")

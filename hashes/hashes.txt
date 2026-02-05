@@ -71337,6 +71337,7 @@ content/fac_helldivers/equipment/backpacks/ballistic_shield_backpack/ballistic_s
 content/fac_helldivers/equipment/backpacks/ballistic_shield_backpack_mk2/ballistic_shield_backpack_mk2
 content/fac_helldivers/equipment/backpacks/ballistic_shield_backpack_small/ballistic_shield_backpack_small
 content/fac_helldivers/equipment/backpacks/belt_fed_grenade_launcher_backpack/belt_fed_grenade_launcher_backpack
+content/fac_helldivers/equipment/backpacks/belt_fed_grenade_launcher_backpack/belt_fed_grenade_launcher_backpack_hose
 content/fac_helldivers/equipment/backpacks/bomb_backpack/animation/arm
 content/fac_helldivers/equipment/backpacks/bomb_backpack/animation/down
 content/fac_helldivers/equipment/backpacks/bomb_backpack/animation/spin
@@ -71947,6 +71948,7 @@ content/fac_helldivers/equipment/throwables/dynamite/dynamite
 content/fac_helldivers/equipment/throwables/dynamite/textures/dynamite_nac
 content/fac_helldivers/equipment/throwables/emp_grenade/emp_grenade
 content/fac_helldivers/equipment/throwables/emp_grenade/textures/emp_grenade_nac
+content/fac_helldivers/equipment/throwables/energy_shield_grenade/energy_shield_grenade
 content/fac_helldivers/equipment/throwables/flashbang/flashbang
 content/fac_helldivers/equipment/throwables/flashbang/textures/flashbang_nac
 content/fac_helldivers/equipment/throwables/frag_grenade/frag_grenade

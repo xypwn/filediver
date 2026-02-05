@@ -47,7 +47,7 @@ func LoadBoneMap(ctx *extractor.Context, unitInfo *unit.Info) (*bones.Info, erro
 }
 
 // Adds the unit's skeleton to the gltf document
-func AddSkeleton(ctx *extractor.Context, doc *gltf.Document, unitInfo *unit.Info, skeletonName stingray.Hash, armorName *string) uint32 {
+func AddSkeleton(ctx *extractor.Context, doc *gltf.Document, unitInfo *unit.Info, skeletonName stingray.Hash, armorName *string, passive *datalib.HelldiverCustomizationPassiveBonusSettings) uint32 {
 	boneInfo, err := LoadBoneMap(ctx, unitInfo)
 	if err != nil {
 		ctx.Warnf("addSkeleton: %v", err)
@@ -173,6 +173,14 @@ func AddSkeleton(ctx *extractor.Context, doc *gltf.Document, unitInfo *unit.Info
 		})
 		if armorName != nil {
 			extras := map[string]any{"armorSet": *armorName}
+			doc.Nodes[idx].Extras = extras
+		}
+		if passive != nil {
+			extras, ok := doc.Nodes[idx].Extras.(map[string]any)
+			if !ok {
+				extras = make(map[string]any)
+			}
+			extras["passiveBonus"] = strings.Join(passive.ResolveDescription(), "<br/>")
 			doc.Nodes[idx].Extras = extras
 		}
 		skeleton = gltf.Index(uint32(idx))
@@ -579,9 +587,11 @@ func ConvertBuffer(fMain, fGPU io.ReadSeeker, filename stingray.Hash, ctx *extra
 
 	// Get metadata
 	var metadata *datalib.UnitData = nil
+	var passive *datalib.HelldiverCustomizationPassiveBonusSettings = nil
 	var armorSetName *string = nil
 	if armorSet, ok := ctx.GuessFileArmorSet(ctx.FileID()); ok {
 		armorSetName = &armorSet.Name
+		passive = armorSet.Passive
 		if _, contains := armorSet.UnitMetadata[filename]; contains {
 			value := armorSet.UnitMetadata[filename]
 			metadata = &value
@@ -599,7 +609,7 @@ func ConvertBuffer(fMain, fGPU io.ReadSeeker, filename stingray.Hash, ctx *extra
 	var skin *uint32 = nil
 	var parent *uint32 = nil
 	if bonesEnabled && len(unitInfo.Bones) > 2 {
-		skin = gltf.Index(AddSkeleton(ctx, doc, unitInfo, filename, armorSetName))
+		skin = gltf.Index(AddSkeleton(ctx, doc, unitInfo, filename, armorSetName, passive))
 		parent = doc.Skins[*skin].Skeleton
 		if cfg.Model.EnableAnimations {
 			index, err := state_machine.AddStateMachine(ctx, doc, unitInfo)
