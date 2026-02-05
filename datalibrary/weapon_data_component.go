@@ -115,7 +115,8 @@ type WeaponDataComponent struct {
 	UnknownFloat                           float32 // Name len 31, introduced with minigun
 	UnknownMinigunBool2                    uint8   // Name len 38, introduced with minigun
 	_                                      [3]uint8
-	Unknown2dVec2                          mgl32.Vec2        // Unknown vec2, namelen 40, introduced with minigun
+	Unknown2dVec2                          mgl32.Vec2        // Unknown vec2, namelen 50
+	Unknown2dVec3                          mgl32.Vec2        // Unknown vec2, namelen 40, introduced with minigun
 	ConstrainedAimLeading                  uint8             // [bool]If set, the camera may not get too far away from the aim direction.
 	AllowFPV                               uint8             // [bool]Allow First Person View on this weapon
 	AllowAiming                            uint8             // [bool]Allow aiming on this weapon
@@ -223,6 +224,7 @@ type SimpleWeaponDataComponent struct {
 	UnknownFloat                           float32                        `json:"unknown_float"`                               // unknown
 	UnknownMinigunBool2                    bool                           `json:"unknown_minigun_bool_2"`                      // unknown
 	Unknown2dVec2                          mgl32.Vec2                     `json:"unknown_2d_vec_2"`                            // unknown
+	Unknown2dVec3                          mgl32.Vec2                     `json:"unknown_2d_vec_3"`                            // unknown
 	ConstrainedAimLeading                  bool                           `json:"constrained_aim_leading"`                     // [bool]If set, the camera may not get too far away from the aim direction.
 	AllowFPV                               bool                           `json:"allow_fpv"`                                   // [bool]Allow First Person View on this weapon
 	AllowAiming                            bool                           `json:"allow_aiming"`                                // [bool]Allow aiming on this weapon
@@ -376,6 +378,7 @@ func (d WeaponDataComponent) ToSimple(lookupHash HashLookup, lookupThinHash Thin
 		UnknownFloat:                           d.UnknownFloat,
 		UnknownMinigunBool2:                    d.UnknownMinigunBool2 != 0,
 		Unknown2dVec2:                          d.Unknown2dVec2,
+		Unknown2dVec3:                          d.Unknown2dVec3,
 		ConstrainedAimLeading:                  d.ConstrainedAimLeading != 0,
 		AllowFPV:                               d.AllowFPV != 0,
 		AllowAiming:                            d.AllowAiming != 0,

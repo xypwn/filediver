@@ -1037,6 +1037,7 @@ ShieldControllerComponentData
 ShieldControllerComponent
 ShieldShapeType
 SurfaceEffectInfo
+HelldiverCustomizationStatModifier
 
 // ======== Enums and Values ========
 HelldiverCustomizationPassiveBonus

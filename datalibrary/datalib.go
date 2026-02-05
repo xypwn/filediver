@@ -17,9 +17,37 @@ import (
 	"github.com/xypwn/filediver/hashes"
 )
 
+//go:embed generated_arc_settings.dl_bin.gz
+var arcSettingsCompressed []byte
+var arcSettings []byte
+
+//go:embed generated_beam_settings.dl_bin.gz
+var beamSettingsCompressed []byte
+var beamSettings []byte
+
+//go:embed generated_damage_settings.dl_bin.gz
+var damageSettingsCompressed []byte
+var damageSettings []byte
+
+//go:embed generated_projectile_settings.dl_bin.gz
+var projectileSettingsCompressed []byte
+var projectileSettings []byte
+
+//go:embed generated_environment_settings.dl_bin.gz
+var environmentSettingsCompressed []byte
+var environmentSettings []byte
+
+//go:embed generated_explosion_settings.dl_bin.gz
+var explosionSettingsCompressed []byte
+var explosionSettings []byte
+
 //go:embed generated_customization_armor_sets.dl_bin.gz
 var customizationArmorSetsCompressed []byte
 var customizationArmorSets []byte
+
+//go:embed generated_customization_passive_bonuses.dl_bin.gz
+var customizationPassiveBonusesCompressed []byte
+var customizationPassiveBonuses []byte
 
 //go:embed generated_unit_customization_settings.dl_bin.gz
 var unitCustomizationSettingsCompressed []byte
@@ -82,7 +110,14 @@ func init() {
 	// Reduces binary size by ~33MB.
 	goDecompress(&entities, entitiesCompressed)
 	goDecompress(&entityDeltas, entityDeltasCompressed)
+	goDecompress(&arcSettings, arcSettingsCompressed)
+	goDecompress(&beamSettings, beamSettingsCompressed)
 	goDecompress(&customizationArmorSets, customizationArmorSetsCompressed)
+	goDecompress(&customizationPassiveBonuses, customizationPassiveBonusesCompressed)
+	goDecompress(&damageSettings, damageSettingsCompressed)
+	goDecompress(&environmentSettings, environmentSettingsCompressed)
+	goDecompress(&explosionSettings, explosionSettingsCompressed)
+	goDecompress(&projectileSettings, projectileSettingsCompressed)
 	goDecompress(&unitCustomizationSettings, unitCustomizationSettingsCompressed)
 	goDecompress(&weaponCustomizationSettings, weaponCustomizationSettingsCompressed)
 	goDecompress(&typelib, typelibCompressed)
@@ -352,6 +387,11 @@ type DLTypeLib struct {
 	DLTypeLibHeader `json:"header"`
 	Types           map[DLHash]DLTypeDesc `json:"types,omitempty"`
 	Enums           map[DLHash]DLEnumDesc `json:"enums,omitempty"`
+}
+
+type DLArray struct {
+	Offset int64
+	Count  uint64
 }
 
 var parsedTypelib *DLTypeLib = nil

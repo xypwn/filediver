@@ -17,6 +17,8 @@ type WieldableComponent struct {
 	WieldStateAudioEvent           stingray.ThinHash // [wwise]Wwise event to set the currently-equipped weapon state
 	SelfWielderEnterAnimationEvent stingray.ThinHash // Maybe the animation event sent to the wielder on entry?
 	SelfWielderExitAnimationEvent  stingray.ThinHash // Maybe the animation event sent to the wielder on exit?
+	UnkBool                        uint8             // name length 42
+	_                              [3]uint8
 }
 
 type SimpleWieldableComponent struct {
@@ -26,6 +28,7 @@ type SimpleWieldableComponent struct {
 	WieldStateAudioEvent           string `json:"wield_state_audio_event"`
 	SelfWielderEnterAnimationEvent string `json:"self_wielder_enter_animation_event"`
 	SelfWielderExitAnimationEvent  string `json:"self_wielder_exit_animation_event"`
+	UnkBool                        bool   `json:"unk_bool"`
 }
 
 func (w WieldableComponent) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookupStrings StringsLookup) any {
@@ -36,6 +39,7 @@ func (w WieldableComponent) ToSimple(lookupHash HashLookup, lookupThinHash ThinH
 		WieldStateAudioEvent:           lookupThinHash(w.WieldStateAudioEvent),
 		SelfWielderEnterAnimationEvent: lookupThinHash(w.SelfWielderEnterAnimationEvent),
 		SelfWielderExitAnimationEvent:  lookupThinHash(w.SelfWielderExitAnimationEvent),
+		UnkBool:                        w.UnkBool != 0,
 	}
 }
 

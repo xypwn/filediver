@@ -70696,6 +70696,9 @@ content/env_super_earth/wartorn/textures/shuttle_interior_mra
 content/env_super_earth/wartorn/textures/shuttle_interior_n
 content/env_super_earth/wartorn/wartorn_frv_01
 content/env_super_earth/wartorn/wartorn_lav_01
+content/env_super_earth/wartorn/wartorn_shuttle_gunship_engine
+content/env_super_earth/wartorn/wartorn_shuttle_gunship_hull
+content/env_super_earth/wartorn/wartorn_shuttle_gunship_legs
 content/fac_bugs/cha_alpha_charger/cha_alpha_charger
 content/fac_bugs/cha_boomer/animations/additive_none
 content/fac_bugs/cha_boomer/animations/alarm
@@ -71378,6 +71381,7 @@ content/fac_helldivers/equipment/backpacks/ballistic_shield_backpack/ballistic_s
 content/fac_helldivers/equipment/backpacks/ballistic_shield_backpack_mk2/ballistic_shield_backpack_mk2
 content/fac_helldivers/equipment/backpacks/ballistic_shield_backpack_small/ballistic_shield_backpack_small
 content/fac_helldivers/equipment/backpacks/belt_fed_grenade_launcher_backpack/belt_fed_grenade_launcher_backpack
+content/fac_helldivers/equipment/backpacks/belt_fed_grenade_launcher_backpack/belt_fed_grenade_launcher_backpack_hose
 content/fac_helldivers/equipment/backpacks/bomb_backpack/animation/arm
 content/fac_helldivers/equipment/backpacks/bomb_backpack/animation/down
 content/fac_helldivers/equipment/backpacks/bomb_backpack/animation/spin
@@ -71877,6 +71881,7 @@ content/fac_helldivers/equipment/support_weapons/chemgun/animation/idle
 content/fac_helldivers/equipment/support_weapons/chemgun/animation/reload
 content/fac_helldivers/equipment/support_weapons/chemgun/chemgun
 content/fac_helldivers/equipment/support_weapons/chemgun/textures/chemgun_nac
+content/fac_helldivers/equipment/support_weapons/expendable_massive_rocket_launcher/expendable_massive_rocket_launcher
 content/fac_helldivers/equipment/support_weapons/expendable_napalm_launcher/expendable_napalm_launcher
 content/fac_helldivers/equipment/support_weapons/faf_missile_helghast/faf_missile_helghast
 content/fac_helldivers/equipment/support_weapons/faf_missile_launcher/animation/assisted_reload
@@ -71988,6 +71993,7 @@ content/fac_helldivers/equipment/throwables/dynamite/dynamite
 content/fac_helldivers/equipment/throwables/dynamite/textures/dynamite_nac
 content/fac_helldivers/equipment/throwables/emp_grenade/emp_grenade
 content/fac_helldivers/equipment/throwables/emp_grenade/textures/emp_grenade_nac
+content/fac_helldivers/equipment/throwables/energy_shield_grenade/energy_shield_grenade
 content/fac_helldivers/equipment/throwables/flashbang/flashbang
 content/fac_helldivers/equipment/throwables/flashbang/textures/flashbang_nac
 content/fac_helldivers/equipment/throwables/frag_grenade/frag_grenade
