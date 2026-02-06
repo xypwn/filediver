@@ -257,7 +257,12 @@ func getPlane() (*PreviewMeshBuffer, error) {
 		return nil, err
 	}
 	meshPreviewBuffer.LoadLayout(unit.MeshLayout{
-		NumItems: 7,
+		NumItems:      7,
+		NumVertices:   4,
+		NumIndices:    6,
+		IndicesSize:   uint32(binary.Size(planeIndices)),
+		VertexStride:  64,
+		PositionsSize: uint32(binary.Size(planeVertices)),
 		Items: [16]unit.MeshLayoutItem{
 			{
 				Type:   unit.ItemPosition,
