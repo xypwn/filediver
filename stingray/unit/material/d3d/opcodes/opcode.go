@@ -904,14 +904,14 @@ func (t ShaderOpcodeType) ToOperator() string {
 
 const (
 	LENGTH_MASK  uint32 = 0x7f000000
-	LENGTH_SHIFT        = 24
+	LENGTH_SHIFT uint32 = 24
 )
 
 const TYPE_MASK uint32 = 0x000007ff
 
 const (
 	CUSTOMDATA_MASK  uint32 = 0xfffff800
-	CUSTOMDATA_SHIFT        = 11
+	CUSTOMDATA_SHIFT uint32 = 11
 )
 
 const EXTENDED_MASK uint32 = 0x80000000

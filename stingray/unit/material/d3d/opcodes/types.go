@@ -317,7 +317,7 @@ func (v Variable) ToGLSL() string {
 		toReturn += fmt.Sprintf("[%v]", v.Elements)
 	}
 	toReturn += fmt.Sprintf("; // size: %v, offset: %v", v.Size, v.BufferOffset)
-	if v.DefaultData != nil && len(v.DefaultData) > 0 {
+	if len(v.DefaultData) > 0 {
 		toReturn += fmt.Sprintf(", default data: %v", v.DefaultData)
 	}
 	switch v.Class {

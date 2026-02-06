@@ -40,6 +40,16 @@ func (tok *InstructionToken) ToGLSL(cbs []ConstantBuffer, isg, osg []Element, re
 	}
 }
 
+func (tok *InstructionToken) wrapExpression(expr string, returnNumberType opcodeNumberType, bitcast bool) string {
+	if tok.Saturate() {
+		expr = fmt.Sprintf("clamp(%v, 0.0, 1.0)", expr)
+	}
+	if bitcast && returnNumberType != internalNumberTypeFloat {
+		expr = fmt.Sprintf("%v(%v)", returnNumberType.BitcastToFloat(), expr)
+	}
+	return expr
+}
+
 func (tok *InstructionToken) noParamsGLSL(opType ShaderOpcodeType, cbs []ConstantBuffer, isg, osg []Element, res []ResourceBinding) string {
 	toReturn := fmt.Sprintf("// No Param Op %v\n", opType.ToString())
 
@@ -218,12 +228,7 @@ func (tok *InstructionToken) unaryOpGLSL(opType ShaderOpcodeType, cbs []Constant
 		)
 	}
 
-	if tok.Saturate() {
-		expr = fmt.Sprintf("clamp(%v, 0.0, 1.0)", expr)
-	}
-	if opType.ReturnNumberType() != internalNumberTypeFloat {
-		expr = fmt.Sprintf("%v(%v)", opType.ReturnNumberType().BitcastToFloat(), expr)
-	}
+	expr = tok.wrapExpression(expr, opType.ReturnNumberType(), true)
 
 	toReturn += fmt.Sprintf(
 		"%v = %v;",
@@ -389,12 +394,8 @@ func (tok *InstructionToken) binaryOpGLSL(opType ShaderOpcodeType, cbs []Constan
 			tok.operands[2].ToGLSL(cbs, isg, osg, res, masks[2], false),
 		)
 	}
-	if tok.Saturate() {
-		expr = fmt.Sprintf("clamp(%v, 0.0, 1.0)", expr)
-	}
-	if opType.ReturnNumberType() != internalNumberTypeFloat && opType != OPCODE_LD {
-		expr = fmt.Sprintf("%v(%v)", opType.ReturnNumberType().BitcastToFloat(), expr)
-	}
+
+	expr = tok.wrapExpression(expr, opType.ReturnNumberType(), opType != OPCODE_LD)
 
 	toReturn += fmt.Sprintf(
 		"%v = %v;",
@@ -404,6 +405,8 @@ func (tok *InstructionToken) binaryOpGLSL(opType ShaderOpcodeType, cbs []Constan
 
 	return toReturn + "\n"
 }
+
+var CreatedTemp = false
 
 func (tok *InstructionToken) trinaryOpGLSL(opType ShaderOpcodeType, cbs []ConstantBuffer, isg, osg []Element, res []ResourceBinding) string {
 	toReturn := fmt.Sprintf("// Trinary Op %v\n", opType.ToString())
@@ -427,12 +430,7 @@ func (tok *InstructionToken) trinaryOpGLSL(opType ShaderOpcodeType, cbs []Consta
 				tok.operands[2].ToGLSL(cbs, isg, osg, res, masks[2], false),
 				tok.operands[3].ToGLSL(cbs, isg, osg, res, masks[3], false),
 			)
-			if tok.Saturate() {
-				expr = fmt.Sprintf("clamp(%v, 0.0, 1.0)", expr)
-			}
-			if opType.ReturnNumberType() != internalNumberTypeFloat {
-				expr = fmt.Sprintf("%v(%v)", opType.ReturnNumberType().BitcastToFloat(), expr)
-			}
+			expr = tok.wrapExpression(expr, opType.ReturnNumberType(), true)
 			toReturn += fmt.Sprintf(
 				"%v = %v;\n",
 				tok.operands[0].ToGLSL(cbs, isg, osg, res, masks[0], true),
@@ -448,12 +446,7 @@ func (tok *InstructionToken) trinaryOpGLSL(opType ShaderOpcodeType, cbs []Consta
 				tok.operands[2].ToGLSL(cbs, isg, osg, res, masks[2], false),
 				tok.operands[3].ToGLSL(cbs, isg, osg, res, masks[3], false),
 			)
-			if tok.Saturate() {
-				expr = fmt.Sprintf("clamp(%v, 0.0, 1.0)", expr)
-			}
-			if opType.ReturnNumberType() != internalNumberTypeFloat {
-				expr = fmt.Sprintf("%v(%v)", opType.ReturnNumberType().BitcastToFloat(), expr)
-			}
+			expr = tok.wrapExpression(expr, opType.ReturnNumberType(), true)
 			toReturn += fmt.Sprintf(
 				"%v = %v;\n",
 				tok.operands[1].ToGLSL(cbs, isg, osg, res, masks[1], true),
@@ -462,11 +455,29 @@ func (tok *InstructionToken) trinaryOpGLSL(opType ShaderOpcodeType, cbs []Consta
 		}
 		return toReturn
 	case OPCODE_MOVC:
+		if !CreatedTemp {
+			toReturn += "vec4 temp;\n"
+			CreatedTemp = true
+		}
+		for i := range 4 {
+			if (1<<i)&masks[0] != 0 {
+				expr = fmt.Sprintf(
+					"bool(%v) ? %v : %v",
+					tok.operands[1].ToGLSL(cbs, isg, osg, res, masks[1]&(1<<i), false),
+					tok.operands[2].ToGLSL(cbs, isg, osg, res, masks[2]&(1<<i), false),
+					tok.operands[3].ToGLSL(cbs, isg, osg, res, masks[3]&(1<<i), false),
+				)
+				expr = tok.wrapExpression(expr, opType.ReturnNumberType(), true)
+				toReturn += fmt.Sprintf(
+					"temp%v = %v;\n",
+					tok.operands[0].OperandToken0.SwizzleMask(masks[0]&(1<<i)),
+					expr,
+				)
+			}
+		}
 		expr = fmt.Sprintf(
-			"bool(%v) ? %v : %v",
-			tok.operands[1].ToGLSL(cbs, isg, osg, res, masks[1], false),
-			tok.operands[2].ToGLSL(cbs, isg, osg, res, masks[2], false),
-			tok.operands[3].ToGLSL(cbs, isg, osg, res, masks[3], false),
+			"temp%v",
+			tok.operands[0].OperandToken0.SwizzleMask(masks[0]),
 		)
 	case OPCODE_SAMPLE:
 		// sample dest[.mask], srcAddress[.swizzle], srcResource[.swizzle], srcSampler
@@ -496,17 +507,12 @@ func (tok *InstructionToken) trinaryOpGLSL(opType ShaderOpcodeType, cbs []Consta
 		)
 	}
 
-	if tok.Saturate() {
-		expr = fmt.Sprintf("clamp(%v, 0.0, 1.0)", expr)
-	}
 	returnNumberType := opType.ReturnNumberType()
 	if opType == OPCODE_SAMPLE {
 		rb := tok.operands[2].ResourceBinding(res)
 		returnNumberType = rb.ReturnType.ToOpcodeNumberType()
 	}
-	if returnNumberType != internalNumberTypeFloat {
-		expr = fmt.Sprintf("%v(%v)", returnNumberType.BitcastToFloat(), expr)
-	}
+	expr = tok.wrapExpression(expr, returnNumberType, true)
 
 	toReturn += fmt.Sprintf(
 		"%v = %v;",
@@ -581,17 +587,12 @@ func (tok *InstructionToken) quatenaryOpGLSL(opType ShaderOpcodeType, cbs []Cons
 	if len(expr) == 0 {
 		return toReturn
 	}
-	if tok.Saturate() {
-		expr = fmt.Sprintf("clamp(%v, 0.0, 1.0)", expr)
-	}
 	returnNumberType := opType.ReturnNumberType()
 	if opType == OPCODE_SAMPLE_L {
 		rb := tok.operands[2].ResourceBinding(res)
 		returnNumberType = rb.ReturnType.ToOpcodeNumberType()
 	}
-	if returnNumberType != internalNumberTypeFloat {
-		expr = fmt.Sprintf("%v(%v)", returnNumberType.BitcastToFloat(), expr)
-	}
+	expr = tok.wrapExpression(expr, returnNumberType, true)
 
 	toReturn += fmt.Sprintf(
 		"%v = %v;",
