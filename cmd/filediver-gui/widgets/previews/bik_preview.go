@@ -16,7 +16,7 @@ import (
 	"unsafe"
 
 	"github.com/AllenDang/cimgui-go/imgui"
-	"github.com/go-gl/gl/v3.2-core/gl"
+	"github.com/go-gl/gl/v4.3-core/gl"
 	fnt "github.com/xypwn/filediver/cmd/filediver-gui/fonts"
 	"github.com/xypwn/filediver/cmd/filediver-gui/imutils"
 	"github.com/xypwn/filediver/exec"

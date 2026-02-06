@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"slices"
 
-	"github.com/go-gl/gl/v4.2-core/gl"
+	"github.com/go-gl/gl/v4.3-core/gl"
 	"github.com/go-gl/mathgl/mgl32"
 	"github.com/xypwn/filediver/stingray/unit/material/glsl"
 )
