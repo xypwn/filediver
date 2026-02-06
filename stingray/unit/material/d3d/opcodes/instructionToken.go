@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math/bits"
+	"strings"
 )
 
 type InstructionToken struct {
@@ -20,7 +21,7 @@ func (tok *InstructionToken) Saturate() bool {
 	return tok.opcode&SATURATE_MASK != 0
 }
 
-const INVERT_BOOLEAN_MASK uint32 = 0x00002000
+const INVERT_BOOLEAN_MASK uint32 = 0x00040000
 
 func (tok *InstructionToken) InvertBoolean() bool {
 	return tok.opcode&INVERT_BOOLEAN_MASK == 0
@@ -85,7 +86,9 @@ func (tok *InstructionToken) singleParamsGLSL(opType ShaderOpcodeType, cbs []Con
 		"bool(%v)",
 		tok.operands[0].ToGLSL(cbs, isg, osg, res, tok.operands[0].Mask(), false),
 	)
-	//invTest :=  "!" + test
+	if tok.InvertBoolean() {
+		test = "!" + test
+	}
 	switch opType {
 	case OPCODE_BREAKC:
 		toReturn += fmt.Sprintf(
@@ -332,13 +335,36 @@ func (tok *InstructionToken) binaryOpGLSL(opType ShaderOpcodeType, cbs []Constan
 			)
 		}
 	case OPCODE_RESINFO:
-		toReturn += fmt.Sprintf("// %#02x %#02x %#02x\n", tok.operands[0].Mask(), tok.operands[1].Mask(), tok.operands[2].Mask())
+		outputSwizzle := tok.operands[2].SwizzleMask(masks[2])
+		destinationSwizzle := tok.operands[0].SwizzleMask(masks[0])
+		if strings.Contains(outputSwizzle, "w") {
+			destinationChannel := string(destinationSwizzle[strings.Index(outputSwizzle, "w")])
+			destinationSwizzle = strings.Replace(destinationSwizzle, destinationChannel, "", 1)
+			toReturn += fmt.Sprintf(
+				"%v.%v = intBitsToFloat(textureQueryLevels(%v));\n",
+				tok.operands[0].ToGLSL(cbs, isg, osg, res, 0x0, true),
+				destinationChannel,
+				tok.operands[2].ToGLSL(cbs, isg, osg, res, 0x0, true),
+			)
+		}
+		outputSwizzle = strings.Replace(outputSwizzle, "w", "", 1)
+		if len(outputSwizzle) == 1 {
+			return toReturn
+		}
 		expr = fmt.Sprintf(
 			"textureSize(%v, %v)%v",
 			tok.operands[2].ToGLSL(cbs, isg, osg, res, 0x0, true),
 			tok.operands[1].ToGLSL(cbs, isg, osg, res, masks[1], true),
-			tok.operands[2].SwizzleMask(masks[2]),
+			outputSwizzle,
 		)
+		expr = tok.wrapExpression(expr, opType.ReturnNumberType(), true)
+		toReturn += fmt.Sprintf(
+			"%v%v = %v;\n",
+			tok.operands[0].ToGLSL(cbs, isg, osg, res, 0x0, true),
+			destinationSwizzle,
+			expr,
+		)
+		return toReturn
 	case OPCODE_GE, OPCODE_UGE, OPCODE_IGE:
 		if bits.OnesCount8(masks[0]) == 1 {
 			expr = fmt.Sprintf(
