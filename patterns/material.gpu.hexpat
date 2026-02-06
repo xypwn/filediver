@@ -288,14 +288,30 @@ struct Element {
     u32 unk1;
 };
 
+struct NElement {
+    string *name : u32 [[pointer_base("relative_to_parents_parents_parent")]];
+    u32 semantic_index;
+    u32 system_value_type;
+    u32 component_type;
+    u32 register;
+    u8 mask;
+    u8 rw_mask;
+    padding[2];
+};
+
 struct ISGN {
     u32 element_count;
-    List<Element, element_count> *elements : u32 [[pointer_base("relative_to_parent")]];
+    List<NElement, element_count> *elements : u32 [[pointer_base("relative_to_parent")]];
 };
 
 struct ISG1 {
     u32 element_count;
     List<Element, element_count> *elements : u32 [[pointer_base("relative_to_parent")]];
+};
+
+struct OSGN {
+    u32 element_count;
+    List<NElement, element_count> *elements : u32 [[pointer_base("relative_to_parent")]];
 };
 
 struct OSG1 {
@@ -774,13 +790,113 @@ struct Shader {
     CBufMetadata cbufMetadata[dxbc.parts[dxbc.rdef_index].data.data.cbuf_count];
     TextureMetadata texMetadata[dxbc.parts[dxbc.rdef_index].data.data.texture_count];
     SamplerMetadata samplerMetadata[dxbc.parts[dxbc.rdef_index].data.data.sampler_count];
+    padding[while(!std::mem::eof() && std::mem::read_unsigned($, 1) == 0)];
+};
+
+struct StageMetadata {
+    u32 dxbcSize;
+    u32 dxbcName;
+    u32 unknown[2];
+    u32 unkInt;
+    u32 unknown2[3];
+    u32 unkInt2;
+    u32 unknown3[7];
+};
+
+struct ShaderProgramHeader {
+    padding[while(std::mem::read_unsigned($, 1) == 0)];
+    u8 stagemask;
+    padding[3];
+    u32 unknown[3];
+    u32 textureCount;
+    u32 unknown2[3];
+    StageMetadata stages[7];
+    u8 pad[56];
+};
+
+struct ShaderProgramSamplerAttribute {
+    u64 key;
+    u64 value;
+};
+
+struct ShaderProgramSamplerAttributes {
+    //std::print(parent.textures[std::core::array_index()].samplerParamCount);
+    if (parent.textures[std::core::array_index()].samplerParamCount > 5) {
+        break;
+    }
+    ShaderProgramSamplerAttribute attributes[parent.textures[std::core::array_index()].samplerParamCount];
+};
+
+struct ShaderProgramTextureAttributes {
+    padding[8];
+    u64 samplerParamCount;
+    ThinMurmurHash textureHash;
+    padding[4];
+};
+
+struct UnknownAttributes {
+    s32 value;
+    padding[4];
+    u64 key;
+};
+
+u32 blockArrayIndex = 0;
+struct ShaderProgram {
+    u32 unkCount;
+    u32 unkArr[unkCount];
+    std::mem::AlignTo<8> align;
+    UnknownAttributes unkAttrs[while(std::mem::read_signed($-16, 4) != -1)];
+    padding[8];
+    ShaderProgramTextureAttributes textures[parent.header[std::core::array_index()].textureCount];
+    ShaderProgramSamplerAttributes samplers[parent.header[std::core::array_index()].textureCount];
+    u8 stagemask = parent.header[std::core::array_index()].stagemask;
+    //std::print(blockArrayIndex);
+    if(stagemask & (1 << 0)){
+        Shader vertexShader;
+    }
+    if(stagemask & (1 << 1)){
+        Shader unknownShader;
+    }
+    if(stagemask & (1 << 2)){
+        Shader unknownShader2;
+    }
+    if(stagemask & (1 << 3)){
+        Shader domainShader;
+        Shader hullShader;
+    }
+    if(stagemask & (1 << 4)){
+        Shader unknownShader4;
+    }
+    if(stagemask & (1 << 5)){
+        Shader fragmentShader;
+    }
+    if(stagemask & (1 << 6)){
+        Shader unknownShader5;
+    }
+};
+
+struct ShaderProgramBlock {
+    blockArrayIndex = std::core::array_index();
+    ShaderProgramHeader header[parent.programCounts[std::core::array_index()]];
+    ShaderProgram programs[parent.programCounts[std::core::array_index()]];
+};
+
+struct ShaderProgramList {
+    padding[8];
+    u32 count;
+    padding[76];
+    u32 unk;
+    padding[12];
+    u128 programCounts[count];
+    
+    ShaderProgramBlock programs[count];
 };
 
 struct Material {
     Header hdr;
     u8 *offset0 : u32;
     u32 unk00;
-    u8 *offset1 : u32;
+    ShaderProgramList *offset1 : u32;
     u8 *offset2 : u32;
     u32 unk01;
     u32 unk02;
@@ -791,8 +907,3 @@ struct Material {
 };
 
 Material mat @0x0;
-
-
-Shader dxbc @0x9ed90;
-Shader dxbc2 @0xbcfa0;
-Shader dxbc3 @0xbf0a8;
