@@ -147,8 +147,8 @@ func (d *DXBC) ToGLSL() string {
 		toReturn += rbind.ToGLSL()
 	}
 
-	toReturn += d.InputSignature.ToGLSL()
-	toReturn += d.OutputSignature.ToGLSL()
+	toReturn += d.InputSignature.ToGLSL(d.ShaderCode.ProgramType)
+	toReturn += d.OutputSignature.ToGLSL(d.ShaderCode.ProgramType)
 
 	toReturn += fmt.Sprintf("// Program type: %v\n", d.ShaderCode.ProgramType.ToString())
 

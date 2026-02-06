@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"os"
@@ -9,7 +10,10 @@ import (
 	"github.com/hellflame/argparse"
 	"github.com/jwalton/go-supportscolor"
 	"github.com/xypwn/filediver/app"
+	"github.com/xypwn/filediver/hashes"
+	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/stingray/unit/material/d3d"
+	d3dops "github.com/xypwn/filediver/stingray/unit/material/d3d/opcodes"
 )
 
 func main() {
@@ -24,6 +28,22 @@ func main() {
 		DisableDefaultShowHelp: true,
 		WithHint:               true,
 	})
+
+	var knownThinHashes []string
+	knownThinHashes = append(knownThinHashes, app.ParseHashes(hashes.ThinHashes)...)
+
+	thinHashesMap := make(map[stingray.ThinHash]string)
+	for _, h := range knownThinHashes {
+		thinHashesMap[stingray.Sum(h).Thin()] = h
+	}
+
+	lookupThinHash := func(hash stingray.ThinHash) string {
+		val, ok := thinHashesMap[hash]
+		if ok {
+			return val
+		}
+		return hash.String()
+	}
 
 	input := parser.String("i", "input", &argparse.Option{
 		Help: "Path to a material.gpu file",
@@ -51,7 +71,7 @@ func main() {
 		prt.Fatalf("%v", err)
 	}
 	var offset int = 0
-	fileCountMap := make(map[d3d.ShaderProgramType]int)
+	fileCountMap := make(map[d3dops.ShaderProgramType]int)
 	suffix := "dxbc"
 	if *glsl {
 		suffix = "glsl"
@@ -64,7 +84,8 @@ func main() {
 		if idx < 0 {
 			break
 		}
-		dxbc, err := d3d.ParseDXBC(bytes.NewReader(data[offset+idx:]))
+		reader := bytes.NewReader(data[offset+idx:])
+		dxbc, err := d3d.ParseDXBC(reader)
 		if err != nil {
 			prt.Errorf("ParseDXBC: %v (%#08x)", err, idx)
 			idx = idx + 4
@@ -77,18 +98,24 @@ func main() {
 		filename := *output + string(os.PathSeparator) + fmt.Sprintf("%v.%v", fileCountMap[dxbc.ShaderCode.ProgramType], suffix)
 
 		switch dxbc.ShaderCode.ProgramType {
-		case d3d.PIXEL_SHADER:
+		case d3dops.PIXEL_SHADER:
 			filename += ".frag"
-		case d3d.VERTEX_SHADER:
+		case d3dops.VERTEX_SHADER:
 			filename += ".vert"
-		case d3d.GEOMETRY_SHADER:
+		case d3dops.GEOMETRY_SHADER:
 			filename += ".geom"
-		case d3d.HULL_SHADER:
+		case d3dops.HULL_SHADER:
 			filename += ".tesc"
-		case d3d.DOMAIN_SHADER:
+		case d3dops.DOMAIN_SHADER:
 			filename += ".tese"
-		case d3d.COMPUTE_SHADER:
+		case d3dops.COMPUTE_SHADER:
 			filename += ".comp"
+		}
+
+		var thinHash stingray.ThinHash
+		err = binary.Read(reader, binary.LittleEndian, &thinHash)
+		if err == nil {
+			fmt.Printf("%v - %v - %v\n", lookupThinHash(thinHash), filename, dxbc.ShaderCode.ProgramType.ToString())
 		}
 
 		prt.Infof("Offset %#08x", offset+idx)
