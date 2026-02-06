@@ -106,6 +106,7 @@ func ParseDXBC(r io.ReadSeeker) (*DXBC, error) {
 
 func (d *DXBC) ToGLSL() string {
 	d3dops.EncounteredBFI = false
+	d3dops.CreatedTemp = false
 	toReturn := "#version 420 core\n\n"
 
 	for i, cbuf := range d.ResourceDefinitions.ConstantBuffers {

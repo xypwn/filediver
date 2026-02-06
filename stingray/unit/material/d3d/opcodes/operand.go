@@ -476,7 +476,7 @@ func (o OperandToken0) ToString() string {
 		toReturn += fmt.Sprintf(" *     Index Representation 3: %v\n", o.IndexRepresentation(3).ToString())
 	}
 	if o.Extended() {
-		toReturn += fmt.Sprintf(" *   Extended\n")
+		toReturn += " *   Extended\n"
 	}
 	return toReturn + " */\n"
 }
@@ -820,7 +820,7 @@ func (o *Operand) ToGLSL(cbs []ConstantBuffer, isg, osg []Element, res []Resourc
 		immediate := ""
 		maskCount := 0
 		maskStart := -1
-		for i := 0; i < 4; i++ {
+		for i := range 4 {
 			if mask&(1<<i) != 0 {
 				if maskStart == -1 {
 					maskStart = i
@@ -928,15 +928,46 @@ func (o *Operand) ToGLSL(cbs []ConstantBuffer, isg, osg []Element, res []Resourc
 		if swizzle[0] == -1 {
 			panic("x swizzle should be set for constant buffer operand")
 		}
-		offset := uint32(o.Indices[1].Value*16) + uint32(swizzle[0])*4
-		variable, index, err := cbs[o.Indices[0].Value].VariableFromOffset(offset)
-		if err != nil {
-			panic(err)
+		variables := make([]*Variable, 0)
+		indices := make([]uint32, 0)
+		for i := range 4 {
+			if mask&(1<<i) == 0 {
+				continue
+			}
+			offset := uint32(o.Indices[1].Value*16) + uint32(swizzle[i])*4
+			variable, index, err := cbs[o.Indices[0].Value].VariableFromOffset(offset)
+			if err != nil {
+				panic(err)
+			}
+			variables = append(variables, variable)
+			indices = append(indices, index)
 		}
-		if variable.Class.GLSLClass() == "mat" {
-			toReturn = variable.Name + fmt.Sprintf("[%v]", index) + variable.SwizzleFromSrc(swizzle, mask)
+		valuesAdded := 0
+		if len(variables) > 1 && variables[0].Class.GLSLClass() == "" {
+			toReturn = fmt.Sprintf("vec%v(", len(variables))
 		} else {
-			toReturn = variable.Name + variable.SwizzleFromSrc(swizzle, mask)
+			toReturn = ""
+		}
+		for idx, variable := range variables {
+			if valuesAdded == len(variables) {
+				break
+			}
+			index := indices[idx]
+			if idx > 0 {
+				toReturn += ", "
+			}
+			if variable.Class.GLSLClass() == "mat" {
+				toReturn += variable.Name + fmt.Sprintf("[%v]", index) + variable.SwizzleFromSrc(swizzle, mask)
+			} else if variable.Class.GLSLClass() == "vec" {
+				valuesAdded += len(variable.SwizzleFromSrc(swizzle, mask)) - 1
+				toReturn += variable.Name + variable.SwizzleFromSrc(swizzle, mask)
+			} else {
+				valuesAdded += 1
+				toReturn += variable.Name + variable.SwizzleFromSrc(swizzle, mask)
+			}
+		}
+		if len(variables) > 1 && variables[0].Class.GLSLClass() == "" {
+			toReturn += ")"
 		}
 	} else if operandType == OPERAND_TYPE_IMMEDIATE_CONSTANT_BUFFER {
 		toReturn = fmt.Sprintf("%v[floatBitsToInt(%v)]%v", operandType.ToGLSL(), o.Indices[0].ToGLSL(cbs, isg, osg, res, mask, true), o.SwizzleMask(mask))
