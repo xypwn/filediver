@@ -7,7 +7,7 @@ import (
 	"image"
 
 	"github.com/AllenDang/cimgui-go/imgui"
-	"github.com/go-gl/gl/v3.2-core/gl"
+	"github.com/go-gl/gl/v4.3-core/gl"
 	"github.com/go-gl/mathgl/mgl32"
 	"github.com/xypwn/filediver/dds"
 	"github.com/xypwn/filediver/stingray"

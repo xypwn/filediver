@@ -7,7 +7,7 @@ import (
 	"io/fs"
 	"path"
 
-	"github.com/go-gl/gl/v3.2-core/gl"
+	"github.com/go-gl/gl/v4.3-core/gl"
 )
 
 func CreateShader(source string, shaderType uint32) (uint32, error) {
