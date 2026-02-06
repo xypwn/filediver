@@ -430,26 +430,30 @@ func (tok *InstructionToken) binaryOpGLSL(opType ShaderOpcodeType, cbs []Constan
 			tok.operands[2].ToGLSL(cbs, isg, osg, res, masks[2], false),
 		)
 	case OPCODE_SINCOS:
-		sinExpr := fmt.Sprintf(
-			"sin(%v)",
-			tok.operands[2].ToGLSL(cbs, isg, osg, res, masks[2], false),
-		)
-		sinExpr = tok.wrapExpression(sinExpr, opType.ReturnNumberType(), true)
-		toReturn += fmt.Sprintf(
-			"%v = %v;\n",
-			tok.operands[0].ToGLSL(cbs, isg, osg, res, masks[0], true),
-			sinExpr,
-		)
-		cosExpr := fmt.Sprintf(
-			"cos(%v)",
-			tok.operands[2].ToGLSL(cbs, isg, osg, res, masks[2], false),
-		)
-		cosExpr = tok.wrapExpression(cosExpr, opType.ReturnNumberType(), true)
-		toReturn += fmt.Sprintf(
-			"%v = %v;\n",
-			tok.operands[1].ToGLSL(cbs, isg, osg, res, masks[1], true),
-			cosExpr,
-		)
+		if tok.operands[0].OperandToken0.Type() != OPERAND_TYPE_NULL {
+			sinExpr := fmt.Sprintf(
+				"sin(%v)",
+				tok.operands[2].ToGLSL(cbs, isg, osg, res, masks[2], false),
+			)
+			sinExpr = tok.wrapExpression(sinExpr, opType.ReturnNumberType(), true)
+			toReturn += fmt.Sprintf(
+				"%v = %v;\n",
+				tok.operands[0].ToGLSL(cbs, isg, osg, res, masks[0], true),
+				sinExpr,
+			)
+		}
+		if tok.operands[1].OperandToken0.Type() != OPERAND_TYPE_NULL {
+			cosExpr := fmt.Sprintf(
+				"cos(%v)",
+				tok.operands[2].ToGLSL(cbs, isg, osg, res, masks[2], false),
+			)
+			cosExpr = tok.wrapExpression(cosExpr, opType.ReturnNumberType(), true)
+			toReturn += fmt.Sprintf(
+				"%v = %v;\n",
+				tok.operands[1].ToGLSL(cbs, isg, osg, res, masks[1], true),
+				cosExpr,
+			)
+		}
 		return toReturn
 	default:
 		expr = fmt.Sprintf(

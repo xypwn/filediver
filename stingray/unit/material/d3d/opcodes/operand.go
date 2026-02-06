@@ -943,7 +943,11 @@ func (o *Operand) ToGLSL(cbs []ConstantBuffer, isg, osg []Element, res []Resourc
 			indices = append(indices, index)
 		}
 		valuesAdded := 0
-		if len(variables) > 1 && variables[0].Class.GLSLClass() == "" {
+		valuesToAdd := make([]int, 0)
+		for _, variable := range variables {
+			valuesToAdd = append(valuesToAdd, len(variable.SwizzleFromSrc(swizzle, mask))-1)
+		}
+		if len(variables) > 1 && valuesToAdd[0] < len(variables) {
 			toReturn = fmt.Sprintf("vec%v(", len(variables))
 		} else {
 			toReturn = ""
@@ -975,7 +979,7 @@ func (o *Operand) ToGLSL(cbs []ConstantBuffer, isg, osg []Element, res []Resourc
 				toReturn += variable.SwizzleFromSrc(swizzle, mask)
 			}
 		}
-		if len(variables) > 1 && variables[0].Class.GLSLClass() == "" {
+		if len(variables) > 1 && valuesToAdd[0] < len(variables) {
 			toReturn += ")"
 		}
 	} else if operandType == OPERAND_TYPE_IMMEDIATE_CONSTANT_BUFFER {
