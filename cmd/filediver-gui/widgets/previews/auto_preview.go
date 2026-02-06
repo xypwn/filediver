@@ -38,6 +38,7 @@ type AutoPreviewState struct {
 	activeID   stingray.FileID
 	state      struct {
 		unit     *UnitPreviewState
+		rawUnit  *RawUnitPreviewState
 		audio    *WwisePreviewState
 		video    *BikPreviewState
 		texture  *DDSPreviewState
@@ -63,6 +64,10 @@ func NewAutoPreview(otoCtx *oto.Context, audioSampleRate int, hashes map[stingra
 	if err != nil {
 		return nil, err
 	}
+	pv.state.rawUnit, err = NewRawUnitPreview()
+	if err != nil {
+		return nil, err
+	}
 	pv.state.audio = NewWwisePreview(otoCtx, audioSampleRate)
 	pv.state.video = NewBikPreview(runner)
 	pv.state.texture = NewDDSPreview()
@@ -73,6 +78,7 @@ func NewAutoPreview(otoCtx *oto.Context, audioSampleRate int, hashes map[stingra
 
 func (pv *AutoPreviewState) Delete() {
 	pv.state.unit.Delete()
+	pv.state.rawUnit.Delete()
 	pv.state.audio.Delete()
 	pv.state.video.Delete()
 	pv.state.texture.Delete()
@@ -121,14 +127,8 @@ func (pv *AutoPreviewState) LoadFile(ctx context.Context, fileID stingray.FileID
 	switch fileID.Type {
 	case stingray.Sum("unit"):
 		pv.activeType = AutoPreviewUnit
-		if err := loadFiles(stingray.DataMain, stingray.DataGPU); err != nil {
-			pv.err = err
-			return
-		}
-		if err := pv.state.unit.LoadUnit(
-			fileID.Name,
-			data[stingray.DataMain],
-			data[stingray.DataGPU],
+		if err := pv.state.rawUnit.LoadUnit(
+			ctx, fileID,
 			pv.getResource,
 			pv.thinhashes,
 		); err != nil {
@@ -246,13 +246,13 @@ func (pv *AutoPreviewState) LoadFile(ctx context.Context, fileID stingray.FileID
 			pv.err = err
 			return
 		}
-		data, err := material.Load(bytes.NewReader(data[stingray.DataMain]))
+		mat, err := material.LoadMain(bytes.NewReader(data[stingray.DataMain]))
 		if err != nil {
 			pv.err = fmt.Errorf("loading material: %w", err)
 			return
 		}
 
-		err = pv.state.material.LoadMaterial(data, pv.getResource, pv.hashes, pv.thinhashes)
+		err = pv.state.material.LoadMaterial(fileID, mat, pv.getResource, pv.hashes, pv.thinhashes)
 		if err != nil {
 			pv.err = fmt.Errorf("loading material state: %w", err)
 			return
@@ -271,7 +271,16 @@ func AutoPreview(name string, pv *AutoPreviewState) bool {
 	case AutoPreviewEmpty:
 		return false
 	case AutoPreviewUnit:
-		UnitPreview(name, pv.state.unit)
+		RawUnitPreview(name, pv.state.rawUnit,
+			func(hash stingray.Hash) (name string, ok bool) {
+				name, ok = pv.hashes[hash]
+				return
+			},
+			func(hash stingray.ThinHash) (name string, ok bool) {
+				name, ok = pv.thinhashes[hash]
+				return
+			},
+		)
 	case AutoPreviewAudio:
 		WwisePreview(name, pv.state.audio)
 	case AutoPreviewVideo:

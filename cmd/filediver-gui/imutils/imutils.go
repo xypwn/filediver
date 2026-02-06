@@ -134,10 +134,8 @@ func Textcf(color imgui.Vec4, format string, args ...any) {
 }
 
 func CheckboxHeight() float32 {
-	// HACK: This is probably not accurate, but it seems
-	// good enough so it's not noticeable for the user.
 	style := imgui.CurrentStyle()
-	return imgui.FrameHeight() + style.FramePadding().Y + style.ItemSpacing().Y
+	return imgui.FrameHeight() + style.ItemSpacing().Y
 }
 
 func ComboHeight() float32 {

@@ -10,10 +10,14 @@ import (
 	"strings"
 
 	"github.com/AllenDang/cimgui-go/imgui"
-	"github.com/go-gl/gl/v3.2-core/gl"
+	"github.com/go-gl/gl/v4.3-core/gl"
+
+	//"github.com/go-gl/mathgl/mgl32"
 	fnt "github.com/xypwn/filediver/cmd/filediver-gui/fonts"
+	"github.com/xypwn/filediver/cmd/filediver-gui/glutils"
 	"github.com/xypwn/filediver/cmd/filediver-gui/imutils"
 	"github.com/xypwn/filediver/cmd/filediver-gui/widgets"
+	"github.com/xypwn/filediver/cmd/filediver-gui/widgets/previews/shaders"
 	"github.com/xypwn/filediver/dds"
 	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/stingray/unit/material"
@@ -26,8 +30,14 @@ type MaterialPreviewState struct {
 	activeTexture    int
 	settings         map[string][]float32
 	settingKeys      []string
+	settingsVisible  bool
 	baseMaterial     stingray.Hash
 	baseMaterialName string
+
+	meshPreviewBuffer *PreviewMeshBuffer
+	fb                *widgets.GLViewState
+	programs          []uint32
+	uniforms          []shaders.UniformBlock
 
 	offset          imgui.Vec2
 	zoom            float32
@@ -50,20 +60,40 @@ func (pv *MaterialPreviewState) Delete() {
 			state.Delete()
 		}
 	}
+	if pv.fb != nil {
+		pv.fb.Delete()
+	}
+	for _, program := range pv.programs {
+		gl.DeleteProgram(program)
+	}
+	if pv.meshPreviewBuffer != nil {
+		pv.meshPreviewBuffer.DeleteObjects()
+	}
 }
 
-func (pv *MaterialPreviewState) LoadMaterial(mat *material.Material, getResource GetResourceFunc, hashes map[stingray.Hash]string, thinhashes map[stingray.ThinHash]string) error {
+func (pv *MaterialPreviewState) LoadMaterial(fileID stingray.FileID, mat *material.Material, getResource GetResourceFunc, hashes map[stingray.Hash]string, thinhashes map[stingray.ThinHash]string) error {
 	if mat == nil {
 		return fmt.Errorf("attempted to load nil material")
 	}
-
+	var err error
 	pv.Delete()
 	clear(pv.textures)
 	pv.textureKeys = nil
 	pv.activeTexture = -1
 	clear(pv.settings)
 	pv.settingKeys = nil
+	pv.settingsVisible = true
 	pv.baseMaterial = stingray.Hash{}
+	pv.meshPreviewBuffer, err = getPlane()
+	if err != nil {
+		return err
+	}
+	pv.programs = make([]uint32, 0)
+
+	pv.fb, err = widgets.NewGLView()
+	if err != nil {
+		return err
+	}
 
 	sortedTextureUsages := slices.SortedFunc(maps.Keys(mat.Textures), stingray.ThinHash.Cmp)
 	for _, key := range sortedTextureUsages {
@@ -138,16 +168,109 @@ func (pv *MaterialPreviewState) LoadMaterial(mat *material.Material, getResource
 	slices.Sort(pv.settingKeys)
 
 	pv.baseMaterial = mat.BaseMaterial
-	if bmName, ok := hashes[mat.BaseMaterial]; ok {
+	if pv.baseMaterial.Value == 0 {
+		pv.baseMaterial = fileID.Name
+	}
+	if bmName, ok := hashes[pv.baseMaterial]; ok {
 		pv.baseMaterialName = bmName
 	} else {
 		pv.baseMaterialName = mat.BaseMaterial.String()
+	}
+
+	dataGpu, exists, err := getResource(
+		stingray.FileID{
+			Name: pv.baseMaterial,
+			Type: stingray.Sum("material"),
+		},
+		stingray.DataGPU,
+	)
+
+	if err != nil {
+		return err
+	}
+
+	if !exists {
+		return fmt.Errorf("could not find base material %v", pv.baseMaterialName)
+	}
+
+	materialGpu, err := material.LoadGPU(bytes.NewReader(dataGpu))
+	if err != nil {
+		return err
+	}
+
+	shaders := make(map[stingray.ThinHash]uint32)
+	defer func() {
+		for name, shader := range shaders {
+			status := gl.IsShader(shader)
+			if status {
+				fmt.Printf("deleting shader %v: %v\n", name.String(), shader)
+				gl.DeleteShader(shader)
+			}
+		}
+	}()
+
+	for _, block := range materialGpu.ShaderPrograms.ProgramBlocks {
+		for j, program := range block.Programs {
+			header := block.Headers[j]
+			if header.StageMask&material.ShaderStage_Tessellation != 0 {
+				// Tessellation definitely not going to be supported
+				continue
+			}
+			var vertex, fragment string
+			var vertexName, fragmentName stingray.ThinHash
+			if header.StageMask&material.ShaderStage_InstancedVertex != 0 {
+				vertexName = program.InstancedVertexShader.Name
+				if _, ok := shaders[vertexName]; !ok {
+					vertex = program.InstancedVertexShader.ToGLSL()
+					shaders[vertexName], err = glutils.CreateShader(vertex, gl.VERTEX_SHADER)
+					if err != nil {
+						return fmt.Errorf("vertex shader %v: %w", vertexName.String(), err)
+					}
+				}
+			} else if header.StageMask&material.ShaderStage_Vertex != 0 {
+				vertexName = program.VertexShader.Name
+				if _, ok := shaders[vertexName]; !ok {
+					vertex = program.VertexShader.ToGLSL()
+					shaders[vertexName], err = glutils.CreateShader(vertex, gl.VERTEX_SHADER)
+					if err != nil {
+						return fmt.Errorf("vertex shader %v: %w", vertexName.String(), err)
+					}
+				}
+			} else {
+				return fmt.Errorf("no vertex shader")
+			}
+			if header.StageMask&material.ShaderStage_Pixel != 0 {
+				fragmentName = program.PixelShader.Name
+				if _, ok := shaders[fragmentName]; !ok {
+					fragment = program.PixelShader.ToGLSL()
+					shaders[fragmentName], err = glutils.CreateShader(fragment, gl.FRAGMENT_SHADER)
+					if err != nil {
+						return fmt.Errorf("fragment shader %v: %w", fragmentName.String(), err)
+					}
+				}
+			} else {
+				return fmt.Errorf("no fragment shader")
+			}
+			linkedProgram, err := glutils.CreateProgram(shaders[vertexName], shaders[fragmentName])
+			if err != nil {
+				return err
+			}
+			pv.programs = append(pv.programs, linkedProgram)
+		}
 	}
 
 	return nil
 }
 
 func MaterialPreview(name string, pv *MaterialPreviewState) {
+	DrawMaterialPreview(name, pv)
+	//DrawShaderPreview(fnt.I("View_in_ar")+" Shader Preview", pv)
+	if len(pv.settings) > 0 && pv.settingsVisible {
+		DrawMaterialSettings(fnt.I("Display_settings")+" Material Settings", pv)
+	}
+}
+
+func DrawMaterialPreview(name string, pv *MaterialPreviewState) {
 	imgui.PushIDStr(name)
 	defer imgui.PopID()
 
@@ -171,6 +294,16 @@ func MaterialPreview(name string, pv *MaterialPreviewState) {
 			fmt.Fprintf(&infoB, "Size=(%v,%v)\nFormat=%v\nPath=%v\n", ddsPv.imageSize.X, ddsPv.imageSize.Y, ddsPv.ddsInfo.DXT10Header.DXGIFormat, texturePath)
 			ddsPv.offset = pv.offset
 			ddsPv.zoom = pv.zoom
+			if ddsPv.linearFiltering != pv.linearFiltering {
+				filter := int32(gl.NEAREST)
+				if pv.linearFiltering {
+					filter = gl.LINEAR
+				}
+				gl.BindTexture(gl.TEXTURE_2D, ddsPv.textureID)
+				gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter)
+				gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter)
+				gl.BindTexture(gl.TEXTURE_2D, 0)
+			}
 			ddsPv.linearFiltering = pv.linearFiltering
 			if ddsPv.imageHasAlpha {
 				ddsPv.ignoreAlpha = pv.ignoreAlpha
@@ -188,9 +321,6 @@ func MaterialPreview(name string, pv *MaterialPreviewState) {
 		size := imgui.ContentRegionAvail()
 		size.Y -= imutils.ComboHeight()
 		size.Y -= imgui.TextLineHeightWithSpacing() // base material
-		if len(pv.settings) > 0 {
-			size.Y -= imgui.TextLineHeightWithSpacing() * float32(min(len(pv.settings)+2, 6)) // settings
-		}
 		imgui.SetNextWindowSize(size)
 	}
 
@@ -248,6 +378,7 @@ func MaterialPreview(name string, pv *MaterialPreviewState) {
 			}
 			gl.BindTexture(gl.TEXTURE_2D, nextDdsPv.textureID)
 			gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter)
+			gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter)
 			if nextDdsPv.imageHasAlpha {
 				gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_SWIZZLE_A, swizzleA)
 			}
@@ -269,6 +400,13 @@ func MaterialPreview(name string, pv *MaterialPreviewState) {
 	}
 	imgui.SetItemTooltip("Reset view")
 	imgui.SameLine()
+	imgui.BeginDisabledV(len(pv.settings) == 0)
+	if imgui.Button(fnt.I("Display_settings")) {
+		pv.settingsVisible = true
+	}
+	imgui.EndDisabled()
+	imgui.SetItemTooltip("Show material settings window.")
+	imgui.SameLine()
 	imgui.BeginDisabledV(ddsPv == nil)
 	if imgui.Checkbox("Linear filtering", &pv.linearFiltering) {
 		filter := int32(gl.NEAREST)
@@ -277,6 +415,7 @@ func MaterialPreview(name string, pv *MaterialPreviewState) {
 		}
 		gl.BindTexture(gl.TEXTURE_2D, ddsPv.textureID)
 		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter)
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter)
 		gl.BindTexture(gl.TEXTURE_2D, 0)
 	}
 	imgui.EndDisabled()
@@ -310,34 +449,92 @@ func MaterialPreview(name string, pv *MaterialPreviewState) {
 		}
 		widgets.GamefileLinkTextF(fileID, "%v", pv.baseMaterialName)
 	}
+}
 
-	const tableFlags = imgui.TableFlagsResizable | imgui.TableFlagsBorders | imgui.TableFlagsScrollY | imgui.TableFlagsRowBg
-	if len(pv.settings) > 0 && imgui.BeginTableV("##Material Settings", 2, tableFlags, imgui.NewVec2(0, 0), 0) {
-		imgui.TableSetupColumnV("Name", imgui.TableColumnFlagsWidthStretch, 1, 0)
-		imgui.TableSetupColumnV("Value", imgui.TableColumnFlagsWidthStretch, 2, 0)
-		imgui.TableSetupScrollFreeze(0, 1)
-		imgui.TableHeadersRow()
+// func DrawShaderPreview(name string, pv *MaterialPreviewState) {
+// 	viewSize := imgui.ContentRegionAvail()
+// 	widgets.GLView(name, pv.fb, viewSize,
+// 		func() {
+// 			io := imgui.CurrentIO()
 
-		for _, id := range pv.settingKeys {
-			imgui.PushIDStr(id)
+// 			// if imgui.IsItemActive() {
+// 			// 	md := io.MouseDelta()
+// 			// 	pv.viewRotation = pv.viewRotation.Add(mgl32.Vec2{md.X, md.Y}.Mul(-0.01))
+// 			// 	pv.viewRotation[1] = mgl32.Clamp(pv.viewRotation[1], -1.55, 1.55)
+// 			// }
+// 			// if imgui.IsItemHovered() {
+// 			// 	scroll := io.MouseWheel()
+// 			// 	pv.viewDistance -= 0.1 * pv.viewDistance * scroll
+// 			// }
+// 			// pv.viewDistance = mgl32.Clamp(
+// 			// 	pv.viewDistance,
+// 			// 	0.001,
+// 			// 	pv.maxViewDistance,
+// 			// )
+// 		},
+// 		func(pos, size imgui.Vec2) {
+// 			gl.ClearColor(0.2, 0.2, 0.2, 1)
+// 			gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 
-			imgui.TableNextColumn()
-			imutils.CopyableTextf("%v", id)
+// 			_, viewPosition, view, projection := ComputeMVP(mgl32.Ident4(), mgl32.Vec2{}, 5.0, 75.0, size.X/size.Y)
 
-			imgui.TableNextColumn()
-			settingValue := pv.settings[id]
-			formatted := make([]string, len(settingValue))
-			for i := range settingValue {
-				formatted[i] = fmt.Sprintf("%.3f", settingValue[i])
+// 			// Draw object
+// 			gl.Enable(gl.DEPTH_TEST)
+// 			gl.UseProgram(pv.program)
+
+// 			// cb_camera_pos
+// 			// camera_view_projection
+// 			// camera_last_view_projection
+// 			// frame_number
+// 			// vp_render_resolution
+// 			// raw_non_checkerboarded_target_size
+// 			// taa_enabled
+
+// 			// ioffset
+// 			// material_wetness
+// 			// detail_tile_factor_mult
+
+// 			// _instancing_zero
+
+// 			gl.BindVertexArray(0)
+// 			gl.UseProgram(0)
+// 			gl.PolygonMode(gl.FRONT_AND_BACK, gl.FILL)
+// 		},
+// 		func(_, _ imgui.Vec2) {},
+// 	)
+// }
+
+func DrawMaterialSettings(name string, pv *MaterialPreviewState) {
+	if imgui.BeginV(name, &pv.settingsVisible, imgui.WindowFlagsNone) {
+		const tableFlags = imgui.TableFlagsResizable | imgui.TableFlagsBorders | imgui.TableFlagsScrollY | imgui.TableFlagsRowBg
+		if imgui.BeginTableV("##Material Settings", 2, tableFlags, imgui.NewVec2(0, 0), 0) {
+			imgui.TableSetupColumnV("Name", imgui.TableColumnFlagsWidthStretch, 1, 0)
+			imgui.TableSetupColumnV("Value", imgui.TableColumnFlagsWidthStretch, 2, 0)
+			imgui.TableSetupScrollFreeze(0, 1)
+			imgui.TableHeadersRow()
+
+			for _, id := range pv.settingKeys {
+				imgui.PushIDStr(id)
+
+				imgui.TableNextColumn()
+				imutils.CopyableTextf("%v", id)
+
+				imgui.TableNextColumn()
+				settingValue := pv.settings[id]
+				formatted := make([]string, len(settingValue))
+				for i := range settingValue {
+					formatted[i] = fmt.Sprintf("%.3f", settingValue[i])
+				}
+				settingString := strings.Join(formatted, ", ")
+				if len(settingValue) > 1 {
+					settingString = "(" + settingString + ")"
+				}
+				imgui.TextUnformatted(settingString)
+
+				imgui.PopID()
 			}
-			settingString := strings.Join(formatted, ", ")
-			if len(settingValue) > 1 {
-				settingString = "(" + settingString + ")"
-			}
-			imgui.TextUnformatted(settingString)
-
-			imgui.PopID()
+			imgui.EndTable()
 		}
-		imgui.EndTable()
 	}
+	imgui.End()
 }
