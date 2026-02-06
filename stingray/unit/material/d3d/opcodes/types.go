@@ -554,6 +554,9 @@ func (v Variable) SwizzleFromSrc(swizzleSrc [4]int8, mask uint8) string {
 		if src == -1 {
 			break
 		}
+		if base > src {
+			break
+		}
 		toReturn += cmp[src-base]
 	}
 	return toReturn
@@ -1032,5 +1035,5 @@ func (rb ResourceBinding) ToGLSL() string {
 	if rb.InputType != TEXTURE {
 		return rb.ToString()
 	}
-	return fmt.Sprintf("uniform %v%v %v;\n", rb.ReturnType.GLSLPrefix(), rb.ViewDimension.ToGLSL(), strings.TrimLeft(rb.Name, "_"))
+	return fmt.Sprintf("%vuniform %v%v %v;\n", rb.ToString(), rb.ReturnType.GLSLPrefix(), rb.ViewDimension.ToGLSL(), strings.TrimLeft(rb.Name, "_"))
 }

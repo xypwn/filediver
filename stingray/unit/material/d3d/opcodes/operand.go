@@ -957,13 +957,22 @@ func (o *Operand) ToGLSL(cbs []ConstantBuffer, isg, osg []Element, res []Resourc
 				toReturn += ", "
 			}
 			if variable.Class.GLSLClass() == "mat" {
+				valuesAdded += len(variable.SwizzleFromSrc(swizzle, mask)) - 1
 				toReturn += variable.Name + fmt.Sprintf("[%v]", index) + variable.SwizzleFromSrc(swizzle, mask)
 			} else if variable.Class.GLSLClass() == "vec" {
 				valuesAdded += len(variable.SwizzleFromSrc(swizzle, mask)) - 1
-				toReturn += variable.Name + variable.SwizzleFromSrc(swizzle, mask)
+				toReturn += variable.Name
+				if variable.Elements > 1 {
+					toReturn += fmt.Sprintf("[%v]", index)
+				}
+				toReturn += variable.SwizzleFromSrc(swizzle, mask)
 			} else {
 				valuesAdded += 1
-				toReturn += variable.Name + variable.SwizzleFromSrc(swizzle, mask)
+				toReturn += variable.Name
+				if variable.Elements > 1 {
+					toReturn += fmt.Sprintf("[%v]", index)
+				}
+				toReturn += variable.SwizzleFromSrc(swizzle, mask)
 			}
 		}
 		if len(variables) > 1 && variables[0].Class.GLSLClass() == "" {
@@ -993,11 +1002,22 @@ func (o *Operand) ToGLSL(cbs []ConstantBuffer, isg, osg []Element, res []Resourc
 	} else if operandType == OPERAND_TYPE_NULL {
 		return "null"
 	} else {
-		toReturn = fmt.Sprintf("%v%v", operandType.ToGLSL(), o.Indices[0].ToGLSL(cbs, isg, osg, res, mask, true))
+		toReturn = operandType.ToGLSL()
+		if len(o.Indices) > 0 {
+			toReturn += o.Indices[0].ToGLSL(cbs, isg, osg, res, mask, true)
+		}
 		if o.IndexDimension() >= OPERAND_INDEX_2D {
-			toReturn += fmt.Sprintf("[%v]", o.Indices[1].ToGLSL(cbs, isg, osg, res, mask, true))
+			indexExpr := o.Indices[1].ToGLSL(cbs, isg, osg, res, mask, true)
+			if o.Indices[1].Representation != OPERAND_INDEX_IMMEDIATE32 && o.Indices[1].Representation != OPERAND_INDEX_IMMEDIATE64 {
+				indexExpr = fmt.Sprintf("floatBitsToInt(%v)", indexExpr)
+			}
+			toReturn += fmt.Sprintf("[%v]", indexExpr)
 		}
 		if o.IndexDimension() == OPERAND_INDEX_3D {
+			indexExpr := o.Indices[2].ToGLSL(cbs, isg, osg, res, mask, true)
+			if o.Indices[2].Representation != OPERAND_INDEX_IMMEDIATE32 && o.Indices[2].Representation != OPERAND_INDEX_IMMEDIATE64 {
+				indexExpr = fmt.Sprintf("floatBitsToInt(%v)", indexExpr)
+			}
 			toReturn += fmt.Sprintf("[%v]", o.Indices[2].ToGLSL(cbs, isg, osg, res, mask, true))
 		}
 		toReturn += o.SwizzleMask(mask)

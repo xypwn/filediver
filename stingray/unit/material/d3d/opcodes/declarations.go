@@ -503,6 +503,9 @@ func (i *DclInput) ToGLSL(_ []ConstantBuffer, _, _ []Element, _ []ResourceBindin
 	if err != nil {
 		panic(err)
 	}
+	if len(operand.Indices) == 0 {
+		return fmt.Sprintf("// Declare Input: v%v\n", operand.Swizzle())
+	}
 	return fmt.Sprintf("// Declare Input: v%v%v\n", operand.Indices[0].Value, operand.Swizzle())
 }
 

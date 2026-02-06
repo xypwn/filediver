@@ -28,6 +28,36 @@ type DXBC struct {
 	Chunks              []Chunk
 }
 
+func (dxbc *DXBC) Serialize() ([]byte, error) {
+	data, err := binary.Append(nil, binary.LittleEndian, dxbc.DXBCHeader)
+	if err != nil {
+		return nil, err
+	}
+	chunkOffsets := make([]uint32, len(dxbc.Chunks))
+	offset := uint32(len(data) + binary.Size(chunkOffsets))
+
+	for i, chunk := range dxbc.Chunks {
+		chunkOffsets[i] = offset
+		offset = offset + uint32(binary.Size(chunk.ChunkHeader)+len(chunk.Data))
+	}
+	data, err = binary.Append(data, binary.LittleEndian, chunkOffsets)
+	if err != nil {
+		return nil, err
+	}
+	for i, chunk := range dxbc.Chunks {
+		if len(data) != int(chunkOffsets[i]) {
+			return nil, fmt.Errorf("incorrect chunk offset! %v != %v", len(data), int(chunkOffsets[i]))
+		}
+		data, err = binary.Append(data, binary.LittleEndian, chunk.ChunkHeader)
+		if err != nil {
+			return nil, err
+		}
+		data = append(data, chunk.Data...)
+	}
+
+	return data, nil
+}
+
 func ParseDXBC(r io.ReadSeeker) (*DXBC, error) {
 	startOffset, _ := r.Seek(0, io.SeekCurrent)
 	var header DXBCHeader
@@ -97,9 +127,8 @@ func ParseDXBC(r io.ReadSeeker) (*DXBC, error) {
 				return nil, fmt.Errorf("OSGNFromChunk: %v", err)
 			}
 			toReturn.OutputSignature = *osg1
-		default:
-			toReturn.Chunks = append(toReturn.Chunks, *chunk)
 		}
+		toReturn.Chunks = append(toReturn.Chunks, *chunk)
 	}
 	return toReturn, nil
 }
@@ -132,10 +161,10 @@ func (d *DXBC) ToGLSL() string {
 }
 
 func getGLSL(opcode d3dops.Opcode, cbs []d3dops.ConstantBuffer, isg, osg []d3dops.Element, res []d3dops.ResourceBinding) string {
-	defer func() {
-		if r := recover(); r != nil {
-			fmt.Println(r)
-		}
-	}()
+	// defer func() {
+	// 	if r := recover(); r != nil {
+	// 		fmt.Println(r)
+	// 	}
+	// }()
 	return opcode.ToGLSL(cbs, isg, osg, res)
 }
