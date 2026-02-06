@@ -734,10 +734,13 @@ type Element struct {
 	RWMask        uint8
 }
 
-func (e Element) ToGLSL(isInput bool) string {
+func (e Element) ToGLSL(isInput bool, shaderType ShaderProgramType) string {
 	direction := "out"
 	if isInput {
 		direction = "in"
+		if e.ComponentType != RCT_FLOAT32 && e.Mask == 0x1 && shaderType != VERTEX_SHADER {
+			direction = "flat in"
+		}
 	}
 	result := fmt.Sprintf("layout(location = %v) %v ", e.Register, direction)
 
@@ -1036,4 +1039,35 @@ func (rb ResourceBinding) ToGLSL() string {
 		return rb.ToString()
 	}
 	return fmt.Sprintf("%vuniform %v%v %v;\n", rb.ToString(), rb.ReturnType.GLSLPrefix(), rb.ViewDimension.ToGLSL(), strings.TrimLeft(rb.Name, "_"))
+}
+
+type ShaderProgramType uint16
+
+const (
+	PIXEL_SHADER ShaderProgramType = iota
+	VERTEX_SHADER
+	GEOMETRY_SHADER
+
+	// D3D11 Shaders
+	HULL_SHADER
+	DOMAIN_SHADER
+	COMPUTE_SHADER
+)
+
+func (spt ShaderProgramType) ToString() string {
+	switch spt {
+	case PIXEL_SHADER:
+		return "PIXEL_SHADER"
+	case VERTEX_SHADER:
+		return "VERTEX_SHADER"
+	case GEOMETRY_SHADER:
+		return "GEOMETRY_SHADER"
+	case HULL_SHADER:
+		return "HULL_SHADER"
+	case DOMAIN_SHADER:
+		return "DOMAIN_SHADER"
+	case COMPUTE_SHADER:
+		return "COMPUTE_SHADER"
+	}
+	return "Unknown shader type!"
 }

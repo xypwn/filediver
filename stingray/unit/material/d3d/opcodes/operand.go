@@ -981,9 +981,19 @@ func (o *Operand) ToGLSL(cbs []ConstantBuffer, isg, osg []Element, res []Resourc
 	} else if operandType == OPERAND_TYPE_IMMEDIATE_CONSTANT_BUFFER {
 		toReturn = fmt.Sprintf("%v[floatBitsToInt(%v)]%v", operandType.ToGLSL(), o.Indices[0].ToGLSL(cbs, isg, osg, res, mask, true), o.SwizzleMask(mask))
 	} else if operandType == OPERAND_TYPE_INPUT {
-		toReturn = fmt.Sprintf("%v%v", isg[o.Indices[0].Value].NameWithIndex(true), o.SwizzleMask(mask))
+		for _, in := range isg {
+			if in.Register == uint32(o.Indices[0].Value) {
+				toReturn = fmt.Sprintf("%v%v", in.NameWithIndex(true), o.SwizzleMask(mask))
+				break
+			}
+		}
 	} else if operandType == OPERAND_TYPE_OUTPUT {
-		toReturn = fmt.Sprintf("%v%v", osg[o.Indices[0].Value].NameWithIndex(false), o.SwizzleMask(mask))
+		for _, out := range osg {
+			if out.Register == uint32(o.Indices[0].Value) {
+				toReturn = fmt.Sprintf("%v%v", out.NameWithIndex(false), o.SwizzleMask(mask))
+				break
+			}
+		}
 	} else if operandType == OPERAND_TYPE_RESOURCE {
 		var rb *ResourceBinding
 		for i := range res {

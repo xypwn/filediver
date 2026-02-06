@@ -1301,7 +1301,7 @@ func ConvertTextures(ctx *extractor.Context) error {
 		return err
 	}
 
-	for blk, shaderProgram := range matGpu.ShaderPrograms.Programs {
+	for blk, shaderProgram := range matGpu.ShaderPrograms.ProgramBlocks {
 		for i := range shaderProgram.Programs {
 
 			shaders := []*material.Shader{

@@ -78,6 +78,9 @@ const (
 )
 
 func (s ShaderStageMask) StageIdx() int {
+	if s == ShaderStage_InstancedVertex {
+		return bits.TrailingZeros8(uint8(ShaderStage_Vertex))
+	}
 	return bits.TrailingZeros8(uint8(s))
 }
 
@@ -203,7 +206,7 @@ type ProgramCountItem struct {
 type ShaderProgramList struct {
 	NumPrograms   uint32
 	ProgramCounts []ProgramCountItem
-	Programs      []ShaderProgramBlock
+	ProgramBlocks []ShaderProgramBlock
 }
 
 type GPUHeader struct {
@@ -607,7 +610,7 @@ func LoadGPU(r io.ReadSeeker) (*MaterialGPU, error) {
 		ShaderPrograms: &ShaderProgramList{
 			NumPrograms:   rawProgramList.NumPrograms,
 			ProgramCounts: programCounts,
-			Programs:      programBlocks,
+			ProgramBlocks: programBlocks,
 		},
 		UnkOffset2: material.UnkOffset2,
 		UnkInt2:    material.UnkInt2,

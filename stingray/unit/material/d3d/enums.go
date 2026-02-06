@@ -1,36 +1,5 @@
 package d3d
 
-type ShaderProgramType uint16
-
-const (
-	PIXEL_SHADER ShaderProgramType = iota
-	VERTEX_SHADER
-	GEOMETRY_SHADER
-
-	// D3D11 Shaders
-	HULL_SHADER
-	DOMAIN_SHADER
-	COMPUTE_SHADER
-)
-
-func (spt ShaderProgramType) ToString() string {
-	switch spt {
-	case PIXEL_SHADER:
-		return "PIXEL_SHADER"
-	case VERTEX_SHADER:
-		return "VERTEX_SHADER"
-	case GEOMETRY_SHADER:
-		return "GEOMETRY_SHADER"
-	case HULL_SHADER:
-		return "HULL_SHADER"
-	case DOMAIN_SHADER:
-		return "DOMAIN_SHADER"
-	case COMPUTE_SHADER:
-		return "COMPUTE_SHADER"
-	}
-	return "Unknown shader type!"
-}
-
 type ShaderInstructionReturnType uint8
 
 const (

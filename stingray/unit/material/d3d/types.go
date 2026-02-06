@@ -91,7 +91,7 @@ type RDEF struct {
 	ConstantBuffers  []d3dops.ConstantBuffer
 	ResourceBindings []d3dops.ResourceBinding
 	Version          ShaderVersion
-	ProgramType      ShaderProgramType
+	ProgramType      d3dops.ShaderProgramType
 	Flags            ShaderFlags
 	Creator          string
 }
@@ -111,10 +111,10 @@ type ISG1 struct {
 	Elements []d3dops.Element
 }
 
-func (i ISG1) ToGLSL() string {
+func (i ISG1) ToGLSL(shaderType d3dops.ShaderProgramType) string {
 	toReturn := "// Input Signature\n"
 	for _, element := range i.Elements {
-		toReturn += fmt.Sprintf("%v\n", element.ToGLSL(true))
+		toReturn += fmt.Sprintf("%v\n", element.ToGLSL(true, shaderType))
 	}
 	return toReturn + "\n"
 }
@@ -124,10 +124,10 @@ type OSG1 struct {
 	Elements []d3dops.Element
 }
 
-func (o OSG1) ToGLSL() string {
+func (o OSG1) ToGLSL(shaderType d3dops.ShaderProgramType) string {
 	toReturn := "// Output Signature\n"
 	for _, element := range o.Elements {
-		toReturn += fmt.Sprintf("%v\n", element.ToGLSL(false))
+		toReturn += fmt.Sprintf("%v\n", element.ToGLSL(false, shaderType))
 	}
 	return toReturn + "\n"
 }
@@ -135,7 +135,7 @@ func (o OSG1) ToGLSL() string {
 type SHEX struct {
 	ChunkHeader
 	Version     ShaderVersion
-	ProgramType ShaderProgramType
+	ProgramType d3dops.ShaderProgramType
 	Opcodes     []d3dops.Opcode
 }
 
@@ -238,7 +238,7 @@ func RDEFFromChunk(chunk *Chunk) (*RDEF, error) {
 	if err := binary.Read(r, binary.LittleEndian, &version); err != nil {
 		return nil, err
 	}
-	var programType ShaderProgramType
+	var programType d3dops.ShaderProgramType
 	if err := binary.Read(r, binary.LittleEndian, &programType); err != nil {
 		return nil, err
 	}
@@ -313,7 +313,7 @@ func SHEXFromChunk(chunk *Chunk) (*SHEX, error) {
 	}
 	// Skip a byte
 	r.Seek(1, io.SeekCurrent)
-	var programType ShaderProgramType
+	var programType d3dops.ShaderProgramType
 	if err := binary.Read(r, binary.LittleEndian, &programType); err != nil {
 		return nil, err
 	}
