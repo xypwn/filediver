@@ -300,7 +300,7 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 			if !ok {
 				return stingray.Hash{}, false, stingray.Hash{}, false, fmt.Errorf("load material %v.material does not exist", matFileName)
 			}
-			mat, err := material.Load(bytes.NewReader(matData))
+			mat, err := material.LoadMain(bytes.NewReader(matData))
 			if err != nil {
 				return stingray.Hash{}, false, stingray.Hash{}, false, fmt.Errorf("load material %v.material: %w", matFileName, err)
 			}

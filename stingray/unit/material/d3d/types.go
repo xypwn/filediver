@@ -96,6 +96,16 @@ type RDEF struct {
 	Creator          string
 }
 
+func (r RDEF) Count(typ d3dops.ShaderInputType) uint32 {
+	toReturn := uint32(0)
+	for _, rb := range r.ResourceBindings {
+		if rb.InputType == typ {
+			toReturn++
+		}
+	}
+	return toReturn
+}
+
 type ISG1 struct {
 	ChunkHeader
 	Elements []d3dops.Element

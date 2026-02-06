@@ -20,6 +20,12 @@ func (tok *InstructionToken) Saturate() bool {
 	return tok.opcode&SATURATE_MASK != 0
 }
 
+const INVERT_BOOLEAN_MASK uint32 = 0x00002000
+
+func (tok *InstructionToken) InvertBoolean() bool {
+	return tok.opcode&INVERT_BOOLEAN_MASK == 0
+}
+
 func (tok *InstructionToken) ToGLSL(cbs []ConstantBuffer, isg, osg []Element, res []ResourceBinding) string {
 	opType := ShaderOpcodeType(tok.opcode & TYPE_MASK)
 	switch len(tok.operands) {
@@ -75,16 +81,21 @@ func (tok *InstructionToken) noParamsGLSL(opType ShaderOpcodeType, cbs []Constan
 func (tok *InstructionToken) singleParamsGLSL(opType ShaderOpcodeType, cbs []ConstantBuffer, isg, osg []Element, res []ResourceBinding) string {
 	toReturn := fmt.Sprintf("// Single Param Op %v\n", opType.ToString())
 
+	test := fmt.Sprintf(
+		"bool(%v)",
+		tok.operands[0].ToGLSL(cbs, isg, osg, res, tok.operands[0].Mask(), false),
+	)
+	//invTest :=  "!" + test
 	switch opType {
 	case OPCODE_BREAKC:
 		toReturn += fmt.Sprintf(
-			"if (bool(%v)) { break; }\n",
-			tok.operands[0].ToGLSL(cbs, isg, osg, res, tok.operands[0].Mask(), false),
+			"if (%v) { break; }\n",
+			test,
 		)
 	case OPCODE_IF:
 		toReturn += fmt.Sprintf(
-			"if (bool(%v)) {\n",
-			tok.operands[0].ToGLSL(cbs, isg, osg, res, tok.operands[0].Mask(), false),
+			"if (%v) {\n",
+			test,
 		)
 	case OPCODE_SWITCH:
 		toReturn += fmt.Sprintf(
@@ -95,6 +106,11 @@ func (tok *InstructionToken) singleParamsGLSL(opType ShaderOpcodeType, cbs []Con
 		toReturn += fmt.Sprintf(
 			"case %v:\n",
 			tok.operands[0].ToGLSL(cbs, isg, osg, res, tok.operands[0].Mask(), false),
+		)
+	case OPCODE_DISCARD:
+		toReturn += fmt.Sprintf(
+			"if (%v) { discard; }\n",
+			test,
 		)
 	default:
 		toReturn += "// Not implemented!\n"
@@ -316,6 +332,7 @@ func (tok *InstructionToken) binaryOpGLSL(opType ShaderOpcodeType, cbs []Constan
 			)
 		}
 	case OPCODE_RESINFO:
+		toReturn += fmt.Sprintf("// %#02x %#02x %#02x\n", tok.operands[0].Mask(), tok.operands[1].Mask(), tok.operands[2].Mask())
 		expr = fmt.Sprintf(
 			"textureSize(%v, %v)%v",
 			tok.operands[2].ToGLSL(cbs, isg, osg, res, 0x0, true),
@@ -386,6 +403,28 @@ func (tok *InstructionToken) binaryOpGLSL(opType ShaderOpcodeType, cbs []Constan
 			tok.operands[1].ToGLSL(cbs, isg, osg, res, masks[1], false),
 			tok.operands[2].ToGLSL(cbs, isg, osg, res, masks[2], false),
 		)
+	case OPCODE_SINCOS:
+		sinExpr := fmt.Sprintf(
+			"sin(%v)",
+			tok.operands[2].ToGLSL(cbs, isg, osg, res, masks[2], false),
+		)
+		sinExpr = tok.wrapExpression(sinExpr, opType.ReturnNumberType(), true)
+		toReturn += fmt.Sprintf(
+			"%v = %v;\n",
+			tok.operands[0].ToGLSL(cbs, isg, osg, res, masks[0], true),
+			sinExpr,
+		)
+		cosExpr := fmt.Sprintf(
+			"cos(%v)",
+			tok.operands[2].ToGLSL(cbs, isg, osg, res, masks[2], false),
+		)
+		cosExpr = tok.wrapExpression(cosExpr, opType.ReturnNumberType(), true)
+		toReturn += fmt.Sprintf(
+			"%v = %v;\n",
+			tok.operands[1].ToGLSL(cbs, isg, osg, res, masks[1], true),
+			cosExpr,
+		)
+		return toReturn
 	default:
 		expr = fmt.Sprintf(
 			"%v %v %v",
@@ -579,7 +618,7 @@ func (tok *InstructionToken) quatenaryOpGLSL(opType ShaderOpcodeType, cbs []Cons
 			"textureLod(%v, %v, %v)%v",
 			tok.operands[2].ToGLSL(cbs, isg, osg, res, 0x0, true),
 			tok.operands[1].ToGLSL(cbs, isg, osg, res, (1<<dim)-1, true),
-			tok.operands[4].ToGLSL(cbs, isg, osg, res, 0x0, false),
+			tok.operands[4].ToGLSL(cbs, isg, osg, res, tok.operands[4].Mask(), false),
 			tok.operands[2].SwizzleMask(masks[2]),
 		)
 	}
