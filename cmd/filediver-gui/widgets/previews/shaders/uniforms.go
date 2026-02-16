@@ -17,6 +17,7 @@ var NOT_GENERATED = errors.New("not generated")
 var ALREADY_GENERATED = errors.New("not generated")
 
 type UniformBlock interface {
+	Name() string
 	Generate() error
 	Delete()
 	Buffer() error
@@ -25,6 +26,7 @@ type UniformBlock interface {
 }
 
 type DynamicUniformBlock interface {
+	Name() string
 	Generate() error
 	Delete()
 	Buffer() error
@@ -39,6 +41,10 @@ type uniformBlockStaticImpl struct {
 	values  map[string]any
 	offsets map[string]int
 	size    uint32
+}
+
+func (c *uniformBlockStaticImpl) Name() string {
+	return c.name
 }
 
 func (c *uniformBlockStaticImpl) Generate() error {
@@ -231,6 +237,45 @@ func NewAtmosphereCommon(
 		values:  values,
 		offsets: offsets,
 		size:    208,
+	}
+}
+
+func NewCloudStartStopDefault() UniformBlock {
+	values := map[string]any{
+		"cloud_start_height": float32(0.0),
+		"cloud_height_mult":  float32(1.0),
+	}
+	offsets := map[string]int{
+		"cloud_start_height": 0,
+		"cloud_height_mult":  4,
+	}
+	return &uniformBlockStaticImpl{
+		name:    "c_cloud_start_stop",
+		ubo:     gl.INVALID_VALUE,
+		values:  values,
+		offsets: offsets,
+		size:    8,
+	}
+}
+
+func NewCloudStartStop(
+	cloud_start_height,
+	cloud_height_mult float32,
+) UniformBlock {
+	values := map[string]any{
+		"cloud_start_height": cloud_start_height,
+		"cloud_height_mult":  cloud_height_mult,
+	}
+	offsets := map[string]int{
+		"cloud_start_height": 0,
+		"cloud_height_mult":  4,
+	}
+	return &uniformBlockStaticImpl{
+		name:    "c_cloud_start_stop",
+		ubo:     gl.INVALID_VALUE,
+		values:  values,
+		offsets: offsets,
+		size:    8,
 	}
 }
 
@@ -1539,6 +1584,10 @@ type uniformBlockDynamicImpl struct {
 	ubo    uint32
 	values []uniformBlockDynamicItem
 	size   int
+}
+
+func (c *uniformBlockDynamicImpl) Name() string {
+	return c.name
 }
 
 func (c *uniformBlockDynamicImpl) Generate() error {
