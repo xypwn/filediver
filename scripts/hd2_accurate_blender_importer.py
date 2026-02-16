@@ -274,6 +274,9 @@ def add_building_material(building_mat: Material, material: dict, textures: Dict
             case "NAC":
                 config_nodes["Image Texture"].image = image
                 image.colorspace_settings.name = "Non-Color"
+            case "decal_sheet":
+                config_nodes["Image Texture.002"].image = image
+                image.colorspace_settings.name = "sRGB"
     
     print("    Applying settings")
     building_group = object_mat.node_tree.nodes['Group.002']
