@@ -1311,7 +1311,6 @@ func ConvertTextures(ctx *extractor.Context) error {
 				shaderProgram.Programs[i].HullShader,
 				shaderProgram.Programs[i].UnknownShader2,
 				shaderProgram.Programs[i].PixelShader,
-				shaderProgram.Programs[i].UnknownShader3,
 			}
 			for j := range shaderProgram.Headers[i].Stages {
 				stageMask := material.ShaderStageMask(1 << j)
@@ -1328,7 +1327,7 @@ func ConvertTextures(ctx *extractor.Context) error {
 					programFolder = fmt.Sprintf("program-%v", blk)
 				}
 
-				if stageMask == material.ShaderStage_Tessellation {
+				if stageMask == material.ShaderStage_Tessellation && shaderProgram.Programs[i].DomainShader != nil {
 					name := ctx.LookupThinHash(shaderProgram.Programs[i].DomainShader.Name)
 					out, err := ctx.CreateFile(filepath.Join(".dir", "shaders", programFolder, name+"."+cfg.Material.ShaderFormat+"."+suffixArray[0]+"e"))
 					if err != nil {
@@ -1361,6 +1360,10 @@ func ConvertTextures(ctx *extractor.Context) error {
 				suffix := cfg.Material.ShaderFormat + "." + suffixArray[0]
 				if len(suffixArray) > 1 {
 					suffix = suffixArray[0] + "." + cfg.Material.ShaderFormat + "." + suffixArray[1]
+				}
+
+				if shaders[j] == nil {
+					continue
 				}
 
 				name := ctx.LookupThinHash(shaders[j].Name)

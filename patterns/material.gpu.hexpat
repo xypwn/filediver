@@ -785,18 +785,18 @@ struct StageMetadata {
     u32 unkInt;
     u32 unknown2[3];
     u32 unkInt2;
-    u32 unknown3[7];
+    u32 unknown3[11];
 };
 
 struct ShaderProgramHeader {
-    padding[while(std::mem::read_unsigned($, 1) == 0)];
     u8 stagemask;
     padding[3];
     u32 unknown[3];
     u32 textureCount;
     u32 unknown2[3];
-    StageMetadata stages[7];
-    u8 pad[56];
+    StageMetadata stages[6];
+    u32 unknown3[2];
+    padding[while(!std::mem::eof() && std::mem::read_unsigned($, 1) == 0)];
 };
 
 struct ShaderProgramSamplerAttribute {
@@ -835,17 +835,19 @@ struct ShaderProgram {
     ShaderProgramTextureAttributes textures[parent.headers[std::core::array_index()].textureCount];
     ShaderProgramSamplerAttributes samplers[parent.headers[std::core::array_index()].textureCount];
     u8 stagemask = parent.headers[std::core::array_index()].stagemask;
-    if(stagemask & (1 << 0)){
+    if(stagemask & (1 << 0) && parent.headers[std::core::array_index()].stages[0].dxbcSize > 0){
         Shader vertexShader;
     }
     if(stagemask & (1 << 1)){
         Shader unknownShader1;
     }
-    if(stagemask & (1 << 2)){
+    if(stagemask & (1 << 2) && parent.headers[std::core::array_index()].stages[0].dxbcSize > 0){
         Shader instancedVertexShader;
     }
-    if(stagemask & (1 << 3)){
+    if(stagemask & (1 << 3) && parent.headers[std::core::array_index()].stages[1].dxbcSize > 0){
         Shader domainShader;
+    }
+    if(stagemask & (1 << 3) && parent.headers[std::core::array_index()].stages[2].dxbcSize > 0){
         Shader hullShader;
     }
     if(stagemask & (1 << 4)){
@@ -853,9 +855,6 @@ struct ShaderProgram {
     }
     if(stagemask & (1 << 5)){
         Shader fragmentShader;
-    }
-    if(stagemask & (1 << 6)){
-        Shader unknownShader5;
     }
 };
 

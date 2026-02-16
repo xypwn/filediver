@@ -115,7 +115,7 @@ type StageMetadata struct {
 	UnkInt1  uint32
 	_        [12]uint8
 	UnkInt2  uint32
-	_        [28]uint8
+	_        [44]uint8
 }
 
 type ShaderProgramHeader struct {
@@ -182,7 +182,6 @@ type ShaderProgram struct {
 	HullShader            *Shader
 	UnknownShader2        *Shader
 	PixelShader           *Shader
-	UnknownShader3        *Shader
 }
 
 type ShaderProgramBlock struct {
@@ -423,11 +422,9 @@ func LoadGPU(r io.ReadSeeker) (*MaterialGPU, error) {
 		block.Headers = make([]ShaderProgramHeader, 0)
 		block.Programs = make([]ShaderProgram, 0)
 		for range count.Count {
-			stageMask := ShaderStage_None
-			for stageMask == ShaderStage_None {
-				if err := binary.Read(r, binary.LittleEndian, &stageMask); err != nil {
-					return nil, err
-				}
+			var stageMask ShaderStageMask
+			if err := binary.Read(r, binary.LittleEndian, &stageMask); err != nil {
+				return nil, err
 			}
 
 			if _, err := r.Seek(15, io.SeekCurrent); err != nil {
@@ -443,12 +440,22 @@ func LoadGPU(r io.ReadSeeker) (*MaterialGPU, error) {
 				return nil, err
 			}
 
-			stages := make([]StageMetadata, 7)
+			stages := make([]StageMetadata, 6)
 			if err := binary.Read(r, binary.LittleEndian, &stages); err != nil {
 				return nil, err
 			}
 
-			if _, err := r.Seek(56, io.SeekCurrent); err != nil {
+			if _, err := r.Seek(8, io.SeekCurrent); err != nil {
+				return nil, err
+			}
+
+			item := make([]byte, 1)
+			for item[0] == 0 {
+				if _, err := r.Read(item); err != nil {
+					return nil, err
+				}
+			}
+			if _, err := r.Seek(-1, io.SeekCurrent); err != nil {
 				return nil, err
 			}
 
@@ -518,7 +525,7 @@ func LoadGPU(r io.ReadSeeker) (*MaterialGPU, error) {
 				SamplerAttrs: samplerAttrs,
 			})
 
-			if block.Headers[i].StageMask&ShaderStage_Vertex != 0 {
+			if block.Headers[i].StageMask&ShaderStage_Vertex != 0 && block.Headers[i].Stages[0].DXBCSize > 0 {
 				stage := block.Headers[i].Stages[ShaderStage_Vertex.StageIdx()]
 				if shader, ok := loadedShaders[stage.DXBCName]; ok {
 					block.Programs[i].VertexShader = shader
@@ -546,7 +553,7 @@ func LoadGPU(r io.ReadSeeker) (*MaterialGPU, error) {
 					return nil, err
 				}
 			}
-			if block.Headers[i].StageMask&ShaderStage_InstancedVertex != 0 {
+			if block.Headers[i].StageMask&ShaderStage_InstancedVertex != 0 && block.Headers[i].Stages[0].DXBCSize > 0 {
 				stage := block.Headers[i].Stages[ShaderStage_InstancedVertex.StageIdx()]
 				if shader, ok := loadedShaders[stage.DXBCName]; ok {
 					block.Programs[i].InstancedVertexShader = shader
@@ -560,14 +567,15 @@ func LoadGPU(r io.ReadSeeker) (*MaterialGPU, error) {
 					return nil, err
 				}
 			}
-			if block.Headers[i].StageMask&ShaderStage_Tessellation != 0 {
+			if block.Headers[i].StageMask&ShaderStage_Tessellation != 0 && block.Headers[i].Stages[1].DXBCSize > 0 {
 				block.Programs[i].DomainShader, err = loadShader(r)
 				if err != nil && err != io.EOF {
 					return nil, err
 				} else if err == io.EOF {
 					return nil, fmt.Errorf("Unexpected EOF when loading tesselation shaders: %v", err)
 				}
-
+			}
+			if block.Headers[i].StageMask&ShaderStage_Tessellation != 0 && block.Headers[i].Stages[2].DXBCSize > 0 {
 				block.Programs[i].HullShader, err = loadShader(r)
 				if err == io.EOF {
 					break
@@ -583,16 +591,8 @@ func LoadGPU(r io.ReadSeeker) (*MaterialGPU, error) {
 					return nil, err
 				}
 			}
-			if block.Headers[i].StageMask&ShaderStage_Pixel != 0 {
+			if block.Headers[i].StageMask&ShaderStage_Pixel != 0 && block.Headers[i].Stages[4].DXBCSize > 0 {
 				block.Programs[i].PixelShader, err = loadShader(r)
-				if err == io.EOF {
-					break
-				} else if err != nil {
-					return nil, err
-				}
-			}
-			if block.Headers[i].StageMask&ShaderStage_Unknown3 != 0 {
-				block.Programs[i].UnknownShader3, err = loadShader(r)
 				if err == io.EOF {
 					break
 				} else if err != nil {
