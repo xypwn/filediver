@@ -1462,7 +1462,7 @@ struct SettingsHeader {
     u8 unk00[36];
     u32 settingsCount;
     u8 unk03[12];
-    u32 unkOffset; // Might not be an offset at all
+    u32 settingsDataSize;
     u8 unk04[12];
 };
 

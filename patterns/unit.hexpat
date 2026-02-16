@@ -166,7 +166,9 @@ struct MeshGroupList {
 enum MeshLayoutItemType : u32 {
     Position,
     Normal,
-    UVCoords = 4,
+    Tangent,
+    Binormal,
+    UVCoords,
     BoneIdx = 6,
     BoneWeight
 };

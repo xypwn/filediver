@@ -3,7 +3,6 @@ package previews
 import (
 	"bytes"
 	"cmp"
-	"embed"
 	"errors"
 	"fmt"
 	"image"
@@ -13,7 +12,7 @@ import (
 	"strings"
 
 	"github.com/AllenDang/cimgui-go/imgui"
-	"github.com/go-gl/gl/v3.2-core/gl"
+	"github.com/go-gl/gl/v4.3-core/gl"
 	"github.com/go-gl/mathgl/mgl32"
 	fnt "github.com/xypwn/filediver/cmd/filediver-gui/fonts"
 	"github.com/xypwn/filediver/cmd/filediver-gui/glutils"
@@ -26,9 +25,6 @@ import (
 	"github.com/xypwn/filediver/stingray/unit/material"
 	"github.com/xypwn/filediver/stingray/unit/texture"
 )
-
-//go:embed shaders/*
-var unitPreviewShaderCode embed.FS
 
 // stingray coords to OpenGL coords
 var stingrayToGLCoords = mgl32.Mat4FromRows(
@@ -165,7 +161,7 @@ func NewUnitPreview() (*UnitPreviewState, error) {
 	}
 
 	pv.object.genObjects(true)
-	pv.objectProgram, err = glutils.CreateProgramFromSources(unitPreviewShaderCode,
+	pv.objectProgram, err = glutils.CreateProgramFromSources(PreviewShaderCode,
 		"shaders/object.vert",
 		"shaders/object.frag",
 	)
@@ -174,7 +170,7 @@ func NewUnitPreview() (*UnitPreviewState, error) {
 	}
 	pv.objectUniforms.generate(pv.objectProgram, "mvp", "model", "normalMat", "viewPosition", "texAlbedo", "texNormal", "shouldReconstructNormalZ", "udimShown")
 
-	pv.objectWireframeProgram, err = glutils.CreateProgramFromSources(unitPreviewShaderCode,
+	pv.objectWireframeProgram, err = glutils.CreateProgramFromSources(PreviewShaderCode,
 		"shaders/object_wireframe.vert",
 		"shaders/object_wireframe.geom",
 		"shaders/object_wireframe.frag",
@@ -184,7 +180,7 @@ func NewUnitPreview() (*UnitPreviewState, error) {
 	}
 	pv.objectWireframeUniforms.generate(pv.objectWireframeProgram, "mvp", "color", "udimShown")
 
-	pv.objectNormalVisProgram, err = glutils.CreateProgramFromSources(unitPreviewShaderCode,
+	pv.objectNormalVisProgram, err = glutils.CreateProgramFromSources(PreviewShaderCode,
 		"shaders/object_normal_vis.vert",
 		"shaders/object_normal_vis.geom",
 		"shaders/object_normal_vis.frag",
@@ -195,7 +191,7 @@ func NewUnitPreview() (*UnitPreviewState, error) {
 	pv.objectNormalVisUniforms.generate(pv.objectNormalVisProgram, "mvp", "len", "showTangentBitangent", "udimShown")
 
 	pv.dbgObj.genObjects(false)
-	pv.dbgObjProgram, err = glutils.CreateProgramFromSources(unitPreviewShaderCode,
+	pv.dbgObjProgram, err = glutils.CreateProgramFromSources(PreviewShaderCode,
 		"shaders/debug_object.vert",
 		"shaders/debug_object.frag",
 	)
@@ -304,7 +300,7 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 			if !ok {
 				return stingray.Hash{}, false, stingray.Hash{}, false, fmt.Errorf("load material %v.material does not exist", matFileName)
 			}
-			mat, err := material.Load(bytes.NewReader(matData))
+			mat, err := material.LoadMain(bytes.NewReader(matData))
 			if err != nil {
 				return stingray.Hash{}, false, stingray.Hash{}, false, fmt.Errorf("load material %v.material: %w", matFileName, err)
 			}

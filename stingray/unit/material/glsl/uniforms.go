@@ -1,0 +1,28 @@
+package glsl
+
+var UniformBlockNames []string = []string{
+	"c_atmosphere_common",
+	"c_cloud_start_stop",
+	"c_drop_select",
+	"c_hologram_common",
+	"c_hologram_lighting_common",
+	"c_ribbon_data_offset",
+	"c_snow",
+	"c_speedtree",
+	"c_wind",
+	"cbillboard",
+	"clustered_shading_data",
+	"context_camera",
+	"global_viewport",
+	"light",
+	"lighting_data",
+	"minimap_presence",
+	"sun_color",
+	"sun_direction",
+	"c0",
+	"c_billboard",
+	"c_per_instance",
+	"c_per_object",
+	"c_skin_matrices",
+	"c_ui_3d",
+}

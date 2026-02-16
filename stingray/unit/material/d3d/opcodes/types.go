@@ -2,8 +2,13 @@ package d3dops
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/go-gl/mathgl/mgl32"
+	"github.com/xypwn/filediver/cmd/filediver-gui/widgets/previews/shaders"
+	"github.com/xypwn/filediver/stingray/unit/material/glsl"
 )
 
 type ShaderVariableClass uint16
@@ -215,6 +220,19 @@ func (svt ShaderVariableType) GLSLPrecision() string {
 	}
 }
 
+func (svt ShaderVariableType) GLSLSize() int {
+	switch svt {
+	case SVT_UINT8, SVT_MIN8FLOAT, SVT_V10_UINT8:
+		return 1
+	case SVT_MIN10FLOAT, SVT_MIN12INT, SVT_MIN16FLOAT, SVT_MIN16INT, SVT_MIN16UINT, SVT_INT16, SVT_UINT16, SVT_FLOAT16:
+		return 2
+	case SVT_DOUBLE, SVT_INT64, SVT_UINT64, SVT_V11_DOUBLE:
+		return 8
+	default:
+		return 4
+	}
+}
+
 type ConstantBufferFlags uint32
 
 const (
@@ -299,7 +317,7 @@ func (v Variable) ToGLSL() string {
 		toReturn += fmt.Sprintf("[%v]", v.Elements)
 	}
 	toReturn += fmt.Sprintf("; // size: %v, offset: %v", v.Size, v.BufferOffset)
-	if v.DefaultData != nil && len(v.DefaultData) > 0 {
+	if len(v.DefaultData) > 0 {
 		toReturn += fmt.Sprintf(", default data: %v", v.DefaultData)
 	}
 	switch v.Class {
@@ -307,6 +325,219 @@ func (v Variable) ToGLSL() string {
 		toReturn += ", row major"
 	}
 	return toReturn
+}
+
+func (v Variable) ToGLSLAlign() int {
+	toReturn := 0
+	switch v.Class {
+	case SVC_SCALAR, SVC_V10_SCALAR:
+		toReturn = v.Type.GLSLSize()
+	case SVC_VECTOR, SVC_V10_VECTOR:
+		cols := int(v.Cols)
+		if cols == 3 {
+			cols = 4
+		}
+		toReturn = v.Type.GLSLSize() * cols
+	case SVC_MATRIX_COLUMNS, SVC_MATRIX_ROWS, SVC_V10_MATRIX_COLUMNS, SVC_V10_MATRIX_ROWS:
+		toReturn = v.Type.GLSLSize() * 4 * int(v.Rows)
+	default:
+		panic("Unimplemented variable class!")
+	}
+
+	if v.Elements > 0 {
+		toReturn *= int(v.Elements)
+	}
+
+	return toReturn
+}
+
+func (v Variable) ToNative() any {
+	switch v.Class {
+	case SVC_SCALAR, SVC_V10_SCALAR:
+		switch v.Type.GLSLType() {
+		case "float":
+			if v.Elements > 1 {
+				return make([]float32, v.Elements)
+			}
+			return float32(0.0)
+		case "bool":
+			if v.Elements > 1 {
+				return make([]bool, v.Elements)
+			}
+			return false
+		case "int":
+			if v.Elements > 1 {
+				return make([]int32, v.Elements)
+			}
+			return int32(0)
+		case "uint":
+			if v.Elements > 1 {
+				return make([]uint32, v.Elements)
+			}
+			return uint32(0)
+		case "double":
+			if v.Elements > 1 {
+				return make([]float64, v.Elements)
+			}
+			return float64(0.0)
+		}
+	case SVC_VECTOR, SVC_V10_VECTOR:
+		switch v.Type.GLSLType() {
+		case "float":
+			switch v.Cols {
+			case 2:
+				if v.Elements > 1 {
+					return make([]mgl32.Vec2, v.Elements)
+				}
+				return mgl32.Vec2{}
+			case 3:
+				if v.Elements > 1 {
+					return make([]mgl32.Vec3, v.Elements)
+				}
+				return mgl32.Vec3{}
+			case 4:
+				if v.Elements > 1 {
+					return make([]mgl32.Vec4, v.Elements)
+				}
+				return mgl32.Vec4{}
+			}
+		case "bool":
+			switch v.Cols {
+			case 2:
+				if v.Elements > 1 {
+					return make([][2]bool, v.Elements)
+				}
+				return [2]bool{}
+			case 3:
+				if v.Elements > 1 {
+					return make([][3]bool, v.Elements)
+				}
+				return [3]bool{}
+			case 4:
+				if v.Elements > 1 {
+					return make([][4]bool, v.Elements)
+				}
+				return [4]bool{}
+			}
+		case "int":
+			switch v.Cols {
+			case 2:
+				if v.Elements > 1 {
+					return make([][2]int32, v.Elements)
+				}
+				return [2]int32{}
+			case 3:
+				if v.Elements > 1 {
+					return make([][3]int32, v.Elements)
+				}
+				return [3]int32{}
+			case 4:
+				if v.Elements > 1 {
+					return make([][4]int32, v.Elements)
+				}
+				return [4]int32{}
+			}
+		case "uint":
+			switch v.Cols {
+			case 2:
+				if v.Elements > 1 {
+					return make([][2]uint32, v.Elements)
+				}
+				return [2]uint32{}
+			case 3:
+				if v.Elements > 1 {
+					return make([][3]uint32, v.Elements)
+				}
+				return [3]uint32{}
+			case 4:
+				if v.Elements > 1 {
+					return make([][4]uint32, v.Elements)
+				}
+				return [4]uint32{}
+			}
+		case "double":
+			switch v.Cols {
+			case 2:
+				if v.Elements > 1 {
+					return make([][2]float64, v.Elements)
+				}
+				return [2]float64{}
+			case 3:
+				if v.Elements > 1 {
+					return make([][3]float64, v.Elements)
+				}
+				return [3]float64{}
+			case 4:
+				if v.Elements > 1 {
+					return make([][4]float64, v.Elements)
+				}
+				return [4]float64{}
+			}
+		}
+	case SVC_MATRIX_COLUMNS, SVC_MATRIX_ROWS, SVC_V10_MATRIX_COLUMNS, SVC_V10_MATRIX_ROWS:
+		switch v.Type.GLSLType() {
+		case "float":
+			switch v.Cols {
+			case 2:
+				switch v.Rows {
+				case 2:
+					if v.Elements > 1 {
+						return make([]mgl32.Mat2, v.Elements)
+					}
+					return mgl32.Mat2{}
+				case 3:
+					if v.Elements > 1 {
+						return make([]mgl32.Mat2x3, v.Elements)
+					}
+					return mgl32.Mat2x3{}
+				case 4:
+					if v.Elements > 1 {
+						return make([]mgl32.Mat2x4, v.Elements)
+					}
+					return mgl32.Mat2x4{}
+				}
+			case 3:
+				switch v.Rows {
+				case 2:
+					if v.Elements > 1 {
+						return make([]mgl32.Mat3x2, v.Elements)
+					}
+					return mgl32.Mat3x2{}
+				case 3:
+					if v.Elements > 1 {
+						return make([]mgl32.Mat3, v.Elements)
+					}
+					return mgl32.Mat3{}
+				case 4:
+					if v.Elements > 1 {
+						return make([]mgl32.Mat3x4, v.Elements)
+					}
+					return mgl32.Mat3x4{}
+				}
+			case 4:
+				switch v.Rows {
+				case 2:
+					if v.Elements > 1 {
+						return make([]mgl32.Mat4x2, v.Elements)
+					}
+					return mgl32.Mat4x2{}
+				case 3:
+					if v.Elements > 1 {
+						return make([]mgl32.Mat4x3, v.Elements)
+					}
+					return mgl32.Mat4x3{}
+				case 4:
+					if v.Elements > 1 {
+						return make([]mgl32.Mat4, v.Elements)
+					}
+					return mgl32.Mat4{}
+				}
+			}
+		}
+	default:
+		panic("Unimplemented variable class!")
+	}
+	return nil
 }
 
 func (v Variable) SwizzleFromSrc(swizzleSrc [4]int8, mask uint8) string {
@@ -323,6 +554,9 @@ func (v Variable) SwizzleFromSrc(swizzleSrc [4]int8, mask uint8) string {
 		if src == -1 {
 			break
 		}
+		if base > src {
+			break
+		}
 		toReturn += cmp[src-base]
 	}
 	return toReturn
@@ -336,21 +570,48 @@ type ConstantBuffer struct {
 	Type      ConstantBufferType
 }
 
-func (cb *ConstantBuffer) VariableFromOffset(offset uint32) (*Variable, error) {
+func (cb *ConstantBuffer) ToGLSL(idx int) string {
+	toReturn := fmt.Sprintf("/* Constant Buffer %v: %v\n", idx, cb.Name)
+	toReturn += fmt.Sprintf(" * Type: %v\n", cb.Type.ToString())
+	toReturn += fmt.Sprintf(" * Size: %v\n", cb.Size)
+	toReturn += fmt.Sprintf(" * Flags: %v\n", cb.Flags.ToString())
+	toReturn += " */\n"
+	bindingIdx := slices.Index(glsl.UniformBlockNames, cb.Name)
+	if bindingIdx == -1 {
+		toReturn += fmt.Sprintf("layout(std140) uniform %v {\n", cb.Name)
+	} else {
+		toReturn += fmt.Sprintf("layout(std140, binding = %v) uniform %v {\n", bindingIdx, cb.Name)
+	}
+	for _, variable := range cb.Variables {
+		toReturn += fmt.Sprintf("    %v\n", variable.ToGLSL())
+	}
+	toReturn += "};"
+	return toReturn
+}
+
+func (cb *ConstantBuffer) ToUniform() shaders.DynamicUniformBlock {
+	toReturn := shaders.NewDynamicUniformBlock(cb.Name)
+	for _, variable := range cb.Variables {
+		toReturn.Append(variable.Name, variable.ToNative())
+	}
+	return toReturn
+}
+
+func (cb *ConstantBuffer) VariableFromOffset(offset uint32) (*Variable, uint32, error) {
 	if offset >= cb.Size {
-		return nil, fmt.Errorf("offset out of range")
+		return nil, 0, fmt.Errorf("offset out of range")
 	}
 	for i, variable := range cb.Variables {
 		if variable.BufferOffset == offset || i+1 == len(cb.Variables) {
-			return &cb.Variables[i], nil
+			return &cb.Variables[i], (offset - variable.BufferOffset) / 16, nil
 		}
 		nextVar := cb.Variables[i+1]
 		if nextVar.BufferOffset <= offset {
 			continue
 		}
-		return &cb.Variables[i], nil
+		return &cb.Variables[i], (offset - variable.BufferOffset) / 16, nil
 	}
-	return nil, fmt.Errorf("should be unreachable")
+	return nil, 0, fmt.Errorf("should be unreachable")
 }
 
 type SystemValueType uint32
@@ -473,32 +734,34 @@ type Element struct {
 	RWMask        uint8
 }
 
-func (e Element) ToGLSL(isInput bool) string {
-	var result string
+func (e Element) ToGLSL(isInput bool, shaderType ShaderProgramType) string {
+	direction := "out"
 	if isInput {
-		result = fmt.Sprintf("layout(location = %v) in ", e.Register)
-	} else {
-		result = "out "
+		direction = "in"
+		if e.ComponentType != RCT_FLOAT32 && e.Mask == 0x1 && shaderType != VERTEX_SHADER {
+			direction = "flat in"
+		}
 	}
+	result := fmt.Sprintf("layout(location = %v) %v ", e.Register, direction)
 
 	switch e.Mask {
 	case 0x1:
 		result += e.ComponentType.GLSLType()
-	case 0x3:
+	case 0x2, 0x3:
 		result += fmt.Sprintf("%vvec2", e.ComponentType.GLSLPrefix())
-	case 0x7:
+	case 0x4, 0x5, 0x6, 0x7:
 		result += fmt.Sprintf("%vvec3", e.ComponentType.GLSLPrefix())
-	case 0xF:
+	case 0x8, 0x9, 0xA, 0xB, 0xC, 0xD, 0xE, 0xF:
 		result += fmt.Sprintf("%vvec4", e.ComponentType.GLSLPrefix())
 	default:
-		panic(fmt.Sprintf("Element with unexpected mask %x", e.Mask))
+		panic(fmt.Sprintf("Element with unexpected mask %x - %v", e.Mask, e.ComponentType))
 	}
 
-	result += fmt.Sprintf(" %v; // %v", e.NameWithIndex(), e.SystemValue.ToString())
+	result += fmt.Sprintf(" %v; // %v", e.NameWithIndex(isInput), e.SystemValue.ToString())
 	return result
 }
 
-func (e Element) NameWithIndex() string {
+func (e Element) NameWithIndex(isInput bool) string {
 	semantic := ""
 	switch e.SystemValue {
 	case SV_POSITION:
@@ -506,7 +769,11 @@ func (e Element) NameWithIndex() string {
 	default:
 		semantic = strconv.Itoa(int(e.SemanticIndex))
 	}
-	return fmt.Sprintf("%v%v", e.Name, semantic)
+	prefix := "i"
+	if !isInput {
+		prefix = "o"
+	}
+	return fmt.Sprintf("%v%v%v", prefix, e.Name, semantic)
 }
 
 type ShaderInputType uint32
@@ -594,6 +861,20 @@ func (srrt ShaderResourceReturnType) ToString() string {
 	return "unknown shader resource return type"
 }
 
+func (srrt ShaderResourceReturnType) ToOpcodeNumberType() opcodeNumberType {
+	switch srrt {
+	case SINT:
+		return internalNumberTypeInt
+	case UINT:
+		return internalNumberTypeUInt
+	case UNORM, SNORM, FLOAT:
+		return internalNumberTypeFloat
+	case DOUBLE:
+		return internalNumberTypeDouble
+	}
+	return internalNumberTypeUnknown
+}
+
 func (srrt ShaderResourceReturnType) GLSLPrefix() string {
 	switch srrt {
 	case SINT:
@@ -673,6 +954,30 @@ func (srvd ShaderResourceViewDimension) ToGLSL() string {
 	return "unknown sampler type"
 }
 
+func (srvd ShaderResourceViewDimension) Dimensions() int {
+	switch srvd {
+	case BUFFER:
+		return 1
+	case TEXTURE_1D:
+		return 1
+	case TEXTURE_1D_ARRAY:
+		return 2
+	case TEXTURE_2D:
+		return 2
+	case TEXTURE_2D_ARRAY:
+		return 3
+	case TEXTURE_2D_MULTISAMPLED:
+		return 2
+	case TEXTURE_3D:
+		return 3
+	case TEXTURE_CUBE:
+		return 3
+	case TEXTURE_CUBE_ARRAY:
+		return 4
+	}
+	return -1
+}
+
 type ShaderInputFlags uint32
 
 const (
@@ -730,8 +1035,39 @@ func (rb ResourceBinding) ToString() string {
 }
 
 func (rb ResourceBinding) ToGLSL() string {
-	// if rb.InputType != TEXTURE {
-	return rb.ToString()
-	// }
-	// return fmt.Sprintf("uniform %v%v %v;\n", rb.ReturnType.GLSLPrefix(), rb.ViewDimension.ToGLSL(), rb.Name)
+	if rb.InputType != TEXTURE {
+		return rb.ToString()
+	}
+	return fmt.Sprintf("%vuniform %v%v %v;\n", rb.ToString(), rb.ReturnType.GLSLPrefix(), rb.ViewDimension.ToGLSL(), strings.TrimLeft(rb.Name, "_"))
+}
+
+type ShaderProgramType uint16
+
+const (
+	PIXEL_SHADER ShaderProgramType = iota
+	VERTEX_SHADER
+	GEOMETRY_SHADER
+
+	// D3D11 Shaders
+	HULL_SHADER
+	DOMAIN_SHADER
+	COMPUTE_SHADER
+)
+
+func (spt ShaderProgramType) ToString() string {
+	switch spt {
+	case PIXEL_SHADER:
+		return "PIXEL_SHADER"
+	case VERTEX_SHADER:
+		return "VERTEX_SHADER"
+	case GEOMETRY_SHADER:
+		return "GEOMETRY_SHADER"
+	case HULL_SHADER:
+		return "HULL_SHADER"
+	case DOMAIN_SHADER:
+		return "DOMAIN_SHADER"
+	case COMPUTE_SHADER:
+		return "COMPUTE_SHADER"
+	}
+	return "Unknown shader type!"
 }

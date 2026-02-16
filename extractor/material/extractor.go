@@ -7,6 +7,7 @@ import (
 	"image"
 	"image/jpeg"
 	"image/png"
+	"io"
 	"math"
 	"path/filepath"
 	"strings"
@@ -1059,7 +1060,7 @@ func convertOpts(ctx *extractor.Context, imgOpts *ImageOptions, gltfDoc *gltf.Do
 		return err
 	}
 
-	mat, err := material.Load(fMain)
+	mat, err := material.LoadMain(fMain)
 	if err != nil {
 		return err
 	}
@@ -1237,7 +1238,7 @@ func ConvertTextures(ctx *extractor.Context) error {
 		return err
 	}
 
-	mat, err := material.Load(fMain)
+	mat, err := material.LoadMain(fMain)
 	if err != nil {
 		return err
 	}
@@ -1276,6 +1277,124 @@ func ConvertTextures(ctx *extractor.Context) error {
 		_, err = out.Write(data)
 		if err != nil {
 			return err
+		}
+	}
+
+	if cfg.Material.ShaderFormat == "none" {
+		return nil
+	}
+
+	var fGpu io.ReadSeeker
+	fileID := ctx.FileID()
+	if mat.BaseMaterial.Value == 0 {
+		fGpu, err = ctx.Open(fileID, stingray.DataGPU)
+	} else {
+		fileID = stingray.NewFileID(mat.BaseMaterial, stingray.Sum("material"))
+		fGpu, err = ctx.Open(fileID, stingray.DataGPU)
+	}
+	if err != nil {
+		return err
+	}
+
+	matGpu, err := material.LoadGPU(fGpu)
+	if err != nil {
+		return err
+	}
+
+	for blk, shaderProgram := range matGpu.ShaderPrograms.ProgramBlocks {
+		for i := range shaderProgram.Programs {
+
+			shaders := []*material.Shader{
+				shaderProgram.Programs[i].VertexShader,
+				shaderProgram.Programs[i].UnknownShader1,
+				shaderProgram.Programs[i].InstancedVertexShader,
+				shaderProgram.Programs[i].HullShader,
+				shaderProgram.Programs[i].UnknownShader2,
+				shaderProgram.Programs[i].PixelShader,
+			}
+			for j := range shaderProgram.Headers[i].Stages {
+				stageMask := material.ShaderStageMask(1 << j)
+				if stageMask&shaderProgram.Headers[i].StageMask == material.ShaderStage_None {
+					continue
+				}
+				suffixArray, err := stageMask.Suffix()
+				if err != nil {
+					return err
+				}
+
+				programFolder := fmt.Sprintf("program-%v-%v", blk, i)
+				if len(shaderProgram.Programs) == 1 {
+					programFolder = fmt.Sprintf("program-%v", blk)
+				}
+
+				if stageMask == material.ShaderStage_Tessellation && shaderProgram.Programs[i].DomainShader != nil {
+					name := ctx.LookupThinHash(shaderProgram.Programs[i].DomainShader.Name)
+					out, err := ctx.CreateFile(filepath.Join(".dir", "shaders", programFolder, name+"."+cfg.Material.ShaderFormat+"."+suffixArray[0]+"e"))
+					if err != nil {
+						return err
+					}
+					defer out.Close()
+
+					var data []uint8
+					if cfg.Material.ShaderFormat == "glsl" {
+						defer func() {
+							if r := recover(); r != nil {
+								ctx.Warnf("shader %v.%v failed to extract: %v (skipped)", name, cfg.Material.ShaderFormat+"."+suffixArray[0]+"e", r)
+							}
+						}()
+						glslCode := shaderProgram.Programs[i].DomainShader.ToGLSL()
+						data = []uint8(glslCode)
+					} else {
+						data, err = shaderProgram.Programs[i].DomainShader.Serialize()
+						if err != nil {
+							return err
+						}
+					}
+					_, err = out.Write(data)
+					if err != nil {
+						return err
+					}
+					suffixArray[0] = suffixArray[0] + "c"
+				}
+
+				suffix := cfg.Material.ShaderFormat + "." + suffixArray[0]
+				if len(suffixArray) > 1 {
+					suffix = suffixArray[0] + "." + cfg.Material.ShaderFormat + "." + suffixArray[1]
+				}
+
+				if shaders[j] == nil {
+					continue
+				}
+
+				name := ctx.LookupThinHash(shaders[j].Name)
+
+				out, err := ctx.CreateFile(filepath.Join(".dir", "shaders", programFolder, name+"."+suffix))
+				if err != nil {
+					return err
+				}
+				defer out.Close()
+
+				var data []uint8
+				if cfg.Material.ShaderFormat == "glsl" {
+					defer func() {
+						if r := recover(); r != nil {
+							ctx.Warnf("shader %v.%v failed to extract: %v (skipped)", name, suffix, r)
+						}
+					}()
+					glslCode := shaders[j].ToGLSL()
+					data = []uint8(glslCode)
+				} else {
+					data, err = shaders[j].Serialize()
+					if err != nil {
+						return err
+					}
+				}
+
+				_, err = out.Write(data)
+				if err != nil {
+					return err
+				}
+			}
 		}
 	}
 
