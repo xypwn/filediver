@@ -291,6 +291,8 @@ def add_building_material(building_mat: Material, material: dict, textures: Dict
             building_group.inputs[name].default_value = setting[0]
             continue
         building_group.inputs[name].default_value = setting
+    if "decal_wear" not in material["extras"]:
+        config_nodes["Image Texture.002"].image = textures["filediver_unused"]
 
     print("    Finalizing material")
     return object_mat
@@ -378,6 +380,7 @@ def convert_materials(gltf: Dict, node: Dict, variants: List[Dict], hasVariants:
                     continue
                 print(f"    Packing textures for material {material['name']}")
                 try:
+                    textures["filediver_unused"] = unused_texture
                     for usage, texIdx in material["extras"].items():
                         if type(texIdx) != int:
                             continue
