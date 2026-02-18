@@ -91,6 +91,28 @@ func (c *Context) Ctx() context.Context {
 	return c.ctx
 }
 
+// Returns a copy of the context with the fileID changed
+func (c *Context) WithFileID(newFileID stingray.FileID) *Context {
+	return &Context{
+		ctx:                c.ctx,
+		hashes:             c.hashes,
+		thinHashes:         c.thinHashes,
+		armorSets:          c.armorSets,
+		skinOverrideGroups: c.skinOverrideGroups,
+		weaponPaintSchemes: c.weaponPaintSchemes,
+		gameBuildInfo:      c.gameBuildInfo,
+		languageMap:        c.languageMap,
+		dataDir:            c.dataDir,
+		runner:             c.runner,
+		config:             c.config,
+		outPath:            c.outPath,
+		selectedArchives:   c.selectedArchives,
+		warnf:              c.warnf,
+
+		fileID: newFileID,
+	}
+}
+
 // FileID gets the ID of the current file to be extracted.
 func (c *Context) FileID() stingray.FileID {
 	return c.fileID
