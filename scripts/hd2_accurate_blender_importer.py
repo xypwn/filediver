@@ -404,12 +404,19 @@ def convert_materials(gltf: Dict, node: Dict, variants: List[Dict], hasVariants:
                 print("    Copying template material")
                 if is_lut:
                     object_mat = add_accurate_material(shader_mat, material, shader_module, unused_secondary_lut, textures)
+                    if len(obj.data.uv_layers) > 0:
+                        shader_module.add_bake_uvs(obj)
                 elif is_tex_array_skin:
                     object_mat = add_skin_material(skin_mat, material, textures)
+                    if len(obj.data.uv_layers) > 0:
+                        shader_module.add_bake_uvs(obj)
                 elif is_lut_skin:
                     object_mat = add_lut_skin_material(lut_skin_mat, material, textures)
+                    if len(obj.data.uv_layers) > 0:
+                        shader_module.add_bake_uvs(obj)
                 elif is_building:
                     object_mat = add_building_material(building_mat, material, textures)
+                    # Building material does not support automatically generating bake UVs
                 object_mat["gltfId"] = materialIndex
             else:
                 print(f"    Found existing material '{key}'")
@@ -438,8 +445,6 @@ def convert_materials(gltf: Dict, node: Dict, variants: List[Dict], hasVariants:
                     vari = variant_primitive.variants.add()
                     vari.variant.variant_idx = varIdx
 
-    if len(obj.data.uv_layers) > 0:
-        shader_module.add_bake_uvs(obj)
     obj.select_set(True)
     print(f"Applied material to {node['name']}!")
 
