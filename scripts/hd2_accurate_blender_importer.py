@@ -404,18 +404,16 @@ def convert_materials(gltf: Dict, node: Dict, variants: List[Dict], hasVariants:
                 print("    Copying template material")
                 if is_lut:
                     object_mat = add_accurate_material(shader_mat, material, shader_module, unused_secondary_lut, textures)
-                    if len(obj.data.uv_layers) > 0:
-                        shader_module.add_bake_uvs(obj)
+                    object_mat["needsBakeUVs"] = True
                 elif is_tex_array_skin:
                     object_mat = add_skin_material(skin_mat, material, textures)
-                    if len(obj.data.uv_layers) > 0:
-                        shader_module.add_bake_uvs(obj)
+                    object_mat["needsBakeUVs"] = True
                 elif is_lut_skin:
                     object_mat = add_lut_skin_material(lut_skin_mat, material, textures)
-                    if len(obj.data.uv_layers) > 0:
-                        shader_module.add_bake_uvs(obj)
+                    object_mat["needsBakeUVs"] = True
                 elif is_building:
                     object_mat = add_building_material(building_mat, material, textures)
+                    object_mat["needsBakeUVs"] = False
                     # Building material does not support automatically generating bake UVs
                 object_mat["gltfId"] = materialIndex
             else:
@@ -444,6 +442,10 @@ def convert_materials(gltf: Dict, node: Dict, variants: List[Dict], hasVariants:
                 if not variant_found:
                     vari = variant_primitive.variants.add()
                     vari.variant.variant_idx = varIdx
+
+    if any([mat.get("needsBakeUVs", False) for mat in obj.data.materials]) and len(obj.data.uv_layers) > 0:
+        print(f"    Adding bake uvs to {obj.name}...")
+        shader_module.add_bake_uvs(obj)
 
     obj.select_set(True)
     print(f"Applied material to {node['name']}!")
