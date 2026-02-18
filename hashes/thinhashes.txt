@@ -6336,7 +6336,6 @@ fx_rear_main_thruster_1
 fx_rear_main_thruster_2
 fx_red_light
 fx_right_wing
-fx_samplepouch_circle
 fx_scanner
 fx_small_01
 fx_small_02
@@ -25012,3 +25011,4 @@ decal_metallic
 decal_roughness_blend
 decal_roughness
 decal_metallic_blend
+c_destruction_volume_01
