@@ -74,9 +74,9 @@ func ConvertOpts(ctx *extractor.Context, gltfDoc *gltf.Document) error {
 				}
 			}
 
-			err = extr_unit.ConvertBuffer(fMain, fGPU, object.UnitHash, ctx, imgOpts, doc)
+			err = extr_unit.ConvertBuffer(fMain, fGPU, object.UnitHash, ctx.WithFileID(unitID), imgOpts, doc)
 			if err != nil {
-				return nil
+				return err
 			}
 
 			extras, ok := doc.Extras.(map[string]any)
