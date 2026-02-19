@@ -44,6 +44,7 @@ struct Prefab {
     MurmurHash unk;
     MurmurHash prefab;
     Transform transform;
+    float unkFloats[4];
 };
 
 struct Unit {
@@ -53,6 +54,13 @@ struct Unit {
     u8 unk2[8];
     Transform transform;
     float unknown[6];
+};
+
+struct Material {
+    u32 unk00;
+    u32 materialCount;
+    ThinMurmurHash materialSlot;
+    MurmurHash materialPath;
 };
 
 struct DataEntry {
@@ -80,6 +88,15 @@ struct DataEntry {
 struct MetadataEntries {
     u32 count;
     DataEntry entries[count];
+};
+
+struct List<itemType> {
+    u32 count;
+    itemType values[count];
+};
+
+struct Array<itemType, auto count> {
+    itemType values[count];
 };
 
 struct PtrArray<itemType, ptrType, auto count> {
@@ -114,39 +131,16 @@ struct Level {
     std::ptr::NullablePtr<u8, u32> unk23;
     std::ptr::NullablePtr<u8, u32> unk24;
     std::ptr::NullablePtr<u8, u32> unk25;
-    u32 unkCount01;
-    std::ptr::NullablePtr<u8, u32> unk26;
-    std::ptr::NullablePtr<u8, u32> unk27;
-    std::ptr::NullablePtr<u8, u32> unk28;
-    std::ptr::NullablePtr<u8, u32> unk29;
-    std::ptr::NullablePtr<u8, u32> unk30;
-    std::ptr::NullablePtr<u8, u32> unk31;
-    std::ptr::NullablePtr<u8, u32> unk32;
-    std::ptr::NullablePtr<u8, u32> unk33;
-    std::ptr::NullablePtr<u8, u32> unk34;
-    std::ptr::NullablePtr<u8, u32> unk35;
-    std::ptr::NullablePtr<u8, u32> unk36;
-    std::ptr::NullablePtr<u8, u32> unk37;
-    std::ptr::NullablePtr<u8, u32> unk38;
-    std::ptr::NullablePtr<u8, u32> unk39;
-    std::ptr::NullablePtr<u8, u32> unk40;
-    std::ptr::NullablePtr<u8, u32> unk41;
-    std::ptr::NullablePtr<u8, u32> unk42;
-    std::ptr::NullablePtr<u8, u32> unk43;
-    std::ptr::NullablePtr<u8, u32> unk44;
-    std::ptr::NullablePtr<u8, u32> unk45;
-    std::ptr::NullablePtr<u8, u32> unk46;
-    std::ptr::NullablePtr<u8, u32> unk47;
-    std::ptr::NullablePtr<u8, u32> unk48;
-    std::ptr::NullablePtr<u8, u32> unk49;
-    std::ptr::NullablePtr<u8, u32> unk50;
-    std::ptr::NullablePtr<u8, u32> unk51;
-    std::ptr::NullablePtr<u8, u32> unk52;
-    std::ptr::NullablePtr<u8, u32> unk53;
-    std::ptr::NullablePtr<u8, u32> unk54;
-    std::ptr::NullablePtr<u8, u32> unk55;
-    std::ptr::NullablePtr<u8, u32> unk56;
-    std::ptr::NullablePtr<u8, u32> unk57;
+    u32 prefabCount;
+    std::ptr::NullablePtr<Array<Prefab, prefabCount>, u32> prefabs;
+    std::ptr::NullablePtr<u8, u32> unkPtrs00[16];
+    std::ptr::NullablePtr<List<Material>, u32> materials;
+    std::ptr::NullablePtr<u8, u32> unkPtrs01[4];
+    std::ptr::NullablePtr<PtrArray<List<u32>, u32, dataCount>, u32> ptrList00;
+    std::ptr::NullablePtr<u8, u32> unkPtrs02[9];
+    MurmurHash levelName;
+    u64 unkCount02;
+    Unit units[unitCount];
 };
 
 Level level @0x00;

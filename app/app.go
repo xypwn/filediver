@@ -28,6 +28,7 @@ import (
 	extr_bik "github.com/xypwn/filediver/extractor/bik"
 	extr_bones "github.com/xypwn/filediver/extractor/bones"
 	extr_geogroup "github.com/xypwn/filediver/extractor/geometry_group"
+	extr_level "github.com/xypwn/filediver/extractor/level"
 	extr_material "github.com/xypwn/filediver/extractor/material"
 	extr_package "github.com/xypwn/filediver/extractor/package"
 	extr_prefab "github.com/xypwn/filediver/extractor/prefab"
@@ -635,6 +636,8 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 			extr = extr_bones.ExtractBonesJSON
 		case "ah_bin":
 			extr = extr_ah_bin.ExtractAhBinJSON
+		case "level":
+			extr = extr_level.ExtractLevelJSON
 		default:
 			extr = getSourceExtractFunc(extrCfg, typ)
 		}
