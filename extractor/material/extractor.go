@@ -1017,8 +1017,8 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 		doc.Materials[len(doc.Materials)-1].Extensions["KHR_materials_emissive_strength"] = strength
 	}
 	if len(mat.Textures) == 0 && len(mat.Settings) != 0 {
-		baseColor, ok := mat.Settings[stingray.Sum("base_color").Thin()]
-		if ok {
+		baseColor, baseOk := mat.Settings[stingray.Sum("base_color").Thin()]
+		if baseOk {
 			metalRoughness := &gltf.PBRMetallicRoughness{
 				BaseColorFactor: &[4]float32{
 					baseColor[0],
@@ -1030,7 +1030,7 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 			doc.Materials[len(doc.Materials)-1].PBRMetallicRoughness = metalRoughness
 		}
 		emissiveIntensity, ok := mat.Settings[stingray.Sum("emissive_intensity").Thin()]
-		if ok && emissiveIntensity[0] != 0 {
+		if ok && baseOk && emissiveIntensity[0] != 0 {
 			doc.Materials[len(doc.Materials)-1].EmissiveFactor[0] = baseColor[0]
 			doc.Materials[len(doc.Materials)-1].EmissiveFactor[1] = baseColor[1]
 			doc.Materials[len(doc.Materials)-1].EmissiveFactor[2] = baseColor[2]

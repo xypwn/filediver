@@ -2,6 +2,7 @@ package unit
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"maps"
@@ -47,7 +48,8 @@ func LoadBoneMap(ctx *extractor.Context, unitInfo *unit.Info) (*bones.Info, erro
 }
 
 // Adds the unit's skeleton to the gltf document
-func AddSkeleton(ctx *extractor.Context, doc *gltf.Document, unitInfo *unit.Info, skeletonName stingray.Hash, armorName *string, passive *datalib.HelldiverCustomizationPassiveBonusSettings) uint32 {
+func AddSkeleton(ctx *extractor.Context, doc *gltf.Document, unitInfo *unit.Info, armorName *string, passive *datalib.HelldiverCustomizationPassiveBonusSettings) uint32 {
+	ctx.Warnf("unit: adding skeleton %v", ctx.LookupHash(ctx.FileID().Name))
 	boneInfo, err := LoadBoneMap(ctx, unitInfo)
 	if err != nil {
 		ctx.Warnf("addSkeleton: %v", err)
@@ -152,14 +154,14 @@ func AddSkeleton(ctx *extractor.Context, doc *gltf.Document, unitInfo *unit.Info
 			extras = make(map[string]any)
 		}
 		otherIdAny, contains := extras["skeletonId"]
-		if otherId, ok := otherIdAny.(uint32); doc.Skins[skin].Name == skeletonName.String() || (contains && ok && skeletonId == otherId) {
+		if otherId, ok := otherIdAny.(uint32); doc.Skins[skin].Name == ctx.FileID().Name.String() || (contains && ok && skeletonId == otherId) {
 			skeleton = doc.Skins[skin].Skeleton
 			break
 		}
 	}
 
 	if skeleton == nil {
-		unitName := ctx.LookupHash(skeletonName)
+		unitName := ctx.LookupHash(ctx.FileID().Name)
 		if strings.Contains(unitName, "/") {
 			items := strings.Split(unitName, "/")
 			unitName = items[len(items)-1]
@@ -188,7 +190,7 @@ func AddSkeleton(ctx *extractor.Context, doc *gltf.Document, unitInfo *unit.Info
 	}
 
 	doc.Skins = append(doc.Skins, &gltf.Skin{
-		Name:                skeletonName.String(),
+		Name:                ctx.FileID().Name.String(),
 		InverseBindMatrices: gltf.Index(inverseBindMatrices),
 		Joints:              jointIndices,
 		Skeleton:            skeleton,
@@ -427,7 +429,7 @@ func AddMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_mate
 	return materialVariants, nil
 }
 
-func AddPrefabMetadata(ctx *extractor.Context, doc *gltf.Document, filename stingray.Hash, parent *uint32, skin *uint32, meshNodes []uint32, armorSetName *string) {
+func AddPrefabMetadata(ctx *extractor.Context, doc *gltf.Document, root *uint32, skin *uint32, meshNodes []uint32, armorSetName *string) {
 	if armorSetName != nil {
 		for _, node := range meshNodes {
 			extras, ok := doc.Nodes[node].Extras.(map[string]any)
@@ -438,17 +440,26 @@ func AddPrefabMetadata(ctx *extractor.Context, doc *gltf.Document, filename stin
 			doc.Nodes[node].Extras = extras
 		}
 	}
+
+	rootExtras, ok := doc.Nodes[*root].Extras.(map[string]any)
+	if !ok {
+		rootExtras = make(map[string]any)
+	}
+	rootExtras["hash"] = GetUnitExtrasID(ctx.FileID())
+	doc.Nodes[*root].Extras = rootExtras
+
 	extras, ok := doc.Extras.(map[string]any)
 	if !ok {
 		extras = make(map[string]any)
 	}
 	prefabMetadata := make(map[string]any)
-	prefabMetadata["parent"] = *parent
+	prefabMetadata["root"] = *root
 	if skin != nil {
 		prefabMetadata["skin"] = *skin
 	}
 	prefabMetadata["objects"] = meshNodes
-	extras[filename.String()] = prefabMetadata
+	prefabMetadata["parent"] = nil
+	extras[GetUnitExtrasID(ctx.FileID())] = prefabMetadata
 	doc.Extras = extras
 }
 
@@ -545,6 +556,10 @@ func AddLights(ctx *extractor.Context, doc *gltf.Document, unitInfo *unit.Info, 
 	}
 }
 
+func GetUnitExtrasID(fileId stingray.FileID) string {
+	return fileId.Name.String() + ".unit"
+}
+
 func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gltfDoc *gltf.Document) error {
 	fMain, err := ctx.Open(ctx.FileID(), stingray.DataMain)
 	if err != nil {
@@ -558,10 +573,6 @@ func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gl
 		}
 	}
 
-	return ConvertBuffer(fMain, fGPU, ctx.FileID().Name, ctx, imgOpts, gltfDoc)
-}
-
-func ConvertBuffer(fMain, fGPU io.ReadSeeker, filename stingray.Hash, ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gltfDoc *gltf.Document) error {
 	cfg := ctx.Config()
 
 	unitInfo, err := unit.LoadInfo(fMain)
@@ -591,8 +602,8 @@ func ConvertBuffer(fMain, fGPU io.ReadSeeker, filename stingray.Hash, ctx *extra
 	if armorSet, ok := ctx.GuessFileArmorSet(ctx.FileID()); ok {
 		armorSetName = &armorSet.Name
 		passive = armorSet.Passive
-		if _, contains := armorSet.UnitMetadata[filename]; contains {
-			value := armorSet.UnitMetadata[filename]
+		if _, contains := armorSet.UnitMetadata[ctx.FileID().Name]; contains {
+			value := armorSet.UnitMetadata[ctx.FileID().Name]
 			metadata = &value
 		}
 	}
@@ -608,7 +619,7 @@ func ConvertBuffer(fMain, fGPU io.ReadSeeker, filename stingray.Hash, ctx *extra
 	var skin *uint32 = nil
 	var parent *uint32 = nil
 	if bonesEnabled && len(unitInfo.Bones) > 2 {
-		skin = gltf.Index(AddSkeleton(ctx, doc, unitInfo, filename, armorSetName, passive))
+		skin = gltf.Index(AddSkeleton(ctx, doc, unitInfo, armorSetName, passive))
 		parent = doc.Skins[*skin].Skeleton
 		if cfg.Model.EnableAnimations {
 			index, err := state_machine.AddStateMachine(ctx, doc, unitInfo)
@@ -628,7 +639,7 @@ func ConvertBuffer(fMain, fGPU io.ReadSeeker, filename stingray.Hash, ctx *extra
 	} else {
 		parent = gltf.Index(uint32(len(doc.Nodes)))
 		doc.Nodes = append(doc.Nodes, &gltf.Node{
-			Name: filename.String(),
+			Name: ctx.FileID().Name.String(),
 		})
 		doc.Scenes[0].Nodes = append(doc.Scenes[0].Nodes, *parent)
 		if armorSetName != nil {
@@ -641,8 +652,26 @@ func ConvertBuffer(fMain, fGPU io.ReadSeeker, filename stingray.Hash, ctx *extra
 
 	if unitInfo.GeometryGroup.Value != 0x0 {
 		err := loadGeometryGroupMeshes(ctx, doc, unitInfo, &meshNodes, materialIdxs, *parent, skin)
-		if err != nil {
+		if err != nil && err != ErrGeometryGroupMissing {
 			return err
+		} else if err != nil {
+			for i := range unitInfo.MeshInfos {
+				// Post process data:
+				//   * Reorient in gltf space and align position with group matrix
+				//   * Remap raw joints using skeleton maps
+				//   * Flip normals if reorientation changed winding order of vertices
+				//   * Separate UDIMs
+				var meshHeader unit.MeshHeader
+				for _, meshInfo := range unitInfo.MeshInfos {
+					if meshInfo.Header.GroupBoneHash == unitInfo.GroupBones[i] {
+						meshHeader = meshInfo.Header
+						break
+					}
+				}
+				bboxNode := make([]uint32, 0)
+				geometry.AddBoundingBoxWithTransform(doc, ctx.LookupThinHash(unitInfo.GroupBones[i]), meshHeader, unitInfo, &bboxNode, mgl32.Ident4())
+				doc.Nodes[*parent].Children = append(doc.Nodes[*parent].Children, bboxNode...)
+			}
 		}
 	} else {
 		meshInfos := make([]geometry.MeshInfo, 0)
@@ -654,13 +683,13 @@ func ConvertBuffer(fMain, fGPU io.ReadSeeker, filename stingray.Hash, ctx *extra
 			})
 		}
 
-		err := geometry.LoadGLTF(ctx, fGPU, doc, filename, meshInfos, unitInfo.GroupBones, unitInfo.MeshLayouts, unitInfo, &meshNodes, materialIdxs, *parent, skin)
+		err := geometry.LoadGLTF(ctx, fGPU, doc, meshInfos, unitInfo.GroupBones, unitInfo.MeshLayouts, unitInfo, &meshNodes, materialIdxs, *parent, skin)
 		if err != nil {
 			return err
 		}
 	}
 
-	AddPrefabMetadata(ctx, doc, filename, parent, skin, meshNodes, armorSetName)
+	AddPrefabMetadata(ctx, doc, parent, skin, meshNodes, armorSetName)
 
 	formatIsBlend := cfg.Model.Format == "blend"
 	if gltfDoc == nil && !formatIsBlend {
@@ -685,11 +714,13 @@ func ConvertBuffer(fMain, fGPU io.ReadSeeker, filename stingray.Hash, ctx *extra
 	return nil
 }
 
+var ErrGeometryGroupMissing error = errors.New("geometry_group does not exist")
+
 func loadGeometryGroupMeshes(ctx *extractor.Context, doc *gltf.Document, unitInfo *unit.Info, meshNodes *[]uint32, materialIndices []geometry.MaterialVariantMap, parent uint32, skin *uint32) error {
 	geoID := stingray.NewFileID(unitInfo.GeometryGroup, stingray.Sum("geometry_group"))
 	f, err := ctx.Open(geoID, stingray.DataMain)
 	if err == stingray.ErrFileNotExist {
-		return fmt.Errorf("%v.geometry_group does not exist", unitInfo.GeometryGroup.String())
+		return ErrGeometryGroupMissing
 	}
 	if err != nil {
 		return err
@@ -723,7 +754,7 @@ func loadGeometryGroupMeshes(ctx *extractor.Context, doc *gltf.Document, unitInf
 		})
 	}
 
-	return geometry.LoadGLTF(ctx, gpuR, doc, ctx.FileID().Name, meshInfos, geoInfo.Bones, geoGroup.MeshLayouts, unitInfo, meshNodes, materialIndices, parent, skin)
+	return geometry.LoadGLTF(ctx, gpuR, doc, meshInfos, geoInfo.Bones, geoGroup.MeshLayouts, unitInfo, meshNodes, materialIndices, parent, skin)
 }
 
 func Convert(currDoc *gltf.Document) func(ctx *extractor.Context) error {
