@@ -8,26 +8,24 @@ import (
 	"github.com/xypwn/filediver/stingray"
 )
 
-type Transform struct {
-	Position mgl32.Vec3 `json:"position"`
-	Rotation mgl32.Quat `json:"rotation"`
-	Scale    mgl32.Vec3 `json:"scale"`
-}
-
 type Unit struct {
 	UnkHash00 stingray.Hash
 	UnkHash01 stingray.Hash
 	Path      stingray.Hash
 	_         [8]uint8
-	Transform
+	stingray.Transform
 	UnkFloats [6]float32 // Maybe a bounding box?
+}
+
+func (p *Unit) Unit() stingray.Hash {
+	return p.Path
 }
 
 type Prefab struct {
 	UnkHash00 stingray.Hash
 	Path      stingray.Hash
-	Transform
-	UnkExtraRotation mgl32.Quat
+	stingray.Transform
+	UnkExtraRotation mgl32.Vec4
 }
 
 type Material struct {

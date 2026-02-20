@@ -37,7 +37,13 @@ fn relative_to_root(u128 offset) {
     return rootAddress;
 };
 
-struct UnkHashFloatItem {
+struct Transform {
+    float position[3];
+    float rotation[4];
+    float scale[3];
+};
+
+struct UnitEntry {
     // I'm not sure if this is actually a hash - it doesn't seem to map to any file
     u64 unkHash0;
     // This maps to a unit file thankfully, so I'm confident its a hash
@@ -46,19 +52,18 @@ struct UnkHashFloatItem {
     u64 unkHash1;
     u64 unkHash2;
 
-    float position[3];
-    float rotation[4];
-    float scale[3];
+    Transform transform;
     float unkFloats[4]; // Seems to usually be 0, 1, 0, 0
     u32 index;
     u8 unkData[20];
 };
 
-struct UnkIntHashFloatItem {
+struct NestedPrefabEntry {
     u32 unkInt0;
     MurmurHash unkHash0;
-    MurmurHash unkHash1;
-    float unkFloats[13];
+    MurmurHash prefabPath;
+    Transform transform;
+    float unkFloats[3];
 };
 
 struct HierarchyItem {
@@ -85,12 +90,12 @@ struct SizedList<T> {
 struct Prefab {
     u64 unk00;
     MurmurHash prefabHash;
-    std::ptr::NullablePtr<SizedList<PtrListItem<UnkHashFloatItem>>, u32> offsetList;
+    std::ptr::NullablePtr<SizedList<PtrListItem<UnitEntry>>, u32> unitList;
     // These may not even be lists or pointers afaik
     std::ptr::NullablePtr<SizedList<u8>, u32> unkList0;
     // Might even be a linked list where there's an offset to the first item,
     // then each item contains the offset to the next?
-    std::ptr::NullablePtr<SizedList<UnkIntHashFloatItem>, u32> unkList1;
+    std::ptr::NullablePtr<SizedList<NestedPrefabEntry>, u32> prefabList;
 
     std::ptr::NullablePtr<SizedList<u8>, u32> unkList2;
 

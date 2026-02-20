@@ -55,6 +55,9 @@ type Config struct {
 	Animation struct {
 		Format string `cfg:"options=json,raw"`
 	} `cfg:"tags=t:animation,t:state_machine help='see unit options'"`
+	Level struct {
+		Format string `cfg:"options=model,json,raw"`
+	} `cfg:"tags=t:level help='Level specific settings'"`
 	Text struct {
 		Format string `cfg:"options=json,raw"`
 	} `cfg:"tags=t:strings,t:package,t:bones help='only-text-exportable formats'"`
@@ -106,6 +109,7 @@ var Extractable = map[string]bool{
 	"unit":           true,
 	"geometry_group": true,
 	"prefab":         true,
+	"level":          true,
 	"state_machine":  true,
 	"animation":      true,
 	"strings":        true,

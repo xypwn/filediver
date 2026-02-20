@@ -271,7 +271,7 @@ func convertVertices(gpuR io.ReadSeeker, layout unit.MeshLayout) ([]byte, [][]Ac
 	return data, accessorStructure, nil
 }
 
-func getMeshNameFbxConvertAndTransformBone(unitInfo *unit.Info, groupBoneHash stingray.ThinHash) (meshNameBoneIdx int, fbxConvertIdx int, transformBoneIdx int) {
+func GetMeshNameFbxConvertAndTransformBone(unitInfo *unit.Info, groupBoneHash stingray.ThinHash) (meshNameBoneIdx int, fbxConvertIdx int, transformBoneIdx int) {
 	parentIdx := -1
 	fbxConvertIdx = -1
 	meshNameBoneIdx = -1
@@ -631,7 +631,12 @@ func getPadding(offset uint32) uint32 {
 	return 4 - padAlign
 }
 
-func addBoundingBox(doc *gltf.Document, name string, meshHeader unit.MeshHeader, info *unit.Info, meshNodes *[]uint32) {
+func AddBoundingBox(doc *gltf.Document, name string, meshHeader unit.MeshHeader, info *unit.Info, meshNodes *[]uint32) {
+	transform := info.Bones[meshHeader.AABBTransformIndex].Matrix
+	AddBoundingBoxWithTransform(doc, name, meshHeader, info, meshNodes, transform)
+}
+
+func AddBoundingBoxWithTransform(doc *gltf.Document, name string, meshHeader unit.MeshHeader, info *unit.Info, meshNodes *[]uint32, transform mgl32.Mat4) {
 	var indices []uint32 = []uint32{
 		0, 1,
 		0, 5,
@@ -661,9 +666,8 @@ func addBoundingBox(doc *gltf.Document, name string, meshHeader unit.MeshHeader,
 		vMax,
 	}
 
-	boundingBoxTransformIdx := meshHeader.AABBTransformIndex
 	for i := range vertices {
-		vertices[i] = info.Bones[boundingBoxTransformIdx].Matrix.Mul4x1(mgl32.Vec3(vertices[i]).Vec4(1.0)).Vec3()
+		vertices[i] = transform.Mul4x1(mgl32.Vec3(vertices[i]).Vec4(1.0)).Vec3()
 		vertices[i][1], vertices[i][2] = vertices[i][2], -vertices[i][1]
 	}
 
@@ -692,12 +696,12 @@ func addBoundingBox(doc *gltf.Document, name string, meshHeader unit.MeshHeader,
 	*meshNodes = append(*meshNodes, idx)
 }
 
-func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, name stingray.Hash, meshInfos []MeshInfo, bones []stingray.ThinHash, meshLayouts []unit.MeshLayout, unitInfo *unit.Info, meshNodes *[]uint32, materialIndices []MaterialVariantMap, parent uint32, skin *uint32) error {
+func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, meshInfos []MeshInfo, bones []stingray.ThinHash, meshLayouts []unit.MeshLayout, unitInfo *unit.Info, meshNodes *[]uint32, materialIndices []MaterialVariantMap, parent uint32, skin *uint32) error {
 	cfg := ctx.Config()
 
-	unitName, contains := ctx.Hashes()[name]
+	unitName, contains := ctx.Hashes()[ctx.FileID().Name]
 	if !contains {
-		unitName = name.String()
+		unitName = ctx.FileID().Name.String()
 	} else {
 		items := strings.Split(unitName, "/")
 		unitName = items[len(items)-1]
@@ -797,7 +801,7 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, na
 		var fbxConvertIdx, transformBoneIdxGeo int = -1, -1
 		var transformMatrix mgl32.Mat4 = mgl32.Ident4()
 		var err error
-		_, fbxConvertIdx, transformBoneIdxGeo = getMeshNameFbxConvertAndTransformBone(unitInfo, bones[i])
+		_, fbxConvertIdx, transformBoneIdxGeo = GetMeshNameFbxConvertAndTransformBone(unitInfo, bones[i])
 		vertexBuffer, contains := layoutToVertexBufferView[header.MeshLayoutIndex]
 		layout := meshLayouts[header.MeshLayoutIndex]
 		if !contains {
@@ -1006,9 +1010,9 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, na
 				flipNormals(buffer, indexAccessor.ComponentType, group.NumIndices, bufferOffset)
 			}
 
-			mask, contains := visibilityMaskData[name]
+			mask, contains := visibilityMaskData[ctx.FileID().Name]
 			if !contains {
-				if strings.Contains(ctx.LookupHash(name), "cha_lieutenant") {
+				if strings.Contains(ctx.LookupHash(ctx.FileID().Name), "cha_lieutenant") {
 					// For some reason neither of the hulk models are in the visibility masks, but an invalid filename is?
 					// Not sure how the game looks them up in this case, probably need to investigate more
 					mask, contains = visibilityMaskData[stingray.Sum("content/fac_cyborgs/cha_lieutenant/cha_lieutenant_assault")]
@@ -1046,7 +1050,7 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, na
 			}
 
 			if cfg.Model.BoundingBoxes {
-				addBoundingBox(doc, nodeName+" Bounding Box", meshHeader, unitInfo, meshNodes)
+				AddBoundingBox(doc, nodeName+" Bounding Box", meshHeader, unitInfo, meshNodes)
 			}
 
 			var material *uint32

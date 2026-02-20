@@ -620,6 +620,12 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 			extr = extr_geogroup.Convert(gltfDoc)
 		case "prefab":
 			extr = extr_prefab.Convert(gltfDoc)
+		case "level":
+			if extrFormat == "model" && typeFormats["unit"] == "raw" {
+				extr = getSourceExtractFunc(extrCfg, typ)
+			} else {
+				extr = extr_level.Convert(gltfDoc)
+			}
 		case "texture":
 			if extrFormat == "dds" {
 				extr = extr_texture.ExtractDDS
@@ -636,8 +642,6 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 			extr = extr_bones.ExtractBonesJSON
 		case "ah_bin":
 			extr = extr_ah_bin.ExtractAhBinJSON
-		case "level":
-			extr = extr_level.ExtractLevelJSON
 		default:
 			extr = getSourceExtractFunc(extrCfg, typ)
 		}
