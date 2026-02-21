@@ -9,17 +9,19 @@ import (
 )
 
 type GLViewState struct {
-	width     int32
-	height    int32
-	fbo       uint32 // frame buffer object
-	textureID uint32
-	rbo       uint32 // render buffer object
+	width      int32
+	height     int32
+	fbo        uint32 // frame buffer object
+	textureID  uint32
+	textureRef imgui.TextureRef // must be kept in sync with textureID
+	rbo        uint32           // render buffer object
 }
 
 func NewGLView() (*GLViewState, error) {
 	fb := &GLViewState{}
 	gl.GenFramebuffers(1, &fb.fbo)
 	gl.GenTextures(1, &fb.textureID)
+	fb.textureRef = *imgui.NewTextureRefTextureID(imgui.TextureID(fb.textureID))
 	gl.GenRenderbuffers(1, &fb.rbo)
 
 	return fb, nil
@@ -104,7 +106,7 @@ func GLView(name string, fb *GLViewState, size imgui.Vec2, processViewAreaInputI
 		gl.Viewport(oldViewport[0], oldViewport[1], oldViewport[2], oldViewport[3])
 
 		imgui.WindowDrawList().AddImageV(
-			imgui.TextureID(fb.textureID),
+			fb.textureRef,
 			pos,
 			pos.Add(size),
 			imgui.NewVec2(0, 1),

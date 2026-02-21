@@ -14,6 +14,7 @@ type GetResourceFunc func(id stingray.FileID, typ stingray.DataType) (data []byt
 
 type DDSPreviewState struct {
 	textureID       uint32
+	textureRef      imgui.TextureRef // must be kept in sync with textureID
 	imageHasAlpha   bool
 	imageSize       imgui.Vec2
 	ddsInfo         dds.Info
@@ -30,6 +31,7 @@ func NewDDSPreview() *DDSPreviewState {
 	}
 
 	gl.GenTextures(1, &pv.textureID)
+	pv.textureRef = *imgui.NewTextureRefTextureID(imgui.TextureID(pv.textureID))
 	gl.BindTexture(gl.TEXTURE_2D, pv.textureID)
 	defer gl.BindTexture(gl.TEXTURE_2D, 0)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
@@ -114,7 +116,7 @@ func BuildImagePreviewArea(pv *DDSPreviewState, pos, area imgui.Vec2) {
 		scaledImageSize = pv.imageSize.Mul(scale)
 		offsetPx := imgui.NewVec2(pv.offset.X*scaledImageSize.X/2, pv.offset.Y*scaledImageSize.Y/2)
 		imgPos := pos.Sub(scaledImageSize.Div(2)).Add(area.Div(2)).Add(offsetPx)
-		imgui.WindowDrawList().AddImage(imgui.TextureID(pv.textureID), imgPos, imgPos.Add(scaledImageSize))
+		imgui.WindowDrawList().AddImage(pv.textureRef, imgPos, imgPos.Add(scaledImageSize))
 	}
 	imgui.SetNextItemAllowOverlap()
 	imgui.InvisibleButton("##overlay", area)

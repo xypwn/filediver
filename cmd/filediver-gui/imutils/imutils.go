@@ -206,6 +206,14 @@ func NewPopupManager() *PopupManager {
 // Put content drawing code into the body() function body.
 // Call close() to close the current popup.
 func (m *PopupManager) Popup(name string, content func(close func()), flags imgui.WindowFlags, closeBtn bool) {
+	defer func() {
+		// Make sure we always clear the SetNextWindowXXX options.
+		ctx := imgui.CurrentContext()
+		nwd := ctx.NextWindowData()
+		nwd.SetHasFlags(imgui.NextWindowDataFlagsNone)
+		ctx.SetNextWindowData(nwd)
+	}()
+
 	if _, ok := m.order[name]; !ok {
 		m.order[name] = m.orderCounter
 		m.orderCounter++
@@ -305,4 +313,46 @@ func S[T constraints.Float | constraints.Integer](x T) float32 {
 // Requires [GlobalScale] to be set.
 func SVec2[X, Y constraints.Float | constraints.Integer](x X, y Y) imgui.Vec2 {
 	return imgui.NewVec2(S(x), S(y))
+}
+
+func calcButtonsWidth(buttonTexts ...string) float32 {
+	if len(buttonTexts) == 0 {
+		return 0
+	}
+	var width float32
+	style := imgui.CurrentStyle()
+	for _, buttonText := range buttonTexts {
+		width += imgui.CalcTextSize(buttonText).X
+	}
+	width += float32(2*len(buttonTexts)) * style.FramePadding().X
+	width += float32((len(buttonTexts) - 1)) * style.ItemSpacing().X
+	return width
+}
+
+// RightAlignButtons sets the cursor X so that the next line of buttons
+// drawn with the given texts will be right-aligned.
+//
+// Does nothing if len(buttonTexts) == 0.
+func RightAlignButtons(buttonTexts ...string) {
+	if len(buttonTexts) == 0 {
+		return
+	}
+	cursor := imgui.CursorScreenPos()
+	cursor.X += imgui.ContentRegionAvail().X
+	cursor.X -= calcButtonsWidth(buttonTexts...)
+	imgui.SetCursorScreenPos(cursor)
+}
+
+// CenterAlignButtons sets the cursor X so that the next line of buttons
+// drawn with the given texts will be center-aligned.
+//
+// Does nothing if len(buttonTexts) == 0.
+func CenterAlignButtons(buttonTexts ...string) {
+	if len(buttonTexts) == 0 {
+		return
+	}
+	cursor := imgui.CursorScreenPos()
+	cursor.X += imgui.ContentRegionAvail().X / 2
+	cursor.X -= calcButtonsWidth(buttonTexts...) / 2
+	imgui.SetCursorScreenPos(cursor)
 }

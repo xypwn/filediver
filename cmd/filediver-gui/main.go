@@ -166,6 +166,8 @@ func (a *guiApp) Delete() {
 }
 
 func (a *guiApp) onInitWindow(state *imgui_wrapper.State) error {
+	state.DarkWindowDecorations = true
+
 	{
 		var readyChan chan struct{}
 		var err error
@@ -294,24 +296,20 @@ func (a *guiApp) onPreDraw(state *imgui_wrapper.State) error {
 }
 
 func (a *guiApp) onDraw(state *imgui_wrapper.State) {
-	imgui.PushStyleVarVec2(imgui.StyleVarWindowPadding, imgui.NewVec2(0, 0))
-
-	menuBarHeight := a.drawMenuBar()
-
 	// Set up dock space and arrange window nodes
 	viewport := imgui.MainViewport()
 	dockSpacePos := viewport.Pos()
 	dockSpaceSize := viewport.Size()
-	{
-		dockSpacePos.Y += menuBarHeight
-		dockSpaceSize.Y -= menuBarHeight
-	}
 	imgui.SetNextWindowPos(dockSpacePos)
 	imgui.SetNextWindowSize(dockSpaceSize)
-	const dockSpaceWindowFlags = imgui.WindowFlagsNoTitleBar | imgui.WindowFlagsNoCollapse | imgui.WindowFlagsNoResize | imgui.WindowFlagsNoMove | imgui.WindowFlagsNoDocking | imgui.WindowFlagsNoBringToFrontOnFocus | imgui.WindowFlagsNoNavFocus //| imgui.WindowFlagsNoBackground
-	if imgui.BeginV("##MainDockSpace", nil, dockSpaceWindowFlags) {
-		winClass := imgui.NewWindowClass() // passing nil as window class causes a nil pointer dereference (probably an error in the binding generation)
-		id := imgui.IDStr("MainDockSpace")
+	const dockSpaceWindowFlags = imgui.WindowFlagsNoTitleBar | imgui.WindowFlagsNoCollapse |
+		imgui.WindowFlagsNoResize | imgui.WindowFlagsNoMove | imgui.WindowFlagsNoDocking |
+		imgui.WindowFlagsNoBringToFrontOnFocus | imgui.WindowFlagsNoNavFocus | imgui.WindowFlagsMenuBar //| imgui.WindowFlagsNoBackground
+	imgui.PushStyleVarVec2(imgui.StyleVarWindowPadding, imgui.NewVec2(0, 0))
+	if imgui.BeginV("##MainWindow", nil, dockSpaceWindowFlags) {
+		imgui.PopStyleVar()
+		a.drawMenuBar()
+		id := imgui.IDStr("MainWindow")
 		if imgui.InternalDockBuilderGetNode(id).CData == nil {
 			imgui.InternalDockBuilderAddNodeV(id, imgui.DockNodeFlags(imgui.DockNodeFlagsDockSpace))
 			imgui.InternalDockBuilderSetNodeSize(id, dockSpaceSize)
@@ -325,11 +323,12 @@ func (a *guiApp) onDraw(state *imgui_wrapper.State) {
 			imgui.InternalDockBuilderDockWindow(fnt.I("Tag")+" Metadata", rightID)
 			imgui.InternalDockBuilderFinish(id)
 		}
+		winClass := imgui.NewWindowClass() // passing nil as window class causes a nil pointer dereference (probably an error in the binding generation)
 		imgui.DockSpaceV(id, imgui.NewVec2(0, 0), 0, winClass)
+	} else {
+		imgui.PopStyleVar()
 	}
 	imgui.End()
-
-	imgui.PopStyleVar()
 
 	a.drawBrowserWindow()
 	a.drawTypeFilterWindow()
@@ -476,48 +475,29 @@ func (a *guiApp) drawHistoryButtons() (newItem stingray.FileID, changed bool) {
 	return
 }
 
-func (a *guiApp) drawMenuBar() (menuBarHeight float32) {
-	viewport := imgui.MainViewport()
-
-	imgui.SetNextWindowPos(viewport.Pos())
-	imgui.SetNextWindowSize(imgui.NewVec2(viewport.Size().X, 0))
-	const mainWindowFlags = imgui.WindowFlagsNoDecoration | imgui.WindowFlagsNoResize | imgui.WindowFlagsNoBringToFrontOnFocus | imgui.WindowFlagsNoSavedSettings | imgui.WindowFlagsNoTitleBar | imgui.WindowFlagsNoCollapse | imgui.WindowFlagsNoNavFocus | imgui.WindowFlagsMenuBar | imgui.WindowFlagsNoDocking
-	if imgui.BeginV("##Main", nil, mainWindowFlags) {
-		if imgui.BeginMenuBar() {
-			imgui.PushStyleVarVec2(imgui.StyleVarItemSpacing, imutils.SVec2(3.5, 3.5))
-			menuBarHeight = imgui.FrameHeight()
-			if imgui.BeginMenu("Help") {
-				imgui.Separator()
-				if imgui.MenuItemBool(fnt.I("Info") + " About") {
-					a.popupManager.Open["About"] = true
-				}
-				imgui.Separator()
-				imgui.EndMenu()
+func (a *guiApp) drawMenuBar() {
+	if imgui.BeginMenuBar() {
+		if imgui.BeginMenu("Help") {
+			if imgui.MenuItemBool(fnt.I("Info") + " About") {
+				a.popupManager.Open["About"] = true
 			}
-			if imgui.BeginMenu("Settings") {
-				imgui.Separator()
-				if imgui.MenuItemBool(fnt.I("Extension") + " Extensions") {
-					a.popupManager.Open["Extensions"] = true
-				}
-				imgui.Separator()
-				if imgui.MenuItemBool(fnt.I("Sync") + " Check for updates") {
-					a.goCheckForUpdates(false)
-					a.popupManager.Open["Check for updates"] = true
-				}
-				imgui.Separator()
-				if imgui.MenuItemBool(fnt.I("Settings") + " Preferences") {
-					a.popupManager.Open["Preferences"] = true
-				}
-				imgui.Separator()
-				imgui.EndMenu()
-			}
-			imgui.EndMenuBar()
-			imgui.PopStyleVar()
+			imgui.EndMenu()
 		}
+		if imgui.BeginMenu("Settings") {
+			if imgui.MenuItemBool(fnt.I("Extension") + " Extensions") {
+				a.popupManager.Open["Extensions"] = true
+			}
+			if imgui.MenuItemBool(fnt.I("Sync") + " Check for updates") {
+				a.goCheckForUpdates(false)
+				a.popupManager.Open["Check for updates"] = true
+			}
+			if imgui.MenuItemBool(fnt.I("Settings") + " Preferences") {
+				a.popupManager.Open["Preferences"] = true
+			}
+			imgui.EndMenu()
+		}
+		imgui.EndMenuBar()
 	}
-	imgui.End()
-
-	return
 }
 
 func (a *guiApp) drawBrowserWindow() {
@@ -622,7 +602,7 @@ func (a *guiApp) drawBrowserWindow() {
 				flags := imgui.ChildFlagsFrameStyle | imgui.ChildFlagsAutoResizeY | imgui.ChildFlagsAlwaysAutoResize
 				imgui.SetNextWindowPos(bottomLeft)
 				if imgui.BeginChildStrV("FilterExprErr", imgui.NewVec2(width, 0), flags, 0) {
-					imgui.PushFont(imgui_wrapper.FontMono)
+					imgui.PushFont(imgui_wrapper.FontMono, 0)
 					imutils.TextError(a.gameData.FilterExprErr)
 					imgui.PopFont()
 				}
@@ -1273,7 +1253,7 @@ func (a *guiApp) drawAboutPopup() {
 		drawLicense := func(heading, body string) {
 			if imgui.CollapsingHeaderBoolPtr(heading, nil) {
 				imgui.PushTextWrapPos()
-				imgui.PushFont(imgui_wrapper.FontMono)
+				imgui.PushFont(imgui_wrapper.FontMono, 0)
 				imgui.TextUnformatted(body)
 				imgui.PopFont()
 				imgui.PopTextWrapPos()

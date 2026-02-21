@@ -70,6 +70,7 @@ type BikPreviewState struct {
 	}
 	displayedFrameIndex int
 	textureID           uint32
+	textureRef          imgui.TextureRef // must be kept in sync with textureID
 }
 
 func NewBikPreview(runner *exec.Runner) *BikPreviewState {
@@ -78,6 +79,7 @@ func NewBikPreview(runner *exec.Runner) *BikPreviewState {
 		decoderCancel: func() {},
 	}
 	gl.GenTextures(1, &pv.textureID)
+	pv.textureRef = *imgui.NewTextureRefTextureID(imgui.TextureID(pv.textureID))
 	return pv
 }
 
@@ -339,7 +341,7 @@ Audio will be available if you export the video.`)
 	if imgui.BeginChildStr("##video") {
 		pv.vidFrame.Lock()
 		if pv.vidFrame.err == nil {
-			imgui.Image(imgui.TextureID(pv.textureID), vidSize)
+			imgui.Image(pv.textureRef, vidSize)
 			if pv.vidFrame.index != pv.displayedFrameIndex {
 				gl.BindTexture(gl.TEXTURE_2D, pv.textureID)
 				gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, int32(pv.vidWidth), int32(pv.vidHeight), 0, gl.RGBA, gl.UNSIGNED_BYTE, unsafe.Pointer(&pv.vidFrame.buf[0]))

@@ -8,7 +8,8 @@ import (
 	fnt "github.com/xypwn/filediver/cmd/filediver-gui/fonts"
 )
 
-// Current monospace font.
+// Current fonts.
+var FontDefault *imgui.Font
 var FontMono *imgui.Font
 
 var baseGlyphRanges = [...]imgui.Wchar{
@@ -25,14 +26,12 @@ var iconGlyphRanges = [...]imgui.Wchar{
 	0,
 }
 
-func updateFonts(guiScale float32, needCJKFonts bool) {
+func setupFonts(needCJKFonts bool) {
 	io := imgui.CurrentIO()
 	fonts := io.Fonts()
 	fonts.Clear()
 
-	style := imgui.NewStyle()
-
-	fontSize := 16 * guiScale
+	fontSize := float32(16)
 	type fontSpec struct {
 		scale       float32
 		glyphRange  *imgui.Wchar
@@ -42,29 +41,29 @@ func updateFonts(guiScale float32, needCJKFonts bool) {
 	var fontSpecs []fontSpec
 	// Base font
 	fontSpecs = append(fontSpecs, fontSpec{
-		scale:      1,
-		glyphRange: &baseGlyphRanges[0],
-		ttfData:    fnt.TextFont,
+		scale: 1,
+		//glyphRange: &baseGlyphRanges[0],
+		ttfData: fnt.TextFont,
 	})
 	if needCJKFonts {
 		fontSpecs = append(fontSpecs,
 			// Japanese
 			fontSpec{
-				scale:      1.2,
-				glyphRange: (&imgui.FontAtlas{}).GlyphRangesJapanese(),
-				ttfData:    fnt.TextFontJP,
+				scale: 1.2,
+				//glyphRange: (&imgui.FontAtlas{}).GlyphRangesJapanese(),
+				ttfData: fnt.TextFontJP,
 			},
 			// Korean
 			fontSpec{
-				scale:      1.2,
-				glyphRange: (&imgui.FontAtlas{}).GlyphRangesKorean(),
-				ttfData:    fnt.TextFontKR,
+				scale: 1.2,
+				//glyphRange: (&imgui.FontAtlas{}).GlyphRangesKorean(),
+				ttfData: fnt.TextFontKR,
 			},
 			// Chinese
 			fontSpec{
-				scale:      1.2,
-				glyphRange: (&imgui.FontAtlas{}).GlyphRangesChineseFull(),
-				ttfData:    fnt.TextFontCN,
+				scale: 1.2,
+				//glyphRange: (&imgui.FontAtlas{}).GlyphRangesChineseFull(),
+				ttfData: fnt.TextFontCN,
 			},
 		)
 	}
@@ -87,7 +86,7 @@ func updateFonts(guiScale float32, needCJKFonts bool) {
 		if spec.extraConfig != nil {
 			spec.extraConfig(fc)
 		}
-		fonts.AddFontFromMemoryTTFV(
+		newFont := fonts.AddFontFromMemoryTTFV(
 			uintptr(unsafe.Pointer(&spec.ttfData[0])),
 			int32(len(spec.ttfData)),
 			fontSize*spec.scale,
@@ -95,6 +94,9 @@ func updateFonts(guiScale float32, needCJKFonts bool) {
 			spec.glyphRange,
 		)
 		fc.Destroy()
+		if i == 0 {
+			FontDefault = newFont
+		}
 	}
 
 	{ // Monospace
@@ -109,10 +111,4 @@ func updateFonts(guiScale float32, needCJKFonts bool) {
 		)
 		fc.Destroy()
 	}
-
-	imguiDestroyFontsTexture()
-
-	io.SetFontGlobalScale(1)
-	style.ScaleAllSizes(guiScale)
-	io.Ctx().SetStyle(*style)
 }

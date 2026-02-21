@@ -2,6 +2,8 @@
 package imgui_wrapper
 
 /*
+#cgo windows LDFLAGS: -ldwmapi
+
 // GLFW
 typedef struct GLFWwindow GLFWwindow;
 typedef struct GLFWmonitor GLFWmonitor;
@@ -41,7 +43,6 @@ ImDrawData* igGetDrawData();
 void ImGui_ImplOpenGL3_NewFrame();
 void ImGui_ImplGlfw_NewFrame();
 void ImGui_ImplOpenGL3_RenderDrawData(ImDrawData* draw_data);
-void ImGui_ImplOpenGL3_DestroyFontsTexture();
 void ImGui_ImplOpenGL3_Shutdown();
 void ImGui_ImplGlfw_Shutdown();
 
@@ -52,6 +53,24 @@ void glfw_render(GLFWwindow *window, VoidCallback renderLoop);
 // custom functions
 void goWindowResizeCallback(GLFWwindow* window, int height, int width);
 void goWindowRefreshCallback(GLFWwindow* window);
+
+// Windows dark window decoration
+#ifdef _WIN32
+#define DWMWA_USE_IMMERSIVE_DARK_MODE 20
+// We're using the non-typedef'd names for windows data types here, see
+// https://learn.microsoft.com/en-us/windows/win32/winprog/windows-data-types.
+void *glfwGetWin32Window(GLFWwindow *window);
+long DwmSetWindowAttribute(void *hwnd, unsigned long dwAttribute, void *pvAttribute, unsigned long cbAttribute);
+static void setWindowsWindowDarkMode(GLFWwindow *window, int value) {
+	void *hwnd = glfwGetWin32Window(window);
+	// We don't check the return value as this may actually fail on older windows versions,
+	// since DWMWA_USE_IMMERSIVE_DARK_MODE is fairly new.
+	DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &value, sizeof(value));
+}
+#undef DWMWA_USE_IMMERSIVE_DARK_MODE
+#else
+static void setWindowsWindowDarkMode(GLFWwindow *window, int iValue) {}
+#endif
 */
 import "C"
 import (
@@ -81,10 +100,6 @@ func goWindowRefreshCallback(window *C.GLFWwindow) {
 	onWindowRefresh(window)
 }
 
-func imguiDestroyFontsTexture() {
-	C.ImGui_ImplOpenGL3_DestroyFontsTexture()
-}
-
 // State contains exported fields, which
 // can be changed anytime by the callback
 // functions to update certain settings.
@@ -94,12 +109,14 @@ type State struct {
 	// GUI Scale and CJK fonts will need a bit of
 	// time to load after changing to a different
 	// value.
-	GUIScale     float32
-	LoadCJKFonts bool
+	GUIScale              float32
+	LoadCJKFonts          bool
+	DarkWindowDecorations bool
 
-	glfwWindow     *C.GLFWwindow
-	currGuiScale   float32
-	cjkFontsLoaded bool
+	glfwWindow                *C.GLFWwindow
+	currGuiScale              float32
+	cjkFontsLoaded            bool
+	currDarkWindowDecorations bool
 }
 
 type Options struct {
@@ -172,6 +189,7 @@ func Main(title string, options Options) error {
 	flags |= imgui.ConfigFlagsDockingEnable | imgui.ConfigFlagsViewportsEnable
 	io.SetConfigFlags(flags)
 	io.SetIniFilename("")
+	setupFonts(state.LoadCJKFonts)
 
 	{
 		_, yScale := currentBackend.ContentScale()
@@ -248,10 +266,21 @@ func Main(title string, options Options) error {
 			}
 		}
 
-		if state.GUIScale != state.currGuiScale || state.LoadCJKFonts != state.cjkFontsLoaded {
-			updateFonts(state.GUIScale, state.LoadCJKFonts)
+		if state.GUIScale != state.currGuiScale ||
+			state.LoadCJKFonts != state.cjkFontsLoaded ||
+			state.DarkWindowDecorations != state.currDarkWindowDecorations {
+			if state.LoadCJKFonts != state.cjkFontsLoaded {
+				setupFonts(state.LoadCJKFonts)
+			}
+			io.Ctx().SetStyle(*makeStyle(state.GUIScale))
+			if state.DarkWindowDecorations {
+				C.setWindowsWindowDarkMode(state.glfwWindow, 1)
+			} else {
+				C.setWindowsWindowDarkMode(state.glfwWindow, 0)
+			}
 			state.currGuiScale = state.GUIScale
 			state.cjkFontsLoaded = state.LoadCJKFonts
+			state.currDarkWindowDecorations = state.DarkWindowDecorations
 		}
 
 		timeToDraw := time.Since(lastDrawTimestamp)
