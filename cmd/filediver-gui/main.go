@@ -126,6 +126,9 @@ type guiApp struct {
 	isArchiveFilterOpen bool
 	isLogsOpen          bool
 
+	toolsHashConverterState  *widgets.HashConverterState
+	isToolsHashConverterOpen bool
+
 	lastBrowserItemCopiedIndex int32
 	lastBrowserItemCopiedTime  float64
 }
@@ -154,6 +157,7 @@ func newGUIApp(showErrorPopup func(error)) *guiApp {
 		downloadsDir:               filepath.Join(xdg.DataHome, "filediver"),
 		runner:                     exec.NewRunner(),
 		popupManager:               imutils.NewPopupManager(),
+		toolsHashConverterState:    widgets.NewHashConverter(),
 		lastBrowserItemCopiedIndex: -1,
 		lastBrowserItemCopiedTime:  -math.MaxFloat64,
 	}
@@ -330,6 +334,13 @@ func (a *guiApp) onDraw(state *imgui_wrapper.State) {
 	}
 	imgui.End()
 
+	if a.isToolsHashConverterOpen {
+		if imgui.BeginV("Hash Converter", &a.isToolsHashConverterOpen, imgui.WindowFlagsAlwaysAutoResize) {
+			widgets.DrawHashConverter(a.toolsHashConverterState)
+		}
+		imgui.End()
+	}
+
 	a.drawBrowserWindow()
 	a.drawTypeFilterWindow()
 	a.drawArchiveFilterWindow()
@@ -481,6 +492,10 @@ func (a *guiApp) drawMenuBar() {
 			if imgui.MenuItemBool(fnt.I("Info") + " About") {
 				a.popupManager.Open["About"] = true
 			}
+			imgui.EndMenu()
+		}
+		if imgui.BeginMenu("Tools") {
+			imgui.MenuItemBoolPtrV(fnt.I("Table_convert")+" Hash Converter", "", &a.isToolsHashConverterOpen, true)
 			imgui.EndMenu()
 		}
 		if imgui.BeginMenu("Settings") {
