@@ -301,7 +301,7 @@ func BikPreview(pv *BikPreviewState) {
 	defer imgui.PopID()
 
 	if pv.haveAudio {
-		imutils.Textf("%v Audio playback not yet implemented", fnt.I("Warning"))
+		imutils.Textf("%v Audio playback not yet implemented", fnt.I.Warning)
 		imgui.SetItemTooltip(`This video has an audio stream, but the video preview doesn't implement audio playback yet.
 Audio will be available if you export the video.`)
 	}
@@ -367,9 +367,9 @@ Audio will be available if you export the video.`)
 	var playPauseIcon string
 	pv.vidFrame.Lock()
 	if pv.vidFrame.paused {
-		playPauseIcon = fnt.I("Play_arrow")
+		playPauseIcon = fnt.I.PlayArrow
 	} else {
-		playPauseIcon = fnt.I("Pause")
+		playPauseIcon = fnt.I.Pause
 	}
 	if imgui.Button(playPauseIcon) || imgui.Shortcut(imgui.KeyChord(imgui.KeySpace)) {
 		pv.vidFrame.paused = !pv.vidFrame.paused
@@ -381,8 +381,8 @@ Audio will be available if you export the video.`)
 	if imgui.Shortcut(imgui.KeyChord(imgui.KeyRightArrow)) {
 		restartVideoStreamAtFrame = pv.vidFrame.index + shortcutSeekDelta
 	}
-	imgui.SetItemTooltip(fnt.I("Play_pause") + ` Left-click or space to play/pause
-` + fnt.I("Arrows_outward") + ` Left/right arrow keys to seek 10s back/forward`)
+	imgui.SetItemTooltip(fnt.I.PlayPause + ` Left-click or space to play/pause
+` + fnt.I.ArrowsOutward + ` Left/right arrow keys to seek 10s back/forward`)
 	pv.vidFrame.Unlock()
 
 	imgui.SameLine()

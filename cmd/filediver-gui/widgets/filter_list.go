@@ -15,7 +15,7 @@ func FilterListButton[T comparable](title string, windowOpen *bool, sel map[T]st
 	defer imgui.PopID()
 
 	var label strings.Builder
-	label.WriteString(fnt.I("Filter_list"))
+	label.WriteString(fnt.I.FilterList)
 	label.WriteString(" ")
 	label.WriteString(title)
 	if len(sel) > 0 {
@@ -23,9 +23,9 @@ func FilterListButton[T comparable](title string, windowOpen *bool, sel map[T]st
 	}
 	label.WriteString(" ")
 	if *windowOpen {
-		label.WriteString(fnt.I("Close"))
+		label.WriteString(fnt.I.Close)
 	} else {
-		label.WriteString(fnt.I("Open_in_new"))
+		label.WriteString(fnt.I.OpenInNew)
 	}
 	pressed := imgui.Button(label.String())
 	if pressed {
@@ -83,7 +83,7 @@ func FilterListWindow[T comparable](title string, windowOpen *bool, searchHint s
 	var matches []match
 
 	imgui.SetNextItemWidth(-math.SmallestNonzeroFloat32)
-	imgui.InputTextWithHint("##search", fnt.I("Search")+" "+searchHint, queryBuf, 0, nil)
+	imgui.InputTextWithHint("##search", fnt.I.Search+" "+searchHint, queryBuf, 0, nil)
 
 	defer imgui.EndChild()
 	if !imgui.BeginChildStr("##list") {

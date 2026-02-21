@@ -12,20 +12,6 @@ import (
 var FontDefault *imgui.Font
 var FontMono *imgui.Font
 
-var baseGlyphRanges = [...]imgui.Wchar{
-	0x0020, 0x00ff, // basic latin + supplement
-	0x0100, 0x017f, // latin extended-A
-	0x2000, 0x206f, // general punctuation
-	0x0400, 0x052f, // cyrillic + cyrillic supplement
-	0,
-}
-
-var iconGlyphRanges = [...]imgui.Wchar{
-	imgui.Wchar(fnt.IconFontInfo.Min),
-	imgui.Wchar(fnt.IconFontInfo.Max16),
-	0,
-}
-
 func setupFonts(needCJKFonts bool) {
 	io := imgui.CurrentIO()
 	fonts := io.Fonts()
@@ -69,9 +55,8 @@ func setupFonts(needCJKFonts bool) {
 	}
 	// Icons
 	fontSpecs = append(fontSpecs, fontSpec{
-		scale:      1,
-		glyphRange: &iconGlyphRanges[0],
-		ttfData:    fnt.IconFont,
+		scale:   1,
+		ttfData: fnt.IconFont,
 		extraConfig: func(fc *imgui.FontConfig) {
 			fc.SetGlyphOffset(imgui.NewVec2(0, (0.2)*fontSize))
 			fc.SetGlyphMinAdvanceX(1 * fontSize)

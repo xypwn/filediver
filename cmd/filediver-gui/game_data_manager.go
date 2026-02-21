@@ -220,7 +220,7 @@ func (gd *GameDataLoad) loadGameData(ctx context.Context, gameDir string) {
 		gameDir, err = app.DetectGameDir()
 		if err != nil {
 			gd.Lock()
-			gd.Err = fmt.Errorf("Helldivers 2 Steam installation path not found: %w, please select the game directory manually under \"%v Extractor config\"", err, fnt.I("Settings_applications"))
+			gd.Err = fmt.Errorf("Helldivers 2 Steam installation path not found: %w, please select the game directory manually under \"%v Extractor config\"", err, fnt.I.SettingsApplications)
 			gd.Done = true
 			gd.Unlock()
 			return

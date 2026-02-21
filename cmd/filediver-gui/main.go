@@ -126,6 +126,9 @@ type guiApp struct {
 	isArchiveFilterOpen bool
 	isLogsOpen          bool
 
+	toolsHashConverterState  *widgets.HashConverterState
+	isToolsHashConverterOpen bool
+
 	lastBrowserItemCopiedIndex int32
 	lastBrowserItemCopiedTime  float64
 }
@@ -154,6 +157,7 @@ func newGUIApp(showErrorPopup func(error)) *guiApp {
 		downloadsDir:               filepath.Join(xdg.DataHome, "filediver"),
 		runner:                     exec.NewRunner(),
 		popupManager:               imutils.NewPopupManager(),
+		toolsHashConverterState:    widgets.NewHashConverter(),
 		lastBrowserItemCopiedIndex: -1,
 		lastBrowserItemCopiedTime:  -math.MaxFloat64,
 	}
@@ -316,11 +320,11 @@ func (a *guiApp) onDraw(state *imgui_wrapper.State) {
 			var leftID, topLeftID, bottomLeftID, rightID imgui.ID
 			imgui.InternalDockBuilderSplitNode(id, imgui.DirLeft, 0.5, &leftID, &rightID)
 			imgui.InternalDockBuilderSplitNode(leftID, imgui.DirDown, 0.4, &bottomLeftID, &topLeftID)
-			imgui.InternalDockBuilderDockWindow(fnt.I("View_list")+" Browser", topLeftID)
-			imgui.InternalDockBuilderDockWindow(fnt.I("File_export")+" Export", bottomLeftID)
-			imgui.InternalDockBuilderDockWindow(fnt.I("Settings_applications")+" Extractor config", bottomLeftID)
-			imgui.InternalDockBuilderDockWindow(fnt.I("Preview")+" Preview", rightID)
-			imgui.InternalDockBuilderDockWindow(fnt.I("Tag")+" Metadata", rightID)
+			imgui.InternalDockBuilderDockWindow(fnt.I.ViewList+" Browser", topLeftID)
+			imgui.InternalDockBuilderDockWindow(fnt.I.FileExport+" Export", bottomLeftID)
+			imgui.InternalDockBuilderDockWindow(fnt.I.SettingsApplications+" Extractor config", bottomLeftID)
+			imgui.InternalDockBuilderDockWindow(fnt.I.Preview+" Preview", rightID)
+			imgui.InternalDockBuilderDockWindow(fnt.I.Tag+" Metadata", rightID)
 			imgui.InternalDockBuilderFinish(id)
 		}
 		winClass := imgui.NewWindowClass() // passing nil as window class causes a nil pointer dereference (probably an error in the binding generation)
@@ -329,6 +333,13 @@ func (a *guiApp) onDraw(state *imgui_wrapper.State) {
 		imgui.PopStyleVar()
 	}
 	imgui.End()
+
+	if a.isToolsHashConverterOpen {
+		if imgui.BeginV("Hash Converter", &a.isToolsHashConverterOpen, imgui.WindowFlagsAlwaysAutoResize) {
+			widgets.DrawHashConverter(a.toolsHashConverterState)
+		}
+		imgui.End()
+	}
 
 	a.drawBrowserWindow()
 	a.drawTypeFilterWindow()
@@ -340,7 +351,7 @@ func (a *guiApp) onDraw(state *imgui_wrapper.State) {
 	a.drawMetadataWindow()
 
 	if a.shouldSetupWindowFocus {
-		imgui.SetWindowFocusStr(fnt.I("Preview") + " Preview")
+		imgui.SetWindowFocusStr(fnt.I.Preview + " Preview")
 		a.shouldSetupWindowFocus = false
 	}
 
@@ -454,7 +465,7 @@ func (a *guiApp) drawHistoryButtons() (newItem stingray.FileID, changed bool) {
 	imgui.BeginDisabledV(len(a.historyStack) == 0)
 	imgui.BeginDisabledV(a.historyStackIndex == 0)
 	imgui.SetNextItemShortcut(imgui.KeyChord(imgui.ModAlt | imgui.KeyLeftArrow))
-	if imgui.Button(fnt.I("Arrow_back")) {
+	if imgui.Button(fnt.I.ArrowBack) {
 		a.historyStackIndex--
 		newItem = a.historyStack[a.historyStackIndex]
 		changed = true
@@ -464,7 +475,7 @@ func (a *guiApp) drawHistoryButtons() (newItem stingray.FileID, changed bool) {
 	imgui.SameLineV(0, imutils.S(4))
 	imgui.BeginDisabledV(a.historyStackIndex == len(a.historyStack)-1)
 	imgui.SetNextItemShortcut(imgui.KeyChord(imgui.ModAlt | imgui.KeyRightArrow))
-	if imgui.Button(fnt.I("Arrow_forward")) {
+	if imgui.Button(fnt.I.ArrowForward) {
 		a.historyStackIndex++
 		newItem = a.historyStack[a.historyStackIndex]
 		changed = true
@@ -478,20 +489,24 @@ func (a *guiApp) drawHistoryButtons() (newItem stingray.FileID, changed bool) {
 func (a *guiApp) drawMenuBar() {
 	if imgui.BeginMenuBar() {
 		if imgui.BeginMenu("Help") {
-			if imgui.MenuItemBool(fnt.I("Info") + " About") {
+			if imgui.MenuItemBool(fnt.I.Info + " About") {
 				a.popupManager.Open["About"] = true
 			}
 			imgui.EndMenu()
 		}
+		if imgui.BeginMenu("Tools") {
+			imgui.MenuItemBoolPtrV(fnt.I.TableConvert+" Hash Converter", "", &a.isToolsHashConverterOpen, true)
+			imgui.EndMenu()
+		}
 		if imgui.BeginMenu("Settings") {
-			if imgui.MenuItemBool(fnt.I("Extension") + " Extensions") {
+			if imgui.MenuItemBool(fnt.I.Extension + " Extensions") {
 				a.popupManager.Open["Extensions"] = true
 			}
-			if imgui.MenuItemBool(fnt.I("Sync") + " Check for updates") {
+			if imgui.MenuItemBool(fnt.I.Sync + " Check for updates") {
 				a.goCheckForUpdates(false)
 				a.popupManager.Open["Check for updates"] = true
 			}
-			if imgui.MenuItemBool(fnt.I("Settings") + " Preferences") {
+			if imgui.MenuItemBool(fnt.I.Settings + " Preferences") {
 				a.popupManager.Open["Preferences"] = true
 			}
 			imgui.EndMenu()
@@ -501,7 +516,7 @@ func (a *guiApp) drawMenuBar() {
 }
 
 func (a *guiApp) drawBrowserWindow() {
-	if imgui.Begin(fnt.I("View_list") + " Browser") {
+	if imgui.Begin(fnt.I.ViewList + " Browser") {
 		if a.gameData == nil {
 			a.gameDataLoad.Lock()
 			if a.gameDataLoad.Done {
@@ -557,9 +572,9 @@ func (a *guiApp) drawBrowserWindow() {
 			} else {
 				progress := a.gameDataLoad.Progress
 				if progress != 1 {
-					imutils.Textf(fnt.I("Hourglass_top") + " Loading game data...")
+					imutils.Textf(fnt.I.HourglassTop + " Loading game data...")
 				} else {
-					imutils.Textf(fnt.I("Hourglass_top") + " Processing game data...")
+					imutils.Textf(fnt.I.HourglassTop + " Processing game data...")
 					progress = -float32(imgui.Time())
 				}
 				imgui.ProgressBar(progress)
@@ -570,7 +585,7 @@ func (a *guiApp) drawBrowserWindow() {
 			{
 				style := imgui.CurrentStyle()
 				imgui.CalcItemWidth()
-				searchBarWidth -= imgui.CalcTextSize(fnt.I("Help")).X +
+				searchBarWidth -= imgui.CalcTextSize(fnt.I.Help).X +
 					style.ItemSpacing().X +
 					2*style.FramePadding().X
 			}
@@ -578,7 +593,7 @@ func (a *guiApp) drawBrowserWindow() {
 			if imgui.Shortcut(imgui.KeyChord(imgui.ModCtrl | imgui.KeyF)) {
 				imgui.SetKeyboardFocusHere()
 			}
-			if imgui.InputTextWithHint("##SearchName", fnt.I("Search")+" Filter by file name...", &a.gameFileSearchQuery, 0, nil) {
+			if imgui.InputTextWithHint("##SearchName", fnt.I.Search+" Filter by file name...", &a.gameFileSearchQuery, 0, nil) {
 				a.gameData.UpdateSearchQuery(a.gameFileSearchQuery, a.selectedGameFileTypes, a.selectedArchives)
 				a.allSelectedForExport = a.calcAllSelectedForExport()
 				a.scrollToSelectedFile = true
@@ -586,7 +601,7 @@ func (a *guiApp) drawBrowserWindow() {
 			searchInputTextData := imgui.CurrentContext().LastItemData()
 			imgui.SetItemTooltip("Filter by file name (Ctrl+F)")
 			imgui.SameLine()
-			if imgui.Button(fnt.I("Help")) {
+			if imgui.Button(fnt.I.Help) {
 				imgui.OpenPopupStr("##MetadataSearchHelp")
 			}
 			imgui.SetItemTooltip("Metadata search help")
@@ -659,7 +674,7 @@ func (a *guiApp) drawBrowserWindow() {
 			}
 			const tableFlags = imgui.TableFlagsResizable | imgui.TableFlagsBorders | imgui.TableFlagsScrollY | imgui.TableFlagsRowBg
 			if imgui.BeginTableV("##Game Files", 3, tableFlags, imgui.NewVec2(0, 0), 0) {
-				imgui.TableSetupColumnV(fnt.I("File_export"), imgui.TableColumnFlagsWidthFixed|imgui.TableColumnFlagsNoResize, imgui.FrameHeight(), 0)
+				imgui.TableSetupColumnV(fnt.I.FileExport, imgui.TableColumnFlagsWidthFixed|imgui.TableColumnFlagsNoResize, imgui.FrameHeight(), 0)
 				imgui.TableSetupColumnV("Name", imgui.TableColumnFlagsWidthStretch, 3, 0)
 				imgui.TableSetupColumnV("Type", imgui.TableColumnFlagsWidthStretch, 1, 0)
 				imgui.TableSetupScrollFreeze(0, 1)
@@ -732,7 +747,7 @@ func (a *guiApp) drawBrowserWindow() {
 							var text strings.Builder
 							if a.lastBrowserItemCopiedIndex == row &&
 								imgui.Time()-a.lastBrowserItemCopiedTime < 1 {
-								fmt.Fprintf(&text, "%v Copied '%v'\n", fnt.I("Check"), id.Name.String())
+								fmt.Fprintf(&text, "%v Copied '%v'\n", fnt.I.Check, id.Name.String())
 							} else {
 								if name, ok := a.gameData.Hashes[id.Name]; ok {
 									fmt.Fprintf(&text, "Name: %v, hash=%v\n", name, id.Name)
@@ -740,10 +755,10 @@ func (a *guiApp) drawBrowserWindow() {
 									fmt.Fprintf(&text, "Name: hash=%v\n", id.Name)
 								}
 								fmt.Fprintf(&text, "Type: %v, hash=%v\n", a.gameData.LookupHash(id.Type), id.Type)
-								fmt.Fprintf(&text, "%v Left-click to preview\n", fnt.I("Preview"))
-								fmt.Fprintf(&text, "%v Right-click or Ctrl+C to copy name hash to clipboard\n", fnt.I("Content_copy"))
-								fmt.Fprintf(&text, "%v Down/up arrow keys to select next/previous\n", fnt.I("Unfold_more"))
-								fmt.Fprintf(&text, "%v Use the checkbox or space key to select/deselect for export\n", fnt.I("File_export"))
+								fmt.Fprintf(&text, "%v Left-click to preview\n", fnt.I.Preview)
+								fmt.Fprintf(&text, "%v Right-click or Ctrl+C to copy name hash to clipboard\n", fnt.I.ContentCopy)
+								fmt.Fprintf(&text, "%v Down/up arrow keys to select next/previous\n", fnt.I.UnfoldMore)
+								fmt.Fprintf(&text, "%v Use the checkbox or space key to select/deselect for export\n", fnt.I.FileExport)
 							}
 							imgui.SetTooltip(text.String())
 						}
@@ -793,7 +808,7 @@ func (a *guiApp) drawTypeFilterWindow() {
 			items = append(items, "("+desc+")")
 		}
 		if _, ok := gameFileTypeTooltipsExtra[x]; ok {
-			items = append(items, fnt.I("Info"))
+			items = append(items, fnt.I.Info)
 		}
 		return strings.Join(items, " ")
 	}
@@ -856,7 +871,7 @@ func (a *guiApp) drawArchiveFilterWindow() {
 				copied = true
 			}
 			if imutils.StickyActivate(copied, 1) {
-				imgui.SetItemTooltip(fmt.Sprintf("%v Copied '%v'", fnt.I("Check"), x))
+				imgui.SetItemTooltip(fmt.Sprintf("%v Copied '%v'", fnt.I.Check, x))
 			} else {
 				var tt strings.Builder
 				if name, ok := a.gameData.Hashes[x]; ok {
@@ -868,8 +883,8 @@ func (a *guiApp) drawArchiveFilterWindow() {
 					fmt.Fprintf(&tt, "Armor set: %v\n", armorSet.Name)
 				}
 				fmt.Fprintf(&tt, "Contains %v files\n", len(a.gameData.DataDir.Archives[x]))
-				fmt.Fprintf(&tt, "%v Left-click or Space to select/deselect\n", fnt.I("Left_click"))
-				fmt.Fprintf(&tt, "%v Right-click or Ctrl+C to copy name hash to clipboard\n", fnt.I("Content_copy"))
+				fmt.Fprintf(&tt, "%v Left-click or Space to select/deselect\n", fnt.I.LeftClick)
+				fmt.Fprintf(&tt, "%v Right-click or Ctrl+C to copy name hash to clipboard\n", fnt.I.ContentCopy)
 				imgui.SetItemTooltip(tt.String())
 			}
 			if copied {
@@ -884,12 +899,12 @@ func (a *guiApp) drawArchiveFilterWindow() {
 }
 
 func (a *guiApp) drawExportWindow() {
-	if imgui.Begin(fnt.I("File_export") + " Export") {
+	if imgui.Begin(fnt.I.FileExport + " Export") {
 		imgui.BeginDisabledV(a.gameDataExport != nil)
 		imutils.FilePicker("Output directory", &a.exportDir, true)
 		imgui.EndDisabled()
 
-		imgui.Checkbox(fnt.I("Notifications")+" Notify when done", &a.exportNotifyWhenDone)
+		imgui.Checkbox(fnt.I.Notifications+" Notify when done", &a.exportNotifyWhenDone)
 
 		imgui.Separator()
 
@@ -899,18 +914,18 @@ func (a *guiApp) drawExportWindow() {
 			if a.logger.NumErrs() > 0 || a.logger.NumWarns() > 0 {
 				var items []string
 				if a.logger.NumErrs() > 0 {
-					items = append(items, fmt.Sprintf("%v %v", a.logger.NumErrs(), fnt.I("Error")))
+					items = append(items, fmt.Sprintf("%v %v", a.logger.NumErrs(), fnt.I.Error))
 				}
 				if a.logger.NumWarns() > 0 {
-					items = append(items, fmt.Sprintf("%v %v", a.logger.NumWarns(), fnt.I("Warning")))
+					items = append(items, fmt.Sprintf("%v %v", a.logger.NumWarns(), fnt.I.Warning))
 				}
 				numErrsWarnsStr = fmt.Sprintf(" (%v)", strings.Join(items, ","))
 			}
 			var label string
 			if a.isLogsOpen {
-				label = fmt.Sprintf("%v Close extractor logs%v %v", fnt.I("List"), numErrsWarnsStr, fnt.I("Close"))
+				label = fmt.Sprintf("%v Close extractor logs%v %v", fnt.I.List, numErrsWarnsStr, fnt.I.Close)
 			} else {
-				label = fmt.Sprintf("%v Open extractor logs%v %v", fnt.I("List"), numErrsWarnsStr, fnt.I("Open_in_new"))
+				label = fmt.Sprintf("%v Open extractor logs%v %v", fnt.I.List, numErrsWarnsStr, fnt.I.OpenInNew)
 			}
 			if imgui.ButtonV(label, imgui.NewVec2(-math.SmallestNonzeroFloat32, 0)) {
 				a.isLogsOpen = !a.isLogsOpen
@@ -918,7 +933,7 @@ func (a *guiApp) drawExportWindow() {
 			imgui.PopID()
 		}
 
-		if imgui.ButtonV(fnt.I("Folder_open")+" Open output folder", imgui.NewVec2(-math.SmallestNonzeroFloat32, 0)) {
+		if imgui.ButtonV(fnt.I.FolderOpen+" Open output folder", imgui.NewVec2(-math.SmallestNonzeroFloat32, 0)) {
 			_ = os.MkdirAll(a.exportDir, os.ModePerm)
 			open.Start(a.exportDir)
 		}
@@ -928,7 +943,7 @@ func (a *guiApp) drawExportWindow() {
 		if a.gameDataExport == nil {
 			imgui.PushIDStr("Begin export button")
 			imgui.BeginDisabledV(len(a.filesSelectedForExport) == 0 || a.gameData == nil)
-			label := fmt.Sprintf("%v Begin export (%v)", fnt.I("File_export"), len(a.filesSelectedForExport))
+			label := fmt.Sprintf("%v Begin export (%v)", fnt.I.FileExport, len(a.filesSelectedForExport))
 			if imgui.ButtonV(label, imgui.NewVec2(-math.SmallestNonzeroFloat32, 0)) && a.gameData != nil {
 				a.logger.Reset()
 				a.redetectRunnerProgs()
@@ -983,7 +998,7 @@ func (a *guiApp) drawExportWindow() {
 					fmt.Sprintf("%v/%v", a.gameDataExport.CurrentFileIndex+1, a.gameDataExport.NumFiles),
 				)
 				imutils.Textf("%v", a.gameDataExport.CurrentFileName)
-				if imgui.ButtonV(fnt.I("Cancel")+" Cancel export", imgui.NewVec2(-math.SmallestNonzeroFloat32, 0)) {
+				if imgui.ButtonV(fnt.I.Cancel+" Cancel export", imgui.NewVec2(-math.SmallestNonzeroFloat32, 0)) {
 					a.gameDataExport.Cancel()
 				}
 			}
@@ -993,7 +1008,7 @@ func (a *guiApp) drawExportWindow() {
 }
 
 func (a *guiApp) drawExtractorConfigWindow() {
-	if imgui.Begin(fnt.I("Settings_applications") + " Extractor config") {
+	if imgui.Begin(fnt.I.SettingsApplications + " Extractor config") {
 		prevExtrCfg := a.extractorConfig
 		if widgets.ConfigEditor(&a.extractorConfig, &a.extractorConfigShowAdvanced, &a.extractorConfigSearchQuery) {
 			if a.extractorConfig.Gamedir != prevExtrCfg.Gamedir {
@@ -1028,20 +1043,20 @@ func (a *guiApp) drawLogWindow() {
 		imgui.EndChild()
 
 		ctx := imgui.CurrentContext()
-		btnLabel := fnt.I("Content_copy") + " Copy all to clipboard"
+		btnLabel := fnt.I.ContentCopy + " Copy all to clipboard"
 		btnID := imgui.IDStr(btnLabel)
 		if imgui.ButtonV(btnLabel, imgui.NewVec2(-math.SmallestNonzeroFloat32, 0)) {
 			imgui.SetClipboardText(a.logger.String())
 		}
 		if ctx.LastActiveId() == btnID && ctx.LastActiveIdTimer() < 1 {
-			imgui.SetItemTooltip(fnt.I("Check") + " Copied")
+			imgui.SetItemTooltip(fnt.I.Check + " Copied")
 		}
 	}
 	imgui.End()
 }
 
 func (a *guiApp) drawPreviewWindow(state *imgui_wrapper.State) {
-	if imgui.Begin(fnt.I("Preview") + " Preview") {
+	if imgui.Begin(fnt.I.Preview + " Preview") {
 		if a.previewState != nil {
 			if !previews.AutoPreview("Preview", a.previewState) {
 				active := a.previewState.ActiveID()
@@ -1064,7 +1079,7 @@ func (a *guiApp) drawPreviewWindow(state *imgui_wrapper.State) {
 }
 
 func (a *guiApp) drawMetadataWindow() {
-	if imgui.Begin(fnt.I("Tag") + " Metadata") {
+	if imgui.Begin(fnt.I.Tag + " Metadata") {
 		if a.gameData != nil && a.previewState != nil && a.previewState.ActiveID() != (stingray.FileID{}) {
 			widgets.FileMetadata(a.gameData.Metadata[a.previewState.ActiveID()])
 		} else {
@@ -1093,10 +1108,10 @@ func (a *guiApp) drawCheckForUpdatesPopup() {
 			if a.checkingForUpdates {
 				imgui.ProgressBarV(-1*float32(imgui.Time()), imutils.SVec2(200, 0), "Checking for updates")
 			} else if a.checkUpdatesNewVersion == version {
-				imutils.Textcf(imgui.NewVec4(0, 0.7, 0, 1), fnt.I("Check")+"Up-to-date (version %v)", version)
+				imutils.Textcf(imgui.NewVec4(0, 0.7, 0, 1), fnt.I.Check+"Up-to-date (version %v)", version)
 			} else {
-				imutils.Textcf(imgui.NewVec4(0.8, 0.8, 0, 1), fnt.I("Exclamation")+"New version available: %v", a.checkUpdatesNewVersion)
-				if imgui.ButtonV(fnt.I("Download")+" Download "+a.checkUpdatesNewVersion, imutils.SVec2(200, 0)) {
+				imutils.Textcf(imgui.NewVec4(0.8, 0.8, 0, 1), fnt.I.Exclamation+"New version available: %v", a.checkUpdatesNewVersion)
+				if imgui.ButtonV(fnt.I.Download+" Download "+a.checkUpdatesNewVersion, imutils.SVec2(200, 0)) {
 					open.Start(a.checkUpdatesDownloadURL)
 				}
 				imgui.SetItemTooltip("Open '" + a.checkUpdatesDownloadURL + "'")
@@ -1167,7 +1182,7 @@ func (a *guiApp) drawExtensionsPopup() {
 		imgui.Separator()
 		widgets.Downloader("ScriptsDist", scriptsDistFeatures, a.scriptsDistDownloadState)
 		imgui.Separator()
-		if imgui.ButtonV(fnt.I("Folder_open")+" Open extensions folder", imgui.NewVec2(imgui.ContentRegionAvail().X, 0)) {
+		if imgui.ButtonV(fnt.I.FolderOpen+" Open extensions folder", imgui.NewVec2(imgui.ContentRegionAvail().X, 0)) {
 			_ = os.MkdirAll(a.downloadsDir, os.ModePerm)
 			if err := open.Start(a.downloadsDir); err != nil {
 				a.showErrorPopup(err)
@@ -1202,12 +1217,12 @@ func (a *guiApp) drawPreferencesPopup(state *imgui_wrapper.State) {
 			func(a, b int) bool { return a == b },
 			func(x int) string { return fmt.Sprintf("%vp", x) },
 		)
-		imgui.SetItemTooltip(fnt.I("Info") + ` The preview player isn't very well optimized, so higher
+		imgui.SetItemTooltip(fnt.I.Info + ` The preview player isn't very well optimized, so higher
 resolutions may cause low frame rates and poor responsiveness.`)
 		imgui.Checkbox("Check for updates on start", &a.preferences.AutoCheckForUpdates)
 
 		imgui.BeginDisabledV(a.preferences == a.defaultPreferences)
-		if imgui.ButtonV(fnt.I("Undo")+" Reset all", imgui.NewVec2(imgui.ContentRegionAvail().X, 0)) {
+		if imgui.ButtonV(fnt.I.Undo+" Reset all", imgui.NewVec2(imgui.ContentRegionAvail().X, 0)) {
 			a.preferences = a.defaultPreferences
 		}
 		imgui.EndDisabled()
@@ -1221,7 +1236,7 @@ resolutions may cause low frame rates and poor responsiveness.`)
 		}
 
 		imgui.Separator()
-		if imgui.ButtonV(fnt.I("Folder_open")+" Open preferences folder", imgui.NewVec2(imgui.ContentRegionAvail().X, 0)) {
+		if imgui.ButtonV(fnt.I.FolderOpen+" Open preferences folder", imgui.NewVec2(imgui.ContentRegionAvail().X, 0)) {
 			dir := filepath.Dir(a.preferencesPath)
 			_ = os.MkdirAll(dir, os.ModePerm)
 			if err := open.Start(dir); err != nil {

@@ -30,7 +30,7 @@ func DDSPreview(name string, pv *DDSPreviewState) {
 	}
 	imgui.EndChild()
 
-	if imgui.Button(fnt.I("Home")) {
+	if imgui.Button(fnt.I.Home) {
 		pv.offset = imgui.NewVec2(0, 0)
 		pv.zoom = 1
 	}

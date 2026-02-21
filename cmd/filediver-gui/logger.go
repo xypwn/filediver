@@ -140,7 +140,7 @@ func LogView(l *Logger) {
 			imgui.PushIDInt(int32(i))
 			imgui.PushTextWrapPos()
 			imutils.CopyableTextfV(imutils.CopyableTextOptions{
-				TooltipHovered: fnt.I("Content_copy") + " Click to copy this item to clipboard",
+				TooltipHovered: fnt.I.ContentCopy + " Click to copy this item to clipboard",
 				Color:          item.Color,
 			}, "%v", item.Text)
 			imgui.PopID()

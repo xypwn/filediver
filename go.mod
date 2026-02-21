@@ -16,7 +16,6 @@ require (
 	github.com/hellflame/argparse v1.12.2
 	github.com/iancoleman/strcase v0.3.0
 	github.com/jfreymuth/vorbis v1.0.2
-	github.com/juliettef/IconFontCppHeaders v0.0.0-20260213112031-507684addb46
 	github.com/jwalton/go-supportscolor v1.2.0
 	github.com/klauspost/compress v1.18.4
 	github.com/mattn/go-shellwords v1.0.12

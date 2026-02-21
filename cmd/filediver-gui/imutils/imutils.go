@@ -16,7 +16,7 @@ func TextError(err error) {
 	imgui.PushTextWrapPos()
 	CopyableTextfV(
 		CopyableTextOptions{
-			TooltipHovered: fnt.I("Content_copy") + "Click to copy error to clipboard",
+			TooltipHovered: fnt.I.ContentCopy + "Click to copy error to clipboard",
 			Color:          imgui.NewVec4(0.8, 0.5, 0.5, 1),
 		},
 		"Error: %v",
@@ -67,13 +67,13 @@ func CopyableTextfV(opts CopyableTextOptions, format string, args ...any) {
 		if copied {
 			s := opts.TooltipCopied
 			if opts.TooltipCopied == "" {
-				s = fnt.I("Check") + " Copied"
+				s = fnt.I.Check + " Copied"
 			}
 			Textf("%v", s)
 		} else {
 			s := opts.TooltipHovered
 			if opts.TooltipHovered == "" {
-				s = fnt.I("Content_copy") + " Click to copy to clipboard"
+				s = fnt.I.ContentCopy + " Click to copy to clipboard"
 			}
 			Textf("%v", s)
 		}
@@ -263,10 +263,10 @@ func FilePicker(label string, path *string, directory bool) (changed bool) {
 
 	var icon, tooltip string
 	if directory {
-		icon = fnt.I("Folder_open")
+		icon = fnt.I.FolderOpen
 		tooltip = icon + " Choose folder"
 	} else {
-		icon = fnt.I("File_open")
+		icon = fnt.I.FileOpen
 		tooltip = icon + " Choose file"
 	}
 
