@@ -22,6 +22,7 @@ func TextError(err error) {
 		"Error: %v",
 		err,
 	)
+	imgui.PopTextWrapPos()
 }
 
 type CopyableTextOptions struct {
