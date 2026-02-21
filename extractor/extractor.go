@@ -3,7 +3,9 @@ package extractor
 import (
 	"fmt"
 	"io"
+	"slices"
 
+	"github.com/qmuntal/gltf"
 	"github.com/xypwn/filediver/stingray"
 )
 
@@ -91,5 +93,58 @@ func ExtractFuncRawSingleType(extension string, typ stingray.DataType) ExtractFu
 func ExtractFuncRawCombined(extension string) ExtractFunc {
 	return func(ctx *Context) error {
 		return extractCombined(ctx, extension)
+	}
+}
+
+// Blender throws a hissy fit if a node is reachable from multiple places in a scene, so we need to remove
+// child nodes from the scene before saving.
+func ClearChildNodesFromScene(ctx *Context, doc *gltf.Document) {
+	nodesToDelete := make([]uint32, 0)
+	extras, ok := doc.Extras.(map[string]any)
+	if !ok {
+		ctx.Warnf("No extras in doc? (Should not happen unless nothing was exported)")
+		return
+	}
+	for _, node := range doc.Scenes[0].Nodes {
+		nodeMetadata, ok := doc.Nodes[node].Extras.(map[string]any)
+		if !ok {
+			continue
+		}
+		hashIface, contains := nodeMetadata["hash"]
+		if !contains {
+			ctx.Warnf("node %v in scene missing hash information", doc.Nodes[node].Name)
+			continue
+		}
+		hash, ok := hashIface.(string)
+		if !ok {
+			ctx.Warnf("node %v's hash could not be converted to string", doc.Nodes[node].Name)
+			continue
+		}
+		metadataIface, contains := extras[hash]
+		if !contains {
+			ctx.Warnf("node %v's metadata was not present in doc extras", doc.Nodes[node].Name)
+			continue
+		}
+		metadata, ok := metadataIface.(map[string]any)
+		if !ok {
+			ctx.Warnf("node %v's metadata could not be converted", doc.Nodes[node].Name)
+			continue
+		}
+		parentIface, contains := metadata["parent"]
+		if !contains {
+			ctx.Warnf("node %v in scene missing parent information", doc.Nodes[node].Name)
+			continue
+		}
+		if _, ok := parentIface.(uint32); ok {
+			// parent can be converted to uint32, meaning this node is a child node of some other node
+			nodesToDelete = append(nodesToDelete, node)
+		}
+	}
+	for _, node := range nodesToDelete {
+		idx := slices.Index(doc.Scenes[0].Nodes, node)
+		if idx < 0 {
+			continue
+		}
+		doc.Scenes[0].Nodes = append(doc.Scenes[0].Nodes[:idx], doc.Scenes[0].Nodes[idx+1:]...)
 	}
 }

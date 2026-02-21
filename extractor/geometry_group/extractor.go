@@ -52,9 +52,10 @@ func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gl
 	}
 
 	for unitHash, meshInfo := range geoGroup.MeshInfos {
-		f, err := ctx.Open(stingray.NewFileID(unitHash, stingray.Sum("unit")), stingray.DataMain)
+		unitId := stingray.NewFileID(unitHash, stingray.Sum("unit"))
+		f, err := ctx.Open(unitId, stingray.DataMain)
 		if err == stingray.ErrFileNotExist {
-			return fmt.Errorf("%v.unit does not exist", unitHash.String())
+			return fmt.Errorf("%v.unit does not exist", unitId.Name.String())
 		}
 		if err != nil {
 			return err
@@ -66,7 +67,7 @@ func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gl
 		}
 
 		// Load materials
-		materialIdxs, err := extr_unit.AddMaterials(ctx, doc, imgOpts, unitInfo, nil)
+		materialIdxs, err := extr_unit.AddMaterials(ctx.WithFileID(unitId), doc, imgOpts, unitInfo, nil)
 		if err != nil {
 			return err
 		}
@@ -76,7 +77,7 @@ func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gl
 		var skin *uint32 = nil
 		var parent *uint32 = nil
 		if bonesEnabled && len(unitInfo.Bones) > 2 {
-			skin = gltf.Index(extr_unit.AddSkeleton(ctx, doc, unitInfo, unitHash, nil, nil))
+			skin = gltf.Index(extr_unit.AddSkeleton(ctx.WithFileID(unitId), doc, unitInfo, nil, nil))
 			parent = doc.Skins[*skin].Skeleton
 		} else {
 			unitName := ctx.LookupHash(unitHash)
@@ -101,11 +102,11 @@ func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gl
 		}
 
 		var meshNodes []uint32 = make([]uint32, 0)
-		err = geometry.LoadGLTF(ctx, fGPU, doc, unitHash, meshInfos, meshInfo.Bones, geoGroup.MeshLayouts, unitInfo, &meshNodes, materialIdxs, *parent, skin)
+		err = geometry.LoadGLTF(ctx.WithFileID(unitId), fGPU, doc, meshInfos, meshInfo.Bones, geoGroup.MeshLayouts, unitInfo, &meshNodes, materialIdxs, *parent, skin)
 		if err != nil {
 			return err
 		}
-		extr_unit.AddPrefabMetadata(ctx, doc, unitHash, parent, skin, meshNodes, nil)
+		extr_unit.AddPrefabMetadata(ctx.WithFileID(unitId), doc, parent, skin, meshNodes, nil)
 	}
 
 	formatIsBlend := cfg.Model.Format == "blend"
