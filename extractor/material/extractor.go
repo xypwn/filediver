@@ -71,6 +71,37 @@ func postProcessToOpaque(img image.Image) (image.Image, error) {
 
 // Returns a function that uses a specific channel of an emissive map and an emissive color to create
 // a gltf emissive map
+func createPostProcessOpacityClip(ctx *extractor.Context, opacityClipHash stingray.Hash) (func(image.Image) (image.Image, error), error) {
+	opacityClip, err := loadImage(ctx, opacityClipHash)
+	if err != nil {
+		return nil, err
+	}
+
+	opacityClipImage, ok := opacityClip.(*image.NRGBA)
+	if !ok {
+		return nil, fmt.Errorf("failed to convert opacity clip %v to NRGBA texture", opacityClipHash.String())
+	}
+	return func(img image.Image) (image.Image, error) {
+		imgToOpacityX := float32(opacityClipImage.Bounds().Size().X) / float32(img.Bounds().Size().X)
+		imgToOpacityY := float32(opacityClipImage.Bounds().Size().Y) / float32(img.Bounds().Size().Y)
+		switch img := img.(type) {
+		case *image.NRGBA:
+			for iY := img.Rect.Min.Y; iY < img.Rect.Max.Y; iY++ {
+				for iX := img.Rect.Min.X; iX < img.Rect.Max.X; iX++ {
+					idx := img.PixOffset(iX, iY)
+					opacityIdx := opacityClipImage.PixOffset(min(int(float32(iX)*imgToOpacityX), opacityClipImage.Rect.Max.X-1), min(int(float32(iY)*imgToOpacityY), opacityClipImage.Rect.Max.Y-1))
+					img.Pix[idx+3] = opacityClipImage.Pix[opacityIdx]
+				}
+			}
+			return img, nil
+		default:
+			return nil, errors.New("postProcessOpacityClip: unsupported image type")
+		}
+	}, nil
+}
+
+// Returns a function that uses a specific channel of an emissive map and an emissive color to create
+// a gltf emissive map
 func createPostProcessEmissiveColor(color []float32, channel int) (func(image.Image) (image.Image, error), error) {
 	if len(color) < 3 {
 		return nil, fmt.Errorf("createPostProcessEmissiveColor: color %v does not have enough entries", color)
@@ -491,6 +522,22 @@ func compareMaterials(ctx *extractor.Context, doc *gltf.Document, mat *material.
 	return true
 }
 
+func loadImage(ctx *extractor.Context, imgHash stingray.Hash) (image.Image, error) {
+	ddsData, err := extr_texture.ExtractDDSData(ctx, stingray.NewFileID(imgHash, stingray.Sum("texture")))
+	if err != nil {
+		return nil, err
+	}
+	tex, err := dds.Decode(bytes.NewReader(ddsData), false)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(tex.Images) > 1 {
+		tex = dds.StackLayers(tex)
+	}
+	return tex.Image, nil
+}
+
 func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Document, imgOpts *ImageOptions, matName string, unitData *datalib.UnitData) (uint32, error) {
 	cfg := ctx.Config()
 
@@ -611,6 +658,15 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 			emissiveStrength = emissiveStrengthSetting[0]
 			albedoPostProcess = postProcessToOpaque
 		case "base_color_metal_map":
+			opacityClipMapHash, ok := mat.Textures[stingray.Sum("opacity_clip_map").Thin()]
+			if ok {
+				var err error
+				albedoPostProcess, err = createPostProcessOpacityClip(ctx, opacityClipMapHash)
+				if err != nil {
+					albedoPostProcess = postProcessToOpaque
+					ctx.Warnf("failed to create opacity clip postprocess: %v", err)
+				}
+			}
 			index, err := writeTexture(ctx, doc, mat.Textures[texUsage], albedoPostProcess, imgOpts, "")
 			if err != nil {
 				ctx.Warnf("writeTexture: %v: %v", texUsageStr, err)
@@ -1044,6 +1100,19 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 				strength["emissiveStrength"] = 1.0 / emissiveIntensity[0]
 			}
 			doc.Materials[len(doc.Materials)-1].Extensions["KHR_materials_emissive_strength"] = strength
+		}
+	}
+	if len(mat.Settings) != 0 {
+		opacity_threshold, ok := mat.Settings[stingray.Sum("opacity_threshold").Thin()]
+		_, hasClipMap := mat.Textures[stingray.Sum("opacity_clip_map").Thin()]
+		if ok && hasClipMap && opacity_threshold[0] > 0 {
+			doc.Materials[len(doc.Materials)-1].AlphaCutoff = &opacity_threshold[0]
+			doc.Materials[len(doc.Materials)-1].AlphaMode = gltf.AlphaMask
+			doc.Materials[len(doc.Materials)-1].DoubleSided = true
+		} else if ok && !hasClipMap && opacity_threshold[0] > 0 {
+			doc.Materials[len(doc.Materials)-1].AlphaCutoff = &opacity_threshold[0]
+			doc.Materials[len(doc.Materials)-1].AlphaMode = gltf.AlphaBlend
+			doc.Materials[len(doc.Materials)-1].DoubleSided = true
 		}
 	}
 	return uint32(len(doc.Materials) - 1), nil
