@@ -7,8 +7,6 @@ import (
 	"sync"
 
 	"github.com/klauspost/compress/gzip" // ~1.5x as fast as Go's compress/gzip
-
-	icon_fonts "github.com/juliettef/IconFontCppHeaders"
 )
 
 //go:embed NotoSans-Medium.ttf
@@ -77,15 +75,3 @@ var TextFontKRLicense = textFontNotoLicense
 
 //go:embed MaterialSymbolsLicense.txt
 var IconFontLicense string
-
-var IconFontInfo = icon_fonts.IconsMaterialSymbols
-var Icons = IconFontInfo.Icons
-
-// Returns an icon's utf-8 string given a name, panicking if the icon doesn't exist.
-func I(name string) string {
-	s, ok := Icons[name]
-	if !ok {
-		panic("programmer error: invalid icon name: " + name)
-	}
-	return s
-}

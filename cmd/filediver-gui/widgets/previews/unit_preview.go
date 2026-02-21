@@ -892,14 +892,14 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 		},
 	)
 
-	if imgui.Button(fnt.I("Home")) {
+	if imgui.Button(fnt.I.Home) {
 		pv.viewRotation = mgl32.Vec2{}
 		pv.doAutoZoomNextFrame = true
 		pv.animTime = 0
 	}
 	imgui.SetItemTooltip("Reset view")
 	imgui.SameLine()
-	if imgui.Button(fnt.I("Data_object")) {
+	if imgui.Button(fnt.I.DataObject) {
 		imgui.OpenPopupStr("Debug info")
 	}
 	imgui.SetItemTooltip("Mesh debug info...")
@@ -922,7 +922,7 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 
 		imgui.Checkbox("Bounding box", &pv.showAABB)
 		imgui.SameLine()
-		imgui.TextUnformatted(fnt.I("Warning"))
+		imgui.TextUnformatted(fnt.I.Warning)
 		imgui.SetItemTooltip("Bounding boxes are known to sometimes be wrong")
 		imgui.SameLineV(imutils.S(170), -1)
 		imgui.ColorEdit4V("Bounding box color", &pv.aabbColor, colorPickerFlags)
@@ -949,7 +949,7 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 		imgui.EndPopup()
 	}
 	imgui.SameLine()
-	if imgui.Checkbox(fnt.I("All_out")+" Auto-zoom", &pv.autoZoomEnabled) && pv.autoZoomEnabled {
+	if imgui.Checkbox(fnt.I.AllOut+" Auto-zoom", &pv.autoZoomEnabled) && pv.autoZoomEnabled {
 		pv.doAutoZoomNextFrame = true
 	}
 	imgui.SameLine()
@@ -1000,9 +1000,9 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 			}
 			var icon string
 			if selected {
-				icon = fnt.I("Visibility")
+				icon = fnt.I.Visibility
 			} else {
-				icon = fnt.I("Visibility_off")
+				icon = fnt.I.VisibilityOff
 			}
 			imgui.PushIDInt(i)
 			pos := imgui.CursorScreenPos()

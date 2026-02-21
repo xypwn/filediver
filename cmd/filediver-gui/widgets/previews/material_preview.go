@@ -217,11 +217,11 @@ func MaterialPreview(name string, pv *MaterialPreviewState) {
 		imgui.BeginDisabledV(len(pv.textureKeys) < 2)
 		imgui.PushItemFlag(imgui.ItemFlagsNoNav, true)
 		imgui.SetCursorScreenPos(imgui.NewVec2(pos.X+style.ItemSpacing().X, pos.Y+area.Y/2))
-		if imgui.Button(fnt.I("Arrow_left")) {
+		if imgui.Button(fnt.I.ArrowLeft) {
 			cycleTexDelta--
 		}
 		imgui.SetCursorScreenPos(imgui.NewVec2(pos.X+area.X-imgui.FrameHeightWithSpacing()-style.ItemSpacing().X, pos.Y+area.Y/2))
-		if imgui.Button(fnt.I("Arrow_right")) {
+		if imgui.Button(fnt.I.ArrowRight) {
 			cycleTexDelta++
 		}
 		imgui.PopItemFlag()
@@ -263,7 +263,7 @@ func MaterialPreview(name string, pv *MaterialPreviewState) {
 		pv.activeTexture = mod(pv.activeTexture+cycleTexDelta, len(pv.textureKeys))
 	}
 
-	if imgui.Button(fnt.I("Home")) {
+	if imgui.Button(fnt.I.Home) {
 		pv.offset = imgui.NewVec2(0, 0)
 		pv.zoom = 1
 	}

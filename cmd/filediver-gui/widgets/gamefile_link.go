@@ -35,10 +35,10 @@ func GamefileLinkTextF(file stingray.FileID, format string, args ...any) {
 	defer imgui.PopID()
 
 	imutils.CopyableTextfV(imutils.CopyableTextOptions{
-		TooltipCopied: fnt.I("Check") + "Hash copied",
+		TooltipCopied: fnt.I.Check + "Hash copied",
 		TooltipHovered: "File hash: " + file.Name.String() + "\n" +
-			fnt.I("Jump_to_element") + "Left-click to jump to this file in browser\n" +
-			fnt.I("Content_copy") + " Right-click to copy to clipboard",
+			fnt.I.JumpToElement + "Left-click to jump to this file in browser\n" +
+			fnt.I.ContentCopy + " Right-click to copy to clipboard",
 		Btn:           imgui.MouseButtonRight,
 		ClipboardText: file.Name.String(),
 	}, format, args...)

@@ -293,8 +293,8 @@ func WwisePreview(name string, pv *WwisePreviewState) {
 
 						isActionPlay := pv.currentStreamIdx != i || stream.paused // play or pause
 						var (
-							playIcon  = fnt.I("Play_arrow")
-							pauseIcon = fnt.I("Pause")
+							playIcon  = fnt.I.PlayArrow
+							pauseIcon = fnt.I.Pause
 						)
 						var (
 							playBtnID  = imgui.IDStr(playIcon)
@@ -343,7 +343,7 @@ func WwisePreview(name string, pv *WwisePreviewState) {
 						playbackSliderWidth := imgui.ContentRegionAvail().X
 						if len(stream.qualityInfoTextItems) > 0 {
 							style := imgui.CurrentStyle()
-							playbackSliderWidth -= style.ItemSpacing().X + style.FramePadding().X + imgui.CalcTextSize(fnt.I("Info")).X
+							playbackSliderWidth -= style.ItemSpacing().X + style.FramePadding().X + imgui.CalcTextSize(fnt.I.Info).X
 						}
 						imgui.SetNextItemWidth(playbackSliderWidth)
 						if imgui.SliderFloatV("##Time", &playTime, 0, duration, "", 0) {
@@ -368,7 +368,7 @@ func WwisePreview(name string, pv *WwisePreviewState) {
 						}
 						if len(stream.qualityInfoTextItems) > 0 {
 							imgui.SameLine()
-							imgui.TextUnformatted(fnt.I("Info"))
+							imgui.TextUnformatted(fnt.I.Info)
 							imgui.SetNextWindowSize(imutils.SVec2(250, 0))
 							if imgui.BeginItemTooltip() {
 								imgui.PushTextWrapPos()

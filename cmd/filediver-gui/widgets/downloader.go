@@ -153,20 +153,20 @@ func Downloader(title, description string, ds *DownloaderState) {
 			imutils.Textcf(imgui.NewVec4(0.8, 0.8, 0.8, 1), "%v (version: %v, size: %3.1f MiB)", prefix, ds.presentVersion, float32(ds.diskUsage)/mebi)
 		}
 		if ds.presentVersion != ds.info.ResolvedVersion {
-			label := fnt.I("Download") + " Download"
+			label := fnt.I.Download + " Download"
 			if ds.presentVersion != "" {
-				label = fnt.I("Download") + " Update to version " + ds.info.ResolvedVersion
+				label = fnt.I.Download + " Update to version " + ds.info.ResolvedVersion
 			}
 			if ds.err != nil {
 				imutils.TextError(ds.err)
-				label = fnt.I("Download") + " Retry"
+				label = fnt.I.Download + " Retry"
 			}
 			if imgui.ButtonV(label, imgui.NewVec2(-math.SmallestNonzeroFloat32, 0)) {
 				ds.goDownload()
 			}
 		}
 		if ds.presentVersion != "" {
-			if imgui.ButtonV(fnt.I("Delete")+" Delete", imgui.NewVec2(-math.SmallestNonzeroFloat32, 0)) {
+			if imgui.ButtonV(fnt.I.Delete+" Delete", imgui.NewVec2(-math.SmallestNonzeroFloat32, 0)) {
 				imgui.OpenPopupStr("Confirm delete")
 			}
 		}
@@ -204,7 +204,7 @@ func Downloader(title, description string, ds *DownloaderState) {
 			progBarText = fmt.Sprintf("%3.1f/%3.1f MiB", curr/mebi, total/mebi)
 		}
 		imgui.ProgressBarV(progBarProg, imgui.NewVec2(-math.SmallestNonzeroFloat32, 0), progBarText)
-		if imgui.ButtonV(fnt.I("Cancel")+" Cancel", imgui.NewVec2(-math.SmallestNonzeroFloat32, 0)) {
+		if imgui.ButtonV(fnt.I.Cancel+" Cancel", imgui.NewVec2(-math.SmallestNonzeroFloat32, 0)) {
 			ds.cancel()
 		}
 	default:

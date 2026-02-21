@@ -90,7 +90,7 @@ func ConfigEditor(cfg *appconfig.Config, showAdvanced *bool, queryBuf *string) (
 	defer imgui.PopID()
 
 	imgui.SetNextItemWidth(-math.SmallestNonzeroFloat32)
-	imgui.InputTextWithHint("##search", fnt.I("Search")+" Filter options...", queryBuf, 0, nil)
+	imgui.InputTextWithHint("##search", fnt.I.Search+" Filter options...", queryBuf, 0, nil)
 	imgui.Checkbox("Show advanced options", showAdvanced)
 
 	defer imgui.EndChild()
@@ -163,7 +163,7 @@ func ConfigEditor(cfg *appconfig.Config, showAdvanced *bool, queryBuf *string) (
 
 		defaultVal := field.DefaultValue()
 		imgui.BeginDisabledV(valV.Equal(reflect.ValueOf(defaultVal)))
-		if imgui.Button(fnt.I("Undo")) {
+		if imgui.Button(fnt.I.Undo) {
 			valV.Set(reflect.ValueOf(defaultVal))
 			changed = true
 		}

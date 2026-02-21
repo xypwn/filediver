@@ -70,7 +70,7 @@ func (pv *StringsPreviewState) updateShownIDs() {
 
 func StringsPreview(pv *StringsPreviewState) {
 	imgui.SetNextItemWidth(imgui.ContentRegionAvail().X)
-	if imgui.InputTextWithHint("##Search Strings", fnt.I("Search")+" Filter by ID or string...", &pv.queryBuf, 0, nil) {
+	if imgui.InputTextWithHint("##Search Strings", fnt.I.Search+" Filter by ID or string...", &pv.queryBuf, 0, nil) {
 		pv.updateShownIDs()
 	}
 
