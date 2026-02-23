@@ -9,6 +9,7 @@ import (
 	"image/png"
 	"math"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/qmuntal/gltf"
@@ -552,6 +553,43 @@ func loadImage(ctx *extractor.Context, imgHash stingray.Hash) (image.Image, erro
 	return tex.Image, nil
 }
 
+// If the building's vertex shader only reads UV map 0, then the decal UVs are found on UV map 0
+// If both UV maps 0 and 1 are read, then the decal UVs are UV map 1
+func checkBuildingShaderDecalUV(ctx *extractor.Context, mat *material.Material) (uint32, error) {
+	gpuData, err := ctx.Read(stingray.NewFileID(mat.BaseMaterial, stingray.Sum("material")), stingray.DataGPU)
+	if err != nil {
+		return 0, err
+	}
+	materialGpu, err := material.LoadGPU(bytes.NewReader(gpuData))
+	if err != nil {
+		return 0, err
+	}
+
+	inputTexcoordSemanticIndices := make([]uint32, 0)
+	for _, block := range materialGpu.ShaderPrograms.ProgramBlocks {
+		for _, program := range block.Programs {
+			var vertexShader *material.Shader
+			if program.VertexShader != nil {
+				vertexShader = program.VertexShader
+			} else if program.InstancedVertexShader != nil {
+				vertexShader = program.InstancedVertexShader
+			} else {
+				continue
+			}
+			for _, element := range vertexShader.InputSignature.Elements {
+				if element.Name == "TEXCOORD" {
+					inputTexcoordSemanticIndices = append(inputTexcoordSemanticIndices, element.SemanticIndex)
+				}
+			}
+			if slices.Contains(inputTexcoordSemanticIndices, 0) && slices.Contains(inputTexcoordSemanticIndices, 1) {
+				return 1, nil
+			}
+			return 0, nil
+		}
+	}
+	return 0, nil
+}
+
 func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Document, imgOpts *ImageOptions, matName string, unitData *datalib.UnitData) (uint32, error) {
 	cfg := ctx.Config()
 
@@ -1040,13 +1078,26 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 		}
 	}
 
-	usagesToTextureIndices := make(map[string]interface{})
+	materialSettingsAndTextures := make(map[string]interface{})
 	for usage, texIdx := range usedTextures {
-		usagesToTextureIndices[usage] = texIdx
+		materialSettingsAndTextures[usage] = texIdx
 	}
 
 	for setting, value := range mat.Settings {
-		usagesToTextureIndices[ctx.LookupThinHash(setting)] = value
+		materialSettingsAndTextures[ctx.LookupThinHash(setting)] = value
+	}
+
+	_, hasTextureLut := mat.Textures[stingray.Sum("texture_lut").Thin()]
+	_, hasSurfaceDataArray := mat.Textures[stingray.Sum("surface_data_array").Thin()]
+	_, hasDetailData := mat.Textures[stingray.Sum("Detail_Data").Thin()]
+	_, hasDecalSheet := mat.Textures[stingray.Sum("decal_sheet").Thin()]
+	isBuildingMaterial := hasTextureLut && hasSurfaceDataArray && hasDetailData && hasDecalSheet
+	if isBuildingMaterial {
+		decalUVIndex, err := checkBuildingShaderDecalUV(ctx, mat)
+		if err != nil {
+			ctx.Warnf("failed to determine building material's decal uvmap, defaulting to uvmap 0")
+		}
+		materialSettingsAndTextures["filediver_decal_uvmap"] = decalUVIndex
 	}
 
 	doc.Materials = append(doc.Materials, &gltf.Material{
@@ -1059,7 +1110,7 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 		EmissiveFactor:   emissiveFactor,
 		NormalTexture:    normalTexture,
 		OcclusionTexture: occlusionTexture,
-		Extras:           usagesToTextureIndices,
+		Extras:           materialSettingsAndTextures,
 	})
 	if baseColorTexture == nil && colorFactor[3] != 0 {
 		doc.Materials[len(doc.Materials)-1].PBRMetallicRoughness.BaseColorFactor = &colorFactor

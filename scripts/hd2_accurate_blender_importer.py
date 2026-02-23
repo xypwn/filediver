@@ -14,6 +14,7 @@ from bpy.types import (
     Object,
     ShaderNodeGroup,
     ShaderNodeTexImage,
+    ShaderNodeUVMap,
     Material,
     Collection,
     Armature,
@@ -293,6 +294,9 @@ def add_building_material(building_mat: Material, material: dict, textures: Dict
         building_group.inputs[name].default_value = setting
     if "decal_wear" not in material["extras"]:
         config_nodes["Image Texture.002"].image = textures["filediver_unused"]
+    decal_uv_node: ShaderNodeUVMap = object_mat.node_tree.nodes['UV Map']
+    suffix = f'.{material["extras"].get("filediver_decal_uvmap", 0):03d}' if material["extras"].get("filediver_decal_uvmap", 0) > 0 else ""
+    decal_uv_node.uv_map = f"UVMap{suffix}"
 
     print("    Finalizing material")
     return object_mat
