@@ -279,7 +279,7 @@ func AddMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_mate
 		if err != nil {
 			return nil, err
 		}
-		mat, err := material.Load(matR)
+		mat, err := material.LoadMain(matR)
 		if err != nil {
 			return nil, err
 		}

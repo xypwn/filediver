@@ -1128,7 +1128,7 @@ func convertOpts(ctx *extractor.Context, imgOpts *ImageOptions, gltfDoc *gltf.Do
 		return err
 	}
 
-	mat, err := material.Load(fMain)
+	mat, err := material.LoadMain(fMain)
 	if err != nil {
 		return err
 	}
@@ -1306,7 +1306,7 @@ func ConvertTextures(ctx *extractor.Context) error {
 		return err
 	}
 
-	mat, err := material.Load(fMain)
+	mat, err := material.LoadMain(fMain)
 	if err != nil {
 		return err
 	}

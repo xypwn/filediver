@@ -8,6 +8,8 @@ import (
 	d3dops "github.com/xypwn/filediver/stingray/unit/material/d3d/opcodes"
 )
 
+var MAGIC = [4]byte{'D', 'X', 'B', 'C'}
+
 type DXBCHeader struct {
 	Magic      [4]byte
 	Digest     [16]byte
@@ -26,13 +28,43 @@ type DXBC struct {
 	Chunks              []Chunk
 }
 
+func (dxbc *DXBC) Serialize() ([]byte, error) {
+	data, err := binary.Append(nil, binary.LittleEndian, dxbc.DXBCHeader)
+	if err != nil {
+		return nil, err
+	}
+	chunkOffsets := make([]uint32, len(dxbc.Chunks))
+	offset := uint32(len(data) + binary.Size(chunkOffsets))
+
+	for i, chunk := range dxbc.Chunks {
+		chunkOffsets[i] = offset
+		offset = offset + uint32(binary.Size(chunk.ChunkHeader)+len(chunk.Data))
+	}
+	data, err = binary.Append(data, binary.LittleEndian, chunkOffsets)
+	if err != nil {
+		return nil, err
+	}
+	for i, chunk := range dxbc.Chunks {
+		if len(data) != int(chunkOffsets[i]) {
+			return nil, fmt.Errorf("incorrect chunk offset! %v != %v", len(data), int(chunkOffsets[i]))
+		}
+		data, err = binary.Append(data, binary.LittleEndian, chunk.ChunkHeader)
+		if err != nil {
+			return nil, err
+		}
+		data = append(data, chunk.Data...)
+	}
+
+	return data, nil
+}
+
 func ParseDXBC(r io.ReadSeeker) (*DXBC, error) {
 	startOffset, _ := r.Seek(0, io.SeekCurrent)
 	var header DXBCHeader
 	if err := binary.Read(r, binary.LittleEndian, &header); err != nil {
 		return nil, fmt.Errorf("read header: %v", err)
 	}
-	if header.Magic != [4]byte{'D', 'X', 'B', 'C'} {
+	if header.Magic != MAGIC {
 		return nil, fmt.Errorf("not a DXBC file")
 	}
 
@@ -48,7 +80,7 @@ func ParseDXBC(r io.ReadSeeker) (*DXBC, error) {
 
 	for _, offset := range chunkOffsets {
 		_, err := r.Seek(startOffset+int64(offset), io.SeekStart)
-		fmt.Printf("Seeking offset 0x%08x\n", startOffset+int64(offset))
+		//fmt.Printf("Seeking offset 0x%08x\n", startOffset+int64(offset))
 		if err != nil {
 			return nil, fmt.Errorf("seek offset 0x%08x: %v", startOffset+int64(offset), err)
 		}
@@ -66,6 +98,7 @@ func ParseDXBC(r io.ReadSeeker) (*DXBC, error) {
 		case [4]byte{'S', 'H', 'E', 'X'}:
 			shex, err := SHEXFromChunk(chunk)
 			if err != nil {
+				fmt.Printf("error: %v\n", err)
 				toReturn.Chunks = append(toReturn.Chunks, *chunk)
 				continue
 			}
@@ -76,41 +109,46 @@ func ParseDXBC(r io.ReadSeeker) (*DXBC, error) {
 				return nil, fmt.Errorf("ISG1FromChunk: %v", err)
 			}
 			toReturn.InputSignature = *isg1
+		case [4]byte{'I', 'S', 'G', 'N'}:
+			isg1, err := ISGNFromChunk(chunk)
+			if err != nil {
+				return nil, fmt.Errorf("ISGNFromChunk: %v", err)
+			}
+			toReturn.InputSignature = *isg1
 		case [4]byte{'O', 'S', 'G', '1'}:
 			osg1, err := OSG1FromChunk(chunk)
 			if err != nil {
 				return nil, fmt.Errorf("OSG1FromChunk: %v", err)
 			}
 			toReturn.OutputSignature = *osg1
-		default:
-			toReturn.Chunks = append(toReturn.Chunks, *chunk)
+		case [4]byte{'O', 'S', 'G', 'N'}:
+			osg1, err := OSGNFromChunk(chunk)
+			if err != nil {
+				return nil, fmt.Errorf("OSGNFromChunk: %v", err)
+			}
+			toReturn.OutputSignature = *osg1
 		}
+		toReturn.Chunks = append(toReturn.Chunks, *chunk)
 	}
 	return toReturn, nil
 }
 
 func (d *DXBC) ToGLSL() string {
-	toReturn := "#version 420 core\n\n"
+	d3dops.EncounteredBFI = false
+	d3dops.CreatedTemp = false
+	toReturn := "#version 430 core\n\n"
 
 	for i, cbuf := range d.ResourceDefinitions.ConstantBuffers {
-		toReturn += fmt.Sprintf("/* Constant Buffer %v: %v\n", i, cbuf.Name)
-		toReturn += fmt.Sprintf(" * Type: %v\n", cbuf.Type.ToString())
-		toReturn += fmt.Sprintf(" * Size: %v\n", cbuf.Size)
-		toReturn += fmt.Sprintf(" * Flags: %v\n", cbuf.Flags.ToString())
-		toReturn += " */\n"
-		toReturn += fmt.Sprintf("layout(binding = %v) uniform %v {\n", i, cbuf.Name)
-		for _, variable := range cbuf.Variables {
-			toReturn += fmt.Sprintf("    %v\n", variable.ToGLSL())
-		}
-		toReturn += "}\n\n"
+		toReturn += cbuf.ToGLSL(i)
+		toReturn += "\n\n"
 	}
 
 	for _, rbind := range d.ResourceDefinitions.ResourceBindings {
 		toReturn += rbind.ToGLSL()
 	}
 
-	toReturn += d.InputSignature.ToGLSL()
-	toReturn += d.OutputSignature.ToGLSL()
+	toReturn += d.InputSignature.ToGLSL(d.ShaderCode.ProgramType)
+	toReturn += d.OutputSignature.ToGLSL(d.ShaderCode.ProgramType)
 
 	toReturn += fmt.Sprintf("// Program type: %v\n", d.ShaderCode.ProgramType.ToString())
 
@@ -123,10 +161,10 @@ func (d *DXBC) ToGLSL() string {
 }
 
 func getGLSL(opcode d3dops.Opcode, cbs []d3dops.ConstantBuffer, isg, osg []d3dops.Element, res []d3dops.ResourceBinding) string {
-	defer func() {
-		if r := recover(); r != nil {
-			fmt.Println(r)
-		}
-	}()
+	// defer func() {
+	// 	if r := recover(); r != nil {
+	// 		fmt.Println(r)
+	// 	}
+	// }()
 	return opcode.ToGLSL(cbs, isg, osg, res)
 }

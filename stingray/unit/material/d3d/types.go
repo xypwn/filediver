@@ -57,7 +57,7 @@ type ShaderVersion struct {
 	Major uint8
 }
 
-type RawElement struct {
+type RawOldElement struct {
 	_             uint32
 	NameOffset    uint32
 	SemanticIndex uint32
@@ -70,6 +70,17 @@ type RawElement struct {
 	_             uint32
 }
 
+type RawElement struct {
+	NameOffset    uint32
+	SemanticIndex uint32
+	SystemValue   d3dops.SystemValueType
+	ComponentType d3dops.RegisterComponentType
+	Register      uint32
+	Mask          uint8
+	RWMask        uint8
+	_             [2]byte
+}
+
 type ChunkHeader struct {
 	Name [4]byte
 	Size uint32
@@ -80,9 +91,19 @@ type RDEF struct {
 	ConstantBuffers  []d3dops.ConstantBuffer
 	ResourceBindings []d3dops.ResourceBinding
 	Version          ShaderVersion
-	ProgramType      ShaderProgramType
+	ProgramType      d3dops.ShaderProgramType
 	Flags            ShaderFlags
 	Creator          string
+}
+
+func (r RDEF) Count(typ d3dops.ShaderInputType) uint32 {
+	toReturn := uint32(0)
+	for _, rb := range r.ResourceBindings {
+		if rb.InputType == typ {
+			toReturn++
+		}
+	}
+	return toReturn
 }
 
 type ISG1 struct {
@@ -90,10 +111,10 @@ type ISG1 struct {
 	Elements []d3dops.Element
 }
 
-func (i ISG1) ToGLSL() string {
+func (i ISG1) ToGLSL(shaderType d3dops.ShaderProgramType) string {
 	toReturn := "// Input Signature\n"
 	for _, element := range i.Elements {
-		toReturn += fmt.Sprintf("%v\n", element.ToGLSL(true))
+		toReturn += fmt.Sprintf("%v\n", element.ToGLSL(true, shaderType))
 	}
 	return toReturn + "\n"
 }
@@ -103,10 +124,10 @@ type OSG1 struct {
 	Elements []d3dops.Element
 }
 
-func (o OSG1) ToGLSL() string {
+func (o OSG1) ToGLSL(shaderType d3dops.ShaderProgramType) string {
 	toReturn := "// Output Signature\n"
 	for _, element := range o.Elements {
-		toReturn += fmt.Sprintf("%v\n", element.ToGLSL(false))
+		toReturn += fmt.Sprintf("%v\n", element.ToGLSL(false, shaderType))
 	}
 	return toReturn + "\n"
 }
@@ -114,7 +135,7 @@ func (o OSG1) ToGLSL() string {
 type SHEX struct {
 	ChunkHeader
 	Version     ShaderVersion
-	ProgramType ShaderProgramType
+	ProgramType d3dops.ShaderProgramType
 	Opcodes     []d3dops.Opcode
 }
 
@@ -217,7 +238,7 @@ func RDEFFromChunk(chunk *Chunk) (*RDEF, error) {
 	if err := binary.Read(r, binary.LittleEndian, &version); err != nil {
 		return nil, err
 	}
-	var programType ShaderProgramType
+	var programType d3dops.ShaderProgramType
 	if err := binary.Read(r, binary.LittleEndian, &programType); err != nil {
 		return nil, err
 	}
@@ -292,7 +313,7 @@ func SHEXFromChunk(chunk *Chunk) (*SHEX, error) {
 	}
 	// Skip a byte
 	r.Seek(1, io.SeekCurrent)
-	var programType ShaderProgramType
+	var programType d3dops.ShaderProgramType
 	if err := binary.Read(r, binary.LittleEndian, &programType); err != nil {
 		return nil, err
 	}
@@ -336,7 +357,7 @@ func ISG1FromChunk(chunk *Chunk) (*ISG1, error) {
 	}
 
 	r.Seek(int64(elementArrayOffset), io.SeekStart)
-	rawElements := make([]RawElement, count)
+	rawElements := make([]RawOldElement, count)
 	if err := binary.Read(r, binary.LittleEndian, &rawElements); err != nil {
 		return nil, err
 	}
@@ -375,12 +396,63 @@ func OSG1FromChunk(chunk *Chunk) (*OSG1, error) {
 	}, nil
 }
 
+func ISGNFromChunk(chunk *Chunk) (*ISG1, error) {
+	r := bytes.NewReader(chunk.Data)
+	var count uint32
+	if err := binary.Read(r, binary.LittleEndian, &count); err != nil {
+		return nil, err
+	}
+	var elementArrayOffset uint32
+	if err := binary.Read(r, binary.LittleEndian, &elementArrayOffset); err != nil {
+		return nil, err
+	}
+
+	r.Seek(int64(elementArrayOffset), io.SeekStart)
+	rawElements := make([]RawElement, count)
+	if err := binary.Read(r, binary.LittleEndian, &rawElements); err != nil {
+		return nil, err
+	}
+
+	elements := make([]d3dops.Element, 0)
+	for _, rawElem := range rawElements {
+		r.Seek(int64(rawElem.NameOffset), io.SeekStart)
+		name, err := util.ReadCString(r)
+		if err != nil {
+			return nil, fmt.Errorf("util.ReadCString: %v", err)
+		}
+		elements = append(elements, d3dops.Element{
+			Name:          *name,
+			SemanticIndex: rawElem.SemanticIndex,
+			SystemValue:   rawElem.SystemValue,
+			ComponentType: rawElem.ComponentType,
+			Register:      rawElem.Register,
+			Mask:          rawElem.Mask,
+			RWMask:        rawElem.RWMask,
+		})
+	}
+	return &ISG1{
+		ChunkHeader: chunk.ChunkHeader,
+		Elements:    elements,
+	}, nil
+}
+
+func OSGNFromChunk(chunk *Chunk) (*OSG1, error) {
+	isg1, err := ISGNFromChunk(chunk)
+	if err != nil {
+		return nil, err
+	}
+	return &OSG1{
+		ChunkHeader: isg1.ChunkHeader,
+		Elements:    isg1.Elements,
+	}, nil
+}
+
 func ParseChunk(r io.Reader) (*Chunk, error) {
 	var header ChunkHeader
 	if err := binary.Read(r, binary.LittleEndian, &header); err != nil {
 		return nil, fmt.Errorf("read header: %v", err)
 	}
-	fmt.Printf("chunk header:\n    name: %v\n    size: %v\n", string(header.Name[:]), header.Size)
+	// fmt.Printf("chunk header:\n    name: %v\n    size: %v\n", string(header.Name[:]), header.Size)
 	data := make([]uint8, header.Size)
 	if err := binary.Read(r, binary.LittleEndian, &data); err != nil {
 		return nil, fmt.Errorf("read data: %v", err)
