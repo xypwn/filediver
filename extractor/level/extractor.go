@@ -190,7 +190,11 @@ func ConvertOpts(ctx *extractor.Context, gltfDoc *gltf.Document) error {
 	}
 	doc.Extras = extras
 
-	for _, prefab := range levelData.Prefabs {
+	for idx, prefab := range levelData.Prefabs {
+		if ctx.FileID() == ctx.RootFileID() {
+			percentComplete := 100 * float32(idx+1) / float32(len(levelData.Units)+len(levelData.Prefabs))
+			ctx.Statusf("%.2f%% - %v.prefab", percentComplete, ctx.LookupHash(prefab.Path))
+		}
 		prefabId := stingray.NewFileID(prefab.Path, stingray.Sum("prefab"))
 		node, err := extr_prefab.AddPrefab(ctx.WithFileID(prefabId), doc, imgOpts)
 		if err != nil {
@@ -227,7 +231,11 @@ func ConvertOpts(ctx *extractor.Context, gltfDoc *gltf.Document) error {
 		doc.Nodes[levelIdx].Children = append(doc.Nodes[levelIdx].Children, node)
 	}
 
-	for _, unit := range levelData.Units {
+	for idx, unit := range levelData.Units {
+		if ctx.FileID() == ctx.RootFileID() {
+			percentComplete := 100 * float32(idx+1+len(levelData.Prefabs)) / float32(len(levelData.Units)+len(levelData.Prefabs))
+			ctx.Statusf("%.2f%% - %v.unit", percentComplete, ctx.LookupHash(unit.Path))
+		}
 		unitId := stingray.NewFileID(unit.Path, stingray.Sum("unit"))
 		err := extr_prefab.AddOrDuplicateUnit(ctx.WithFileID(unitId), doc, imgOpts, &unit, levelIdx)
 		if err != nil {
@@ -239,6 +247,7 @@ func ConvertOpts(ctx *extractor.Context, gltfDoc *gltf.Document) error {
 
 	formatIsBlend := cfg.Model.Format == "blend"
 	if gltfDoc == nil && !formatIsBlend {
+		ctx.Statusf("Creating glb file...")
 		out, err := ctx.CreateFile(".level.glb")
 		if err != nil {
 			return err
@@ -248,6 +257,7 @@ func ConvertOpts(ctx *extractor.Context, gltfDoc *gltf.Document) error {
 			return err
 		}
 	} else if gltfDoc == nil && formatIsBlend {
+		ctx.Statusf("Creating blend file...")
 		outPath, err := ctx.AllocateFile(".level.blend")
 		if err != nil {
 			return err
@@ -257,6 +267,7 @@ func ConvertOpts(ctx *extractor.Context, gltfDoc *gltf.Document) error {
 			return err
 		}
 	}
+	ctx.Statusf("Done")
 	return nil
 }
 

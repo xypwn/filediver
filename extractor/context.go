@@ -36,6 +36,7 @@ type Context struct {
 	outPath            string
 	selectedArchives   []stingray.Hash
 	warnf              func(format string, args ...any)
+	statusf            func(format string, args ...any)
 
 	// Main file ID to extract
 	fileID stingray.FileID
@@ -67,6 +68,7 @@ func NewContext(
 	outPath string,
 	selectedArchives []stingray.Hash,
 	warnf func(format string, args ...any),
+	statusf func(format string, args ...any),
 ) (_ *Context, getFiles func() []string) {
 	c := &Context{
 		ctx:                ctx,
@@ -83,6 +85,7 @@ func NewContext(
 		outPath:            outPath,
 		selectedArchives:   selectedArchives,
 		warnf:              warnf,
+		statusf:            statusf,
 
 		fileID:     fileID,
 		rootFileID: fileID,
@@ -112,6 +115,7 @@ func (c *Context) WithFileID(newFileID stingray.FileID) *Context {
 		outPath:            c.outPath,
 		selectedArchives:   c.selectedArchives,
 		warnf:              c.warnf,
+		statusf:            c.statusf,
 
 		fileID:     newFileID,
 		rootFileID: c.rootFileID,
@@ -243,6 +247,12 @@ func (c *Context) WeaponPaintSchemes() []datalib.WeaponCustomizableItem {
 // can continue.
 func (c *Context) Warnf(format string, args ...any) {
 	c.warnf(format, args...)
+}
+
+// Statusf logs a user-visible info message.
+// Use this to display progress in long running extractions
+func (c *Context) Statusf(format string, args ...any) {
+	c.statusf(format, args...)
 }
 
 // LookupHash returns the cracked hash (if known), or the hex representation otherwise.

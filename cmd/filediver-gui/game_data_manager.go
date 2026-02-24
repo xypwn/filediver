@@ -175,13 +175,14 @@ func (gd *GameData) GoExport(extractCtx context.Context, files []stingray.FileID
 			ex.Lock()
 			ex.CurrentFileName = currFileName
 			ex.Unlock()
+			statusf := func(_ string, _ ...any) {}
 			printer.Statusf("File: %v", currFileName)
 
 			var gltfDoc *gltf.Document
 			if doc, ok := documents[gd.LookupHash(fileID.Type)]; ok {
 				gltfDoc = doc
 			}
-			_, err := gd.ExtractFile(extractCtx, fileID, outDir, cfg, runner, gltfDoc, archiveIDs, printer)
+			_, err := gd.ExtractFile(extractCtx, fileID, outDir, cfg, runner, gltfDoc, archiveIDs, printer, statusf)
 			if err != nil {
 				if canceled := handleErr(err); canceled {
 					break

@@ -573,7 +573,7 @@ func getSourceExtractFunc(extrCfg appconfig.Config, typ string) (extr extractor.
 }
 
 // Returns path to extracted file/directory.
-func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string, extrCfg appconfig.Config, runner *exec.Runner, gltfDoc *gltf.Document, archiveIDs []stingray.Hash, printer Printer) ([]string, error) {
+func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string, extrCfg appconfig.Config, runner *exec.Runner, gltfDoc *gltf.Document, archiveIDs []stingray.Hash, printer Printer, statusf func(format string, args ...any)) ([]string, error) {
 	if ctxErr := ctx.Err(); errors.Is(ctxErr, context.Canceled) {
 		return nil, ctxErr
 	}
@@ -674,6 +674,7 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 			name, typ := a.LookupHash(id.Name), a.LookupHash(id.Type)
 			printer.Warnf("extract %v.%v: %v", name, typ, fmt.Sprintf(format, args...))
 		},
+		statusf,
 	)
 	err := extr(extrCtx)
 	outFiles := getOutFiles()

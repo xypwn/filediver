@@ -211,7 +211,11 @@ func AddPrefab(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_materia
 	}
 	doc.Extras = extras
 
-	for _, object := range prefabData.Units {
+	for idx, object := range prefabData.Units {
+		if ctx.FileID() == ctx.RootFileID() {
+			percentComplete := 100 * float32(idx+1) / float32(len(prefabData.Units)+len(prefabData.NestedPrefabs))
+			ctx.Statusf("%.2f%% - %v.unit", percentComplete, ctx.LookupHash(object.Path))
+		}
 		unitId := stingray.NewFileID(object.Unit(), stingray.Sum("unit"))
 		err := AddOrDuplicateUnit(ctx.WithFileID(unitId), doc, imgOpts, &object, prefabRoot)
 		if err != nil {
@@ -219,7 +223,11 @@ func AddPrefab(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_materia
 		}
 	}
 
-	for _, nested := range prefabData.NestedPrefabs {
+	for idx, nested := range prefabData.NestedPrefabs {
+		if ctx.FileID() == ctx.RootFileID() {
+			percentComplete := 100 * float32(idx+1+len(prefabData.Units)) / float32(len(prefabData.Units)+len(prefabData.NestedPrefabs))
+			ctx.Statusf("%.2f%% - %v.prefab", percentComplete, ctx.LookupHash(nested.Path))
+		}
 		nestedId := stingray.NewFileID(nested.Path, stingray.Sum("prefab"))
 		root, err := AddPrefab(ctx.WithFileID(nestedId), doc, imgOpts)
 		if err != nil {
@@ -284,6 +292,7 @@ func ConvertOpts(ctx *extractor.Context, gltfDoc *gltf.Document) error {
 
 	formatIsBlend := cfg.Model.Format == "blend"
 	if gltfDoc == nil && !formatIsBlend {
+		ctx.Statusf("Creating glb file...")
 		out, err := ctx.CreateFile(".prefab.glb")
 		if err != nil {
 			return err
@@ -293,6 +302,7 @@ func ConvertOpts(ctx *extractor.Context, gltfDoc *gltf.Document) error {
 			return err
 		}
 	} else if gltfDoc == nil && formatIsBlend {
+		ctx.Statusf("Creating blend file...")
 		outPath, err := ctx.AllocateFile(".prefab.blend")
 		if err != nil {
 			return err
@@ -302,6 +312,7 @@ func ConvertOpts(ctx *extractor.Context, gltfDoc *gltf.Document) error {
 			return err
 		}
 	}
+	ctx.Statusf("Done")
 	return nil
 }
 
