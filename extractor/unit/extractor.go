@@ -49,7 +49,6 @@ func LoadBoneMap(ctx *extractor.Context, unitInfo *unit.Info) (*bones.Info, erro
 
 // Adds the unit's skeleton to the gltf document
 func AddSkeleton(ctx *extractor.Context, doc *gltf.Document, unitInfo *unit.Info, armorName *string, passive *datalib.HelldiverCustomizationPassiveBonusSettings) uint32 {
-	ctx.Warnf("unit: adding skeleton %v", ctx.LookupHash(ctx.FileID().Name))
 	boneInfo, err := LoadBoneMap(ctx, unitInfo)
 	if err != nil {
 		ctx.Warnf("addSkeleton: %v", err)
@@ -95,6 +94,10 @@ func AddSkeleton(ctx *extractor.Context, doc *gltf.Document, unitInfo *unit.Info
 	}
 
 	skeletonId := unitInfo.Bones[2].NameHash.Value
+	if ctx.RootFileID().Type == stingray.Sum("prefab") || ctx.RootFileID().Type == stingray.Sum("level") {
+		// Only copy skeletons of other matching units in the prefab/level
+		skeletonId = ctx.FileID().Name.Thin().Value
+	}
 	var skeletonTag map[string]any = make(map[string]any)
 	skeletonTag["skeletonId"] = skeletonId
 	if armorName != nil {

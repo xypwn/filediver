@@ -2,6 +2,13 @@ package stingray
 
 import "github.com/go-gl/mathgl/mgl32"
 
+var ToGLTFMatrix mgl32.Mat4 = mgl32.Mat4([16]float32{
+	1, 0, 0, 0,
+	0, 0, -1, 0,
+	0, 1, 0, 0,
+	0, 0, 0, 1,
+})
+
 type Transform struct {
 	PositionVec mgl32.Vec3 `json:"position"`
 	RotationVec mgl32.Vec4 `json:"rotation"`
@@ -33,21 +40,5 @@ func (o *Transform) SetScale(v mgl32.Vec3) {
 }
 
 func (o *Transform) ToGLTF() (mgl32.Vec3, mgl32.Vec4, mgl32.Vec3) {
-	// // Convert to glTF coords
-	// p := o.PositionVec[:]
-	// p[1], p[2] = p[2], -p[1]
-
-	// r := o.RotationVec[:]
-	// r[1], r[2] = r[2], -r[1]
-
-	// s := o.ScaleVec[:]
-	gltfMatrix := mgl32.Mat4([16]float32{
-		1, 0, 0, 0,
-		0, 0, 1, 0,
-		0, -1, 0, 0,
-		0, 0, 0, 1,
-	})
-	// return gltfMatrix.Mul4x1(o.PositionVec.Vec4(1)).Vec3(), o.RotationVec, o.ScaleVec
-	rotationVec := gltfMatrix.Mul4x1(o.RotationVec)
-	return gltfMatrix.Mul4x1(o.PositionVec.Vec4(1)).Vec3(), rotationVec, o.ScaleVec
+	return ToGLTFMatrix.Mul4x1(o.PositionVec.Vec4(1)).Vec3(), ToGLTFMatrix.Mul4x1(o.RotationVec), mgl32.Vec3{o.ScaleVec[0], o.ScaleVec[2], o.ScaleVec[1]}
 }

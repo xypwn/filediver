@@ -40,6 +40,9 @@ type Context struct {
 	// Main file ID to extract
 	fileID stingray.FileID
 
+	// Initial file ID the root context was created with
+	rootFileID stingray.FileID
+
 	// Files created by the extractor so far
 	files []string
 }
@@ -81,7 +84,8 @@ func NewContext(
 		selectedArchives:   selectedArchives,
 		warnf:              warnf,
 
-		fileID: fileID,
+		fileID:     fileID,
+		rootFileID: fileID,
 	}
 	return c, func() []string { return c.files }
 }
@@ -109,13 +113,19 @@ func (c *Context) WithFileID(newFileID stingray.FileID) *Context {
 		selectedArchives:   c.selectedArchives,
 		warnf:              c.warnf,
 
-		fileID: newFileID,
+		fileID:     newFileID,
+		rootFileID: c.rootFileID,
 	}
 }
 
 // FileID gets the ID of the current file to be extracted.
 func (c *Context) FileID() stingray.FileID {
 	return c.fileID
+}
+
+// RootFileID gets the ID of the root file to be extracted.
+func (c *Context) RootFileID() stingray.FileID {
+	return c.rootFileID
 }
 
 // Open opens the specified game file.

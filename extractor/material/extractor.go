@@ -9,6 +9,7 @@ import (
 	"image/png"
 	"math"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/qmuntal/gltf"
@@ -1070,6 +1071,9 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 		} else if emissiveStrength != 0.0 {
 			strength["emissiveStrength"] = 1.0 / emissiveStrength
 		}
+		if !slices.Contains(doc.ExtensionsUsed, "KHR_materials_emissive_strength") {
+			doc.ExtensionsUsed = append(doc.ExtensionsUsed, "KHR_materials_emissive_strength")
+		}
 		doc.Materials[len(doc.Materials)-1].Extensions["KHR_materials_emissive_strength"] = strength
 	}
 	if len(mat.Textures) == 0 && len(mat.Settings) != 0 {
@@ -1098,6 +1102,9 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 				strength["emissiveStrength"] = emissiveIntensity[0]
 			} else if emissiveIntensity[0] != 0.0 {
 				strength["emissiveStrength"] = 1.0 / emissiveIntensity[0]
+			}
+			if !slices.Contains(doc.ExtensionsUsed, "KHR_materials_emissive_strength") {
+				doc.ExtensionsUsed = append(doc.ExtensionsUsed, "KHR_materials_emissive_strength")
 			}
 			doc.Materials[len(doc.Materials)-1].Extensions["KHR_materials_emissive_strength"] = strength
 		}

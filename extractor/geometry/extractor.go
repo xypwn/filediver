@@ -860,6 +860,10 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, me
 				continue
 			}
 
+			if strings.Contains(materialName, "shadow") && !cfg.Model.IncludeLODS {
+				continue
+			}
+
 			// Add geometry data accessors
 			doc.Accessors = append(doc.Accessors, &gltf.Accessor{
 				BufferView:    indexAccessor.BufferView,
@@ -909,14 +913,8 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, me
 			}
 
 			// Transform coordinates into glTF ones
-			fbxTransformMatrix := mgl32.Mat4([16]float32{
-				1, 0, 0, 0,
-				0, 0, 1, 0,
-				0, -1, 0, 0,
-				0, 0, 0, 1,
-			})
 			if fbxConvertIdx == -1 {
-				transformMatrix = fbxTransformMatrix.Mul4(transformMatrix)
+				transformMatrix = stingray.ToGLTFMatrix.Mul4(transformMatrix)
 			}
 
 			if positionAccessor, contains := groupAttr[gltf.POSITION]; contains {

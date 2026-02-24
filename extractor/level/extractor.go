@@ -10,7 +10,6 @@ import (
 	"github.com/xypwn/filediver/extractor/blend_helper"
 	extr_material "github.com/xypwn/filediver/extractor/material"
 	extr_prefab "github.com/xypwn/filediver/extractor/prefab"
-	extr_unit "github.com/xypwn/filediver/extractor/unit"
 	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/stingray/level"
 )
@@ -134,6 +133,10 @@ func ExtractLevelJSON(ctx *extractor.Context) error {
 	return nil
 }
 
+func GetLevelExtrasID(fileId stingray.FileID) string {
+	return fileId.Name.String() + ".level"
+}
+
 func ConvertOpts(ctx *extractor.Context, gltfDoc *gltf.Document) error {
 	cfg := ctx.Config()
 	if cfg.Level.Format == "json" {
@@ -167,14 +170,27 @@ func ConvertOpts(ctx *extractor.Context, gltfDoc *gltf.Document) error {
 		})
 	}
 
+	extras, ok := doc.Extras.(map[string]any)
+	if !ok {
+		extras = make(map[string]any)
+	}
+
 	levelIdx := uint32(len(doc.Nodes))
 	doc.Nodes = append(doc.Nodes, &gltf.Node{
 		Name:     ctx.LookupHash(ctx.FileID().Name) + ".level",
 		Children: make([]uint32, 0),
+		Extras: map[string]any{
+			"node": levelIdx,
+			"hash": GetLevelExtrasID(ctx.FileID()),
+		},
 	})
+	doc.Scenes[0].Nodes = append(doc.Scenes[0].Nodes, levelIdx)
+	extras[GetLevelExtrasID(ctx.FileID())] = map[string]any{
+		"parent": nil,
+	}
+	doc.Extras = extras
 
 	for _, prefab := range levelData.Prefabs {
-		ctx.Warnf("level: adding prefab %v", ctx.LookupHash(prefab.Path))
 		prefabId := stingray.NewFileID(prefab.Path, stingray.Sum("prefab"))
 		node, err := extr_prefab.AddPrefab(ctx.WithFileID(prefabId), doc, imgOpts)
 		if err != nil {
@@ -198,7 +214,6 @@ func ConvertOpts(ctx *extractor.Context, gltfDoc *gltf.Document) error {
 		}
 		if _, ok := parentIface.(uint32); !ok {
 			// parent was nil
-			ctx.Warnf("Setting prefab parent to level")
 			prefabMetadata["parent"] = levelIdx
 			extras[extr_prefab.GetPrefabExtrasID(prefabId)] = prefabMetadata
 			doc.Extras = extras
@@ -209,42 +224,15 @@ func ConvertOpts(ctx *extractor.Context, gltfDoc *gltf.Document) error {
 		doc.Nodes[node].Rotation = rotation
 		doc.Nodes[node].Scale = scale
 
+		doc.Nodes[levelIdx].Children = append(doc.Nodes[levelIdx].Children, node)
 	}
 
 	for _, unit := range levelData.Units {
-		ctx.Warnf("level: adding unit %v", ctx.LookupHash(unit.Path))
 		unitId := stingray.NewFileID(unit.Path, stingray.Sum("unit"))
-		node, err := extr_prefab.AddOrDuplicateUnit(ctx.WithFileID(unitId), doc, imgOpts)
+		err := extr_prefab.AddOrDuplicateUnit(ctx.WithFileID(unitId), doc, imgOpts, &unit, levelIdx)
 		if err != nil {
 			return err
 		}
-		extras, ok := doc.Extras.(map[string]any)
-		if !ok {
-			return fmt.Errorf("unit export did not add extras? (should not happen)")
-		}
-		unitMetadataIface, contains := extras[extr_unit.GetUnitExtrasID(unitId)]
-		if !contains {
-			return fmt.Errorf("unit export did not add metadata? (should not happen)")
-		}
-		unitMetadata, ok := unitMetadataIface.(map[string]any)
-		if !ok {
-			return fmt.Errorf("unit metadata could not be converted? (should not happen)")
-		}
-		parentIface, contains := unitMetadata["parent"]
-		if !contains {
-			return fmt.Errorf("unit parent was not added? (should not happen)")
-		}
-		if _, ok := parentIface.(uint32); !ok {
-			// parent was nil
-			ctx.Warnf("Setting unit parent to level")
-			unitMetadata["parent"] = levelIdx
-			extras[extr_unit.GetUnitExtrasID(unitId)] = unitMetadata
-			doc.Extras = extras
-		}
-		position, rotation, scale := unit.ToGLTF()
-		doc.Nodes[node].Translation = position
-		doc.Nodes[node].Rotation = rotation
-		doc.Nodes[node].Scale = scale
 	}
 
 	extractor.ClearChildNodesFromScene(ctx, doc)
