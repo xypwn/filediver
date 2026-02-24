@@ -1,10 +1,12 @@
 package prefab
 
 import (
+	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
 
+	"github.com/go-gl/mathgl/mgl32"
 	"github.com/qmuntal/gltf"
 	"github.com/xypwn/filediver/extractor"
 	"github.com/xypwn/filediver/extractor/blend_helper"
@@ -13,6 +15,84 @@ import (
 	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/stingray/prefab"
 )
+
+type SimpleHeader struct {
+	UnkHash    string `json:"unk_hash"`
+	PrefabHash string `json:"name"`
+}
+
+type SimpleUnit struct {
+	UnkHash0 string `json:"unk_hash_0"`
+	Path     string `json:"path"`
+	UnkHash1 string `json:"unk_hash_1"`
+	UnkHash2 string `json:"unk_hash_2"`
+	stingray.Transform
+	UnkRotation mgl32.Vec4 `json:"unk_rotation"`
+	Index       uint32     `json:"index"`
+}
+
+type SimpleNestedPrefab struct {
+	UnkInt  uint32 `json:"unk_int"`
+	UnkHash string `json:"unk_hash"`
+	Path    string `json:"path"`
+	stingray.Transform
+	UnkFloats mgl32.Vec3 `json:"unk_floats"`
+}
+
+type SimplePrefab struct {
+	Name    string               `json:"name"`
+	Units   []SimpleUnit         `json:"units"`
+	Prefabs []SimpleNestedPrefab `json:"prefabs"`
+}
+
+func ExtractPrefabJSON(ctx *extractor.Context) error {
+	r, err := ctx.Open(ctx.FileID(), stingray.DataMain)
+	if err != nil {
+		return err
+	}
+	prefabData, err := prefab.Load(r)
+	if err != nil {
+		return err
+	}
+	units := make([]SimpleUnit, 0)
+	for _, unit := range prefabData.Units {
+		units = append(units, SimpleUnit{
+			UnkHash0:    ctx.LookupHash(stingray.Hash{Value: unit.Unk00}),
+			Path:        ctx.LookupHash(unit.Path),
+			UnkHash1:    ctx.LookupHash(stingray.Hash{Value: unit.Unk01}),
+			UnkHash2:    ctx.LookupHash(stingray.Hash{Value: unit.Unk02}),
+			Transform:   unit.Transform,
+			UnkRotation: unit.UnkFloats,
+			Index:       unit.Index,
+		})
+	}
+	prefabs := make([]SimpleNestedPrefab, 0)
+	for _, prefab := range prefabData.NestedPrefabs {
+		prefabs = append(prefabs, SimpleNestedPrefab{
+			UnkInt:    prefab.UnkInt,
+			UnkHash:   ctx.LookupHash(prefab.UnkHash),
+			Path:      ctx.LookupHash(prefab.Path),
+			Transform: prefab.Transform,
+			UnkFloats: prefab.UnkFloats,
+		})
+	}
+	outData := SimplePrefab{
+		Name:    ctx.LookupHash(prefabData.NameHash),
+		Prefabs: prefabs,
+		Units:   units,
+	}
+
+	out, err := ctx.CreateFile(".prefab.json")
+	if err != nil {
+		return err
+	}
+	enc := json.NewEncoder(out)
+	enc.SetIndent("", "    ")
+	if err := enc.Encode(outData); err != nil {
+		return err
+	}
+	return nil
+}
 
 func cloneUnitNode(doc *gltf.Document, node uint32) (uint32, error) {
 	//fmt.Println(doc.Nodes[node])
@@ -358,6 +438,10 @@ func AddPrefab(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_materia
 }
 
 func ConvertOpts(ctx *extractor.Context, gltfDoc *gltf.Document) error {
+	cfg := ctx.Config()
+	if cfg.Prefab.Format == "json" {
+		return ExtractPrefabJSON(ctx)
+	}
 	imgOpts, err := extr_material.GetImageOpts(ctx)
 	if err != nil {
 		return err
@@ -384,7 +468,6 @@ func ConvertOpts(ctx *extractor.Context, gltfDoc *gltf.Document) error {
 
 	extractor.ClearChildNodesFromScene(ctx, doc)
 
-	cfg := ctx.Config()
 	formatIsBlend := cfg.Model.Format == "blend"
 	if gltfDoc == nil && !formatIsBlend {
 		out, err := ctx.CreateFile(".prefab.glb")

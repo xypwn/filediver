@@ -51,13 +51,16 @@ type Config struct {
 		JoinComponents            bool   `cfg:"tags=advanced help='join UDIM components'"`
 		BoundingBoxes             bool   `cfg:"tags=advanced help='export model bounding boxes'"`
 		NoBones                   bool   `cfg:"tags=advanced help='don\\'t include bones'"`
-	} `cfg:"tags=t:unit,t:geometry_group,t:prefab help='see unit options'"`
+	} `cfg:"tags=t:unit,t:geometry_group help='see unit options'"`
 	Animation struct {
 		Format string `cfg:"options=json,raw"`
 	} `cfg:"tags=t:animation,t:state_machine help='see unit options'"`
 	Level struct {
 		Format string `cfg:"options=model,json,raw"`
 	} `cfg:"tags=t:level help='Level specific settings'"`
+	Prefab struct {
+		Format string `cfg:"options=model,json,raw"`
+	} `cfg:"tags=t:prefab help='Prefab specific settings'"`
 	Text struct {
 		Format string `cfg:"options=json,raw"`
 	} `cfg:"tags=t:strings,t:package,t:bones help='only-text-exportable formats'"`

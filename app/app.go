@@ -619,7 +619,11 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 		case "geometry_group":
 			extr = extr_geogroup.Convert(gltfDoc)
 		case "prefab":
-			extr = extr_prefab.Convert(gltfDoc)
+			if extrFormat == "model" && typeFormats["unit"] == "raw" {
+				extr = getSourceExtractFunc(extrCfg, typ)
+			} else {
+				extr = extr_prefab.Convert(gltfDoc)
+			}
 		case "level":
 			if extrFormat == "model" && typeFormats["unit"] == "raw" {
 				extr = getSourceExtractFunc(extrCfg, typ)
