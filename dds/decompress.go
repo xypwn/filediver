@@ -386,6 +386,17 @@ func DecompressUncompressedDXT10(buf []uint8, r io.Reader, width, height int, in
 			}
 			return nil
 		}
+	case DXGIFormatB8G8R8A8UNorm:
+		if info.ColorModel != color.NRGBAModel {
+			return errors.New("expected NRGBA model for R8G8B8A8UNorm")
+		}
+		translatePixel = func(idx int) error {
+			if _, err := io.ReadFull(r, buf[idx:idx+4]); err != nil {
+				return err
+			}
+			buf[idx], buf[idx+2] = buf[idx+2], buf[idx]
+			return nil
+		}
 	case DXGIFormatR16UNorm:
 		if info.ColorModel != color.Gray16Model {
 			return errors.New("expected Gray16 model model for R16UNorm")

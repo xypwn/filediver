@@ -303,7 +303,80 @@ def add_building_material(building_mat: Material, material: dict, textures: Dict
     print("    Finalizing material")
     return object_mat
 
-def load_shaders(resource_path: str) -> Tuple[ModuleType, Material, Material, Material, Material]:
+def add_concrete_material(concrete_mat: Material, material: dict, textures: Dict[str, Image]):
+    object_mat = concrete_mat.copy()
+    object_mat.name = "HD2 Mat " + material["name"]
+
+    print("    Applying textures")
+    config_nodes: Dict[str, ShaderNodeTexImage] = object_mat.node_tree.nodes
+    for usage, image in textures.items():
+        match usage:
+            case "pattern_data":
+                config_nodes["Image Texture"].image = image
+                config_nodes["Image Texture.001"].image = image
+                config_nodes["Image Texture.002"].image = image
+                config_nodes["Image Texture.003"].image = image
+                image.colorspace_settings.name = "Non-Color"
+            case "surface_data_array":
+                config_nodes["Image Texture.004"].image = image
+                config_nodes["Image Texture.005"].image = image
+                config_nodes["Image Texture.006"].image = image
+                config_nodes["Image Texture.007"].image = image
+                image.colorspace_settings.name = "Non-Color"
+    
+    print("    Applying settings")
+    concrete_group = object_mat.node_tree.nodes['Group']
+    pattern_uv_group = object_mat.node_tree.nodes['Group.001']
+    surface_uv_group = object_mat.node_tree.nodes['Group.003']
+    for name, setting in material["extras"].items():
+        if name not in concrete_group.inputs:
+            continue
+        if name == "disable_triplanar_distance":
+            setting[0] *= 100
+        if len(setting) == 1:
+            concrete_group.inputs[name].default_value = setting[0]
+            continue
+        if "color" in name and len(setting) == 3:
+            setting = setting + [1]
+        concrete_group.inputs[name].default_value = setting
+
+    for name, setting in material["extras"].items():
+        if name not in pattern_uv_group.inputs:
+            continue
+        if len(setting) == 1:
+            pattern_uv_group.inputs[name].default_value = setting[0]
+            continue
+        pattern_uv_group.inputs[name].default_value = setting
+
+    for name, setting in material["extras"].items():
+        if name not in surface_uv_group.inputs:
+            continue
+        if len(setting) == 1:
+            surface_uv_group.inputs[name].default_value = setting[0]
+            continue
+        surface_uv_group.inputs[name].default_value = setting
+
+    print("    Finalizing material")
+    return object_mat
+
+def add_fence_material(fence_mat: Material, material: dict, _: Dict[str, Image]):
+    object_mat = fence_mat.copy()
+    object_mat.name = "HD2 Mat " + material["name"]
+
+    print("    Applying settings")
+    fence_group = object_mat.node_tree.nodes['Group']
+    for name, setting in material["extras"].items():
+        if name not in fence_group.inputs:
+            continue
+        if len(setting) == 1:
+            fence_group.inputs[name].default_value = setting[0]
+            continue
+        fence_group.inputs[name].default_value = setting[:3]
+
+    print("    Finalizing material")
+    return object_mat
+
+def load_shaders(resource_path: str) -> Tuple[ModuleType, Material, Material, Material, Material, Material]:
     shader_script = bpy.data.texts.load(str(resource_path / "Helldivers2 shader script v1.0.6-1.py"))
     shader_script.use_fake_user = True
     shader_module = shader_script.as_module()
@@ -319,7 +392,11 @@ def load_shaders(resource_path: str) -> Tuple[ModuleType, Material, Material, Ma
     lut_skin_mat.use_fake_user = True
     building_mat = bpy.data.materials["HD2 Building"]
     building_mat.use_fake_user = True
-    return shader_module, shader_mat, skin_mat, lut_skin_mat, building_mat
+    concrete_mat = bpy.data.materials["HD2 Concrete"]
+    concrete_mat.use_fake_user = True
+    fence_mat = bpy.data.materials["HD2 Fence"]
+    fence_mat.use_fake_user = True
+    return shader_module, shader_mat, skin_mat, lut_skin_mat, building_mat, concrete_mat, fence_mat
 
 def create_empty_texture(name: str, size: Tuple[int, int], fmt: str = 'PNG', colorspace: str = 'sRGB', alpha_mode: str = 'CHANNEL_PACKED') -> Image:
     unused_texture = bpy.data.images.new(name, size[0], size[1], alpha=True, float_buffer=True)
@@ -349,7 +426,7 @@ def add_to_armor_set(node: Dict):
         other.objects.unlink(obj)
     collection.objects.link(obj)
 
-def convert_materials(gltf: Dict, node: Dict, variants: List[Dict], hasVariants: bool, materialTextures: Dict[int, Dict[str, Image]], packall: bool, shader_module: ModuleType, shader_mat: Material, skin_mat: Material, lut_skin_mat: Material, building_mat: Material, unused_texture: Image, unused_secondary_lut: Image):
+def convert_materials(gltf: Dict, node: Dict, variants: List[Dict], hasVariants: bool, materialTextures: Dict[int, Dict[str, Image]], packall: bool, shader_module: ModuleType, shader_mat: Material, skin_mat: Material, lut_skin_mat: Material, building_mat: Material, concrete_mat: Material, fence_mat: Material, unused_texture: Image, unused_secondary_lut: Image):
     optional_usages = ["decal_sheet", "pattern_masks_array"]
 
     mesh = gltf["meshes"][node["mesh"]]
@@ -377,10 +454,12 @@ def convert_materials(gltf: Dict, node: Dict, variants: List[Dict], hasVariants:
             is_lut_skin = "grayscale_skin" in material["extras"] and "color_roughness_lut" in material["extras"]
             is_lut = "material_lut" in material["extras"]
             is_building = "texture_lut" in material["extras"] and "material_1_surface" in material["extras"]
+            is_concrete = "pattern_data" in material["extras"] and "material_surface" in material["extras"]
+            is_fence = "texture_map_319d3bb5" in material["extras"] and "fence_offset" in material["extras"]
             if materialIndex in materialTextures:
                 textures = materialTextures[materialIndex]
             else:
-                if len(material["extras"]) == 0 or not any((is_pbr, is_tex_array_skin, is_lut_skin, is_lut, is_building)):
+                if len(material["extras"]) == 0 or not any((is_pbr, is_tex_array_skin, is_lut_skin, is_lut, is_building, is_concrete, is_fence)):
                     continue
                 if not packall and is_pbr:
                     continue
@@ -421,6 +500,14 @@ def convert_materials(gltf: Dict, node: Dict, variants: List[Dict], hasVariants:
                     object_mat = add_building_material(building_mat, material, textures)
                     object_mat["needsBakeUVs"] = False
                     # Building material does not support automatically generating bake UVs
+                elif is_concrete:
+                    object_mat = add_concrete_material(concrete_mat, material, textures)
+                    object_mat["needsBakeUVs"] = False
+                    # Building material does not support automatically generating bake UVs
+                elif is_fence:
+                    object_mat = add_fence_material(fence_mat, material, textures)
+                    object_mat["needsBakeUVs"] = False
+                    # Building material does not support automatically generating bake UVs
                 object_mat["gltfId"] = materialIndex
             else:
                 print(f"    Found existing material '{key}'")
@@ -453,7 +540,8 @@ def convert_materials(gltf: Dict, node: Dict, variants: List[Dict], hasVariants:
         print(f"    Adding bake uvs to {obj.name}...")
         shader_module.add_bake_uvs(obj)
 
-    obj.select_set(True)
+    if obj is not None:
+        obj.select_set(True)
     print(f"Applied material to {node['name']}!")
 
 def hide_visibility_group(node: Dict):
@@ -1023,8 +1111,8 @@ def main():
     finally:
         if tmp_file:
             os.unlink(tmp_file.name)
-    print("Loading TheJudSub's HD2 accurate shader")
-    shader_module, shader_mat, skin_mat, lut_skin_mat, building_mat = load_shaders(resource_path)
+    print("Loading Custom Shaders")
+    shader_module, shader_mat, skin_mat, lut_skin_mat, building_mat, concrete_mat, fence_mat = load_shaders(resource_path)
 
     unused_texture = create_empty_texture("unused", (1, 1))
     unused_secondary_lut = create_empty_texture("unused_secondary_lut", (23, 1), fmt='OPEN_EXR', colorspace='Non-Color')
@@ -1045,18 +1133,14 @@ def main():
 
     print("Applying helldivers customizations...")
     for node in gltf["nodes"]:
-        try:
-            if node.get("extras", {}).get("armorSet") is not None:
-                add_to_armor_set(node)
-            if node.get("extras", {}).get("default_hidden") == 1 and node["name"] in bpy.data.objects:
-                hide_visibility_group(node)
-            if "mesh" in node:
-                convert_materials(gltf, node, variants, hasVariants, materialTextures, args.packall, shader_module, shader_mat, skin_mat, lut_skin_mat, building_mat, unused_texture, unused_secondary_lut)
-            if "state_machine" in node.get("extras", {}):
-                add_state_machine(gltf, node)
-        except Exception as e:
-            print(f"Error while processing {node}: {e} - skipping")
-            continue
+        if node.get("extras", {}).get("armorSet") is not None:
+            add_to_armor_set(node)
+        if node.get("extras", {}).get("default_hidden") == 1 and node["name"] in bpy.data.objects:
+            hide_visibility_group(node)
+        if "mesh" in node:
+            convert_materials(gltf, node, variants, hasVariants, materialTextures, args.packall, shader_module, shader_mat, skin_mat, lut_skin_mat, building_mat, concrete_mat, fence_mat, unused_texture, unused_secondary_lut)
+        if "state_machine" in node.get("extras", {}):
+            add_state_machine(gltf, node)
 
     nodes_to_objects = {}
     for object in bpy.data.objects:
