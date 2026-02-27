@@ -78,20 +78,34 @@ func createPostProcessOpacityClip(ctx *extractor.Context, opacityClipHash stingr
 		return nil, err
 	}
 
-	opacityClipImage, ok := opacityClip.(*image.NRGBA)
-	if !ok {
-		return nil, fmt.Errorf("failed to convert opacity clip %v to NRGBA texture", opacityClipHash.String())
+	opacityClipImage, nrgbaOk := opacityClip.(*image.NRGBA)
+	opacityClipImageGray, grayOk := opacityClip.(*image.Gray)
+
+	if !nrgbaOk && !grayOk {
+		return nil, fmt.Errorf("failed to convert opacity clip image to either gray or nrgba")
 	}
+
 	return func(img image.Image) (image.Image, error) {
-		imgToOpacityX := float32(opacityClipImage.Bounds().Size().X) / float32(img.Bounds().Size().X)
-		imgToOpacityY := float32(opacityClipImage.Bounds().Size().Y) / float32(img.Bounds().Size().Y)
+		var opcBounds image.Rectangle
+		if nrgbaOk {
+			opcBounds = opacityClipImage.Bounds()
+		} else {
+			opcBounds = opacityClipImageGray.Bounds()
+		}
+		imgToOpacityX := float32(opcBounds.Size().X) / float32(img.Bounds().Size().X)
+		imgToOpacityY := float32(opcBounds.Size().Y) / float32(img.Bounds().Size().Y)
 		switch img := img.(type) {
 		case *image.NRGBA:
 			for iY := img.Rect.Min.Y; iY < img.Rect.Max.Y; iY++ {
 				for iX := img.Rect.Min.X; iX < img.Rect.Max.X; iX++ {
 					idx := img.PixOffset(iX, iY)
-					opacityIdx := opacityClipImage.PixOffset(min(int(float32(iX)*imgToOpacityX), opacityClipImage.Rect.Max.X-1), min(int(float32(iY)*imgToOpacityY), opacityClipImage.Rect.Max.Y-1))
-					img.Pix[idx+3] = opacityClipImage.Pix[opacityIdx]
+					if nrgbaOk {
+						opacityIdx := opacityClipImage.PixOffset(min(int(float32(iX)*imgToOpacityX), opacityClipImage.Rect.Max.X-1), min(int(float32(iY)*imgToOpacityY), opacityClipImage.Rect.Max.Y-1))
+						img.Pix[idx+3] = opacityClipImage.Pix[opacityIdx]
+					} else {
+						opacityIdx := opacityClipImageGray.PixOffset(min(int(float32(iX)*imgToOpacityX), opacityClipImageGray.Rect.Max.X-1), min(int(float32(iY)*imgToOpacityY), opacityClipImageGray.Rect.Max.Y-1))
+						img.Pix[idx+3] = opacityClipImageGray.Pix[opacityIdx]
+					}
 				}
 			}
 			return img, nil
@@ -537,6 +551,43 @@ func loadImage(ctx *extractor.Context, imgHash stingray.Hash) (image.Image, erro
 		tex = dds.StackLayers(tex)
 	}
 	return tex.Image, nil
+}
+
+// If the building's vertex shader only reads UV map 0, then the decal UVs are found on UV map 0
+// If both UV maps 0 and 1 are read, then the decal UVs are UV map 1
+func checkBuildingShaderDecalUV(ctx *extractor.Context, mat *material.Material) (uint32, error) {
+	gpuData, err := ctx.Read(stingray.NewFileID(mat.BaseMaterial, stingray.Sum("material")), stingray.DataGPU)
+	if err != nil {
+		return 0, err
+	}
+	materialGpu, err := material.LoadGPU(bytes.NewReader(gpuData))
+	if err != nil {
+		return 0, err
+	}
+
+	inputTexcoordSemanticIndices := make([]uint32, 0)
+	for _, block := range materialGpu.ShaderPrograms.ProgramBlocks {
+		for _, program := range block.Programs {
+			var vertexShader *material.Shader
+			if program.VertexShader != nil {
+				vertexShader = program.VertexShader
+			} else if program.InstancedVertexShader != nil {
+				vertexShader = program.InstancedVertexShader
+			} else {
+				continue
+			}
+			for _, element := range vertexShader.InputSignature.Elements {
+				if element.Name == "TEXCOORD" {
+					inputTexcoordSemanticIndices = append(inputTexcoordSemanticIndices, element.SemanticIndex)
+				}
+			}
+			if slices.Contains(inputTexcoordSemanticIndices, 0) && slices.Contains(inputTexcoordSemanticIndices, 1) {
+				return 1, nil
+			}
+			return 0, nil
+		}
+	}
+	return 0, nil
 }
 
 func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Document, imgOpts *ImageOptions, matName string, unitData *datalib.UnitData) (uint32, error) {
@@ -1027,13 +1078,26 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 		}
 	}
 
-	usagesToTextureIndices := make(map[string]interface{})
+	materialSettingsAndTextures := make(map[string]interface{})
 	for usage, texIdx := range usedTextures {
-		usagesToTextureIndices[usage] = texIdx
+		materialSettingsAndTextures[usage] = texIdx
 	}
 
 	for setting, value := range mat.Settings {
-		usagesToTextureIndices[ctx.LookupThinHash(setting)] = value
+		materialSettingsAndTextures[ctx.LookupThinHash(setting)] = value
+	}
+
+	_, hasTextureLut := mat.Textures[stingray.Sum("texture_lut").Thin()]
+	_, hasSurfaceDataArray := mat.Textures[stingray.Sum("surface_data_array").Thin()]
+	_, hasDetailData := mat.Textures[stingray.Sum("Detail_Data").Thin()]
+	_, hasDecalSheet := mat.Textures[stingray.Sum("decal_sheet").Thin()]
+	isBuildingMaterial := hasTextureLut && hasSurfaceDataArray && hasDetailData && hasDecalSheet
+	if isBuildingMaterial {
+		decalUVIndex, err := checkBuildingShaderDecalUV(ctx, mat)
+		if err != nil {
+			ctx.Warnf("failed to determine building material's decal uvmap, defaulting to uvmap 0")
+		}
+		materialSettingsAndTextures["filediver_decal_uvmap"] = decalUVIndex
 	}
 
 	doc.Materials = append(doc.Materials, &gltf.Material{
@@ -1046,7 +1110,7 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 		EmissiveFactor:   emissiveFactor,
 		NormalTexture:    normalTexture,
 		OcclusionTexture: occlusionTexture,
-		Extras:           usagesToTextureIndices,
+		Extras:           materialSettingsAndTextures,
 	})
 	if baseColorTexture == nil && colorFactor[3] != 0 {
 		doc.Materials[len(doc.Materials)-1].PBRMetallicRoughness.BaseColorFactor = &colorFactor
@@ -1135,7 +1199,7 @@ func convertOpts(ctx *extractor.Context, imgOpts *ImageOptions, gltfDoc *gltf.Do
 		return err
 	}
 
-	mat, err := material.Load(fMain)
+	mat, err := material.LoadMain(fMain)
 	if err != nil {
 		return err
 	}
@@ -1313,7 +1377,7 @@ func ConvertTextures(ctx *extractor.Context) error {
 		return err
 	}
 
-	mat, err := material.Load(fMain)
+	mat, err := material.LoadMain(fMain)
 	if err != nil {
 		return err
 	}
