@@ -617,9 +617,12 @@ Options:`)
 			if !ok {
 				typ = id.Type.String()
 			}
+			statusf := func(format string, args ...any) {
+				prt.Statusf("File %v/%v: %v - %v", i+1, len(files), truncName, fmt.Sprintf(format, args...))
+			}
 			prt.Statusf("File %v/%v: %v", i+1, len(files), truncName)
 			document := documents[typ]
-			if _, err := a.ExtractFile(ctx, id, *optOutDir, cfg, runner, document, inclArchiveIDs, prt); err == nil {
+			if _, err := a.ExtractFile(ctx, id, *optOutDir, cfg, runner, document, inclArchiveIDs, prt, statusf); err == nil {
 				numExtrFiles++
 			} else {
 				if canceled, _ := handleErr(err); canceled {

@@ -9,6 +9,7 @@ from argparse import ArgumentParser
 from bpy.types import (
     Action,
     ActionPoseMarkers,
+    Armature,
     BlendData,
     Image,
     Object,
@@ -22,6 +23,7 @@ from bpy.types import (
     PoseBone,
     ActionConstraint,
 )
+from mathutils import Vector, Quaternion
 from pathlib import Path
 from io import BytesIO
 from typing import Optional, Dict, List, Tuple, Union
@@ -447,7 +449,7 @@ def convert_materials(gltf: Dict, node: Dict, variants: List[Dict], hasVariants:
                     vari = variant_primitive.variants.add()
                     vari.variant.variant_idx = varIdx
 
-    if any([mat.get("needsBakeUVs", False) for mat in obj.data.materials]) and len(obj.data.uv_layers) > 0:
+    if obj is not None and obj.data is not None and any([mat.get("needsBakeUVs", False) for mat in obj.data.materials]) and len(obj.data.uv_layers) > 0:
         print(f"    Adding bake uvs to {obj.name}...")
         shader_module.add_bake_uvs(obj)
 
@@ -1043,18 +1045,65 @@ def main():
 
     print("Applying helldivers customizations...")
     for node in gltf["nodes"]:
-        if node.get("extras", {}).get("armorSet") is not None:
-            add_to_armor_set(node)
-        if node.get("extras", {}).get("default_hidden") == 1 and node["name"] in bpy.data.objects:
-            hide_visibility_group(node)
-        if "mesh" in node:
-            convert_materials(gltf, node, variants, hasVariants, materialTextures, args.packall, shader_module, shader_mat, skin_mat, lut_skin_mat, building_mat, unused_texture, unused_secondary_lut)
-        if "state_machine" in node.get("extras", {}):
-            add_state_machine(gltf, node)
-        children = node.get("children")
-        if node["name"] in bpy.data.objects and children is not None and gltf["nodes"][children[0]]["name"] == "StingrayEntityRoot":
-            object: Object = bpy.data.objects[node["name"]]
+        try:
+            if node.get("extras", {}).get("armorSet") is not None:
+                add_to_armor_set(node)
+            if node.get("extras", {}).get("default_hidden") == 1 and node["name"] in bpy.data.objects:
+                hide_visibility_group(node)
+            if "mesh" in node:
+                convert_materials(gltf, node, variants, hasVariants, materialTextures, args.packall, shader_module, shader_mat, skin_mat, lut_skin_mat, building_mat, unused_texture, unused_secondary_lut)
+            if "state_machine" in node.get("extras", {}):
+                add_state_machine(gltf, node)
+        except Exception as e:
+            print(f"Error while processing {node}: {e} - skipping")
+            continue
+
+    nodes_to_objects = {}
+    for object in bpy.data.objects:
+        if object.get("node") is not None:
+            nodes_to_objects[object.get("node")] = object
+
+
+    def convert_loc(x): return Vector([x[0], -x[2], x[1]])
+    def convert_quat(q): return Quaternion([q[3], q[0], -q[2], q[1]])
+    def convert_scale(s): return Vector([s[0], s[2], s[1]])
+
+    for object in bpy.data.objects:
+        if type(object.data) is Armature:
             object.data.display_type = "WIRE"
+        unitHash = object.get("hash")
+        if unitHash is None:
+            continue
+        unitMetadata: Optional[Dict] = gltf["extras"].get(unitHash)
+        if unitMetadata is None:
+            continue
+        instances: Optional[List[Dict]] = unitMetadata.get("filediver_instances")
+        if instances is None:
+            continue
+        print(f"Creating {len(instances)} instances of {object.name}...")
+        for instance in instances:
+            instance: Dict
+            parent: Object = nodes_to_objects.get(instance["parent"])
+            if parent is None:
+                continue
+            new_child = bpy.data.objects.new(object.name, object.data)
+            parent.users_collection[0].objects.link(new_child)
+            new_child.parent = parent
+            new_child.rotation_mode = "QUATERNION"
+            new_child.location = convert_loc(instance["translation"])
+            new_child.rotation_quaternion = convert_quat(instance["rotation"])
+            new_child.scale = convert_scale(instance["scale"])
+            for child in object.children:
+                new_nested_child = bpy.data.objects.new(child.name, child.data)
+                new_nested_child.parent = new_child
+                new_nested_child.parent_type = child.parent_type
+                new_nested_child.parent_bone = child.parent_bone
+                new_nested_child.rotation_mode = "QUATERNION"
+                new_nested_child.location = child.location
+                new_nested_child.rotation_quaternion = child.rotation_quaternion
+                new_nested_child.scale = child.scale
+                parent.users_collection[0].objects.link(new_nested_child)
+
 
     if "animations" in gltf and len(gltf["animations"]) > 0:
         print("Applying animation beats")
