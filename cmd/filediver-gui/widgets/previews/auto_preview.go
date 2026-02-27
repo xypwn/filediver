@@ -246,7 +246,7 @@ func (pv *AutoPreviewState) LoadFile(ctx context.Context, fileID stingray.FileID
 			pv.err = err
 			return
 		}
-		data, err := material.Load(bytes.NewReader(data[stingray.DataMain]))
+		data, err := material.LoadMain(bytes.NewReader(data[stingray.DataMain]))
 		if err != nil {
 			pv.err = fmt.Errorf("loading material: %w", err)
 			return
