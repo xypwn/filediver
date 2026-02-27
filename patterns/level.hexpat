@@ -57,10 +57,14 @@ struct Unit {
 };
 
 struct Material {
+    ThinMurmurHash slot;
+    MurmurHash path;
+};
+
+struct MaterialOverrides {
     u32 unk00;
     u32 materialCount;
-    ThinMurmurHash materialSlot;
-    MurmurHash materialPath;
+    Material materials[materialCount];
 };
 
 struct DataEntry {
@@ -134,7 +138,7 @@ struct Level {
     u32 prefabCount;
     std::ptr::NullablePtr<Array<Prefab, prefabCount>, u32> prefabs;
     std::ptr::NullablePtr<u8, u32> unkPtrs00[16];
-    std::ptr::NullablePtr<List<Material>, u32> materials;
+    std::ptr::NullablePtr<List<MaterialOverrides>, u32> materials;
     std::ptr::NullablePtr<u8, u32> unkPtrs01[4];
     std::ptr::NullablePtr<PtrArray<List<u32>, u32, dataCount>, u32> ptrList00;
     std::ptr::NullablePtr<u8, u32> unkPtrs02[9];

@@ -19335,10 +19335,15 @@ m_bolt_action_rifle
 m_bone_creature_01
 m_boomer
 m_boot
+m_boteye
+m_bot_weapons
+m_bot_weapons3
+m_bot_weapons4
 m_box_supplies
 m_bridge_door
 m_broken_screen
 m_buffer_wep_kit
+m_bug_caviar
 m_bug_cluster_01
 m_bug_container
 m_bug_corpse_charger_01
@@ -19368,6 +19373,7 @@ m_bug_rock_medium_03
 m_bug_rock_pillar_01
 m_bug_rock_pillar_03
 m_bug_rock_small_01
+m_bug_rock_small_02
 m_bug_rock_spike_01
 m_bug_rock_spike_02
 m_bug_rock_wall_01
@@ -19382,6 +19388,9 @@ m_bug_spawner_large_01
 m_bug_spawner_medium_01
 m_bug_spawner_shrieker
 m_bug_spawner_small_01
+m_bug_swarm
+m_bug_web
+m_bug_webs
 m_bug_web_01
 m_building_rubble
 m_bullet
@@ -19519,6 +19528,8 @@ m_cy_landingpad_01
 m_cy_mine_01
 m_cy_network_tower
 m_cy_objective_terminal
+m_cy_refinery
+m_cy_refinery_emissive
 m_cy_remains_backpack
 m_cy_robot_arm
 m_cy_trash_set_01
@@ -19527,6 +19538,7 @@ m_cyborg_airbase_control_tower_01
 m_cyborg_bunker
 m_cyborg_chemicals_backpack
 m_cyborg_command_bunker
+m_cyborg_eyes
 m_cyborg_gunship_spawner
 m_cyborg_lights
 m_cyborg_lights_emissive
@@ -19746,6 +19758,7 @@ m_il_canister
 m_il_champion_shield
 m_il_circular_platform
 m_il_cover_wall_01
+m_il_dropship
 m_il_mobile_cover
 m_il_mothership_shield
 m_il_pillar_broken_large
@@ -19756,6 +19769,7 @@ m_il_platform_floor
 m_il_rubble_large_01
 m_il_rubble_medium
 m_il_rubble_small
+m_il_sarcophagus
 m_il_statue_medium
 m_il_statue_small
 m_il_strategem_scrambler
@@ -19765,6 +19779,8 @@ m_il_wall_circle_12r
 m_il_wall_circle_6r
 m_il_wall_straight
 m_il_wall_straight_low
+m_illuminate_pillar
+m_illuminate_ship
 m_impact_grenade
 m_incendiary_grenade
 m_incendiary_impact_grenade
@@ -20163,6 +20179,8 @@ m_walkways_01
 m_wall_01
 m_wall_03
 m_wall_claw
+m_wall_section
+m_wall_section_rubble
 m_warrior
 m_warrior_acid
 m_water_container

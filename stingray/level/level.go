@@ -28,11 +28,14 @@ type Prefab struct {
 	UnkExtraRotation mgl32.Vec4
 }
 
+type MaterialSlotOverrides struct {
+	Index     uint32 // Index into unit array?
+	Materials []Material
+}
+
 type Material struct {
-	Unk00 uint32 // Index into unit array?
-	Count uint32 // maybe? Only seen values == 1 so far
-	Slot  stingray.ThinHash
-	Path  stingray.Hash
+	Slot stingray.ThinHash
+	Path stingray.Hash
 }
 
 type LevelMetadataType uint32
@@ -140,11 +143,11 @@ type rawLevel struct {
 }
 
 type Level struct {
-	Name      stingray.Hash
-	Metadata  map[int][]MetadataEntry
-	Prefabs   []Prefab
-	Materials []Material
-	Units     []Unit
+	Name              stingray.Hash
+	Metadata          map[int][]MetadataEntry
+	Prefabs           []Prefab
+	MaterialOverrides []MaterialSlotOverrides
+	Units             []Unit
 }
 
 func LoadLevel(r io.ReadSeeker) (*Level, error) {
@@ -197,20 +200,34 @@ func LoadLevel(r io.ReadSeeker) (*Level, error) {
 	if _, err := r.Seek(int64(raw.MaterialOffset), io.SeekStart); err != nil {
 		return nil, err
 	}
-	var materialCount uint32
-	if err := binary.Read(r, binary.LittleEndian, &materialCount); err != nil {
+	var materialOverrideCount uint32
+	if err := binary.Read(r, binary.LittleEndian, &materialOverrideCount); err != nil {
 		return nil, err
 	}
-	materials := make([]Material, materialCount)
-	if err := binary.Read(r, binary.LittleEndian, materials); err != nil {
-		return nil, err
+	materialOverrides := make([]MaterialSlotOverrides, 0)
+	for range materialOverrideCount {
+		var index, count uint32
+		if err := binary.Read(r, binary.LittleEndian, &index); err != nil {
+			return nil, err
+		}
+		if err := binary.Read(r, binary.LittleEndian, &count); err != nil {
+			return nil, err
+		}
+		materials := make([]Material, count)
+		if err := binary.Read(r, binary.LittleEndian, materials); err != nil {
+			return nil, err
+		}
+		materialOverrides = append(materialOverrides, MaterialSlotOverrides{
+			Index:     index,
+			Materials: materials,
+		})
 	}
 
 	return &Level{
-		Name:      raw.Name,
-		Metadata:  metadata,
-		Prefabs:   prefabs,
-		Materials: materials,
-		Units:     units,
+		Name:              raw.Name,
+		Metadata:          metadata,
+		Prefabs:           prefabs,
+		MaterialOverrides: materialOverrides,
+		Units:             units,
 	}, nil
 }

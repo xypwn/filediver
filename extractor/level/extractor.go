@@ -20,11 +20,14 @@ type SimpleMetadata struct {
 	Value any                     `json:"value"`
 }
 
+type SimpleMaterialOverride struct {
+	Index     uint32           `json:"index"`
+	Materials []SimpleMaterial `json:"materials"`
+}
+
 type SimpleMaterial struct {
-	Unk00 uint32 `json:"unk_int"`
-	Count uint32 `json:"count"`
-	Slot  string `json:"slot"`
-	Path  string `json:"path"`
+	Slot string `json:"slot"`
+	Path string `json:"path"`
 }
 
 type SimplePrefab struct {
@@ -43,11 +46,11 @@ type SimpleUnit struct {
 }
 
 type SimpleLevel struct {
-	Name      string                   `json:"name"`
-	Metadata  map[int][]SimpleMetadata `json:"metadata"`
-	Prefabs   []SimplePrefab           `json:"prefabs"`
-	Materials []SimpleMaterial         `json:"materials"`
-	Units     []SimpleUnit             `json:"units"`
+	Name              string                   `json:"name"`
+	Metadata          map[int][]SimpleMetadata `json:"metadata"`
+	Prefabs           []SimplePrefab           `json:"prefabs"`
+	MaterialOverrides []SimpleMaterialOverride `json:"material_overrides"`
+	Units             []SimpleUnit             `json:"units"`
 }
 
 func ExtractLevelJSON(ctx *extractor.Context) error {
@@ -93,13 +96,18 @@ func ExtractLevelJSON(ctx *extractor.Context) error {
 		})
 	}
 
-	materials := make([]SimpleMaterial, 0)
-	for _, material := range levelData.Materials {
-		materials = append(materials, SimpleMaterial{
-			Unk00: material.Unk00,
-			Count: material.Count,
-			Slot:  ctx.LookupThinHash(material.Slot),
-			Path:  ctx.LookupHash(material.Path),
+	materialOverrides := make([]SimpleMaterialOverride, 0)
+	for _, materialOverride := range levelData.MaterialOverrides {
+		materials := make([]SimpleMaterial, 0)
+		for _, material := range materialOverride.Materials {
+			materials = append(materials, SimpleMaterial{
+				Slot: ctx.LookupThinHash(material.Slot),
+				Path: ctx.LookupHash(material.Path),
+			})
+		}
+		materialOverrides = append(materialOverrides, SimpleMaterialOverride{
+			Index:     materialOverride.Index,
+			Materials: materials,
 		})
 	}
 
@@ -114,11 +122,11 @@ func ExtractLevelJSON(ctx *extractor.Context) error {
 		})
 	}
 	outData := SimpleLevel{
-		Name:      ctx.LookupHash(levelData.Name),
-		Metadata:  metadata,
-		Prefabs:   prefabs,
-		Materials: materials,
-		Units:     units,
+		Name:              ctx.LookupHash(levelData.Name),
+		Metadata:          metadata,
+		Prefabs:           prefabs,
+		MaterialOverrides: materialOverrides,
+		Units:             units,
 	}
 
 	out, err := ctx.CreateFile(".level.json")
