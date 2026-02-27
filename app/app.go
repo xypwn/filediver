@@ -28,6 +28,7 @@ import (
 	extr_bik "github.com/xypwn/filediver/extractor/bik"
 	extr_bones "github.com/xypwn/filediver/extractor/bones"
 	extr_geogroup "github.com/xypwn/filediver/extractor/geometry_group"
+	extr_level "github.com/xypwn/filediver/extractor/level"
 	extr_material "github.com/xypwn/filediver/extractor/material"
 	extr_package "github.com/xypwn/filediver/extractor/package"
 	extr_prefab "github.com/xypwn/filediver/extractor/prefab"
@@ -572,7 +573,7 @@ func getSourceExtractFunc(extrCfg appconfig.Config, typ string) (extr extractor.
 }
 
 // Returns path to extracted file/directory.
-func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string, extrCfg appconfig.Config, runner *exec.Runner, gltfDoc *gltf.Document, archiveIDs []stingray.Hash, printer Printer) ([]string, error) {
+func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string, extrCfg appconfig.Config, runner *exec.Runner, gltfDoc *gltf.Document, archiveIDs []stingray.Hash, printer Printer, statusf func(format string, args ...any)) ([]string, error) {
 	if ctxErr := ctx.Err(); errors.Is(ctxErr, context.Canceled) {
 		return nil, ctxErr
 	}
@@ -618,7 +619,17 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 		case "geometry_group":
 			extr = extr_geogroup.Convert(gltfDoc)
 		case "prefab":
-			extr = extr_prefab.Convert(gltfDoc)
+			if extrFormat == "model" && typeFormats["unit"] == "raw" {
+				extr = getSourceExtractFunc(extrCfg, typ)
+			} else {
+				extr = extr_prefab.Convert(gltfDoc)
+			}
+		case "level":
+			if extrFormat == "model" && typeFormats["unit"] == "raw" {
+				extr = getSourceExtractFunc(extrCfg, typ)
+			} else {
+				extr = extr_level.Convert(gltfDoc)
+			}
 		case "texture":
 			if extrFormat == "dds" {
 				extr = extr_texture.ExtractDDS
@@ -663,6 +674,7 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 			name, typ := a.LookupHash(id.Name), a.LookupHash(id.Type)
 			printer.Warnf("extract %v.%v: %v", name, typ, fmt.Sprintf(format, args...))
 		},
+		statusf,
 	)
 	err := extr(extrCtx)
 	outFiles := getOutFiles()

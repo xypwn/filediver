@@ -36,9 +36,13 @@ type Context struct {
 	outPath            string
 	selectedArchives   []stingray.Hash
 	warnf              func(format string, args ...any)
+	statusf            func(format string, args ...any)
 
 	// Main file ID to extract
 	fileID stingray.FileID
+
+	// Initial file ID the root context was created with
+	rootFileID stingray.FileID
 
 	// Files created by the extractor so far
 	files []string
@@ -64,6 +68,7 @@ func NewContext(
 	outPath string,
 	selectedArchives []stingray.Hash,
 	warnf func(format string, args ...any),
+	statusf func(format string, args ...any),
 ) (_ *Context, getFiles func() []string) {
 	c := &Context{
 		ctx:                ctx,
@@ -80,8 +85,10 @@ func NewContext(
 		outPath:            outPath,
 		selectedArchives:   selectedArchives,
 		warnf:              warnf,
+		statusf:            statusf,
 
-		fileID: fileID,
+		fileID:     fileID,
+		rootFileID: fileID,
 	}
 	return c, func() []string { return c.files }
 }
@@ -91,9 +98,38 @@ func (c *Context) Ctx() context.Context {
 	return c.ctx
 }
 
+// Returns a copy of the context with the fileID changed
+func (c *Context) WithFileID(newFileID stingray.FileID) *Context {
+	return &Context{
+		ctx:                c.ctx,
+		hashes:             c.hashes,
+		thinHashes:         c.thinHashes,
+		armorSets:          c.armorSets,
+		skinOverrideGroups: c.skinOverrideGroups,
+		weaponPaintSchemes: c.weaponPaintSchemes,
+		gameBuildInfo:      c.gameBuildInfo,
+		languageMap:        c.languageMap,
+		dataDir:            c.dataDir,
+		runner:             c.runner,
+		config:             c.config,
+		outPath:            c.outPath,
+		selectedArchives:   c.selectedArchives,
+		warnf:              c.warnf,
+		statusf:            c.statusf,
+
+		fileID:     newFileID,
+		rootFileID: c.rootFileID,
+	}
+}
+
 // FileID gets the ID of the current file to be extracted.
 func (c *Context) FileID() stingray.FileID {
 	return c.fileID
+}
+
+// RootFileID gets the ID of the root file to be extracted.
+func (c *Context) RootFileID() stingray.FileID {
+	return c.rootFileID
 }
 
 // Open opens the specified game file.
@@ -211,6 +247,12 @@ func (c *Context) WeaponPaintSchemes() []datalib.WeaponCustomizableItem {
 // can continue.
 func (c *Context) Warnf(format string, args ...any) {
 	c.warnf(format, args...)
+}
+
+// Statusf logs a user-visible info message.
+// Use this to display progress in long running extractions
+func (c *Context) Statusf(format string, args ...any) {
+	c.statusf(format, args...)
 }
 
 // LookupHash returns the cracked hash (if known), or the hex representation otherwise.
