@@ -58,12 +58,13 @@ func OpenBnk(in io.ReadSeeker) (*wwise.Bnk, error) {
 func BnkGetAllReferencedStreamData(
 	in io.ReadSeeker,
 	tryGetStreamByID func(id uint32) (data []byte, exists bool, err error),
-) (map[uint32][]byte, error) {
+) (map[uint32][]byte, []string, error) {
 	streams := make(map[uint32][]byte)
+	var warnings []string
 
 	bnk, err := OpenBnk(in)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	for i := 0; i < bnk.NumFiles(); i++ {
@@ -71,16 +72,16 @@ func BnkGetAllReferencedStreamData(
 		// Stream should either exist as a wwise stream, or be embedded in the wwise bank file
 		data, ok, err := tryGetStreamByID(id)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if !ok {
 			rd, err := bnk.OpenFile(i)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			b, err := io.ReadAll(rd)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			data = b
 		}
@@ -101,14 +102,15 @@ func BnkGetAllReferencedStreamData(
 			fileID := obj.Header.ObjectID
 			data, ok, err := tryGetStreamByID(resourceID)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			if !ok {
-				return nil, fmt.Errorf("referenced wwise stream resource with file ID %v does not exist", resourceID)
+				warnings = append(warnings, fmt.Sprintf("referenced wwise stream resource with file ID %v does not exist", resourceID))
+				continue
 			}
 			streams[fileID] = data
 		}
 	}
 
-	return streams, nil
+	return streams, warnings, nil
 }

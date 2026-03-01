@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"maps"
 	"path"
 	"slices"
@@ -158,7 +159,7 @@ func (pv *AutoPreviewState) LoadFile(ctx context.Context, fileID stingray.FileID
 		}
 		pv.state.audio.Title = bnkFile
 		dir := path.Dir(bnkFile)
-		streams, err := stingray_wwise.BnkGetAllReferencedStreamData(
+		streams, warnings, err := stingray_wwise.BnkGetAllReferencedStreamData(
 			bytes.NewReader(data[stingray.DataMain]),
 			func(id uint32) (data []byte, exists bool, err error) {
 				fileID := stingray.FileID{
@@ -171,6 +172,9 @@ func (pv *AutoPreviewState) LoadFile(ctx context.Context, fileID stingray.FileID
 		if err != nil {
 			pv.err = fmt.Errorf("loading wwise bank: %w", err)
 			return
+		}
+		for _, w := range warnings {
+			log.Println("wwise bank:", w)
 		}
 		for _, id := range slices.Sorted(maps.Keys(streams)) {
 			stream := streams[id]
