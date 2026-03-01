@@ -85,13 +85,23 @@ func (pv *WwisePreviewState) ClearStreams() {
 	pv.streams = nil
 }
 
-func (pv *WwisePreviewState) LoadStream(title string, wemData []byte, playWhenDoneLoading bool) {
+// If streamErr != nil, it will be shown and the wemData will be ignored.
+func (pv *WwisePreviewState) LoadStream(title string, wemData []byte, streamErr error, playWhenDoneLoading bool) {
 	loadableStream := &loadableWwiseStream{
 		title: title,
 	}
 	pv.streams = append(pv.streams, loadableStream)
-	pv.streamWg.Add(1)
+	if streamErr != nil {
+		loadableStream.wwiseStream = &wwiseStream{
+			title:            title,
+			playbackPosition: new(atomic.Int64),
+			err:              streamErr,
+		}
+		loadableStream.loaded.Store(true)
+		return
+	}
 
+	pv.streamWg.Add(1)
 	go func() {
 		var err error
 		var wem *wwise.Wem

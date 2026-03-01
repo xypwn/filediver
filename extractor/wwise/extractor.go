@@ -271,8 +271,12 @@ func ConvertBnk(ctx *extractor.Context) error {
 		return err
 	}
 
-	for id, data := range streams {
-		if err := convertWemStream(ctx, fmt.Sprintf(".bnk.dir/%v", id), bytes.NewReader(data), format); err != nil {
+	for id, dataResult := range streams {
+		err := dataResult.Err
+		if err == nil {
+			err = convertWemStream(ctx, fmt.Sprintf(".bnk.dir/%v", id), bytes.NewReader(dataResult.Data), format)
+		}
+		if err != nil {
 			ctx.Warnf("stream file with ID %v: %v", id, err)
 		}
 	}

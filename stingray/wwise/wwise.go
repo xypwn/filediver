@@ -55,11 +55,17 @@ func OpenBnk(in io.ReadSeeker) (*wwise.Bnk, error) {
 	})
 }
 
+type StreamDataResult struct {
+	// Invariant: (Err != nil) != (Data != nil).
+	Err  error
+	Data []byte
+}
+
 func BnkGetAllReferencedStreamData(
 	in io.ReadSeeker,
 	tryGetStreamByID func(id uint32) (data []byte, exists bool, err error),
-) (map[uint32][]byte, error) {
-	streams := make(map[uint32][]byte)
+) (map[uint32]StreamDataResult, error) {
+	streams := make(map[uint32]StreamDataResult)
 
 	bnk, err := OpenBnk(in)
 	if err != nil {
@@ -87,7 +93,7 @@ func BnkGetAllReferencedStreamData(
 		if len(data) >= 4 && bytes.Equal(data[:4], []byte{0, 4, 2, 0}) {
 			// not actually a wwise_stream
 		} else {
-			streams[id] = data
+			streams[id] = StreamDataResult{Data: data}
 		}
 	}
 
@@ -103,10 +109,13 @@ func BnkGetAllReferencedStreamData(
 			if err != nil {
 				return nil, err
 			}
-			if !ok {
-				return nil, fmt.Errorf("referenced wwise stream resource with file ID %v does not exist", resourceID)
+			if ok {
+				streams[fileID] = StreamDataResult{Data: data}
+			} else {
+				streams[fileID] = StreamDataResult{
+					Err: fmt.Errorf("referenced wwise stream resource with resource ID %v does not exist", resourceID),
+				}
 			}
-			streams[fileID] = data
 		}
 	}
 

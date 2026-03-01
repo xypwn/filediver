@@ -143,7 +143,7 @@ func (pv *AutoPreviewState) LoadFile(ctx context.Context, fileID stingray.FileID
 			return
 		}
 		pv.state.audio.Title = fileID.Name.String()
-		pv.state.audio.LoadStream(fileID.Name.String(), data[stingray.DataStream], true)
+		pv.state.audio.LoadStream(fileID.Name.String(), data[stingray.DataStream], nil, true)
 	case stingray.Sum("wwise_bank"):
 		pv.state.audio.ClearStreams()
 		pv.activeType = AutoPreviewAudio
@@ -174,7 +174,7 @@ func (pv *AutoPreviewState) LoadFile(ctx context.Context, fileID stingray.FileID
 		}
 		for _, id := range slices.Sorted(maps.Keys(streams)) {
 			stream := streams[id]
-			pv.state.audio.LoadStream(fmt.Sprint(id), stream, false)
+			pv.state.audio.LoadStream(fmt.Sprint(id), stream.Data, stream.Err, false)
 		}
 	case stingray.Sum("bik"):
 		pv.activeType = AutoPreviewVideo
