@@ -889,6 +889,8 @@ func (t ShaderOpcodeType) ToOperator() string {
 		return "|"
 	case OPCODE_AND, OPCODE_11_ATOMIC_AND, OPCODE_11_IMM_ATOMIC_AND:
 		return "&"
+	case OPCODE_XOR, OPCODE_11_ATOMIC_XOR, OPCODE_11_IMM_ATOMIC_XOR:
+		return "^"
 	case OPCODE_ISHL:
 		return "<<"
 	case OPCODE_USHR, OPCODE_ISHR:

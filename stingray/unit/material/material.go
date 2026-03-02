@@ -567,7 +567,7 @@ func LoadGPU(r io.ReadSeeker) (*MaterialGPU, error) {
 					return nil, err
 				}
 			}
-			if block.Headers[i].StageMask&ShaderStage_Tessellation != 0 && block.Headers[i].Stages[1].DXBCSize > 0 {
+			if block.Headers[i].Stages[1].DXBCSize > 0 {
 				block.Programs[i].DomainShader, err = loadShader(r)
 				if err != nil && err != io.EOF {
 					return nil, err
@@ -575,7 +575,7 @@ func LoadGPU(r io.ReadSeeker) (*MaterialGPU, error) {
 					return nil, fmt.Errorf("Unexpected EOF when loading tesselation shaders: %v", err)
 				}
 			}
-			if block.Headers[i].StageMask&ShaderStage_Tessellation != 0 && block.Headers[i].Stages[2].DXBCSize > 0 {
+			if block.Headers[i].Stages[2].DXBCSize > 0 {
 				block.Programs[i].HullShader, err = loadShader(r)
 				if err == io.EOF {
 					break
