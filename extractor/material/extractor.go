@@ -725,7 +725,16 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 		case "input_image":
 			fallthrough
 		case "reticle_texture":
-			fallthrough
+			index, err := writeTexture(ctx, doc, mat.Textures[texUsage], albedoPostProcess, imgOpts, "")
+			if err != nil {
+				ctx.Warnf("writeTexture: %v: %v", texUsageStr, err)
+				continue
+			}
+			baseColorTexture = &gltf.TextureInfo{
+				Index: index,
+			}
+			usedTextures[texUsageStr] = index
+			albedoPostProcess = postProcessToOpaque
 		case "albedo":
 			albedoAlphaOpaque, err := isAlphaOpaque(ctx, mat.Textures[texUsage])
 			if err != nil {
