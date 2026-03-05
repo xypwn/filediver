@@ -813,23 +813,31 @@ func (o *Operand) ResourceBinding(res []ResourceBinding) *ResourceBinding {
 	return rb
 }
 
-func (o *Operand) ToGLSL(cbs []ConstantBuffer, isg, osg []Element, res []ResourceBinding, mask uint8, isResult bool) string {
+func (o *Operand) VectorPrefix(mask uint8) (int, string) {
+	maskCount := 0
+	maskStart := -1
+	for i := range 4 {
+		if mask&(1<<i) != 0 {
+			if maskStart == -1 {
+				maskStart = i
+			}
+			maskCount++
+		}
+	}
+	if len(o.Immediate) > 1 && maskCount > 1 {
+		return maskCount, fmt.Sprintf("%vvec%v", o.parentOpcode.NumberType().Prefix(), maskCount)
+	}
+	return maskCount, ""
+}
+
+func (o *Operand) ToGLSL(cbs []ConstantBuffer, isg, osg []Element, res []ResourceBinding, mask uint8, isResult bool, hex bool) string {
 	operandType := o.OperandToken0.Type()
 	modifier := o.Modifier()
 	if operandType == OPERAND_TYPE_IMMEDIATE32 || operandType == OPERAND_TYPE_IMMEDIATE64 {
 		immediate := ""
-		maskCount := 0
-		maskStart := -1
-		for i := range 4 {
-			if mask&(1<<i) != 0 {
-				if maskStart == -1 {
-					maskStart = i
-				}
-				maskCount++
-			}
-		}
-		if len(o.Immediate) > 1 && maskCount > 1 {
-			immediate = fmt.Sprintf("%vvec%v(", o.parentOpcode.NumberType().Prefix(), maskCount)
+		maskCount, vecPrefix := o.VectorPrefix(mask)
+		if vecPrefix != "" {
+			immediate = fmt.Sprintf("%v(", vecPrefix)
 		}
 		added := 0
 		switch o.parentOpcode.NumberType() {
@@ -883,14 +891,18 @@ func (o *Operand) ToGLSL(cbs []ConstantBuffer, isg, osg []Element, res []Resourc
 			}
 		case internalNumberTypeUInt:
 			imm, _ := o.GetImmediateUInt()
+			format := "%v"
+			if hex {
+				format = "%#08x"
+			}
 			if len(imm) == 1 {
-				immediate += fmt.Sprintf("%v", imm[0])
+				immediate += fmt.Sprintf(format, imm[0])
 			} else {
 				for i, val := range imm {
 					if mask&(1<<i) == 0 {
 						continue
 					}
-					immediate += fmt.Sprintf("%v", val)
+					immediate += fmt.Sprintf(format, val)
 					added += 1
 					if i+1 < len(imm) && added < maskCount {
 						immediate += ", "
@@ -899,14 +911,18 @@ func (o *Operand) ToGLSL(cbs []ConstantBuffer, isg, osg []Element, res []Resourc
 			}
 		case internalNumberTypeInt:
 			imm, _ := o.GetImmediateInt()
+			format := "%v"
+			if hex {
+				format = "%#08x"
+			}
 			if len(imm) == 1 {
-				immediate += fmt.Sprintf("%v", imm[0])
+				immediate += fmt.Sprintf(format, imm[0])
 			} else {
 				for i, val := range imm {
 					if mask&(1<<i) == 0 {
 						continue
 					}
-					immediate += fmt.Sprintf("%v", val)
+					immediate += fmt.Sprintf(format, val)
 					added += 1
 					if i+1 < len(imm) && added < maskCount {
 						immediate += ", "
@@ -916,7 +932,7 @@ func (o *Operand) ToGLSL(cbs []ConstantBuffer, isg, osg []Element, res []Resourc
 		default:
 			immediate += o.parentOpcode.NumberType().ToString()
 		}
-		if len(o.Immediate) > 1 && maskCount > 1 {
+		if vecPrefix != "" {
 			immediate += ")"
 		}
 		return immediate
@@ -1062,9 +1078,9 @@ func (o OperandIndex) ToGLSL(cbs []ConstantBuffer, isg, osg []Element, res []Res
 	case OPERAND_INDEX_IMMEDIATE32, OPERAND_INDEX_IMMEDIATE64:
 		return fmt.Sprintf("%v", o.Value)
 	case OPERAND_INDEX_IMMEDIATE32_PLUS_RELATIVE, OPERAND_INDEX_IMMEDIATE64_PLUS_RELATIVE:
-		return fmt.Sprintf("%v + %v", o.Value, o.Register.ToGLSL(cbs, isg, osg, res, mask, isResult))
+		return fmt.Sprintf("%v + %v", o.Value, o.Register.ToGLSL(cbs, isg, osg, res, mask, isResult, false))
 	case OPERAND_INDEX_RELATIVE:
-		return o.Register.ToGLSL(cbs, isg, osg, res, mask, isResult)
+		return o.Register.ToGLSL(cbs, isg, osg, res, mask, isResult, false)
 	}
 	return "unknown operand index representation"
 }

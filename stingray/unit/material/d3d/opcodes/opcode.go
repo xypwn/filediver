@@ -904,6 +904,19 @@ func (t ShaderOpcodeType) ToOperator() string {
 	}
 }
 
+func (t ShaderOpcodeType) IsHex() bool {
+	switch t {
+	case OPCODE_OR, OPCODE_11_ATOMIC_OR, OPCODE_11_IMM_ATOMIC_OR:
+		fallthrough
+	case OPCODE_AND, OPCODE_11_ATOMIC_AND, OPCODE_11_IMM_ATOMIC_AND:
+		fallthrough
+	case OPCODE_XOR, OPCODE_11_ATOMIC_XOR, OPCODE_11_IMM_ATOMIC_XOR:
+		return true
+	default:
+		return false
+	}
+}
+
 const (
 	LENGTH_MASK  uint32 = 0x7f000000
 	LENGTH_SHIFT uint32 = 24
