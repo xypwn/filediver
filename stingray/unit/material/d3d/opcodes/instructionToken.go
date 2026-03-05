@@ -42,6 +42,8 @@ func (tok *InstructionToken) ToGLSL(cbs []ConstantBuffer, isg, osg []Element, re
 		return tok.trinaryOpGLSL(opType, cbs, isg, osg, res)
 	case 5:
 		return tok.quatenaryOpGLSL(opType, cbs, isg, osg, res)
+	case 6:
+		return tok.quintenaryOpGLSL(opType, cbs, isg, osg, res)
 	default:
 		return fmt.Sprintf("// %v instruction not implemented! %v extensions, %v operands\n", opType.ToString(), len(tok.extensions), len(tok.operands))
 	}
@@ -238,6 +240,11 @@ func (tok *InstructionToken) unaryOpGLSL(opType ShaderOpcodeType, cbs []Constant
 	case OPCODE_INEG:
 		expr = fmt.Sprintf(
 			"-%v",
+			tok.operands[1].ToGLSL(cbs, isg, osg, res, masks[1], false),
+		)
+	case OPCODE_NOT:
+		expr = fmt.Sprintf(
+			"~%v",
 			tok.operands[1].ToGLSL(cbs, isg, osg, res, masks[1], false),
 		)
 	default:
@@ -650,6 +657,62 @@ func (tok *InstructionToken) quatenaryOpGLSL(opType ShaderOpcodeType, cbs []Cons
 			tok.operands[1].ToGLSL(cbs, isg, osg, res, (1<<dim)-1, true),
 			tok.operands[4].ToGLSL(cbs, isg, osg, res, tok.operands[4].Mask(), false),
 			tok.operands[2].SwizzleMask(masks[2]),
+		)
+	}
+
+	if len(expr) == 0 {
+		return toReturn
+	}
+	returnNumberType := opType.ReturnNumberType()
+	if opType == OPCODE_SAMPLE_L {
+		rb := tok.operands[2].ResourceBinding(res)
+		returnNumberType = rb.ReturnType.ToOpcodeNumberType()
+	}
+	expr = tok.wrapExpression(expr, returnNumberType, true)
+
+	toReturn += fmt.Sprintf(
+		"%v = %v;",
+		tok.operands[0].ToGLSL(cbs, isg, osg, res, masks[0], true),
+		expr,
+	)
+
+	return toReturn + "\n"
+}
+
+func (tok *InstructionToken) quintenaryOpGLSL(opType ShaderOpcodeType, cbs []ConstantBuffer, isg, osg []Element, res []ResourceBinding) string {
+	toReturn := fmt.Sprintf("// Quintenary Op %v\n", opType.ToString())
+	masks := [6]uint8{tok.operands[0].Mask(), tok.operands[0].Mask(), tok.operands[0].Mask(), tok.operands[0].Mask(), tok.operands[0].Mask(), tok.operands[0].Mask()}
+	var expr string
+	switch opType {
+	case OPCODE_SAMPLE_D:
+		// sample dest[.mask], srcAddress[.swizzle], srcResource[.swizzle], srcSampler, srcLOD
+		// gvec texelFetch(gsampler sampler​, ivec texCoord);
+
+		rb := tok.operands[2].ResourceBinding(res)
+		if rb == nil {
+			panic(fmt.Errorf("sample operand 2 must be a resource binding"))
+		}
+		dim := rb.ViewDimension.Dimensions()
+		if dim < 1 {
+			panic(fmt.Errorf("sample operand 2 must be a known resource binding"))
+		}
+
+		expr = fmt.Sprintf(
+			"textureGrad(%v, %v, %v, %v)%v",
+			tok.operands[2].ToGLSL(cbs, isg, osg, res, 0x0, true),
+			tok.operands[1].ToGLSL(cbs, isg, osg, res, (1<<dim)-1, true),
+			tok.operands[4].ToGLSL(cbs, isg, osg, res, tok.operands[4].Mask(), false),
+			tok.operands[5].ToGLSL(cbs, isg, osg, res, tok.operands[5].Mask(), false),
+			tok.operands[2].SwizzleMask(masks[2]),
+		)
+	default:
+		expr = fmt.Sprintf(
+			"(%v, %v, %v, %v, %v) /* not implemented */",
+			tok.operands[1].ToGLSL(cbs, isg, osg, res, tok.operands[1].Mask(), false),
+			tok.operands[2].ToGLSL(cbs, isg, osg, res, tok.operands[2].Mask(), false),
+			tok.operands[3].ToGLSL(cbs, isg, osg, res, tok.operands[3].Mask(), false),
+			tok.operands[4].ToGLSL(cbs, isg, osg, res, tok.operands[4].Mask(), false),
+			tok.operands[5].ToGLSL(cbs, isg, osg, res, tok.operands[5].Mask(), false),
 		)
 	}
 
