@@ -559,6 +559,63 @@ func AddLights(ctx *extractor.Context, doc *gltf.Document, unitInfo *unit.Info, 
 	}
 }
 
+func AddTerrain(ctx *extractor.Context, doc *gltf.Document, unitInfo *unit.Info, meshNodes *[]uint32) []uint32 {
+	terrainNodes := make([]uint32, 0)
+	for _, terrainInfo := range unitInfo.TerrainInfos {
+		if uint32(math.Sqrt(float64(len(terrainInfo.HeightmapData)/2))) != terrainInfo.Textures[0].Resolution {
+			ctx.Warnf("terrain %v.unit heightmap data length sqrt != texture[0] resolution: %v != %v", uint32(math.Sqrt(float64(len(terrainInfo.HeightmapData)/2))), terrainInfo.Textures[0].Resolution)
+			return terrainNodes
+		}
+		terrainValues := make([]uint16, len(terrainInfo.HeightmapData)/2)
+		if _, err := binary.Decode(terrainInfo.HeightmapData, binary.LittleEndian, terrainValues); err != nil {
+			ctx.Warnf("decoding terrain values: %v", err)
+			return terrainNodes
+		}
+
+		decompressHeight := func(value uint16, min, max float32) float32 {
+			percent := float32(value) / 65535.0
+			return (percent - 0.5) * (max - min)
+		}
+		vertices := make([][3]float32, 0)
+		indices := make([]uint32, 0)
+		for y := range terrainInfo.Textures[0].Resolution {
+			for x := range terrainInfo.Textures[0].Resolution {
+				vertices = append(vertices, [3]float32{
+					(terrainInfo.Max[0]-terrainInfo.Min[0])*(float32(x)/float32(terrainInfo.Textures[0].Resolution)) + terrainInfo.Min[0],
+					decompressHeight(terrainValues[y*terrainInfo.Textures[0].Resolution+x], terrainInfo.Min[2], terrainInfo.Max[2]),
+					-((terrainInfo.Max[1]-terrainInfo.Min[1])*(float32(y)/float32(terrainInfo.Textures[0].Resolution)) + terrainInfo.Min[1]),
+				})
+			}
+		}
+
+		for quadY := range terrainInfo.Textures[0].Resolution - 1 {
+			for quadX := range terrainInfo.Textures[0].Resolution - 1 {
+				// face 0
+				indices = append(indices, (quadY)*terrainInfo.Textures[0].Resolution+(quadX), (quadY+1)*terrainInfo.Textures[0].Resolution+(quadX+1), (quadY)*terrainInfo.Textures[0].Resolution+(quadX+1))
+				// face 1
+				indices = append(indices, (quadY)*terrainInfo.Textures[0].Resolution+(quadX), (quadY+1)*terrainInfo.Textures[0].Resolution+(quadX), (quadY+1)*terrainInfo.Textures[0].Resolution+(quadX+1))
+			}
+		}
+		terrainMesh := uint32(len(doc.Meshes))
+		doc.Meshes = append(doc.Meshes, &gltf.Mesh{
+			Primitives: []*gltf.Primitive{{
+				Indices: gltf.Index(modeler.WriteIndices(doc, indices)),
+				Attributes: gltf.Attribute{
+					gltf.POSITION: modeler.WritePosition(doc, vertices),
+				},
+			}},
+		})
+		terrainNode := uint32(len(doc.Nodes))
+		doc.Nodes = append(doc.Nodes, &gltf.Node{
+			Name: ctx.LookupThinHash(terrainInfo.ParentBone) + " " + ctx.LookupThinHash(terrainInfo.Name),
+			Mesh: gltf.Index(terrainMesh),
+		})
+		*meshNodes = append(*meshNodes, terrainNode)
+		terrainNodes = append(terrainNodes, terrainNode)
+	}
+	return terrainNodes
+}
+
 func GetUnitExtrasID(fileId stingray.FileID) string {
 	return fileId.Name.String() + ".unit"
 }
@@ -690,6 +747,10 @@ func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gl
 		if err != nil {
 			return err
 		}
+	}
+
+	if len(unitInfo.TerrainInfos) > 0 {
+		doc.Nodes[*parent].Children = append(doc.Nodes[*parent].Children, AddTerrain(ctx, doc, unitInfo, &meshNodes)...)
 	}
 
 	AddPrefabMetadata(ctx, doc, parent, skin, meshNodes, armorSetName)

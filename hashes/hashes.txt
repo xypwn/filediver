@@ -72278,6 +72278,7 @@ content/fac_helldivers/hellpod/mortar_turret/animation/retract
 content/fac_helldivers/hellpod/mortar_turret/animation/traverse
 content/fac_helldivers/hellpod/mortar_turret/mortar_turret
 content/fac_helldivers/hellpod/mortar_turret/mortar_turret_prop
+content/fac_helldivers/hellpod/mortar_turret/mortar_turret_staticfield
 content/fac_helldivers/hellpod/mortar_turret_wreck/mortar_turret_wreck
 content/fac_helldivers/hellpod/rocket_turret/animation/bridge_idle
 content/fac_helldivers/hellpod/rocket_turret/animation/deploy

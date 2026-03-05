@@ -34,6 +34,45 @@ fn relative_to_root(u128 offset) {
     return rootAddress;
 };
 
+struct List<itemType> {
+    u32 count;
+    itemType values[count];
+};
+
+struct Array<itemType, auto count> {
+    itemType values[count];
+};
+
+struct RebasedPtrList<itemType, ptrType, auto fnName> {
+    u32 count;
+    Array<itemType, count> *ptr : ptrType [[pointer_base(fnName), inline]];
+};
+
+struct PtrArray<itemType, ptrType, auto count> {
+    std::ptr::NullablePtr<itemType, ptrType> values[count];
+};
+
+struct RebasedNonnullPtr<itemType, ptrType, auto fnName> {
+    itemType *ptr : ptrType [[pointer_base(fnName), inline]];
+};
+
+struct RebasedNullablePtr<itemType, ptrType, auto fnName> {
+    if (std::mem::read_unsigned($, sizeof(ptrType)) == 0) {
+        padding[sizeof(ptrType)];
+    } else {
+        itemType *ptr : ptrType [[pointer_base(fnName), inline]];
+    }
+};
+
+struct RebasedNonnullPtrArray<itemType, ptrType, auto fnName, auto count> {
+    RebasedNonnullPtr<itemType, ptrType, fnName> values[count];
+};
+
+struct RebasedNonnullPtrList<itemType, ptrType, auto fnName> {
+    u32 count;
+    RebasedNonnullPtr<itemType, ptrType, fnName> values[count];
+};
+
 struct Transform {
     float position[3];
     float rotation[4];
@@ -54,6 +93,54 @@ struct Unit {
     u8 unk2[8];
     Transform transform;
     float unknown[6];
+};
+
+struct ExtraUnit {
+    MurmurHash unk0;
+    MurmurHash filename;
+    MurmurHash unk1;
+    u8 unk2[8];
+    Transform transform;
+    float unknown[3];
+    u32 unkInt;
+    u32 index;
+};
+
+struct FloatTwoInts {
+    float unkFloat; // Only observed 1.0 so far
+    u32 index; // Can reset to 0 so not sure what its for
+    u32 unknown;
+};
+
+struct UnknownIntsAndFloat {
+    u32 ints[14];
+    float unkFloat;
+};
+
+struct ExtraUnitAndUnknownStuffContainer {
+    u32 unk0;
+    u32 hashCount; // Maybe
+    MurmurHash levelHash[hashCount];
+    RebasedNonnullPtr<RebasedNonnullPtrList<ExtraUnit, u32, "relative_to_parents_parent">, u32, "relative_to_parents_parent"> extraUnits;
+    RebasedNullablePtr<u8, u32, "relative_to_parents_parent"> ptr1;
+    RebasedNullablePtr<u8, u32, "relative_to_parents_parent"> ptr2;
+    RebasedNullablePtr<u8, u32, "relative_to_parents_parent"> ptr3;
+    RebasedNullablePtr<List<RebasedNullablePtr<u32, u32, "relative_to_parents_parent">>, u32, "relative_to_parents_parent"> unkIntList;
+    RebasedNullablePtr<RebasedPtrList<FloatTwoInts, u32, "relative_to_parent">, u32, "relative_to_parents_parent"> unkFloatTwoIntsList;
+    RebasedNullablePtr<RebasedPtrList<UnknownIntsAndFloat, u32, "relative_to_parent">, u32, "relative_to_parents_parent"> unkIntsAndFloatList;
+    RebasedNullablePtr<u8, u32, "relative_to_parents_parent"> ptr7;
+    RebasedNullablePtr<u8, u32, "relative_to_parents_parent"> ptr8;
+    RebasedNullablePtr<u8, u32, "relative_to_parents_parent"> ptr9;
+};
+
+struct ExtraUnitDataBlockSizeInfo {
+    ExtraUnitAndUnknownStuffContainer *stuff : u32 [[inline]];
+    u32 size;
+};
+
+struct HashIndexRange {
+    ThinMurmurHash hash;
+    u32 start, exclusiveEnd;
 };
 
 struct Material {
@@ -94,17 +181,21 @@ struct MetadataEntries {
     DataEntry entries[count];
 };
 
-struct List<itemType> {
+struct Vec3 {
+    float x, y, z;
+};
+
+struct UnknownVectorContainer {
+    ThinMurmurHash name; // Maybe
     u32 count;
-    itemType values[count];
+    Vec3 vectors[count];
 };
 
-struct Array<itemType, auto count> {
-    itemType values[count];
-};
-
-struct PtrArray<itemType, ptrType, auto count> {
-    std::ptr::NullablePtr<itemType, ptrType> values[count];
+struct UnknownTransformedItem {
+    // Sorta looks like a prefab but this hash isn't a file's name
+    MurmurHash unkHash;
+    Transform transform;
+    float unknown[6];
 };
 
 struct Level {
@@ -128,8 +219,8 @@ struct Level {
     std::ptr::NullablePtr<u8, u32> unk17;
     u32 unkCount00;
     std::ptr::NullablePtr<u8, u32> unk18;
-    std::ptr::NullablePtr<u8, u32> unk19;
-    std::ptr::NullablePtr<u8, u32> unk20;
+    u32 unkVectorCount;
+    std::ptr::NullablePtr<Array<UnknownVectorContainer, unkVectorCount>, u32> unkVectors;
     std::ptr::NullablePtr<u8, u32> unk21;
     std::ptr::NullablePtr<u8, u32> unk22;
     std::ptr::NullablePtr<u8, u32> unk23;
@@ -137,8 +228,20 @@ struct Level {
     std::ptr::NullablePtr<u8, u32> unk25;
     u32 prefabCount;
     std::ptr::NullablePtr<Array<Prefab, prefabCount>, u32> prefabs;
-    std::ptr::NullablePtr<u8, u32> unkPtrs00[16];
+    u32 hashCount;
+    std::ptr::NullablePtr<Array<MurmurHash, hashCount>, u32> unkHashes;
+    std::ptr::NullablePtr<std::ptr::NullablePtr<UnknownTransformedItem, u32>, u32> unkTransformedItemPtr;
+    std::ptr::NullablePtr<ExtraUnitDataBlockSizeInfo, u32> extraUnitsPtr;
+    std::ptr::NullablePtr<List<HashIndexRange>, u32> unitHashIndexRange;
+    std::ptr::NullablePtr<List<HashIndexRange>, u32> unkHashIndexRange;
+    std::ptr::NullablePtr<List<HashIndexRange>, u32> unkHashIndexRange2;
+    std::ptr::NullablePtr<List<HashIndexRange>, u32> unkHashIndexRange3;
+    std::ptr::NullablePtr<List<HashIndexRange>, u32> prefabHashIndexRange;
+    std::ptr::NullablePtr<List<HashIndexRange>, u32> unkHashIndexRange4;
+    std::ptr::NullablePtr<List<HashIndexRange>, u32> unkHashIndexRange5;
+    std::ptr::NullablePtr<u8, u32> unkPtrs00[4];
     std::ptr::NullablePtr<List<MaterialOverrides>, u32> materials;
+    std::ptr::NullablePtr<List<ThinMurmurHash>, u32> unkThinHashes;
     std::ptr::NullablePtr<u8, u32> unkPtrs01[4];
     std::ptr::NullablePtr<PtrArray<List<u32>, u32, dataCount>, u32> ptrList00;
     std::ptr::NullablePtr<u8, u32> unkPtrs02[9];

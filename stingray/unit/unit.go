@@ -451,12 +451,14 @@ func (m *MeshHeaderType) String() string {
 	}
 }
 
+type AABB struct {
+	Min [3]float32
+	Max [3]float32
+}
+
 type MeshHeader struct {
 	Unk00 [8]byte
-	AABB  struct {
-		Min [3]float32
-		Max [3]float32
-	}
+	AABB
 	UnkFloat00         float32
 	MeshType           MeshHeaderType
 	GroupBoneHash      stingray.ThinHash
@@ -488,6 +490,45 @@ type MeshInfo struct {
 	Groups    []MeshGroup
 }
 
+type rawTerrainInfo struct {
+	AABB
+	UnkFloat          float32
+	SomeCount         uint32
+	UnkInt            uint32
+	ParentBone        stingray.ThinHash
+	Name              stingray.ThinHash
+	QuadtreeOffset    uint32
+	QuadtreeNodeCount uint32
+	HeightmapOffset   uint32
+	HeightmapBytes    uint32
+	TexturesOffset    uint32
+	TexturesCount     uint32
+}
+
+type QuadtreeNode struct {
+	Min, Max float32
+	Children [4]int32
+}
+
+type TerrainTexture struct {
+	Path       stingray.Hash
+	Resolution uint32
+	UnkInt     uint32
+	UnkData    [472]uint8
+}
+
+type TerrainInfo struct {
+	AABB
+	UnkFloat      float32
+	SomeCount     uint32
+	UnkInt        uint32
+	ParentBone    stingray.ThinHash
+	Name          stingray.ThinHash
+	QuadtreeNodes []QuadtreeNode
+	HeightmapData []uint8
+	Textures      []TerrainTexture
+}
+
 type Header struct {
 	Unk00                 [8]byte
 	Bones                 stingray.Hash
@@ -507,7 +548,8 @@ type Header struct {
 	MeshLayoutListOffset  uint32
 	MeshDataOffset        uint32
 	MeshInfoListOffset    uint32
-	Unk05                 [8]byte
+	TerrainInfoListOffset uint32
+	Unk05                 [4]byte
 	MaterialListOffset    uint32
 }
 
@@ -535,6 +577,7 @@ type Info struct {
 	Materials              map[stingray.ThinHash]stingray.Hash
 	NumMeshes              uint32
 	MeshInfos              []MeshInfo
+	TerrainInfos           []TerrainInfo
 	GroupBones             []stingray.ThinHash
 	MeshLayouts            []MeshLayout
 }
@@ -1114,6 +1157,63 @@ func LoadInfo(mainR io.ReadSeeker) (*Info, error) {
 		}
 	}
 
+	terrains := make([]TerrainInfo, 0)
+	if hdr.TerrainInfoListOffset != 0 {
+		if _, err := mainR.Seek(int64(hdr.TerrainInfoListOffset), io.SeekStart); err != nil {
+			return nil, err
+		}
+		var count uint32
+		if err := binary.Read(mainR, binary.LittleEndian, &count); err != nil {
+			return nil, err
+		}
+		var offset uint32
+		if err := binary.Read(mainR, binary.LittleEndian, &offset); err != nil {
+			return nil, err
+		}
+		var rawTerrain rawTerrainInfo
+		for idx := range count {
+			base := hdr.TerrainInfoListOffset + offset + (idx * uint32(binary.Size(rawTerrain)))
+			if _, err := mainR.Seek(int64(base), io.SeekStart); err != nil {
+				return nil, err
+			}
+			if err := binary.Read(mainR, binary.LittleEndian, &rawTerrain); err != nil {
+				return nil, err
+			}
+			if _, err := mainR.Seek(int64(base+rawTerrain.QuadtreeOffset), io.SeekStart); err != nil {
+				return nil, err
+			}
+			quadtreeNodes := make([]QuadtreeNode, rawTerrain.QuadtreeNodeCount)
+			if err := binary.Read(mainR, binary.LittleEndian, quadtreeNodes); err != nil {
+				return nil, err
+			}
+			if _, err := mainR.Seek(int64(base+rawTerrain.HeightmapOffset), io.SeekStart); err != nil {
+				return nil, err
+			}
+			heightmapData := make([]uint8, rawTerrain.HeightmapBytes)
+			if err := binary.Read(mainR, binary.LittleEndian, heightmapData); err != nil {
+				return nil, err
+			}
+			if _, err := mainR.Seek(int64(base+rawTerrain.TexturesOffset), io.SeekStart); err != nil {
+				return nil, err
+			}
+			textures := make([]TerrainTexture, rawTerrain.TexturesCount)
+			if err := binary.Read(mainR, binary.LittleEndian, textures); err != nil {
+				return nil, err
+			}
+			terrains = append(terrains, TerrainInfo{
+				AABB:          rawTerrain.AABB,
+				UnkFloat:      rawTerrain.UnkFloat,
+				SomeCount:     rawTerrain.SomeCount,
+				UnkInt:        rawTerrain.UnkInt,
+				ParentBone:    rawTerrain.ParentBone,
+				Name:          rawTerrain.Name,
+				QuadtreeNodes: quadtreeNodes,
+				HeightmapData: heightmapData,
+				Textures:      textures,
+			})
+		}
+	}
+
 	return &Info{
 		BonesHash:              hdr.Bones,
 		StateMachine:           hdr.StateMachine,
@@ -1128,6 +1228,7 @@ func LoadInfo(mainR io.ReadSeeker) (*Info, error) {
 		MeshInfos:              meshInfos,
 		GroupBones:             groupBones,
 		MeshLayouts:            meshLayouts,
+		TerrainInfos:           terrains,
 	}, nil
 }
 

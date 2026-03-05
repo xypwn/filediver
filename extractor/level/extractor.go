@@ -45,12 +45,53 @@ type SimpleUnit struct {
 	UnkFloats [6]float32 `json:"unk_floats"`
 }
 
+type SimpleUnknownTransformedItem struct {
+	Hash string `json:"hash"`
+	stingray.Transform
+	UnkFloats [6]float32 `json:"unk_floats"`
+}
+
+type SimpleExtraUnit struct {
+	UnkHash1 string `json:"unk_hash_1"`
+	Path     string `json:"path"`
+	UnkHash2 string `json:"unk_hash_2"`
+	stingray.Transform
+	UnkFloats [3]float32 `json:"unk_floats"`
+	UnkInt    uint32     `json:"unk_int"`
+	UnkInt2   uint32     `json:"unk_int_2"`
+}
+
+type SimpleExtraUnitsContainer struct {
+	UnkInt              uint32               `json:"unk_int"`
+	UnkInt2             uint32               `json:"unk_int_2"`
+	LevelName           string               `json:"level_name"`
+	ExtraUnits          []SimpleExtraUnit    `json:"extra_units"`
+	UnkIntList          []uint32             `json:"unk_int_list"`
+	UnkFloatTwoIntsList []level.FloatTwoInts `json:"unk_float_two_ints_list"`
+	UnkIntsAndFloatList []level.IntsAndFloat `json:"unk_ints_and_float"`
+}
+
+type SimpleHashIndexRange struct {
+	Hash  string `json:"hash"`
+	Start uint32 `json:"start"`
+	End   uint32 `json:"end"`
+}
+
 type SimpleLevel struct {
-	Name              string                   `json:"name"`
-	Metadata          map[int][]SimpleMetadata `json:"metadata"`
-	Prefabs           []SimplePrefab           `json:"prefabs"`
-	MaterialOverrides []SimpleMaterialOverride `json:"material_overrides"`
-	Units             []SimpleUnit             `json:"units"`
+	Name                 string                        `json:"name"`
+	Metadata             map[int][]SimpleMetadata      `json:"metadata"`
+	Prefabs              []SimplePrefab                `json:"prefabs"`
+	MaterialOverrides    []SimpleMaterialOverride      `json:"material_overrides"`
+	Units                []SimpleUnit                  `json:"units"`
+	UnkTransformedItem   *SimpleUnknownTransformedItem `json:"unk_transformed_item"`
+	UnkExtraUnits        *SimpleExtraUnitsContainer    `json:"unk_extra_units"`
+	UnitHashIndexRange   []SimpleHashIndexRange        `json:"unit_hash_index_range"`
+	UnkHashIndexRange1   []SimpleHashIndexRange        `json:"unk_hash_index_range_1"`
+	UnkHashIndexRange2   []SimpleHashIndexRange        `json:"unk_hash_index_range_2"`
+	UnkHashIndexRange3   []SimpleHashIndexRange        `json:"unk_hash_index_range_3"`
+	PrefabHashIndexRange []SimpleHashIndexRange        `json:"prefab_hash_index_range"`
+	UnkHashIndexRange4   []SimpleHashIndexRange        `json:"unk_hash_index_range_4"`
+	UnkHashIndexRange5   []SimpleHashIndexRange        `json:"unk_hash_index_range_5"`
 }
 
 func ExtractLevelJSON(ctx *extractor.Context) error {
@@ -121,12 +162,122 @@ func ExtractLevelJSON(ctx *extractor.Context) error {
 			UnkFloats: unit.UnkFloats,
 		})
 	}
+
 	outData := SimpleLevel{
 		Name:              ctx.LookupHash(levelData.Name),
 		Metadata:          metadata,
 		Prefabs:           prefabs,
 		MaterialOverrides: materialOverrides,
 		Units:             units,
+	}
+
+	if levelData.UnkTransformedItem != nil {
+		outData.UnkTransformedItem = &SimpleUnknownTransformedItem{
+			Hash:      ctx.LookupHash(levelData.UnkTransformedItem.Hash),
+			Transform: levelData.UnkTransformedItem.Transform,
+			UnkFloats: levelData.UnkTransformedItem.UnkFloats,
+		}
+	}
+
+	if levelData.UnkExtraUnits != nil {
+		extraUnits := make([]SimpleExtraUnit, 0)
+		for _, unit := range levelData.UnkExtraUnits.ExtraUnits {
+			extraUnits = append(extraUnits, SimpleExtraUnit{
+				UnkHash1:  ctx.LookupHash(unit.UnkHash1),
+				Path:      ctx.LookupHash(unit.Path),
+				UnkHash2:  ctx.LookupHash(unit.UnkHash2),
+				Transform: unit.Transform,
+				UnkFloats: unit.UnkFloats,
+				UnkInt:    unit.UnkInt,
+				UnkInt2:   unit.UnkInt2,
+			})
+		}
+		outData.UnkExtraUnits = &SimpleExtraUnitsContainer{
+			UnkInt:              levelData.UnkExtraUnits.UnkInt,
+			UnkInt2:             levelData.UnkExtraUnits.UnkInt2,
+			LevelName:           ctx.LookupHash(levelData.UnkExtraUnits.LevelName),
+			ExtraUnits:          extraUnits,
+			UnkIntList:          levelData.UnkExtraUnits.UnkIntList,
+			UnkFloatTwoIntsList: levelData.UnkExtraUnits.UnkFloatTwoIntsList,
+			UnkIntsAndFloatList: levelData.UnkExtraUnits.UnkIntsAndFloatList,
+		}
+	}
+
+	if levelData.UnitHashIndexRange != nil {
+		outData.UnitHashIndexRange = make([]SimpleHashIndexRange, 0)
+		for _, hashIndexRange := range levelData.UnitHashIndexRange {
+			outData.UnitHashIndexRange = append(outData.UnitHashIndexRange, SimpleHashIndexRange{
+				Hash:  ctx.LookupThinHash(hashIndexRange.Hash),
+				Start: hashIndexRange.Start,
+				End:   hashIndexRange.End,
+			})
+		}
+	}
+
+	if levelData.UnkHashIndexRange1 != nil {
+		outData.UnkHashIndexRange1 = make([]SimpleHashIndexRange, 0)
+		for _, hashIndexRange := range levelData.UnkHashIndexRange1 {
+			outData.UnkHashIndexRange1 = append(outData.UnkHashIndexRange1, SimpleHashIndexRange{
+				Hash:  ctx.LookupThinHash(hashIndexRange.Hash),
+				Start: hashIndexRange.Start,
+				End:   hashIndexRange.End,
+			})
+		}
+	}
+
+	if levelData.UnkHashIndexRange2 != nil {
+		outData.UnkHashIndexRange2 = make([]SimpleHashIndexRange, 0)
+		for _, hashIndexRange := range levelData.UnkHashIndexRange2 {
+			outData.UnkHashIndexRange2 = append(outData.UnkHashIndexRange2, SimpleHashIndexRange{
+				Hash:  ctx.LookupThinHash(hashIndexRange.Hash),
+				Start: hashIndexRange.Start,
+				End:   hashIndexRange.End,
+			})
+		}
+	}
+
+	if levelData.UnkHashIndexRange3 != nil {
+		outData.UnkHashIndexRange3 = make([]SimpleHashIndexRange, 0)
+		for _, hashIndexRange := range levelData.UnkHashIndexRange3 {
+			outData.UnkHashIndexRange3 = append(outData.UnkHashIndexRange3, SimpleHashIndexRange{
+				Hash:  ctx.LookupThinHash(hashIndexRange.Hash),
+				Start: hashIndexRange.Start,
+				End:   hashIndexRange.End,
+			})
+		}
+	}
+
+	if levelData.PrefabHashIndexRange != nil {
+		outData.PrefabHashIndexRange = make([]SimpleHashIndexRange, 0)
+		for _, hashIndexRange := range levelData.PrefabHashIndexRange {
+			outData.PrefabHashIndexRange = append(outData.PrefabHashIndexRange, SimpleHashIndexRange{
+				Hash:  ctx.LookupThinHash(hashIndexRange.Hash),
+				Start: hashIndexRange.Start,
+				End:   hashIndexRange.End,
+			})
+		}
+	}
+
+	if levelData.UnkHashIndexRange4 != nil {
+		outData.UnkHashIndexRange4 = make([]SimpleHashIndexRange, 0)
+		for _, hashIndexRange := range levelData.UnkHashIndexRange4 {
+			outData.UnkHashIndexRange4 = append(outData.UnkHashIndexRange4, SimpleHashIndexRange{
+				Hash:  ctx.LookupThinHash(hashIndexRange.Hash),
+				Start: hashIndexRange.Start,
+				End:   hashIndexRange.End,
+			})
+		}
+	}
+
+	if levelData.UnkHashIndexRange5 != nil {
+		outData.UnkHashIndexRange5 = make([]SimpleHashIndexRange, 0)
+		for _, hashIndexRange := range levelData.UnkHashIndexRange5 {
+			outData.UnkHashIndexRange5 = append(outData.UnkHashIndexRange5, SimpleHashIndexRange{
+				Hash:  ctx.LookupThinHash(hashIndexRange.Hash),
+				Start: hashIndexRange.Start,
+				End:   hashIndexRange.End,
+			})
+		}
 	}
 
 	out, err := ctx.CreateFile(".level.json")
