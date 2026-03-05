@@ -73111,6 +73111,7 @@ content/markers/exploration_markers/narrative_node_lvl3_destruction
 content/markers/exploration_markers/narrative_node_lvl4_destruction
 content/markers/exploration_markers/narrative_node_no_destruction
 content/markers/landing_zone
+content/markers/m_bug_marker
 content/markers/m_cyborg_marker
 content/markers/m_helldiver_marker
 content/markers/m_landing_zone
