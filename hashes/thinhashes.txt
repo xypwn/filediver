@@ -1186,6 +1186,7 @@ emissivebasecolor
 emissiveness
 emissiveness_base
 enable_color_change
+end
 end_color
 end_dist_mask
 end_fade
@@ -1209,8 +1210,10 @@ energy_exp_min
 energy_lines_speed
 energy_speed
 energy_tile
+env_audio
 env_lum_min
 env_lum_min_01
+env_sound
 environment_luminosity
 erode_channel
 erode_ends_tightness
@@ -3279,6 +3282,7 @@ assaultrifle_standard_magazine
 assaultshotgun_box_magazine
 assaultshotgun_box_magazine_extended
 assaultshotgun_drum_magazine
+assembly_tower
 attach
 attach1
 attach2
@@ -3461,6 +3465,15 @@ automatic_pistol_extended_magazine
 automatic_pistol_standard_magazine
 automaton_sample_01
 automaton_super_sample_01
+B01
+B02
+B03
+B04
+B05
+B06
+B07
+B08
+B09
 b_f_piston_01
 b_f_piston_02
 b_finger_01
@@ -3763,8 +3776,12 @@ break_lever
 breech_block
 bridge_collision
 bridge_collision_01
+bridge_cables
+bridge_door
 bridge_door_02
 bridge_galaxy_table_01
+bridge_shell
+bridge_windows
 buckle
 bug_cluster_01
 bug_cluster_02
@@ -3881,6 +3898,7 @@ butt_flab3
 butt_jiggle
 button
 button_base
+Cube
 c_100461763
 c_ammo
 c_ammo_box_01
@@ -9572,6 +9590,12 @@ g_cy_barrier_fence_01
 g_cy_barrier_fence_01_LOD1
 g_cy_barrier_fence_01_LOD2
 g_cy_barrier_fence_01_LOD3
+g_cy_barrier_fence_01_LOD4
+g_cy_barrier_fence_01_shadow
+g_cy_barrier_fence_01_shadow_LOD1
+g_cy_barrier_fence_01_shadow_LOD2
+g_cy_barrier_fence_01_shadow_LOD3
+g_cy_barrier_fence_01_shadow_LOD4
 g_cy_barrier_fence_01_debris_01
 g_cy_barrier_fence_01_debris_02
 g_cy_barrier_fence_01_debris_03
@@ -18318,6 +18342,8 @@ hellpod
 hellpod_delivery_system
 hellpod_flag
 hellpod_geo
+hellpod_interact
+hellpod_interact_node
 hellpod_interior
 hellpod_jammed
 hellpod_launcher
@@ -18328,6 +18354,7 @@ hellpod_optimized
 hellpod_optimized_landed
 hellpod_optimized_shadow
 hellpod_pad
+hellpod_player
 hellpod_pos_01
 hellpod_pos_02
 hellpod_pos_03
@@ -18342,10 +18369,12 @@ hellpod_rack_06
 hellpod_rack_07
 hellpod_rack_08
 hellpod_rack_09
+hellpod_rig
 hellpod_rotation_01
 hellpod_rotation_02
 hellpod_rotation_03
 hellpod_rotation_04
+hellpod_stratagem
 hellpod_warning_light_01
 hellpoddoorlockrot001_int
 hellpoddoorlockrot002_int
@@ -19437,6 +19466,7 @@ log_medium_01
 log_medium_02
 log_small_01
 lower_jaw1
+Mesh
 m_aa_turret_wreck
 m_adrenaline_shot
 m_air_control_tower
@@ -20601,6 +20631,7 @@ optics_reddot_02
 optics_reddot_03
 optics_reddot_04
 optics_small_reddot_01
+Plane
 pCube1
 pCylinder1
 pCylinder2
@@ -20839,6 +20870,7 @@ pump_shotgun_02
 pump_shotgun_dragon
 pump_shotgun_plasma
 pump_shotgun_slug
+Rig
 r_abdomen_stinger_slot_1
 r_abdomen_stinger_slot_2
 r_aim_weapon
@@ -21673,6 +21705,9 @@ rocket_7
 rocket_8
 rocket_9
 rocket_bottom
+rocket_muzzle
+rocket_scale
+rocket_top
 rocket_turret
 rocket_walkway
 rocky_mountain_01
@@ -23922,6 +23957,8 @@ ragdoll_kinematic
 land_knockdown
 force_landed
 on_landed
+on_dead
+on_downed
 discard_lat
 draw_lat
 cryo_launch
@@ -23934,6 +23971,8 @@ action_leap
 aim_left
 attack_left
 death_leg
+death_long
+death_short
 fire_left
 end_legs
 limp_left
@@ -24830,6 +24869,7 @@ right_leg
 butt_lower
 left_mirror
 right_mirror
+rocket_pod
 rocket_pods
 arm_r
 leg_r

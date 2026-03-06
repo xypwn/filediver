@@ -497,7 +497,20 @@ func AddLights(ctx *extractor.Context, doc *gltf.Document, unitInfo *unit.Info, 
 		doc.ExtensionsUsed = append(doc.ExtensionsUsed, "KHR_lights_punctual")
 	}
 
-	gltfLights := make([]map[string]any, 0)
+	var gltfLights []map[string]any = make([]map[string]any, 0)
+	lightsPunctualIFace, contains := doc.Extensions["KHR_lights_punctual"]
+	if contains {
+		lightsPunctual, ok := lightsPunctualIFace.(map[string]any)
+		if ok {
+			gltfLightsIface, contains := lightsPunctual["lights"]
+			if contains {
+				gltfLightMap, ok := gltfLightsIface.([]map[string]any)
+				if ok {
+					gltfLights = gltfLightMap
+				}
+			}
+		}
+	}
 	for _, light := range unitInfo.Lights {
 		if light.BoneIndex >= uint32(len(unitInfo.Bones)) {
 			ctx.Warnf("light %v has bone index exceeding length of unit bones list", ctx.LookupThinHash(light.NameHash))
