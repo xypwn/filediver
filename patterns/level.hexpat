@@ -106,6 +106,14 @@ struct ExtraUnit {
     u32 index;
 };
 
+struct ExtraPrefab {
+    MurmurHash unk0;
+    MurmurHash filename;
+    Transform transform;
+    float unknown[3];
+    u32 index;
+};
+
 struct FloatTwoInts {
     float unkFloat; // Only observed 1.0 so far
     u32 index; // Can reset to 0 so not sure what its for
@@ -121,9 +129,9 @@ struct ExtraUnitAndUnknownStuffContainer {
     u32 unk0;
     u32 hashCount; // Maybe
     MurmurHash levelHash[hashCount];
-    RebasedNonnullPtr<RebasedNonnullPtrList<ExtraUnit, u32, "relative_to_parents_parent">, u32, "relative_to_parents_parent"> extraUnits;
+    RebasedNullablePtr<RebasedNonnullPtrList<ExtraUnit, u32, "relative_to_parents_parent">, u32, "relative_to_parents_parent"> extraUnits;
     RebasedNullablePtr<u8, u32, "relative_to_parents_parent"> ptr1;
-    RebasedNullablePtr<u8, u32, "relative_to_parents_parent"> ptr2;
+    RebasedNullablePtr<RebasedNonnullPtrList<ExtraPrefab, u32, "relative_to_parents_parent">, u32, "relative_to_parents_parent"> extraPrefabs;
     RebasedNullablePtr<u8, u32, "relative_to_parents_parent"> ptr3;
     RebasedNullablePtr<List<RebasedNullablePtr<u32, u32, "relative_to_parents_parent">>, u32, "relative_to_parents_parent"> unkIntList;
     RebasedNullablePtr<RebasedPtrList<FloatTwoInts, u32, "relative_to_parent">, u32, "relative_to_parents_parent"> unkFloatTwoIntsList;
@@ -133,9 +141,13 @@ struct ExtraUnitAndUnknownStuffContainer {
     RebasedNullablePtr<u8, u32, "relative_to_parents_parent"> ptr9;
 };
 
-struct ExtraUnitDataBlockSizeInfo {
-    ExtraUnitAndUnknownStuffContainer *stuff : u32 [[inline]];
+struct ExtraUnitContainer {
+    ExtraUnitAndUnknownStuffContainer *data : u32 [[inline]];
     u32 size;
+};
+
+struct ExtraUnitDataBlockSizeInfo<auto count> {
+    ExtraUnitContainer containers[count];
 };
 
 struct HashIndexRange {
@@ -231,7 +243,7 @@ struct Level {
     u32 hashCount;
     std::ptr::NullablePtr<Array<MurmurHash, hashCount>, u32> unkHashes;
     std::ptr::NullablePtr<std::ptr::NullablePtr<UnknownTransformedItem, u32>, u32> unkTransformedItemPtr;
-    std::ptr::NullablePtr<ExtraUnitDataBlockSizeInfo, u32> extraUnitsPtr;
+    std::ptr::NullablePtr<ExtraUnitDataBlockSizeInfo<hashCount>, u32> extraUnitsPtr;
     std::ptr::NullablePtr<List<HashIndexRange>, u32> unitHashIndexRange;
     std::ptr::NullablePtr<List<HashIndexRange>, u32> unkHashIndexRange;
     std::ptr::NullablePtr<List<HashIndexRange>, u32> unkHashIndexRange2;
@@ -239,10 +251,10 @@ struct Level {
     std::ptr::NullablePtr<List<HashIndexRange>, u32> prefabHashIndexRange;
     std::ptr::NullablePtr<List<HashIndexRange>, u32> unkHashIndexRange4;
     std::ptr::NullablePtr<List<HashIndexRange>, u32> unkHashIndexRange5;
-    std::ptr::NullablePtr<u8, u32> unkPtrs00[4];
+    std::ptr::NullablePtr<u8, u32> unkPtrs00[5];
     std::ptr::NullablePtr<List<MaterialOverrides>, u32> materials;
     std::ptr::NullablePtr<List<ThinMurmurHash>, u32> unkThinHashes;
-    std::ptr::NullablePtr<u8, u32> unkPtrs01[4];
+    std::ptr::NullablePtr<u8, u32> unkPtrs01[3];
     std::ptr::NullablePtr<PtrArray<List<u32>, u32, dataCount>, u32> ptrList00;
     std::ptr::NullablePtr<u8, u32> unkPtrs02[9];
     MurmurHash levelName;
