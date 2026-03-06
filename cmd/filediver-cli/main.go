@@ -134,13 +134,7 @@ func main() {
 		log.Fatal(err)
 	} else if !dontExit {
 		os.Exit(0)
-	} else if *optInclGlob == "" && *optInclArchives == "" && *optMetadataFilter == "" {
-		cliShowHelp(argp)
-		fmt.Println("\nExpected some specifier of which files to extract/list/search (--include, --triads or --filter-metadata).\nIf you wish to select all files, just pass -i \"*\".")
-		os.Exit(1)
-	}
-
-	if *optHelpMetadata {
+	} else if *optHelpMetadata {
 		fmt.Println(`Example:
   filediver -T texture --filter-metadata "width == 512 && height == 1024 && format == 'BC1UNorm'"
   (extracts all textures with width 512, height 1024 and BC1UNorm image format [mostly cape textures])
@@ -168,6 +162,10 @@ Options:`)
 		}
 		tabw.Flush()
 		os.Exit(0)
+	} else if *optInclGlob == "" && *optInclArchives == "" && *optMetadataFilter == "" {
+		cliShowHelp(argp)
+		fmt.Println("\nExpected some specifier of which files to extract/list/search (--include, --triads or --filter-metadata).\nIf you wish to select all files, just pass -i \"*\".")
+		os.Exit(1)
 	}
 
 	if value, ok := os.LookupEnv("FILEDIVER_CPU_PROFILE"); ok && value != "" && value != "0" {
