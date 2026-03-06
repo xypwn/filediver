@@ -1497,7 +1497,7 @@ func Convert(currDoc *gltf.Document) func(ctx *extractor.Context) error {
 
 // Uses ctx.Config().Material.TexturesFormat as format for individual textures!
 // Add an extra parameter for format when this is used by another extractor.
-func ConvertTextures(ctx *extractor.Context) error {
+func ConvertToFolder(ctx *extractor.Context) error {
 	cfg := ctx.Config()
 
 	fMain, err := ctx.Open(ctx.FileID(), stingray.DataMain)

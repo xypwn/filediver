@@ -609,8 +609,8 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 				extr = extr_wwise.ConvertBnk
 			}
 		case "material":
-			if extrFormat == "textures" {
-				extr = extr_material.ConvertTextures
+			if extrFormat == "folder" {
+				extr = extr_material.ConvertToFolder
 			} else {
 				extr = extr_material.Convert(gltfDoc)
 			}
