@@ -1132,6 +1132,22 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 			fallthrough
 		case "concrete_surface_data":
 			fallthrough
+		case "bcm_tex_a":
+			fallthrough
+		case "bcm_tex_b":
+			fallthrough
+		case "nar_tex_a":
+			fallthrough
+		case "nar_tex_b":
+			fallthrough
+		case "blend_tex_mask":
+			fallthrough
+		case "mask":
+			fallthrough
+		case "albedo_array":
+			fallthrough
+		case "normal_array":
+			fallthrough
 		case "grayscale_skin":
 			fallthrough
 		case "pattern_masks_array":
