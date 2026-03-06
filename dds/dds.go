@@ -160,7 +160,7 @@ func DecodeInfo(r io.Reader) (Info, error) {
 			case DXGIFormatR8UNorm:
 				info.ColorModel = color.GrayModel
 				info.Decompress = DecompressUncompressedDXT10
-			case DXGIFormatR8G8B8A8UNorm:
+			case DXGIFormatR8G8B8A8UNorm, DXGIFormatB8G8R8A8UNorm:
 				info.ColorModel = color.NRGBAModel
 				info.Decompress = DecompressUncompressedDXT10
 			case DXGIFormatBC1UNorm:

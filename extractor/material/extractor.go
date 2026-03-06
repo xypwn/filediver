@@ -7,6 +7,7 @@ import (
 	"image"
 	"image/jpeg"
 	"image/png"
+	"io"
 	"math"
 	"path/filepath"
 	"slices"
@@ -67,6 +68,64 @@ func postProcessToOpaque(img image.Image) (image.Image, error) {
 		return img, nil
 	default:
 		return nil, errors.New("postProcessToOpaque: unsupported image type")
+	}
+}
+
+func isAlphaClip(ctx *extractor.Context, id stingray.Hash) (bool, error) {
+	ddsData, err := extr_texture.ExtractDDSData(ctx, stingray.NewFileID(id, stingray.Sum("texture")))
+	if err != nil {
+		return false, err
+	}
+	tex, err := dds.Decode(bytes.NewReader(ddsData), false)
+	if err != nil {
+		return false, err
+	}
+
+	if len(tex.Images) > 1 {
+		tex = dds.StackLayers(tex)
+	}
+	switch img := tex.Image.(type) {
+	case *image.NRGBA:
+		for iY := img.Rect.Min.Y; iY < img.Rect.Max.Y; iY++ {
+			for iX := img.Rect.Min.X; iX < img.Rect.Max.X; iX++ {
+				idx := img.PixOffset(iX, iY)
+				if img.Pix[idx+3] > 0 && img.Pix[idx+3] != 255 {
+					return false, nil
+				}
+			}
+		}
+		return true, nil
+	default:
+		return false, errors.New("postProcessToOpaque: unsupported image type")
+	}
+}
+
+func isAlphaOpaque(ctx *extractor.Context, id stingray.Hash) (bool, error) {
+	ddsData, err := extr_texture.ExtractDDSData(ctx, stingray.NewFileID(id, stingray.Sum("texture")))
+	if err != nil {
+		return false, err
+	}
+	tex, err := dds.Decode(bytes.NewReader(ddsData), false)
+	if err != nil {
+		return false, err
+	}
+
+	if len(tex.Images) > 1 {
+		tex = dds.StackLayers(tex)
+	}
+	switch img := tex.Image.(type) {
+	case *image.NRGBA:
+		for iY := img.Rect.Min.Y; iY < img.Rect.Max.Y; iY++ {
+			for iX := img.Rect.Min.X; iX < img.Rect.Max.X; iX++ {
+				idx := img.PixOffset(iX, iY)
+				if img.Pix[idx+3] != 255 {
+					return false, nil
+				}
+			}
+		}
+		return true, nil
+	default:
+		return false, errors.New("postProcessToOpaque: unsupported image type")
 	}
 }
 
@@ -227,6 +286,31 @@ func postProcessIlluminateClearcoat(img image.Image) (image.Image, error) {
 				idx := img.PixOffset(iX, iY)
 				img.Pix[idx+1] = img.Pix[idx]
 				img.Pix[idx] = img.Pix[idx+2]
+			}
+		}
+		return img, nil
+	default:
+		return nil, errors.New("postProcessIlluminateClearcoat: unsupported image type")
+	}
+}
+
+// Moves the MRA data to the location expected by the gltf materials
+func postProcessMRA(img image.Image) (image.Image, error) {
+	/**
+	 * mra:
+	 *	R - metallic
+	 *	G - roughness
+	 *	B - AO
+	 *	A - unknown
+	 */
+	switch img := img.(type) {
+	case *image.NRGBA:
+		for iY := img.Rect.Min.Y; iY < img.Rect.Max.Y; iY++ {
+			for iX := img.Rect.Min.X; iX < img.Rect.Max.X; iX++ {
+				idx := img.PixOffset(iX, iY)
+				temp := img.Pix[idx+2]
+				img.Pix[idx+2] = img.Pix[idx]
+				img.Pix[idx] = temp
 			}
 		}
 		return img, nil
@@ -612,6 +696,9 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 	var colorFactor [4]float32
 	var emissiveFactor [3]float32
 	var emissiveStrength float32 = 1.0
+	var alphaCutoff float32 = 0.5
+	var alphaMode gltf.AlphaMode = gltf.AlphaOpaque
+	var doubleSided bool = false
 	origImgOpts := imgOpts
 	lutImgOpts := &ImageOptions{
 		Jpeg:           imgOpts.Jpeg,
@@ -638,8 +725,36 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 		case "input_image":
 			fallthrough
 		case "reticle_texture":
-			fallthrough
+			index, err := writeTexture(ctx, doc, mat.Textures[texUsage], albedoPostProcess, imgOpts, "")
+			if err != nil {
+				ctx.Warnf("writeTexture: %v: %v", texUsageStr, err)
+				continue
+			}
+			baseColorTexture = &gltf.TextureInfo{
+				Index: index,
+			}
+			usedTextures[texUsageStr] = index
+			albedoPostProcess = postProcessToOpaque
 		case "albedo":
+			albedoAlphaOpaque, err := isAlphaOpaque(ctx, mat.Textures[texUsage])
+			if err != nil {
+				ctx.Warnf("isAlphaOpaque: %v: %v", texUsageStr, err)
+				continue
+			}
+			if !albedoAlphaOpaque {
+				albedoAlphaClip, err := isAlphaClip(ctx, mat.Textures[texUsage])
+				if err != nil {
+					ctx.Warnf("isAlphaClip: %v: %v", texUsageStr, err)
+					continue
+				}
+				if albedoAlphaClip {
+					alphaMode = gltf.AlphaMask
+				} else {
+					alphaMode = gltf.AlphaBlend
+				}
+				doubleSided = true
+				albedoPostProcess = nil
+			}
 			index, err := writeTexture(ctx, doc, mat.Textures[texUsage], albedoPostProcess, imgOpts, "")
 			if err != nil {
 				ctx.Warnf("writeTexture: %v: %v", texUsageStr, err)
@@ -920,13 +1035,16 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 				}
 			}
 		case "mra":
-			index, err := writeTexture(ctx, doc, mat.Textures[texUsage], postProcess, imgOpts, "")
+			index, err := writeTexture(ctx, doc, mat.Textures[texUsage], postProcessMRA, imgOpts, "")
 			if err != nil {
 				ctx.Warnf("writeTexture: %v: %v", ctx.LookupThinHash(texUsage), err)
 				continue
 			}
 			metallicRoughnessTexture = &gltf.TextureInfo{
 				Index: index,
+			}
+			occlusionTexture = &gltf.OcclusionTexture{
+				Index: gltf.Index(index),
 			}
 			usedTextures[texUsageStr] = index
 		case "emissive_color":
@@ -1003,6 +1121,12 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 		case "id_masks_array":
 			fallthrough
 		case "Detail_Data":
+			fallthrough
+		case "surface_data_array":
+			fallthrough
+		case "pattern_data":
+			fallthrough
+		case "texture_map_319d3bb5":
 			fallthrough
 		case "metal_surface_data":
 			fallthrough
@@ -1100,6 +1224,20 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 		materialSettingsAndTextures["filediver_decal_uvmap"] = decalUVIndex
 	}
 
+	if len(mat.Settings) != 0 {
+		opacity_threshold, ok := mat.Settings[stingray.Sum("opacity_threshold").Thin()]
+		_, hasClipMap := mat.Textures[stingray.Sum("opacity_clip_map").Thin()]
+		if ok && hasClipMap && opacity_threshold[0] > 0 {
+			alphaCutoff = opacity_threshold[0]
+			alphaMode = gltf.AlphaMask
+			doubleSided = true
+		} else if ok && !hasClipMap && opacity_threshold[0] > 0 {
+			alphaCutoff = opacity_threshold[0]
+			alphaMode = gltf.AlphaBlend
+			doubleSided = true
+		}
+	}
+
 	doc.Materials = append(doc.Materials, &gltf.Material{
 		Name: matName,
 		PBRMetallicRoughness: &gltf.PBRMetallicRoughness{
@@ -1111,6 +1249,9 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 		NormalTexture:    normalTexture,
 		OcclusionTexture: occlusionTexture,
 		Extras:           materialSettingsAndTextures,
+		AlphaMode:        alphaMode,
+		AlphaCutoff:      &alphaCutoff,
+		DoubleSided:      doubleSided,
 	})
 	if baseColorTexture == nil && colorFactor[3] != 0 {
 		doc.Materials[len(doc.Materials)-1].PBRMetallicRoughness.BaseColorFactor = &colorFactor
@@ -1171,19 +1312,6 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 				doc.ExtensionsUsed = append(doc.ExtensionsUsed, "KHR_materials_emissive_strength")
 			}
 			doc.Materials[len(doc.Materials)-1].Extensions["KHR_materials_emissive_strength"] = strength
-		}
-	}
-	if len(mat.Settings) != 0 {
-		opacity_threshold, ok := mat.Settings[stingray.Sum("opacity_threshold").Thin()]
-		_, hasClipMap := mat.Textures[stingray.Sum("opacity_clip_map").Thin()]
-		if ok && hasClipMap && opacity_threshold[0] > 0 {
-			doc.Materials[len(doc.Materials)-1].AlphaCutoff = &opacity_threshold[0]
-			doc.Materials[len(doc.Materials)-1].AlphaMode = gltf.AlphaMask
-			doc.Materials[len(doc.Materials)-1].DoubleSided = true
-		} else if ok && !hasClipMap && opacity_threshold[0] > 0 {
-			doc.Materials[len(doc.Materials)-1].AlphaCutoff = &opacity_threshold[0]
-			doc.Materials[len(doc.Materials)-1].AlphaMode = gltf.AlphaBlend
-			doc.Materials[len(doc.Materials)-1].DoubleSided = true
 		}
 	}
 	return uint32(len(doc.Materials) - 1), nil
@@ -1416,6 +1544,124 @@ func ConvertTextures(ctx *extractor.Context) error {
 		_, err = out.Write(data)
 		if err != nil {
 			return err
+		}
+	}
+
+	if cfg.Material.ShaderFormat == "none" {
+		return nil
+	}
+
+	var fGpu io.ReadSeeker
+	fileID := ctx.FileID()
+	if mat.BaseMaterial.Value == 0 {
+		fGpu, err = ctx.Open(fileID, stingray.DataGPU)
+	} else {
+		fileID = stingray.NewFileID(mat.BaseMaterial, stingray.Sum("material"))
+		fGpu, err = ctx.Open(fileID, stingray.DataGPU)
+	}
+	if err != nil {
+		return err
+	}
+
+	matGpu, err := material.LoadGPU(fGpu)
+	if err != nil {
+		return err
+	}
+
+	for blk, shaderProgram := range matGpu.ShaderPrograms.ProgramBlocks {
+		for i := range shaderProgram.Programs {
+
+			shaders := []*material.Shader{
+				shaderProgram.Programs[i].VertexShader,
+				shaderProgram.Programs[i].UnknownShader1,
+				shaderProgram.Programs[i].InstancedVertexShader,
+				shaderProgram.Programs[i].HullShader,
+				shaderProgram.Programs[i].UnknownShader2,
+				shaderProgram.Programs[i].PixelShader,
+			}
+			for j := range shaderProgram.Headers[i].Stages {
+				stageMask := material.ShaderStageMask(1 << j)
+				if stageMask&shaderProgram.Headers[i].StageMask == material.ShaderStage_None {
+					continue
+				}
+				suffixArray, err := stageMask.Suffix()
+				if err != nil {
+					return err
+				}
+
+				programFolder := fmt.Sprintf("program-%v-%v", blk, i)
+				if len(shaderProgram.Programs) == 1 {
+					programFolder = fmt.Sprintf("program-%v", blk)
+				}
+
+				if stageMask == material.ShaderStage_Tessellation && shaderProgram.Programs[i].DomainShader != nil {
+					name := ctx.LookupThinHash(shaderProgram.Programs[i].DomainShader.Name)
+					out, err := ctx.CreateFile(filepath.Join(".dir", "shaders", programFolder, name+"."+cfg.Material.ShaderFormat+"."+suffixArray[0]+"e"))
+					if err != nil {
+						return err
+					}
+					defer out.Close()
+
+					var data []uint8
+					if cfg.Material.ShaderFormat == "glsl" {
+						defer func() {
+							if r := recover(); r != nil {
+								ctx.Warnf("shader %v.%v failed to extract: %v (skipped)", name, cfg.Material.ShaderFormat+"."+suffixArray[0]+"e", r)
+							}
+						}()
+						glslCode := shaderProgram.Programs[i].DomainShader.ToGLSL()
+						data = []uint8(glslCode)
+					} else {
+						data, err = shaderProgram.Programs[i].DomainShader.Serialize()
+						if err != nil {
+							return err
+						}
+					}
+					_, err = out.Write(data)
+					if err != nil {
+						return err
+					}
+					suffixArray[0] = suffixArray[0] + "c"
+				}
+
+				suffix := cfg.Material.ShaderFormat + "." + suffixArray[0]
+				if len(suffixArray) > 1 {
+					suffix = suffixArray[0] + "." + cfg.Material.ShaderFormat + "." + suffixArray[1]
+				}
+
+				if shaders[j] == nil {
+					continue
+				}
+
+				name := ctx.LookupThinHash(shaders[j].Name)
+
+				out, err := ctx.CreateFile(filepath.Join(".dir", "shaders", programFolder, name+"."+suffix))
+				if err != nil {
+					return err
+				}
+				defer out.Close()
+
+				var data []uint8
+				if cfg.Material.ShaderFormat == "glsl" {
+					defer func() {
+						if r := recover(); r != nil {
+							ctx.Warnf("shader %v.%v failed to extract: %v (skipped)", name, suffix, r)
+						}
+					}()
+					glslCode := shaders[j].ToGLSL()
+					data = []uint8(glslCode)
+				} else {
+					data, err = shaders[j].Serialize()
+					if err != nil {
+						return err
+					}
+				}
+
+				_, err = out.Write(data)
+				if err != nil {
+					return err
+				}
+			}
 		}
 	}
 

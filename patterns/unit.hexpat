@@ -958,11 +958,47 @@ struct ConnectingBoneHashList {
     ConnectingBoneHashListItem items[count];
 };
 
+struct TerrainQuadtreeNode {
+    float min, max;
+    s32 children[4];
+};
+
+struct TerrainTextureData {
+    MurmurHash path;
+    u32 resolution;
+    u32 unkInt;
+    u8 unkData[472];
+};
+
+struct TerrainMeshInfo {
+    u64 base = $;
+    AABB boundingBox;
+    float unkFloat;
+    u32 count;
+    u32 unkInt;
+    ThinMurmurHash parentBone;
+    ThinMurmurHash name;
+    u32 quadtreeOffset;
+    u32 quadtreeCount;
+    TerrainQuadtreeNode nodes[quadtreeCount] @ base + quadtreeOffset;
+    u32 compressedOffset;
+    u32 compressedSize;
+    u8 compressedValues[compressedSize] @ base + compressedOffset;
+    u32 textureOffset;
+    u32 textureCount;
+    TerrainTextureData textures[textureCount] @ base + textureOffset;
+};
+
+struct TerrainMeshInfoPtrList {
+    u32 count;
+    TerrainMeshInfo *terrainMeshInfo : u32 [[pointer_base("relative_to_parent")]];
+};
+
 struct Header {
     u8 unk00[8];
     MurmurHash bones;
     MurmurHash geometryGroup;
-    MurmurHash unkHash01;
+    MurmurHash physics;
     MurmurHash stateMachine;
     u8 unk02[8];
     std::ptr::NullablePtr<LODGroupPtrList, u32> LODGroupListOffset;
@@ -979,7 +1015,8 @@ struct Header {
     u64 meshDataListAddress = $;
     $ += 4;
     std::ptr::NullablePtr<MeshInfoList, u32> MeshInfoListOffset;
-    u8 unk05[8];
+    std::ptr::NullablePtr<TerrainMeshInfoPtrList, u32> TerrainMeshInfoOffset;
+    padding[4];
     std::ptr::NullablePtr<MaterialList, u32> MaterialListOffset;
     // $ = meshDataListAddress;
     // calculateMeshDataOffset(std::mem::read_unsigned(meshDataListAddress, 4));

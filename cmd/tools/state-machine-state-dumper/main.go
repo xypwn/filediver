@@ -181,6 +181,7 @@ func main() {
 			filepath.Join(*outputDirectory, name),
 			[]stingray.Hash{},
 			prt.Warnf,
+			prt.Statusf,
 		)
 		if err := dumpStateMachineStates(extrCtx); err != nil {
 			if errors.Is(err, context.Canceled) {

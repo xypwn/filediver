@@ -889,6 +889,8 @@ func (t ShaderOpcodeType) ToOperator() string {
 		return "|"
 	case OPCODE_AND, OPCODE_11_ATOMIC_AND, OPCODE_11_IMM_ATOMIC_AND:
 		return "&"
+	case OPCODE_XOR, OPCODE_11_ATOMIC_XOR, OPCODE_11_IMM_ATOMIC_XOR:
+		return "^"
 	case OPCODE_ISHL:
 		return "<<"
 	case OPCODE_USHR, OPCODE_ISHR:
@@ -899,6 +901,19 @@ func (t ShaderOpcodeType) ToOperator() string {
 		return "=="
 	default:
 		panic(fmt.Sprintf("operator not known for opcode %v", t.ToString()))
+	}
+}
+
+func (t ShaderOpcodeType) IsHex() bool {
+	switch t {
+	case OPCODE_OR, OPCODE_11_ATOMIC_OR, OPCODE_11_IMM_ATOMIC_OR:
+		fallthrough
+	case OPCODE_AND, OPCODE_11_ATOMIC_AND, OPCODE_11_IMM_ATOMIC_AND:
+		fallthrough
+	case OPCODE_XOR, OPCODE_11_ATOMIC_XOR, OPCODE_11_IMM_ATOMIC_XOR:
+		return true
+	default:
+		return false
 	}
 }
 
