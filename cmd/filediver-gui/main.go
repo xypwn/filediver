@@ -489,8 +489,8 @@ func (a *guiApp) drawHistoryButtons() (newItem stingray.FileID, changed bool) {
 func (a *guiApp) drawMenuBar() {
 	if imgui.BeginMenuBar() {
 		if imgui.BeginMenu("Help") {
-			if imgui.MenuItemBool(fnt.I.Info + " About") {
-				a.popupManager.Open["About"] = true
+			if imgui.MenuItemBool(fnt.I.Info + " Info") {
+				a.popupManager.Open["Info"] = true
 			}
 			imgui.EndMenu()
 		}
@@ -1256,8 +1256,10 @@ func (a *guiApp) drawAboutPopup() {
 	imgui.SetNextWindowSizeV(imutils.SVec2(400, 350), imgui.CondOnce)
 	imgui.SetNextWindowSizeConstraints(imutils.SVec2(250, 170), viewport.Size())
 	imgui.SetNextWindowPosV(viewport.Center(), imgui.CondAlways, imgui.NewVec2(0.5, 0.5))
-	a.popupManager.Popup("About", func(close func()) {
+	a.popupManager.Popup("Info", func(close func()) {
+		imutils.PushFontScale(1.3)
 		imgui.TextUnformatted("Filediver GUI")
+		imutils.PopFontScale()
 		imgui.SameLine()
 		imgui.TextLinkOpenURLV("(GitHub)", "https://github.com/xypwn/filediver")
 		if version != "" {
@@ -1275,9 +1277,19 @@ func (a *guiApp) drawAboutPopup() {
 			}
 		}
 		imgui.Separator()
-		drawLicense("License", license)
+		imutils.PushFontScale(1.3)
+		imgui.TextUnformatted("Resources")
+		imutils.PopFontScale()
+		imgui.TextLinkOpenURLV(fnt.I.Article+" Filediver Wiki", "https://github.com/xypwn/filediver/wiki")
+		imgui.TextLinkOpenURLV(fnt.I.CollectionsBookmark+" HD2 Archive Labeling", "https://docs.google.com/spreadsheets/d/1oQys_OI5DWou4GeRE3mW56j7BIi4M7KftBIPAl1ULFw")
+		imgui.TextLinkOpenURLV(fnt.I.Forum+" HD2 Archive Discord", "https://discord.gg/y7P38h2B9Q")
 		imgui.Separator()
-		if imgui.CollapsingHeaderBoolPtr("Font Licenses", nil) {
+		imutils.PushFontScale(1.3)
+		imgui.TextUnformatted("Licenses")
+		imutils.PopFontScale()
+		drawLicense("Filediver", license)
+		imgui.Separator()
+		if imgui.CollapsingHeaderBoolPtr("Fonts", nil) {
 			imgui.Indent()
 			drawLicense("Noto", fnt.TextFontLicense)
 			drawLicense("Material Symbols", fnt.IconFontLicense)

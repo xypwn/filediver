@@ -357,3 +357,14 @@ func CenterAlignButtons(buttonTexts ...string) {
 	cursor.X -= calcButtonsWidth(buttonTexts...) / 2
 	imgui.SetCursorScreenPos(cursor)
 }
+
+func PushFontScale(scale float32) {
+	imgui.PushFont(
+		imgui.CurrentFont(),
+		imgui.CurrentStyle().FontSizeBase()*scale,
+	)
+}
+
+func PopFontScale() {
+	imgui.PopFont()
+}
