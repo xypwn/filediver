@@ -1148,6 +1148,8 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 			fallthrough
 		case "normal_array":
 			fallthrough
+		case "emissive":
+			fallthrough
 		case "grayscale_skin":
 			fallthrough
 		case "pattern_masks_array":

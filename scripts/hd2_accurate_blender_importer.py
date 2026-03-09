@@ -448,7 +448,53 @@ def add_il_building_material(il_building_mat: Material, material: dict, textures
     print("    Finalizing material")
     return object_mat
 
-def load_shaders(resource_path: str) -> Tuple[ModuleType, Material, Material, Material, Material, Material, Material]:
+def add_single_plane_il_building_material(il_building_mat: Material, material: dict, textures: Dict[str, Image]):
+    object_mat = il_building_mat.copy()
+    object_mat.name = "HD2 IllBldg " + material["name"]
+
+    print("    Applying textures")
+    config_nodes: Dict[str, ShaderNodeTexImage] = object_mat.node_tree.nodes
+    for usage, image in textures.items():
+        match usage:
+            case "mask":
+                config_nodes["Image Texture"].image = image
+                image.colorspace_settings.name = "Non-Color"
+            case "albedo_array":
+                config_nodes["Image Texture.001"].image = image
+                config_nodes["Image Texture.002"].image = image
+                config_nodes["Image Texture.003"].image = image
+                config_nodes["Image Texture.004"].image = image
+                config_nodes["Image Texture.005"].image = image
+                image.colorspace_settings.name = "sRGB"
+                image.alpha_mode = "CHANNEL_PACKED"
+            case "normal_array":
+                config_nodes["Image Texture.006"].image = image
+                config_nodes["Image Texture.007"].image = image
+                config_nodes["Image Texture.008"].image = image
+                config_nodes["Image Texture.009"].image = image
+                config_nodes["Image Texture.010"].image = image
+                image.colorspace_settings.name = "Non-Color"
+            case "normal_map":
+                config_nodes["Image Texture.011"].image = image
+                image.colorspace_settings.name = "Non-Color"
+            case "emissive":
+                config_nodes["Image Texture.012"].image = image
+                image.colorspace_settings.name = "Non-Color"
+
+    print("    Applying settings")
+    for name, setting in material["extras"].items():
+        match name:
+            case "surface_tiling":
+                object_mat.node_tree.nodes['Value.003'].outputs[0].default_value = setting[0]
+            case "emissive_color":
+                object_mat.node_tree.nodes['RGB'].outputs[0].default_value = setting[0:3] + [1]
+            case "emissive_power":
+                object_mat.node_tree.nodes['Principled BSDF.001'].inputs['Emission Strength'].default_value = setting[0]
+
+    print("    Finalizing material")
+    return object_mat
+
+def load_shaders(resource_path: str) -> Tuple[ModuleType, Material, Material, Material, Material, Material, Material, Material]:
     shader_script = bpy.data.texts.load(str(resource_path / "Helldivers2 shader script v1.0.6-1.py"))
     shader_script.use_fake_user = True
     shader_module = shader_script.as_module()
@@ -468,9 +514,11 @@ def load_shaders(resource_path: str) -> Tuple[ModuleType, Material, Material, Ma
     concrete_mat.use_fake_user = True
     fence_mat = bpy.data.materials["HD2 Fence"]
     fence_mat.use_fake_user = True
-    illuminate_building_mat = bpy.data.materials["HD2 Illuminate Building"]
+    triplanar_illuminate_building_mat = bpy.data.materials["HD2 Illuminate Building"]
+    triplanar_illuminate_building_mat.use_fake_user = True
+    illuminate_building_mat = bpy.data.materials["HD2 Illuminate Building Single Plane"]
     illuminate_building_mat.use_fake_user = True
-    return shader_module, shader_mat, skin_mat, lut_skin_mat, building_mat, concrete_mat, fence_mat, illuminate_building_mat
+    return shader_module, shader_mat, skin_mat, lut_skin_mat, building_mat, concrete_mat, fence_mat, triplanar_illuminate_building_mat, illuminate_building_mat
 
 def create_empty_texture(name: str, size: Tuple[int, int], fmt: str = 'PNG', colorspace: str = 'sRGB', alpha_mode: str = 'CHANNEL_PACKED') -> Image:
     unused_texture = bpy.data.images.new(name, size[0], size[1], alpha=True, float_buffer=True)
@@ -500,7 +548,7 @@ def add_to_armor_set(node: Dict):
         other.objects.unlink(obj)
     collection.objects.link(obj)
 
-def convert_materials(gltf: Dict, node: Dict, variants: List[Dict], hasVariants: bool, materialTextures: Dict[int, Dict[str, Image]], packall: bool, shader_module: ModuleType, shader_mat: Material, skin_mat: Material, lut_skin_mat: Material, building_mat: Material, concrete_mat: Material, fence_mat: Material, il_building_mat: Material, unused_texture: Image, unused_secondary_lut: Image):
+def convert_materials(gltf: Dict, node: Dict, variants: List[Dict], hasVariants: bool, materialTextures: Dict[int, Dict[str, Image]], packall: bool, shader_module: ModuleType, shader_mat: Material, skin_mat: Material, lut_skin_mat: Material, building_mat: Material, concrete_mat: Material, fence_mat: Material, triplanar_il_building_mat: Material, il_building_mat: Material, unused_texture: Image, unused_secondary_lut: Image):
     optional_usages = ["decal_sheet", "pattern_masks_array"]
 
     mesh = gltf["meshes"][node["mesh"]]
@@ -530,11 +578,12 @@ def convert_materials(gltf: Dict, node: Dict, variants: List[Dict], hasVariants:
             is_building = "texture_lut" in material["extras"] and "material_1_surface" in material["extras"]
             is_concrete = "pattern_data" in material["extras"] and "material_surface" in material["extras"]
             is_fence = "texture_map_319d3bb5" in material["extras"] and "fence_offset" in material["extras"]
-            is_illuminate_building = "bcm_tex_a" in material["extras"] and "noise_power" in material["extras"]
+            is_illuminate_building_triplanar = "albedo_array" in material["extras"] and "surface_tiling" in material["extras"] and "bcm_tex_a" in material["extras"] and "noise_power" in material["extras"]
+            is_illuminate_building_monoplanar = "albedo_array" in material["extras"] and "surface_tiling" in material["extras"] and "bcm_tex_a" not in material["extras"] and "noise_power" not in material["extras"]
             if materialIndex in materialTextures:
                 textures = materialTextures[materialIndex]
             else:
-                if len(material["extras"]) == 0 or not any((is_pbr, is_tex_array_skin, is_lut_skin, is_lut, is_building, is_concrete, is_fence, is_illuminate_building)):
+                if len(material["extras"]) == 0 or not any((is_pbr, is_tex_array_skin, is_lut_skin, is_lut, is_building, is_concrete, is_fence, is_illuminate_building_triplanar, is_illuminate_building_monoplanar)):
                     continue
                 if not packall and is_pbr:
                     continue
@@ -571,8 +620,11 @@ def convert_materials(gltf: Dict, node: Dict, variants: List[Dict], hasVariants:
                 elif is_lut_skin:
                     object_mat = add_lut_skin_material(lut_skin_mat, material, textures)
                     object_mat["needsBakeUVs"] = True
-                elif is_illuminate_building:
-                    object_mat = add_il_building_material(il_building_mat, material, textures)
+                elif is_illuminate_building_triplanar:
+                    object_mat = add_il_building_material(triplanar_il_building_mat, material, textures)
+                    object_mat["needsBakeUVs"] = True
+                elif is_illuminate_building_monoplanar:
+                    object_mat = add_single_plane_il_building_material(il_building_mat, material, textures)
                     object_mat["needsBakeUVs"] = True
                 elif is_building:
                     object_mat = add_building_material(building_mat, material, textures)
@@ -1190,7 +1242,7 @@ def main():
         if tmp_file:
             os.unlink(tmp_file.name)
     print("Loading Custom Shaders")
-    shader_module, shader_mat, skin_mat, lut_skin_mat, building_mat, concrete_mat, fence_mat, il_building_mat = load_shaders(resource_path)
+    shader_module, shader_mat, skin_mat, lut_skin_mat, building_mat, concrete_mat, fence_mat, il_building_mat_triplanar, il_building_mat = load_shaders(resource_path)
 
     unused_texture = create_empty_texture("unused", (1, 1))
     unused_secondary_lut = create_empty_texture("unused_secondary_lut", (23, 1), fmt='OPEN_EXR', colorspace='Non-Color')
@@ -1216,7 +1268,7 @@ def main():
         if node.get("extras", {}).get("default_hidden") == 1 and node["name"] in bpy.data.objects:
             hide_visibility_group(node)
         if "mesh" in node:
-            convert_materials(gltf, node, variants, hasVariants, materialTextures, args.packall, shader_module, shader_mat, skin_mat, lut_skin_mat, building_mat, concrete_mat, fence_mat, il_building_mat, unused_texture, unused_secondary_lut)
+            convert_materials(gltf, node, variants, hasVariants, materialTextures, args.packall, shader_module, shader_mat, skin_mat, lut_skin_mat, building_mat, concrete_mat, fence_mat, il_building_mat_triplanar, il_building_mat, unused_texture, unused_secondary_lut)
         if "state_machine" in node.get("extras", {}):
             add_state_machine(gltf, node)
 
