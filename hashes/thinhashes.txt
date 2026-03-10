@@ -18504,6 +18504,7 @@ il_rubble_pile_02
 il_rubble_pile_03
 il_rubble_small_02
 il_rubble_small_03
+il_ruin_stair
 il_scrambler_battery
 il_signpost
 il_spawner
@@ -19999,6 +20000,8 @@ m_il_rubble_large_01
 m_il_rubble_medium
 m_il_rubble_small
 m_il_sarcophagus
+m_il_spawner_01
+m_il_spawner_rubble
 m_il_statue_medium
 m_il_statue_small
 m_il_strategem_scrambler
@@ -20328,6 +20331,7 @@ m_soldier_corpse_body
 m_soldier_shield
 m_soldier_standard_rifle
 m_sos_beacon
+m_spawner_door
 m_spore_cluster_01
 m_spore_light_01
 m_spore_light_02

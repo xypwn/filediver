@@ -619,6 +619,23 @@ func (tok *InstructionToken) trinaryOpGLSL(opType ShaderOpcodeType, cbs []Consta
 			tok.operands[1].ToGLSL(cbs, isg, osg, res, (1<<dim)-1, true, false),
 			tok.operands[2].SwizzleMask(masks[2]),
 		)
+	case OPCODE_10_1_GATHER4:
+		rb := tok.operands[2].ResourceBinding(res)
+		if rb == nil {
+			panic(fmt.Errorf("gather operand 2 must be a resource binding"))
+		}
+		dim := rb.ViewDimension.Dimensions()
+		if dim < 1 {
+			panic(fmt.Errorf("gather operand 2 must be a known resource binding"))
+		}
+
+		expr = fmt.Sprintf(
+			"textureGather(%v, %v, %v)%v",
+			tok.operands[2].ToGLSL(cbs, isg, osg, res, 0x0, true, false),
+			tok.operands[1].ToGLSL(cbs, isg, osg, res, (1<<dim)-1, true, false),
+			int(tok.operands[3].SwizzleSrc()[0]),
+			tok.operands[2].Swizzle(),
+		)
 	default:
 		expr = fmt.Sprintf(
 			"%v %v %v /* Unimplemented */",
@@ -629,7 +646,7 @@ func (tok *InstructionToken) trinaryOpGLSL(opType ShaderOpcodeType, cbs []Consta
 	}
 
 	returnNumberType := opType.ReturnNumberType()
-	if opType == OPCODE_SAMPLE {
+	if opType == OPCODE_SAMPLE || opType == OPCODE_10_1_GATHER4 {
 		rb := tok.operands[2].ResourceBinding(res)
 		returnNumberType = rb.ReturnType.ToOpcodeNumberType()
 	}
