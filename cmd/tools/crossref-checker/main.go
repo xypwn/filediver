@@ -198,7 +198,8 @@ func main() {
 
 	ctx := context.Background() // no need to exit cleanly since we're only reading
 	knownHashes := app.ParseHashes(hashes.Hashes)
-	a, err := app.OpenGameDir(ctx, gameDir, knownHashes, []string{}, stingray.ThinHash{}, func(curr, total int) {
+	knownThinHashes := app.ParseHashes(hashes.ThinHashes)
+	a, err := app.OpenGameDir(ctx, gameDir, knownHashes, knownThinHashes, stingray.ThinHash{}, func(curr, total int) {
 		prt.Statusf("Reading metadata %.0f%%", float64(curr)/float64(total)*100)
 	})
 	if err != nil {
@@ -300,7 +301,7 @@ func main() {
 				}
 				for _, hash := range sortedMapThinHashKeys(byteOffsetsByThinHash) {
 					byteOffsets := byteOffsetsByThinHash[hash]
-					fmt.Fprintf(outFile, "gamefile %v.%v (%v) -> %v %v time(s), offsets: %v\n", a.LookupHash(fileID.Name), a.LookupHash(fileID.Type), dataType, hash, len(byteOffsets), byteOffsets)
+					fmt.Fprintf(outFile, "gamefile %v.%v (%v) -> %v %v time(s), offsets: %v\n", a.LookupHash(fileID.Name), a.LookupHash(fileID.Type), dataType, a.LookupThinHash(hash), len(byteOffsets), byteOffsets)
 					crossrefCounter++
 				}
 			}
@@ -322,7 +323,7 @@ func main() {
 		}
 		for _, hash := range sortedMapThinHashKeys(byteOffsetsByThinHash) {
 			byteOffsets := byteOffsetsByThinHash[hash]
-			fmt.Fprintf(outFile, "customfile %v -> %v %v time(s), offsets: %v\n", filePath, hash, len(byteOffsets), byteOffsets)
+			fmt.Fprintf(outFile, "customfile %v -> %v %v time(s), offsets: %v\n", filePath, a.LookupThinHash(hash), len(byteOffsets), byteOffsets)
 			crossrefCounter++
 		}
 		prt.Statusf("Searched file %v/%v (found %v cross-references)", searchedFileCounter+1, numFilesToSearch, crossrefCounter)
