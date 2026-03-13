@@ -45,8 +45,9 @@ const _NoiseTemplate_name = "NoiseTemplate_NoneNoiseTemplate_TootNoiseTemplate_E
 var _NoiseTemplate_index = [...]uint16{0, 18, 36, 56, 82, 110, 133, 159, 186, 212, 237, 266, 296, 325, 353, 387, 425, 462, 499, 520, 547, 584, 622, 658, 691, 719, 748, 772, 798, 827, 844}
 
 func (i NoiseTemplate) String() string {
-	if i >= NoiseTemplate(len(_NoiseTemplate_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_NoiseTemplate_index)-1 {
 		return "NoiseTemplate(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _NoiseTemplate_name[_NoiseTemplate_index[i]:_NoiseTemplate_index[i+1]]
+	return _NoiseTemplate_name[_NoiseTemplate_index[idx]:_NoiseTemplate_index[idx+1]]
 }

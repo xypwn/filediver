@@ -46,8 +46,9 @@ const _EnemyTag_name = "EnemyTag_NoneEnemyTag_BugAcidEnemyTag_BugArmoredEnemyTag
 var _EnemyTag_index = [...]uint16{0, 13, 29, 48, 69, 87, 105, 125, 145, 168, 191, 215, 239, 263, 282, 301, 322, 337, 355, 375, 399, 423, 446, 470, 494, 518, 542, 566, 590, 614, 628}
 
 func (i EnemyTag) String() string {
-	if i >= EnemyTag(len(_EnemyTag_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_EnemyTag_index)-1 {
 		return "EnemyTag(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _EnemyTag_name[_EnemyTag_index[i]:_EnemyTag_index[i+1]]
+	return _EnemyTag_name[_EnemyTag_index[idx]:_EnemyTag_index[idx+1]]
 }

@@ -19,8 +19,9 @@ const _UnitCustomizationCollectionCategoryType_name = "CategoryHangarCategoryDel
 var _UnitCustomizationCollectionCategoryType_index = [...]uint8{0, 14, 36, 54, 67}
 
 func (i UnitCustomizationCollectionCategoryType) String() string {
-	if i >= UnitCustomizationCollectionCategoryType(len(_UnitCustomizationCollectionCategoryType_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_UnitCustomizationCollectionCategoryType_index)-1 {
 		return "UnitCustomizationCollectionCategoryType(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _UnitCustomizationCollectionCategoryType_name[_UnitCustomizationCollectionCategoryType_index[i]:_UnitCustomizationCollectionCategoryType_index[i+1]]
+	return _UnitCustomizationCollectionCategoryType_name[_UnitCustomizationCollectionCategoryType_index[idx]:_UnitCustomizationCollectionCategoryType_index[idx+1]]
 }

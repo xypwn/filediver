@@ -22,8 +22,9 @@ const _UnitCustomizationCollectionType_name = "CollectionShuttleCollectionHellpo
 var _UnitCustomizationCollectionType_index = [...]uint8{0, 17, 34, 55, 77, 110, 123, 138}
 
 func (i UnitCustomizationCollectionType) String() string {
-	if i >= UnitCustomizationCollectionType(len(_UnitCustomizationCollectionType_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_UnitCustomizationCollectionType_index)-1 {
 		return "UnitCustomizationCollectionType(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _UnitCustomizationCollectionType_name[_UnitCustomizationCollectionType_index[i]:_UnitCustomizationCollectionType_index[i+1]]
+	return _UnitCustomizationCollectionType_name[_UnitCustomizationCollectionType_index[idx]:_UnitCustomizationCollectionType_index[idx+1]]
 }

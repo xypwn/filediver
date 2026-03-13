@@ -36,8 +36,9 @@ const _CrosshairWeaponType_name = "CrosshairWeaponType_DefaultCrosshairWeaponTyp
 var _CrosshairWeaponType_index = [...]uint16{0, 27, 61, 96, 128, 159, 190, 216, 244, 269, 300, 336, 363, 390, 419, 446, 474, 502, 530, 558, 582, 607}
 
 func (i CrosshairWeaponType) String() string {
-	if i >= CrosshairWeaponType(len(_CrosshairWeaponType_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_CrosshairWeaponType_index)-1 {
 		return "CrosshairWeaponType(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _CrosshairWeaponType_name[_CrosshairWeaponType_index[i]:_CrosshairWeaponType_index[i+1]]
+	return _CrosshairWeaponType_name[_CrosshairWeaponType_index[idx]:_CrosshairWeaponType_index[idx+1]]
 }

@@ -26,8 +26,9 @@ const _WeaponFunctionType_name = "WeaponFunctionType_NoneWeaponFunctionType_Zero
 var _WeaponFunctionType_index = [...]uint16{0, 23, 49, 71, 98, 125, 153, 182, 215, 250, 279, 312}
 
 func (i WeaponFunctionType) String() string {
-	if i >= WeaponFunctionType(len(_WeaponFunctionType_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_WeaponFunctionType_index)-1 {
 		return "WeaponFunctionType(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _WeaponFunctionType_name[_WeaponFunctionType_index[i]:_WeaponFunctionType_index[i+1]]
+	return _WeaponFunctionType_name[_WeaponFunctionType_index[idx]:_WeaponFunctionType_index[idx+1]]
 }

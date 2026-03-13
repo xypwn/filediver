@@ -41,8 +41,9 @@ const _HudMarkerType_name = "HudMarkerType_GenericHudMarkerType_EnemyHudMarkerTy
 var _HudMarkerType_index = [...]uint16{0, 21, 40, 64, 90, 114, 133, 157, 183, 207, 232, 250, 270, 289, 310, 330, 364, 383, 411, 434, 461, 484, 501, 534, 560, 585, 604}
 
 func (i HudMarkerType) String() string {
-	if i >= HudMarkerType(len(_HudMarkerType_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_HudMarkerType_index)-1 {
 		return "HudMarkerType(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _HudMarkerType_name[_HudMarkerType_index[i]:_HudMarkerType_index[i+1]]
+	return _HudMarkerType_name[_HudMarkerType_index[idx]:_HudMarkerType_index[idx+1]]
 }

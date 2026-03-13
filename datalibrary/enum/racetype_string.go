@@ -21,8 +21,9 @@ const _RaceType_name = "RaceType_NoneRaceType_SuperEarthRaceType_BugsRaceType_Cy
 var _RaceType_index = [...]uint8{0, 13, 32, 45, 60, 79, 93}
 
 func (i RaceType) String() string {
-	if i >= RaceType(len(_RaceType_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_RaceType_index)-1 {
 		return "RaceType(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _RaceType_name[_RaceType_index[i]:_RaceType_index[i+1]]
+	return _RaceType_name[_RaceType_index[idx]:_RaceType_index[idx+1]]
 }

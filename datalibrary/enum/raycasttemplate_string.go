@@ -47,8 +47,9 @@ const _RaycastTemplate_name = "RaycastTemplate_DamageRaycastTemplate_Value_1_Len
 var _RaycastTemplate_index = [...]uint16{0, 22, 52, 82, 107, 139, 158, 180, 210, 235, 273, 306, 332, 354, 376, 411, 440, 461, 483, 510, 548, 572, 603, 627, 650, 670, 695, 725, 751, 781, 822, 853, 874}
 
 func (i RaycastTemplate) String() string {
-	if i >= RaycastTemplate(len(_RaycastTemplate_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_RaycastTemplate_index)-1 {
 		return "RaycastTemplate(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _RaycastTemplate_name[_RaycastTemplate_index[i]:_RaycastTemplate_index[i+1]]
+	return _RaycastTemplate_name[_RaycastTemplate_index[idx]:_RaycastTemplate_index[idx+1]]
 }

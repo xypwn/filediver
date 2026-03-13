@@ -20,8 +20,9 @@ const _DepositRefill_name = "DepositRefill_NoneDepositRefill_AmmoDepositRefill_M
 var _DepositRefill_index = [...]uint8{0, 18, 36, 55, 77, 96}
 
 func (i DepositRefill) String() string {
-	if i >= DepositRefill(len(_DepositRefill_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_DepositRefill_index)-1 {
 		return "DepositRefill(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _DepositRefill_name[_DepositRefill_index[i]:_DepositRefill_index[i+1]]
+	return _DepositRefill_name[_DepositRefill_index[idx]:_DepositRefill_index[idx+1]]
 }

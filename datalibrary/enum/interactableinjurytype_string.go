@@ -21,8 +21,9 @@ const _InteractableInjuryType_name = "InteractableInjuryType_NoneInteractableInj
 var _InteractableInjuryType_index = [...]uint8{0, 27, 58, 87, 118, 147, 185}
 
 func (i InteractableInjuryType) String() string {
-	if i >= InteractableInjuryType(len(_InteractableInjuryType_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_InteractableInjuryType_index)-1 {
 		return "InteractableInjuryType(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _InteractableInjuryType_name[_InteractableInjuryType_index[i]:_InteractableInjuryType_index[i+1]]
+	return _InteractableInjuryType_name[_InteractableInjuryType_index[idx]:_InteractableInjuryType_index[idx+1]]
 }

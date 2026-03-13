@@ -19,8 +19,9 @@ const _HelldiverCustomizationPassiveBonusModifierType_name = "ModifierTypeSetMod
 var _HelldiverCustomizationPassiveBonusModifierType_index = [...]uint8{0, 15, 30, 50, 66}
 
 func (i HelldiverCustomizationPassiveBonusModifierType) String() string {
-	if i >= HelldiverCustomizationPassiveBonusModifierType(len(_HelldiverCustomizationPassiveBonusModifierType_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_HelldiverCustomizationPassiveBonusModifierType_index)-1 {
 		return "HelldiverCustomizationPassiveBonusModifierType(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _HelldiverCustomizationPassiveBonusModifierType_name[_HelldiverCustomizationPassiveBonusModifierType_index[i]:_HelldiverCustomizationPassiveBonusModifierType_index[i+1]]
+	return _HelldiverCustomizationPassiveBonusModifierType_name[_HelldiverCustomizationPassiveBonusModifierType_index[idx]:_HelldiverCustomizationPassiveBonusModifierType_index[idx+1]]
 }

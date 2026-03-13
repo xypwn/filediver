@@ -48,8 +48,9 @@ const _EquipmentType_name = "EquipmentType_AllEquipmentType_AssaultRifleEquipmen
 var _EquipmentType_index = [...]uint16{0, 17, 43, 70, 95, 112, 136, 157, 180, 200, 224, 244, 266, 293, 322, 351, 379, 401, 430, 460, 487, 514, 548, 576, 610, 638, 667, 696, 719, 748, 767, 796, 816, 835}
 
 func (i EquipmentType) String() string {
-	if i >= EquipmentType(len(_EquipmentType_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_EquipmentType_index)-1 {
 		return "EquipmentType(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _EquipmentType_name[_EquipmentType_index[i]:_EquipmentType_index[i+1]]
+	return _EquipmentType_name[_EquipmentType_index[idx]:_EquipmentType_index[idx+1]]
 }

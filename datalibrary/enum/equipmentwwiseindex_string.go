@@ -37,9 +37,9 @@ const _EquipmentWwiseIndex_name = "EquipmentWwiseIndex_Carryable_FuelBarrelEquip
 var _EquipmentWwiseIndex_index = [...]uint16{0, 40, 79, 117, 151, 175, 210, 246, 277, 311, 346, 380, 423, 466, 509, 547, 581, 616, 655, 686, 717, 748, 778}
 
 func (i EquipmentWwiseIndex) String() string {
-	i -= -4
-	if i < 0 || i >= EquipmentWwiseIndex(len(_EquipmentWwiseIndex_index)-1) {
-		return "EquipmentWwiseIndex(" + strconv.FormatInt(int64(i+-4), 10) + ")"
+	idx := int(i) - -4
+	if i < -4 || idx >= len(_EquipmentWwiseIndex_index)-1 {
+		return "EquipmentWwiseIndex(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _EquipmentWwiseIndex_name[_EquipmentWwiseIndex_index[i]:_EquipmentWwiseIndex_index[i+1]]
+	return _EquipmentWwiseIndex_name[_EquipmentWwiseIndex_index[idx]:_EquipmentWwiseIndex_index[idx+1]]
 }

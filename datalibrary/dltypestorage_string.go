@@ -37,8 +37,9 @@ const _DLTypeStorage_name = "INT8INT16INT32INT64UINT8UINT16UINT32UINT64FP32FP64E
 var _DLTypeStorage_index = [...]uint8{0, 4, 9, 14, 19, 24, 30, 36, 42, 46, 50, 59, 69, 79, 89, 99, 110, 121, 132, 135, 138, 144, 155}
 
 func (i DLTypeStorage) String() string {
-	if i >= DLTypeStorage(len(_DLTypeStorage_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_DLTypeStorage_index)-1 {
 		return "DLTypeStorage(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _DLTypeStorage_name[_DLTypeStorage_index[i]:_DLTypeStorage_index[i+1]]
+	return _DLTypeStorage_name[_DLTypeStorage_index[idx]:_DLTypeStorage_index[idx+1]]
 }

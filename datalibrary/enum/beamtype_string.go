@@ -41,8 +41,9 @@ const _BeamType_name = "BeamType_NoneBeamType_LaserCannonBeamType_BotTorchBeamTy
 var _BeamType_index = [...]uint16{0, 13, 33, 50, 80, 103, 123, 138, 158, 185, 199, 217, 233, 248, 268, 288, 312, 336, 354, 378, 392, 412, 436, 469, 493, 516, 530}
 
 func (i BeamType) String() string {
-	if i >= BeamType(len(_BeamType_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_BeamType_index)-1 {
 		return "BeamType(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _BeamType_name[_BeamType_index[i]:_BeamType_index[i+1]]
+	return _BeamType_name[_BeamType_index[idx]:_BeamType_index[idx+1]]
 }

@@ -30,8 +30,9 @@ const _TerrainDeformationType_name = "TerrainDeformationType_NoneTerrainDeformat
 var _TerrainDeformationType_index = [...]uint16{0, 27, 57, 84, 112, 141, 169, 198, 239, 276, 313, 351, 389, 427, 465, 493}
 
 func (i TerrainDeformationType) String() string {
-	if i >= TerrainDeformationType(len(_TerrainDeformationType_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_TerrainDeformationType_index)-1 {
 		return "TerrainDeformationType(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _TerrainDeformationType_name[_TerrainDeformationType_index[i]:_TerrainDeformationType_index[i+1]]
+	return _TerrainDeformationType_name[_TerrainDeformationType_index[idx]:_TerrainDeformationType_index[idx+1]]
 }

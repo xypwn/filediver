@@ -22,8 +22,9 @@ const _StampSplineType_name = "StampSpline_PathStampSpline_SuperEarthRoadStampSp
 var _StampSplineType_index = [...]uint8{0, 16, 42, 61, 80, 106, 123, 138}
 
 func (i StampSplineType) String() string {
-	if i >= StampSplineType(len(_StampSplineType_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_StampSplineType_index)-1 {
 		return "StampSplineType(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _StampSplineType_name[_StampSplineType_index[i]:_StampSplineType_index[i+1]]
+	return _StampSplineType_name[_StampSplineType_index[idx]:_StampSplineType_index[idx+1]]
 }

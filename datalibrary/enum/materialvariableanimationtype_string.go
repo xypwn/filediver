@@ -17,8 +17,9 @@ const _MaterialVariableAnimationType_name = "MaterialVariableAnimationType_Linea
 var _MaterialVariableAnimationType_index = [...]uint8{0, 36, 74}
 
 func (i MaterialVariableAnimationType) String() string {
-	if i >= MaterialVariableAnimationType(len(_MaterialVariableAnimationType_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_MaterialVariableAnimationType_index)-1 {
 		return "MaterialVariableAnimationType(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _MaterialVariableAnimationType_name[_MaterialVariableAnimationType_index[i]:_MaterialVariableAnimationType_index[i+1]]
+	return _MaterialVariableAnimationType_name[_MaterialVariableAnimationType_index[idx]:_MaterialVariableAnimationType_index[idx+1]]
 }

@@ -26,8 +26,9 @@ const _WeaponCustomizationSlot_name = "WeaponCustomizationSlot_NoneWeaponCustomi
 var _WeaponCustomizationSlot_index = [...]uint16{0, 28, 63, 93, 128, 158, 190, 222, 263, 296, 328, 357}
 
 func (i WeaponCustomizationSlot) String() string {
-	if i >= WeaponCustomizationSlot(len(_WeaponCustomizationSlot_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_WeaponCustomizationSlot_index)-1 {
 		return "WeaponCustomizationSlot(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _WeaponCustomizationSlot_name[_WeaponCustomizationSlot_index[i]:_WeaponCustomizationSlot_index[i+1]]
+	return _WeaponCustomizationSlot_name[_WeaponCustomizationSlot_index[idx]:_WeaponCustomizationSlot_index[idx+1]]
 }

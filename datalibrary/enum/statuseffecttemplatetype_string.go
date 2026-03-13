@@ -46,8 +46,9 @@ const _StatusEffectTemplateType_name = "StatusEffectTemplateType_NoneStatusEffec
 var _StatusEffectTemplateType_index = [...]uint16{0, 29, 66, 99, 128, 164, 200, 230, 263, 301, 330, 358, 387, 423, 457, 487, 523, 551, 582, 618, 658, 691, 731, 771, 811, 851, 891, 931, 971, 1011, 1051, 1081}
 
 func (i StatusEffectTemplateType) String() string {
-	if i >= StatusEffectTemplateType(len(_StatusEffectTemplateType_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_StatusEffectTemplateType_index)-1 {
 		return "StatusEffectTemplateType(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _StatusEffectTemplateType_name[_StatusEffectTemplateType_index[i]:_StatusEffectTemplateType_index[i+1]]
+	return _StatusEffectTemplateType_name[_StatusEffectTemplateType_index[idx]:_StatusEffectTemplateType_index[idx+1]]
 }

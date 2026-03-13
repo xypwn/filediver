@@ -18,8 +18,9 @@ const _RackSide_name = "RackSide_NoneRackSide_RightRackSide_Left"
 var _RackSide_index = [...]uint8{0, 13, 27, 40}
 
 func (i RackSide) String() string {
-	if i >= RackSide(len(_RackSide_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_RackSide_index)-1 {
 		return "RackSide(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _RackSide_name[_RackSide_index[i]:_RackSide_index[i+1]]
+	return _RackSide_name[_RackSide_index[idx]:_RackSide_index[idx+1]]
 }
