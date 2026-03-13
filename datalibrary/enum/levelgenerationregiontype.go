@@ -1,0 +1,42 @@
+package enum
+
+type LevelGenerationRegionType uint32
+
+const (
+	LevelGenerationRegion_none LevelGenerationRegionType = iota
+	LevelGenerationRegion_region_generation_testing
+	LevelGenerationRegion_region_sandy_tutorial
+	LevelGenerationRegion_region_sandy_base
+	LevelGenerationRegion_region_sandy_acid
+	LevelGenerationRegion_region_sandy_moon
+	LevelGenerationRegion_region_sandy_mineral
+	LevelGenerationRegion_region_sandy_spiky
+	LevelGenerationRegion_region_sandy_cyborg_factory
+	LevelGenerationRegion_region_primordial_tutorial
+	LevelGenerationRegion_region_primordial_base
+	LevelGenerationRegion_region_primordial_dead
+	LevelGenerationRegion_region_primordial_purple
+	LevelGenerationRegion_region_primordial_blue
+	LevelGenerationRegion_region_primordial_bug
+	LevelGenerationRegion_region_magma_base
+	LevelGenerationRegion_region_arctic_glacier_base
+	LevelGenerationRegion_region_arctic_glacier_coldrocky
+	LevelGenerationRegion_region_cyberstan
+	LevelGenerationRegion_region_moor_baseplanet
+	LevelGenerationRegion_region_moor_tundra
+	LevelGenerationRegion_region_moor_arid
+	LevelGenerationRegion_region_moor_red
+	LevelGenerationRegion_region_superearth
+	LevelGenerationRegion_region_swamp_base
+	LevelGenerationRegion_region_swamp_haunted
+	LevelGenerationRegion_Value_26_Len_45
+	LevelGenerationRegion_region_bug_hiveworld
+	LevelGenerationRegion_region_bug_home
+	LevelGenerationRegion_count
+)
+
+func (p LevelGenerationRegionType) MarshalText() ([]byte, error) {
+	return []byte(p.String()), nil
+}
+
+//go:generate go run golang.org/x/tools/cmd/stringer -type=LevelGenerationRegionType

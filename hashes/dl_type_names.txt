@@ -257,6 +257,7 @@ MinefieldComponent
 DamagePropagatorComponentData
 FakeTankVehicleComponentData
 RegionWeight
+RegionFlag
 PackageLayerTagIndirection
 CApiVector2
 ActorGoreOverride
