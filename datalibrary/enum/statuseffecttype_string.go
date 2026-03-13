@@ -84,8 +84,9 @@ const _StatusEffectType_name = "StatusEffectType_NoneStatusEffectType_BlindStatu
 var _StatusEffectType_index = [...]uint16{0, 21, 43, 65, 86, 112, 133, 164, 195, 218, 241, 269, 297, 322, 350, 382, 403, 423, 444, 470, 496, 528, 553, 579, 605, 633, 665, 693, 718, 749, 782, 811, 840, 871, 902, 927, 950, 976, 1003, 1029, 1057, 1088, 1108, 1140, 1172, 1204, 1236, 1265, 1295, 1329, 1357, 1385, 1417, 1449, 1481, 1513, 1545, 1577, 1609, 1641, 1673, 1705, 1737, 1769, 1801, 1833, 1865, 1897, 1929, 1951}
 
 func (i StatusEffectType) String() string {
-	if i >= StatusEffectType(len(_StatusEffectType_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_StatusEffectType_index)-1 {
 		return "StatusEffectType(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _StatusEffectType_name[_StatusEffectType_index[i]:_StatusEffectType_index[i+1]]
+	return _StatusEffectType_name[_StatusEffectType_index[idx]:_StatusEffectType_index[idx+1]]
 }

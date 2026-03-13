@@ -20,8 +20,9 @@ const _WeaponReloadEventType_name = "WeaponReloadEventType_NoneWeaponReloadEvent
 var _WeaponReloadEventType_index = [...]uint8{0, 26, 60, 101, 133, 172}
 
 func (i WeaponReloadEventType) String() string {
-	if i >= WeaponReloadEventType(len(_WeaponReloadEventType_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_WeaponReloadEventType_index)-1 {
 		return "WeaponReloadEventType(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _WeaponReloadEventType_name[_WeaponReloadEventType_index[i]:_WeaponReloadEventType_index[i+1]]
+	return _WeaponReloadEventType_name[_WeaponReloadEventType_index[idx]:_WeaponReloadEventType_index[idx+1]]
 }

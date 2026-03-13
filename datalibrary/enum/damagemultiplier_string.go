@@ -20,8 +20,9 @@ const _DamageMultiplier_name = "DamageMultiplier_NoneDamageMultiplier_CriticalDa
 var _DamageMultiplier_index = [...]uint8{0, 21, 46, 69, 93, 118}
 
 func (i DamageMultiplier) String() string {
-	if i >= DamageMultiplier(len(_DamageMultiplier_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_DamageMultiplier_index)-1 {
 		return "DamageMultiplier(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _DamageMultiplier_name[_DamageMultiplier_index[i]:_DamageMultiplier_index[i+1]]
+	return _DamageMultiplier_name[_DamageMultiplier_index[idx]:_DamageMultiplier_index[idx+1]]
 }

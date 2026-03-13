@@ -66,8 +66,9 @@ const _InteractType_name = "InteractType_NoneInteractType_PickupWeaponPrimaryInt
 var _InteractType_index = [...]uint16{0, 17, 49, 81, 113, 136, 161, 188, 215, 250, 280, 309, 343, 369, 397, 421, 448, 465, 487, 512, 539, 557, 580, 611, 644, 669, 690, 711, 738, 765, 795, 823, 852, 869, 900, 926, 948, 971, 993, 1021, 1057, 1082, 1110, 1138, 1155, 1176, 1203, 1227, 1255, 1275, 1305, 1333}
 
 func (i InteractType) String() string {
-	if i >= InteractType(len(_InteractType_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_InteractType_index)-1 {
 		return "InteractType(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _InteractType_name[_InteractType_index[i]:_InteractType_index[i+1]]
+	return _InteractType_name[_InteractType_index[idx]:_InteractType_index[idx+1]]
 }

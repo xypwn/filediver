@@ -26,8 +26,9 @@ const _DestructionTemplateType_name = "DestructionTemplateType_noneDestructionTe
 var _DestructionTemplateType_index = [...]uint16{0, 28, 61, 128, 185, 229, 271, 303, 344, 383, 413, 442}
 
 func (i DestructionTemplateType) String() string {
-	if i >= DestructionTemplateType(len(_DestructionTemplateType_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_DestructionTemplateType_index)-1 {
 		return "DestructionTemplateType(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _DestructionTemplateType_name[_DestructionTemplateType_index[i]:_DestructionTemplateType_index[i+1]]
+	return _DestructionTemplateType_name[_DestructionTemplateType_index[idx]:_DestructionTemplateType_index[idx+1]]
 }

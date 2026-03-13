@@ -27,11 +27,13 @@ import (
 	extr_animation "github.com/xypwn/filediver/extractor/animation"
 	extr_bik "github.com/xypwn/filediver/extractor/bik"
 	extr_bones "github.com/xypwn/filediver/extractor/bones"
+	extr_entity "github.com/xypwn/filediver/extractor/entity"
 	extr_geogroup "github.com/xypwn/filediver/extractor/geometry_group"
 	extr_level "github.com/xypwn/filediver/extractor/level"
 	extr_material "github.com/xypwn/filediver/extractor/material"
 	extr_package "github.com/xypwn/filediver/extractor/package"
 	extr_prefab "github.com/xypwn/filediver/extractor/prefab"
+	extr_shading_environment "github.com/xypwn/filediver/extractor/shading_environment"
 	extr_state_machine "github.com/xypwn/filediver/extractor/state_machine"
 	extr_strings "github.com/xypwn/filediver/extractor/strings"
 	extr_texture "github.com/xypwn/filediver/extractor/texture"
@@ -646,6 +648,12 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 			extr = extr_bones.ExtractBonesJSON
 		case "ah_bin":
 			extr = extr_ah_bin.ExtractAhBinJSON
+		case "entity":
+			extr = extr_entity.ExtractEntityJSON
+		case "shading_environment":
+			extr = extr_shading_environment.ExtractShadingEnvironmentJSON
+		case "shading_environment_mapping":
+			extr = extr_shading_environment.ExtractShadingEnvironmentMappingJSON
 		default:
 			extr = getSourceExtractFunc(extrCfg, typ)
 		}

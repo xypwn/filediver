@@ -21,8 +21,9 @@ const _WeaponCustomizationIKAttach_name = "WeaponCustomizationIKAttach_NoneWeapo
 var _WeaponCustomizationIKAttach_index = [...]uint8{0, 32, 66, 105, 139, 175, 208}
 
 func (i WeaponCustomizationIKAttach) String() string {
-	if i >= WeaponCustomizationIKAttach(len(_WeaponCustomizationIKAttach_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_WeaponCustomizationIKAttach_index)-1 {
 		return "WeaponCustomizationIKAttach(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _WeaponCustomizationIKAttach_name[_WeaponCustomizationIKAttach_index[i]:_WeaponCustomizationIKAttach_index[i+1]]
+	return _WeaponCustomizationIKAttach_name[_WeaponCustomizationIKAttach_index[idx]:_WeaponCustomizationIKAttach_index[idx+1]]
 }

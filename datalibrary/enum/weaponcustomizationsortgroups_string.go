@@ -20,8 +20,9 @@ const _WeaponCustomizationSortGroups_name = "WeaponCustomizationSortGroups_NoneW
 var _WeaponCustomizationSortGroups_index = [...]uint8{0, 34, 77, 118, 158, 193}
 
 func (i WeaponCustomizationSortGroups) String() string {
-	if i >= WeaponCustomizationSortGroups(len(_WeaponCustomizationSortGroups_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_WeaponCustomizationSortGroups_index)-1 {
 		return "WeaponCustomizationSortGroups(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _WeaponCustomizationSortGroups_name[_WeaponCustomizationSortGroups_index[i]:_WeaponCustomizationSortGroups_index[i+1]]
+	return _WeaponCustomizationSortGroups_name[_WeaponCustomizationSortGroups_index[idx]:_WeaponCustomizationSortGroups_index[idx+1]]
 }

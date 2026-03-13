@@ -18,8 +18,9 @@ const _InteractableMode_name = "InteractableMode_OwnerOnlyInteractableMode_Every
 var _InteractableMode_index = [...]uint8{0, 26, 51, 84}
 
 func (i InteractableMode) String() string {
-	if i >= InteractableMode(len(_InteractableMode_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_InteractableMode_index)-1 {
 		return "InteractableMode(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _InteractableMode_name[_InteractableMode_index[i]:_InteractableMode_index[i+1]]
+	return _InteractableMode_name[_InteractableMode_index[idx]:_InteractableMode_index[idx+1]]
 }

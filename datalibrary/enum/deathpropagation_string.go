@@ -19,8 +19,9 @@ const _DeathPropagation_name = "DeathPropagation_NoneDeathPropagation_ToParentDe
 var _DeathPropagation_index = [...]uint8{0, 21, 46, 73, 94}
 
 func (i DeathPropagation) String() string {
-	if i >= DeathPropagation(len(_DeathPropagation_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_DeathPropagation_index)-1 {
 		return "DeathPropagation(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _DeathPropagation_name[_DeathPropagation_index[i]:_DeathPropagation_index[i+1]]
+	return _DeathPropagation_name[_DeathPropagation_index[idx]:_DeathPropagation_index[idx+1]]
 }

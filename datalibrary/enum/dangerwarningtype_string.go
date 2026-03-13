@@ -49,8 +49,9 @@ const _DangerWarningType_name = "DangerWarningType_NoneDangerWarningType_EnemyOr
 var _DangerWarningType_index = [...]uint16{0, 22, 52, 77, 103, 132, 161, 189, 219, 253, 282, 315, 348, 381, 414, 447, 481, 514, 560, 610, 661, 707, 750, 790, 829, 877, 910, 943, 976, 1009, 1042, 1075, 1108, 1141, 1164}
 
 func (i DangerWarningType) String() string {
-	if i >= DangerWarningType(len(_DangerWarningType_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_DangerWarningType_index)-1 {
 		return "DangerWarningType(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _DangerWarningType_name[_DangerWarningType_index[i]:_DangerWarningType_index[i+1]]
+	return _DangerWarningType_name[_DangerWarningType_index[idx]:_DangerWarningType_index[idx+1]]
 }

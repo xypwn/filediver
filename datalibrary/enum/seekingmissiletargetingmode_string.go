@@ -20,8 +20,9 @@ const _SeekingMissileTargetingMode_name = "SeekingMissileTargetingMode_BehaviorS
 var _SeekingMissileTargetingMode_index = [...]uint8{0, 36, 72, 110, 146, 179}
 
 func (i SeekingMissileTargetingMode) String() string {
-	if i >= SeekingMissileTargetingMode(len(_SeekingMissileTargetingMode_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_SeekingMissileTargetingMode_index)-1 {
 		return "SeekingMissileTargetingMode(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _SeekingMissileTargetingMode_name[_SeekingMissileTargetingMode_index[i]:_SeekingMissileTargetingMode_index[i+1]]
+	return _SeekingMissileTargetingMode_name[_SeekingMissileTargetingMode_index[idx]:_SeekingMissileTargetingMode_index[idx+1]]
 }

@@ -18,8 +18,9 @@ const _ExplosionVerificationMode_name = "ExplosionVerificationMode_NoneExplosion
 var _ExplosionVerificationMode_index = [...]uint8{0, 30, 67, 96}
 
 func (i ExplosionVerificationMode) String() string {
-	if i >= ExplosionVerificationMode(len(_ExplosionVerificationMode_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_ExplosionVerificationMode_index)-1 {
 		return "ExplosionVerificationMode(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _ExplosionVerificationMode_name[_ExplosionVerificationMode_index[i]:_ExplosionVerificationMode_index[i+1]]
+	return _ExplosionVerificationMode_name[_ExplosionVerificationMode_index[idx]:_ExplosionVerificationMode_index[idx+1]]
 }

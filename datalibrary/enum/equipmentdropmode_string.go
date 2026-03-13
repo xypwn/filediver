@@ -18,8 +18,9 @@ const _EquipmentDropMode_name = "EquipmentDropMode_DecayEquipmentDropMode_Infini
 var _EquipmentDropMode_index = [...]uint8{0, 23, 49, 85}
 
 func (i EquipmentDropMode) String() string {
-	if i >= EquipmentDropMode(len(_EquipmentDropMode_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_EquipmentDropMode_index)-1 {
 		return "EquipmentDropMode(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _EquipmentDropMode_name[_EquipmentDropMode_index[i]:_EquipmentDropMode_index[i+1]]
+	return _EquipmentDropMode_name[_EquipmentDropMode_index[idx]:_EquipmentDropMode_index[idx+1]]
 }

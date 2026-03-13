@@ -2611,6 +2611,7 @@ content/art_shared/meshes/plane_primitive
 content/art_shared/meshes/water_plane
 content/art_shared/shading_global_lookups/ibl_iridescence_generic_lut
 content/art_shared/skydome/materials/aurora_01
+content/art_shared/skydome/textures/space_objects/aurora_albedo
 content/art_shared/textures/50_gray
 content/art_shared/textures/black_all_channels_dummy
 content/art_shared/textures/camera_dirt
@@ -2624,6 +2625,8 @@ content/art_shared/textures/dummy_weathering_nar
 content/art_shared/textures/fibonacci_normal_lut
 content/art_shared/textures/flat_normal
 content/art_shared/textures/glitter_tiler
+content/art_shared/textures/grunge01
+content/art_shared/textures/noise_ion2
 content/art_shared/textures/normal_xy_ao_rough_dummy
 content/art_shared/textures/ripples_tiler
 content/art_shared/textures/water_caustics
@@ -68149,11 +68152,14 @@ content/effects/textures/lens_flares/lens_flare_sun_02
 content/effects/textures/lens_flares/lens_flare_sun_03
 content/effects/textures/lens_flares/lens_flare_sun_04
 content/effects/textures/lens_flares/space_sun_flare_new
+content/effects/textures/noise/smokey_noise_blurpack
 content/effects/textures/screen_effects/damaged_generic_00
 content/effects/textures/screen_effects/damaged_generic_01
 content/effects/textures/screen_effects/damaged_generic_02
 content/effects/textures/screen_effects/damaged_generic_03
 content/effects/textures/screen_effects/damaged_generic_04
+content/effects/textures/screen_effects/heathaze_noise
+content/effects/textures/screen_effects/mind_scrambler
 content/effects/textures/smoke/fog_volume_00
 content/effects/textures/smoke/fog_volume_01
 content/effects/textures/smoke/fog_volume_02
@@ -73750,6 +73756,9 @@ content/planet_arctic_glacier/assets/variation_coldrocky/terrain_materials/textu
 content/planet_arctic_glacier/assets/variation_coldrocky/terrain_materials/textures_packed/arctic_dirt_mossy_mask
 content/planet_arctic_glacier/assets/variation_coldrocky/terrain_materials/textures_packed/arctic_dirt_mossy_nms
 content/planet_arctic_glacier/assets/variation_coldrocky/terrain_materials/textures_packed/arctic_dirt_mossy_normal
+content/planet_bug_hiveworld/assets/terrain_materials/textures_packed/sandy_weathering_albedo_graded
+content/planet_bug_hiveworld/assets/terrain_materials/textures_packed/sandy_weathering_mask
+content/planet_bug_hiveworld/assets/terrain_materials/textures_packed/sandy_weathering_nar
 content/planet_desert_rocky/assets/speedtrees/rocky_alien_plant_01
 content/planet_desert_rocky/assets/speedtrees/rocky_hanging_seaweed_large
 content/planet_desert_rocky/assets/speedtrees/rocky_hanging_seaweed_medium
@@ -75968,6 +75977,7 @@ core/stingray_renderer/shading_environment_components
 core/stingray_renderer/shading_environment_components/asset_color_grading
 core/stingray_renderer/shading_environment_components/atmosphere
 core/stingray_renderer/shading_environment_components/auto_exposure
+core/stingray_renderer/shading_environment_components/black_hole
 core/stingray_renderer/shading_environment_components/bloom
 core/stingray_renderer/shading_environment_components/cascaded_shadow_mapping
 core/stingray_renderer/shading_environment_components/cloud_shadows
@@ -75985,12 +75995,15 @@ core/stingray_renderer/shading_environment_components/fog
 core/stingray_renderer/shading_environment_components/global_lighting
 core/stingray_renderer/shading_environment_components/global_utility
 core/stingray_renderer/shading_environment_components/heathaze
+core/stingray_renderer/shading_environment_components/heightmap_ao
 core/stingray_renderer/shading_environment_components/hologram_drop_select_variables
 core/stingray_renderer/shading_environment_components/hologram_variables
 core/stingray_renderer/shading_environment_components/hud
 core/stingray_renderer/shading_environment_components/lens_flares_global
 core/stingray_renderer/shading_environment_components/lens_quality
+core/stingray_renderer/shading_environment_components/mind_scramble
 core/stingray_renderer/shading_environment_components/motion_blur
+core/stingray_renderer/shading_environment_components/neuroperversion
 core/stingray_renderer/shading_environment_components/parametric_color_grading
 core/stingray_renderer/shading_environment_components/post_effects
 core/stingray_renderer/shading_environment_components/render_utility
@@ -77969,6 +77982,7 @@ rendering/components/color_variation_0_base
 rendering/components/color_variation_1_base
 rendering/components/color_variation_2_base
 rendering/components/color_variation_3_base
+rendering/components/hologram_settings
 rendering/components/level_generation_render_settings
 rendering/components/map_generation_settings
 rendering/components/planet_atmosphere

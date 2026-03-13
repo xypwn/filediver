@@ -19,8 +19,9 @@ const _UnitEffectOrphanStrategy_name = "OrphanStrategyNoneOrphanStrategyDestroyO
 var _UnitEffectOrphanStrategy_index = [...]uint8{0, 18, 39, 57, 81}
 
 func (i UnitEffectOrphanStrategy) String() string {
-	if i >= UnitEffectOrphanStrategy(len(_UnitEffectOrphanStrategy_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_UnitEffectOrphanStrategy_index)-1 {
 		return "UnitEffectOrphanStrategy(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _UnitEffectOrphanStrategy_name[_UnitEffectOrphanStrategy_index[i]:_UnitEffectOrphanStrategy_index[i+1]]
+	return _UnitEffectOrphanStrategy_name[_UnitEffectOrphanStrategy_index[idx]:_UnitEffectOrphanStrategy_index[idx+1]]
 }

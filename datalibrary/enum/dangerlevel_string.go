@@ -25,8 +25,9 @@ const _DangerLevel_name = "DangerLevel_NoneDangerLevel_ProjectileDangerLevel_Mel
 var _DangerLevel_index = [...]uint8{0, 16, 38, 55, 76, 94, 110, 129, 147, 173, 190}
 
 func (i DangerLevel) String() string {
-	if i >= DangerLevel(len(_DangerLevel_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_DangerLevel_index)-1 {
 		return "DangerLevel(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _DangerLevel_name[_DangerLevel_index[i]:_DangerLevel_index[i+1]]
+	return _DangerLevel_name[_DangerLevel_index[idx]:_DangerLevel_index[idx+1]]
 }

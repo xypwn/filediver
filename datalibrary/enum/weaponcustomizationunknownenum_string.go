@@ -20,8 +20,9 @@ const _WeaponCustomizationUnknownEnum_name = "WeaponCustomizationUnknownEnum_Non
 var _WeaponCustomizationUnknownEnum_index = [...]uint8{0, 35, 79, 123, 167, 203}
 
 func (i WeaponCustomizationUnknownEnum) String() string {
-	if i >= WeaponCustomizationUnknownEnum(len(_WeaponCustomizationUnknownEnum_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_WeaponCustomizationUnknownEnum_index)-1 {
 		return "WeaponCustomizationUnknownEnum(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _WeaponCustomizationUnknownEnum_name[_WeaponCustomizationUnknownEnum_index[i]:_WeaponCustomizationUnknownEnum_index[i+1]]
+	return _WeaponCustomizationUnknownEnum_name[_WeaponCustomizationUnknownEnum_index[idx]:_WeaponCustomizationUnknownEnum_index[idx+1]]
 }

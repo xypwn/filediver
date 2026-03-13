@@ -19,8 +19,9 @@ const _ProjectileStatusEffectVolumeTemplate_name = "ProjectileStatusEffectVolume
 var _ProjectileStatusEffectVolumeTemplate_index = [...]uint8{0, 41, 90, 138, 180}
 
 func (i ProjectileStatusEffectVolumeTemplate) String() string {
-	if i >= ProjectileStatusEffectVolumeTemplate(len(_ProjectileStatusEffectVolumeTemplate_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_ProjectileStatusEffectVolumeTemplate_index)-1 {
 		return "ProjectileStatusEffectVolumeTemplate(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _ProjectileStatusEffectVolumeTemplate_name[_ProjectileStatusEffectVolumeTemplate_index[i]:_ProjectileStatusEffectVolumeTemplate_index[i+1]]
+	return _ProjectileStatusEffectVolumeTemplate_name[_ProjectileStatusEffectVolumeTemplate_index[idx]:_ProjectileStatusEffectVolumeTemplate_index[idx+1]]
 }

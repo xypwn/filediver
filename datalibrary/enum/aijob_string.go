@@ -27,8 +27,9 @@ const _AiJob_name = "AiJob_GuardAiJob_PatrolAiJob_GuardForceAiJob_EncounterAiJob
 var _AiJob_index = [...]uint8{0, 11, 23, 39, 54, 75, 87, 109, 132, 152, 172, 183, 192}
 
 func (i AiJob) String() string {
-	if i >= AiJob(len(_AiJob_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_AiJob_index)-1 {
 		return "AiJob(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _AiJob_name[_AiJob_index[i]:_AiJob_index[i+1]]
+	return _AiJob_name[_AiJob_index[idx]:_AiJob_index[idx+1]]
 }

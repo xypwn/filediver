@@ -21,8 +21,9 @@ const _FireTemplate_name = "FireTemplate_NoneFireTemplate_SmallFireTemplate_Medi
 var _FireTemplate_index = [...]uint8{0, 17, 35, 54, 72, 92, 110}
 
 func (i FireTemplate) String() string {
-	if i >= FireTemplate(len(_FireTemplate_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_FireTemplate_index)-1 {
 		return "FireTemplate(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _FireTemplate_name[_FireTemplate_index[i]:_FireTemplate_index[i+1]]
+	return _FireTemplate_name[_FireTemplate_index[idx]:_FireTemplate_index[idx+1]]
 }
