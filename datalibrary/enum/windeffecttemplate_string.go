@@ -26,8 +26,9 @@ const _WindEffectTemplate_name = "WindEffectTemplate_NoneWindEffectTemplate_Smal
 var _WindEffectTemplate_index = [...]uint16{0, 23, 56, 90, 123, 155, 181, 210, 244, 282, 313, 343}
 
 func (i WindEffectTemplate) String() string {
-	if i >= WindEffectTemplate(len(_WindEffectTemplate_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_WindEffectTemplate_index)-1 {
 		return "WindEffectTemplate(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _WindEffectTemplate_name[_WindEffectTemplate_index[i]:_WindEffectTemplate_index[i+1]]
+	return _WindEffectTemplate_name[_WindEffectTemplate_index[idx]:_WindEffectTemplate_index[idx+1]]
 }

@@ -23,8 +23,9 @@ const _ExertionLevelIndex_name = "ExertionLevelIndex_NoneExertionLevelIndex_Inco
 var _ExertionLevelIndex_index = [...]uint8{0, 23, 56, 78, 103, 126, 152, 180, 216}
 
 func (i ExertionLevelIndex) String() string {
-	if i >= ExertionLevelIndex(len(_ExertionLevelIndex_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_ExertionLevelIndex_index)-1 {
 		return "ExertionLevelIndex(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _ExertionLevelIndex_name[_ExertionLevelIndex_index[i]:_ExertionLevelIndex_index[i+1]]
+	return _ExertionLevelIndex_name[_ExertionLevelIndex_index[idx]:_ExertionLevelIndex_index[idx+1]]
 }

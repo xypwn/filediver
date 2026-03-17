@@ -257,6 +257,7 @@ MinefieldComponent
 DamagePropagatorComponentData
 FakeTankVehicleComponentData
 RegionWeight
+RegionFlag
 PackageLayerTagIndirection
 CApiVector2
 ActorGoreOverride
@@ -1038,6 +1039,7 @@ ShieldControllerComponent
 ShieldShapeType
 SurfaceEffectInfo
 HelldiverCustomizationStatModifier
+DeathAnimationSound
 
 // ======== Enums and Values ========
 HelldiverCustomizationPassiveBonus

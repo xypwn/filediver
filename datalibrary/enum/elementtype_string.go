@@ -23,8 +23,9 @@ const _ElementType_name = "ElementType_NoneElementType_FireElementType_Electrici
 var _ElementType_index = [...]uint8{0, 16, 32, 55, 71, 88, 103, 129, 146}
 
 func (i ElementType) String() string {
-	if i >= ElementType(len(_ElementType_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_ElementType_index)-1 {
 		return "ElementType(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _ElementType_name[_ElementType_index[i]:_ElementType_index[i+1]]
+	return _ElementType_name[_ElementType_index[idx]:_ElementType_index[idx+1]]
 }

@@ -20,8 +20,9 @@ const _ExplosiveMode_name = "ExplosiveMode_TimedExplosiveMode_ImpactExplosiveMod
 var _ExplosiveMode_index = [...]uint8{0, 19, 39, 61, 92, 122}
 
 func (i ExplosiveMode) String() string {
-	if i >= ExplosiveMode(len(_ExplosiveMode_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_ExplosiveMode_index)-1 {
 		return "ExplosiveMode(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _ExplosiveMode_name[_ExplosiveMode_index[i]:_ExplosiveMode_index[i+1]]
+	return _ExplosiveMode_name[_ExplosiveMode_index[idx]:_ExplosiveMode_index[idx+1]]
 }

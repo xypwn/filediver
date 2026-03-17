@@ -34,8 +34,9 @@ const _WeaponStatModifierType_name = "WeaponStatModifierType_Add_ErgonomicsWeapo
 var _WeaponStatModifierType_index = [...]uint16{0, 37, 68, 111, 157, 198, 242, 284, 329, 369, 412, 454, 499, 539, 582, 625, 671, 712, 756, 784}
 
 func (i WeaponStatModifierType) String() string {
-	if i >= WeaponStatModifierType(len(_WeaponStatModifierType_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_WeaponStatModifierType_index)-1 {
 		return "WeaponStatModifierType(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _WeaponStatModifierType_name[_WeaponStatModifierType_index[i]:_WeaponStatModifierType_index[i+1]]
+	return _WeaponStatModifierType_name[_WeaponStatModifierType_index[idx]:_WeaponStatModifierType_index[idx+1]]
 }

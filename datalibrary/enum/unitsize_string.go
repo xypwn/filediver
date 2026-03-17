@@ -20,8 +20,9 @@ const _UnitSize_name = "UnitSize_SmallUnitSize_MediumUnitSize_LargeUnitSize_Mass
 var _UnitSize_index = [...]uint8{0, 14, 29, 43, 59, 71}
 
 func (i UnitSize) String() string {
-	if i >= UnitSize(len(_UnitSize_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_UnitSize_index)-1 {
 		return "UnitSize(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _UnitSize_name[_UnitSize_index[i]:_UnitSize_index[i+1]]
+	return _UnitSize_name[_UnitSize_index[idx]:_UnitSize_index[idx+1]]
 }

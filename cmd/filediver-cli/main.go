@@ -34,6 +34,8 @@ import (
 	"github.com/xypwn/filediver/hashes"
 	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/stingray/animation"
+	"github.com/xypwn/filediver/stingray/entity"
+	"github.com/xypwn/filediver/stingray/shading_environment"
 	"github.com/xypwn/filediver/stingray/state_machine"
 	stingray_strings "github.com/xypwn/filediver/stingray/strings"
 	"github.com/xypwn/filediver/stingray/unit"
@@ -82,7 +84,7 @@ func main() {
 			Help: "list all archives without extracting anything",
 		})
 		optThinToFind = argp.String("f", "find-thin", &argparse.Option{
-			Help: "search for given thinhash (bone or material) name and print the unit file(s) containing it, then exit",
+			Help: "search for given thinhash (bone or material) name and print the file(s) containing it, then exit",
 		})
 		optOutDir = argp.String("o", "out", &argparse.Option{
 			Default: "extracted",
@@ -124,8 +126,8 @@ func main() {
 		})
 		optThinHashListMode = argp.String("b", "list-thins", &argparse.Option{
 			Default: "none",
-			Choices: []any{"none", "unknown", "known", "bone", "light", "material", "beat", "event", "animation_variable", "all"},
-			Help:    "if not none, list [option] thin hashes referenced in included animation, unit, or state_machine files, then exit"},
+			Choices: []any{"none", "unknown", "known", "bone", "light", "material", "beat", "event", "animation_variable", "entity", "shading_environment", "all"},
+			Help:    "if not none, list [option] thin hashes referenced in included file types, then exit"},
 		)
 		optHelpMetadata = argp.Flag("", "help-metadata", &argparse.Option{
 			Help: `show metadata filter syntax help`,
@@ -364,6 +366,8 @@ Options:`)
 		knownBeat := make(map[string]bool)
 		knownEvent := make(map[string]bool)
 		knownAnimationVariable := make(map[string]bool)
+		knownEntityVariable := make(map[string]bool)
+		knownShadingEnvironmentVariable := make(map[string]bool)
 		unknownBone := make(map[string]bool)
 		unknownLight := make(map[string]bool)
 		unknownMat := make(map[string]bool)
@@ -371,6 +375,8 @@ Options:`)
 		unknownBeat := make(map[string]bool)
 		unknownEvent := make(map[string]bool)
 		unknownAnimationVariable := make(map[string]bool)
+		unknownEntityVariable := make(map[string]bool)
+		unknownShadingEnvironmentVariable := make(map[string]bool)
 		fileCount := 0
 		for _, id := range sortedFileIDs {
 			if id.Type == stingray.Sum("unit") {
@@ -379,6 +385,10 @@ Options:`)
 				fileCount += handleAnimationBeats(prt, a, id, optThinToFind, knownBeat, unknownBeat)
 			} else if id.Type == stingray.Sum("state_machine") {
 				fileCount += handleStateMachineThinHashes(prt, a, id, optThinToFind, knownEvent, unknownEvent, knownAnimationVariable, unknownAnimationVariable)
+			} else if id.Type == stingray.Sum("entity") {
+				fileCount += handleEntityThinHashes(prt, a, id, optThinToFind, knownEntityVariable, unknownEntityVariable)
+			} else if id.Type == stingray.Sum("shading_environment") {
+				fileCount += handleShadingEnvironmentThinHashes(prt, a, id, optThinToFind, knownShadingEnvironmentVariable, unknownShadingEnvironmentVariable)
 			}
 		}
 
@@ -400,7 +410,7 @@ Options:`)
 			}
 		}
 
-		knownSorted := make([]string, len(knownBone)+len(knownMat)+len(knownLight)+len(knownMatVariant)+len(knownBeat)+len(knownEvent)+len(knownAnimationVariable))
+		knownSorted := make([]string, len(knownBone)+len(knownMat)+len(knownLight)+len(knownMatVariant)+len(knownBeat)+len(knownEvent)+len(knownAnimationVariable)+len(knownEntityVariable)+len(knownShadingEnvironmentVariable))
 		i := 0
 		for name := range knownBone {
 			knownSorted[i] = name
@@ -430,8 +440,16 @@ Options:`)
 			knownSorted[i] = name
 			i++
 		}
+		for name := range knownEntityVariable {
+			knownSorted[i] = name
+			i++
+		}
+		for name := range knownShadingEnvironmentVariable {
+			knownSorted[i] = name
+			i++
+		}
 
-		unknownSorted := make([]string, len(unknownBone)+len(unknownMat)+len(unknownLight)+len(unknownMatVariant)+len(unknownBeat)+len(unknownEvent)+len(unknownAnimationVariable))
+		unknownSorted := make([]string, len(unknownBone)+len(unknownMat)+len(unknownLight)+len(unknownMatVariant)+len(unknownBeat)+len(unknownEvent)+len(unknownAnimationVariable)+len(unknownEntityVariable)+len(unknownShadingEnvironmentVariable))
 		i = 0
 		for name := range unknownBone {
 			unknownSorted[i] = name
@@ -458,6 +476,14 @@ Options:`)
 			i++
 		}
 		for name := range unknownAnimationVariable {
+			unknownSorted[i] = name
+			i++
+		}
+		for name := range unknownEntityVariable {
+			unknownSorted[i] = name
+			i++
+		}
+		for name := range unknownShadingEnvironmentVariable {
 			unknownSorted[i] = name
 			i++
 		}
@@ -548,6 +574,30 @@ Options:`)
 				fmt.Println(mat)
 			}
 			printed = len(unknownAnimationVariable) + len(knownAnimationVariable)
+		case "entity":
+			knownOffset := len(knownBone) + len(knownLight) + len(knownMat) + len(knownMatVariant) + len(knownBeat) + len(knownEvent) + len(knownAnimationVariable)
+			unknownOffset := len(unknownBone) + len(unknownLight) + len(unknownMat) + len(unknownMatVariant) + len(unknownBeat) + len(unknownEvent) + len(unknownAnimationVariable)
+			slices.Sort(knownSorted[knownOffset : knownOffset+len(knownEntityVariable)])
+			slices.Sort(unknownSorted[unknownOffset : unknownOffset+len(unknownEntityVariable)])
+			for _, mat := range knownSorted[knownOffset : knownOffset+len(knownEntityVariable)] {
+				fmt.Println(mat)
+			}
+			for _, mat := range unknownSorted[unknownOffset : unknownOffset+len(unknownEntityVariable)] {
+				fmt.Println(mat)
+			}
+			printed = len(unknownEntityVariable) + len(knownEntityVariable)
+		case "shading_environment":
+			knownOffset := len(knownBone) + len(knownLight) + len(knownMat) + len(knownMatVariant) + len(knownBeat) + len(knownEvent) + len(knownAnimationVariable) + len(knownEntityVariable)
+			unknownOffset := len(unknownBone) + len(unknownLight) + len(unknownMat) + len(unknownMatVariant) + len(unknownBeat) + len(unknownEvent) + len(unknownAnimationVariable) + len(unknownEntityVariable)
+			slices.Sort(knownSorted[knownOffset : knownOffset+len(knownShadingEnvironmentVariable)])
+			slices.Sort(unknownSorted[unknownOffset : unknownOffset+len(unknownShadingEnvironmentVariable)])
+			for _, mat := range knownSorted[knownOffset : knownOffset+len(knownShadingEnvironmentVariable)] {
+				fmt.Println(mat)
+			}
+			for _, mat := range unknownSorted[unknownOffset : unknownOffset+len(unknownShadingEnvironmentVariable)] {
+				fmt.Println(mat)
+			}
+			printed = len(unknownShadingEnvironmentVariable) + len(knownShadingEnvironmentVariable)
 		case "all":
 			slices.Sort(knownSorted)
 			slices.Sort(unknownSorted)
@@ -823,6 +873,140 @@ func handleStateMachineThinHashes(prt app.Printer, a *app.App, id stingray.FileI
 			knownAnimationVariable[name] = true
 		} else {
 			unknownAnimationVariable[variable.String()] = true
+		}
+	}
+	return fileCount
+}
+
+func handleEntityThinHashes(prt app.Printer, a *app.App, id stingray.FileID, optThinToFind *string, knownHash, unknownHash map[string]bool) int {
+	b, err := a.DataDir.Read(id, stingray.DataMain)
+	if err != nil {
+		prt.Errorf("opening %v.entity's main file: %v", err)
+		return 0
+	}
+	info, err := entity.LoadEntity(bytes.NewReader(b))
+
+	fileCount := 0
+	for _, event := range info.ComponentThinHashes {
+		if *optThinToFind != "" && stingray.Sum(*optThinToFind).Thin() == event {
+			entityName, exists := a.Hashes[id.Name]
+			if !exists {
+				entityName = id.Name.String()
+			}
+			fmt.Printf("%v.entity\n", entityName)
+			fileCount = 1
+			break
+		} else if val, err := strconv.ParseInt(*optThinToFind, 0, 32); err == nil && val == int64(event.Value) {
+			entityName, exists := a.Hashes[id.Name]
+			if !exists {
+				entityName = id.Name.String()
+			}
+			fmt.Printf("%v.entity\n", entityName)
+			fileCount = 1
+			break
+		} else if *optThinToFind != "" {
+			continue
+		}
+
+		if name, exists := a.ThinHashes[event]; exists {
+			knownHash[name] = true
+		} else {
+			unknownHash[event.String()] = true
+		}
+	}
+	for _, component := range info.Components {
+		for _, category := range component.CategoryNames {
+			if *optThinToFind != "" && stingray.Sum(*optThinToFind).Thin() == category {
+				entityName, exists := a.Hashes[id.Name]
+				if !exists {
+					entityName = id.Name.String()
+				}
+				fmt.Printf("%v.entity\n", entityName)
+				fileCount = 1
+				break
+			} else if val, err := strconv.ParseInt(*optThinToFind, 0, 32); err == nil && val == int64(category.Value) {
+				entityName, exists := a.Hashes[id.Name]
+				if !exists {
+					entityName = id.Name.String()
+				}
+				fmt.Printf("%v.entity\n", entityName)
+				fileCount = 1
+				break
+			} else if *optThinToFind != "" {
+				continue
+			}
+
+			if name, exists := a.ThinHashes[category]; exists {
+				knownHash[name] = true
+			} else {
+				unknownHash[category.String()] = true
+			}
+		}
+		for _, setting := range component.SettingNames {
+			if *optThinToFind != "" && stingray.Sum(*optThinToFind).Thin() == setting {
+				entityName, exists := a.Hashes[id.Name]
+				if !exists {
+					entityName = id.Name.String()
+				}
+				fmt.Printf("%v.entity\n", entityName)
+				fileCount = 1
+				break
+			} else if val, err := strconv.ParseInt(*optThinToFind, 0, 32); err == nil && val == int64(setting.Value) {
+				entityName, exists := a.Hashes[id.Name]
+				if !exists {
+					entityName = id.Name.String()
+				}
+				fmt.Printf("%v.entity\n", entityName)
+				fileCount = 1
+				break
+			} else if *optThinToFind != "" {
+				continue
+			}
+
+			if name, exists := a.ThinHashes[setting]; exists {
+				knownHash[name] = true
+			} else {
+				unknownHash[setting.String()] = true
+			}
+		}
+	}
+	return fileCount
+}
+
+func handleShadingEnvironmentThinHashes(prt app.Printer, a *app.App, id stingray.FileID, optThinToFind *string, knownHash, unknownHash map[string]bool) int {
+	b, err := a.DataDir.Read(id, stingray.DataMain)
+	if err != nil {
+		prt.Errorf("opening %v.shading_environment's main file: %v", err)
+		return 0
+	}
+	info, err := shading_environment.LoadShadingEnvironment(bytes.NewReader(b))
+
+	fileCount := 0
+	for _, variable := range info.Variables {
+		if *optThinToFind != "" && stingray.Sum(*optThinToFind).Thin() == variable.Name {
+			shadingEnvironmentName, exists := a.Hashes[id.Name]
+			if !exists {
+				shadingEnvironmentName = id.Name.String()
+			}
+			fmt.Printf("%v.shading_environment\n", shadingEnvironmentName)
+			fileCount = 1
+			break
+		} else if val, err := strconv.ParseInt(*optThinToFind, 0, 32); err == nil && val == int64(variable.Name.Value) {
+			shadingEnvironmentName, exists := a.Hashes[id.Name]
+			if !exists {
+				shadingEnvironmentName = id.Name.String()
+			}
+			fmt.Printf("%v.shading_environment\n", shadingEnvironmentName)
+			fileCount = 1
+			break
+		} else if *optThinToFind != "" {
+			continue
+		}
+
+		if name, exists := a.ThinHashes[variable.Name]; exists {
+			knownHash[name] = true
+		} else {
+			unknownHash[variable.Name.String()] = true
 		}
 	}
 	return fileCount

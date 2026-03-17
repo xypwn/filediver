@@ -24,8 +24,9 @@ const _FireMode_name = "FireMode_NoneFireMode_AutomaticFireMode_SingleFireMode_B
 var _FireMode_index = [...]uint8{0, 13, 31, 46, 60, 79, 104, 130, 148, 162}
 
 func (i FireMode) String() string {
-	if i >= FireMode(len(_FireMode_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_FireMode_index)-1 {
 		return "FireMode(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _FireMode_name[_FireMode_index[i]:_FireMode_index[i+1]]
+	return _FireMode_name[_FireMode_index[idx]:_FireMode_index[idx+1]]
 }

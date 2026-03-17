@@ -19,8 +19,9 @@ const _ChargeState_name = "ChargeState_MinChargeChargeState_FullChargeChargeStat
 var _ChargeState_index = [...]uint8{0, 21, 43, 65, 82}
 
 func (i ChargeState) String() string {
-	if i >= ChargeState(len(_ChargeState_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_ChargeState_index)-1 {
 		return "ChargeState(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _ChargeState_name[_ChargeState_index[i]:_ChargeState_index[i+1]]
+	return _ChargeState_name[_ChargeState_index[idx]:_ChargeState_index[idx+1]]
 }

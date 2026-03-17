@@ -34,8 +34,9 @@ const _HitEffectDamageType_name = "HitEffectDamageType_NoneHitEffectDamageType_P
 var _HitEffectDamageType_index = [...]uint16{0, 24, 57, 91, 124, 161, 196, 232, 261, 290, 315, 348, 381, 416, 451, 486, 521, 556, 591, 616}
 
 func (i HitEffectDamageType) String() string {
-	if i >= HitEffectDamageType(len(_HitEffectDamageType_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_HitEffectDamageType_index)-1 {
 		return "HitEffectDamageType(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _HitEffectDamageType_name[_HitEffectDamageType_index[i]:_HitEffectDamageType_index[i+1]]
+	return _HitEffectDamageType_name[_HitEffectDamageType_index[idx]:_HitEffectDamageType_index[idx+1]]
 }

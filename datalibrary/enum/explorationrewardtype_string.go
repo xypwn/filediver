@@ -20,8 +20,9 @@ const _ExplorationRewardType_name = "ExplorationRewardType_NoneExplorationReward
 var _ExplorationRewardType_index = [...]uint8{0, 26, 77, 117, 162, 189}
 
 func (i ExplorationRewardType) String() string {
-	if i >= ExplorationRewardType(len(_ExplorationRewardType_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_ExplorationRewardType_index)-1 {
 		return "ExplorationRewardType(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _ExplorationRewardType_name[_ExplorationRewardType_index[i]:_ExplorationRewardType_index[i+1]]
+	return _ExplorationRewardType_name[_ExplorationRewardType_index[idx]:_ExplorationRewardType_index[idx+1]]
 }

@@ -18,8 +18,9 @@ const _MountSide_name = "MountSide_CommonMountSide_RightMountSide_Left"
 var _MountSide_index = [...]uint8{0, 16, 31, 45}
 
 func (i MountSide) String() string {
-	if i >= MountSide(len(_MountSide_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_MountSide_index)-1 {
 		return "MountSide(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _MountSide_name[_MountSide_index[i]:_MountSide_index[i+1]]
+	return _MountSide_name[_MountSide_index[idx]:_MountSide_index[idx+1]]
 }

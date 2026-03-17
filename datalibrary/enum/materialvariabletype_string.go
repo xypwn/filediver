@@ -19,8 +19,9 @@ const _MaterialVariableType_name = "MaterialVariableType_ScalarMaterialVariableT
 var _MaterialVariableType_index = [...]uint8{0, 27, 55, 83, 111}
 
 func (i MaterialVariableType) String() string {
-	if i >= MaterialVariableType(len(_MaterialVariableType_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_MaterialVariableType_index)-1 {
 		return "MaterialVariableType(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _MaterialVariableType_name[_MaterialVariableType_index[i]:_MaterialVariableType_index[i+1]]
+	return _MaterialVariableType_name[_MaterialVariableType_index[idx]:_MaterialVariableType_index[idx+1]]
 }

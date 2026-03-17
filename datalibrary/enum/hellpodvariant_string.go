@@ -18,8 +18,9 @@ const _HellpodVariant_name = "HellpodVariant_PayloadHellpodVariant_ReinforceHell
 var _HellpodVariant_index = [...]uint8{0, 22, 46, 73}
 
 func (i HellpodVariant) String() string {
-	if i >= HellpodVariant(len(_HellpodVariant_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_HellpodVariant_index)-1 {
 		return "HellpodVariant(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _HellpodVariant_name[_HellpodVariant_index[i]:_HellpodVariant_index[i+1]]
+	return _HellpodVariant_name[_HellpodVariant_index[idx]:_HellpodVariant_index[idx+1]]
 }

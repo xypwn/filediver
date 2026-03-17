@@ -21,8 +21,9 @@ const _ProjectileZeroingQuality_name = "ProjectileZeroingQuality_NoneProjectileZ
 var _ProjectileZeroingQuality_index = [...]uint8{0, 29, 59, 90, 119, 151, 181}
 
 func (i ProjectileZeroingQuality) String() string {
-	if i >= ProjectileZeroingQuality(len(_ProjectileZeroingQuality_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_ProjectileZeroingQuality_index)-1 {
 		return "ProjectileZeroingQuality(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _ProjectileZeroingQuality_name[_ProjectileZeroingQuality_index[i]:_ProjectileZeroingQuality_index[i+1]]
+	return _ProjectileZeroingQuality_name[_ProjectileZeroingQuality_index[idx]:_ProjectileZeroingQuality_index[idx+1]]
 }

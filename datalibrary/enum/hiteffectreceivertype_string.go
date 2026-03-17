@@ -39,8 +39,9 @@ const _HitEffectReceiverType_name = "HitEffectReceiverType_NoneHitEffectReceiver
 var _HitEffectReceiverType_index = [...]uint16{0, 26, 51, 82, 110, 144, 180, 216, 261, 297, 334, 377, 404, 437, 471, 506, 537, 583, 620, 657, 694, 731, 768, 805, 832}
 
 func (i HitEffectReceiverType) String() string {
-	if i >= HitEffectReceiverType(len(_HitEffectReceiverType_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_HitEffectReceiverType_index)-1 {
 		return "HitEffectReceiverType(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _HitEffectReceiverType_name[_HitEffectReceiverType_index[i]:_HitEffectReceiverType_index[i+1]]
+	return _HitEffectReceiverType_name[_HitEffectReceiverType_index[idx]:_HitEffectReceiverType_index[idx+1]]
 }

@@ -20,8 +20,9 @@ const _DLTypeAtom_name = "PODARRAYINLINE_ARRAYBITFIELDATOM_CNT"
 var _DLTypeAtom_index = [...]uint8{0, 3, 8, 20, 28, 36}
 
 func (i DLTypeAtom) String() string {
-	if i >= DLTypeAtom(len(_DLTypeAtom_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_DLTypeAtom_index)-1 {
 		return "DLTypeAtom(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _DLTypeAtom_name[_DLTypeAtom_index[i]:_DLTypeAtom_index[i+1]]
+	return _DLTypeAtom_name[_DLTypeAtom_index[idx]:_DLTypeAtom_index[idx+1]]
 }

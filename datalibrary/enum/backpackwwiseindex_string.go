@@ -30,8 +30,9 @@ const _BackpackWwiseIndex_name = "BackpackWwiseIndex_NoneBackpackWwiseIndex_Ammo
 var _BackpackWwiseIndex_index = [...]uint16{0, 23, 46, 80, 119, 153, 184, 210, 241, 268, 292, 326, 350, 376, 404, 428}
 
 func (i BackpackWwiseIndex) String() string {
-	if i < 0 || i >= BackpackWwiseIndex(len(_BackpackWwiseIndex_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_BackpackWwiseIndex_index)-1 {
 		return "BackpackWwiseIndex(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _BackpackWwiseIndex_name[_BackpackWwiseIndex_index[i]:_BackpackWwiseIndex_index[i+1]]
+	return _BackpackWwiseIndex_name[_BackpackWwiseIndex_index[idx]:_BackpackWwiseIndex_index[idx+1]]
 }

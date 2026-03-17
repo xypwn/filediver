@@ -142,7 +142,7 @@ func DecodeInfo(r io.Reader) (Info, error) {
 			}
 			info.DXT10Header = &dx10
 
-			if dx10.ResourceDimension != D3D10ResourceDimensionTexture2D {
+			if dx10.ResourceDimension < D3D10ResourceDimensionTexture2D {
 				return Info{}, fmt.Errorf("unsupported DXT10 resource dimension: %v", dx10.ResourceDimension)
 			}
 

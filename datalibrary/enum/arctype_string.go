@@ -31,8 +31,9 @@ const _ArcType_name = "ArcType_NoneArcType_IlluminateTripodArcType_ArcThrower_MK
 var _ArcType_index = [...]uint16{0, 12, 36, 58, 76, 111, 133, 155, 173, 194, 219, 241, 278, 297, 319, 342, 355}
 
 func (i ArcType) String() string {
-	if i >= ArcType(len(_ArcType_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_ArcType_index)-1 {
 		return "ArcType(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _ArcType_name[_ArcType_index[i]:_ArcType_index[i+1]]
+	return _ArcType_name[_ArcType_index[idx]:_ArcType_index[idx+1]]
 }

@@ -19,8 +19,9 @@ const _DeathDecayMode_name = "DeathDecayMode_NoneDeathDecayMode_RegularDeathDeca
 var _DeathDecayMode_index = [...]uint8{0, 19, 41, 60, 82}
 
 func (i DeathDecayMode) String() string {
-	if i >= DeathDecayMode(len(_DeathDecayMode_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_DeathDecayMode_index)-1 {
 		return "DeathDecayMode(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _DeathDecayMode_name[_DeathDecayMode_index[i]:_DeathDecayMode_index[i+1]]
+	return _DeathDecayMode_name[_DeathDecayMode_index[idx]:_DeathDecayMode_index[idx+1]]
 }

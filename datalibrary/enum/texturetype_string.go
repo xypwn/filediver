@@ -18,8 +18,9 @@ const _TextureType_name = "TextureType_NoMaskTextureType_ShadowMaskTextureType_R
 var _TextureType_index = [...]uint8{0, 18, 40, 59}
 
 func (i TextureType) String() string {
-	if i >= TextureType(len(_TextureType_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_TextureType_index)-1 {
 		return "TextureType(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _TextureType_name[_TextureType_index[i]:_TextureType_index[i+1]]
+	return _TextureType_name[_TextureType_index[idx]:_TextureType_index[idx+1]]
 }

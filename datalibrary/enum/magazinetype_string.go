@@ -17,8 +17,9 @@ const _MagazineType_name = "MagazineType_UniformMagazineType_Pattern"
 var _MagazineType_index = [...]uint8{0, 20, 40}
 
 func (i MagazineType) String() string {
-	if i >= MagazineType(len(_MagazineType_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_MagazineType_index)-1 {
 		return "MagazineType(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _MagazineType_name[_MagazineType_index[i]:_MagazineType_index[i+1]]
+	return _MagazineType_name[_MagazineType_index[idx]:_MagazineType_index[idx+1]]
 }
