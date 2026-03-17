@@ -1,5 +1,6 @@
 # Some of these names were cracked using hashcat with custom kernel available here: https://github.com/ryanjsims/hashcat/tree/murmur64a
 # Others were just guessed
+bk2
 content/env_illuminate/gameplay/il_teslatower
 content/env_super_earth/colonies/props/colony_tv_02
 content/env_super_earth/habs/containers/box_00
