@@ -154,6 +154,16 @@ struct LevelGenerationPlanetData {
     u32 planet_system_name_loc;
     u32 planet_layout_id;
     padding[4];
+    s64 unknown_offset_1; // These look to be hiveworld related
+    s64 unknown_count_1;
+    s64 unknown_offset_2;
+    s64 unknown_count_2;
+    if(unknown_offset_1 > 0) {
+        std::print("unknown_offset_1 with value at {:#x}", base);
+    }
+    if(unknown_offset_2 > 0) {
+        std::print("unknown_offset_2 with value at {:#x}", base);
+    }
     u64 debug_name_str_offset;
     char debug_name[] @ base + debug_name_str_offset;
     LevelGenerationRegion region_lowland;

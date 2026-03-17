@@ -1039,6 +1039,7 @@ ShieldControllerComponent
 ShieldShapeType
 SurfaceEffectInfo
 HelldiverCustomizationStatModifier
+DeathAnimationSound
 
 // ======== Enums and Values ========
 HelldiverCustomizationPassiveBonus

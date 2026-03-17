@@ -74,6 +74,10 @@ type rawPlanetData struct {
 	PlanetSystemNameLoc              uint32
 	PlanetLayoutId                   uint32
 	_                                [4]uint8
+	UnknownIntsOffset                int64
+	UnknownIntsCount                 int64
+	UnknownTexturesOffset            int64
+	UnknownTexturesCount             int64
 	DebugNameOffset                  int64
 	RegionLowland                    rawLevelGenerationRegion
 	RegionHighland                   rawLevelGenerationRegion

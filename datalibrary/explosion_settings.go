@@ -108,9 +108,11 @@ type rawExplosionInfo struct {
 	_       [3]uint8
 	ArcType enum.ArcType
 	ExplosionInfoBitfield2
-	_        [3]uint8
-	UnkFloat float32 // name length 21
-	_        [4]uint8
+	_         [3]uint8
+	UnkFloat  float32 // name length 21
+	_         [4]uint8
+	UnkFloat2 float32 // name length 27
+	_         [4]uint8
 }
 
 type itmExplosionInfo struct {
@@ -141,7 +143,8 @@ type itmExplosionInfo struct {
 	ExplosionInfoBitfield1
 	ArcType enum.ArcType
 	ExplosionInfoBitfield2
-	UnkFloat float32 // name length 21
+	UnkFloat  float32 // name length 21
+	UnkFloat2 float32 // name length 21
 }
 
 type ExplosionInfo struct {
@@ -173,6 +176,7 @@ type ExplosionInfo struct {
 	ArcType                     enum.ArcType `json:"arc_type"`
 	ExplosionInfoBitfield2      `json:"explosion_info_bitfield2"`
 	UnkFloat                    float32 `json:"unk_float"`
+	UnkFloat2                   float32 `json:"unk_float2"`
 }
 
 func (a itmExplosionInfo) Resolve(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookupStrings StringsLookup) ExplosionInfo {
@@ -212,6 +216,7 @@ func (a itmExplosionInfo) Resolve(lookupHash HashLookup, lookupThinHash ThinHash
 		ArcType:                     a.ArcType,
 		ExplosionInfoBitfield2:      a.ExplosionInfoBitfield2,
 		UnkFloat:                    a.UnkFloat,
+		UnkFloat2:                   a.UnkFloat2,
 	}
 }
 
@@ -282,6 +287,7 @@ func LoadExplosionSettings(lookupHash HashLookup, lookupThinHash ThinHashLookup,
 				ArcType:                     info.ArcType,
 				ExplosionInfoBitfield2:      info.ExplosionInfoBitfield2,
 				UnkFloat:                    info.UnkFloat,
+				UnkFloat2:                   info.UnkFloat2,
 			}
 			setting = append(setting, itm.Resolve(lookupHash, lookupThinHash, lookupStrings))
 		}

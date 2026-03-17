@@ -115,6 +115,11 @@ type DecaySettings struct {
 	_            [3]uint8            `json:"-"`
 }
 
+type DeathAnimationSound struct {
+	AnimationEvent stingray.ThinHash
+	SoundEvent     uint32
+}
+
 type HealthComponent struct {
 	Health                           int32   // Max health
 	HeathChangerate                  float32 // How the health changes when not wounded, units per second
@@ -135,11 +140,13 @@ type HealthComponent struct {
 	_                                [4]uint8
 	DefaultDamageableZoneInfo        DamageableZoneInfo // Contains information about default damage zone, which is used if no specific damage zone was hit
 	DamageableZones                  [38]DamageableZone // Contains all damage zones for the entity.
+	UnknownBool1                     uint8              // name length 22
+	_                                [3]uint8
 	ElementDamageValues              [4]ElementDamage
 	Decay                            DecaySettings         // At least mode is required, for regular, more info may be needed
 	DeathSoundIDs                    [10]stingray.ThinHash // [wwise]Sounds to trigger when the entity experiences real death.
 	TriggerDeathSoundsOnRemove       uint8                 // [bool]Should this entity trigger death sounds if it gets removed?
-	_                                [7]uint8
+	_                                [3]uint8
 	OnHitEffect                      EffectSetting          // Particle effect to play when the entity gets hit by damage that is not dps.
 	WhileLivingEffect                [2]ActiveEffectSetting // Particle effects to play while the entity lives and is destroyed on death.
 	OnDeathEffect                    EffectSetting          // Particle effect to play when the entity dies.
@@ -149,7 +156,7 @@ type HealthComponent struct {
 	_                                [3]uint8
 	DownedAnim                       stingray.ThinHash            // [string]Animation event that gets called when entering constitution.
 	DeadAnim                         stingray.ThinHash            // [string]Animation event that gets called when entering death.
-	UnknownFloat                     float32                      // Not sure, 31 char long name
+	UnknownFloat1                    float32                      // Not sure, 31 char long name
 	UnknownHash1                     stingray.ThinHash            // Unsure, 14 char name
 	UnknownHash2                     stingray.ThinHash            // Unsure, 13 char name
 	UnknownHash3                     stingray.ThinHash            // Unsure, 14 char name
@@ -165,10 +172,14 @@ type HealthComponent struct {
 	_                                [3]uint8
 	DeathPropagation                 enum.DeathPropagation // If this unit dies, It'll propagate the death to the selected inheritance direction selected in this field.
 	UnknownHashArray                 [4]stingray.ThinHash  // Name length 17 chars
-	UnknownBool1                     uint8                 // Name length 33 chars
-	UnknownBool2                     uint8                 // Name length 18 chars
-	UnknownBool3                     uint8                 // Name length 30 chars
-	_                                [1]uint8
+	UnknownBool2                     uint8                 // Name length 33 chars
+	_                                [3]uint8
+	UnknownFloat2                    float32 // Name length 28 chars
+	UnknownBool3                     uint8   // Name length 18 chars
+	UnknownBool4                     uint8   // Name length 30 chars
+	_                                [2]uint8
+	DeathAnimationSounds             [8]DeathAnimationSound // Name length 22 chars
+	UnknownThinHash                  stingray.ThinHash      // Name length 19 chars
 }
 
 type SimpleHealthEventTrigger struct {
@@ -245,6 +256,11 @@ type SimpleDamageableZone struct {
 	Actors []string                 `json:"actors,omitempty"` // [string]Damageable Zone Actors
 }
 
+type SimpleDeathAnimationSound struct {
+	AnimationEvent string `json:"animation_event"`
+	SoundEvent     uint32 `json:"sound_event"`
+}
+
 type SimpleHealthComponent struct {
 	Health                           int32                        `json:"health"`                             // Max health
 	HeathChangerate                  float32                      `json:"heath_changerate"`                   // How the health changes when not wounded, units per second
@@ -262,6 +278,7 @@ type SimpleHealthComponent struct {
 	Wounded                          WoundedState                 `json:"wounded"`                            // The effect wounds has on this character
 	DefaultDamageableZoneInfo        SimpleDamageableZoneInfo     `json:"default_damageable_zone_info"`       // Contains information about default damage zone, which is used if no specific damage zone was hit
 	DamageableZones                  []SimpleDamageableZone       `json:"damageable_zones,omitempty"`         // Contains all damage zones for the entity.
+	UnknownBool1                     bool                         `json:"unknown_bool1"`                      // name length 22
 	ElementDamageValues              []ElementDamage              `json:"element_damage_values,omitempty"`    // Element damage modifiers I guess
 	Decay                            DecaySettings                `json:"decay"`                              // At least mode is required, for regular, more info may be needed
 	DeathSoundIDs                    []string                     `json:"death_sound_ids,omitempty"`          // [wwise]Sounds to trigger when the entity experiences real death.
@@ -274,7 +291,7 @@ type SimpleHealthComponent struct {
 	RequireDemolition                bool                         `json:"require_demolition"`                 // [bool]Does this entity require demolition damage to be damaged?
 	DownedAnim                       string                       `json:"downed_anim"`                        // [string]Animation event that gets called when entering constitution.
 	DeadAnim                         string                       `json:"dead_anim"`                          // [string]Animation event that gets called when entering death.
-	UnknownFloat                     float32                      `json:"unknown_float"`                      // Not sure, 31 char long name
+	UnknownFloat1                    float32                      `json:"unknown_float1"`                     // Not sure, 31 char long name
 	UnknownHash1                     string                       `json:"unknown_hash1"`                      // Unsure, 14 char name
 	UnknownHash2                     string                       `json:"unknown_hash2"`                      // Unsure, 13 char name
 	UnknownHash3                     string                       `json:"unknown_hash3"`                      // Unsure, 14 char name
@@ -289,9 +306,12 @@ type SimpleHealthComponent struct {
 	CanDieNaturally                  bool                         `json:"can_die_naturally"`                  // [bool]Normally if a unit takes enough damage, they'll die. If this is disabled, it will only go down to constitution and needs to be killed via outside forces, such as behavior.
 	DeathPropagation                 enum.DeathPropagation        `json:"death_propagation"`                  // If this unit dies, It'll propagate the death to the selected inheritance direction selected in this field.
 	UnknownHashArray                 []string                     `json:"unknown_hash_array"`                 // Name length 17 chars
-	UnknownBool1                     bool                         `json:"unknown_bool1"`                      // Name length 33 chars
-	UnknownBool2                     bool                         `json:"unknown_bool2"`                      // Name length 18 chars
-	UnknownBool3                     bool                         `json:"unknown_bool3"`                      // Name length 30 chars
+	UnknownBool2                     bool                         `json:"unknown_bool2"`                      // Name length 33 chars
+	UnknownFloat2                    float32                      `json:"unknown_float2"`                     // Name length 28 chars
+	UnknownBool3                     bool                         `json:"unknown_bool3"`                      // Name length 18 chars
+	UnknownBool4                     bool                         `json:"unknown_bool4"`                      // Name length 30 chars
+	DeathAnimationSounds             []SimpleDeathAnimationSound  `json:"death_animation_sounds,omitempty"`   // Name length 22 chars
+	UnknownThinHash                  string                       `json:"unknown_thinhash"`                   // Name length 19 chars
 }
 
 func (w HealthComponent) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookupStrings StringsLookup) any {
@@ -361,6 +381,17 @@ func (w HealthComponent) ToSimple(lookupHash HashLookup, lookupThinHash ThinHash
 		unknownHashArray = append(unknownHashArray, lookupThinHash(hash))
 	}
 
+	deathAnimationSounds := make([]SimpleDeathAnimationSound, 0)
+	for _, deathAnimationSound := range w.DeathAnimationSounds {
+		if deathAnimationSound.AnimationEvent.Value == 0 {
+			break
+		}
+		deathAnimationSounds = append(deathAnimationSounds, SimpleDeathAnimationSound{
+			AnimationEvent: lookupThinHash(deathAnimationSound.AnimationEvent),
+			SoundEvent:     deathAnimationSound.SoundEvent,
+		})
+	}
+
 	return SimpleHealthComponent{
 		Health:                           w.Health,
 		HeathChangerate:                  w.HeathChangerate,
@@ -390,7 +421,7 @@ func (w HealthComponent) ToSimple(lookupHash HashLookup, lookupThinHash ThinHash
 		RequireDemolition:                w.RequireDemolition != 0,
 		DownedAnim:                       lookupThinHash(w.DownedAnim),
 		DeadAnim:                         lookupThinHash(w.DeadAnim),
-		UnknownFloat:                     w.UnknownFloat,
+		UnknownFloat1:                    w.UnknownFloat1,
 		UnknownHash1:                     lookupThinHash(w.UnknownHash1),
 		UnknownHash2:                     lookupThinHash(w.UnknownHash2),
 		UnknownHash3:                     lookupThinHash(w.UnknownHash3),
@@ -408,6 +439,10 @@ func (w HealthComponent) ToSimple(lookupHash HashLookup, lookupThinHash ThinHash
 		UnknownBool1:                     w.UnknownBool1 != 0,
 		UnknownBool2:                     w.UnknownBool2 != 0,
 		UnknownBool3:                     w.UnknownBool3 != 0,
+		UnknownFloat2:                    w.UnknownFloat2,
+		UnknownBool4:                     w.UnknownBool4 != 0,
+		DeathAnimationSounds:             deathAnimationSounds,
+		UnknownThinHash:                  lookupThinHash(w.UnknownThinHash),
 	}
 }
 
