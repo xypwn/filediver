@@ -1015,6 +1015,10 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, me
 					// Not sure how the game looks them up in this case, probably need to investigate more
 					mask, contains = visibilityMaskData[stingray.Sum("content/fac_cyborgs/cha_lieutenant/cha_lieutenant_assault")]
 				}
+				if strings.Contains(ctx.LookupHash(ctx.FileID().Name), "combat_walker_lumberer") || strings.Contains(ctx.LookupHash(ctx.FileID().Name), "combat_walker_breacher") {
+					// Lumberer and Breacher aren't in the visibility masks settings yet, so patch them up for now
+					mask, contains = visibilityMaskData[stingray.Sum("content/fac_helldivers/vehicles/combat_walker/combat_walker")]
+				}
 			}
 			visibilityMasks = make(map[uint16]map[string]any)
 			udimIndexAccessors := make(map[uint32]uint32)
