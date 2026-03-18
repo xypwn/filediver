@@ -35,6 +35,7 @@ import (
 	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/stingray/animation"
 	"github.com/xypwn/filediver/stingray/entity"
+	"github.com/xypwn/filediver/stingray/level"
 	"github.com/xypwn/filediver/stingray/shading_environment"
 	"github.com/xypwn/filediver/stingray/state_machine"
 	stingray_strings "github.com/xypwn/filediver/stingray/strings"
@@ -368,6 +369,7 @@ Options:`)
 		knownAnimationVariable := make(map[string]bool)
 		knownEntityVariable := make(map[string]bool)
 		knownShadingEnvironmentVariable := make(map[string]bool)
+		knownLevelThinhashes := make(map[string]bool)
 		unknownBone := make(map[string]bool)
 		unknownLight := make(map[string]bool)
 		unknownMat := make(map[string]bool)
@@ -377,6 +379,7 @@ Options:`)
 		unknownAnimationVariable := make(map[string]bool)
 		unknownEntityVariable := make(map[string]bool)
 		unknownShadingEnvironmentVariable := make(map[string]bool)
+		unknownLevelThinhashes := make(map[string]bool)
 		fileCount := 0
 		for _, id := range sortedFileIDs {
 			if id.Type == stingray.Sum("unit") {
@@ -389,6 +392,8 @@ Options:`)
 				fileCount += handleEntityThinHashes(prt, a, id, optThinToFind, knownEntityVariable, unknownEntityVariable)
 			} else if id.Type == stingray.Sum("shading_environment") {
 				fileCount += handleShadingEnvironmentThinHashes(prt, a, id, optThinToFind, knownShadingEnvironmentVariable, unknownShadingEnvironmentVariable)
+			} else if id.Type == stingray.Sum("level") {
+				fileCount += handleLevelThinHashes(prt, a, id, optThinToFind, knownLevelThinhashes, unknownLevelThinhashes)
 			}
 		}
 
@@ -410,7 +415,7 @@ Options:`)
 			}
 		}
 
-		knownSorted := make([]string, len(knownBone)+len(knownMat)+len(knownLight)+len(knownMatVariant)+len(knownBeat)+len(knownEvent)+len(knownAnimationVariable)+len(knownEntityVariable)+len(knownShadingEnvironmentVariable))
+		knownSorted := make([]string, len(knownBone)+len(knownMat)+len(knownLight)+len(knownMatVariant)+len(knownBeat)+len(knownEvent)+len(knownAnimationVariable)+len(knownEntityVariable)+len(knownShadingEnvironmentVariable)+len(knownLevelThinhashes))
 		i := 0
 		for name := range knownBone {
 			knownSorted[i] = name
@@ -448,8 +453,12 @@ Options:`)
 			knownSorted[i] = name
 			i++
 		}
+		for name := range knownLevelThinhashes {
+			knownSorted[i] = name
+			i++
+		}
 
-		unknownSorted := make([]string, len(unknownBone)+len(unknownMat)+len(unknownLight)+len(unknownMatVariant)+len(unknownBeat)+len(unknownEvent)+len(unknownAnimationVariable)+len(unknownEntityVariable)+len(unknownShadingEnvironmentVariable))
+		unknownSorted := make([]string, len(unknownBone)+len(unknownMat)+len(unknownLight)+len(unknownMatVariant)+len(unknownBeat)+len(unknownEvent)+len(unknownAnimationVariable)+len(unknownEntityVariable)+len(unknownShadingEnvironmentVariable)+len(unknownLevelThinhashes))
 		i = 0
 		for name := range unknownBone {
 			unknownSorted[i] = name
@@ -484,6 +493,10 @@ Options:`)
 			i++
 		}
 		for name := range unknownShadingEnvironmentVariable {
+			unknownSorted[i] = name
+			i++
+		}
+		for name := range unknownLevelThinhashes {
 			unknownSorted[i] = name
 			i++
 		}
@@ -598,6 +611,18 @@ Options:`)
 				fmt.Println(mat)
 			}
 			printed = len(unknownShadingEnvironmentVariable) + len(knownShadingEnvironmentVariable)
+		case "level":
+			knownOffset := len(knownBone) + len(knownLight) + len(knownMat) + len(knownMatVariant) + len(knownBeat) + len(knownEvent) + len(knownAnimationVariable) + len(knownEntityVariable) + len(knownShadingEnvironmentVariable)
+			unknownOffset := len(unknownBone) + len(unknownLight) + len(unknownMat) + len(unknownMatVariant) + len(unknownBeat) + len(unknownEvent) + len(unknownAnimationVariable) + len(unknownEntityVariable) + len(unknownShadingEnvironmentVariable)
+			slices.Sort(knownSorted[knownOffset : knownOffset+len(knownLevelThinhashes)])
+			slices.Sort(unknownSorted[unknownOffset : unknownOffset+len(unknownLevelThinhashes)])
+			for _, mat := range knownSorted[knownOffset : knownOffset+len(knownLevelThinhashes)] {
+				fmt.Println(mat)
+			}
+			for _, mat := range unknownSorted[unknownOffset : unknownOffset+len(unknownLevelThinhashes)] {
+				fmt.Println(mat)
+			}
+			printed = len(unknownLevelThinhashes) + len(knownLevelThinhashes)
 		case "all":
 			slices.Sort(knownSorted)
 			slices.Sort(unknownSorted)
@@ -1007,6 +1032,239 @@ func handleShadingEnvironmentThinHashes(prt app.Printer, a *app.App, id stingray
 			knownHash[name] = true
 		} else {
 			unknownHash[variable.Name.String()] = true
+		}
+	}
+	return fileCount
+}
+
+func handleLevelThinHashes(prt app.Printer, a *app.App, id stingray.FileID, optThinToFind *string, knownHash, unknownHash map[string]bool) int {
+	b, err := a.DataDir.Read(id, stingray.DataMain)
+	if err != nil {
+		prt.Errorf("opening %v.shading_environment's main file: %v", err)
+		return 0
+	}
+	info, err := level.LoadLevel(bytes.NewReader(b))
+
+	fileCount := 0
+	for _, metadata := range info.Metadata {
+		for _, entry := range metadata {
+			for _, name := range entry.VariableNames {
+				if *optThinToFind != "" && stingray.Sum(*optThinToFind).Thin() == name {
+					shadingEnvironmentName, exists := a.Hashes[id.Name]
+					if !exists {
+						shadingEnvironmentName = id.Name.String()
+					}
+					fmt.Printf("%v.shading_environment\n", shadingEnvironmentName)
+					fileCount = 1
+					break
+				} else if val, err := strconv.ParseInt(*optThinToFind, 0, 32); err == nil && val == int64(name.Value) {
+					shadingEnvironmentName, exists := a.Hashes[id.Name]
+					if !exists {
+						shadingEnvironmentName = id.Name.String()
+					}
+					fmt.Printf("%v.shading_environment\n", shadingEnvironmentName)
+					fileCount = 1
+					break
+				} else if *optThinToFind != "" {
+					continue
+				}
+
+				if nameStr, exists := a.ThinHashes[name]; exists {
+					knownHash[nameStr] = true
+				} else {
+					unknownHash[name.String()] = true
+				}
+			}
+		}
+	}
+
+	for _, hashIndexRange := range info.PrefabHashIndexRange {
+		if *optThinToFind != "" && stingray.Sum(*optThinToFind).Thin() == hashIndexRange.Hash {
+			shadingEnvironmentName, exists := a.Hashes[id.Name]
+			if !exists {
+				shadingEnvironmentName = id.Name.String()
+			}
+			fmt.Printf("%v.shading_environment\n", shadingEnvironmentName)
+			fileCount = 1
+			break
+		} else if val, err := strconv.ParseInt(*optThinToFind, 0, 32); err == nil && val == int64(hashIndexRange.Hash.Value) {
+			shadingEnvironmentName, exists := a.Hashes[id.Name]
+			if !exists {
+				shadingEnvironmentName = id.Name.String()
+			}
+			fmt.Printf("%v.shading_environment\n", shadingEnvironmentName)
+			fileCount = 1
+			break
+		} else if *optThinToFind != "" {
+			continue
+		}
+
+		if nameStr, exists := a.ThinHashes[hashIndexRange.Hash]; exists {
+			knownHash[nameStr] = true
+		} else {
+			unknownHash[hashIndexRange.Hash.String()] = true
+		}
+	}
+	for _, hashIndexRange := range info.UnitHashIndexRange {
+		if *optThinToFind != "" && stingray.Sum(*optThinToFind).Thin() == hashIndexRange.Hash {
+			shadingEnvironmentName, exists := a.Hashes[id.Name]
+			if !exists {
+				shadingEnvironmentName = id.Name.String()
+			}
+			fmt.Printf("%v.shading_environment\n", shadingEnvironmentName)
+			fileCount = 1
+			break
+		} else if val, err := strconv.ParseInt(*optThinToFind, 0, 32); err == nil && val == int64(hashIndexRange.Hash.Value) {
+			shadingEnvironmentName, exists := a.Hashes[id.Name]
+			if !exists {
+				shadingEnvironmentName = id.Name.String()
+			}
+			fmt.Printf("%v.shading_environment\n", shadingEnvironmentName)
+			fileCount = 1
+			break
+		} else if *optThinToFind != "" {
+			continue
+		}
+
+		if nameStr, exists := a.ThinHashes[hashIndexRange.Hash]; exists {
+			knownHash[nameStr] = true
+		} else {
+			unknownHash[hashIndexRange.Hash.String()] = true
+		}
+	}
+	for _, hashIndexRange := range info.UnkHashIndexRange1 {
+		if *optThinToFind != "" && stingray.Sum(*optThinToFind).Thin() == hashIndexRange.Hash {
+			shadingEnvironmentName, exists := a.Hashes[id.Name]
+			if !exists {
+				shadingEnvironmentName = id.Name.String()
+			}
+			fmt.Printf("%v.shading_environment\n", shadingEnvironmentName)
+			fileCount = 1
+			break
+		} else if val, err := strconv.ParseInt(*optThinToFind, 0, 32); err == nil && val == int64(hashIndexRange.Hash.Value) {
+			shadingEnvironmentName, exists := a.Hashes[id.Name]
+			if !exists {
+				shadingEnvironmentName = id.Name.String()
+			}
+			fmt.Printf("%v.shading_environment\n", shadingEnvironmentName)
+			fileCount = 1
+			break
+		} else if *optThinToFind != "" {
+			continue
+		}
+
+		if nameStr, exists := a.ThinHashes[hashIndexRange.Hash]; exists {
+			knownHash[nameStr] = true
+		} else {
+			unknownHash[hashIndexRange.Hash.String()] = true
+		}
+	}
+	for _, hashIndexRange := range info.UnkHashIndexRange2 {
+		if *optThinToFind != "" && stingray.Sum(*optThinToFind).Thin() == hashIndexRange.Hash {
+			shadingEnvironmentName, exists := a.Hashes[id.Name]
+			if !exists {
+				shadingEnvironmentName = id.Name.String()
+			}
+			fmt.Printf("%v.shading_environment\n", shadingEnvironmentName)
+			fileCount = 1
+			break
+		} else if val, err := strconv.ParseInt(*optThinToFind, 0, 32); err == nil && val == int64(hashIndexRange.Hash.Value) {
+			shadingEnvironmentName, exists := a.Hashes[id.Name]
+			if !exists {
+				shadingEnvironmentName = id.Name.String()
+			}
+			fmt.Printf("%v.shading_environment\n", shadingEnvironmentName)
+			fileCount = 1
+			break
+		} else if *optThinToFind != "" {
+			continue
+		}
+
+		if nameStr, exists := a.ThinHashes[hashIndexRange.Hash]; exists {
+			knownHash[nameStr] = true
+		} else {
+			unknownHash[hashIndexRange.Hash.String()] = true
+		}
+	}
+	for _, hashIndexRange := range info.UnkHashIndexRange3 {
+		if *optThinToFind != "" && stingray.Sum(*optThinToFind).Thin() == hashIndexRange.Hash {
+			shadingEnvironmentName, exists := a.Hashes[id.Name]
+			if !exists {
+				shadingEnvironmentName = id.Name.String()
+			}
+			fmt.Printf("%v.shading_environment\n", shadingEnvironmentName)
+			fileCount = 1
+			break
+		} else if val, err := strconv.ParseInt(*optThinToFind, 0, 32); err == nil && val == int64(hashIndexRange.Hash.Value) {
+			shadingEnvironmentName, exists := a.Hashes[id.Name]
+			if !exists {
+				shadingEnvironmentName = id.Name.String()
+			}
+			fmt.Printf("%v.shading_environment\n", shadingEnvironmentName)
+			fileCount = 1
+			break
+		} else if *optThinToFind != "" {
+			continue
+		}
+
+		if nameStr, exists := a.ThinHashes[hashIndexRange.Hash]; exists {
+			knownHash[nameStr] = true
+		} else {
+			unknownHash[hashIndexRange.Hash.String()] = true
+		}
+	}
+	for _, hashIndexRange := range info.UnkHashIndexRange4 {
+		if *optThinToFind != "" && stingray.Sum(*optThinToFind).Thin() == hashIndexRange.Hash {
+			shadingEnvironmentName, exists := a.Hashes[id.Name]
+			if !exists {
+				shadingEnvironmentName = id.Name.String()
+			}
+			fmt.Printf("%v.shading_environment\n", shadingEnvironmentName)
+			fileCount = 1
+			break
+		} else if val, err := strconv.ParseInt(*optThinToFind, 0, 32); err == nil && val == int64(hashIndexRange.Hash.Value) {
+			shadingEnvironmentName, exists := a.Hashes[id.Name]
+			if !exists {
+				shadingEnvironmentName = id.Name.String()
+			}
+			fmt.Printf("%v.shading_environment\n", shadingEnvironmentName)
+			fileCount = 1
+			break
+		} else if *optThinToFind != "" {
+			continue
+		}
+
+		if nameStr, exists := a.ThinHashes[hashIndexRange.Hash]; exists {
+			knownHash[nameStr] = true
+		} else {
+			unknownHash[hashIndexRange.Hash.String()] = true
+		}
+	}
+	for _, hashIndexRange := range info.UnkHashIndexRange5 {
+		if *optThinToFind != "" && stingray.Sum(*optThinToFind).Thin() == hashIndexRange.Hash {
+			shadingEnvironmentName, exists := a.Hashes[id.Name]
+			if !exists {
+				shadingEnvironmentName = id.Name.String()
+			}
+			fmt.Printf("%v.shading_environment\n", shadingEnvironmentName)
+			fileCount = 1
+			break
+		} else if val, err := strconv.ParseInt(*optThinToFind, 0, 32); err == nil && val == int64(hashIndexRange.Hash.Value) {
+			shadingEnvironmentName, exists := a.Hashes[id.Name]
+			if !exists {
+				shadingEnvironmentName = id.Name.String()
+			}
+			fmt.Printf("%v.shading_environment\n", shadingEnvironmentName)
+			fileCount = 1
+			break
+		} else if *optThinToFind != "" {
+			continue
+		}
+
+		if nameStr, exists := a.ThinHashes[hashIndexRange.Hash]; exists {
+			knownHash[nameStr] = true
+		} else {
+			unknownHash[hashIndexRange.Hash.String()] = true
 		}
 	}
 	return fileCount
