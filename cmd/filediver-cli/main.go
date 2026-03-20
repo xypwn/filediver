@@ -127,7 +127,7 @@ func main() {
 		})
 		optThinHashListMode = argp.String("b", "list-thins", &argparse.Option{
 			Default: "none",
-			Choices: []any{"none", "unknown", "known", "bone", "light", "material", "beat", "event", "animation_variable", "entity", "shading_environment", "all"},
+			Choices: []any{"none", "unknown", "known", "bone", "light", "material", "beat", "event", "animation_variable", "entity", "shading_environment", "level", "all"},
 			Help:    "if not none, list [option] thin hashes referenced in included file types, then exit"},
 		)
 		optHelpMetadata = argp.Flag("", "help-metadata", &argparse.Option{

@@ -68255,6 +68255,9 @@ content/env_bugs/assets/bug_hive/textures/spore_light_02_albedo
 content/env_bugs/assets/bug_hive/textures/spore_light_02_mra
 content/env_bugs/assets/bug_hive/textures/spore_light_02_normal
 content/env_bugs/assets/bug_membrane_door/bug_membrane_door
+content/env_bugs/assets/bug_morel_clusters/bug_morel_cluster_01
+content/env_bugs/assets/bug_morel_clusters/bug_morel_cluster_02
+content/env_bugs/assets/bug_morel_clusters/bug_morel_cluster_03
 content/env_bugs/assets/bug_rocks/bug_hive_wall_large
 content/env_bugs/assets/bug_rocks/bug_hive_wall_medium
 content/env_bugs/assets/bug_rocks/bug_hive_wall_small
@@ -69198,6 +69201,14 @@ content/env_shared/assets/rocks/sharp/textures/rocky_rock_small_01_mask
 content/env_shared/assets/rocks/sharp/textures/rocky_rock_small_01_normal
 content/env_shared/assets/rocks/sharp/textures/rocky_talus_01_mask
 content/env_shared/assets/rocks/sharp/textures/rocky_talus_01_normal
+content/env_shared/assets/rocks/smooth/smooth_rock_large_01
+content/env_shared/assets/rocks/smooth/smooth_rock_large_02
+content/env_shared/assets/rocks/smooth/smooth_rock_massive_01
+content/env_shared/assets/rocks/smooth/smooth_rock_massive_02
+content/env_shared/assets/rocks/smooth/smooth_rock_medium_01
+content/env_shared/assets/rocks/smooth/smooth_rock_medium_02
+content/env_shared/assets/rocks/smooth/smooth_rock_small_01
+content/env_shared/assets/rocks/smooth/smooth_rock_small_02
 content/env_shared/assets/samples/artifact_sample_01/artifact_sample_00
 content/env_shared/assets/samples/artifact_sample_01/artifact_sample_01
 content/env_shared/assets/samples/artifact_sample_01/artifact_sample_02
@@ -73812,6 +73823,11 @@ content/objectives/obj_illuminate/il_mothership/il_mothership_vista
 content/objectives/obj_illuminate/il_mothership/textures/il_mothership_albedo
 content/objectives/obj_illuminate/il_mothership/textures/il_mothership_nar
 content/objectives/obj_illuminate/il_portal_batteries/il_portal_batteries
+content/objectives/obj_illuminate/il_raise_building_01/il_gate
+content/objectives/obj_illuminate/il_raise_building_01/il_gate_shield
+content/objectives/obj_illuminate/il_raise_building_01/il_rounded_shield
+content/objectives/obj_illuminate/il_raise_building_01/il_raise_building_02
+content/objectives/obj_illuminate/il_raise_building_01/il_raise_building_02_shield
 content/objectives/obj_illuminate/il_sarcophagus/il_sarcophagus
 content/objectives/obj_illuminate/il_stratagem_scrambler/il_scrambler_battery
 content/objectives/obj_illuminate/il_stratagem_scrambler/il_stratagem_scrambler
