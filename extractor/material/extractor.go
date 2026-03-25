@@ -1158,6 +1158,26 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 			fallthrough
 		case "grayscale_skin":
 			fallthrough
+		case "noise_tiler_mask":
+			fallthrough
+		case "base_tiler_nar":
+			fallthrough
+		case "base_tiler_nan":
+			fallthrough
+		case "detail_trimsheet_metallic_ceramic_masking":
+			fallthrough
+		case "ceramic_detail_tiler_basecolor":
+			fallthrough
+		case "ceramic_detail_tiler_nar":
+			fallthrough
+		case "rock_detail_tiler_basecolor":
+			fallthrough
+		case "rock_detail_tiler_nar":
+			fallthrough
+		case "detail_trimsheet_nar":
+			fallthrough
+		case "metallic_lut":
+			fallthrough
 		case "pattern_masks_array":
 			hash := mat.Textures[texUsage]
 			if unitData != nil && texUsageStr == "decal_sheet" && unitData.DecalSheet.Value != 0 {
