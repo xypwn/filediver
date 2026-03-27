@@ -40,7 +40,7 @@ type Config struct {
 	} `cfg:"help='general unit settings, affects materials, models and animations'"`
 	Material struct {
 		Format         string `cfg:"options=blend,glb,folder,raw help='material export format; folder dumps all referenced textures and shaders (if enabled in advanced settings) into a folder'"`
-		TexturesFormat string `cfg:"depends=Material.Format=textures options=png,dds help='format of individual textures if Format is textures'"`
+		TexturesFormat string `cfg:"depends=Material.Format=folder options=png,dds help='format of individual textures if Format is folder'"`
 		ShaderFormat   string `cfg:"tags=advanced depends=Material.Format=folder options=none,dxbc,glsl help='material shader export format; if set to either dxbc or glsl will dump the shaders for the material in that format in the shaders/ subdirectory of the material folder'"`
 	} `cfg:"tags=t:material help='see unit options'"`
 	Model struct {
