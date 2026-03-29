@@ -1,7 +1,7 @@
 <div align="center">
 
 # Filediver
-<img src="cmd/filediver-gui/filedivericon.png" height=80>
+<img src="appicons/filedivericon-256.png" height=80>
 
 [![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/xypwn/filediver/.github%2Fworkflows%2Fbuild-release.yml)](https://github.com/xypwn/filediver/actions)
 [![GitHub License](https://img.shields.io/github/license/xypwn/filediver)](https://opensource.org/license/bsd-3-clause)
