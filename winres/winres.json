@@ -1,0 +1,23 @@
+{
+  "RT_GROUP_ICON": {
+    "APP": {
+      "0000": [
+        "../appicons/filedivericon-256.png",
+        "../appicons/filedivericon-cropped-128.png",
+        "../appicons/filedivericon-cropped-64.png",
+        "../appicons/filedivericon-cropped-48.png",
+        "../appicons/filedivericon-cropped-32.png",
+        "../appicons/filedivericon-cropped-24.png",
+        "../appicons/filedivericon-cropped-16.png"
+      ]
+    },
+    "OTHER": {
+      "0000": [
+        "../appicons/filedivericon-256.png"
+      ]
+    },
+    "#1": {
+      "0409": "../appicons/filedivericon-256.png"
+    }
+  }
+}

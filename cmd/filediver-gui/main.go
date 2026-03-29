@@ -4,6 +4,7 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
+	"image"
 	"maps"
 	"math"
 	"net/http"
@@ -21,6 +22,7 @@ import (
 	"github.com/ncruces/zenity"
 	"github.com/skratchdot/open-golang/open"
 	"github.com/xypwn/filediver/app/appconfig"
+	"github.com/xypwn/filediver/appicons"
 	fnt "github.com/xypwn/filediver/cmd/filediver-gui/fonts"
 	"github.com/xypwn/filediver/cmd/filediver-gui/getter"
 	"github.com/xypwn/filediver/cmd/filediver-gui/imgui_wrapper"
@@ -131,6 +133,9 @@ type guiApp struct {
 
 	lastBrowserItemCopiedIndex int32
 	lastBrowserItemCopiedTime  float64
+
+	iconImage image.Image
+	icon      *imutils.Image
 }
 
 // Call Delete() when done.
@@ -160,10 +165,14 @@ func newGUIApp(showErrorPopup func(error)) *guiApp {
 		toolsHashConverterState:    widgets.NewHashConverter(),
 		lastBrowserItemCopiedIndex: -1,
 		lastBrowserItemCopiedTime:  -math.MaxFloat64,
+		iconImage:                  appicons.Icon256Img(),
 	}
 }
 
 func (a *guiApp) Delete() {
+	if a.icon != nil {
+		a.icon.Delete()
+	}
 	if a.previewState != nil {
 		a.previewState.Delete()
 	}
@@ -1259,9 +1268,19 @@ func (a *guiApp) drawAboutPopup() {
 	a.popupManager.Popup("Info", func(close func()) {
 		imutils.PushFontScale(1.3)
 		imgui.TextUnformatted("Filediver GUI")
-		imutils.PopFontScale()
 		imgui.SameLine()
 		imgui.TextLinkOpenURLV("(GitHub)", "https://github.com/xypwn/filediver")
+		if a.iconImage != nil {
+			if a.icon == nil {
+				var err error
+				a.icon, err = imutils.NewImage(a.iconImage)
+				if err != nil {
+					a.iconImage = nil // got invalid image => don't try to create again
+				}
+			}
+			imgui.Image(a.icon.TextureRef, imutils.SVec2(64, 64))
+		}
+		imutils.PopFontScale()
 		if version != "" {
 			imutils.Textf("version: %v", version)
 		} else {
@@ -1341,6 +1360,7 @@ To use blender importer, EITHER:
 		OnPreDraw:      app.onPreDraw,
 		OnDraw:         app.onDraw,
 		GLDebugContext: true,
+		Icons:          []image.Image{appicons.Cropped128Img(), appicons.Cropped64Img(), appicons.Cropped32Img()},
 	}); err != nil {
 		onError(err)
 		return

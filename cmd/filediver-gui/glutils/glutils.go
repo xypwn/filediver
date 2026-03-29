@@ -3,6 +3,7 @@ package glutils
 import (
 	"errors"
 	"fmt"
+	"image"
 	"io"
 	"io/fs"
 	"path"
@@ -103,4 +104,74 @@ func CreateProgramFromSources(fs fs.FS, paths ...string) (uint32, error) {
 	}
 
 	return program, nil
+}
+
+// Writes the given Go image to the given OpenGL texture.
+func ImageToTexture(texId uint32, img image.Image) error {
+	gl.BindTexture(gl.TEXTURE_2D, texId)
+	defer gl.BindTexture(gl.TEXTURE_2D, 0)
+
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+	gl.PixelStorei(gl.UNPACK_ROW_LENGTH, 0)
+
+	// NOTE(xypwn): This is almost duplicated with preview_common.go for performance
+	// reasons (different assumptions).
+	// Here, we can't assume the stride being to equal the width and the bounds starting
+	// at 0 (which we do assume in preview_common.go).
+	width, height := img.Bounds().Dx(), img.Bounds().Dy()
+	data := make([]uint8, 4*width*height)
+	switch img := img.(type) {
+	case *image.Gray:
+		for y := range height {
+			for x := range width {
+				i := y*width + x
+				j := y*img.Stride + x*1
+				y := img.Pix[j]
+				data[4*i+0] = y
+				data[4*i+1] = y
+				data[4*i+2] = y
+				data[4*i+3] = 255
+			}
+		}
+	case *image.Gray16:
+		for y := range height {
+			for x := range width {
+				i := y*width + x
+				j := y*img.Stride + x*2
+				y := img.Pix[j]
+				data[4*i+0] = y
+				data[4*i+1] = y
+				data[4*i+2] = y
+				data[4*i+3] = 255
+			}
+		}
+	case *image.NRGBA:
+		for y := range height {
+			for x := range width {
+				i := y*width + x
+				j := y*img.Stride + x*4
+				data[4*i+0] = img.Pix[j+0]
+				data[4*i+1] = img.Pix[j+1]
+				data[4*i+2] = img.Pix[j+2]
+				data[4*i+3] = img.Pix[j+3]
+			}
+		}
+	case *image.NRGBA64:
+		for y := range height {
+			for x := range width {
+				i := y*width + x
+				j := y*img.Stride + x*4
+				data[4*i+0] = img.Pix[j+0]
+				data[4*i+1] = img.Pix[j+2]
+				data[4*i+2] = img.Pix[j+4]
+				data[4*i+3] = img.Pix[j+6]
+			}
+		}
+	default:
+		return fmt.Errorf("unhandled image type %T", img)
+	}
+
+	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, int32(width), int32(width), 0, gl.RGBA, gl.UNSIGNED_BYTE, gl.Ptr(data))
+	return nil
 }
