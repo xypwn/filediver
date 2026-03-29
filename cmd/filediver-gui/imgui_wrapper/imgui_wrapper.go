@@ -75,6 +75,7 @@ static void setWindowsWindowDarkMode(GLFWwindow *window, int iValue) {}
 import "C"
 import (
 	"fmt"
+	"image"
 	"log"
 	"runtime"
 	"time"
@@ -139,6 +140,8 @@ type Options struct {
 	OnDraw func(state *State)
 	// Drag-and-drop drop callback, or nil.
 	OnDrop func(paths []string)
+	// Window icons
+	Icons []image.Image
 	// Make the OpenGL context a debug context.
 	GLDebugContext bool
 }
@@ -183,6 +186,8 @@ func Main(title string, options Options) error {
 			options.OnDrop(paths)
 		}
 	})
+
+	currentBackend.SetIcons(options.Icons...)
 
 	io := imgui.CurrentIO()
 	flags := io.ConfigFlags()

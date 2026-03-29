@@ -3,12 +3,15 @@ package imutils
 
 import (
 	"fmt"
+	"image"
 	"strings"
 
 	"github.com/AllenDang/cimgui-go/imgui"
 	"github.com/adrg/xdg"
+	"github.com/go-gl/gl/v3.2-core/gl"
 	"github.com/ncruces/zenity"
 	fnt "github.com/xypwn/filediver/cmd/filediver-gui/fonts"
+	"github.com/xypwn/filediver/cmd/filediver-gui/glutils"
 	"golang.org/x/exp/constraints"
 )
 
@@ -367,4 +370,25 @@ func PushFontScale(scale float32) {
 
 func PopFontScale() {
 	imgui.PopFont()
+}
+
+type Image struct {
+	texId      uint32
+	TextureRef imgui.TextureRef
+}
+
+// Creates a new OpenGL-backed image.
+// Don't forget to call [*Image.Delete] when done!
+func NewImage(img image.Image) (*Image, error) {
+	i := &Image{}
+	gl.GenTextures(1, &i.texId)
+	if err := glutils.ImageToTexture(i.texId, img); err != nil {
+		return nil, err
+	}
+	i.TextureRef = *imgui.NewTextureRefTextureID(imgui.TextureID(i.texId))
+	return i, nil
+}
+
+func (i *Image) Delete() {
+	gl.DeleteTextures(1, &i.texId)
 }

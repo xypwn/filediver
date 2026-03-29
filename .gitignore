@@ -6,3 +6,6 @@ __pycache__
 /all_files.txt
 cpu.prof
 filediver-gui-windows.exe
+filediver-gui.exe
+filediver-cli.exe
+/rsrc_windows_*.syso

@@ -1,6 +1,7 @@
 <div align="center">
 
 # Filediver
+<img src="cmd/filediver-gui/filedivericon.png" height=80>
 
 [![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/xypwn/filediver/.github%2Fworkflows%2Fbuild-release.yml)](https://github.com/xypwn/filediver/actions)
 [![GitHub License](https://img.shields.io/github/license/xypwn/filediver)](https://opensource.org/license/bsd-3-clause)
@@ -69,16 +70,17 @@ The program is called "filediver.exe" (or just "filediver" on Linux). See [usage
 - [Helldivers Archive Discord server](https://discord.gg/helldiversarchive)
 
 ## Credits
-This app builds on a lot of work from other people. This includes:
-- [Hellextractor by Xaymar](https://github.com/Xaymar/Hellextractor)
-	- Basic binary file structure
-	- Unhashed resource names/types (.txt files)
-- [vgmstream](https://github.com/vgmstream/vgmstream), [ww2ogg by hcs](https://github.com/hcs64/ww2ogg) and [bnkextr by eXpl0it3r](https://github.com/eXpl0it3r/bnkextr)
-	- Wwise audio formats
-- [ImageMagick](https://imagemagick.org)
-	- DDS texture decoding
-- [Accurate HD2 Shader by Thejudsub](https://discord.com/channels/1210541115829260328/1222290154409033889) on [the Helldivers Archive Discord server](https://discord.gg/helldiversarchive)
-	- The most accurate Blender material replicating the game's procedural shaders
+- Filediver icon by @gobashroom on [HD2 Modding Discord](https://discord.gg/helldiversmodding)
+- This app builds on a lot of work from other people. This includes:
+	- [Hellextractor by Xaymar](https://github.com/Xaymar/Hellextractor)
+		- Basic binary file structure
+		- Unhashed resource names/types (.txt files)
+	- [vgmstream](https://github.com/vgmstream/vgmstream), [ww2ogg by hcs](https://github.com/hcs64/ww2ogg) and [bnkextr by eXpl0it3r](https://github.com/eXpl0it3r/bnkextr)
+		- Wwise audio formats
+	- [ImageMagick](https://imagemagick.org)
+		- DDS texture decoding
+	- [Accurate HD2 Shader by Thejudsub](https://discord.com/channels/1210541115829260328/1222290154409033889) on [the Helldivers Archive Discord server](https://discord.gg/helldiversarchive)
+		- The most accurate Blender material replicating the game's procedural shaders
 
 ## Hacking
 ### Running
