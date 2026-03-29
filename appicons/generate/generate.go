@@ -17,7 +17,7 @@ func scale(src image.Image, width, height int) image.Image {
 }
 
 func main() {
-	srcB, err := os.ReadFile("filedivericon-cropped.png")
+	srcB, err := os.ReadFile("filedivericon.png")
 	if err != nil {
 		panic(err)
 	}
@@ -25,12 +25,12 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	for _, size := range []int{16, 24, 32, 48, 64, 128} {
+	for _, size := range []int{16, 24, 32, 48, 64, 128, 256} {
 		var b bytes.Buffer
 		if err := png.Encode(&b, scale(src, size, size)); err != nil {
 			panic(err)
 		}
-		if err := os.WriteFile(fmt.Sprintf("filedivericon-cropped-%d.png", size), b.Bytes(), 0666); err != nil {
+		if err := os.WriteFile(fmt.Sprintf("filedivericon-%d.png", size), b.Bytes(), 0666); err != nil {
 			panic(err)
 		}
 	}

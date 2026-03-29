@@ -165,7 +165,7 @@ func newGUIApp(showErrorPopup func(error)) *guiApp {
 		toolsHashConverterState:    widgets.NewHashConverter(),
 		lastBrowserItemCopiedIndex: -1,
 		lastBrowserItemCopiedTime:  -math.MaxFloat64,
-		iconImage:                  appicons.Icon256Img(),
+		iconImage:                  appicons.Icon128Img(),
 	}
 }
 
@@ -1360,7 +1360,14 @@ To use blender importer, EITHER:
 		OnPreDraw:      app.onPreDraw,
 		OnDraw:         app.onDraw,
 		GLDebugContext: true,
-		Icons:          []image.Image{appicons.Cropped128Img(), appicons.Cropped64Img(), appicons.Cropped32Img()},
+		Icons: []image.Image{
+			appicons.Icon128Img(),
+			appicons.Icon64Img(),
+			appicons.Icon48Img(),
+			appicons.Icon32Img(),
+			appicons.Icon24Img(),
+			appicons.Icon16Img(),
+		},
 	}); err != nil {
 		onError(err)
 		return

@@ -3,12 +3,12 @@
     "APP": {
       "0000": [
         "../appicons/filedivericon-256.png",
-        "../appicons/filedivericon-cropped-128.png",
-        "../appicons/filedivericon-cropped-64.png",
-        "../appicons/filedivericon-cropped-48.png",
-        "../appicons/filedivericon-cropped-32.png",
-        "../appicons/filedivericon-cropped-24.png",
-        "../appicons/filedivericon-cropped-16.png"
+        "../appicons/filedivericon-128.png",
+        "../appicons/filedivericon-64.png",
+        "../appicons/filedivericon-48.png",
+        "../appicons/filedivericon-32.png",
+        "../appicons/filedivericon-24.png",
+        "../appicons/filedivericon-16.png"
       ]
     },
     "OTHER": {
@@ -19,5 +19,20 @@
     "#1": {
       "0409": "../appicons/filedivericon-256.png"
     }
+  },
+  "RT_VERSION": {
+      "#1": {
+        "0409": {
+          "info": {
+            "0409": {
+              "ProductName": "Filediver",
+              "FileDescription": "Unofficial game asset extractor and explorer for Helldivers 2. https://github.com/xypwn/filediver",
+              "InternalName": "filediver-gui",
+              "OriginalFilename": "filediver-gui.exe",
+              "LegalCopyright": "© Filediver contributors"
+            }
+          }
+        }
+      }
   }
 }
