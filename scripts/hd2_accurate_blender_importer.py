@@ -530,7 +530,72 @@ def add_portal_material(il_building_mat: Material, material: dict, textures: Dic
     print("    Finalizing material")
     return object_mat
 
-def load_shaders(resource_path: str) -> Tuple[ModuleType, Material, Material, Material, Material, Material, Material, Material, Material]:
+def add_il_ruins_material(il_ruins_mat: Material, material: dict, textures: Dict[str, Image]):
+    object_mat = il_ruins_mat.copy()
+    object_mat.name = "HD2 IlRuins " + material["name"]
+
+    print("    Applying textures")
+    config_nodes: Dict[str, ShaderNodeTexImage] = object_mat.node_tree.nodes
+    for usage, image in textures.items():
+        match usage:
+            case "noise_tiler_mask":
+                config_nodes["Image Texture"].image = image
+                config_nodes["Image Texture.001"].image = image
+                config_nodes["Image Texture.002"].image = image
+                image.colorspace_settings.name = "Non-Color"
+            case "base_tiler_nan":
+                config_nodes["Image Texture.003"].image = image
+                config_nodes["Image Texture.004"].image = image
+                config_nodes["Image Texture.005"].image = image
+                image.colorspace_settings.name = "Non-Color"
+            case "detail_trimsheet_metallic_ceramic_masking":
+                config_nodes["Image Texture.006"].image = image
+                image.colorspace_settings.name = "Non-Color"
+            case "ceramic_detail_tiler_basecolor":
+                config_nodes["Image Texture.007"].image = image
+                image.colorspace_settings.name = "sRGB"
+                image.alpha_mode = "CHANNEL_PACKED"
+            case "ceramic_detail_tiler_nar":
+                config_nodes["Image Texture.008"].image = image
+                image.colorspace_settings.name = "Non-Color"
+            case "rock_detail_tiler_basecolor":
+                config_nodes["Image Texture.009"].image = image
+                image.colorspace_settings.name = "sRGB"
+                image.alpha_mode = "CHANNEL_PACKED"
+            case "rock_detail_tiler_nar":
+                config_nodes["Image Texture.010"].image = image
+                image.colorspace_settings.name = "Non-Color"
+            case "detail_trimsheet_nar":
+                config_nodes["Image Texture.011"].image = image
+                image.colorspace_settings.name = "Non-Color"
+            case "metallic_lut":
+                config_nodes["Image Texture.012"].image = image
+                image.colorspace_settings.name = "Non-Color"
+            
+
+    print("    Applying settings")
+    group = config_nodes['Group']
+    for name, setting in material["extras"].items():
+        if name not in group.inputs:
+            match name:
+                case "noise_mask_tiling":
+                    config_nodes["Value"].outputs[0].default_value = setting[0]
+                case "base_nar_tiling":
+                    config_nodes["Value.001"].outputs[0].default_value = setting[0]
+                case "ceramic_detail_tiling":
+                    config_nodes["Value.002"].outputs[0].default_value = setting[0]
+                case "rock_detail_tiling":
+                    config_nodes["Value.003"].outputs[0].default_value = setting[0]
+            continue
+        if len(setting) == 1:
+            group.inputs[name].default_value = setting[0]
+            continue
+        group.inputs[name].default_value = setting[:3]
+
+    print("    Finalizing material")
+    return object_mat
+
+def load_shaders(resource_path: str) -> Tuple[ModuleType, Material, Material, Material, Material, Material, Material, Material, Material, Material]:
     shader_script = bpy.data.texts.load(str(resource_path / "Helldivers2 shader script v1.0.6-1.py"))
     shader_script.use_fake_user = True
     shader_module = shader_script.as_module()
@@ -556,7 +621,9 @@ def load_shaders(resource_path: str) -> Tuple[ModuleType, Material, Material, Ma
     illuminate_building_mat.use_fake_user = True
     portal_mat = bpy.data.materials["HD2 Portal"]
     portal_mat.use_fake_user = True
-    return shader_module, shader_mat, skin_mat, lut_skin_mat, building_mat, concrete_mat, fence_mat, triplanar_illuminate_building_mat, illuminate_building_mat, portal_mat
+    il_ruins_mat = bpy.data.materials["HD2 Illuminate Ruins"]
+    il_ruins_mat.use_fake_user = True
+    return shader_module, shader_mat, skin_mat, lut_skin_mat, building_mat, concrete_mat, fence_mat, triplanar_illuminate_building_mat, illuminate_building_mat, portal_mat, il_ruins_mat
 
 def create_empty_texture(name: str, size: Tuple[int, int], fmt: str = 'PNG', colorspace: str = 'sRGB', alpha_mode: str = 'CHANNEL_PACKED') -> Image:
     unused_texture = bpy.data.images.new(name, size[0], size[1], alpha=True, float_buffer=True)
@@ -586,7 +653,7 @@ def add_to_armor_set(node: Dict):
         other.objects.unlink(obj)
     collection.objects.link(obj)
 
-def convert_materials(gltf: Dict, node: Dict, variants: List[Dict], hasVariants: bool, materialTextures: Dict[int, Dict[str, Image]], packall: bool, shader_module: ModuleType, shader_mat: Material, skin_mat: Material, lut_skin_mat: Material, building_mat: Material, concrete_mat: Material, fence_mat: Material, triplanar_il_building_mat: Material, il_building_mat: Material, portal_mat: Material, unused_texture: Image, unused_secondary_lut: Image):
+def convert_materials(gltf: Dict, node: Dict, variants: List[Dict], hasVariants: bool, materialTextures: Dict[int, Dict[str, Image]], packall: bool, shader_module: ModuleType, shader_mat: Material, skin_mat: Material, lut_skin_mat: Material, building_mat: Material, concrete_mat: Material, fence_mat: Material, triplanar_il_building_mat: Material, il_building_mat: Material, portal_mat: Material, il_ruins_mat: Material, unused_texture: Image, unused_secondary_lut: Image):
     optional_usages = ["decal_sheet", "pattern_masks_array"]
 
     mesh = gltf["meshes"][node["mesh"]]
@@ -617,12 +684,13 @@ def convert_materials(gltf: Dict, node: Dict, variants: List[Dict], hasVariants:
             is_concrete = "pattern_data" in material["extras"] and "material_surface" in material["extras"]
             is_fence = "texture_map_319d3bb5" in material["extras"] and "fence_offset" in material["extras"]
             is_illuminate_building_triplanar = "albedo_array" in material["extras"] and "surface_tiling" in material["extras"] and "bcm_tex_a" in material["extras"] and "noise_power" in material["extras"]
+            is_illuminate_ruins_triplanar = "noise_tiler_mask" in material["extras"] and "noise_mask_tiling" in material["extras"] and "detail_trimsheet_metallic_ceramic_masking" in material["extras"] and "ceramic_detail_tiler_basecolor" in material["extras"]
             is_illuminate_building_monoplanar = "albedo_array" in material["extras"] and "surface_tiling" in material["extras"] and "bcm_tex_a" not in material["extras"] and "noise_power" not in material["extras"]
             is_portal = "noise_map_01" in material["extras"] and "noise_map_02" in material["extras"] and "edge_noise_map" in material["extras"]
             if materialIndex in materialTextures:
                 textures = materialTextures[materialIndex]
             else:
-                if len(material["extras"]) == 0 or not any((is_pbr, is_tex_array_skin, is_lut_skin, is_lut, is_building, is_concrete, is_fence, is_illuminate_building_triplanar, is_illuminate_building_monoplanar, is_portal)):
+                if len(material["extras"]) == 0 or not any((is_pbr, is_tex_array_skin, is_lut_skin, is_lut, is_building, is_concrete, is_fence, is_illuminate_building_triplanar, is_illuminate_building_monoplanar, is_portal, is_illuminate_ruins_triplanar)):
                     continue
                 if not packall and is_pbr:
                     continue
@@ -680,6 +748,10 @@ def convert_materials(gltf: Dict, node: Dict, variants: List[Dict], hasVariants:
                     object_mat = add_fence_material(fence_mat, material, textures)
                     object_mat["needsBakeUVs"] = False
                     # Building material does not support automatically generating bake UVs
+                elif is_illuminate_ruins_triplanar:
+                    object_mat = add_il_ruins_material(il_ruins_mat, material, textures)
+                    object_mat["needsBakeUVs"] = False
+                    # Illuminate ruins material does not support automatically generating bake UVs
                 object_mat["gltfId"] = materialIndex
             else:
                 print(f"    Found existing material '{key}'")
@@ -1284,7 +1356,7 @@ def main():
         if tmp_file:
             os.unlink(tmp_file.name)
     print("Loading Custom Shaders")
-    shader_module, shader_mat, skin_mat, lut_skin_mat, building_mat, concrete_mat, fence_mat, il_building_mat_triplanar, il_building_mat, portal_mat = load_shaders(resource_path)
+    shader_module, shader_mat, skin_mat, lut_skin_mat, building_mat, concrete_mat, fence_mat, il_building_mat_triplanar, il_building_mat, portal_mat, il_ruins_mat = load_shaders(resource_path)
 
     unused_texture = create_empty_texture("unused", (1, 1))
     unused_secondary_lut = create_empty_texture("unused_secondary_lut", (23, 1), fmt='OPEN_EXR', colorspace='Non-Color')
@@ -1310,7 +1382,7 @@ def main():
         if node.get("extras", {}).get("default_hidden") == 1 and node["name"] in bpy.data.objects:
             hide_visibility_group(node)
         if "mesh" in node:
-            convert_materials(gltf, node, variants, hasVariants, materialTextures, args.packall, shader_module, shader_mat, skin_mat, lut_skin_mat, building_mat, concrete_mat, fence_mat, il_building_mat_triplanar, il_building_mat, portal_mat, unused_texture, unused_secondary_lut)
+            convert_materials(gltf, node, variants, hasVariants, materialTextures, args.packall, shader_module, shader_mat, skin_mat, lut_skin_mat, building_mat, concrete_mat, fence_mat, il_building_mat_triplanar, il_building_mat, portal_mat, il_ruins_mat, unused_texture, unused_secondary_lut)
         if "state_machine" in node.get("extras", {}):
             add_state_machine(gltf, node)
 

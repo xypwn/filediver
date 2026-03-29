@@ -2,13 +2,14 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/jwalton/go-supportscolor"
 	"github.com/xypwn/filediver/app"
+	"github.com/xypwn/filediver/cmd/tools/components"
+	"github.com/xypwn/filediver/cmd/tools/components/entity-component-settings-json-dumper/dumper"
 	datalib "github.com/xypwn/filediver/datalibrary"
 	"github.com/xypwn/filediver/hashes"
 	"github.com/xypwn/filediver/stingray"
@@ -83,20 +84,9 @@ func main() {
 		}
 		return fmt.Sprintf("String ID not found: %v", stringId)
 	}
-
-	entityHashmap, err := datalib.ParseEntityComponentSettings()
-	if err != nil {
-		panic(err)
-	}
-
-	result := make(map[string]datalib.SimpleEntity)
-	for name, entity := range entityHashmap {
-		result[lookupHash(name)] = entity.ToSimple(lookupHash, lookupThinHash, lookupDLHash, lookupString)
-	}
-
-	output, err := json.MarshalIndent(result, "", "    ")
-	if err != nil {
-		panic(err)
-	}
-	fmt.Print(string(output))
+	dumper.Dump(&components.BasicLookup{
+		ThinHash: lookupThinHash,
+		Hash:     lookupHash,
+		Str:      lookupString,
+	}, lookupDLHash)
 }

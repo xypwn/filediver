@@ -2,20 +2,15 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/jwalton/go-supportscolor"
 	"github.com/xypwn/filediver/app"
-	"github.com/xypwn/filediver/app/appconfig"
-	"github.com/xypwn/filediver/config"
-	datalib "github.com/xypwn/filediver/datalibrary"
+	"github.com/xypwn/filediver/cmd/tools/components/weapon-customization-component-json-dumper/dumper"
 	"github.com/xypwn/filediver/hashes"
-	"github.com/xypwn/filediver/stingray"
 	stingray_strings "github.com/xypwn/filediver/stingray/strings"
 )
 
@@ -40,9 +35,6 @@ func main() {
 
 	knownHashes := app.ParseHashes(hashes.Hashes)
 	knownThinHashes := app.ParseHashes(hashes.ThinHashes)
-	lookupString := func(val uint32) string {
-		return fmt.Sprintf("%x", val)
-	}
 
 	a, err := app.OpenGameDir(ctx, gameDir, knownHashes, knownThinHashes, stingray_strings.LanguageFriendlyNameToHash["English (US)"], func(curr int, total int) {
 		prt.Statusf("Opening game directory %.0f%%", float64(curr)/float64(total)*100)
@@ -57,34 +49,5 @@ func main() {
 		}
 	}
 	prt.NoStatus()
-
-	getResource := func(id stingray.FileID, typ stingray.DataType) (data []byte, exists bool, err error) {
-		data, err = a.DataDir.Read(id, typ)
-		if err == stingray.ErrFileDataTypeNotExist {
-			return nil, false, nil
-		}
-		if err != nil {
-			return nil, true, err
-		}
-		return data, true, nil
-	}
-
-	cfg := appconfig.Config{}
-	config.InitDefault(&cfg)
-
-	weaponCustomizationComponents, err := datalib.ParseWeaponCustomizationComponents(getResource, a.LanguageMap)
-	if err != nil {
-		panic(err)
-	}
-
-	result := make(map[string]any)
-	for name, component := range weaponCustomizationComponents {
-		result[a.LookupHash(name)] = component.ToSimple(a.LookupHash, a.LookupThinHash, lookupString)
-	}
-
-	output, err := json.MarshalIndent(result, "", "    ")
-	if err != nil {
-		panic(err)
-	}
-	fmt.Print(string(output))
+	dumper.Dump(a)
 }

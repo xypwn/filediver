@@ -364,6 +364,9 @@ func OpenGameDir(ctx context.Context, gameDir string, hashStrings []string, thin
 	}
 
 	lookupString := func(stringId uint32) string {
+		if stringId == 0 {
+			return ""
+		}
 		if name, ok := mapping[stringId]; ok {
 			return name
 		}
@@ -554,6 +557,9 @@ func (a *App) LookupThinHash(hash stingray.ThinHash) string {
 func (a *App) LookupString(stringId uint32) string {
 	if name, ok := a.LanguageMap[stringId]; ok {
 		return name
+	}
+	if stringId == 0 {
+		return ""
 	}
 	return strconv.FormatUint(uint64(stringId), 10)
 }

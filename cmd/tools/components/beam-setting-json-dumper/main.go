@@ -2,16 +2,14 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/jwalton/go-supportscolor"
 	"github.com/xypwn/filediver/app"
-	datalib "github.com/xypwn/filediver/datalibrary"
+	"github.com/xypwn/filediver/cmd/tools/components/beam-setting-json-dumper/dumper"
 	"github.com/xypwn/filediver/hashes"
 	stingray_strings "github.com/xypwn/filediver/stingray/strings"
 )
@@ -52,14 +50,5 @@ func main() {
 	}
 	prt.NoStatus()
 
-	beamSettings, err := datalib.LoadBeamSettings(a.LookupHash, a.LookupThinHash, a.LookupString)
-	if err != nil {
-		panic(err)
-	}
-
-	output, err := json.MarshalIndent(beamSettings[0], "", "    ")
-	if err != nil {
-		panic(err)
-	}
-	fmt.Print(string(output))
+	dumper.Dump(a)
 }
