@@ -43,6 +43,7 @@ import (
 	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/stingray/ah_bin"
 	stingray_strings "github.com/xypwn/filediver/stingray/strings"
+	stingray_material "github.com/xypwn/filediver/stingray/unit/material"
 	stingray_wwise "github.com/xypwn/filediver/stingray/wwise"
 	"github.com/xypwn/filediver/wwise"
 )
@@ -239,6 +240,20 @@ func getFileMetadata(dataDir *stingray.DataDir) map[stingray.FileID]FileMetadata
 			}
 			meta.Language = hdr.Language
 			meta.addAvailableFields("Language")
+		case stingray.Sum("material"):
+			b, err := dataDir.ReadAtMost(fileID, stingray.DataMain, 0x88)
+			if err != nil {
+				// ignore for now
+				continue
+			}
+			var hdr stingray_material.Header
+			err = binary.Read(bytes.NewReader(b), binary.LittleEndian, &hdr)
+			if err != nil {
+				// ignore for now
+				continue
+			}
+			meta.BaseMaterial = hdr.BaseMaterial
+			meta.addAvailableFields("BaseMaterial")
 		}
 		metadata[fileID] = meta
 	}

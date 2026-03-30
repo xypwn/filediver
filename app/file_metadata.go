@@ -18,12 +18,13 @@ type FileMetadata struct {
 	// as having an assigned value.
 	AvailableFields map[string]bool `meta:"true"`
 
-	Type     stingray.Hash     `help:"File type" example:"\"unit\""`
-	Archives []stingray.Hash   `help:"Archives the file is contained in"`
-	Width    int               `help:"Texture width"`
-	Height   int               `help:"Texture height"`
-	Format   string            `help:"Texture format" example:"\"BC1UNorm\""`
-	Language stingray.ThinHash `help:"Strings language" example:"\"us\""`
+	Type         stingray.Hash     `help:"File type" example:"\"unit\""`
+	Archives     []stingray.Hash   `help:"Archives the file is contained in"`
+	Width        int               `help:"Texture width"`
+	Height       int               `help:"Texture height"`
+	Format       string            `help:"Texture format" example:"\"BC1UNorm\""`
+	Language     stingray.ThinHash `help:"Strings language" example:"\"us\""`
+	BaseMaterial stingray.Hash     `help:"Materials' parent"`
 }
 
 // String representation for metadata types
