@@ -653,6 +653,21 @@ def add_to_armor_set(node: Dict):
         other.objects.unlink(obj)
     collection.objects.link(obj)
 
+def get_material_key(is_lut: bool, is_tex_array_skin: bool, is_lut_skin: bool, is_illuminate_building_triplanar: bool, is_illuminate_building_monoplanar: bool, is_portal: bool, is_building: bool, is_concrete: bool, is_fence: bool, is_illuminate_ruins_triplanar: bool):
+    if is_illuminate_building_triplanar or is_illuminate_building_monoplanar:
+        return "IllBldg"
+    elif is_portal:
+        return "Portal"
+    elif is_building:
+        return "Building"
+    elif is_concrete:
+        return "Concrete"
+    elif is_fence:
+        return "Fence"
+    elif is_illuminate_ruins_triplanar:
+        return "IlRuins"
+    return "Mat"
+
 def convert_materials(gltf: Dict, node: Dict, variants: List[Dict], hasVariants: bool, materialTextures: Dict[int, Dict[str, Image]], packall: bool, shader_module: ModuleType, shader_mat: Material, skin_mat: Material, lut_skin_mat: Material, building_mat: Material, concrete_mat: Material, fence_mat: Material, triplanar_il_building_mat: Material, il_building_mat: Material, portal_mat: Material, il_ruins_mat: Material, unused_texture: Image, unused_secondary_lut: Image):
     optional_usages = ["decal_sheet", "pattern_masks_array"]
 
@@ -711,10 +726,11 @@ def convert_materials(gltf: Dict, node: Dict, variants: List[Dict], hasVariants:
                 if is_pbr:
                     continue
 
-            key = "HD2 Mat " + material["name"]
+            material_subname = get_material_key(is_lut, is_tex_array_skin, is_lut_skin, is_illuminate_building_triplanar, is_illuminate_building_monoplanar, is_portal, is_building, is_concrete, is_fence, is_illuminate_ruins_triplanar)
+            key = f"HD2 {material_subname} " + material["name"]
             i = 1
             while key in bpy.data.materials and bpy.data.materials[key]["gltfId"] != materialIndex:
-                key = "HD2 Mat " + material["name"] + f".{i:03d}"
+                key = f"HD2 {material_subname} " + material["name"] + f".{i:03d}"
                 i += 1
             if not key in bpy.data.materials:
                 print("    Copying template material")
