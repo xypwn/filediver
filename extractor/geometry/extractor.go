@@ -568,13 +568,22 @@ func separateUDims(doc *gltf.Document, indexAccessor, texcoordAccessor *gltf.Acc
 		}
 
 		udim := make([]uint32, 3)
-		udim[0] = uint32(uv[0]) | uint32(1-uv[1])<<5
+		if uv[1] < 0 {
+			udim[0] = uint32(uv[0]) | uint32(1-uv[1])<<5
+		} else {
+			// include all negative v values in the udim with v == 0
+			udim[0] = uint32(uv[0])
+		}
 		for j := i + 1; j < i+3; j += 1 {
 			vertex := indexSlice[j]
 			if _, err := binary.Decode(buffer.Data[vertex*vertexStride+texcoordOffset:], binary.LittleEndian, &uv); err != nil {
 				return nil, err
 			}
-			udim[j-i] = uint32(uv[0]) | uint32(1-uv[1])<<5
+			if uv[1] < 0 {
+				udim[j-i] = uint32(uv[0]) | uint32(1-uv[1])<<5
+			} else {
+				udim[j-i] = uint32(uv[0])
+			}
 		}
 		var minUdim uint32
 		if udim[0] < udim[1] && udim[0] < udim[2] {
@@ -1010,10 +1019,16 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, me
 
 			mask, contains := visibilityMaskData[ctx.FileID().Name]
 			if !contains {
+				// Some model names do not match any of the names of the entities that include them
+				// so they need to be patched up to get the correct visibility masks
 				if strings.Contains(ctx.LookupHash(ctx.FileID().Name), "cha_lieutenant") {
-					// For some reason neither of the hulk models are in the visibility masks, but an invalid filename is?
-					// Not sure how the game looks them up in this case, probably need to investigate more
 					mask, contains = visibilityMaskData[stingray.Sum("content/fac_cyborgs/cha_lieutenant/cha_lieutenant_assault")]
+				}
+				if strings.Contains(ctx.LookupHash(ctx.FileID().Name), "cyborg_tank_turret_cannon/cyborg_tank_turret_cannon") {
+					mask, contains = visibilityMaskData[stingray.Sum("content/fac_cyborgs/turrets/cyborg_tank_turret_cannon/cyborg_turret_heavycannon")]
+				}
+				if ctx.FileID().Name == stingray.Sum("content/fac_cyborgs/vehicles/cyborg_tank/cyborg_tank") {
+					mask, contains = visibilityMaskData[stingray.Sum("content/fac_cyborgs/vehicles/cyborg_tank/cyborg_tank_heavycannon")]
 				}
 				if strings.Contains(ctx.LookupHash(ctx.FileID().Name), "combat_walker_lumberer") || strings.Contains(ctx.LookupHash(ctx.FileID().Name), "combat_walker_breacher") {
 					// Lumberer and Breacher aren't in the visibility masks settings yet, so patch them up for now
