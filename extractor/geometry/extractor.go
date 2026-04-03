@@ -785,7 +785,7 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, me
 			return false
 		}
 
-		if !cfg.Model.IncludeLODS && isLOD(groupName, false, true) {
+		if isLOD(groupName, false, true) {
 			if !processedLODBones && (strings.Contains(groupName, "_LOD1") || strings.Contains(groupName, "_LOD0")) && !strings.Contains(groupName, "shadow") {
 				hasLOD0 = false
 				hasBaseModel = false
@@ -803,7 +803,7 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, me
 				}
 				processedLODBones = true
 			}
-			if (hasLOD0 && strings.Contains(groupName, "_LOD") && !strings.Contains(groupName, "_LOD0")) || (hasBaseModel && strings.Contains(groupName, "_LOD0")) || strings.Contains(groupName, "shadow") {
+			if !cfg.Model.IncludeLODS && ((hasLOD0 && strings.Contains(groupName, "_LOD") && !strings.Contains(groupName, "_LOD0")) || (hasBaseModel && strings.Contains(groupName, "_LOD0")) || strings.Contains(groupName, "shadow")) {
 				continue
 			}
 		}
