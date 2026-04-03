@@ -20807,6 +20807,7 @@ m_torso1
 m_torso_armor
 m_torso_jacket
 m_torso_undergarment
+m_tracks_01
 m_trashbag_01
 m_trashbin_01
 m_tree_nest_01
@@ -22756,6 +22757,8 @@ tank_lid_tip_l
 tank_lid_tip_r
 tank_mine
 tank_spikes_3m_01
+tank_track_l
+tank_track_r
 tank_turret
 target
 target_01

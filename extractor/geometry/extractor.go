@@ -547,7 +547,7 @@ func flipNormals(buffer *gltf.Buffer, componentType gltf.ComponentType, indexCou
 	return nil
 }
 
-func separateUDims(doc *gltf.Document, indexAccessor, texcoordAccessor *gltf.Accessor) (map[uint32][]uint32, error) {
+func separateUDims(doc *gltf.Document, indexAccessor, texcoordAccessor *gltf.Accessor, matName string) (map[uint32][]uint32, error) {
 	indexBufferView := doc.BufferViews[*indexAccessor.BufferView]
 	buffer := doc.Buffers[indexBufferView.Buffer]
 	indexSlice, err := getIndices(buffer, indexBufferView, indexAccessor)
@@ -568,11 +568,12 @@ func separateUDims(doc *gltf.Document, indexAccessor, texcoordAccessor *gltf.Acc
 		}
 
 		udim := make([]uint32, 3)
-		if uv[1] < 0 {
-			udim[0] = uint32(uv[0]) | uint32(1-uv[1])<<5
+		if uv[1] < 0 && matName != "m_tracks_01" {
+			udim[0] = uint32(math.Max(float64(uv[0]), 0.0)) | uint32(1-uv[1])<<5
 		} else {
 			// include all negative v values in the udim with v == 0
-			udim[0] = uint32(uv[0])
+			// Also make the bastion tracks stay on the first udim
+			udim[0] = uint32(math.Max(float64(uv[0]), 0.0))
 		}
 		for j := i + 1; j < i+3; j += 1 {
 			vertex := indexSlice[j]
@@ -580,9 +581,9 @@ func separateUDims(doc *gltf.Document, indexAccessor, texcoordAccessor *gltf.Acc
 				return nil, err
 			}
 			if uv[1] < 0 {
-				udim[j-i] = uint32(uv[0]) | uint32(1-uv[1])<<5
+				udim[j-i] = uint32(math.Max(float64(uv[0]), 0.0)) | uint32(1-uv[1])<<5
 			} else {
-				udim[j-i] = uint32(uv[0])
+				udim[j-i] = uint32(math.Max(float64(uv[0]), 0.0))
 			}
 		}
 		var minUdim uint32
@@ -1045,7 +1046,7 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, me
 					texcoordAccessor := doc.Accessors[texcoordIndex]
 					groupIndexAccessor := doc.Accessors[*groupIndices]
 					var UDIMs map[uint32][]uint32
-					if UDIMs, err = separateUDims(doc, groupIndexAccessor, texcoordAccessor); err != nil {
+					if UDIMs, err = separateUDims(doc, groupIndexAccessor, texcoordAccessor, materialName); err != nil {
 						ctx.Warnf("separateUDims: %v", err)
 					} else {
 						for udim, indices := range UDIMs {
