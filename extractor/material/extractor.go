@@ -1201,7 +1201,7 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 				hash = unitData.DecalScalarFields
 			}
 			if unitData != nil && texUsageStr == "cape_gradient" && unitData.CapeGradient.Value != 0 {
-				hash = unitData.DecalScalarFields
+				hash = unitData.CapeGradient
 			}
 			index, err := writeTexture(ctx, doc, hash, postProcess, imgOpts, "")
 			if err != nil {
