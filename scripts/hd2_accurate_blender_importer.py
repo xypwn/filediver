@@ -256,8 +256,11 @@ def add_cape_material(cape_mat: Material, material: dict, textures: Dict[str, Im
             case "cape_lut":
                 for i in range(123, 139):
                     config_nodes[f"Image Texture.{i:03d}"].image = image
+            case "palette_lut":
+                config_nodes["Image Texture.012"].image = image
     print("    Applying settings")
     cape_group = object_mat.node_tree.nodes['Group.015']
+    weathering_group = object_mat.node_tree.nodes['Group.011']
     for name, setting in material["extras"].items():
         if name == "weathering_tile_factor":
             config_nodes["Value.051"].outputs[0].default_value = setting[0]
@@ -268,18 +271,20 @@ def add_cape_material(cape_mat: Material, material: dict, textures: Dict[str, Im
         if name == "gunk_scale":
             config_nodes["Value.053"].outputs[0].default_value = setting[0]
             continue
-        if name not in cape_group.inputs:
+        if name not in cape_group.inputs and name not in weathering_group.inputs:
             continue
-        if "height_wetness_and_wash" in name:
-            cape_group.inputs[name].default_value = setting[:3]
-            cape_group.inputs[name + " w"].default_value = setting[3]
-            continue
-        if len(setting) == 1:
-            cape_group.inputs[name].default_value = setting[0]
-            continue
-        cape_group.inputs[name].default_value = setting
+        for group in (weathering_group, cape_group):
+            if name not in group.inputs:
+                continue
+            if "height_wetness_and_wash" in name:
+                group.inputs[name].default_value = setting[:3]
+                group.inputs[name + " w"].default_value = setting[3]
+                continue
+            if len(setting) == 1:
+                group.inputs[name].default_value = setting[0]
+                continue
+            group.inputs[name].default_value = setting
     print("    Finalizing material")
-    # Set ethnicity to a random value
     return object_mat
 
 def add_skin_material(skin_mat: Material, material: dict, textures: Dict[str, Image]):
