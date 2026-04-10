@@ -93,7 +93,7 @@ func main() {
 	}
 	prt.NoStatus()
 
-	files, err := a.MatchingFiles("", "", []string{"material"}, []stingray.Hash{}, "")
+	files, err := a.MatchingFiles("", "", []string{"material"}, []stingray.Hash{}, "", prt.Infof)
 	if err != nil {
 		prt.Fatalf("%v", err)
 	}

@@ -29,6 +29,7 @@ import (
 	"github.com/xypwn/filediver/stingray/unit"
 	geometrygroup "github.com/xypwn/filediver/stingray/unit/geometry_group"
 	"github.com/xypwn/filediver/stingray/unit/material"
+	"github.com/xypwn/filediver/util"
 )
 
 func LoadBoneMap(ctx *extractor.Context, unitInfo *unit.Info) (*bones.Info, error) {
@@ -633,21 +634,6 @@ func GetUnitExtrasID(fileId stingray.FileID) string {
 	return fileId.Name.String() + ".unit"
 }
 
-func capeTitleCase(name string) string {
-	words := strings.Split(strings.ToLower(name), " ")
-	smallwords := " a an on the to of "
-	caser := cases.Title(language.English)
-
-	for index, word := range words {
-		if strings.Contains(smallwords, " "+word+" ") && index != 0 {
-			words[index] = word
-		} else {
-			words[index] = caser.String(word)
-		}
-	}
-	return strings.Join(words, " ")
-}
-
 func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gltfDoc *gltf.Document) error {
 	fMain, err := ctx.Open(ctx.FileID(), stingray.DataMain)
 	if err != nil {
@@ -722,9 +708,10 @@ func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gl
 				}
 				if armorSet.Type == datalib.KitCape {
 					for _, idx := range tmp[0].MaterialHashToIndex {
-						doc.Materials[idx].Name = capeTitleCase(armorSet.Name)
+						slot := strings.Split(doc.Materials[idx].Name, " ")[0]
+						doc.Materials[idx].Name = slot + " " + util.PrettyTitleCase(armorSet.Name)
 					}
-					tmp[0].Name = capeTitleCase(armorSet.Name)
+					tmp[0].Name = util.PrettyTitleCase(armorSet.Name)
 				}
 				materialIdxs = append(materialIdxs, tmp...)
 			}

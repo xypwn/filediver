@@ -174,7 +174,7 @@ func main() {
 	}
 	prt.NoStatus()
 
-	files, err := a.MatchingFiles(*filenameGlob, "", []string{"state_machine"}, nil, "")
+	files, err := a.MatchingFiles(*filenameGlob, "", []string{"state_machine"}, nil, "", prt.Infof)
 	if err != nil {
 		prt.Fatalf("%v", err)
 	}

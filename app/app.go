@@ -45,6 +45,7 @@ import (
 	stingray_strings "github.com/xypwn/filediver/stingray/strings"
 	stingray_material "github.com/xypwn/filediver/stingray/unit/material"
 	stingray_wwise "github.com/xypwn/filediver/stingray/wwise"
+	"github.com/xypwn/filediver/util"
 	"github.com/xypwn/filediver/wwise"
 )
 
@@ -466,6 +467,7 @@ func (a *App) MatchingFiles(
 	includeOnlyTypes []string,
 	includeArchiveIDs []stingray.Hash,
 	metadataFilter string,
+	infof func(format string, args ...any),
 ) (
 	map[stingray.FileID]struct{},
 	error,
@@ -510,8 +512,14 @@ func (a *App) MatchingFiles(
 			continue
 		}
 		if a.ArmorSets[includeArchiveID].Type == datalib.KitCape {
-			includeArchiveFiles[stingray.NewFileID(stingray.Sum("content/fac_helldivers/capes/medium_cape"), stingray.Sum("unit"))] = struct{}{}
-			includeArchiveFiles[stingray.NewFileID(stingray.Sum("content/fac_helldivers/capes/shock_trooper_cape"), stingray.Sum("unit"))] = struct{}{}
+			typeVariations := a.hashNameVariationsForMatch(stingray.Sum("unit"))
+			if len(includeOnlyTypes) == 0 || slices.ContainsFunc(includeOnlyTypes, func(includedType string) bool {
+				return slices.Contains(typeVariations, includedType)
+			}) {
+				infof("Archive of cape '%v' detected, adding cape units to export", util.PrettyTitleCase(a.ArmorSets[includeArchiveID].Name))
+				includeArchiveFiles[stingray.NewFileID(stingray.Sum("content/fac_helldivers/capes/medium_cape"), stingray.Sum("unit"))] = struct{}{}
+				includeArchiveFiles[stingray.NewFileID(stingray.Sum("content/fac_helldivers/capes/shock_trooper_cape"), stingray.Sum("unit"))] = struct{}{}
+			}
 		}
 	}
 
