@@ -506,6 +506,13 @@ func (a *App) MatchingFiles(
 		for _, f := range files {
 			includeArchiveFiles[f] = struct{}{}
 		}
+		if _, contains := a.ArmorSets[includeArchiveID]; !contains {
+			continue
+		}
+		if a.ArmorSets[includeArchiveID].Type == datalib.KitCape {
+			includeArchiveFiles[stingray.NewFileID(stingray.Sum("content/fac_helldivers/capes/medium_cape"), stingray.Sum("unit"))] = struct{}{}
+			includeArchiveFiles[stingray.NewFileID(stingray.Sum("content/fac_helldivers/capes/shock_trooper_cape"), stingray.Sum("unit"))] = struct{}{}
+		}
 	}
 
 	res := make(map[stingray.FileID]struct{})

@@ -672,19 +672,45 @@ func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gl
 	var metadata *datalib.UnitData = nil
 	var passive *datalib.HelldiverCustomizationPassiveBonusSettings = nil
 	var armorSetName *string = nil
+	var armorSets []datalib.ArmorSet = make([]datalib.ArmorSet, 0)
 	if armorSet, ok := ctx.GuessFileArmorSet(ctx.FileID()); ok {
 		armorSetName = &armorSet.Name
 		passive = armorSet.Passive
 		if _, contains := armorSet.UnitMetadata[ctx.FileID().Name]; contains {
 			value := armorSet.UnitMetadata[ctx.FileID().Name]
 			metadata = &value
+			armorSets = append(armorSets, armorSet)
 		}
 	}
 
+	if ctx.FileID().Name == stingray.Sum("content/fac_helldivers/capes/medium_cape") || ctx.FileID().Name == stingray.Sum("content/fac_helldivers/capes/shock_trooper_cape") {
+		for _, armorSet := range ctx.ArmorSets() {
+			if armorSet.Type == datalib.KitCape {
+				armorSets = append(armorSets, armorSet)
+			}
+		}
+	}
+
+	var materialIdxs []geometry.MaterialVariantMap = make([]geometry.MaterialVariantMap, 0)
 	// Load materials
-	materialIdxs, err := AddMaterials(ctx, doc, imgOpts, unitInfo, metadata)
-	if err != nil {
-		return err
+	if len(armorSets) == 0 {
+		materialIdxs, err = AddMaterials(ctx, doc, imgOpts, unitInfo, metadata)
+		if err != nil {
+			return err
+		}
+	} else {
+		for _, armorSet := range armorSets {
+			for _, meta := range armorSet.UnitMetadata {
+				tmp, err := AddMaterials(ctx, doc, imgOpts, unitInfo, &meta)
+				if err != nil {
+					return err
+				}
+				if armorSet.Type == datalib.KitCape {
+					tmp[0].Name = armorSet.Name
+				}
+				materialIdxs = append(materialIdxs, tmp...)
+			}
+		}
 	}
 
 	bonesEnabled := !cfg.Model.NoBones
