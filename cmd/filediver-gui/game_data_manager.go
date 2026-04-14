@@ -13,6 +13,7 @@ import (
 	"github.com/xypwn/filediver/app/appconfig"
 	fnt "github.com/xypwn/filediver/cmd/filediver-gui/fonts"
 	"github.com/xypwn/filediver/cmd/filediver-gui/textutils"
+	datalib "github.com/xypwn/filediver/datalibrary"
 	"github.com/xypwn/filediver/exec"
 	"github.com/xypwn/filediver/extractor/blend_helper"
 	"github.com/xypwn/filediver/extractor/single_glb_helper"
@@ -98,8 +99,15 @@ func (gd *GameData) UpdateSearchQuery(query string, allowedTypes map[stingray.Ha
 		}
 	} else {
 		seen := make(map[stingray.FileID]bool)
+		medium_cape := stingray.NewFileID(stingray.Sum("content/fac_helldivers/capes/medium_cape"), stingray.Sum("unit"))
+		shock_trooper_cape := stingray.NewFileID(stingray.Sum("content/fac_helldivers/capes/shock_trooper_cape"), stingray.Sum("unit"))
 	archiveLoop:
 		for archiveID := range allowedArchives {
+			if armorSet, contains := gd.ArmorSets[archiveID]; contains && armorSet.Type == datalib.KitCape && !seen[medium_cape] {
+				gd.SortedSearchResultFileIDs = append(gd.SortedSearchResultFileIDs, medium_cape, shock_trooper_cape)
+				seen[medium_cape] = true
+				seen[shock_trooper_cape] = true
+			}
 			if files, ok := gd.DataDir.Archives[archiveID]; ok {
 				for _, fileID := range files {
 					if seen[fileID] {
