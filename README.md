@@ -67,7 +67,7 @@ The program is called "filediver.exe" (or just "filediver" on Linux). See [usage
 
 ## Links
 - [HD 2 Archive Labelling](https://docs.google.com/spreadsheets/d/1oQys_OI5DWou4GeRE3mW56j7BIi4M7KftBIPAl1ULFw) (IDs can be used with -t option)
-- [Helldivers Archive Discord server](https://discord.gg/helldiversarchive)
+- [Helldivers Archive Discord server](https://discord.gg/y7P38h2B9Q)
 
 ## Credits
 - Filediver icon by @gobashroom on [HD2 Modding Discord](https://discord.gg/helldiversmodding)
@@ -79,7 +79,7 @@ The program is called "filediver.exe" (or just "filediver" on Linux). See [usage
 		- Wwise audio formats
 	- [ImageMagick](https://imagemagick.org)
 		- DDS texture decoding
-	- [Accurate HD2 Shader by Thejudsub](https://discord.com/channels/1210541115829260328/1222290154409033889) on [the Helldivers Archive Discord server](https://discord.gg/helldiversarchive)
+	- [Accurate HD2 Shader by Thejudsub](https://discord.com/channels/1210541115829260328/1222290154409033889) on [the Helldivers Archive Discord server](https://discord.gg/y7P38h2B9Q)
 		- The most accurate Blender material replicating the game's procedural shaders
 
 ## Hacking
