@@ -26,6 +26,7 @@ type MaterialPreviewState struct {
 	activeTexture    int
 	settings         map[string][]float32
 	settingKeys      []string
+	settingsVisible  bool
 	baseMaterial     stingray.Hash
 	baseMaterialName string
 
@@ -38,9 +39,10 @@ type MaterialPreviewState struct {
 
 func NewMaterialPreview() *MaterialPreviewState {
 	return &MaterialPreviewState{
-		textures:      make(map[string]*DDSPreviewState),
-		activeTexture: -1,
-		settings:      make(map[string][]float32),
+		textures:        make(map[string]*DDSPreviewState),
+		activeTexture:   -1,
+		settings:        make(map[string][]float32),
+		settingsVisible: true,
 	}
 }
 
@@ -188,9 +190,6 @@ func MaterialPreview(name string, pv *MaterialPreviewState) {
 		size := imgui.ContentRegionAvail()
 		size.Y -= imutils.ComboHeight()
 		size.Y -= imgui.TextLineHeightWithSpacing() // base material
-		if len(pv.settings) > 0 {
-			size.Y -= imgui.TextLineHeightWithSpacing() * float32(min(len(pv.settings)+2, 6)) // settings
-		}
 		imgui.SetNextWindowSize(size)
 	}
 
@@ -269,6 +268,13 @@ func MaterialPreview(name string, pv *MaterialPreviewState) {
 	}
 	imgui.SetItemTooltip("Reset view")
 	imgui.SameLine()
+	imgui.BeginDisabledV(len(pv.settings) == 0)
+	if imgui.Button(fnt.I.DisplaySettings) {
+		pv.settingsVisible = true
+	}
+	imgui.EndDisabled()
+	imgui.SetItemTooltip("Show material settings window.")
+	imgui.SameLine()
 	imgui.BeginDisabledV(ddsPv == nil)
 	if imgui.Checkbox("Linear filtering", &pv.linearFiltering) {
 		filter := int32(gl.NEAREST)
@@ -311,33 +317,38 @@ func MaterialPreview(name string, pv *MaterialPreviewState) {
 		widgets.GamefileLinkTextF(fileID, "%v", pv.baseMaterialName)
 	}
 
-	const tableFlags = imgui.TableFlagsResizable | imgui.TableFlagsBorders | imgui.TableFlagsScrollY | imgui.TableFlagsRowBg
-	if len(pv.settings) > 0 && imgui.BeginTableV("##Material Settings", 2, tableFlags, imgui.NewVec2(0, 0), 0) {
-		imgui.TableSetupColumnV("Name", imgui.TableColumnFlagsWidthStretch, 1, 0)
-		imgui.TableSetupColumnV("Value", imgui.TableColumnFlagsWidthStretch, 2, 0)
-		imgui.TableSetupScrollFreeze(0, 1)
-		imgui.TableHeadersRow()
+	if len(pv.settings) > 0 && pv.settingsVisible {
+		if imgui.BeginV(fnt.I.DisplaySettings+" Material Settings", &pv.settingsVisible, imgui.WindowFlagsNone) {
+			const tableFlags = imgui.TableFlagsResizable | imgui.TableFlagsBorders | imgui.TableFlagsScrollY | imgui.TableFlagsRowBg
+			if imgui.BeginTableV("##Material Settings", 2, tableFlags, imgui.NewVec2(0, 0), 0) {
+				imgui.TableSetupColumnV("Name", imgui.TableColumnFlagsWidthStretch, 1, 0)
+				imgui.TableSetupColumnV("Value", imgui.TableColumnFlagsWidthStretch, 2, 0)
+				imgui.TableSetupScrollFreeze(0, 1)
+				imgui.TableHeadersRow()
 
-		for _, id := range pv.settingKeys {
-			imgui.PushIDStr(id)
+				for _, id := range pv.settingKeys {
+					imgui.PushIDStr(id)
 
-			imgui.TableNextColumn()
-			imutils.CopyableTextf("%v", id)
+					imgui.TableNextColumn()
+					imutils.CopyableTextf("%v", id)
 
-			imgui.TableNextColumn()
-			settingValue := pv.settings[id]
-			formatted := make([]string, len(settingValue))
-			for i := range settingValue {
-				formatted[i] = fmt.Sprintf("%.3f", settingValue[i])
+					imgui.TableNextColumn()
+					settingValue := pv.settings[id]
+					formatted := make([]string, len(settingValue))
+					for i := range settingValue {
+						formatted[i] = fmt.Sprintf("%.3f", settingValue[i])
+					}
+					settingString := strings.Join(formatted, ", ")
+					if len(settingValue) > 1 {
+						settingString = "(" + settingString + ")"
+					}
+					imgui.TextUnformatted(settingString)
+
+					imgui.PopID()
+				}
+				imgui.EndTable()
 			}
-			settingString := strings.Join(formatted, ", ")
-			if len(settingValue) > 1 {
-				settingString = "(" + settingString + ")"
-			}
-			imgui.TextUnformatted(settingString)
-
-			imgui.PopID()
 		}
-		imgui.EndTable()
+		imgui.End()
 	}
 }
