@@ -237,16 +237,7 @@ func (pv *UnitPreviewState) Delete() {
 	pv.dbgObj.deleteObjects()
 }
 
-func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []byte, getResource GetResourceFunc, thinhashes map[stingray.ThinHash]string) error {
-	info, err := unit.LoadInfo(bytes.NewReader(mainData))
-	if err != nil {
-		return err
-	}
-
-	if len(info.MeshInfos) == 0 {
-		return fmt.Errorf("unit contains no meshes")
-	}
-
+func (pv *UnitPreviewState) loadMesh(info *unit.Info, gpuData []byte) (unit.Mesh, error) {
 	var meshToLoad uint32
 	{
 		highestDetailIdx := -1
@@ -260,7 +251,7 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 			}
 		}
 		if highestDetailIdx == -1 {
-			return fmt.Errorf("unable to find mesh to load")
+			return unit.Mesh{}, fmt.Errorf("unable to find mesh to load")
 		}
 		meshToLoad = uint32(highestDetailIdx)
 	}
@@ -269,9 +260,41 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 	{
 		meshes, err := unit.LoadMeshes(bytes.NewReader(gpuData), info, []uint32{meshToLoad})
 		if err != nil {
-			return err
+			return unit.Mesh{}, err
 		}
 		mesh = meshes[meshToLoad]
+	}
+	return mesh, nil
+}
+
+func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []byte, getResource GetResourceFunc, thinhashes map[stingray.ThinHash]string) error {
+	info, err := unit.LoadInfo(bytes.NewReader(mainData))
+	if err != nil {
+		return err
+	}
+
+	if len(info.MeshInfos) == 0 && len(info.TerrainInfos) == 0 {
+		return fmt.Errorf("unit contains no meshes")
+	}
+
+	var mesh unit.Mesh
+	if len(info.MeshInfos) > 0 {
+		mesh, err = pv.loadMesh(info, gpuData)
+		if err != nil {
+			return err
+		}
+	} else if len(info.TerrainInfos) > 0 {
+		mesh, err = unit.LoadTerrain(info.TerrainInfos[0])
+		if err != nil {
+			return err
+		}
+		terrainConversionMatrix := mgl32.Rotate3DX(math.Pi).Mat4().Mul4(stingray.ToGLTFMatrix)
+		for i := range mesh.Positions {
+			mesh.Positions[i] = terrainConversionMatrix.Mul4x1(mgl32.Vec3(mesh.Positions[i]).Vec4(1)).Vec3()
+			mesh.Normals[i] = terrainConversionMatrix.Mul4x1(mgl32.Vec3(mesh.Normals[i]).Vec4(1)).Vec3()
+			mesh.Tangents[i] = terrainConversionMatrix.Mul4x1(mgl32.Vec3(mesh.Tangents[i]).Vec4(1)).Vec3()
+			mesh.Bitangents[i] = terrainConversionMatrix.Mul4x1(mgl32.Vec3(mesh.Bitangents[i]).Vec4(1)).Vec3()
+		}
 	}
 	{
 		pv.aabb = [2]mgl32.Vec3{mesh.Info.Header.AABB.Min, mesh.Info.Header.AABB.Max}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 
 	"github.com/go-gl/mathgl/mgl32"
 	"github.com/qmuntal/gltf"
@@ -784,6 +785,85 @@ func loadMesh(gpuR io.ReadSeeker, info MeshInfo, layout MeshLayout) (Mesh, error
 			mesh.Indices[grp] = append(mesh.Indices[grp], val+group.VertexOffset)
 		}
 	}
+	return mesh, nil
+}
+
+func LoadTerrain(terrainInfo TerrainInfo) (Mesh, error) {
+	if uint32(math.Sqrt(float64(len(terrainInfo.HeightmapData)/2))) != terrainInfo.Textures[0].Resolution {
+		return Mesh{}, fmt.Errorf("loading terrain: heightmap resolution mismatch")
+	}
+	terrainValues := make([]uint16, len(terrainInfo.HeightmapData)/2)
+	if _, err := binary.Decode(terrainInfo.HeightmapData, binary.LittleEndian, terrainValues); err != nil {
+		return Mesh{}, fmt.Errorf("loading terrain: failed to decode heightmap value: %v", err)
+	}
+
+	decompressHeight := func(value uint16, min, max float32) float32 {
+		percent := float32(value) / 65535.0
+		return (percent - 0.5) * (max - min)
+	}
+	vertices := make([][3]float32, 0)
+	indices := make([]uint32, 0)
+	uvs := make([][2]float32, 0)
+	normals := make([][3]float32, 0)
+	tangents := make([][3]float32, 0)
+	bitangents := make([][3]float32, 0)
+	up := mgl32.Vec3{0, 1, 0}
+	for y := range terrainInfo.Textures[0].Resolution {
+		for x := range terrainInfo.Textures[0].Resolution {
+			center := decompressHeight(terrainValues[y*terrainInfo.Textures[0].Resolution+x], terrainInfo.Min[2], terrainInfo.Max[2])
+			vertices = append(vertices, [3]float32{
+				(terrainInfo.Max[0]-terrainInfo.Min[0])*(float32(x)/float32(terrainInfo.Textures[0].Resolution)) + terrainInfo.Min[0],
+				center,
+				-((terrainInfo.Max[1]-terrainInfo.Min[1])*(float32(y)/float32(terrainInfo.Textures[0].Resolution)) + terrainInfo.Min[1]),
+			})
+			uvs = append(uvs, [2]float32{
+				float32(x) / float32(terrainInfo.Textures[0].Resolution),
+				float32(y) / float32(terrainInfo.Textures[0].Resolution),
+			})
+			// Central differencing for normals
+			var left, right, top, bottom float32 = center, center, center, center
+			if x > 0 {
+				left = decompressHeight(terrainValues[y*terrainInfo.Textures[0].Resolution+(x-1)], terrainInfo.Min[2], terrainInfo.Max[2])
+			}
+			if x < terrainInfo.Textures[0].Resolution-1 {
+				right = decompressHeight(terrainValues[y*terrainInfo.Textures[0].Resolution+(x+1)], terrainInfo.Min[2], terrainInfo.Max[2])
+			}
+			if y > 0 {
+				top = decompressHeight(terrainValues[(y-1)*terrainInfo.Textures[0].Resolution+x], terrainInfo.Min[2], terrainInfo.Max[2])
+			}
+			if y < terrainInfo.Textures[0].Resolution-1 {
+				bottom = decompressHeight(terrainValues[(y+1)*terrainInfo.Textures[0].Resolution+x], terrainInfo.Min[2], terrainInfo.Max[2])
+			}
+			normal := mgl32.Vec3{-2 * (right - left), 4, -2 * (bottom - top)}.Normalize()
+			normals = append(normals, normal)
+			tangent := normal.Cross(up)
+			if tangent.Len() > 0.0001 {
+				tangent = tangent.Normalize()
+			} else {
+				tangent = mgl32.Vec3{1, 0, 0}
+			}
+			bitangent := normal.Cross(tangent).Normalize()
+			tangents = append(tangents, tangent)
+			bitangents = append(bitangents, bitangent)
+		}
+	}
+
+	for quadY := range terrainInfo.Textures[0].Resolution - 1 {
+		for quadX := range terrainInfo.Textures[0].Resolution - 1 {
+			// face 0
+			indices = append(indices, (quadY)*terrainInfo.Textures[0].Resolution+(quadX), (quadY)*terrainInfo.Textures[0].Resolution+(quadX+1), (quadY+1)*terrainInfo.Textures[0].Resolution+(quadX+1))
+			// face 1
+			indices = append(indices, (quadY)*terrainInfo.Textures[0].Resolution+(quadX), (quadY+1)*terrainInfo.Textures[0].Resolution+(quadX+1), (quadY+1)*terrainInfo.Textures[0].Resolution+(quadX))
+		}
+	}
+
+	var mesh Mesh
+	mesh.Positions = vertices
+	mesh.Indices = [][]uint32{indices}
+	mesh.UVCoords = [][][2]float32{uvs}
+	mesh.Normals = normals
+	mesh.Tangents = tangents
+	mesh.Bitangents = bitangents
 	return mesh, nil
 }
 
