@@ -764,6 +764,19 @@ func (e Element) NameWithIndex(isInput bool) string {
 	if !isInput {
 		prefix = "o"
 	}
+	if e.Name == "SV_TARGET" {
+		// From core/stingray_renderer/shader_libraries/common.shader_source
+		switch e.SemanticIndex {
+		case 0:
+			return "base_color_rgb_material_id_w"
+		case 1:
+			return "normal_or_shell_direction_xyz_roughness_w"
+		case 2:
+			return "ao_x_metallic_density_cloth_clearcoat_shellnormal_y_velocity_zw"
+		case 3:
+			return "ambient_diffuse_light_xyzw"
+		}
+	}
 	return fmt.Sprintf("%v%v%v", prefix, e.Name, semantic)
 }
 

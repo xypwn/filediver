@@ -220,7 +220,7 @@ func main() {
 	}
 	searchForThinHashesAsBytes := specifiedThinHashesAsBytes
 
-	files, err := a.MatchingFiles(inclGlob, "", nil, nil, "")
+	files, err := a.MatchingFiles(inclGlob, "", nil, nil, "", prt.Infof)
 	if err != nil {
 		prt.Fatalf("Error matching files: %v", err)
 	}

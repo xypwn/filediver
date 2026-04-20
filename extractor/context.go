@@ -234,6 +234,22 @@ func (c *Context) GuessFileArmorSet(fileID stingray.FileID) (datalib.ArmorSet, b
 	return armorSet, ok
 }
 
+func (c *Context) SelectedArchives() []stingray.Hash {
+	return c.selectedArchives
+}
+
+func (c *Context) ArmorSets() []datalib.ArmorSet {
+	toReturn := make([]datalib.ArmorSet, 0)
+	for _, archive := range c.selectedArchives {
+		armorSet, ok := c.armorSets[archive]
+		if !ok {
+			continue
+		}
+		toReturn = append(toReturn, armorSet)
+	}
+	return toReturn
+}
+
 func (c *Context) SkinOverrideGroups() []datalib.UnitSkinOverrideGroup {
 	return c.skinOverrideGroups
 }

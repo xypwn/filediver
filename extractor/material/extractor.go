@@ -1178,10 +1178,30 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 			fallthrough
 		case "metallic_lut":
 			fallthrough
+		case "blood_splatter_tiler":
+			fallthrough
+		case "bug_splatter_tiler":
+			fallthrough
+		case "weathering_dirt":
+			fallthrough
+		case "weathering_special":
+			fallthrough
+		case "cape_tear":
+			fallthrough
+		case "cape_scalar_fields":
+			fallthrough
+		case "cape_gradient":
+			fallthrough
 		case "pattern_masks_array":
 			hash := mat.Textures[texUsage]
 			if unitData != nil && texUsageStr == "decal_sheet" && unitData.DecalSheet.Value != 0 {
 				hash = unitData.DecalSheet
+			}
+			if unitData != nil && texUsageStr == "cape_scalar_fields" && unitData.DecalScalarFields.Value != 0 {
+				hash = unitData.DecalScalarFields
+			}
+			if unitData != nil && texUsageStr == "cape_gradient" && unitData.CapeGradient.Value != 0 {
+				hash = unitData.CapeGradient
 			}
 			index, err := writeTexture(ctx, doc, hash, postProcess, imgOpts, "")
 			if err != nil {
@@ -1189,19 +1209,11 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 				continue
 			}
 			usedTextures[texUsageStr] = index
-		case "blood_splatter_tiler":
-			fallthrough
-		case "bug_splatter_tiler":
-			fallthrough
 		case "lens_cutout_texture":
 			fallthrough
 		case "scorch_marks":
 			fallthrough
 		case "subsurface_opacity":
-			fallthrough
-		case "weathering_dirt":
-			fallthrough
-		case "weathering_special":
 			fallthrough
 		case "dirt_map":
 			fallthrough

@@ -286,7 +286,7 @@ Options:`)
 	}
 	prt.NoStatus()
 
-	files, err := a.MatchingFiles(*optInclGlob, *optExclGlob, inclOnlyTypes, inclArchiveIDs, *optMetadataFilter)
+	files, err := a.MatchingFiles(*optInclGlob, *optExclGlob, inclOnlyTypes, inclArchiveIDs, *optMetadataFilter, prt.Infof)
 	if err != nil {
 		prt.Fatalf("%v", err)
 	}

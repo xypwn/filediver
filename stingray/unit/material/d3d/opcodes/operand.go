@@ -866,23 +866,25 @@ func (o *Operand) ToGLSL(cbs []ConstantBuffer, isg, osg []Element, res []Resourc
 				}
 			}
 		case internalNumberTypeFloat, internalNumberTypeUnknown:
-			imm, _ := o.GetImmediateFloat()
-			if len(imm) == 1 {
-				if math.IsNaN(float64(imm[0])) {
-					immediate += "uintBitsToFloat(0xFFC00000u)"
+			handleImmediateFloat := func(imm float32, immUint uint32) string {
+				if math.IsNaN(float64(imm)) {
+					return fmt.Sprintf("uintBitsToFloat(%#08x)", immUint)
+				} else if math.Abs(float64(imm)) <= 1e-6 && immUint != 0 {
+					return fmt.Sprintf("uintBitsToFloat(%v)", immUint)
 				} else {
-					immediate += fmt.Sprintf("%.6f", imm[0])
+					return fmt.Sprintf("%.6f", imm)
 				}
+			}
+			imm, _ := o.GetImmediateFloat()
+			immUint, _ := o.GetImmediateUInt()
+			if len(imm) == 1 {
+				immediate += handleImmediateFloat(imm[0], immUint[0])
 			} else {
 				for i, val := range imm {
 					if mask&(1<<i) == 0 {
 						continue
 					}
-					if math.IsNaN(float64(val)) {
-						immediate += "uintBitsToFloat(0xFFC00000u)"
-					} else {
-						immediate += fmt.Sprintf("%.6f", val)
-					}
+					immediate += handleImmediateFloat(val, immUint[i])
 					added += 1
 					if i+1 < len(imm) && added < maskCount {
 						immediate += ", "
