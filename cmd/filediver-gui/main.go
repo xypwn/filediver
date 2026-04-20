@@ -360,6 +360,7 @@ func (a *guiApp) onDraw(state *imgui_wrapper.State) {
 	a.drawLogWindow()
 	a.drawPreviewWindow(state)
 	a.drawMetadataWindow()
+	a.drawMaterialSettingsWindow()
 
 	if a.shouldSetupWindowFocus {
 		imgui.SetWindowFocusStr(fnt.I.Preview + " Preview")
@@ -1100,6 +1101,22 @@ func (a *guiApp) drawMetadataWindow() {
 		}
 	}
 	imgui.End()
+}
+
+func (a *guiApp) drawMaterialSettingsWindow() {
+	if a.gameData == nil || a.previewState == nil ||
+		a.previewState.ActiveType() != previews.AutoPreviewMaterial ||
+		a.previewState.MaterialSettingsEmpty() {
+		return
+	}
+	visible := a.previewState.MaterialSettingsVisible()
+	if visible {
+		if imgui.BeginV(fnt.I.DisplaySettings+" Material Settings", &visible, imgui.WindowFlagsNoFocusOnAppearing) {
+			previews.AutoPreviewMaterialSettings(a.previewState)
+		}
+		imgui.End()
+	}
+	a.previewState.SetMaterialSettingsVisible(visible)
 }
 
 func (a *guiApp) drawCheckForUpdatesPopup() {

@@ -82,6 +82,10 @@ func (pv *AutoPreviewState) ActiveID() stingray.FileID {
 	return pv.activeID
 }
 
+func (pv *AutoPreviewState) ActiveType() AutoPreviewType {
+	return pv.activeType
+}
+
 func (pv *AutoPreviewState) NeedCJKFont() bool {
 	return pv.state.strings.NeedCJKFont()
 }
@@ -262,6 +266,18 @@ func (pv *AutoPreviewState) LoadFile(ctx context.Context, fileID stingray.FileID
 	}
 }
 
+func (pv *AutoPreviewState) MaterialSettingsEmpty() bool {
+	return pv.state.material.SettingsEmpty()
+}
+
+func (pv *AutoPreviewState) MaterialSettingsVisible() bool {
+	return pv.state.material.SettingsVisible()
+}
+
+func (pv *AutoPreviewState) SetMaterialSettingsVisible(visible bool) {
+	pv.state.material.SetSettingsVisible(visible)
+}
+
 func AutoPreview(name string, pv *AutoPreviewState) bool {
 	if pv.err != nil {
 		imutils.TextError(pv.err)
@@ -284,6 +300,19 @@ func AutoPreview(name string, pv *AutoPreviewState) bool {
 		MaterialPreview(name, pv.state.material)
 	default:
 		panic("unhandled case")
+	}
+	return true
+}
+
+func AutoPreviewMaterialSettings(pv *AutoPreviewState) bool {
+	if pv.err != nil {
+		return true
+	}
+	switch pv.activeType {
+	case AutoPreviewEmpty:
+		return false
+	case AutoPreviewMaterial:
+		MaterialPreviewMaterialSettings(pv.state.material)
 	}
 	return true
 }
