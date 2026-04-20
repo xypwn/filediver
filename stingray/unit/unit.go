@@ -1314,20 +1314,20 @@ func LoadInfo(mainR io.ReadSeeker) (*Info, error) {
 
 // idsToLoad contains the mesh IDs (=indices) of the meshes which should be loaded.
 // To load all meshes, pass a slice with value {0,1,...,info.NumMeshes-1}.
-func LoadMeshes(gpuR io.ReadSeeker, info *Info, idsToLoad []uint32) (map[uint32]Mesh, error) {
+func LoadMeshes(gpuR io.ReadSeeker, meshInfos []MeshInfo, meshLayouts []MeshLayout, idsToLoad []uint32) (map[uint32]Mesh, error) {
 	meshes := make(map[uint32]Mesh)
 	for _, id := range idsToLoad {
 		if _, ok := meshes[id]; ok {
 			continue
 		}
-		if int(id) > len(info.MeshInfos) {
-			return nil, fmt.Errorf("mesh ID (%v) is out of bounds of meshes (len=%v)", id, len(info.MeshInfos))
+		if int(id) > len(meshInfos) {
+			return nil, fmt.Errorf("mesh ID (%v) is out of bounds of meshes (len=%v)", id, len(meshInfos))
 		}
-		meshInfo := info.MeshInfos[id]
+		meshInfo := meshInfos[id]
 		if meshInfo.Header.LayoutIdx < 0 {
 			continue
 		}
-		layout := info.MeshLayouts[meshInfo.Header.LayoutIdx]
+		layout := meshLayouts[meshInfo.Header.LayoutIdx]
 		if len(meshInfo.Groups) > 0 && gpuR == nil {
 			return nil, errors.New("mesh group exists, but GPU resource data is nil")
 		}
