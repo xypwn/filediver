@@ -857,9 +857,10 @@ func (a *guiApp) drawArchiveFilterWindow() {
 		a.archiveIDs,
 		&a.selectedArchives,
 		func(x stingray.Hash) string {
-			items := make([]string, 0, 3)
+			items := make([]string, 0, 4)
 			if as, ok := a.gameData.ArmorSets[x]; ok {
 				items = append(items, as.Name)
+				items = append(items, as.Type.String())
 			}
 			if name, ok := a.gameData.Hashes[x]; ok {
 				items = append(items, name)
@@ -870,7 +871,7 @@ func (a *guiApp) drawArchiveFilterWindow() {
 		func(x stingray.Hash, checked *bool) {
 			var label string
 			if armorSet, ok := a.gameData.ArmorSets[x]; ok {
-				label = x.String() + " (" + armorSet.Name + ")"
+				label = x.String() + " (" + armorSet.Name + " - " + armorSet.Type.String() + ")"
 			} else {
 				label, ok = a.gameData.Hashes[x]
 				if !ok {
