@@ -672,7 +672,10 @@ func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gl
 		}
 	} else {
 		for _, armorSet := range armorSets {
-			for _, meta := range armorSet.UnitMetadata {
+			for hash, meta := range armorSet.UnitMetadata {
+				if armorSet.Type != datalib.KitCape && hash != ctx.FileID().Name {
+					continue
+				}
 				tmp, err := AddMaterials(ctx, doc, imgOpts, unitInfo, &meta)
 				if err != nil {
 					return err
