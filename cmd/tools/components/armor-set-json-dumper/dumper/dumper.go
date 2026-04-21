@@ -22,7 +22,7 @@ type SimplePiece struct {
 	DecalScalarFields string                            `json:"decal_scalar_fields"`
 	BaseData          string                            `json:"base_data"`
 	DecalSheet        string                            `json:"decal_sheet"`
-	ToneVariations    string                            `json:"tone_variations"`
+	ToneVariations    uint8                             `json:"tone_variations"`
 }
 
 type BodyType struct {
@@ -98,7 +98,7 @@ func Dump(a *app.App) {
 				DecalScalarFields: a.LookupHash(unitData.DecalScalarFields),
 				BaseData:          a.LookupHash(unitData.BaseData),
 				DecalSheet:        a.LookupHash(unitData.DecalSheet),
-				ToneVariations:    a.LookupHash(unitData.ToneVariations),
+				ToneVariations:    unitData.ToneVariations,
 			})
 		}
 		if len(anytype.Pieces) > 0 {
