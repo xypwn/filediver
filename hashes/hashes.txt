@@ -68807,6 +68807,8 @@ content/env_illuminate/cables/il_cables_010
 content/env_illuminate/cables/il_cables_011
 content/env_illuminate/cables/il_cables_012
 content/env_illuminate/cables/il_cables_013
+content/env_illuminate/cables/il_cables_huge_01
+content/env_illuminate/cables/il_cables_huge_02
 content/env_illuminate/corpses/il_corpse_lyingdown_01
 content/env_illuminate/corpses/il_corpse_pile_01
 content/env_illuminate/corpses/il_corpse_pile_large_01
@@ -73831,9 +73833,9 @@ content/objectives/obj_illuminate/il_mothership/textures/il_mothership_nar
 content/objectives/obj_illuminate/il_portal_batteries/il_portal_batteries
 content/objectives/obj_illuminate/il_raise_building_01/il_gate
 content/objectives/obj_illuminate/il_raise_building_01/il_gate_shield
-content/objectives/obj_illuminate/il_raise_building_01/il_rounded_shield
 content/objectives/obj_illuminate/il_raise_building_01/il_raise_building_02
 content/objectives/obj_illuminate/il_raise_building_01/il_raise_building_02_shield
+content/objectives/obj_illuminate/il_raise_building_01/il_rounded_shield
 content/objectives/obj_illuminate/il_sarcophagus/il_sarcophagus
 content/objectives/obj_illuminate/il_stratagem_scrambler/il_scrambler_battery
 content/objectives/obj_illuminate/il_stratagem_scrambler/il_stratagem_scrambler

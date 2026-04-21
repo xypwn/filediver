@@ -116,7 +116,8 @@ type Piece struct {
 	DecalScalarFields stingray.Hash
 	BaseData          stingray.Hash
 	DecalSheet        stingray.Hash
-	ToneVariations    stingray.Hash
+	ToneVariations    uint8
+	_                 [7]uint8
 }
 
 type CustomizationKitBodyType uint32
@@ -233,7 +234,7 @@ type UnitData struct {
 	DecalScalarFields stingray.Hash
 	BaseData          stingray.Hash
 	DecalSheet        stingray.Hash
-	ToneVariations    stingray.Hash
+	ToneVariations    uint8
 }
 
 type ArmorSet struct {

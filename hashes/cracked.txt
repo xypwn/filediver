@@ -7249,6 +7249,8 @@ content/env_illuminate/cables/il_cables_010
 content/env_illuminate/cables/il_cables_011
 content/env_illuminate/cables/il_cables_012
 content/env_illuminate/cables/il_cables_013
+content/env_illuminate/cables/il_cables_huge_01
+content/env_illuminate/cables/il_cables_huge_02
 content/fac_bugs/cha_strider/cha_strider_gloom
 content/fac_helldivers/equipment/attachment/magazine/laser_rifle_charge_magazine
 content/fac_helldivers/equipment/attachment/magazine/smg_solvent_extended_magazine
