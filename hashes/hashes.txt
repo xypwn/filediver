@@ -76883,6 +76883,7 @@ fur_length
 fwd
 fwd_lft
 fwd_right
+fxaa
 fxaa:default:PLATFORM_WIN32:RENDERER_D3D11
 fxaa_enabled
 f}qd
@@ -77291,6 +77292,7 @@ hint_needs_clearing
 histogram
 hiz_depth
 hkp_raycast_batch
+hologram_filtering
 holster
 hose_attach
 hose_connect
@@ -77962,6 +77964,7 @@ pitch
 pixel_depth) || defined(FORWARD_SHADING) || defined(FUR_MATERIAL)
 pixel_formats
 pixel_position_0_c323d347
+planet_atmosphere_space
 plant_flag
 platform
 platforms

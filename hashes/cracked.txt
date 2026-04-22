@@ -7372,3 +7372,6 @@ content/planet_forest_swamp/assets/organic/root_walls/materials/m_root_wall_01
 content/planet_forest_swamp/assets/organic/root_walls/materials/m_root_wall_02
 content/planet_forest_swamp/assets/organic/root_walls/materials/m_root_wall_03
 content/planet_forest_swamp/assets/organic/root_walls/materials/m_root_wall_04
+fxaa
+planet_atmosphere_space
+hologram_filtering
