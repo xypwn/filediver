@@ -757,7 +757,7 @@ def convert_materials(gltf: Dict, node: Dict, variants: List[Dict], hasVariants:
             material = gltf["materials"][materialIndex]
             if obj is None:
                 for item in bpy.data.objects:
-                    if item.active_material and item.active_material.name.startswith(material["name"]) and item.name.startswith(node["name"]) and len(item.material_slots) == len(mesh["primitives"]):
+                    if primIdx < len(item.material_slots) and item.material_slots[primIdx].material and item.material_slots[primIdx].material.name.startswith(material["name"]) and item.name.startswith(node["name"]) and len(item.material_slots) == len(mesh["primitives"]):
                         obj: Object = item
                         break
             is_pbr = "albedo" in material["extras"] or "albedo_iridescence" in material["extras"] or "normal" in material["extras"]
@@ -846,6 +846,8 @@ def convert_materials(gltf: Dict, node: Dict, variants: List[Dict], hasVariants:
                 print(f"    Found existing material '{key}'")
                 object_mat = bpy.data.materials[key]
 
+            if obj is None:
+                continue
             obj.material_slots[primIdx].material = object_mat
             if hasVariants:
                 # Taken from gltf2 extension
@@ -869,7 +871,7 @@ def convert_materials(gltf: Dict, node: Dict, variants: List[Dict], hasVariants:
                     vari = variant_primitive.variants.add()
                     vari.variant.variant_idx = varIdx
 
-    if obj is not None and obj.data is not None and any([mat.get("needsBakeUVs", False) for mat in obj.data.materials]) and len(obj.data.uv_layers) > 0:
+    if obj is not None and obj.data is not None and any([mat.get("needsBakeUVs", False) for mat in obj.data.materials if mat is not None]) and len(obj.data.uv_layers) > 0:
         print(f"    Adding bake uvs to {obj.name}...")
         shader_module.add_bake_uvs(obj)
 
