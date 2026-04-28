@@ -108,7 +108,7 @@ func getComponentDataForHash(componentType DLHash, resource stingray.Hash) ([]by
 	case Sum("EnemyPackageComponentData"):
 		return getEnemyPackageComponentDataForHash(resource)
 	case Sum("EquipmentComponentData"):
-		return getEquipmentComponentDataForHash(resource)
+		return GetEquipmentComponentDataForHash(resource)
 	case Sum("ExplorationRewardComponentData"):
 		return getExplorationRewardComponentDataForHash(resource)
 	case Sum("ExplosiveComponentData"):
@@ -392,17 +392,29 @@ func parseComponent(componentType DLHash, data []byte) (Component, error) {
 		return toReturn, nil
 	case Sum("UnitCustomizationComponentData"):
 		var toReturn UnitCustomizationComponent
-		matTextOverridesLen, mountedWeaponOverridesLen, err := getOverrideArrayLengths(nil)
+		matTextOverridesLen, mountedWeaponOverridesLen, unkOverridesLen, unk2OverridesLen, err := getOverrideArrayLengths(nil)
 		if err != nil {
 			return nil, err
 		}
 		materialsTexturesOverrides := make([]UnitCustomizationMaterialOverrides, matTextOverridesLen)
 		mountedWeaponTextureOverrides := make([]UnitCustomizationMaterialOverrides, mountedWeaponOverridesLen)
+		unkTextureOverrides := make([]UnitCustomizationMaterialOverrides, unkOverridesLen)
+		unk2TextureOverrides := make([]UnitCustomizationMaterialOverrides, unk2OverridesLen)
 		length, err := binary.Decode(data, binary.LittleEndian, &materialsTexturesOverrides)
 		if err != nil {
 			return nil, err
 		}
-		_, err = binary.Decode(data[length:], binary.LittleEndian, &mountedWeaponTextureOverrides)
+		offset, err := binary.Decode(data[length:], binary.LittleEndian, &mountedWeaponTextureOverrides)
+		if err != nil {
+			return nil, err
+		}
+		length += offset
+		offset, err = binary.Decode(data[length:], binary.LittleEndian, &unkTextureOverrides)
+		if err != nil {
+			return nil, err
+		}
+		length += offset
+		_, err = binary.Decode(data[length:], binary.LittleEndian, &unk2TextureOverrides)
 		if err != nil {
 			return nil, err
 		}
@@ -420,6 +432,22 @@ func parseComponent(componentType DLHash, data []byte) (Component, error) {
 				break
 			}
 			toReturn.MountedWeaponTextureOverrides = append(toReturn.MountedWeaponTextureOverrides, override)
+		}
+
+		toReturn.UnknownTextureOverrides = make([]UnitCustomizationMaterialOverrides, 0)
+		for _, override := range unkTextureOverrides {
+			if override.MaterialID.Value == 0 {
+				break
+			}
+			toReturn.UnknownTextureOverrides = append(toReturn.UnknownTextureOverrides, override)
+		}
+
+		toReturn.UnknownTextureOverrides2 = make([]UnitCustomizationMaterialOverrides, 0)
+		for _, override := range unk2TextureOverrides {
+			if override.MaterialID.Value == 0 {
+				break
+			}
+			toReturn.UnknownTextureOverrides2 = append(toReturn.UnknownTextureOverrides2, override)
 		}
 
 		return toReturn, nil

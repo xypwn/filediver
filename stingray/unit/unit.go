@@ -208,20 +208,20 @@ const (
 	FormatVec3F                    MeshLayoutItemFormat = 2
 	FormatVec4F                    MeshLayoutItemFormat = 3
 	FormatS32                      MeshLayoutItemFormat = 4
-	FormatU32                      MeshLayoutItemFormat = 17
-	FormatVec2U32                  MeshLayoutItemFormat = 18
-	FormatVec3U32                  MeshLayoutItemFormat = 19
-	FormatVec4U32                  MeshLayoutItemFormat = 20
-	FormatS8                       MeshLayoutItemFormat = 21
-	FormatVec2S8                   MeshLayoutItemFormat = 22
-	FormatVec3S8                   MeshLayoutItemFormat = 23
-	FormatVec4S8                   MeshLayoutItemFormat = 24
-	FormatVec4R10G10B10A2_TYPELESS MeshLayoutItemFormat = 25
-	FormatVec4R10G10B10A2_UNORM    MeshLayoutItemFormat = 26
-	FormatF16                      MeshLayoutItemFormat = 28
-	FormatVec2F16                  MeshLayoutItemFormat = 29
-	FormatVec3F16                  MeshLayoutItemFormat = 30
-	FormatVec4F16                  MeshLayoutItemFormat = 31
+	FormatU32                      MeshLayoutItemFormat = 21
+	FormatVec2U32                  MeshLayoutItemFormat = 22
+	FormatVec3U32                  MeshLayoutItemFormat = 23
+	FormatVec4U32                  MeshLayoutItemFormat = 24
+	FormatS8                       MeshLayoutItemFormat = 25
+	FormatVec2S8                   MeshLayoutItemFormat = 26
+	FormatVec3S8                   MeshLayoutItemFormat = 27
+	FormatVec4S8                   MeshLayoutItemFormat = 28
+	FormatVec4R10G10B10A2_TYPELESS MeshLayoutItemFormat = 29
+	FormatVec4R10G10B10A2_UNORM    MeshLayoutItemFormat = 30
+	FormatF16                      MeshLayoutItemFormat = 32
+	FormatVec2F16                  MeshLayoutItemFormat = 33
+	FormatVec3F16                  MeshLayoutItemFormat = 34
+	FormatVec4F16                  MeshLayoutItemFormat = 35
 )
 
 func (v MeshLayoutItemFormat) String() string {

@@ -14,8 +14,14 @@ type SimpleResourceRegionOverride struct {
 	RegionFlag enum.RegionFlag `json:"region_flag"`
 }
 
+type SimpleResourceOverride struct {
+	Type        string `json:"type"`
+	Replace     string `json:"replace"`
+	ReplaceWith string `json:"replace_with"`
+}
+
 type SimpleLevelGenerationPaletteGroup struct {
-	Palette                 string                  `json:"palette"`
+	//Palette                 string                  `json:"palette"`
 	AssetGrading            string                  `json:"asset_grading"`
 	SkySettingsGroup        string                  `json:"sky_settings_group"`
 	DayGrading              string                  `json:"day_grading"`
@@ -32,6 +38,7 @@ type SimplePlanetData struct {
 	PlanetDescriptionShortLoc        string                            `json:"planet_description_short_loc"`
 	PlanetSystemNameLoc              string                            `json:"planet_system_name_loc"`
 	PlanetLayoutId                   uint32                            `json:"planet_layout_id"`
+	ResourceOverrides                []SimpleResourceOverride          `json:"resource_overrides"`
 	DebugName                        string                            `json:"debug_name"`
 	RegionLowland                    datalib.LevelGenerationRegion     `json:"region_lowland"`
 	RegionHighland                   datalib.LevelGenerationRegion     `json:"region_highland"`
@@ -87,6 +94,14 @@ func Dump(a components.HashLookup) {
 				RegionFlag: override.RegionFlag,
 			})
 		}
+		resourceOverrides := make([]SimpleResourceOverride, 0)
+		for _, override := range planetData.ResourceOverrides {
+			resourceOverrides = append(resourceOverrides, SimpleResourceOverride{
+				Type:        a.LookupHash(override.Type),
+				Replace:     a.LookupHash(override.Replace),
+				ReplaceWith: a.LookupHash(override.ReplaceWith),
+			})
+		}
 		simplePlanetData := SimplePlanetData{
 			Inherits:                  planetData.Inherits,
 			PlanetNameLoc:             planetData.PlanetNameLoc,
@@ -94,12 +109,13 @@ func Dump(a components.HashLookup) {
 			PlanetDescriptionShortLoc: planetData.PlanetDescriptionShortLoc,
 			PlanetSystemNameLoc:       planetData.PlanetSystemNameLoc,
 			PlanetLayoutId:            planetData.PlanetLayoutId,
+			ResourceOverrides:         resourceOverrides,
 			DebugName:                 planetData.DebugName,
 			RegionLowland:             planetData.RegionLowland,
 			RegionHighland:            planetData.RegionHighland,
 
 			PaletteGroupLowland: SimpleLevelGenerationPaletteGroup{
-				Palette:                 a.LookupHash(planetData.PaletteGroupLowland.Palette),
+				//Palette:                 a.LookupHash(planetData.PaletteGroupLowland.Palette),
 				AssetGrading:            a.LookupHash(planetData.PaletteGroupLowland.AssetGrading),
 				SkySettingsGroup:        a.LookupHash(planetData.PaletteGroupLowland.SkySettingsGroup),
 				DayGrading:              a.LookupHash(planetData.PaletteGroupLowland.DayGrading),
@@ -109,7 +125,7 @@ func Dump(a components.HashLookup) {
 				WeatherColorSetInternal: planetData.PaletteGroupLowland.WeatherColorSetInternal,
 			},
 			PaletteGroupHighland: SimpleLevelGenerationPaletteGroup{
-				Palette:                 a.LookupHash(planetData.PaletteGroupHighland.Palette),
+				//Palette:                 a.LookupHash(planetData.PaletteGroupHighland.Palette),
 				AssetGrading:            a.LookupHash(planetData.PaletteGroupHighland.AssetGrading),
 				SkySettingsGroup:        a.LookupHash(planetData.PaletteGroupHighland.SkySettingsGroup),
 				DayGrading:              a.LookupHash(planetData.PaletteGroupHighland.DayGrading),

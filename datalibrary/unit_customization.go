@@ -21,6 +21,8 @@ const (
 	CollectionHellpodRack
 	CollectionCombatWalker
 	CollectionCombatWalkerEmancipator
+	CollectionCombatWalkerLumberer
+	CollectionCombatWalkerBreacher
 	CollectionFRV
 	CollectionTank
 	CollectionCount
@@ -32,6 +34,10 @@ func (ucct UnitCustomizationCollectionType) Unit() (stingray.Hash, error) {
 		return stingray.Sum("content/fac_helldivers/vehicles/combat_walker/combat_walker"), nil
 	case CollectionCombatWalkerEmancipator:
 		return stingray.Sum("content/fac_helldivers/vehicles/combat_walker_obsidian/combat_walker_obsidian"), nil
+	case CollectionCombatWalkerBreacher:
+		return stingray.Sum("content/fac_helldivers/vehicles/combat_walker_breacher/combat_walker_breacher"), nil
+	case CollectionCombatWalkerLumberer:
+		return stingray.Sum("content/fac_helldivers/vehicles/combat_walker_lumberer/combat_walker_lumberer"), nil
 	case CollectionFRV:
 		return stingray.Sum("content/fac_helldivers/vehicles/frv/frv"), nil
 	case CollectionHellpod:
@@ -77,10 +83,13 @@ type UnitCustomizationMaterialOverrides struct {
 }
 
 type rawUnitCustomizationSettings struct {
+	ParentCollectionStr  uint32
 	ParentCollectionType UnitCustomizationCollectionType
 	CollectionType       UnitCustomizationCollectionType
 	ObjectName           uint32
 	SkinName             uint32
+	_                    [4]uint8
+	UIStrOffset          int64
 	CategoryType         UnitCustomizationCollectionCategoryType
 	_                    [4]uint8
 	SkinsOffset          uint64
@@ -97,6 +106,7 @@ type UnitSkinOverride struct {
 }
 
 type UnitSkinOverrideGroup struct {
+	Name           string
 	CollectionType UnitCustomizationCollectionType
 	Skins          []UnitSkinOverride
 }
@@ -111,10 +121,12 @@ func (u UnitSkinOverrideGroup) HasMaterial(matId stingray.ThinHash) bool {
 }
 
 type UnitCustomizationSettings struct {
+	ParentCollectionStr  string                                  `json:"parent_collection_str"`
 	ParentCollectionType UnitCustomizationCollectionType         `json:"parent_collection_type"`
 	CollectionType       UnitCustomizationCollectionType         `json:"collection_type"`
 	ObjectName           string                                  `json:"object_name"`
 	SkinName             string                                  `json:"skin_name"`
+	UIStr                string                                  `json:"ui_str"`
 	CategoryType         UnitCustomizationCollectionCategoryType `json:"category_type"`
 	Skins                []UnitCustomizationSetting              `json:"skins,omitempty"`
 	ShowroomOffset       mgl32.Vec3                              `json:"showroom_offset"`
@@ -123,6 +135,7 @@ type UnitCustomizationSettings struct {
 
 func (u *UnitCustomizationSettings) GetSkinOverrideGroup() UnitSkinOverrideGroup {
 	toReturn := UnitSkinOverrideGroup{
+		Name:           u.SkinName,
 		Skins:          make([]UnitSkinOverride, 0),
 		CollectionType: u.CollectionType,
 	}
@@ -144,6 +157,18 @@ func (u *UnitCustomizationSettings) GetSkinOverrideGroup() UnitSkinOverrideGroup
 			}
 			skinOverride.Overrides[override.MaterialID] = append(skinOverride.Overrides[override.MaterialID], override)
 		}
+		for _, override := range skin.Customization.UnknownTextureOverrides {
+			if _, ok := skinOverride.Overrides[override.MaterialID]; !ok {
+				skinOverride.Overrides[override.MaterialID] = make([]UnitCustomizationMaterialOverrides, 0)
+			}
+			skinOverride.Overrides[override.MaterialID] = append(skinOverride.Overrides[override.MaterialID], override)
+		}
+		for _, override := range skin.Customization.UnknownTextureOverrides2 {
+			if _, ok := skinOverride.Overrides[override.MaterialID]; !ok {
+				skinOverride.Overrides[override.MaterialID] = make([]UnitCustomizationMaterialOverrides, 0)
+			}
+			skinOverride.Overrides[override.MaterialID] = append(skinOverride.Overrides[override.MaterialID], override)
+		}
 		toReturn.Skins = append(toReturn.Skins, skinOverride)
 	}
 	return toReturn
@@ -156,6 +181,7 @@ type rawUnitCustomizationSetting struct {
 	AddPath              stingray.Hash
 	Name                 uint32
 	_                    [4]byte
+	UIStrOffset          int64
 	Thumbnail            stingray.Hash
 	UIWidgetColorsOffset uint64
 	UIWidgetColorsCount  uint64
@@ -164,7 +190,9 @@ type rawUnitCustomizationSetting struct {
 type UnitCustomizationSetting struct {
 	Name           string                     `json:"name"`
 	DebugName      string                     `json:"debug_name"`
+	UIStr          string                     `json:"ui_str"`
 	ID             stingray.ThinHash          `json:"id"`
+	AddPath        stingray.Hash              `json:"add_path"`
 	Archive        stingray.Hash              `json:"archive"`
 	Customization  UnitCustomizationComponent `json:"customization"`
 	Thumbnail      stingray.Hash              `json:"thumbnail"`
@@ -174,6 +202,8 @@ type UnitCustomizationSetting struct {
 type UnitCustomizationComponent struct {
 	MaterialsTexturesOverrides    []UnitCustomizationMaterialOverrides `json:"materials_textures_overrides"`
 	MountedWeaponTextureOverrides []UnitCustomizationMaterialOverrides `json:"mounted_weapon_texture_overrides"`
+	UnknownTextureOverrides       []UnitCustomizationMaterialOverrides `json:"unknown_texture_overrides"`
+	UnknownTextureOverrides2      []UnitCustomizationMaterialOverrides `json:"unknown_texture_overrides_2"`
 }
 
 type SimpleUnitCustomizationMaterialOverrides struct {
@@ -187,6 +217,8 @@ type SimpleUnitCustomizationMaterialOverrides struct {
 type SimpleUnitCustomizationComponent struct {
 	MaterialsTexturesOverrides    []SimpleUnitCustomizationMaterialOverrides `json:"materials_textures_overrides"`
 	MountedWeaponTextureOverrides []SimpleUnitCustomizationMaterialOverrides `json:"mounted_weapon_texture_overrides"`
+	UnknownTextureOverrides       []SimpleUnitCustomizationMaterialOverrides `json:"unknown_texture_overrides"`
+	UnknownTextureOverrides2      []SimpleUnitCustomizationMaterialOverrides `json:"unknown_texture_overrides_2"`
 }
 
 type SimpleUnitCustomizationSetting struct {
@@ -232,6 +264,8 @@ func (customization UnitCustomizationSettings) ToSimple(lookupHash func(stingray
 			Customization: SimpleUnitCustomizationComponent{
 				MaterialsTexturesOverrides:    make([]SimpleUnitCustomizationMaterialOverrides, 0),
 				MountedWeaponTextureOverrides: make([]SimpleUnitCustomizationMaterialOverrides, 0),
+				UnknownTextureOverrides:       make([]SimpleUnitCustomizationMaterialOverrides, 0),
+				UnknownTextureOverrides2:      make([]SimpleUnitCustomizationMaterialOverrides, 0),
 			},
 		}
 		for _, mto := range skin.Customization.MaterialsTexturesOverrides {
@@ -250,6 +284,24 @@ func (customization UnitCustomizationSettings) ToSimple(lookupHash func(stingray
 				DecalSheet:        lookupHash(mwto.DecalSheet),
 				PatternLut:        lookupHash(mwto.PatternLut),
 				PatternMasksArray: lookupHash(mwto.PatternMasksArray),
+			})
+		}
+		for _, uto := range skin.Customization.UnknownTextureOverrides {
+			simpleSetting.Customization.UnknownTextureOverrides = append(simpleSetting.Customization.UnknownTextureOverrides, SimpleUnitCustomizationMaterialOverrides{
+				MaterialID:        lookupThinHash(uto.MaterialID),
+				MaterialLut:       lookupHash(uto.MaterialLut),
+				DecalSheet:        lookupHash(uto.DecalSheet),
+				PatternLut:        lookupHash(uto.PatternLut),
+				PatternMasksArray: lookupHash(uto.PatternMasksArray),
+			})
+		}
+		for _, uto := range skin.Customization.UnknownTextureOverrides2 {
+			simpleSetting.Customization.UnknownTextureOverrides2 = append(simpleSetting.Customization.UnknownTextureOverrides2, SimpleUnitCustomizationMaterialOverrides{
+				MaterialID:        lookupThinHash(uto.MaterialID),
+				MaterialLut:       lookupHash(uto.MaterialLut),
+				DecalSheet:        lookupHash(uto.DecalSheet),
+				PatternLut:        lookupHash(uto.PatternLut),
+				PatternMasksArray: lookupHash(uto.PatternMasksArray),
 			})
 		}
 		simpleSettings.Skins = append(simpleSettings.Skins, simpleSetting)
@@ -286,9 +338,39 @@ func (customization UnitCustomizationComponent) ToSimple(lookupHash HashLookup, 
 		})
 	}
 
+	unkOverrides := make([]SimpleUnitCustomizationMaterialOverrides, 0)
+	for _, override := range customization.UnknownTextureOverrides {
+		if override.MaterialID.Value == 0 {
+			break
+		}
+		unkOverrides = append(mountOverrides, SimpleUnitCustomizationMaterialOverrides{
+			MaterialID:        lookupThinHash(override.MaterialID),
+			MaterialLut:       lookupHash(override.MaterialLut),
+			DecalSheet:        lookupHash(override.DecalSheet),
+			PatternLut:        lookupHash(override.PatternLut),
+			PatternMasksArray: lookupHash(override.PatternMasksArray),
+		})
+	}
+
+	unkOverrides2 := make([]SimpleUnitCustomizationMaterialOverrides, 0)
+	for _, override := range customization.UnknownTextureOverrides {
+		if override.MaterialID.Value == 0 {
+			break
+		}
+		unkOverrides2 = append(mountOverrides, SimpleUnitCustomizationMaterialOverrides{
+			MaterialID:        lookupThinHash(override.MaterialID),
+			MaterialLut:       lookupHash(override.MaterialLut),
+			DecalSheet:        lookupHash(override.DecalSheet),
+			PatternLut:        lookupHash(override.PatternLut),
+			PatternMasksArray: lookupHash(override.PatternMasksArray),
+		})
+	}
+
 	return SimpleUnitCustomizationComponent{
 		MaterialsTexturesOverrides:    matOverrides,
 		MountedWeaponTextureOverrides: mountOverrides,
+		UnknownTextureOverrides:       unkOverrides,
+		UnknownTextureOverrides2:      unkOverrides2,
 	}
 }
 
@@ -319,7 +401,7 @@ func ParseUnitCustomizationSettings(getResource GetResourceFunc, stringmap map[u
 		return nil, fmt.Errorf("error parsing entity deltas: %v", err)
 	}
 
-	matTextOverridesLen, mountedWeaponOverridesLen, err := getOverrideArrayLengths(nil)
+	matTextOverridesLen, mountedWeaponOverridesLen, unkOverridesLen, unk2OverridesLen, err := getOverrideArrayLengths(nil)
 	if err != nil {
 		return nil, fmt.Errorf("error getting override array lengths: %v", err)
 	}
@@ -375,6 +457,14 @@ func ParseUnitCustomizationSettings(getResource GetResourceFunc, stringmap map[u
 				skin.DebugName = string(debugNameBytes[:terminator])
 			}
 
+			if rawSkin.UIStrOffset > 0 {
+				uiStrBytes := unitCustomizationSettings[base+int64(rawSkin.UIStrOffset):]
+				terminator := bytes.IndexByte(uiStrBytes, 0)
+				if terminator != -1 {
+					skin.UIStr = string(uiStrBytes[:terminator])
+				}
+			}
+
 			skin.UIWidgetColors = make([]mgl32.Vec3, rawSkin.UIWidgetColorsCount)
 			_, err := r.Seek(base+int64(rawSkin.UIWidgetColorsOffset), io.SeekStart)
 			if err != nil {
@@ -417,16 +507,30 @@ func ParseUnitCustomizationSettings(getResource GetResourceFunc, stringmap map[u
 			var matOverrides UnitCustomizationComponent
 			materialsTexturesOverrides := make([]UnitCustomizationMaterialOverrides, matTextOverridesLen)
 			mountedWeaponTextureOverrides := make([]UnitCustomizationMaterialOverrides, mountedWeaponOverridesLen)
+			unkTextureOverrides := make([]UnitCustomizationMaterialOverrides, unkOverridesLen)
+			unk2TextureOverrides := make([]UnitCustomizationMaterialOverrides, unk2OverridesLen)
 			length, err := binary.Decode(overrideComponentData, binary.LittleEndian, &materialsTexturesOverrides)
 			if err != nil {
 				return nil, fmt.Errorf("error decoding material texture overrides: %v", err)
 			}
-			_, err = binary.Decode(overrideComponentData[length:], binary.LittleEndian, &mountedWeaponTextureOverrides)
+			offset, err := binary.Decode(overrideComponentData[length:], binary.LittleEndian, &mountedWeaponTextureOverrides)
 			if err != nil {
 				return nil, fmt.Errorf("error decoding mounted weapon texture overrides: %v", err)
 			}
+			length += offset
+			offset, err = binary.Decode(overrideComponentData[length:], binary.LittleEndian, &unkTextureOverrides)
+			if err != nil {
+				return nil, fmt.Errorf("error decoding unknown texture overrides: %v", err)
+			}
+			length += offset
+			_, err = binary.Decode(overrideComponentData[length:], binary.LittleEndian, &unk2TextureOverrides)
+			if err != nil {
+				return nil, fmt.Errorf("error decoding second unknown texture overrides: %v", err)
+			}
 			matOverrides.MaterialsTexturesOverrides = make([]UnitCustomizationMaterialOverrides, 0)
 			matOverrides.MountedWeaponTextureOverrides = make([]UnitCustomizationMaterialOverrides, 0)
+			matOverrides.UnknownTextureOverrides = make([]UnitCustomizationMaterialOverrides, 0)
+			matOverrides.UnknownTextureOverrides2 = make([]UnitCustomizationMaterialOverrides, 0)
 			for _, override := range materialsTexturesOverrides {
 				if override.MaterialID.Value == 0 {
 					break
@@ -438,6 +542,18 @@ func ParseUnitCustomizationSettings(getResource GetResourceFunc, stringmap map[u
 					break
 				}
 				matOverrides.MountedWeaponTextureOverrides = append(matOverrides.MountedWeaponTextureOverrides, override)
+			}
+			for _, override := range unkTextureOverrides {
+				if override.MaterialID.Value == 0 {
+					break
+				}
+				matOverrides.UnknownTextureOverrides = append(matOverrides.UnknownTextureOverrides, override)
+			}
+			for _, override := range unk2TextureOverrides {
+				if override.MaterialID.Value == 0 {
+					break
+				}
+				matOverrides.UnknownTextureOverrides2 = append(matOverrides.UnknownTextureOverrides2, override)
 			}
 			skin.Customization = matOverrides
 
@@ -456,11 +572,25 @@ func ParseUnitCustomizationSettings(getResource GetResourceFunc, stringmap map[u
 		if !ok {
 			skinName = strconv.FormatUint(uint64(rawSettings.SkinName), 16)
 		}
+		parentCollectionStr, ok := stringmap[rawSettings.ParentCollectionStr]
+		if !ok {
+			parentCollectionStr = strconv.FormatUint(uint64(rawSettings.ParentCollectionStr), 16)
+		}
+		var uiStr string
+		if rawSettings.UIStrOffset > 0 {
+			uiStrBytes := unitCustomizationSettings[base+int64(rawSettings.UIStrOffset):]
+			terminator := bytes.IndexByte(uiStrBytes, 0)
+			if terminator != -1 {
+				uiStr = string(uiStrBytes[:terminator])
+			}
+		}
 		toReturn = append(toReturn, UnitCustomizationSettings{
+			ParentCollectionStr:  parentCollectionStr,
 			ParentCollectionType: rawSettings.ParentCollectionType,
 			CollectionType:       rawSettings.CollectionType,
 			ObjectName:           objectName,
 			SkinName:             skinName,
+			UIStr:                uiStr,
 			CategoryType:         rawSettings.CategoryType,
 			Skins:                skins,
 			ShowroomOffset:       rawSettings.ShowroomOffset,
@@ -595,43 +725,45 @@ func getUnitCustomizationComponentDataForHash(hash stingray.Hash) ([]byte, error
 	return componentData, err
 }
 
-func getOverrideArrayLengths(typelib *DLTypeLib) (int, int, error) {
+func getOverrideArrayLengths(typelib *DLTypeLib) (int, int, int, int, error) {
 	if typelib == nil {
 		var err error
 		typelib, err = ParseTypeLib(nil)
 		if err != nil {
-			return -1, -1, err
+			return -1, -1, -1, -1, err
 		}
 	}
 	var unitCustomizationComponentType DLTypeDesc
 	unitCustomizationComponentType, ok := typelib.Types[Sum("UnitCustomizationComponent")]
 	if !ok {
-		return -1, -1, fmt.Errorf("could not find UnitCustomizationComponent hash in dl_library")
+		return -1, -1, -1, -1, fmt.Errorf("could not find UnitCustomizationComponent hash in dl_library")
 	}
 
-	if len(unitCustomizationComponentType.Members) != 2 {
-		return -1, -1, fmt.Errorf("UnitCustomizationComponent unexpected format (there should be 2 members but were actually %v)", len(unitCustomizationComponentType.Members))
+	if len(unitCustomizationComponentType.Members) != 4 {
+		return -1, -1, -1, -1, fmt.Errorf("UnitCustomizationComponent unexpected format (there should be 4 members but were actually %v)", len(unitCustomizationComponentType.Members))
 	}
 
 	if unitCustomizationComponentType.Members[0].Type.Atom != INLINE_ARRAY {
-		return -1, -1, fmt.Errorf("UnitCustomizationComponent unexpected format (materials_textures_overrides was not inline array)")
+		return -1, -1, -1, -1, fmt.Errorf("UnitCustomizationComponent unexpected format (materials_textures_overrides was not inline array)")
 	}
 
 	if unitCustomizationComponentType.Members[1].Type.Atom != INLINE_ARRAY {
-		return -1, -1, fmt.Errorf("UnitCustomizationComponent unexpected format (mounted_weapon_texture_overrides was not inline array)")
+		return -1, -1, -1, -1, fmt.Errorf("UnitCustomizationComponent unexpected format (mounted_weapon_texture_overrides was not inline array)")
 	}
 
 	if unitCustomizationComponentType.Members[0].TypeID != Sum("UnitCustomizationMaterialOverrides") {
-		return -1, -1, fmt.Errorf("UnitCustomizationComponent unexpected format (materials_textures_overrides type was not UnitCustomizationMaterialOverrides)")
+		return -1, -1, -1, -1, fmt.Errorf("UnitCustomizationComponent unexpected format (materials_textures_overrides type was not UnitCustomizationMaterialOverrides)")
 	}
 
 	if unitCustomizationComponentType.Members[1].TypeID != Sum("UnitCustomizationMaterialOverrides") {
-		return -1, -1, fmt.Errorf("UnitCustomizationComponent unexpected format (mounted_weapon_texture_overrides type was not UnitCustomizationMaterialOverrides)")
+		return -1, -1, -1, -1, fmt.Errorf("UnitCustomizationComponent unexpected format (mounted_weapon_texture_overrides type was not UnitCustomizationMaterialOverrides)")
 	}
 
 	matTextOverridesLen := unitCustomizationComponentType.Members[0].Type.BitfieldInfoOrArrayLen.GetArrayLen()
 	mountedWeaponOverridesLen := unitCustomizationComponentType.Members[1].Type.BitfieldInfoOrArrayLen.GetArrayLen()
-	return int(matTextOverridesLen), int(mountedWeaponOverridesLen), nil
+	unknownOverridesLen := unitCustomizationComponentType.Members[2].Type.BitfieldInfoOrArrayLen.GetArrayLen()
+	unknown2OverridesLen := unitCustomizationComponentType.Members[3].Type.BitfieldInfoOrArrayLen.GetArrayLen()
+	return int(matTextOverridesLen), int(mountedWeaponOverridesLen), int(unknownOverridesLen), int(unknown2OverridesLen), nil
 }
 
 func ParseUnitCustomizationComponents() (map[stingray.Hash]UnitCustomizationComponent, error) {
@@ -687,7 +819,7 @@ func ParseUnitCustomizationComponents() (map[stingray.Hash]UnitCustomizationComp
 		return nil, err
 	}
 
-	matTextOverridesLen, mountedWeaponOverridesLen, err := getOverrideArrayLengths(typelib)
+	matTextOverridesLen, mountedWeaponOverridesLen, unkOverridesLen, unk2OverridesLen, err := getOverrideArrayLengths(typelib)
 	if err != nil {
 		return nil, err
 	}
@@ -702,9 +834,19 @@ func ParseUnitCustomizationComponents() (map[stingray.Hash]UnitCustomizationComp
 		if err := binary.Read(r, binary.LittleEndian, &mountedWeaponTextureOverrides); err != nil {
 			return nil, err
 		}
+		unkTextureOverrides := make([]UnitCustomizationMaterialOverrides, unkOverridesLen)
+		if err := binary.Read(r, binary.LittleEndian, &unkTextureOverrides); err != nil {
+			return nil, err
+		}
+		unk2TextureOverrides := make([]UnitCustomizationMaterialOverrides, unk2OverridesLen)
+		if err := binary.Read(r, binary.LittleEndian, &unk2TextureOverrides); err != nil {
+			return nil, err
+		}
 		data = append(data, UnitCustomizationComponent{
 			MaterialsTexturesOverrides:    materialsTexturesOverrides,
 			MountedWeaponTextureOverrides: mountedWeaponTextureOverrides,
+			UnknownTextureOverrides:       unkTextureOverrides,
+			UnknownTextureOverrides2:      unk2TextureOverrides,
 		})
 	}
 

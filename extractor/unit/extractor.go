@@ -277,6 +277,10 @@ func AddMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_mate
 		}
 	}
 
+	// Check if this is a helldiver carried weapon vs vehicle mounted (has EquipmentComponentData)
+	equipmentData, _ := datalib.GetEquipmentComponentDataForHash(weaponHash)
+	isHelldiverWeapon := len(equipmentData) > 0
+
 	for id, resID := range unitInfo.Materials {
 		matR, err := ctx.Open(stingray.NewFileID(resID, stingray.Sum("material")), stingray.DataMain)
 		if err == stingray.ErrFileNotExist {
@@ -316,7 +320,7 @@ func AddMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_mate
 		// Handle vehicle variants
 		var skinOverrides []datalib.UnitSkinOverride = make([]datalib.UnitSkinOverride, 0)
 		for _, skinOverrideGroup := range ctx.SkinOverrideGroups() {
-			if !skinOverrideGroup.HasMaterial(id) {
+			if !skinOverrideGroup.HasMaterial(id) || isHelldiverWeapon {
 				continue
 			}
 			skinOverrides = skinOverrideGroup.Skins
