@@ -189,7 +189,7 @@ func getEquipmentComponentData() ([]byte, error) {
 	return data, err
 }
 
-func getEquipmentComponentDataForHash(hash stingray.Hash) ([]byte, error) {
+func GetEquipmentComponentDataForHash(hash stingray.Hash) ([]byte, error) {
 	UnitCmpDataHash := Sum("EquipmentComponentData")
 	typelib, err := ParseTypeLib(nil)
 	if err != nil {

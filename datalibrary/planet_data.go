@@ -35,7 +35,7 @@ type WeatherColorSet struct {
 }
 
 type LevelGenerationPaletteGroup struct {
-	Palette                 stingray.Hash
+	//Palette                 stingray.Hash
 	AssetGrading            stingray.Hash
 	SkySettingsGroup        stingray.Hash
 	DayGrading              stingray.Hash
@@ -74,10 +74,10 @@ type rawPlanetData struct {
 	PlanetSystemNameLoc              uint32
 	PlanetLayoutId                   uint32
 	_                                [4]uint8
-	UnknownIntsOffset                int64
-	UnknownIntsCount                 int64
-	UnknownTexturesOffset            int64
-	UnknownTexturesCount             int64
+	UnknownEnumOffset                int64
+	UnknownEnumCount                 int64
+	ResourceOverridesOffset          int64
+	ResourceOverridesCount           int64
 	DebugNameOffset                  int64
 	RegionLowland                    rawLevelGenerationRegion
 	RegionHighland                   rawLevelGenerationRegion
@@ -121,6 +121,12 @@ type ResourceRegionOverride struct {
 	RegionFlag enum.RegionFlag
 }
 
+type ResourceOverride struct {
+	Type        stingray.Hash
+	Replace     stingray.Hash
+	ReplaceWith stingray.Hash
+}
+
 type PlanetData struct {
 	Inherits                         string
 	PlanetNameLoc                    string
@@ -128,6 +134,8 @@ type PlanetData struct {
 	PlanetDescriptionShortLoc        string
 	PlanetSystemNameLoc              string
 	PlanetLayoutId                   uint32
+	UnknownEnumArray                 []uint32
+	ResourceOverrides                []ResourceOverride
 	DebugName                        string
 	RegionLowland                    LevelGenerationRegion
 	RegionHighland                   LevelGenerationRegion
@@ -227,6 +235,17 @@ func LoadPlanetData(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookup
 			return nil, err
 		}
 		setting.Inherits = *inherits
+
+		resourceOverrides := make([]ResourceOverride, rawSetting.ResourceOverridesCount)
+		if rawSetting.ResourceOverridesOffset > 0 {
+			if _, err := r.Seek(int64(base+rawSetting.ResourceOverridesOffset), io.SeekStart); err != nil {
+				return nil, err
+			}
+			if err := binary.Read(r, binary.LittleEndian, &resourceOverrides); err != nil {
+				return nil, fmt.Errorf("reading resource overrides: %v", err)
+			}
+		}
+		setting.ResourceOverrides = resourceOverrides
 
 		if _, err := r.Seek(int64(base+rawSetting.DebugNameOffset), io.SeekStart); err != nil {
 			return nil, err

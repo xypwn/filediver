@@ -1040,6 +1040,8 @@ ShieldShapeType
 SurfaceEffectInfo
 HelldiverCustomizationStatModifier
 DeathAnimationSound
+PlanetRegionSettings
+PlanetSelectableType
 
 // ======== Enums and Values ========
 HelldiverCustomizationPassiveBonus

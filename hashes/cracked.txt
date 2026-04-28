@@ -5802,6 +5802,7 @@ content/fac_helldivers/equipment/primary_weapons/marksman_rifle/marksman_rifle
 content/fac_helldivers/equipment/sidearm_weapons/automatic_pistol/automatic_pistol
 content/fac_helldivers/equipment/sidearm_weapons/laser_pistol/laser_pistol
 content/fac_helldivers/equipment/sidearm_weapons/revolver_pistol/revolver_pistol
+content/fac_helldivers/equipment/sidearm_weapons/revolver_pistol_long/revolver_pistol_long
 content/fac_helldivers/equipment/throwables/emp_grenade/emp_grenade
 content/fac_helldivers/equipment/throwables/frag_grenade/frag_grenade
 content/fac_helldivers/equipment/throwables/he_grenade/he_grenade

@@ -30119,3 +30119,10 @@ r_arm3_cull
 l_arm1_cull
 l_arm2_cull
 l_arm3_cull
+underbarrel_grenadier
+trenchgun_bayonet
+trenchgun_pump
+g_trenchgun_bayonet
+g_trenchgun_bayonet_LOD1
+g_trenchgun_bayonet_LOD2
+g_trenchgun_bayonet_shadow
