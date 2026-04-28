@@ -80,6 +80,10 @@ func parseHashLookup(r io.Reader) (map[uint64]stingray.Hash, error) {
 	}
 
 	hashLookup.Parents = make([]hashLookupParent, 0)
+
+	// release/01.006.202 adds 1 to the parent count? idk this is so ad hoc anyway, whatever
+	hashLookup.ParentCount += 1
+
 	for i := uint32(0); i < hashLookup.ParentCount; i++ {
 		var count uint32 = 0
 		for count == 0 {

@@ -13,14 +13,16 @@ func _() {
 	_ = x[CollectionHellpodRack-2]
 	_ = x[CollectionCombatWalker-3]
 	_ = x[CollectionCombatWalkerEmancipator-4]
-	_ = x[CollectionFRV-5]
-	_ = x[CollectionTank-6]
-	_ = x[CollectionCount-7]
+	_ = x[CollectionCombatWalkerBreacher-5]
+	_ = x[CollectionCombatWalkerLumberer-6]
+	_ = x[CollectionFRV-7]
+	_ = x[CollectionTank-8]
+	_ = x[CollectionCount-9]
 }
 
-const _UnitCustomizationCollectionType_name = "CollectionShuttleCollectionHellpodCollectionHellpodRackCollectionCombatWalkerCollectionCombatWalkerEmancipatorCollectionFRVCollectionTankCollectionCount"
+const _UnitCustomizationCollectionType_name = "CollectionShuttleCollectionHellpodCollectionHellpodRackCollectionCombatWalkerCollectionCombatWalkerEmancipatorCollectionCombatWalkerBreacherCollectionCombatWalkerLumbererCollectionFRVCollectionTankCollectionCount"
 
-var _UnitCustomizationCollectionType_index = [...]uint8{0, 17, 34, 55, 77, 110, 123, 137, 152}
+var _UnitCustomizationCollectionType_index = [...]uint8{0, 17, 34, 55, 77, 110, 140, 170, 183, 197, 212}
 
 func (i UnitCustomizationCollectionType) String() string {
 	idx := int(i) - 0

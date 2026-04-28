@@ -21,6 +21,8 @@ const (
 	CollectionHellpodRack
 	CollectionCombatWalker
 	CollectionCombatWalkerEmancipator
+	CollectionCombatWalkerBreacher // These may be out of order
+	CollectionCombatWalkerLumberer
 	CollectionFRV
 	CollectionTank
 	CollectionCount
@@ -32,6 +34,10 @@ func (ucct UnitCustomizationCollectionType) Unit() (stingray.Hash, error) {
 		return stingray.Sum("content/fac_helldivers/vehicles/combat_walker/combat_walker"), nil
 	case CollectionCombatWalkerEmancipator:
 		return stingray.Sum("content/fac_helldivers/vehicles/combat_walker_obsidian/combat_walker_obsidian"), nil
+	case CollectionCombatWalkerBreacher:
+		return stingray.Sum("content/fac_helldivers/vehicles/combat_walker_breacher/combat_walker_breacher"), nil
+	case CollectionCombatWalkerLumberer:
+		return stingray.Sum("content/fac_helldivers/vehicles/combat_walker_lumberer/combat_walker_lumberer"), nil
 	case CollectionFRV:
 		return stingray.Sum("content/fac_helldivers/vehicles/frv/frv"), nil
 	case CollectionHellpod:
@@ -77,10 +83,13 @@ type UnitCustomizationMaterialOverrides struct {
 }
 
 type rawUnitCustomizationSettings struct {
+	ParentCollectionStr  uint32
 	ParentCollectionType UnitCustomizationCollectionType
 	CollectionType       UnitCustomizationCollectionType
 	ObjectName           uint32
 	SkinName             uint32
+	_                    [4]uint8
+	UIStrOffset          int64
 	CategoryType         UnitCustomizationCollectionCategoryType
 	_                    [4]uint8
 	SkinsOffset          uint64
@@ -111,10 +120,12 @@ func (u UnitSkinOverrideGroup) HasMaterial(matId stingray.ThinHash) bool {
 }
 
 type UnitCustomizationSettings struct {
+	ParentCollectionStr  string                                  `json:"parent_collection_str"`
 	ParentCollectionType UnitCustomizationCollectionType         `json:"parent_collection_type"`
 	CollectionType       UnitCustomizationCollectionType         `json:"collection_type"`
 	ObjectName           string                                  `json:"object_name"`
 	SkinName             string                                  `json:"skin_name"`
+	UIStr                string                                  `json:"ui_str"`
 	CategoryType         UnitCustomizationCollectionCategoryType `json:"category_type"`
 	Skins                []UnitCustomizationSetting              `json:"skins,omitempty"`
 	ShowroomOffset       mgl32.Vec3                              `json:"showroom_offset"`
@@ -156,6 +167,7 @@ type rawUnitCustomizationSetting struct {
 	AddPath              stingray.Hash
 	Name                 uint32
 	_                    [4]byte
+	UIStrOffset          int64
 	Thumbnail            stingray.Hash
 	UIWidgetColorsOffset uint64
 	UIWidgetColorsCount  uint64
@@ -164,7 +176,9 @@ type rawUnitCustomizationSetting struct {
 type UnitCustomizationSetting struct {
 	Name           string                     `json:"name"`
 	DebugName      string                     `json:"debug_name"`
+	UIStr          string                     `json:"ui_str"`
 	ID             stingray.ThinHash          `json:"id"`
+	AddPath        stingray.Hash              `json:"add_path"`
 	Archive        stingray.Hash              `json:"archive"`
 	Customization  UnitCustomizationComponent `json:"customization"`
 	Thumbnail      stingray.Hash              `json:"thumbnail"`
@@ -375,6 +389,14 @@ func ParseUnitCustomizationSettings(getResource GetResourceFunc, stringmap map[u
 				skin.DebugName = string(debugNameBytes[:terminator])
 			}
 
+			if rawSkin.UIStrOffset > 0 {
+				uiStrBytes := unitCustomizationSettings[base+int64(rawSkin.UIStrOffset):]
+				terminator := bytes.IndexByte(uiStrBytes, 0)
+				if terminator != -1 {
+					skin.UIStr = string(uiStrBytes[:terminator])
+				}
+			}
+
 			skin.UIWidgetColors = make([]mgl32.Vec3, rawSkin.UIWidgetColorsCount)
 			_, err := r.Seek(base+int64(rawSkin.UIWidgetColorsOffset), io.SeekStart)
 			if err != nil {
@@ -456,11 +478,25 @@ func ParseUnitCustomizationSettings(getResource GetResourceFunc, stringmap map[u
 		if !ok {
 			skinName = strconv.FormatUint(uint64(rawSettings.SkinName), 16)
 		}
+		parentCollectionStr, ok := stringmap[rawSettings.ParentCollectionStr]
+		if !ok {
+			parentCollectionStr = strconv.FormatUint(uint64(rawSettings.ParentCollectionStr), 16)
+		}
+		var uiStr string
+		if rawSettings.UIStrOffset > 0 {
+			uiStrBytes := unitCustomizationSettings[base+int64(rawSettings.UIStrOffset):]
+			terminator := bytes.IndexByte(uiStrBytes, 0)
+			if terminator != -1 {
+				uiStr = string(uiStrBytes[:terminator])
+			}
+		}
 		toReturn = append(toReturn, UnitCustomizationSettings{
+			ParentCollectionStr:  parentCollectionStr,
 			ParentCollectionType: rawSettings.ParentCollectionType,
 			CollectionType:       rawSettings.CollectionType,
 			ObjectName:           objectName,
 			SkinName:             skinName,
+			UIStr:                uiStr,
 			CategoryType:         rawSettings.CategoryType,
 			Skins:                skins,
 			ShowroomOffset:       rawSettings.ShowroomOffset,
@@ -609,8 +645,8 @@ func getOverrideArrayLengths(typelib *DLTypeLib) (int, int, error) {
 		return -1, -1, fmt.Errorf("could not find UnitCustomizationComponent hash in dl_library")
 	}
 
-	if len(unitCustomizationComponentType.Members) != 2 {
-		return -1, -1, fmt.Errorf("UnitCustomizationComponent unexpected format (there should be 2 members but were actually %v)", len(unitCustomizationComponentType.Members))
+	if len(unitCustomizationComponentType.Members) != 4 {
+		return -1, -1, fmt.Errorf("UnitCustomizationComponent unexpected format (there should be 4 members but were actually %v)", len(unitCustomizationComponentType.Members))
 	}
 
 	if unitCustomizationComponentType.Members[0].Type.Atom != INLINE_ARRAY {

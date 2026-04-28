@@ -397,22 +397,22 @@ func OpenGameDir(ctx context.Context, gameDir string, hashStrings []string, thin
 		return nil, fmt.Errorf("error loading armor set definitions: %v", err)
 	}
 
-	// skinOverrideGroups, err := LoadSkinOverrides(dataDir, mapping)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("error loading skin overrides: %v", err)
-	// }
+	skinOverrideGroups, err := LoadSkinOverrides(dataDir, mapping)
+	if err != nil {
+		return nil, fmt.Errorf("error loading skin overrides: %v", err)
+	}
 
-	// weaponPaintSchemes, err := LoadPaintSchemes(dataDir, mapping)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("error loading weapon paint schemes: %v", err)
-	// }
+	weaponPaintSchemes, err := LoadPaintSchemes(dataDir, mapping)
+	if err != nil {
+		return nil, fmt.Errorf("error loading weapon paint schemes: %v", err)
+	}
 
 	return &App{
 		Hashes:             hashesMap,
 		ThinHashes:         thinHashesMap,
 		ArmorSets:          armorSets,
-		SkinOverrideGroups: make([]datalib.UnitSkinOverrideGroup, 0),  // skinOverrideGroups,
-		WeaponPaintSchemes: make([]datalib.WeaponCustomizableItem, 0), //weaponPaintSchemes,
+		SkinOverrideGroups: skinOverrideGroups,
+		WeaponPaintSchemes: weaponPaintSchemes,
 		DataDir:            dataDir,
 		LanguageMap:        mapping,
 		Metadata:           getFileMetadata(dataDir),
