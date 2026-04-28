@@ -66,6 +66,7 @@ func parseWwiseDep(dataDir *stingray.DataDir, fileID stingray.FileID) (string, e
 		{0xd8, '/', 'v', 'x'},   // < patch 1.003.200
 		{0x85, 0xf1, 0xa3, 'x'}, // >= patch 1.003.200
 		{0xb1, 0xf2, 0xa3, 'x'}, // >= patch 1.410.000
+		{0xa5, 0xf4, 0xa3, 'x'}, // >= patch 1.006.200
 	}
 	if !slices.Contains(validMagicNums, magicNum) {
 		return "", fmt.Errorf("invalid magic number, got: %s", strconv.Quote(string(magicNum[:])))
@@ -396,22 +397,22 @@ func OpenGameDir(ctx context.Context, gameDir string, hashStrings []string, thin
 		return nil, fmt.Errorf("error loading armor set definitions: %v", err)
 	}
 
-	skinOverrideGroups, err := LoadSkinOverrides(dataDir, mapping)
-	if err != nil {
-		return nil, fmt.Errorf("error loading skin overrides: %v", err)
-	}
+	// skinOverrideGroups, err := LoadSkinOverrides(dataDir, mapping)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("error loading skin overrides: %v", err)
+	// }
 
-	weaponPaintSchemes, err := LoadPaintSchemes(dataDir, mapping)
-	if err != nil {
-		return nil, fmt.Errorf("error loading weapon paint schemes: %v", err)
-	}
+	// weaponPaintSchemes, err := LoadPaintSchemes(dataDir, mapping)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("error loading weapon paint schemes: %v", err)
+	// }
 
 	return &App{
 		Hashes:             hashesMap,
 		ThinHashes:         thinHashesMap,
 		ArmorSets:          armorSets,
-		SkinOverrideGroups: skinOverrideGroups,
-		WeaponPaintSchemes: weaponPaintSchemes,
+		SkinOverrideGroups: make([]datalib.UnitSkinOverrideGroup, 0),  // skinOverrideGroups,
+		WeaponPaintSchemes: make([]datalib.WeaponCustomizableItem, 0), //weaponPaintSchemes,
 		DataDir:            dataDir,
 		LanguageMap:        mapping,
 		Metadata:           getFileMetadata(dataDir),
