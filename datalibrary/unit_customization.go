@@ -21,8 +21,8 @@ const (
 	CollectionHellpodRack
 	CollectionCombatWalker
 	CollectionCombatWalkerEmancipator
-	CollectionCombatWalkerBreacher // These may be out of order
 	CollectionCombatWalkerLumberer
+	CollectionCombatWalkerBreacher
 	CollectionFRV
 	CollectionTank
 	CollectionCount
