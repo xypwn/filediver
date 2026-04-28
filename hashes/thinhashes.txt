@@ -30107,3 +30107,15 @@ g_xl_t_connection
 g_xl_t_connection_LOD1
 g_xl_t_connection_LOD2
 g_xl_t_connection_shadow
+r_claw_1_c
+r_claw_2_c
+r_claw_3_c
+l_claw_1_c
+l_claw_2_c
+l_claw_3_c
+r_arm1_cull
+r_arm2_cull
+r_arm3_cull
+l_arm1_cull
+l_arm2_cull
+l_arm3_cull
