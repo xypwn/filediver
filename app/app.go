@@ -670,6 +670,12 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 			} else {
 				extr = extr_level.Convert(gltfDoc)
 			}
+		case "speedtree":
+			if extrFormat == "model" && typeFormats["unit"] == "raw" {
+				extr = getSourceExtractFunc(extrCfg, typ)
+			} else {
+				extr = extr_speedtree.Convert(gltfDoc)
+			}
 		case "texture":
 			if extrFormat == "dds" {
 				extr = extr_texture.ExtractDDS
@@ -692,8 +698,6 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 			extr = extr_shading_environment.ExtractShadingEnvironmentJSON
 		case "shading_environment_mapping":
 			extr = extr_shading_environment.ExtractShadingEnvironmentMappingJSON
-		case "speedtree":
-			extr = extr_speedtree.ExtractSpeedTreeJson
 		default:
 			extr = getSourceExtractFunc(extrCfg, typ)
 		}

@@ -660,7 +660,7 @@ Options:`)
 		var documents map[string]*gltf.Document = make(map[string]*gltf.Document)
 		var documentsToClose []func() error
 		if cfg.Unit.SingleFile {
-			for _, key := range []string{"unit", "geometry_group", "material"} {
+			for _, key := range []string{"unit", "geometry_group", "material", "speedtree"} {
 				name := "combined_" + key
 				if optInclArchives != nil && len(*optInclArchives) > 0 {
 					name = fmt.Sprintf("%s_%s", strings.ReplaceAll(*optInclArchives, ",", "_"), key)

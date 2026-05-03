@@ -2,6 +2,7 @@ package speedtree
 
 import (
 	"encoding/binary"
+	"encoding/xml"
 	"errors"
 	"fmt"
 	"io"
@@ -30,19 +31,55 @@ type Header struct {
 	SDKDataOffset            uint32
 }
 
+type TextureN struct {
+	Skip              *bool  `xml:",attr" json:"skip,omitempty"`
+	Suffix            string `xml:",attr" json:"suffix,omitempty"`
+	MipGenerationFlag string `xml:",attr" json:"mip_generation_flag,omitempty"`
+}
+
+type Attribute struct {
+	Type        string `xml:",attr" json:"type"`
+	Count       int    `xml:",attr" json:"count"`
+	Normalize   *bool  `xml:",attr" json:"normalize,omitempty"`
+	Description string `xml:",attr" json:"description"`
+}
+
+type Stream struct {
+	Name      string      `xml:"Name,attr" json:"name"`
+	Attribute []Attribute `json:"attributes"`
+}
+
+type VertexXML struct {
+	XMLName           xml.Name `xml:"SpeedTreeVertexPacker" json:"speed_tree_vertex_packer"`
+	Program           string   `xml:",attr" json:"program"`
+	Force32bitIndices bool     `xml:",attr" json:"force_32bit_indices"`
+	Stream            Stream   `json:"stream"`
+}
+
+type TextureXML struct {
+	XMLName       xml.Name `xml:"SpeedTreeTexturePacker" json:"speed_tree_texture_packer"`
+	Shader        string   `xml:",attr" json:"shader_name"`
+	ForceTextures bool     `xml:",attr" json:"force_textures"`
+	Texture0      TextureN `json:"texture0"`
+	Texture1      TextureN `json:"texture1"`
+	Texture2      TextureN `json:"texture2"`
+	Texture3      TextureN `json:"texture3"`
+	Texture4      TextureN `json:"texture4"`
+}
+
 type MaterialDefinition struct {
 	Index uint64        `json:"index"`
 	Path  stingray.Hash `json:"path"`
 }
 
 type IndexDefinition struct {
-	Count  uint32 `json:"count"`
-	Stride uint32 `json:"stride"`
-	Offset uint32 `json:"offset"`
-	Unk00  uint32 `json:"unk00"` // These probably correspond to materials or vertices
-	Unk01  uint32 `json:"unk01"`
-	Unk02  uint32 `json:"unk02"`
-	Unk03  uint32 `json:"unk03"`
+	Count      uint32 `json:"count"`
+	Stride     uint32 `json:"stride"`
+	Offset     uint32 `json:"offset"`
+	VertexDef  uint32 `json:"vertex_definition"` // These probably correspond to materials or vertices
+	Unk01      uint32 `json:"unk01"`
+	MeshOffset uint32 `json:"mesh_offset"`
+	MeshCount  uint32 `json:"mesh_count"`
 }
 
 type VertexDefinition struct {
@@ -53,9 +90,9 @@ type VertexDefinition struct {
 
 // Not really sure what these are for, or if they're actually mesh definitions at all
 type MeshDefinition struct {
-	Unk00      uint32 `json:"unk00"`
-	IndexCount uint32 `json:"index_count"`
-	Unk01      uint32 `json:"unk01"`
+	Material    uint32 `json:"material"`
+	IndexCount  uint32 `json:"index_count"`
+	IndexOffset uint32 `json:"index_offset"`
 }
 
 type SpeedTreeSDKNode struct {
@@ -71,9 +108,9 @@ type SpeedTreeSDKData struct {
 }
 
 type SpeedTreeTexture struct {
-	Used uint32     `json:"used"` // in examples I've seen this is 0 or 1, but I haven't looked at a ton of examples yet
-	Name string     `json:"name"` // same as Layers, I've only seen one string in a texture node, but I haven't done any exhaustive research
-	Tint [4]float32 `json:"tint"` // ditto
+	Used uint32    `json:"used"` // in examples I've seen this is 0 or 1, but I haven't looked at a ton of examples yet
+	Name string    `json:"name"` // same as Layers, I've only seen one string in a texture node, but I haven't done any exhaustive research
+	Tint []float32 `json:"tint"` // ditto
 }
 
 type SpeedTreeMaterial struct {
@@ -89,14 +126,14 @@ type SpeedTreeInfo struct {
 	VertexDefinitions []VertexDefinition   `json:"vertex_definitions"`
 	MeshDefinitions   []MeshDefinition     `json:"mesh_definitions"`
 
-	Extents             []mgl32.Vec3        `json:"extents"`               // min and max, may be empty if speedtree sdk data failed to parse
-	SDKMaterials        []SpeedTreeMaterial `json:"sdk_materials"`         // may be empty if speedtree sdk data failed to parse
-	VertexScriptName    string              `json:"vertex_script_name"`    // may be empty if speedtree sdk data failed to parse
-	VertexXML           string              `json:"vertex_xml"`            // may be empty if speedtree sdk data failed to parse
-	BillboardScriptName string              `json:"billboard_script_name"` // may be empty if speedtree sdk data failed to parse
-	BillboardXML        string              `json:"billboard_xml"`         // may be empty if speedtree sdk data failed to parse
-	TextureScriptName   string              `json:"texture_script_name"`   // may be empty if speedtree sdk data failed to parse
-	TextureXML          string              `json:"texture_xml"`           // may be empty if speedtree sdk data failed to parse
+	Extents             []mgl32.Vec3         `json:"extents"`            // min and max, may be empty if speedtree sdk data failed to parse
+	SDKMaterials        []SpeedTreeMaterial  `json:"sdk_materials"`      // may be empty if speedtree sdk data failed to parse
+	VertexScriptName    string               `json:"vertex_script_name"` // may be empty if speedtree sdk data failed to parse
+	*VertexXML          `json:"vertex_xml"`  // may be empty if speedtree sdk data failed to parse
+	BillboardScriptName string               `json:"billboard_script_name"` // may be empty if speedtree sdk data failed to parse
+	BillboardXML        *VertexXML           `json:"billboard_xml"`         // may be empty if speedtree sdk data failed to parse
+	TextureScriptName   string               `json:"texture_script_name"`   // may be empty if speedtree sdk data failed to parse
+	*TextureXML         `json:"texture_xml"` // may be empty if speedtree sdk data failed to parse
 }
 
 var SDKParseError error = errors.New("failed to parse speedtree sdk data")
@@ -152,7 +189,7 @@ func readSDKTexture(r io.ReadSeeker) (*SpeedTreeTexture, error) {
 		return nil, err
 	}
 
-	var tint [4]float32
+	tint := make([]float32, 4)
 	if _, err := r.Seek(base+int64(curr.Offsets[2]), io.SeekStart); err != nil {
 		return nil, err
 	}
@@ -162,7 +199,7 @@ func readSDKTexture(r io.ReadSeeker) (*SpeedTreeTexture, error) {
 
 	return &SpeedTreeTexture{
 		Used: used,
-		Name: string(nameData),
+		Name: string(nameData[:len(nameData)-1]),
 		Tint: tint,
 	}, nil
 }
@@ -232,7 +269,7 @@ func readSDKMaterial(r io.ReadSeeker) (*SpeedTreeMaterial, error) {
 		return nil, err
 	}
 	return &SpeedTreeMaterial{
-		Name:     string(nameData),
+		Name:     string(nameData[:len(nameData)-1]),
 		Index:    index,
 		Textures: textures,
 	}, nil
@@ -311,54 +348,54 @@ func LoadSpeedTree(r io.ReadSeeker) (*SpeedTreeInfo, error) {
 	}
 
 	if _, err := r.Seek(int64(header.SDKDataOffset), io.SeekStart); err != nil {
-		return speedTree, SDKParseError
+		return speedTree, fmt.Errorf("failed to seek to sdk data offset")
 	}
 
-	var magic [12]byte
+	magic := make([]byte, 12)
 	if err := binary.Read(r, binary.LittleEndian, magic); err != nil {
-		return speedTree, SDKParseError
+		return speedTree, fmt.Errorf("failed to read magic: %v", err)
 	}
 
 	base, err := r.Seek(0, io.SeekCurrent)
 	if err != nil {
-		return speedTree, SDKParseError
+		return speedTree, fmt.Errorf("failed to get base address")
 	}
 
 	if base%4 != 0 {
 		base, err = r.Seek(4-(base%4), io.SeekCurrent)
 	}
 	if err != nil {
-		return speedTree, SDKParseError
+		return speedTree, fmt.Errorf("failed to align to 4 bytes")
 	}
 
 	root, err := readSDKNode(r)
 	if err != nil {
-		return speedTree, SDKParseError
+		return speedTree, fmt.Errorf("failed to read sdk node: %v", err)
 	}
 
 	if root.Count < 28 {
-		return speedTree, SDKParseError
+		return speedTree, fmt.Errorf("sdk node not long enough")
 	}
 
 	if _, err := r.Seek(base+int64(root.Offsets[3]), io.SeekStart); err != nil {
-		return speedTree, SDKParseError
+		return speedTree, fmt.Errorf("failed to seek to extents offset")
 	}
 	speedTree.Extents = make([]mgl32.Vec3, 2)
 	if err := binary.Read(r, binary.LittleEndian, speedTree.Extents); err != nil {
-		return speedTree, SDKParseError
+		return speedTree, fmt.Errorf("failed to read extents")
 	}
 
 	if _, err := r.Seek(base+int64(root.Offsets[6]), io.SeekStart); err != nil {
-		return speedTree, SDKParseError
+		return speedTree, fmt.Errorf("failed to seek to materials offset")
 	}
 	materials, err := readSDKMaterials(r)
 	if err != nil {
-		return speedTree, SDKParseError
+		return speedTree, fmt.Errorf("failed to read sdk materials: %v", err)
 	}
 	speedTree.SDKMaterials = materials
 
 	if _, err := r.Seek(base+int64(root.Offsets[20]), io.SeekStart); err != nil {
-		return speedTree, SDKParseError
+		return speedTree, fmt.Errorf("failed to seek to vertex script name offset")
 	}
 	var size uint32
 	if err := binary.Read(r, binary.LittleEndian, &size); err != nil {
@@ -368,10 +405,10 @@ func LoadSpeedTree(r io.ReadSeeker) (*SpeedTreeInfo, error) {
 	if err := binary.Read(r, binary.LittleEndian, stringData); err != nil {
 		return nil, err
 	}
-	speedTree.VertexScriptName = string(stringData)
+	speedTree.VertexScriptName = string(stringData[:len(stringData)-1])
 
 	if _, err := r.Seek(base+int64(root.Offsets[21]), io.SeekStart); err != nil {
-		return speedTree, SDKParseError
+		return speedTree, fmt.Errorf("failed to seek to vertex xml offset")
 	}
 	if err := binary.Read(r, binary.LittleEndian, &size); err != nil {
 		return nil, err
@@ -380,10 +417,16 @@ func LoadSpeedTree(r io.ReadSeeker) (*SpeedTreeInfo, error) {
 	if err := binary.Read(r, binary.LittleEndian, stringData); err != nil {
 		return nil, err
 	}
-	speedTree.VertexXML = string(stringData)
+	{
+		result := VertexXML{}
+		err = xml.Unmarshal(stringData, &result)
+		if err == nil {
+			speedTree.VertexXML = &result
+		}
+	}
 
 	if _, err := r.Seek(base+int64(root.Offsets[23]), io.SeekStart); err != nil {
-		return speedTree, SDKParseError
+		return speedTree, fmt.Errorf("failed to seek to billboard script name offset")
 	}
 	if err := binary.Read(r, binary.LittleEndian, &size); err != nil {
 		return nil, err
@@ -392,10 +435,10 @@ func LoadSpeedTree(r io.ReadSeeker) (*SpeedTreeInfo, error) {
 	if err := binary.Read(r, binary.LittleEndian, stringData); err != nil {
 		return nil, err
 	}
-	speedTree.BillboardScriptName = string(stringData)
+	speedTree.BillboardScriptName = string(stringData[:len(stringData)-1])
 
 	if _, err := r.Seek(base+int64(root.Offsets[24]), io.SeekStart); err != nil {
-		return speedTree, SDKParseError
+		return speedTree, fmt.Errorf("failed to seek to billboard xml offset")
 	}
 	if err := binary.Read(r, binary.LittleEndian, &size); err != nil {
 		return nil, err
@@ -404,10 +447,16 @@ func LoadSpeedTree(r io.ReadSeeker) (*SpeedTreeInfo, error) {
 	if err := binary.Read(r, binary.LittleEndian, stringData); err != nil {
 		return nil, err
 	}
-	speedTree.BillboardXML = string(stringData)
+	{
+		result := VertexXML{}
+		err = xml.Unmarshal(stringData, &result)
+		if err == nil {
+			speedTree.BillboardXML = &result
+		}
+	}
 
 	if _, err := r.Seek(base+int64(root.Offsets[26]), io.SeekStart); err != nil {
-		return speedTree, SDKParseError
+		return speedTree, fmt.Errorf("failed to seek to texture script name offset")
 	}
 	if err := binary.Read(r, binary.LittleEndian, &size); err != nil {
 		return nil, err
@@ -416,10 +465,10 @@ func LoadSpeedTree(r io.ReadSeeker) (*SpeedTreeInfo, error) {
 	if err := binary.Read(r, binary.LittleEndian, stringData); err != nil {
 		return nil, err
 	}
-	speedTree.TextureScriptName = string(stringData)
+	speedTree.TextureScriptName = string(stringData[:len(stringData)-1])
 
 	if _, err := r.Seek(base+int64(root.Offsets[27]), io.SeekStart); err != nil {
-		return speedTree, SDKParseError
+		return speedTree, fmt.Errorf("failed to seek to texture xml offset")
 	}
 	if err := binary.Read(r, binary.LittleEndian, &size); err != nil {
 		return nil, err
@@ -428,7 +477,13 @@ func LoadSpeedTree(r io.ReadSeeker) (*SpeedTreeInfo, error) {
 	if err := binary.Read(r, binary.LittleEndian, stringData); err != nil {
 		return nil, err
 	}
-	speedTree.TextureXML = string(stringData)
+	{
+		result := TextureXML{}
+		err = xml.Unmarshal(stringData, &result)
+		if err == nil {
+			speedTree.TextureXML = &result
+		}
+	}
 
 	return speedTree, nil
 }
