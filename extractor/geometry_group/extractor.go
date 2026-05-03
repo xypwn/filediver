@@ -36,20 +36,7 @@ func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gl
 		return err
 	}
 
-	var doc *gltf.Document = gltfDoc
-	if doc == nil {
-		doc = gltf.NewDocument()
-		doc.Asset.Generator = "https://github.com/xypwn/filediver"
-		if ctx.BuildInfo() != nil {
-			doc.Scenes[0].Extras = map[string]any{"Helldivers 2 Version": ctx.BuildInfo().Version}
-		}
-		doc.Samplers = append(doc.Samplers, &gltf.Sampler{
-			MagFilter: gltf.MagLinear,
-			MinFilter: gltf.MinLinear,
-			WrapS:     gltf.WrapRepeat,
-			WrapT:     gltf.WrapRepeat,
-		})
-	}
+	doc := extractor.GetDocument(ctx, gltfDoc)
 
 	for unitHash, meshInfo := range geoGroup.MeshInfos {
 		unitId := stingray.NewFileID(unitHash, stingray.Sum("unit"))

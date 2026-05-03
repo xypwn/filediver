@@ -269,20 +269,7 @@ func ConvertOpts(ctx *extractor.Context, gltfDoc *gltf.Document) error {
 		return err
 	}
 
-	var doc *gltf.Document = gltfDoc
-	if doc == nil {
-		doc = gltf.NewDocument()
-		doc.Asset.Generator = "https://github.com/xypwn/filediver"
-		if ctx.BuildInfo() != nil {
-			doc.Scenes[0].Extras = map[string]any{"Helldivers 2 Version": ctx.BuildInfo().Version}
-		}
-		doc.Samplers = append(doc.Samplers, &gltf.Sampler{
-			MagFilter: gltf.MagLinear,
-			MinFilter: gltf.MinLinear,
-			WrapS:     gltf.WrapRepeat,
-			WrapT:     gltf.WrapRepeat,
-		})
-	}
+	doc := extractor.GetDocument(ctx, gltfDoc)
 
 	if _, err := AddPrefab(ctx, doc, imgOpts); err != nil {
 		return err
