@@ -581,7 +581,7 @@ func addPositionMinMax(doc *gltf.Document, transformMatrix mgl32.Mat4, min, max 
 	}
 }
 
-func transformVertices(buffer *gltf.Buffer, bufferOffset, stride, vertexOffset, vertexCount uint32, transformMatrix mgl32.Mat4) error {
+func TransformVertices(buffer *gltf.Buffer, bufferOffset, stride, vertexOffset, vertexCount uint32, transformMatrix mgl32.Mat4) error {
 	for vertex := vertexOffset; vertex < vertexCount; vertex += 1 {
 		var position mgl32.Vec3
 		if _, err := binary.Decode(buffer.Data[vertex*stride+bufferOffset:], binary.LittleEndian, &position); err != nil {
@@ -1029,7 +1029,7 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, me
 					bufferOffset := doc.Accessors[positionAccessor].ByteOffset + doc.BufferViews[vertexBuffer].ByteOffset
 					stride := doc.BufferViews[vertexBuffer].ByteStride
 					buffer := doc.Buffers[doc.BufferViews[vertexBuffer].Buffer]
-					err := transformVertices(buffer, bufferOffset, stride, vertexOffset, doc.Accessors[positionAccessor].Count, transformMatrix)
+					err := TransformVertices(buffer, bufferOffset, stride, vertexOffset, doc.Accessors[positionAccessor].Count, transformMatrix)
 					if err != nil {
 						return err
 					}
@@ -1061,13 +1061,13 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, me
 					invScaleZ := 1.0 / rotationMatrix.Col(2).Len()
 					rotationMatrix = rotationMatrix.Mul4(mgl32.Scale3D(invScaleX, invScaleY, invScaleZ))
 
-					err := transformVertices(buffer, bufferOffset, stride, vertexOffset, doc.Accessors[normalAccessor].Count, rotationMatrix)
+					err := TransformVertices(buffer, bufferOffset, stride, vertexOffset, doc.Accessors[normalAccessor].Count, rotationMatrix)
 					if err != nil {
 						return err
 					}
 
 					bufferOffset = doc.Accessors[tangentAccessor].ByteOffset + doc.BufferViews[vertexBuffer].ByteOffset
-					err = transformVertices(buffer, bufferOffset, stride, vertexOffset, doc.Accessors[tangentAccessor].Count, rotationMatrix)
+					err = TransformVertices(buffer, bufferOffset, stride, vertexOffset, doc.Accessors[tangentAccessor].Count, rotationMatrix)
 					if err != nil {
 						return err
 					}

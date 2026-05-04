@@ -260,8 +260,33 @@ func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gl
 		if err != nil {
 			return err
 		}
-		doc.Accessors[attr[gltf.POSITION]].Min = treeInfo.Extents[0][:]
-		doc.Accessors[attr[gltf.POSITION]].Max = treeInfo.Extents[1][:]
+		gltfMin := stingray.ToGLTFMatrix.Mul4x1(treeInfo.Extents[0].Vec4(1.0)).Vec3()
+		gltfMax := stingray.ToGLTFMatrix.Mul4x1(treeInfo.Extents[1].Vec4(1.0)).Vec3()
+		doc.Accessors[attr[gltf.POSITION]].Min = gltfMin[:]
+		doc.Accessors[attr[gltf.POSITION]].Max = gltfMax[:]
+
+		offset := doc.Accessors[attr[gltf.POSITION]].ByteOffset + doc.BufferViews[vertexBuffer].ByteOffset
+		stride := doc.BufferViews[vertexBuffer].ByteStride
+		buffer := doc.Buffers[doc.BufferViews[vertexBuffer].Buffer]
+		if err := geometry.TransformVertices(buffer, offset, stride, 0, doc.Accessors[attr[gltf.POSITION]].Count, stingray.ToGLTFMatrix); err != nil {
+			return err
+		}
+
+		normalsAttr, ok := attr[gltf.NORMAL]
+		if ok {
+			offset = doc.Accessors[normalsAttr].ByteOffset + doc.BufferViews[vertexBuffer].ByteOffset
+			if err := geometry.TransformVertices(buffer, offset, stride, 0, doc.Accessors[normalsAttr].Count, stingray.ToGLTFMatrix); err != nil {
+				return err
+			}
+		}
+
+		tangentsAttr, ok := attr[gltf.TANGENT]
+		if ok {
+			offset = doc.Accessors[tangentsAttr].ByteOffset + doc.BufferViews[vertexBuffer].ByteOffset
+			if err := geometry.TransformVertices(buffer, offset, stride, 0, doc.Accessors[tangentsAttr].Count, stingray.ToGLTFMatrix); err != nil {
+				return err
+			}
+		}
 		groupAttributes[idx] = attr
 	}
 

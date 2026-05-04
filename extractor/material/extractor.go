@@ -54,6 +54,29 @@ func postProcessReconstructNormalZ(img image.Image) (image.Image, error) {
 	}
 }
 
+// Adds back in the truncated Z component of a normal map and flips Y component.
+func postProcessReconstructNormalZFlipY(img image.Image) (image.Image, error) {
+	calcZ := func(x, y float64) float64 {
+		return math.Sqrt(-x*x - y*y + 1)
+	}
+	switch img := img.(type) {
+	case *image.NRGBA:
+		for iY := img.Rect.Min.Y; iY < img.Rect.Max.Y; iY++ {
+			for iX := img.Rect.Min.X; iX < img.Rect.Max.X; iX++ {
+				idx := img.PixOffset(iX, iY)
+				r, g := img.Pix[idx], img.Pix[idx+1]
+				x, y := (float64(r)/127.5)-1, (float64(g)/127.5)-1
+				z := calcZ(x, y)
+				img.Pix[idx+1] = 255 - g
+				img.Pix[idx+2] = uint8(math.Round((z + 1) * 127.5))
+			}
+		}
+		return img, nil
+	default:
+		return nil, errors.New("postProcessReconstructNormalZ: unsupported image type")
+	}
+}
+
 // Attempts to completely remove the influence of the alpha channel,
 // giving the whole image an opacity of 1.
 func postProcessToOpaque(img image.Image) (image.Image, error) {
@@ -450,6 +473,36 @@ func combineIlluminateOcclusionMetallicRoughness(narImg, dataImg image.Image) er
 	return nil
 }
 
+func postprocessSpeedtreeOcclusionMetallicRoughnessTransmission(tex2Img image.Image) (image.Image, error) {
+	tex2ImgNRGBA, ok := tex2Img.(*image.NRGBA)
+	if !ok {
+		return nil, fmt.Errorf("combineSpeedtreeOcclusionMetallicRoughnessTransmission: unsupported tex2 image type")
+	}
+
+	/**
+	 * tex2:
+	 *	R - subsurface (or specular? idk for sure)
+	 *	G - roughness
+	 *	B - ambient occlusion
+	 *	A - metallic
+	 */
+
+	for iY := tex2ImgNRGBA.Rect.Min.Y; iY < tex2ImgNRGBA.Rect.Max.Y; iY++ {
+		for iX := tex2ImgNRGBA.Rect.Min.X; iX < tex2ImgNRGBA.Rect.Max.X; iX++ {
+			idx := tex2ImgNRGBA.PixOffset(iX, iY)
+			//transmission := tex2ImgNRGBA.Pix[idx]
+			roughness := tex2ImgNRGBA.Pix[idx+1]
+			ao := tex2ImgNRGBA.Pix[idx+2]
+			metallic := tex2ImgNRGBA.Pix[idx+3]
+			tex2ImgNRGBA.Pix[idx] = ao
+			tex2ImgNRGBA.Pix[idx+1] = roughness
+			tex2ImgNRGBA.Pix[idx+2] = metallic
+			tex2ImgNRGBA.Pix[idx+3] = 255 // transmission
+		}
+	}
+	return tex2Img, nil
+}
+
 func combineTankOcclusionMetallicRoughness(narImg, dataImg image.Image) error {
 	narToDataX := float32(dataImg.Bounds().Size().X) / float32(narImg.Bounds().Size().X)
 	narToDataY := float32(dataImg.Bounds().Size().Y) / float32(narImg.Bounds().Size().Y)
@@ -713,6 +766,8 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 			continue
 		}
 		switch texUsageStr {
+		case "tex0":
+			fallthrough
 		case "color_roughness":
 			fallthrough
 		case "color_specular_b":
@@ -955,6 +1010,31 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 			}
 			usedTextures[texUsageStr] = index
 			normalPostProcess = postProcessReconstructNormalZ
+		case "tex1":
+			hash := mat.Textures[texUsage]
+			index, err := writeTexture(ctx, doc, hash, postProcessReconstructNormalZFlipY, imgOpts, "")
+			if err != nil {
+				ctx.Warnf("writeTexture: %v: %v", ctx.LookupThinHash(texUsage), err)
+				continue
+			}
+			normalTexture = &gltf.NormalTexture{
+				Index: gltf.Index(index),
+			}
+			usedTextures[texUsageStr] = index
+		case "tex2":
+			hash := mat.Textures[texUsage]
+			index, err := writeTexture(ctx, doc, hash, postprocessSpeedtreeOcclusionMetallicRoughnessTransmission, imgOpts, "")
+			if err != nil {
+				ctx.Warnf("writeTexture: %v: %v", ctx.LookupThinHash(texUsage), err)
+				continue
+			}
+			metallicRoughnessTexture = &gltf.TextureInfo{
+				Index: index,
+			}
+			occlusionTexture = &gltf.OcclusionTexture{
+				Index: gltf.Index(index),
+			}
+			usedTextures[texUsageStr] = index
 		case "NAR", "normal_xy_ao_rough_map", "nar":
 			hash := mat.Textures[texUsage]
 			index, err := writeTexture(ctx, doc, hash, postProcessReconstructNormalZ, imgOpts, "")
@@ -1283,7 +1363,8 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 	if len(mat.Settings) != 0 {
 		opacity_threshold, ok := mat.Settings[stingray.Sum("opacity_threshold").Thin()]
 		_, hasClipMap := mat.Textures[stingray.Sum("opacity_clip_map").Thin()]
-		if ok && hasClipMap && opacity_threshold[0] > 0 {
+		_, isTreeMaterial := mat.Textures[stingray.Sum("tex0").Thin()]
+		if ok && (hasClipMap || isTreeMaterial) && opacity_threshold[0] > 0 {
 			alphaCutoff = opacity_threshold[0]
 			alphaMode = gltf.AlphaMask
 			doubleSided = true
