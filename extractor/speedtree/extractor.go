@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/qmuntal/gltf"
 	"github.com/xypwn/filediver/extractor"
@@ -220,8 +221,13 @@ func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gl
 		if err != nil {
 			return err
 		}
+		matPath := ctx.LookupHash(mat.Path)
+		if strings.Contains(matPath, "/") {
+			split := strings.Split(matPath, "/")
+			matPath = strings.Join(split[len(split)-2:], "/")
+		}
 
-		matIdx, err := extr_material.AddMaterial(ctx, matInfo, doc, imgOpts, treeInfo.SDKMaterials[mat.Index].Name+fmt.Sprintf(" %v", ctx.LookupHash(mat.Path)), nil)
+		matIdx, err := extr_material.AddMaterial(ctx, matInfo, doc, imgOpts, treeInfo.SDKMaterials[mat.Index].Name+fmt.Sprintf(" %v", matPath), nil)
 		if err != nil {
 			return err
 		}
@@ -290,8 +296,13 @@ func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gl
 		groupAttributes[idx] = attr
 	}
 
+	treePath := ctx.LookupHash(ctx.FileID().Name)
+	if strings.Contains(treePath, "/") {
+		split := strings.Split(treePath, "/")
+		treePath = strings.Join(split[len(split)-2:], "/")
+	}
 	doc.Nodes = append(doc.Nodes, &gltf.Node{
-		Name: ctx.LookupHash(ctx.FileID().Name) + ".speedtree",
+		Name: treePath + ".speedtree",
 	})
 	parent := uint32(len(doc.Nodes) - 1)
 	doc.Scenes[0].Nodes = append(doc.Scenes[0].Nodes, parent)
