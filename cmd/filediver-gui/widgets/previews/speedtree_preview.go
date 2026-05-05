@@ -29,8 +29,9 @@ type speedtreeMaterial struct {
 	texAlbedoOpacity uint32
 	texNormalRG      uint32
 
-	indexOffset int32
-	indexCount  int32
+	indexOffset      int32
+	indexCount       int32
+	opacityThreshold float32
 }
 
 type speedtreePreviewObject struct {
@@ -108,8 +109,6 @@ type SpeedtreePreviewState struct {
 	object                  speedtreePreviewObject
 	treeProgram             uint32
 	treeUniforms            speedtreePreviewUniforms
-	grassProgram            uint32
-	grassUniforms           speedtreePreviewUniforms
 	objectWireframeProgram  uint32
 	objectWireframeUniforms speedtreePreviewUniforms
 
@@ -174,24 +173,15 @@ func NewSpeedtreePreview() (*SpeedtreePreviewState, error) {
 	pv.object.genObjects()
 	pv.treeProgram, err = glutils.CreateProgramFromSources(unitPreviewShaderCode,
 		"shaders/speedtree.vert",
-		"shaders/object.frag",
+		"shaders/speedtree.frag",
 	)
 	if err != nil {
 		return nil, err
 	}
-	pv.treeUniforms.generate(pv.treeProgram, "mvp", "model", "normalMat", "viewPosition", "texAlbedo", "texNormal", "shouldReconstructNormalZ", "fibonacci_normal_lut")
-
-	pv.grassProgram, err = glutils.CreateProgramFromSources(unitPreviewShaderCode,
-		"shaders/speedtree_grass.vert",
-		"shaders/object.frag",
-	)
-	if err != nil {
-		return nil, err
-	}
-	pv.grassUniforms.generate(pv.grassProgram, "mvp", "model", "normalMat", "viewPosition", "texAlbedo", "texNormal", "shouldReconstructNormalZ", "fibonacci_normal_lut")
+	pv.treeUniforms.generate(pv.treeProgram, "mvp", "model", "normalMat", "viewPosition", "texAlbedo", "texNormal", "opacityThreshold", "fibonacci_normal_lut")
 
 	pv.objectWireframeProgram, err = glutils.CreateProgramFromSources(unitPreviewShaderCode,
-		"shaders/object_wireframe.vert",
+		"shaders/speedtree_wireframe.vert",
 		"shaders/object_wireframe.geom",
 		"shaders/object_wireframe.frag",
 	)
@@ -201,19 +191,19 @@ func NewSpeedtreePreview() (*SpeedtreePreviewState, error) {
 	pv.objectWireframeUniforms.generate(pv.objectWireframeProgram, "mvp", "color")
 
 	pv.objectNormalVisProgram, err = glutils.CreateProgramFromSources(unitPreviewShaderCode,
-		"shaders/object_normal_vis.vert",
+		"shaders/speedtree_normal_vis.vert",
 		"shaders/object_normal_vis.geom",
 		"shaders/object_normal_vis.frag",
 	)
 	if err != nil {
 		return nil, err
 	}
-	pv.objectNormalVisUniforms.generate(pv.objectNormalVisProgram, "mvp", "len", "showTangentBitangent")
+	pv.objectNormalVisUniforms.generate(pv.objectNormalVisProgram, "mvp", "len", "showTangentBitangent", "fibonacci_normal_lut")
 
 	pv.dbgObj.genObjects()
 	pv.dbgObjProgram, err = glutils.CreateProgramFromSources(unitPreviewShaderCode,
-		"shaders/debug_speedtree.vert",
-		"shaders/debug_speedtree.frag",
+		"shaders/debug_object.vert",
+		"shaders/debug_object.frag",
 	)
 	if err != nil {
 		return nil, err
@@ -235,7 +225,10 @@ func NewSpeedtreePreview() (*SpeedtreePreviewState, error) {
 	gl.Uniform1i(pv.treeUniforms["texAlbedo"], 0)
 	gl.Uniform1i(pv.treeUniforms["texNormal"], 1)
 	gl.Uniform1i(pv.treeUniforms["fibonacci_normal_lut"], 2)
-	gl.Uniform1i(pv.treeUniforms["shouldReconstructNormalZ"], 1)
+	gl.UseProgram(0)
+
+	gl.UseProgram(pv.objectNormalVisProgram)
+	gl.Uniform1i(pv.objectNormalVisUniforms["fibonacci_normal_lut"], 2)
 	gl.UseProgram(0)
 
 	pv.vfov = mgl32.DegToRad(60)
@@ -376,6 +369,25 @@ func (pv *SpeedtreePreviewState) LoadSpeedtree(fileID stingray.Hash, mainData, g
 		gl.BindVertexArray(0)
 	}
 
+	// upload debug object data
+	{
+		gl.BindVertexArray(pv.dbgObj.vao)
+
+		verts := pv.getAABBVertices()
+		gl.BindBuffer(gl.ARRAY_BUFFER, pv.dbgObj.vbo)
+		defer gl.BindBuffer(gl.ARRAY_BUFFER, 0)
+		gl.BufferData(gl.ARRAY_BUFFER, len(verts)*3*4, gl.Ptr(verts[:]), gl.STATIC_DRAW)
+
+		pv.dbgObj.numIndices = int32(len(aabbIndices))
+		pv.dbgObj.numVertices = int32(len(verts))
+		gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, int(pv.dbgObj.numIndices*4), gl.Ptr(aabbIndices[:]), gl.STATIC_DRAW)
+
+		gl.VertexAttribPointer(0, 3, gl.FLOAT, false, 3*4, nil)
+		gl.EnableVertexAttribArray(0)
+
+		gl.BindVertexArray(0)
+	}
+
 	uploadStingrayTexture := func(textureID uint32, fileName stingray.Hash) error {
 		file := stingray.FileID{Name: fileName, Type: stingray.Sum("texture")}
 		var texMain, texStream, texGPU []byte
@@ -432,6 +444,16 @@ func (pv *SpeedtreePreviewState) LoadSpeedtree(fileID stingray.Hash, mainData, g
 		return nil
 	}
 
+	setupTexture := func(textureID uint32) {
+		gl.BindTexture(gl.TEXTURE_2D, textureID)
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT)
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT)
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+		gl.PixelStorei(gl.UNPACK_ROW_LENGTH, 0)
+		gl.BindTexture(gl.TEXTURE_2D, 0)
+	}
+
 	getTextureSlotPath := func(mat *material.Material, targetSlot stingray.ThinHash) stingray.Hash {
 		for texSlot, path := range mat.Textures {
 			if texSlot == targetSlot {
@@ -475,6 +497,14 @@ func (pv *SpeedtreePreviewState) LoadSpeedtree(fileID stingray.Hash, mainData, g
 			if err != nil {
 				return fmt.Errorf("load material %v.material: %w", treeMaterial.Path, err)
 			}
+			opacityThreshold, ok := mat.Settings[stingray.Sum("opacity_threshold").Thin()]
+			if !ok {
+				opacityThreshold = []float32{0.5}
+			}
+			pv.object.materials[materialIndex].opacityThreshold = opacityThreshold[0]
+
+			setupTexture(pv.object.materials[materialIndex].texAlbedoOpacity)
+			setupTexture(pv.object.materials[materialIndex].texNormalRG)
 
 			albedoOpacityHash := getTextureSlotPath(mat, stingray.Sum("tex0").Thin())
 			if albedoOpacityHash.Value == 0x0 {
@@ -683,10 +713,10 @@ func SpeedtreePreview(name string, pv *SpeedtreePreviewState) {
 			} else {
 				gl.UniformMatrix4fv(pv.objectWireframeUniforms["mvp"], 1, false, &mvp[0])
 				gl.Uniform4fv(pv.objectWireframeUniforms["color"], 1, &pv.wireframeColor[0])
-				gl.Uniform1iv(pv.objectWireframeUniforms["udimShown"], 64, &pv.udimsShown[0])
 			}
 			for idx := range pv.object.materials {
 				if !pv.showWireframe {
+					gl.Uniform1f(pv.treeUniforms["opacityThreshold"], pv.object.materials[idx].opacityThreshold)
 					gl.ActiveTexture(gl.TEXTURE0)
 					gl.BindTexture(gl.TEXTURE_2D, pv.object.materials[idx].texAlbedoOpacity)
 					gl.ActiveTexture(gl.TEXTURE1)
@@ -706,11 +736,12 @@ func SpeedtreePreview(name string, pv *SpeedtreePreviewState) {
 			if pv.visualizeNormals {
 				gl.UseProgram(pv.objectNormalVisProgram)
 				gl.BindVertexArray(pv.object.vao)
+				gl.ActiveTexture(gl.TEXTURE2)
+				gl.BindTexture(gl.TEXTURE_2D, pv.object.lutFibonacci)
 				gl.UniformMatrix4fv(pv.objectNormalVisUniforms["mvp"], 1, false, &mvp[0])
 				gl.Uniform1f(pv.objectNormalVisUniforms["len"], pv.viewDistance*0.02)
 				gl.Uniform1iv(pv.objectNormalVisUniforms["showTangentBitangent"], 1, &pv.visualizeTangentBitangent)
-				gl.Uniform1iv(pv.objectNormalVisUniforms["udimShown"], 64, &pv.udimsShown[0])
-				gl.DrawElements(gl.POINTS, pv.object.numIndices, gl.UNSIGNED_INT, nil) // TODO: Make this not draw duplicate vertices
+				gl.DrawElements(gl.POINTS, pv.object.numIndices, pv.object.indexType, nil) // TODO: Make this not draw duplicate vertices
 				gl.BindVertexArray(0)
 				gl.UseProgram(0)
 			}
