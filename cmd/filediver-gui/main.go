@@ -556,6 +556,7 @@ func (a *guiApp) drawBrowserWindow() {
 								stingray.Sum("wwise_bank"),
 								stingray.Sum("wwise_stream"),
 								stingray.Sum("unit"),
+								stingray.Sum("speedtree"),
 								stingray.Sum("strings"):
 								sectionIdx = 0
 							default:

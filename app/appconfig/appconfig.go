@@ -114,6 +114,7 @@ var Extractable = map[string]bool{
 	"material":       true,
 	"texture":        true,
 	"unit":           true,
+	"speedtree":      true,
 	"geometry_group": true,
 	"prefab":         true,
 	"level":          true,
