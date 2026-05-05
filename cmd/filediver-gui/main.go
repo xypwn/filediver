@@ -45,6 +45,7 @@ var (
 		stingray.Sum("wwise_stream"):   "loose audio",
 		stingray.Sum("texture"):        "image/texture",
 		stingray.Sum("unit"):           "3D model",
+		stingray.Sum("speedtree"):      "3D model for vegetation",
 		stingray.Sum("strings"):        "text table",
 		stingray.Sum("package"):        "file bundle",
 		stingray.Sum("bones"):          "unit bones",
