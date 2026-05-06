@@ -59,7 +59,7 @@ func ExtractPrefabJSON(ctx *extractor.Context) error {
 	for _, unit := range prefabData.Units {
 		units = append(units, SimpleUnit{
 			UnkHash0:    ctx.LookupHash(stingray.Hash{Value: unit.Unk00}),
-			Path:        ctx.LookupHash(unit.Path),
+			Path:        ctx.LookupHash(unit.Path()),
 			UnkHash1:    ctx.LookupHash(stingray.Hash{Value: unit.Unk01}),
 			UnkHash2:    ctx.LookupHash(stingray.Hash{Value: unit.Unk02}),
 			Transform:   unit.Transform,
@@ -233,9 +233,9 @@ func AddPrefab(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_materia
 	for idx, object := range prefabData.Units {
 		if ctx.FileID() == ctx.RootFileID() {
 			percentComplete := 100 * float32(idx+1) / float32(len(prefabData.Units)+len(prefabData.NestedPrefabs))
-			ctx.Statusf("%.2f%% - %v.unit", percentComplete, ctx.LookupHash(object.Path))
+			ctx.Statusf("%.2f%% - %v.unit", percentComplete, ctx.LookupHash(object.Path()))
 		}
-		unitId := stingray.NewFileID(object.Unit(), stingray.Sum("unit"))
+		unitId := stingray.NewFileID(object.Path(), stingray.Sum("unit"))
 		err := AddOrDuplicateModel(ctx.WithFileID(unitId), doc, imgOpts, &object, prefabRoot)
 		if err != nil {
 			return 0, err

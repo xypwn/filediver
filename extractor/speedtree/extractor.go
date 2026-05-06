@@ -330,6 +330,9 @@ func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gl
 	doc.Scenes[0].Nodes = append(doc.Scenes[0].Nodes, parent)
 	indexDefToAccessor := make(map[int]*gltf.Accessor)
 	for idx, indexDef := range treeInfo.IndexDefinitions {
+		if idx > 0 && !cfg.Model.IncludeLODS {
+			continue
+		}
 		layout := unit.MeshLayout{
 			IndicesSize: indexDef.Count * indexDef.Stride,
 			IndexOffset: indexDef.Offset,

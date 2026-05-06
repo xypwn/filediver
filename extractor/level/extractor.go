@@ -184,7 +184,7 @@ func ExtractLevelJSON(ctx *extractor.Context) error {
 			})
 		}
 		speedtrees = append(speedtrees, SimpleSpeedtree{
-			Path:                ctx.LookupHash(speedtree.Path),
+			Path:                ctx.LookupHash(speedtree.Path()),
 			Layers:              layers,
 			SpeedtreeTransforms: transforms,
 		})
@@ -210,7 +210,7 @@ func ExtractLevelJSON(ctx *extractor.Context) error {
 		units = append(units, SimpleUnit{
 			UnkHash00: ctx.LookupHash(unit.UnkHash00),
 			UnkHash01: ctx.LookupHash(unit.UnkHash01),
-			Path:      ctx.LookupHash(unit.Path),
+			Path:      ctx.LookupHash(unit.Path()),
 			Transform: unit.Transform,
 			UnkFloats: unit.UnkFloats,
 		})
@@ -359,6 +359,11 @@ func ExtractLevelJSON(ctx *extractor.Context) error {
 	return nil
 }
 
+type SpeedtreeTransformed struct {
+	level.Speedtree
+	stingray.Transform
+}
+
 func GetLevelExtrasID(fileId stingray.FileID) string {
 	return fileId.Name.String() + ".level"
 }
@@ -403,9 +408,10 @@ func ConvertOpts(ctx *extractor.Context, gltfDoc *gltf.Document) error {
 	}
 	doc.Extras = extras
 
+	totalObjectCount := float32(len(levelData.Units) + len(levelData.Prefabs) + len(levelData.Speedtrees))
 	for idx, prefab := range levelData.Prefabs {
 		if ctx.FileID() == ctx.RootFileID() {
-			percentComplete := 100 * float32(idx+1) / float32(len(levelData.Units)+len(levelData.Prefabs))
+			percentComplete := 100 * float32(idx+1) / totalObjectCount
 			ctx.Statusf("%.2f%% - %v.prefab", percentComplete, ctx.LookupHash(prefab.Path))
 		}
 		prefabId := stingray.NewFileID(prefab.Path, stingray.Sum("prefab"))
@@ -446,13 +452,35 @@ func ConvertOpts(ctx *extractor.Context, gltfDoc *gltf.Document) error {
 
 	for idx, unit := range levelData.Units {
 		if ctx.FileID() == ctx.RootFileID() {
-			percentComplete := 100 * float32(idx+1+len(levelData.Prefabs)) / float32(len(levelData.Units)+len(levelData.Prefabs))
-			ctx.Statusf("%.2f%% - %v.unit", percentComplete, ctx.LookupHash(unit.Path))
+			percentComplete := 100 * float32(idx+1+len(levelData.Prefabs)) / totalObjectCount
+			ctx.Statusf("%.2f%% - %v.unit", percentComplete, ctx.LookupHash(unit.Path()))
 		}
-		unitId := stingray.NewFileID(unit.Path, stingray.Sum("unit"))
+		unitId := stingray.NewFileID(unit.Path(), stingray.Sum("unit"))
 		err := extr_prefab.AddOrDuplicateModel(ctx.WithFileID(unitId), doc, imgOpts, &unit, levelIdx)
 		if err != nil {
 			return err
+		}
+	}
+
+	for idx, speedtree := range levelData.Speedtrees {
+		if ctx.FileID() == ctx.RootFileID() {
+			percentComplete := 100 * float32(idx+1+len(levelData.Prefabs)+len(levelData.Units)) / totalObjectCount
+			ctx.Statusf("%.2f%% - %v.speedtree", percentComplete, ctx.LookupHash(speedtree.Path()))
+		}
+		speedtreeId := stingray.NewFileID(speedtree.Path(), stingray.Sum("speedtree"))
+		for _, transform := range speedtree.Transforms {
+			speedtreeTransformed := SpeedtreeTransformed{
+				Speedtree: speedtree,
+				Transform: stingray.Transform{
+					PositionVec: transform.Position.Vec3(),
+					RotationVec: transform.MinRotation,
+					ScaleVec:    mgl32.Vec3{1, 1, 1},
+				},
+			}
+			err := extr_prefab.AddOrDuplicateModel(ctx.WithFileID(speedtreeId), doc, imgOpts, &speedtreeTransformed, levelIdx)
+			if err != nil {
+				return err
+			}
 		}
 	}
 

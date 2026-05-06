@@ -12,14 +12,14 @@ import (
 type Unit struct {
 	UnkHash00 stingray.Hash
 	UnkHash01 stingray.Hash
-	Path      stingray.Hash
-	_         [8]uint8
+	stingray.Hash
+	_ [8]uint8
 	stingray.Transform
 	UnkFloats [6]float32 // Maybe a bounding box?
 }
 
-func (p *Unit) Unit() stingray.Hash {
-	return p.Path
+func (p *Unit) Path() stingray.Hash {
+	return p.Hash
 }
 
 type Prefab struct {
@@ -42,9 +42,13 @@ type SpeedtreeLayer struct {
 }
 
 type Speedtree struct {
-	Path       stingray.Hash
+	stingray.Hash
 	Layers     []SpeedtreeLayer
 	Transforms []SpeedtreeTransform
+}
+
+func (s *Speedtree) Path() stingray.Hash {
+	return s.Hash
 }
 
 type MaterialSlotOverrides struct {
@@ -463,7 +467,7 @@ func LoadLevel(r io.ReadSeeker) (*Level, error) {
 			}
 
 			speedtrees = append(speedtrees, Speedtree{
-				Path:       path,
+				Hash:       path,
 				Layers:     layers,
 				Transforms: transforms,
 			})

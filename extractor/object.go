@@ -6,7 +6,7 @@ import (
 )
 
 type Object interface {
-	Unit() stingray.Hash
+	Path() stingray.Hash
 	Position() mgl32.Vec3
 	SetPosition(mgl32.Vec3)
 	Rotation() mgl32.Vec4
