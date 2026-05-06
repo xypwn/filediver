@@ -29,6 +29,24 @@ type Prefab struct {
 	UnkExtraRotation mgl32.Vec4
 }
 
+type SpeedtreeTransform struct {
+	Position    mgl32.Vec4
+	MinRotation mgl32.Vec4 // not sure if this is actually a range of rotations or what, maybe its a max wind deflection or something?
+	MaxRotation mgl32.Vec4
+}
+
+type SpeedtreeLayer struct {
+	Name     stingray.ThinHash
+	UnkInt00 uint32
+	UnkInt01 uint32
+}
+
+type Speedtree struct {
+	Path       stingray.Hash
+	Layers     []SpeedtreeLayer
+	Transforms []SpeedtreeTransform
+}
+
 type MaterialSlotOverrides struct {
 	Index     uint32 // Index into unit array?
 	Materials []Material
@@ -217,7 +235,8 @@ type rawLevel struct {
 	UnkOffsets03                   [5]uint32
 	MaterialOffset                 uint32
 	UnkThinHashesOffset            uint32
-	UnkOffsets04                   [3]uint32
+	SpeedtreesOffset               uint32
+	UnkOffsets04                   [2]uint32
 	UnkIntListOffset               uint32
 	UnkOffsets05                   [9]uint32
 	Name                           stingray.Hash
@@ -230,6 +249,7 @@ type Level struct {
 	Prefabs                []Prefab
 	MaterialOverrides      []MaterialSlotOverrides
 	Units                  []Unit
+	Speedtrees             []Speedtree
 	UnkTransformedItems    []UnknownTransformedItem
 	UnkExtraUnitContainers []ExtraUnitsContainer
 	UnitHashIndexRange     []HashIndexRange
@@ -407,6 +427,49 @@ func LoadLevel(r io.ReadSeeker) (*Level, error) {
 		return nil, fmt.Errorf("read prefabs: %v", err)
 	}
 
+	speedtrees := make([]Speedtree, 0)
+	if raw.SpeedtreesOffset != 0 {
+		if _, err := r.Seek(int64(raw.SpeedtreesOffset), io.SeekStart); err != nil {
+			return nil, fmt.Errorf("seek speedtree offset: %v", err)
+		}
+
+		var speedtreeCount uint32
+		if err := binary.Read(r, binary.LittleEndian, &speedtreeCount); err != nil {
+			return nil, fmt.Errorf("read speedtree count: %v", err)
+		}
+
+		for range speedtreeCount {
+			var path stingray.Hash
+			if err := binary.Read(r, binary.LittleEndian, &path); err != nil {
+				return nil, fmt.Errorf("read speedtree path: %v", err)
+			}
+
+			var layersCount uint32
+			if err := binary.Read(r, binary.LittleEndian, &layersCount); err != nil {
+				return nil, fmt.Errorf("read speedtree: %v", err)
+			}
+			layers := make([]SpeedtreeLayer, layersCount)
+			if err := binary.Read(r, binary.LittleEndian, layers); err != nil {
+				return nil, fmt.Errorf("read speedtree: %v", err)
+			}
+
+			var transformCount uint32
+			if err := binary.Read(r, binary.LittleEndian, &transformCount); err != nil {
+				return nil, fmt.Errorf("read speedtree: %v", err)
+			}
+			transforms := make([]SpeedtreeTransform, transformCount)
+			if err := binary.Read(r, binary.LittleEndian, transforms); err != nil {
+				return nil, fmt.Errorf("read speedtree transforms: %v", err)
+			}
+
+			speedtrees = append(speedtrees, Speedtree{
+				Path:       path,
+				Layers:     layers,
+				Transforms: transforms,
+			})
+		}
+	}
+
 	materialOverrides := make([]MaterialSlotOverrides, 0)
 	if raw.MaterialOffset != 0 {
 		if _, err := r.Seek(int64(raw.MaterialOffset), io.SeekStart); err != nil {
@@ -552,6 +615,7 @@ func LoadLevel(r io.ReadSeeker) (*Level, error) {
 		Prefabs:                prefabs,
 		MaterialOverrides:      materialOverrides,
 		Units:                  units,
+		Speedtrees:             speedtrees,
 		UnkTransformedItems:    unkTransformedItems,
 		UnkExtraUnitContainers: extraUnitsContainers,
 		UnitHashIndexRange:     unitHashIndexRangeList,
