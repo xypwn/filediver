@@ -11,6 +11,7 @@ import (
 	"github.com/xypwn/filediver/extractor"
 	"github.com/xypwn/filediver/extractor/blend_helper"
 	extr_material "github.com/xypwn/filediver/extractor/material"
+	extr_speedtree "github.com/xypwn/filediver/extractor/speedtree"
 	extr_unit "github.com/xypwn/filediver/extractor/unit"
 	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/stingray/prefab"
@@ -94,7 +95,7 @@ func ExtractPrefabJSON(ctx *extractor.Context) error {
 	return nil
 }
 
-func AddOrDuplicateUnit(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_material.ImageOptions, obj extractor.Object, parentNode uint32) error {
+func AddOrDuplicateModel(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_material.ImageOptions, obj extractor.Object, parentNode uint32) error {
 	if ctxErr := ctx.Ctx().Err(); errors.Is(ctxErr, context.Canceled) {
 		return ctxErr
 	}
@@ -103,9 +104,27 @@ func AddOrDuplicateUnit(ctx *extractor.Context, doc *gltf.Document, imgOpts *ext
 		extras = make(map[string]any)
 	}
 
-	if _, contains := extras[extr_unit.GetUnitExtrasID(ctx.FileID())]; !contains {
-		// We have not already loaded this unit, load it now
-		err := extr_unit.ConvertOpts(ctx, imgOpts, doc)
+	var extrasId string
+	switch ctx.FileID().Type {
+	case stingray.Sum("unit"):
+		extrasId = extr_unit.GetUnitExtrasID(ctx.FileID())
+	case stingray.Sum("speedtree"):
+		extrasId = extr_speedtree.GetSpeedtreeExtrasID(ctx.FileID())
+	default:
+		return fmt.Errorf("prefab AddOrDuplicateModel: request for extrasId for %v", ctx.LookupHash(ctx.FileID().Type))
+	}
+	if _, contains := extras[extrasId]; !contains {
+		// We have not already loaded this model, load it now
+		var err error
+		switch ctx.FileID().Type {
+		case stingray.Sum("unit"):
+			err = extr_unit.ConvertOpts(ctx, imgOpts, doc)
+		case stingray.Sum("speedtree"):
+			err = extr_speedtree.ConvertOpts(ctx, imgOpts, doc)
+		default:
+			return fmt.Errorf("prefab AddOrDuplicateModel: trying to load %v filetype", ctx.LookupHash(ctx.FileID().Type))
+		}
+
 		if err != nil {
 			return err
 		}
@@ -114,17 +133,17 @@ func AddOrDuplicateUnit(ctx *extractor.Context, doc *gltf.Document, imgOpts *ext
 		if !ok {
 			return fmt.Errorf("could not resolve doc extras? (this should not happen)")
 		}
-		unitMetadataIface, ok := extras[extr_unit.GetUnitExtrasID(ctx.FileID())]
+		modelMetadataIface, ok := extras[extrasId]
 		if !ok {
-			return fmt.Errorf("could not resolve %s.unit gltf metadata? (this should not happen)", ctx.FileID().Name.String())
+			return fmt.Errorf("could not resolve %s.%s gltf metadata? (this should not happen)", ctx.FileID().Name.String(), ctx.LookupHash(ctx.FileID().Type))
 		}
-		unitMetadata, ok := unitMetadataIface.(map[string]any)
+		modelMetadata, ok := modelMetadataIface.(map[string]any)
 		if !ok {
-			return fmt.Errorf("could not cast %s.unit gltf metadata? (this should not happen)", ctx.FileID().Name.String())
+			return fmt.Errorf("could not cast %s.%s gltf metadata? (this should not happen)", ctx.FileID().Name.String(), ctx.LookupHash(ctx.FileID().Type))
 		}
-		root, ok := unitMetadata["root"].(uint32)
+		root, ok := modelMetadata["root"].(uint32)
 		if !ok {
-			return fmt.Errorf("%s.unit did not have a root set? (this should not happen)", ctx.FileID().Name.String())
+			return fmt.Errorf("%s.%s did not have a root set? (this should not happen)", ctx.FileID().Name.String(), ctx.LookupHash(ctx.FileID().Type))
 		}
 
 		translation, rotation, scale := obj.ToGLTF()
@@ -134,24 +153,24 @@ func AddOrDuplicateUnit(ctx *extractor.Context, doc *gltf.Document, imgOpts *ext
 
 		doc.Nodes[parentNode].Children = append(doc.Nodes[parentNode].Children, root)
 
-		unitMetadata["parent"] = parentNode
-		extras[extr_unit.GetUnitExtrasID(ctx.FileID())] = unitMetadata
+		modelMetadata["parent"] = parentNode
+		extras[extrasId] = modelMetadata
 		doc.Extras = extras
 	} else {
 		extras, ok := doc.Extras.(map[string]any)
 		if !ok {
-			return fmt.Errorf("could not resolve %s.unit gltf metadata? (this should not happen)", ctx.FileID().Name.String())
+			return fmt.Errorf("could not resolve %s.%s gltf metadata? (this should not happen)", ctx.FileID().Name.String(), ctx.LookupHash(ctx.FileID().Type))
 		}
-		unitMetadataIface, ok := extras[extr_unit.GetUnitExtrasID(ctx.FileID())]
+		modelMetadataIface, ok := extras[extrasId]
 		if !ok {
-			return fmt.Errorf("could not resolve %s.unit gltf metadata? (this should not happen)", ctx.FileID().Name.String())
+			return fmt.Errorf("could not resolve %s.%s gltf metadata? (this should not happen)", ctx.FileID().Name.String(), ctx.LookupHash(ctx.FileID().Type))
 		}
-		unitMetadata, ok := unitMetadataIface.(map[string]any)
+		modelMetadata, ok := modelMetadataIface.(map[string]any)
 		if !ok {
-			return fmt.Errorf("could not cast %s.unit gltf metadata? (this should not happen)", ctx.FileID().Name.String())
+			return fmt.Errorf("could not cast %s.%s gltf metadata? (this should not happen)", ctx.FileID().Name.String(), ctx.LookupHash(ctx.FileID().Type))
 		}
 		var instanceList []map[string]any
-		instanceListIface, contains := unitMetadata["filediver_instances"]
+		instanceListIface, contains := modelMetadata["filediver_instances"]
 		if !contains {
 			instanceList = make([]map[string]any, 0)
 		} else if instanceList, ok = instanceListIface.([]map[string]any); !ok {
@@ -165,8 +184,8 @@ func AddOrDuplicateUnit(ctx *extractor.Context, doc *gltf.Document, imgOpts *ext
 			"rotation":    rotation,
 			"scale":       scale,
 		})
-		unitMetadata["filediver_instances"] = instanceList
-		extras[extr_unit.GetUnitExtrasID(ctx.FileID())] = unitMetadata
+		modelMetadata["filediver_instances"] = instanceList
+		extras[extrasId] = modelMetadata
 		doc.Extras = extras
 	}
 	return nil
@@ -217,7 +236,7 @@ func AddPrefab(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_materia
 			ctx.Statusf("%.2f%% - %v.unit", percentComplete, ctx.LookupHash(object.Path))
 		}
 		unitId := stingray.NewFileID(object.Unit(), stingray.Sum("unit"))
-		err := AddOrDuplicateUnit(ctx.WithFileID(unitId), doc, imgOpts, &object, prefabRoot)
+		err := AddOrDuplicateModel(ctx.WithFileID(unitId), doc, imgOpts, &object, prefabRoot)
 		if err != nil {
 			return 0, err
 		}
@@ -269,20 +288,7 @@ func ConvertOpts(ctx *extractor.Context, gltfDoc *gltf.Document) error {
 		return err
 	}
 
-	var doc *gltf.Document = gltfDoc
-	if doc == nil {
-		doc = gltf.NewDocument()
-		doc.Asset.Generator = "https://github.com/xypwn/filediver"
-		if ctx.BuildInfo() != nil {
-			doc.Scenes[0].Extras = map[string]any{"Helldivers 2 Version": ctx.BuildInfo().Version}
-		}
-		doc.Samplers = append(doc.Samplers, &gltf.Sampler{
-			MagFilter: gltf.MagLinear,
-			MinFilter: gltf.MinLinear,
-			WrapS:     gltf.WrapRepeat,
-			WrapT:     gltf.WrapRepeat,
-		})
-	}
+	doc := extractor.GetDocument(ctx, gltfDoc)
 
 	if _, err := AddPrefab(ctx, doc, imgOpts); err != nil {
 		return err

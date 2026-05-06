@@ -45,6 +45,7 @@ var (
 		stingray.Sum("wwise_stream"):   "loose audio",
 		stingray.Sum("texture"):        "image/texture",
 		stingray.Sum("unit"):           "3D model",
+		stingray.Sum("speedtree"):      "3D model for vegetation",
 		stingray.Sum("strings"):        "text table",
 		stingray.Sum("package"):        "file bundle",
 		stingray.Sum("bones"):          "unit bones",
@@ -556,6 +557,7 @@ func (a *guiApp) drawBrowserWindow() {
 								stingray.Sum("wwise_bank"),
 								stingray.Sum("wwise_stream"),
 								stingray.Sum("unit"),
+								stingray.Sum("speedtree"),
 								stingray.Sum("strings"):
 								sectionIdx = 0
 							default:

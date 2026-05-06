@@ -220,7 +220,7 @@ var bc7Weight3 = []uint8{0, 9, 18, 27, 37, 46, 55, 64}
 var bc7Weight4 = []uint8{0, 4, 9, 13, 17, 21, 26, 30, 34,
 	38, 43, 47, 51, 55, 60, 64}
 
-type DecompressFunc func(buf []uint8, r io.Reader, width, height int, info Info) error
+type DecompressFunc func(buf []uint8, r io.Reader, width, height int, info Info) ([]uint8, error)
 
 func avgU8(xs ...uint8) uint8 {
 	var sum int
@@ -230,7 +230,7 @@ func avgU8(xs ...uint8) uint8 {
 	return uint8(sum / len(xs))
 }
 
-func DecompressUncompressed(buf []uint8, r io.Reader, width, height int, info Info) error {
+func DecompressUncompressed(buf []uint8, r io.Reader, width, height int, info Info) ([]uint8, error) {
 	bitMasks := [4]uint32{info.Header.PixelFormat.RBitMask, info.Header.PixelFormat.GBitMask, info.Header.PixelFormat.BBitMask, info.Header.PixelFormat.ABitMask}
 	var bitMaskTZs [4]int
 	for i := range bitMasks {
@@ -242,11 +242,11 @@ func DecompressUncompressed(buf []uint8, r io.Reader, width, height int, info In
 	}
 
 	if info.Header.PixelFormat.RGBBitCount%8 != 0 {
-		return fmt.Errorf("invalid RGB bit count: %v (must be multiple of 8)", info.Header.PixelFormat.RGBBitCount)
+		return nil, fmt.Errorf("invalid RGB bit count: %v (must be multiple of 8)", info.Header.PixelFormat.RGBBitCount)
 	}
 	byteCount := info.Header.PixelFormat.RGBBitCount / 8
 	if byteCount > 32 {
-		return fmt.Errorf("invalid RGB bit count: %v (must be at most 32)", byteCount)
+		return nil, fmt.Errorf("invalid RGB bit count: %v (must be at most 32)", byteCount)
 	}
 
 	for y := 0; y < height; y++ {
@@ -262,7 +262,7 @@ func DecompressUncompressed(buf []uint8, r io.Reader, width, height int, info In
 			case color.NRGBA64Model:
 				stride = 8
 			default:
-				return errors.New("uncompressed image: unexpected color model")
+				return nil, errors.New("uncompressed image: unexpected color model")
 			}
 			idx := stride * (y*width + x)
 
@@ -276,7 +276,7 @@ func DecompressUncompressed(buf []uint8, r io.Reader, width, height int, info In
 
 			var data [4]uint8
 			if _, err := io.ReadFull(r, data[:byteCount]); err != nil {
-				return err
+				return nil, err
 			}
 			dataU32 := binary.LittleEndian.Uint32(data[:])
 
@@ -304,7 +304,7 @@ func DecompressUncompressed(buf []uint8, r io.Reader, width, height int, info In
 					case 8:
 						v = uint8(c)
 					default:
-						return fmt.Errorf("unsupported number of bits: %v", bitMaskBits[i])
+						return nil, fmt.Errorf("unsupported number of bits: %v", bitMaskBits[i])
 					}
 					buf[idx+offs] = v
 					offs += 1
@@ -314,32 +314,34 @@ func DecompressUncompressed(buf []uint8, r io.Reader, width, height int, info In
 					case 16:
 						v = uint16(c)
 					default:
-						return fmt.Errorf("unsupported number of bits: %v", bitMaskBits[i])
+						return nil, fmt.Errorf("unsupported number of bits: %v", bitMaskBits[i])
 					}
 					binary.BigEndian.PutUint16(buf[idx+offs:], v)
 					offs += 2
 				} else {
-					return fmt.Errorf("unsupported number of bits: %v", bitMaskBits[i])
+					return nil, fmt.Errorf("unsupported number of bits: %v", bitMaskBits[i])
 				}
 				if offs > stride {
-					return fmt.Errorf("offset (%v) is larger than stride (%v)", offs, stride)
+					return nil, fmt.Errorf("offset (%v) is larger than stride (%v)", offs, stride)
 				}
 			}
 		}
 	}
-	return nil
+	return buf, nil
 }
 
-func DecompressUncompressedDXT10(buf []uint8, r io.Reader, width, height int, info Info) error {
+func DecompressUncompressedDXT10(buf []uint8, r io.Reader, width, height int, info Info) ([]uint8, error) {
 	if info.DXT10Header == nil {
-		return errors.New("uncompressed DXT 10: expected DXT10 header")
+		return nil, errors.New("uncompressed DXT 10: expected DXT10 header")
 	}
+	raw := make([]uint8, 0)
 	var translatePixel func(idx int) error
 	switch info.DXT10Header.DXGIFormat {
 	case DXGIFormatR32G32B32A32Float:
 		if info.ColorModel != color.NRGBA64Model {
-			return errors.New("expected NRGBA64 model for R32G32B32A32Float")
+			return nil, errors.New("expected NRGBA64 model for R32G32B32A32Float")
 		}
+
 		translatePixel = func(idx int) error {
 			for i := 0; i < 4; i++ {
 				var v float32
@@ -347,12 +349,17 @@ func DecompressUncompressedDXT10(buf []uint8, r io.Reader, width, height int, in
 					return err
 				}
 				binary.BigEndian.PutUint16(buf[idx+2*i:], uint16(v*0xffff))
+				var err error
+				raw, err = binary.Append(raw, binary.LittleEndian, v)
+				if err != nil {
+					return err
+				}
 			}
 			return nil
 		}
 	case DXGIFormatR16G16B16A16Float:
 		if info.ColorModel != color.NRGBA64Model {
-			return errors.New("expected NRGBA64 model for R16G16B16A16Float")
+			return nil, errors.New("expected NRGBA64 model for R16G16B16A16Float")
 		}
 		translatePixel = func(idx int) error {
 			for i := 0; i < 4; i++ {
@@ -361,37 +368,54 @@ func DecompressUncompressedDXT10(buf []uint8, r io.Reader, width, height int, in
 					return err
 				}
 				binary.BigEndian.PutUint16(buf[idx+2*i:], uint16(float16.Frombits(v).Float32()*0xffff))
+				var err error
+				raw, err = binary.Append(raw, binary.LittleEndian, v)
+				if err != nil {
+					return err
+				}
 			}
 			return nil
 		}
 	case DXGIFormatR32Float:
 		if info.ColorModel != color.Gray16Model {
-			return errors.New("expected Gray16 model for R32Float")
+			return nil, errors.New("expected Gray16 model for R32Float")
 		}
 		translatePixel = func(idx int) error {
 			var v float32
+			var err error
 			if err := binary.Read(r, binary.LittleEndian, &v); err != nil {
 				return err
 			}
 			binary.BigEndian.PutUint16(buf[idx:], uint16(v*0xffff))
-			return nil
+			raw, err = binary.Append(raw, binary.LittleEndian, v)
+			return err
 		}
 	case DXGIFormatR8G8B8A8UNorm:
 		if info.ColorModel != color.NRGBAModel {
-			return errors.New("expected NRGBA model for R8G8B8A8UNorm")
+			return nil, errors.New("expected NRGBA model for R8G8B8A8UNorm")
 		}
 		translatePixel = func(idx int) error {
 			if _, err := io.ReadFull(r, buf[idx:idx+4]); err != nil {
+				return err
+			}
+			var err error
+			raw, err = binary.Append(raw, binary.LittleEndian, buf[idx:idx+4])
+			if err != nil {
 				return err
 			}
 			return nil
 		}
 	case DXGIFormatB8G8R8A8UNorm:
 		if info.ColorModel != color.NRGBAModel {
-			return errors.New("expected NRGBA model for R8G8B8A8UNorm")
+			return nil, errors.New("expected NRGBA model for R8G8B8A8UNorm")
 		}
 		translatePixel = func(idx int) error {
 			if _, err := io.ReadFull(r, buf[idx:idx+4]); err != nil {
+				return err
+			}
+			var err error
+			raw, err = binary.Append(raw, binary.LittleEndian, buf[idx:idx+4])
+			if err != nil {
 				return err
 			}
 			buf[idx], buf[idx+2] = buf[idx+2], buf[idx]
@@ -399,7 +423,7 @@ func DecompressUncompressedDXT10(buf []uint8, r io.Reader, width, height int, in
 		}
 	case DXGIFormatR16UNorm:
 		if info.ColorModel != color.Gray16Model {
-			return errors.New("expected Gray16 model model for R16UNorm")
+			return nil, errors.New("expected Gray16 model model for R16UNorm")
 		}
 		translatePixel = func(idx int) error {
 			var v uint16
@@ -407,20 +431,30 @@ func DecompressUncompressedDXT10(buf []uint8, r io.Reader, width, height int, in
 				return err
 			}
 			binary.BigEndian.PutUint16(buf[idx:], v)
+			var err error
+			raw, err = binary.Append(raw, binary.LittleEndian, v)
+			if err != nil {
+				return err
+			}
 			return nil
 		}
 	case DXGIFormatR8UNorm:
 		if info.ColorModel != color.GrayModel {
-			return errors.New("expected Gray model model for R8UNorm")
+			return nil, errors.New("expected Gray model model for R8UNorm")
 		}
 		translatePixel = func(idx int) error {
 			if _, err := io.ReadFull(r, buf[idx:idx+1]); err != nil {
 				return err
 			}
+			var err error
+			raw, err = binary.Append(raw, binary.LittleEndian, buf[idx:idx+1])
+			if err != nil {
+				return err
+			}
 			return nil
 		}
 	default:
-		return fmt.Errorf("uncompressed image: unsupported DXGI format: %v", info.DXT10Header.DXGIFormat)
+		return nil, fmt.Errorf("uncompressed image: unsupported DXGI format: %v", info.DXT10Header.DXGIFormat)
 	}
 	var stride int
 	switch info.ColorModel {
@@ -433,17 +467,17 @@ func DecompressUncompressedDXT10(buf []uint8, r io.Reader, width, height int, in
 	case color.NRGBA64Model:
 		stride = 8
 	default:
-		return errors.New("uncompressed image: unexpected color model")
+		return nil, errors.New("uncompressed image: unexpected color model")
 	}
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
 			idx := stride * (y*width + x)
 			if err := translatePixel(idx); err != nil {
-				return err
+				return nil, err
 			}
 		}
 	}
-	return nil
+	return raw, nil
 }
 
 func calculateDXTColors(c0 uint16, c1 uint16, ignoreAlpha bool) (r [4]uint8, g [4]uint8, b [4]uint8, a [4]uint8) {
@@ -468,16 +502,23 @@ func calculateDXTColors(c0 uint16, c1 uint16, ignoreAlpha bool) (r [4]uint8, g [
 	return
 }
 
-func DecompressDXT1(buf []uint8, r io.Reader, width, height int, info Info) error {
+func DecompressDXT1(buf []uint8, r io.Reader, width, height int, info Info) ([]uint8, error) {
 	if info.ColorModel != color.NRGBAModel {
-		return errors.New("DXT1 compression expects NRGBA color model")
+		return nil, errors.New("DXT1 compression expects NRGBA color model")
 	}
 
+	raw := make([]uint8, 0)
 	for y := 0; y < height; y += 4 {
 		for x := 0; x < width; x += 4 {
 			var block [8]uint8
 			if _, err := io.ReadFull(r, block[:]); err != nil {
-				return err
+				return nil, err
+			}
+
+			var err error
+			raw, err = binary.Append(raw, binary.LittleEndian, block)
+			if err != nil {
+				return nil, err
 			}
 
 			c0 := binary.LittleEndian.Uint16(block[:2])
@@ -499,26 +540,34 @@ func DecompressDXT1(buf []uint8, r io.Reader, width, height int, info Info) erro
 					buf[idx+2] = cB[code]
 					buf[idx+3] = 255
 					if cA[code] != 0 {
-						return errors.New("expected alpha to be 0 in DXT 1 compressed image")
+						return nil, errors.New("expected alpha to be 0 in DXT 1 compressed image")
 					}
 				}
 			}
 		}
 	}
-	return nil
+	return raw, nil
 }
 
-func DecompressDXT5(buf []uint8, r io.Reader, width, height int, info Info) error {
+func DecompressDXT5(buf []uint8, r io.Reader, width, height int, info Info) ([]uint8, error) {
 	if info.ColorModel != color.NRGBAModel {
-		return errors.New("DXT5 compression expects NRGBA color model")
+		return nil, errors.New("DXT5 compression expects NRGBA color model")
 	}
 
+	raw := make([]uint8, 0)
 	for y := 0; y < height; y += 4 {
 		for x := 0; x < width; x += 4 {
 			var block [16]uint8
 			if _, err := io.ReadFull(r, block[:]); err != nil {
-				return err
+				return nil, err
 			}
+
+			var err error
+			raw, err = binary.Append(raw, binary.LittleEndian, block)
+			if err != nil {
+				return nil, err
+			}
+
 			a0, a1 := block[0], block[1]
 			alphaBits := uint64(binary.LittleEndian.Uint32(block[2:6]))
 			alphaBits |= uint64(binary.LittleEndian.Uint16(block[6:8])) << 32
@@ -559,7 +608,7 @@ func DecompressDXT5(buf []uint8, r io.Reader, width, height int, info Info) erro
 			}
 		}
 	}
-	return nil
+	return raw, nil
 }
 
 func decode3DcBlock(block []uint8) [8]uint8 {
@@ -616,16 +665,23 @@ func getBits(block []uint8, startBit *uint64, numBits uint8) uint8 {
 	return res
 }
 
-func Decompress3DcPlus(buf []uint8, r io.Reader, width, height int, info Info) error {
+func Decompress3DcPlus(buf []uint8, r io.Reader, width, height int, info Info) ([]uint8, error) {
 	if info.ColorModel != color.GrayModel {
-		return errors.New("3Dc+ compression expects gray color model")
+		return nil, errors.New("3Dc+ compression expects gray color model")
 	}
 
+	raw := make([]uint8, 0)
 	for y := 0; y < height; y += 4 {
 		for x := 0; x < width; x += 4 {
 			var block [8]uint8
 			if _, err := io.ReadFull(r, block[:]); err != nil {
-				return err
+				return nil, err
+			}
+
+			var err error
+			raw, err = binary.Append(raw, binary.LittleEndian, block)
+			if err != nil {
+				return nil, err
 			}
 
 			c := decode3DcBlock(block[:])
@@ -645,19 +701,26 @@ func Decompress3DcPlus(buf []uint8, r io.Reader, width, height int, info Info) e
 			}
 		}
 	}
-	return nil
+	return raw, nil
 }
 
-func Decompress3Dc(buf []uint8, r io.Reader, width, height int, info Info) error {
+func Decompress3Dc(buf []uint8, r io.Reader, width, height int, info Info) ([]uint8, error) {
 	if info.ColorModel != color.NRGBAModel {
-		return errors.New("3Dc compression expects NRGBA color model")
+		return nil, errors.New("3Dc compression expects NRGBA color model")
 	}
 
+	raw := make([]uint8, 0)
 	for y := 0; y < height; y += 4 {
 		for x := 0; x < width; x += 4 {
 			var block [16]uint8
 			if _, err := io.ReadFull(r, block[:]); err != nil {
-				return err
+				return nil, err
+			}
+
+			var err error
+			raw, err = binary.Append(raw, binary.LittleEndian, block)
+			if err != nil {
+				return nil, err
 			}
 
 			cR := decode3DcBlock(block[:8])
@@ -683,7 +746,7 @@ func Decompress3Dc(buf []uint8, r io.Reader, width, height int, info Info) error
 			}
 		}
 	}
-	return nil
+	return raw, nil
 }
 
 func readBC7Endpoints(block [16]uint8, mode uint64, startBit *uint64) (r [6]uint8, g [6]uint8, b [6]uint8, a [6]uint8) {
@@ -805,16 +868,23 @@ func isBC7PixelAnchorIndex(subsetIndex, numSubsets uint8, pixelIndex int, partit
 	return int(bc7AnchorIndexTable[tableIndex][partitionID]) == pixelIndex
 }
 
-func DecompressBC7(buf []uint8, r io.Reader, width, height int, info Info) error {
+func DecompressBC7(buf []uint8, r io.Reader, width, height int, info Info) ([]uint8, error) {
 	if info.ColorModel != color.NRGBAModel {
-		return errors.New("BC7 compression expects NRGBA color model")
+		return nil, errors.New("BC7 compression expects NRGBA color model")
 	}
 
+	raw := make([]uint8, 0)
 	for y := 0; y < height; y += 4 {
 		for x := 0; x < width; x += 4 {
 			var block [16]uint8
 			if _, err := io.ReadFull(r, block[:]); err != nil {
-				return err
+				return nil, err
+			}
+
+			var err error
+			raw, err = binary.Append(raw, binary.LittleEndian, block)
+			if err != nil {
+				return nil, err
 			}
 
 			startBit := uint64(0)
@@ -823,7 +893,7 @@ func DecompressBC7(buf []uint8, r io.Reader, width, height int, info Info) error
 			mode := startBit - 1
 
 			if mode > 7 {
-				return fmt.Errorf("invalid mode: %v", mode)
+				return nil, fmt.Errorf("invalid mode: %v", mode)
 			}
 
 			numSubsets := bc7ModeInfo[mode].NumSubsets
@@ -832,7 +902,7 @@ func DecompressBC7(buf []uint8, r io.Reader, width, height int, info Info) error
 			if mode == 0 || mode == 1 || mode == 2 || mode == 3 || mode == 7 {
 				partitionID = getBits(block[:], &startBit, bc7ModeInfo[mode].PartitionBits)
 				if partitionID > 63 {
-					return fmt.Errorf("invalid partition ID: %v", partitionID)
+					return nil, fmt.Errorf("invalid partition ID: %v", partitionID)
 				}
 			}
 
@@ -949,5 +1019,5 @@ func DecompressBC7(buf []uint8, r io.Reader, width, height int, info Info) error
 			}
 		}
 	}
-	return nil
+	return raw, nil
 }

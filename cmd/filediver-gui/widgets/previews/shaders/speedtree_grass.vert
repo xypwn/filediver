@@ -1,10 +1,8 @@
 #version 430 core
 
-layout(location = 0) in vec3 inPosition;
-layout(location = 1) in vec3 inNormal;
-layout(location = 2) in vec2 inUV;
-layout(location = 3) in vec3 inTangent;
-layout(location = 4) in vec3 inBitangent;
+layout(location = 0) in vec4 inPositionU;
+layout(location = 1) in vec4 grassOffsetAOV;
+layout(location = 2) in uvec4 packedNormalTangentWindParams;
 
 out vec3 fragPosition;
 out vec2 fragUV;
@@ -18,23 +16,23 @@ uniform mat4 mvp; // projection*view*model
 uniform mat4 model;
 uniform mat3 normalMat; // normal matrix = transpose(inverse(model))
 uniform vec3 viewPosition;
-uniform bool udimShown[64];
 
-bool isShown() {
-    int udim = int(inUV.x) | int(1-inUV.y)<<5;
-    return udim < 64 && udimShown[udim];
-}
+uniform sampler2D fibonacci_normal_lut;
 
 void main() {
-    if (!isShown()) return;
-    gl_Position = mvp * vec4(inPosition, 1.0);
-    fragPosition = vec3(model * vec4(inPosition, 1.0));
-    fragUV = inUV;
+    gl_Position = mvp * vec4(inPositionU.xyz, 1.0);
+    fragPosition = vec3(model * vec4(inPositionU.xyz, 1.0));
+    fragUV = vec2(inPositionU.w, grassOffsetAOV.w);
 
+    uvec2 topBitsNT = packedNormalTangentWindParams.xy >> uvec2(4, 4);
+    uvec2 lowBitsNT = packedNormalTangentWindParams.xy & uvec2(0xf, 0xf);
+    vec3 normal = texelFetch(fibonacci_normal_lut, ivec2(lowBitsNT.x, topBitsNT.x), 0).xyz;
+    vec3 tangent = texelFetch(fibonacci_normal_lut, ivec2(lowBitsNT.y, topBitsNT.y), 0).xyz;
+    vec3 bitangent = cross(normal, tangent);
     {
-        vec3 t = normalize(normalMat * inTangent);
-        vec3 n = normalize(normalMat * inNormal);
-        vec3 b = normalize(normalMat * inBitangent);
+        vec3 t = normalize(normalMat * tangent);
+        vec3 n = normalize(normalMat * normal);
+        vec3 b = normalize(normalMat * bitangent);
         //t = normalize(t - dot(t, n) * n);
         //vec3 b = cross(n, t);
 

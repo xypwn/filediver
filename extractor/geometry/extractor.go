@@ -38,6 +38,35 @@ type MaterialVariantMap struct {
 	MaterialHashToIndex map[stingray.ThinHash]uint32
 }
 
+var fibonacciLut [][]mgl32.Vec3
+
+func InitFibonacciLut(ctx *extractor.Context) error {
+	if fibonacciLut != nil {
+		return nil
+	}
+	r, err := ctx.Open(stingray.NewFileID(stingray.Sum("content/art_shared/textures/fibonacci_normal_lut"), stingray.Sum("texture")), stingray.DataGPU)
+	if err != nil {
+		return err
+	}
+	fibonacciLut = make([][]mgl32.Vec3, 0)
+	for range 16 {
+		row := make([]mgl32.Vec3, 0)
+		for range 16 {
+			var pixel mgl32.Vec4
+			if err := binary.Read(r, binary.LittleEndian, &pixel); err != nil {
+				return err
+			}
+			row = append(row, pixel.Vec3())
+		}
+		fibonacciLut = append(fibonacciLut, row)
+	}
+	return nil
+}
+
+func convertFibonacciNormal(value uint8) mgl32.Vec3 {
+	return fibonacciLut[value>>4][value&0xf]
+}
+
 func convertFloat16Slice(gpuR io.ReadSeeker, data []byte, tmpArr []uint16, extra uint32) ([]byte, uint32, error) {
 	var err error
 	if err = binary.Read(gpuR, binary.LittleEndian, &tmpArr); err != nil {
@@ -83,7 +112,7 @@ func calcTangent(normal mgl32.Vec4) mgl32.Vec4 {
 	return tangent.Vec4(normal.W())
 }
 
-func convertVertices(gpuR io.ReadSeeker, layout unit.MeshLayout) ([]byte, [][]AccessorInfo, error) {
+func ConvertVertices(gpuR io.ReadSeeker, layout unit.MeshLayout) ([]byte, [][]AccessorInfo, error) {
 	data := make([]byte, 0)
 	dataLen := len(data)
 	accessorStructure := make([][]AccessorInfo, 0, layout.NumItems)
@@ -93,6 +122,17 @@ func convertVertices(gpuR io.ReadSeeker, layout unit.MeshLayout) ([]byte, [][]Ac
 	for vertex := 0; vertex < int(layout.NumVertices); vertex += 1 {
 		for idx := 0; idx < int(layout.NumItems); idx += 1 {
 			item := layout.Items[idx]
+			if item.Type == unit.ItemIgnore {
+				_, err := gpuR.Seek(int64(item.Format.Size()), io.SeekCurrent)
+				if err != nil {
+					return nil, nil, err
+				}
+				if vertex == 0 {
+					accessorInfos := []AccessorInfo{}
+					accessorStructure = append(accessorStructure, accessorInfos)
+				}
+				continue
+			}
 			switch item.Format {
 			case unit.FormatVec4R10G10B10A2_TYPELESS:
 				var tmp uint32
@@ -180,6 +220,15 @@ func convertVertices(gpuR io.ReadSeeker, layout unit.MeshLayout) ([]byte, [][]Ac
 					tangent := calcTangent(mgl32.Vec4(tmpFloats))
 					data, err = binary.Append(data, binary.LittleEndian, tangent)
 				}
+				if item.Type == unit.ItemSpeedTreeNormalYZ {
+					normalX := data[len(data)-20 : len(data)-16]
+					normalYZ := data[len(data)-8:]
+					texcoords := data[len(data)-16 : len(data)-8]
+					data = data[:len(data)-20]
+					data = append(data, texcoords...)
+					data = append(data, normalX...)
+					data = append(data, normalYZ...)
+				}
 				if vertex == 0 {
 					accessorInfos := []AccessorInfo{{
 						AccessorType:  accessorType,
@@ -194,6 +243,14 @@ func convertVertices(gpuR io.ReadSeeker, layout unit.MeshLayout) ([]byte, [][]Ac
 							ComponentType: gltf.ComponentFloat,
 							Size:          16,
 						})
+					} else if item.Type == unit.ItemSpeedTreeNormalYZ {
+						accessorInfos[0].AccessorType = gltf.AccessorVec3
+						accessorInfos[0].Size = 12
+					} else if item.Type == unit.ItemSpeedTreeU {
+						accessorInfos[0].AccessorType = gltf.AccessorVec2
+						accessorInfos[0].Size = 8
+					} else if item.Type == unit.ItemSpeedTreeNormalX || item.Type == unit.ItemSpeedTreeV {
+						accessorInfos[0].Size = 0
 					}
 					accessorStructure = append(accessorStructure, accessorInfos)
 				}
@@ -245,6 +302,15 @@ func convertVertices(gpuR io.ReadSeeker, layout unit.MeshLayout) ([]byte, [][]Ac
 					tangent := calcTangent(mgl32.Vec4(tmpFloats))
 					data, err = binary.Append(data, binary.LittleEndian, tangent)
 				}
+				if (item.Type == unit.ItemNormal || item.Type == unit.ItemTangent) && item.Format == unit.FormatS8 {
+					// Fibonacci normals/tangents used by speed tree format
+					normal := convertFibonacciNormal(data[len(data)-1])
+					data = data[:len(data)-1]
+					data, _ = binary.Append(data, binary.LittleEndian, normal[:])
+					if item.Type == unit.ItemTangent {
+						data, _ = binary.Append(data, binary.LittleEndian, float32(1.0))
+					}
+				}
 				if vertex == 0 {
 					accessorInfos := []AccessorInfo{{
 						AccessorType:  item.Format.Type(),
@@ -259,6 +325,14 @@ func convertVertices(gpuR io.ReadSeeker, layout unit.MeshLayout) ([]byte, [][]Ac
 							ComponentType: gltf.ComponentFloat,
 							Size:          16,
 						})
+					} else if item.Type == unit.ItemNormal && item.Format == unit.FormatS8 {
+						accessorInfos[0].AccessorType = gltf.AccessorVec3
+						accessorInfos[0].ComponentType = gltf.ComponentFloat
+						accessorInfos[0].Size = 12
+					} else if item.Type == unit.ItemTangent && item.Format == unit.FormatS8 {
+						accessorInfos[0].AccessorType = gltf.AccessorVec4
+						accessorInfos[0].ComponentType = gltf.ComponentFloat
+						accessorInfos[0].Size = 16
 					}
 					accessorStructure = append(accessorStructure, accessorInfos)
 				}
@@ -345,7 +419,7 @@ func remapJoints(buffer *gltf.Buffer, stride, bufferOffset, vertexCount uint32, 
 	return nil
 }
 
-func addMeshLayoutVertexBuffer(doc *gltf.Document, data []byte, accessorInfo [][]AccessorInfo) (uint32, error) {
+func AddMeshLayoutVertexBuffer(doc *gltf.Document, data []byte, accessorInfo [][]AccessorInfo) (uint32, error) {
 	ensurePadding(doc)
 	buffer := lastBuffer(doc)
 	offset := uint32(len(buffer.Data))
@@ -370,12 +444,21 @@ func addMeshLayoutVertexBuffer(doc *gltf.Document, data []byte, accessorInfo [][
 	return uint32(len(doc.BufferViews) - 1), nil
 }
 
-func createAttributes(doc *gltf.Document, layout unit.MeshLayout, accessorInfo [][]AccessorInfo) map[string]*gltf.Accessor {
+func CreateAttributes(doc *gltf.Document, layout unit.MeshLayout, accessorInfo [][]AccessorInfo) map[string]*gltf.Accessor {
 	attributes := make(map[string]*gltf.Accessor)
 
 	var byteOffset uint32 = 0
 	for itemIdx := 0; itemIdx < int(layout.NumItems); itemIdx++ {
 		if layout.Items[itemIdx].Type == unit.ItemBoneIdx && layout.Items[itemIdx].Layer != 0 {
+			continue
+		}
+		if layout.Items[itemIdx].Type == unit.ItemSpeedTreeNormalX {
+			continue
+		}
+		if layout.Items[itemIdx].Type == unit.ItemSpeedTreeV {
+			continue
+		}
+		if layout.Items[itemIdx].Type == unit.ItemIgnore {
 			continue
 		}
 
@@ -396,10 +479,16 @@ func createAttributes(doc *gltf.Document, layout unit.MeshLayout, accessorInfo [
 		switch layout.Items[itemIdx].Type {
 		case unit.ItemPosition:
 			attributes[gltf.POSITION] = accessors[0]
+		case unit.ItemSpeedTreeNormalYZ:
+			attributes[gltf.NORMAL] = accessors[0]
 		case unit.ItemNormal:
 			attributes[gltf.NORMAL] = accessors[0]
-			attributes[gltf.TANGENT] = accessors[1]
-		case unit.ItemUVCoords:
+			if layout.Items[itemIdx].Format != unit.FormatS8 {
+				attributes[gltf.TANGENT] = accessors[1]
+			}
+		case unit.ItemTangent:
+			attributes[gltf.TANGENT] = accessors[0]
+		case unit.ItemUVCoords, unit.ItemSpeedTreeU:
 			attributes[fmt.Sprintf("TEXCOORD_%v", layout.Items[itemIdx].Layer)] = accessors[0]
 		case unit.ItemBoneIdx:
 			attributes[fmt.Sprintf("JOINTS_%v", layout.Items[itemIdx].Layer)] = accessors[0]
@@ -410,7 +499,7 @@ func createAttributes(doc *gltf.Document, layout unit.MeshLayout, accessorInfo [
 	return attributes
 }
 
-func loadMeshLayoutIndices(gpuR io.ReadSeeker, doc *gltf.Document, layout unit.MeshLayout) (*gltf.Accessor, error) {
+func LoadMeshLayoutIndices(gpuR io.ReadSeeker, doc *gltf.Document, layout unit.MeshLayout) (*gltf.Accessor, error) {
 	ensurePadding(doc)
 	buffer := lastBuffer(doc)
 	dataOffset := uint32(len(buffer.Data))
@@ -492,7 +581,7 @@ func addPositionMinMax(doc *gltf.Document, transformMatrix mgl32.Mat4, min, max 
 	}
 }
 
-func transformVertices(buffer *gltf.Buffer, bufferOffset, stride, vertexOffset, vertexCount uint32, transformMatrix mgl32.Mat4) error {
+func TransformVertices(buffer *gltf.Buffer, bufferOffset, stride, vertexOffset, vertexCount uint32, transformMatrix mgl32.Mat4) error {
 	for vertex := vertexOffset; vertex < vertexCount; vertex += 1 {
 		var position mgl32.Vec3
 		if _, err := binary.Decode(buffer.Data[vertex*stride+bufferOffset:], binary.LittleEndian, &position); err != nil {
@@ -506,7 +595,7 @@ func transformVertices(buffer *gltf.Buffer, bufferOffset, stride, vertexOffset, 
 	return nil
 }
 
-func addGroupAttributes(doc *gltf.Document, group unit.MeshGroup, groupLayoutAttributes map[string]*gltf.Accessor, vertexBuffer, maxIndex uint32) (gltf.Attribute, error) {
+func AddGroupAttributes(doc *gltf.Document, group unit.MeshGroup, groupLayoutAttributes map[string]*gltf.Accessor, vertexBuffer, maxIndex uint32) (gltf.Attribute, error) {
 	groupAttr := make(gltf.Attribute)
 	for key, layoutAttrAccessor := range groupLayoutAttributes {
 		doc.Accessors = append(doc.Accessors, &gltf.Accessor{
@@ -815,21 +904,21 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, me
 		vertexBuffer, contains := layoutToVertexBufferView[header.MeshLayoutIndex]
 		layout := meshLayouts[header.MeshLayoutIndex]
 		if !contains {
-			data, accessorInfo, err := convertVertices(gpuR, layout)
+			data, accessorInfo, err := ConvertVertices(gpuR, layout)
 			if err != nil {
 				return err
 			}
-			vertexBuffer, err = addMeshLayoutVertexBuffer(doc, data, accessorInfo)
+			vertexBuffer, err = AddMeshLayoutVertexBuffer(doc, data, accessorInfo)
 			if err != nil {
 				return err
 			}
 			layoutToVertexBufferView[header.MeshLayoutIndex] = vertexBuffer
-			layoutAttributes[header.MeshLayoutIndex] = createAttributes(doc, layout, accessorInfo)
+			layoutAttributes[header.MeshLayoutIndex] = CreateAttributes(doc, layout, accessorInfo)
 		}
 
 		indexAccessor, contains := layoutToIndexAccessor[header.MeshLayoutIndex]
 		if !contains {
-			indexAccessor, err = loadMeshLayoutIndices(gpuR, doc, layout)
+			indexAccessor, err = LoadMeshLayoutIndices(gpuR, doc, layout)
 			if err != nil {
 				return err
 			}
@@ -891,7 +980,7 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, me
 				return err
 			}
 
-			groupAttr, err := addGroupAttributes(doc, group, layoutAttributes[header.MeshLayoutIndex], vertexBuffer, maxIndex)
+			groupAttr, err := AddGroupAttributes(doc, group, layoutAttributes[header.MeshLayoutIndex], vertexBuffer, maxIndex)
 			if err != nil {
 				return err
 			}
@@ -940,7 +1029,7 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, me
 					bufferOffset := doc.Accessors[positionAccessor].ByteOffset + doc.BufferViews[vertexBuffer].ByteOffset
 					stride := doc.BufferViews[vertexBuffer].ByteStride
 					buffer := doc.Buffers[doc.BufferViews[vertexBuffer].Buffer]
-					err := transformVertices(buffer, bufferOffset, stride, vertexOffset, doc.Accessors[positionAccessor].Count, transformMatrix)
+					err := TransformVertices(buffer, bufferOffset, stride, vertexOffset, doc.Accessors[positionAccessor].Count, transformMatrix)
 					if err != nil {
 						return err
 					}
@@ -972,13 +1061,13 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, me
 					invScaleZ := 1.0 / rotationMatrix.Col(2).Len()
 					rotationMatrix = rotationMatrix.Mul4(mgl32.Scale3D(invScaleX, invScaleY, invScaleZ))
 
-					err := transformVertices(buffer, bufferOffset, stride, vertexOffset, doc.Accessors[normalAccessor].Count, rotationMatrix)
+					err := TransformVertices(buffer, bufferOffset, stride, vertexOffset, doc.Accessors[normalAccessor].Count, rotationMatrix)
 					if err != nil {
 						return err
 					}
 
 					bufferOffset = doc.Accessors[tangentAccessor].ByteOffset + doc.BufferViews[vertexBuffer].ByteOffset
-					err = transformVertices(buffer, bufferOffset, stride, vertexOffset, doc.Accessors[tangentAccessor].Count, rotationMatrix)
+					err = TransformVertices(buffer, bufferOffset, stride, vertexOffset, doc.Accessors[tangentAccessor].Count, rotationMatrix)
 					if err != nil {
 						return err
 					}

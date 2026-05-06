@@ -34,6 +34,7 @@ import (
 	extr_package "github.com/xypwn/filediver/extractor/package"
 	extr_prefab "github.com/xypwn/filediver/extractor/prefab"
 	extr_shading_environment "github.com/xypwn/filediver/extractor/shading_environment"
+	extr_speedtree "github.com/xypwn/filediver/extractor/speedtree"
 	extr_state_machine "github.com/xypwn/filediver/extractor/state_machine"
 	extr_strings "github.com/xypwn/filediver/extractor/strings"
 	extr_texture "github.com/xypwn/filediver/extractor/texture"
@@ -668,6 +669,12 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 				extr = getSourceExtractFunc(extrCfg, typ)
 			} else {
 				extr = extr_level.Convert(gltfDoc)
+			}
+		case "speedtree":
+			if extrFormat == "model" && typeFormats["unit"] == "raw" {
+				extr = getSourceExtractFunc(extrCfg, typ)
+			} else {
+				extr = extr_speedtree.Convert(gltfDoc)
 			}
 		case "texture":
 			if extrFormat == "dds" {

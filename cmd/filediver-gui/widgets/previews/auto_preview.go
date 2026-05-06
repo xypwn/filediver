@@ -26,6 +26,7 @@ type AutoPreviewType int
 const (
 	AutoPreviewEmpty AutoPreviewType = iota
 	AutoPreviewUnit
+	AutoPreviewTree
 	AutoPreviewAudio
 	AutoPreviewVideo
 	AutoPreviewTexture
@@ -37,12 +38,13 @@ type AutoPreviewState struct {
 	activeType AutoPreviewType
 	activeID   stingray.FileID
 	state      struct {
-		unit     *UnitPreviewState
-		audio    *WwisePreviewState
-		video    *BikPreviewState
-		texture  *DDSPreviewState
-		strings  *StringsPreviewState
-		material *MaterialPreviewState
+		unit      *UnitPreviewState
+		speedtree *SpeedtreePreviewState
+		audio     *WwisePreviewState
+		video     *BikPreviewState
+		texture   *DDSPreviewState
+		strings   *StringsPreviewState
+		material  *MaterialPreviewState
 	}
 
 	hashes      map[stingray.Hash]string
@@ -63,6 +65,10 @@ func NewAutoPreview(otoCtx *oto.Context, audioSampleRate int, hashes map[stingra
 	if err != nil {
 		return nil, err
 	}
+	pv.state.speedtree, err = NewSpeedtreePreview()
+	if err != nil {
+		return nil, err
+	}
 	pv.state.audio = NewWwisePreview(otoCtx, audioSampleRate)
 	pv.state.video = NewBikPreview(runner)
 	pv.state.texture = NewDDSPreview()
@@ -73,6 +79,7 @@ func NewAutoPreview(otoCtx *oto.Context, audioSampleRate int, hashes map[stingra
 
 func (pv *AutoPreviewState) Delete() {
 	pv.state.unit.Delete()
+	pv.state.speedtree.Delete()
 	pv.state.audio.Delete()
 	pv.state.video.Delete()
 	pv.state.texture.Delete()
@@ -137,6 +144,22 @@ func (pv *AutoPreviewState) LoadFile(ctx context.Context, fileID stingray.FileID
 			pv.thinhashes,
 		); err != nil {
 			pv.err = fmt.Errorf("loading unit: %w", err)
+			return
+		}
+	case stingray.Sum("speedtree"):
+		pv.activeType = AutoPreviewTree
+		if err := loadFiles(stingray.DataMain, stingray.DataGPU); err != nil {
+			pv.err = err
+			return
+		}
+		if err := pv.state.speedtree.LoadSpeedtree(
+			fileID.Name,
+			data[stingray.DataMain],
+			data[stingray.DataGPU],
+			pv.getResource,
+			pv.thinhashes,
+		); err != nil {
+			pv.err = fmt.Errorf("loading speedtree: %w", err)
 			return
 		}
 	case stingray.Sum("wwise_stream"):
@@ -288,6 +311,8 @@ func AutoPreview(name string, pv *AutoPreviewState) bool {
 		return false
 	case AutoPreviewUnit:
 		UnitPreview(name, pv.state.unit)
+	case AutoPreviewTree:
+		SpeedtreePreview(name, pv.state.speedtree)
 	case AutoPreviewAudio:
 		WwisePreview(name, pv.state.audio)
 	case AutoPreviewVideo:
