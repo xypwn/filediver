@@ -45,6 +45,24 @@ type SimpleUnit struct {
 	UnkFloats [6]float32 `json:"unk_floats"`
 }
 
+type SimpleSpeedtreeTransform struct {
+	Position    [4]float32 `json:"position"`
+	MinRotation [4]float32 `json:"min_rotation"`
+	MaxRotation [4]float32 `json:"max_rotation"`
+}
+
+type SimpleSpeedtreeLayer struct {
+	Name     string `json:"name"`
+	UnkInt00 uint32 `json:"unk_int00"`
+	UnkInt01 uint32 `json:"unk_int01"`
+}
+
+type SimpleSpeedtree struct {
+	Path                string                     `json:"path"`
+	Layers              []SimpleSpeedtreeLayer     `json:"layers"`
+	SpeedtreeTransforms []SimpleSpeedtreeTransform `json:"transforms"`
+}
+
 type SimpleUnknownTransformedItem struct {
 	Hash string `json:"hash"`
 	stingray.Transform
@@ -92,6 +110,7 @@ type SimpleLevel struct {
 	Prefabs              []SimplePrefab                 `json:"prefabs"`
 	MaterialOverrides    []SimpleMaterialOverride       `json:"material_overrides"`
 	Units                []SimpleUnit                   `json:"units"`
+	Speedtrees           []SimpleSpeedtree              `json:"speedtrees"`
 	UnkTransformedItems  []SimpleUnknownTransformedItem `json:"unk_transformed_item"`
 	UnkExtraUnits        []SimpleExtraUnitsContainer    `json:"unk_extra_units"`
 	UnitHashIndexRange   []SimpleHashIndexRange         `json:"unit_hash_index_range"`
@@ -146,6 +165,31 @@ func ExtractLevelJSON(ctx *extractor.Context) error {
 		})
 	}
 
+	speedtrees := make([]SimpleSpeedtree, 0)
+	for _, speedtree := range levelData.Speedtrees {
+		layers := make([]SimpleSpeedtreeLayer, 0)
+		for _, layer := range speedtree.Layers {
+			layers = append(layers, SimpleSpeedtreeLayer{
+				Name:     ctx.LookupThinHash(layer.Name),
+				UnkInt00: layer.UnkInt00,
+				UnkInt01: layer.UnkInt01,
+			})
+		}
+		transforms := make([]SimpleSpeedtreeTransform, 0)
+		for _, transform := range speedtree.Transforms {
+			transforms = append(transforms, SimpleSpeedtreeTransform{
+				Position:    transform.Position,
+				MinRotation: transform.MinRotation,
+				MaxRotation: transform.MaxRotation,
+			})
+		}
+		speedtrees = append(speedtrees, SimpleSpeedtree{
+			Path:                ctx.LookupHash(speedtree.Path),
+			Layers:              layers,
+			SpeedtreeTransforms: transforms,
+		})
+	}
+
 	materialOverrides := make([]SimpleMaterialOverride, 0)
 	for _, materialOverride := range levelData.MaterialOverrides {
 		materials := make([]SimpleMaterial, 0)
@@ -178,6 +222,7 @@ func ExtractLevelJSON(ctx *extractor.Context) error {
 		Prefabs:           prefabs,
 		MaterialOverrides: materialOverrides,
 		Units:             units,
+		Speedtrees:        speedtrees,
 	}
 
 	outData.UnkTransformedItems = make([]SimpleUnknownTransformedItem, 0)
@@ -405,7 +450,7 @@ func ConvertOpts(ctx *extractor.Context, gltfDoc *gltf.Document) error {
 			ctx.Statusf("%.2f%% - %v.unit", percentComplete, ctx.LookupHash(unit.Path))
 		}
 		unitId := stingray.NewFileID(unit.Path, stingray.Sum("unit"))
-		err := extr_prefab.AddOrDuplicateUnit(ctx.WithFileID(unitId), doc, imgOpts, &unit, levelIdx)
+		err := extr_prefab.AddOrDuplicateModel(ctx.WithFileID(unitId), doc, imgOpts, &unit, levelIdx)
 		if err != nil {
 			return err
 		}

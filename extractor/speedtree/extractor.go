@@ -180,6 +180,30 @@ var speedtreeVertex24 unit.MeshLayout = unit.MeshLayout{
 	},
 }
 
+func GetSpeedtreeExtrasID(fileId stingray.FileID) string {
+	return fileId.Name.String() + ".speedtree"
+}
+
+func AddPrefabMetadata(ctx *extractor.Context, doc *gltf.Document, root *uint32, meshNodes []uint32) {
+	rootExtras, ok := doc.Nodes[*root].Extras.(map[string]any)
+	if !ok {
+		rootExtras = make(map[string]any)
+	}
+	rootExtras["hash"] = GetSpeedtreeExtrasID(ctx.FileID())
+	doc.Nodes[*root].Extras = rootExtras
+
+	extras, ok := doc.Extras.(map[string]any)
+	if !ok {
+		extras = make(map[string]any)
+	}
+	prefabMetadata := make(map[string]any)
+	prefabMetadata["root"] = *root
+	prefabMetadata["objects"] = meshNodes
+	prefabMetadata["parent"] = nil
+	extras[GetSpeedtreeExtrasID(ctx.FileID())] = prefabMetadata
+	doc.Extras = extras
+}
+
 func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gltfDoc *gltf.Document) error {
 	cfg := ctx.Config()
 	if cfg.SpeedTree.Format == "json" {
@@ -234,9 +258,7 @@ func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gl
 		materialMap[mat.Index] = matIdx
 	}
 
-	//layoutAttributes := make(map[int]map[string]*gltf.Accessor)
 	groupAttributes := make(map[int]gltf.Attribute)
-	//vertexDefToBuffer := make(map[int]uint32)
 	for idx, vertexDef := range treeInfo.VertexDefinitions {
 		var layout unit.MeshLayout
 		switch vertexDef.Stride {
@@ -342,12 +364,23 @@ func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gl
 		doc.Meshes = append(doc.Meshes, &gltf.Mesh{
 			Primitives: primitives,
 		})
+		treeName := treePath
+		if strings.Contains(treePath, "/") {
+			split := strings.Split(treePath, "/")
+			treeName = split[len(split)-1]
+		}
+		lod := ""
+		if idx > 0 {
+			lod = fmt.Sprintf("_LOD%v", idx)
+		}
 		doc.Nodes = append(doc.Nodes, &gltf.Node{
-			Name: fmt.Sprintf("Speedtree LOD%v", idx),
+			Name: fmt.Sprintf("%v%v", treeName, lod),
 			Mesh: gltf.Index(uint32(len(doc.Meshes) - 1)),
 		})
 		doc.Nodes[parent].Children = append(doc.Nodes[parent].Children, uint32(len(doc.Nodes)-1))
 	}
+
+	AddPrefabMetadata(ctx, doc, gltf.Index(parent), doc.Nodes[parent].Children)
 
 	formatIsBlend := cfg.Model.Format == "blend"
 	if gltfDoc == nil && !formatIsBlend {
