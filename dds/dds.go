@@ -257,6 +257,7 @@ func DecodeConfig(r io.Reader) (image.Config, error) {
 type DDSMipMap struct {
 	image.Image
 	Width, Height int
+	Raw           []uint8
 }
 
 type DDSImage struct {
@@ -297,7 +298,7 @@ func Decode(r io.Reader, readMipMaps bool) (*DDS, error) {
 				height = 1
 			}
 
-			var buf []uint8
+			var buf, raw []uint8
 			var img image.Image
 			switch info.ColorModel {
 			case color.GrayModel:
@@ -319,13 +320,15 @@ func Decode(r io.Reader, readMipMaps bool) (*DDS, error) {
 			default:
 				return nil, errors.New("invalid color model passed by info structure")
 			}
-			if err := info.Decompress(buf, r, width, height, info); err != nil {
+			raw, err = info.Decompress(buf, r, width, height, info)
+			if err != nil {
 				return nil, fmt.Errorf("decode image %v mip %v: %w", i, j, err)
 			}
 			mipMaps = append(mipMaps, &DDSMipMap{
 				Image:  img,
 				Width:  width,
 				Height: height,
+				Raw:    raw,
 			})
 
 			width /= 2

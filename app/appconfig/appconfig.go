@@ -65,6 +65,9 @@ type Config struct {
 	Text struct {
 		Format string `cfg:"options=json,raw"`
 	} `cfg:"tags=t:strings,t:package,t:bones help='only-text-exportable formats'"`
+	SpeedTree struct {
+		Format string `cfg:"options=model,json,raw"`
+	} `cfg:"tags=t:speedtree help='Tree model export format'"`
 	Raw struct {
 		Format string `cfg:"options=separate,combined,main,stream,gpu help='how to handle the different file sub-types (each file may have a main, stream and GPU file)'"`
 	} `cfg:"help='applies to any file without an available extractor or \"raw\" as the selected format'"`
@@ -111,6 +114,7 @@ var Extractable = map[string]bool{
 	"material":       true,
 	"texture":        true,
 	"unit":           true,
+	"speedtree":      true,
 	"geometry_group": true,
 	"prefab":         true,
 	"level":          true,

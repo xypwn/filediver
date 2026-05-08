@@ -176,11 +176,17 @@ type LightArray struct {
 type MeshLayoutItemType uint32
 
 const (
-	ItemPosition   MeshLayoutItemType = 0
-	ItemNormal     MeshLayoutItemType = 1
-	ItemUVCoords   MeshLayoutItemType = 4
-	ItemBoneIdx    MeshLayoutItemType = 6
-	ItemBoneWeight MeshLayoutItemType = 7
+	ItemPosition          MeshLayoutItemType = 0
+	ItemNormal            MeshLayoutItemType = 1
+	ItemTangent           MeshLayoutItemType = 2
+	ItemUVCoords          MeshLayoutItemType = 4
+	ItemBoneIdx           MeshLayoutItemType = 6
+	ItemBoneWeight        MeshLayoutItemType = 7
+	ItemSpeedTreeU        MeshLayoutItemType = 8
+	ItemSpeedTreeV        MeshLayoutItemType = 9
+	ItemSpeedTreeNormalX  MeshLayoutItemType = 10
+	ItemSpeedTreeNormalYZ MeshLayoutItemType = 11
+	ItemIgnore            MeshLayoutItemType = 12
 )
 
 func (v MeshLayoutItemType) String() string {
@@ -404,15 +410,17 @@ func (v MeshLayoutItemFormat) Type() gltf.AccessorType {
 	}
 }
 
+type MeshLayoutItem struct {
+	Type   MeshLayoutItemType
+	Format MeshLayoutItemFormat
+	Layer  uint32
+	Unk00  [8]byte
+}
+
 type MeshLayout struct {
-	MagicNum0 [4]byte
-	Unk00     [4]byte
-	Items     [16]struct {
-		Type   MeshLayoutItemType
-		Format MeshLayoutItemFormat
-		Layer  uint32
-		Unk00  [8]byte
-	}
+	MagicNum0     [4]byte
+	Unk00         [4]byte
+	Items         [16]MeshLayoutItem
 	NumItems      uint32
 	Unk01         [4]byte
 	MagicNum1     [4]byte

@@ -95,6 +95,26 @@ struct Unit {
     float unknown[6];
 };
 
+struct SpeedtreeFloats {
+    float position[4];
+    float rotationMin[4];
+    float rotationMax[4];
+};
+
+struct SpeedtreeLayer {
+    ThinMurmurHash name;
+    u32 unk00;
+    u32 unk01;
+};
+
+struct Speedtree {
+    MurmurHash path;
+    u32 layerCount;
+    SpeedtreeLayer layers[layerCount];
+    u32 floatArrayCount;
+    SpeedtreeFloats transforms[floatArrayCount];
+};
+
 struct ExtraUnit {
     MurmurHash unk0;
     MurmurHash filename;
@@ -254,7 +274,8 @@ struct Level {
     std::ptr::NullablePtr<u8, u32> unkPtrs00[5];
     std::ptr::NullablePtr<List<MaterialOverrides>, u32> materials;
     std::ptr::NullablePtr<List<ThinMurmurHash>, u32> unkThinHashes;
-    std::ptr::NullablePtr<u8, u32> unkPtrs01[3];
+    std::ptr::NullablePtr<List<Speedtree>, u32> speedtrees;
+    std::ptr::NullablePtr<u8, u32> unkPtrs01[2];
     std::ptr::NullablePtr<PtrArray<List<u32>, u32, dataCount>, u32> ptrList00;
     std::ptr::NullablePtr<u8, u32> unkPtrs02[9];
     MurmurHash levelName;

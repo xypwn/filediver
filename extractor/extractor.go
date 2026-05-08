@@ -148,3 +148,21 @@ func ClearChildNodesFromScene(ctx *Context, doc *gltf.Document) {
 		doc.Scenes[0].Nodes = append(doc.Scenes[0].Nodes[:idx], doc.Scenes[0].Nodes[idx+1:]...)
 	}
 }
+
+func GetDocument(ctx *Context, inDoc *gltf.Document) *gltf.Document {
+	if inDoc != nil {
+		return inDoc
+	}
+	doc := gltf.NewDocument()
+	doc.Asset.Generator = "https://github.com/xypwn/filediver"
+	if ctx.BuildInfo() != nil {
+		doc.Scenes[0].Extras = map[string]any{"Helldivers 2 Version": ctx.BuildInfo().Version}
+	}
+	doc.Samplers = append(doc.Samplers, &gltf.Sampler{
+		MagFilter: gltf.MagLinear,
+		MinFilter: gltf.MinLinear,
+		WrapS:     gltf.WrapRepeat,
+		WrapT:     gltf.WrapRepeat,
+	})
+	return doc
+}
