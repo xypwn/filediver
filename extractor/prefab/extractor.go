@@ -9,7 +9,6 @@ import (
 	"github.com/go-gl/mathgl/mgl32"
 	"github.com/qmuntal/gltf"
 	"github.com/xypwn/filediver/extractor"
-	"github.com/xypwn/filediver/extractor/blend_helper"
 	extr_material "github.com/xypwn/filediver/extractor/material"
 	extr_speedtree "github.com/xypwn/filediver/extractor/speedtree"
 	extr_unit "github.com/xypwn/filediver/extractor/unit"
@@ -231,6 +230,9 @@ func AddPrefab(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_materia
 	doc.Extras = extras
 
 	for idx, object := range prefabData.Units {
+		if ctxErr := ctx.Ctx().Err(); errors.Is(ctxErr, context.Canceled) {
+			return 0, ctxErr
+		}
 		if ctx.FileID() == ctx.RootFileID() {
 			percentComplete := 100 * float32(idx+1) / float32(len(prefabData.Units)+len(prefabData.NestedPrefabs))
 			ctx.Statusf("%.2f%% - %v.unit", percentComplete, ctx.LookupHash(object.Path()))
@@ -243,6 +245,9 @@ func AddPrefab(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_materia
 	}
 
 	for idx, nested := range prefabData.NestedPrefabs {
+		if ctxErr := ctx.Ctx().Err(); errors.Is(ctxErr, context.Canceled) {
+			return 0, ctxErr
+		}
 		if ctx.FileID() == ctx.RootFileID() {
 			percentComplete := 100 * float32(idx+1+len(prefabData.Units)) / float32(len(prefabData.Units)+len(prefabData.NestedPrefabs))
 			ctx.Statusf("%.2f%% - %v.prefab", percentComplete, ctx.LookupHash(nested.Path))
@@ -296,24 +301,8 @@ func ConvertOpts(ctx *extractor.Context, gltfDoc *gltf.Document) error {
 
 	extractor.ClearChildNodesFromScene(ctx, doc)
 
-	formatIsBlend := cfg.Model.Format == "blend"
-	if gltfDoc == nil && !formatIsBlend {
-		ctx.Statusf("Creating glb file...")
-		out, err := ctx.CreateFile(".prefab.glb")
-		if err != nil {
-			return err
-		}
-		enc := gltf.NewEncoder(out)
-		if err := enc.Encode(doc); err != nil {
-			return err
-		}
-	} else if gltfDoc == nil && formatIsBlend {
-		ctx.Statusf("Creating blend file...")
-		outPath, err := ctx.AllocateFile(".prefab.blend")
-		if err != nil {
-			return err
-		}
-		err = blend_helper.ExportBlend(doc, outPath, ctx.Runner())
+	if gltfDoc == nil {
+		err := extractor.SaveDocument(ctx, doc, "prefab")
 		if err != nil {
 			return err
 		}

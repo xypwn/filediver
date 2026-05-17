@@ -422,6 +422,7 @@ func remapJoints(buffer *gltf.Buffer, stride, bufferOffset, vertexCount uint32, 
 func AddMeshLayoutVertexBuffer(doc *gltf.Document, data []byte, accessorInfo [][]AccessorInfo) (uint32, error) {
 	ensurePadding(doc)
 	buffer := lastBuffer(doc)
+	buffer = ensureCapacity(doc, buffer, uint64(len(data)))
 	offset := uint32(len(buffer.Data))
 
 	buffer.Data = append(buffer.Data, data...)
@@ -502,6 +503,7 @@ func CreateAttributes(doc *gltf.Document, layout unit.MeshLayout, accessorInfo [
 func LoadMeshLayoutIndices(gpuR io.ReadSeeker, doc *gltf.Document, layout unit.MeshLayout) (*gltf.Accessor, error) {
 	ensurePadding(doc)
 	buffer := lastBuffer(doc)
+	buffer = ensureCapacity(doc, buffer, uint64(layout.IndicesSize))
 	dataOffset := uint32(len(buffer.Data))
 	buffer.ByteLength += layout.IndicesSize
 	buffer.Data = append(buffer.Data, make([]byte, layout.IndicesSize)...)
@@ -514,7 +516,7 @@ func LoadMeshLayoutIndices(gpuR io.ReadSeeker, doc *gltf.Document, layout unit.M
 		return nil, err
 	}
 	if read != int(layout.IndicesSize) {
-		return nil, fmt.Errorf("Read an unexpected amount of data when copying geometry group indices")
+		return nil, fmt.Errorf("Read an unexpected amount of data when copying geometry group indices - expected %v bytes, got %v bytes", layout.IndicesSize, read)
 	}
 
 	indexStride := layout.IndicesSize / layout.NumIndices
@@ -730,6 +732,15 @@ func getPadding(offset uint32) uint32 {
 	return 4 - padAlign
 }
 
+// This library uses uint32's for everything, so lets make sure the length of a buffer never exceeds uint32 max
+func ensureCapacity(doc *gltf.Document, buffer *gltf.Buffer, dataLen uint64) *gltf.Buffer {
+	if uint64(buffer.ByteLength)+dataLen > 0xffffffff {
+		doc.Buffers = append(doc.Buffers, new(gltf.Buffer))
+		buffer = lastBuffer(doc)
+	}
+	return buffer
+}
+
 func AddBoundingBox(doc *gltf.Document, name string, meshHeader unit.MeshHeader, info *unit.Info, meshNodes *[]uint32) {
 	transform := info.Bones[meshHeader.AABBTransformIndex].Matrix
 	AddBoundingBoxWithTransform(doc, name, meshHeader, info, meshNodes, transform)
@@ -795,6 +806,37 @@ func AddBoundingBoxWithTransform(doc *gltf.Document, name string, meshHeader uni
 	*meshNodes = append(*meshNodes, idx)
 }
 
+func getExtras(doc *gltf.Document, geometryGroup stingray.Hash) map[string]any {
+	extras, ok := doc.Extras.(map[string]any)
+	if !ok {
+		return nil
+	}
+	if geometryGroup.Value == 0x0 {
+		return extras
+	}
+	geoExtrasIface, contains := extras[geometryGroup.String()+".geometry_group cache"]
+	if !contains {
+		return nil
+	}
+	geoExtras, ok := geoExtrasIface.(map[string]any)
+	if !ok {
+		return nil
+	}
+	return geoExtras
+}
+
+func setExtras(doc *gltf.Document, geometryGroup stingray.Hash, extras map[string]any) {
+	if geometryGroup.Value == 0x0 {
+		doc.Extras = extras
+		return
+	}
+	extras, ok := doc.Extras.(map[string]any)
+	if !ok {
+		extras = make(map[string]any)
+	}
+	extras[geometryGroup.String()+".geometry_group cache"] = extras
+}
+
 func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, meshInfos []MeshInfo, bones []stingray.ThinHash, meshLayouts []unit.MeshLayout, unitInfo *unit.Info, meshNodes *[]uint32, materialIndices []MaterialVariantMap, parent uint32, skin *uint32) error {
 	cfg := ctx.Config()
 
@@ -809,6 +851,35 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, me
 	layoutToVertexBufferView := make(map[uint32]uint32)
 	layoutToIndexAccessor := make(map[uint32]*gltf.Accessor)
 	layoutAttributes := make(map[uint32]map[string]*gltf.Accessor)
+
+	if unitInfo.GeometryGroup.Value != 0x0 {
+		extras := getExtras(doc, unitInfo.GeometryGroup)
+		if extras != nil {
+			if vertexBufferViewIface, contains := extras["layoutToVertexBufferView"]; contains {
+				vertexBufferView, ok := vertexBufferViewIface.(map[uint32]uint32)
+				if ok {
+					layoutToVertexBufferView = vertexBufferView
+					ctx.Statusf("Found %v.geometry_group vertex buffer view in cache\n", unitInfo.GeometryGroup.String())
+				}
+			}
+
+			if attributesIface, contains := extras["layoutAttributes"]; contains {
+				attributes, ok := attributesIface.(map[uint32]map[string]*gltf.Accessor)
+				if ok {
+					layoutAttributes = attributes
+					ctx.Statusf("Found %v.geometry_group layout attributes in cache\n", unitInfo.GeometryGroup.String())
+				}
+			}
+
+			if indicesIface, contains := extras["layoutToIndexAccessor"]; contains {
+				indices, ok := indicesIface.(map[uint32]*gltf.Accessor)
+				if ok {
+					layoutToIndexAccessor = indices
+					ctx.Statusf("Found %v.geometry_group indices in cache\n", unitInfo.GeometryGroup.String())
+				}
+			}
+		}
+	}
 
 	var variants map[string]any
 	var variantsOk bool
@@ -914,6 +985,16 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, me
 			}
 			layoutToVertexBufferView[header.MeshLayoutIndex] = vertexBuffer
 			layoutAttributes[header.MeshLayoutIndex] = CreateAttributes(doc, layout, accessorInfo)
+
+			if unitInfo.GeometryGroup.Value != 0 {
+				extras := getExtras(doc, unitInfo.GeometryGroup)
+				if extras == nil {
+					extras = make(map[string]any)
+				}
+				extras["layoutToVertexBufferView"] = layoutToVertexBufferView
+				extras["layoutAttributes"] = layoutAttributes
+				setExtras(doc, unitInfo.GeometryGroup, extras)
+			}
 		}
 
 		indexAccessor, contains := layoutToIndexAccessor[header.MeshLayoutIndex]
@@ -923,6 +1004,14 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, me
 				return err
 			}
 			layoutToIndexAccessor[header.MeshLayoutIndex] = indexAccessor
+			if unitInfo.GeometryGroup.Value != 0 {
+				extras := getExtras(doc, unitInfo.GeometryGroup)
+				if extras == nil {
+					extras = make(map[string]any)
+				}
+				extras["layoutToIndexAccessor"] = layoutToIndexAccessor
+				setExtras(doc, unitInfo.GeometryGroup, extras)
+			}
 		}
 
 		visibilityMaskData, err := datalib.ParseVisibilityMasks()
@@ -1077,7 +1166,7 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, me
 			}
 
 			_, beenRemapped := remapped[*groupIndices]
-			if jointsAccessor, contains := groupAttr[gltf.JOINTS_0]; contains && !beenRemapped {
+			if jointsAccessor, contains := groupAttr[gltf.JOINTS_0]; contains && !beenRemapped && len(unitInfo.SkeletonMaps) > int(meshHeader.SkeletonMapIdx) {
 				bufferOffset := doc.Accessors[jointsAccessor].ByteOffset + doc.BufferViews[vertexBuffer].ByteOffset
 				stride := doc.BufferViews[vertexBuffer].ByteStride
 				buffer := doc.Buffers[doc.BufferViews[vertexBuffer].Buffer]

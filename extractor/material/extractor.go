@@ -19,7 +19,6 @@ import (
 	datalib "github.com/xypwn/filediver/datalibrary"
 	"github.com/xypwn/filediver/dds"
 	"github.com/xypwn/filediver/extractor"
-	"github.com/xypwn/filediver/extractor/blend_helper"
 	extr_texture "github.com/xypwn/filediver/extractor/texture"
 	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/stingray/unit/material"
@@ -1567,22 +1566,8 @@ func convertOpts(ctx *extractor.Context, imgOpts *ImageOptions, gltfDoc *gltf.Do
 	})
 	doc.Scenes[0].Nodes = append(doc.Scenes[0].Nodes, uint32(len(doc.Nodes)-1))
 
-	formatIsBlend := cfg.Material.Format == "blend"
-	if gltfDoc == nil && !formatIsBlend {
-		out, err := ctx.CreateFile(".texture.glb")
-		if err != nil {
-			return err
-		}
-		enc := gltf.NewEncoder(out)
-		if err := enc.Encode(doc); err != nil {
-			return err
-		}
-	} else if gltfDoc == nil && formatIsBlend {
-		outPath, err := ctx.AllocateFile(".texture.blend")
-		if err != nil {
-			return err
-		}
-		err = blend_helper.ExportBlend(doc, outPath, ctx.Runner())
+	if gltfDoc == nil {
+		err := extractor.SaveDocument(ctx, doc, "material")
 		if err != nil {
 			return err
 		}
