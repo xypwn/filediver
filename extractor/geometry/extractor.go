@@ -830,11 +830,11 @@ func setExtras(doc *gltf.Document, geometryGroup stingray.Hash, extras map[strin
 		doc.Extras = extras
 		return
 	}
-	extras, ok := doc.Extras.(map[string]any)
+	baseExtras, ok := doc.Extras.(map[string]any)
 	if !ok {
-		extras = make(map[string]any)
+		baseExtras = make(map[string]any)
 	}
-	extras[geometryGroup.String()+".geometry_group cache"] = extras
+	baseExtras[geometryGroup.String()+".geometry_group cache"] = extras
 }
 
 func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, meshInfos []MeshInfo, bones []stingray.ThinHash, meshLayouts []unit.MeshLayout, unitInfo *unit.Info, meshNodes *[]uint32, materialIndices []MaterialVariantMap, parent uint32, skin *uint32) error {
