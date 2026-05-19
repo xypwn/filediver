@@ -859,7 +859,6 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, me
 				vertexBufferView, ok := vertexBufferViewIface.(map[uint32]uint32)
 				if ok {
 					layoutToVertexBufferView = vertexBufferView
-					ctx.Statusf("Found %v.geometry_group vertex buffer view in cache\n", unitInfo.GeometryGroup.String())
 				}
 			}
 
@@ -867,7 +866,6 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, me
 				attributes, ok := attributesIface.(map[uint32]map[string]*gltf.Accessor)
 				if ok {
 					layoutAttributes = attributes
-					ctx.Statusf("Found %v.geometry_group layout attributes in cache\n", unitInfo.GeometryGroup.String())
 				}
 			}
 
@@ -875,7 +873,6 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, me
 				indices, ok := indicesIface.(map[uint32]*gltf.Accessor)
 				if ok {
 					layoutToIndexAccessor = indices
-					ctx.Statusf("Found %v.geometry_group indices in cache\n", unitInfo.GeometryGroup.String())
 				}
 			}
 		}
