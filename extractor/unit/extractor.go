@@ -20,7 +20,6 @@ import (
 	datalib "github.com/xypwn/filediver/datalibrary"
 	"github.com/xypwn/filediver/datalibrary/enum"
 	"github.com/xypwn/filediver/extractor"
-	"github.com/xypwn/filediver/extractor/blend_helper"
 	"github.com/xypwn/filediver/extractor/geometry"
 	extr_material "github.com/xypwn/filediver/extractor/material"
 	"github.com/xypwn/filediver/extractor/state_machine"
@@ -262,7 +261,7 @@ func getWeaponEntityHashFromUnitHash(weaponUnit stingray.Hash) stingray.Hash {
 	return weaponUnit
 }
 
-func AddMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_material.ImageOptions, unitInfo *unit.Info, metadata *datalib.UnitData) ([]geometry.MaterialVariantMap, error) {
+func AddMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_material.ImageOptions, unitInfo *unit.Info, metadata *datalib.UnitData, materialOverrides map[stingray.ThinHash]stingray.Hash) ([]geometry.MaterialVariantMap, error) {
 	materialVariants := make([]geometry.MaterialVariantMap, 0)
 	namesToVariantIdx := make(map[string]uint32)
 
@@ -282,6 +281,12 @@ func AddMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_mate
 	isHelldiverWeapon := len(equipmentData) > 0
 
 	for id, resID := range unitInfo.Materials {
+		if materialOverrides != nil {
+			overrideResId, contains := materialOverrides[id]
+			if contains {
+				resID = overrideResId
+			}
+		}
 		matR, err := ctx.Open(stingray.NewFileID(resID, stingray.Sum("material")), stingray.DataMain)
 		if err == stingray.ErrFileNotExist {
 			return nil, fmt.Errorf("referenced material resource %v doesn't exist", resID)
@@ -316,6 +321,11 @@ func AddMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_mate
 			})
 		}
 		materialVariants[namesToVariantIdx["default"]].MaterialHashToIndex[id] = matIdx
+
+		if ctx.RootFileID().Type == stingray.Sum("level") {
+			// If we're exporting a level, just use the default material, don't make any variants
+			continue
+		}
 
 		// Handle vehicle variants
 		var skinOverrides []datalib.UnitSkinOverride = make([]datalib.UnitSkinOverride, 0)
@@ -609,7 +619,7 @@ func GetUnitExtrasID(fileId stingray.FileID) string {
 	return fileId.Name.String() + ".unit"
 }
 
-func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gltfDoc *gltf.Document) error {
+func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gltfDoc *gltf.Document, materialOverrides map[stingray.ThinHash]stingray.Hash) error {
 	fMain, err := ctx.Open(ctx.FileID(), stingray.DataMain)
 	if err != nil {
 		return err
@@ -657,7 +667,7 @@ func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gl
 	var materialIdxs []geometry.MaterialVariantMap = make([]geometry.MaterialVariantMap, 0)
 	// Load materials
 	if len(armorSets) == 0 {
-		materialIdxs, err = AddMaterials(ctx, doc, imgOpts, unitInfo, metadata)
+		materialIdxs, err = AddMaterials(ctx, doc, imgOpts, unitInfo, metadata, materialOverrides)
 		if err != nil {
 			return err
 		}
@@ -667,7 +677,7 @@ func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gl
 				if armorSet.Type != datalib.KitCape && hash != ctx.FileID().Name {
 					continue
 				}
-				tmp, err := AddMaterials(ctx, doc, imgOpts, unitInfo, &meta)
+				tmp, err := AddMaterials(ctx, doc, imgOpts, unitInfo, &meta, materialOverrides)
 				if err != nil {
 					return err
 				}
@@ -764,22 +774,8 @@ func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gl
 
 	AddPrefabMetadata(ctx, doc, parent, skin, meshNodes, armorSetName)
 
-	formatIsBlend := cfg.Model.Format == "blend"
-	if gltfDoc == nil && !formatIsBlend {
-		out, err := ctx.CreateFile(".glb")
-		if err != nil {
-			return err
-		}
-		enc := gltf.NewEncoder(out)
-		if err := enc.Encode(doc); err != nil {
-			return err
-		}
-	} else if gltfDoc == nil && formatIsBlend {
-		outPath, err := ctx.AllocateFile(".blend")
-		if err != nil {
-			return err
-		}
-		err = blend_helper.ExportBlend(doc, outPath, ctx.Runner())
+	if gltfDoc == nil {
+		err := extractor.SaveDocument(ctx, doc, "unit", cfg.Model.Format)
 		if err != nil {
 			return err
 		}
@@ -836,6 +832,6 @@ func Convert(currDoc *gltf.Document) func(ctx *extractor.Context) error {
 		if err != nil {
 			return err
 		}
-		return ConvertOpts(ctx, opts, currDoc)
+		return ConvertOpts(ctx, opts, currDoc, nil)
 	}
 }

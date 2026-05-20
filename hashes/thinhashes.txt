@@ -3793,6 +3793,7 @@ base_light_01
 base_light_01_head_01
 battle_rifle
 battle_rifle_ceremonial
+bay_10m
 bay_10m_doors
 bay_10m_strategm
 bay_12m
@@ -30126,3 +30127,5 @@ g_trenchgun_bayonet
 g_trenchgun_bayonet_LOD1
 g_trenchgun_bayonet_LOD2
 g_trenchgun_bayonet_shadow
+ShipLight
+LightSocket

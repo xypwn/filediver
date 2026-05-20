@@ -7,7 +7,6 @@ import (
 
 	"github.com/qmuntal/gltf"
 	"github.com/xypwn/filediver/extractor"
-	"github.com/xypwn/filediver/extractor/blend_helper"
 	"github.com/xypwn/filediver/extractor/geometry"
 	extr_material "github.com/xypwn/filediver/extractor/material"
 	extr_unit "github.com/xypwn/filediver/extractor/unit"
@@ -54,7 +53,7 @@ func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gl
 		}
 
 		// Load materials
-		materialIdxs, err := extr_unit.AddMaterials(ctx.WithFileID(unitId), doc, imgOpts, unitInfo, nil)
+		materialIdxs, err := extr_unit.AddMaterials(ctx.WithFileID(unitId), doc, imgOpts, unitInfo, nil, nil)
 		if err != nil {
 			return err
 		}
@@ -96,22 +95,8 @@ func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gl
 		extr_unit.AddPrefabMetadata(ctx.WithFileID(unitId), doc, parent, skin, meshNodes, nil)
 	}
 
-	formatIsBlend := cfg.Model.Format == "blend"
-	if gltfDoc == nil && !formatIsBlend {
-		out, err := ctx.CreateFile(".glb")
-		if err != nil {
-			return err
-		}
-		enc := gltf.NewEncoder(out)
-		if err := enc.Encode(doc); err != nil {
-			return err
-		}
-	} else if gltfDoc == nil && formatIsBlend {
-		outPath, err := ctx.AllocateFile(".blend")
-		if err != nil {
-			return err
-		}
-		err = blend_helper.ExportBlend(doc, outPath, ctx.Runner())
+	if gltfDoc == nil {
+		err := extractor.SaveDocument(ctx, doc, "geometry_group", cfg.Model.Format)
 		if err != nil {
 			return err
 		}
