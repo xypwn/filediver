@@ -84,6 +84,29 @@ type MetadataEntry struct {
 	ValueString   string
 }
 
+func (m *MetadataEntry) Key(lookupThinhash func(stingray.ThinHash) string) string {
+	toReturn := ""
+	for idx, name := range m.VariableNames {
+		if idx > 0 {
+			toReturn += " > "
+		}
+		toReturn += lookupThinhash(name)
+	}
+	return toReturn
+}
+
+func (m *MetadataEntry) Value() any {
+	switch m.Type {
+	case LevelMetadata_float32:
+		return m.ValueFloat
+	case LevelMetadata_string:
+		return m.ValueString
+	case LevelMetadata_uint32:
+		return m.ValueUint
+	}
+	return nil
+}
+
 func parseMetadataEntry(r io.ReadSeeker) (*MetadataEntry, error) {
 	offset, err := r.Seek(0, io.SeekCurrent)
 	if err != nil {
@@ -251,7 +274,7 @@ type Level struct {
 	Name                   stingray.Hash
 	Metadata               map[int][]MetadataEntry
 	Prefabs                []Prefab
-	MaterialOverrides      []MaterialSlotOverrides
+	MaterialOverrides      map[int]map[stingray.ThinHash]stingray.Hash
 	Units                  []Unit
 	Speedtrees             []Speedtree
 	UnkTransformedItems    []UnknownTransformedItem
@@ -474,7 +497,7 @@ func LoadLevel(r io.ReadSeeker) (*Level, error) {
 		}
 	}
 
-	materialOverrides := make([]MaterialSlotOverrides, 0)
+	materialOverrides := make(map[int]map[stingray.ThinHash]stingray.Hash)
 	if raw.MaterialOffset != 0 {
 		if _, err := r.Seek(int64(raw.MaterialOffset), io.SeekStart); err != nil {
 			return nil, fmt.Errorf("seek material offset: %v", err)
@@ -495,10 +518,11 @@ func LoadLevel(r io.ReadSeeker) (*Level, error) {
 			if err := binary.Read(r, binary.LittleEndian, materials); err != nil {
 				return nil, fmt.Errorf("read material overrides: %v", err)
 			}
-			materialOverrides = append(materialOverrides, MaterialSlotOverrides{
-				Index:     index,
-				Materials: materials,
-			})
+			materialMap := make(map[stingray.ThinHash]stingray.Hash)
+			for _, material := range materials {
+				materialMap[material.Slot] = material.Path
+			}
+			materialOverrides[int(index)] = materialMap
 		}
 	}
 

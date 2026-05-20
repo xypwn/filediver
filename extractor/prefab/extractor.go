@@ -14,6 +14,7 @@ import (
 	extr_unit "github.com/xypwn/filediver/extractor/unit"
 	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/stingray/prefab"
+	"github.com/xypwn/filediver/stingray/unit"
 )
 
 type SimpleHeader struct {
@@ -94,7 +95,7 @@ func ExtractPrefabJSON(ctx *extractor.Context) error {
 	return nil
 }
 
-func AddOrDuplicateModel(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_material.ImageOptions, obj extractor.Object, parentNode uint32) error {
+func AddOrDuplicateModel(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_material.ImageOptions, obj extractor.Object, parentNode uint32, materialOverrides map[stingray.ThinHash]stingray.Hash, levelMetadata map[string]any) error {
 	if ctxErr := ctx.Ctx().Err(); errors.Is(ctxErr, context.Canceled) {
 		return ctxErr
 	}
@@ -117,7 +118,7 @@ func AddOrDuplicateModel(ctx *extractor.Context, doc *gltf.Document, imgOpts *ex
 		var err error
 		switch ctx.FileID().Type {
 		case stingray.Sum("unit"):
-			err = extr_unit.ConvertOpts(ctx, imgOpts, doc)
+			err = extr_unit.ConvertOpts(ctx, imgOpts, doc, materialOverrides)
 		case stingray.Sum("speedtree"):
 			err = extr_speedtree.ConvertOpts(ctx, imgOpts, doc)
 		default:
@@ -149,6 +150,16 @@ func AddOrDuplicateModel(ctx *extractor.Context, doc *gltf.Document, imgOpts *ex
 		doc.Nodes[root].Translation = translation
 		doc.Nodes[root].Rotation = rotation
 		doc.Nodes[root].Scale = scale
+		if levelMetadata != nil {
+			rootExtras, ok := doc.Nodes[root].Extras.(map[string]any)
+			if !ok {
+				rootExtras = make(map[string]any)
+			}
+			for key, value := range levelMetadata {
+				rootExtras[key] = value
+			}
+			doc.Nodes[root].Extras = rootExtras
+		}
 
 		doc.Nodes[parentNode].Children = append(doc.Nodes[parentNode].Children, root)
 
@@ -176,12 +187,65 @@ func AddOrDuplicateModel(ctx *extractor.Context, doc *gltf.Document, imgOpts *ex
 			return fmt.Errorf("failed to cast instance list")
 		}
 
+		var materials map[uint32]uint32
+		if materialOverrides != nil {
+			fMain, err := ctx.Open(ctx.FileID(), stingray.DataMain)
+			if err != nil {
+				return err
+			}
+			unitInfo, err := unit.LoadInfo(fMain)
+			if err != nil {
+				return err
+			}
+			materialVariants, err := extr_unit.AddMaterials(ctx, doc, imgOpts, unitInfo, nil, materialOverrides)
+			if err != nil {
+				return err
+			}
+			if len(materialVariants) > 1 {
+				return fmt.Errorf("unexpected extra variants when duplicating model")
+			}
+			materialSlots := materialVariants[0].MaterialHashToIndex
+			materials = make(map[uint32]uint32)
+			meshNodesIface, contains := modelMetadata["objects"]
+			if !contains {
+				return fmt.Errorf("no objects to duplicate? Should not happen")
+			}
+			meshNodes, ok := meshNodesIface.([]uint32)
+			if !ok {
+				return fmt.Errorf("failed to convert meshnodes to []uint32")
+			}
+			for _, nodeIdx := range meshNodes {
+				meshIdx := doc.Nodes[nodeIdx].Mesh
+				if meshIdx == nil {
+					return fmt.Errorf("object does not have a mesh? Should not happen")
+				}
+				for idx, primitive := range doc.Meshes[*meshIdx].Primitives {
+					slotExtras, ok := primitive.Extras.(map[string]stingray.ThinHash)
+					if !ok {
+						return fmt.Errorf("failed to convert primitive extras to map[string]stingray.ThinHash")
+					}
+					slot, contains := slotExtras["slot"]
+					if !contains {
+						return fmt.Errorf("primitive extras didn't have a slot?")
+					}
+					materialIdx, contains := materialSlots[slot]
+					if !contains {
+						// I mean I assume they don't need to override every slot?
+						continue
+					}
+					materials[uint32(idx)] = materialIdx
+				}
+			}
+		}
+
 		translation, rotation, scale := obj.ToGLTF()
 		instanceList = append(instanceList, map[string]any{
 			"parent":      parentNode,
 			"translation": translation,
 			"rotation":    rotation,
 			"scale":       scale,
+			"materials":   materials,
+			"metadata":    levelMetadata,
 		})
 		modelMetadata["filediver_instances"] = instanceList
 		extras[extrasId] = modelMetadata
@@ -238,7 +302,7 @@ func AddPrefab(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_materia
 			ctx.Statusf("%.2f%% - %v.unit", percentComplete, ctx.LookupHash(object.Path()))
 		}
 		unitId := stingray.NewFileID(object.Path(), stingray.Sum("unit"))
-		err := AddOrDuplicateModel(ctx.WithFileID(unitId), doc, imgOpts, &object, prefabRoot)
+		err := AddOrDuplicateModel(ctx.WithFileID(unitId), doc, imgOpts, &object, prefabRoot, nil, nil)
 		if err != nil {
 			return 0, err
 		}

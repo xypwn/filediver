@@ -22,8 +22,8 @@ type SimpleMetadata struct {
 }
 
 type SimpleMaterialOverride struct {
-	Index     uint32           `json:"index"`
-	Materials []SimpleMaterial `json:"materials"`
+	Index     uint32            `json:"index"`
+	Materials map[string]string `json:"materials"`
 }
 
 type SimpleMaterial struct {
@@ -192,16 +192,13 @@ func ExtractLevelJSON(ctx *extractor.Context) error {
 	}
 
 	materialOverrides := make([]SimpleMaterialOverride, 0)
-	for _, materialOverride := range levelData.MaterialOverrides {
-		materials := make([]SimpleMaterial, 0)
-		for _, material := range materialOverride.Materials {
-			materials = append(materials, SimpleMaterial{
-				Slot: ctx.LookupThinHash(material.Slot),
-				Path: ctx.LookupHash(material.Path),
-			})
+	for idx, materialOverride := range levelData.MaterialOverrides {
+		materials := make(map[string]string)
+		for slot, material := range materialOverride {
+			materials[ctx.LookupThinHash(slot)] = ctx.LookupHash(material)
 		}
 		materialOverrides = append(materialOverrides, SimpleMaterialOverride{
-			Index:     materialOverride.Index,
+			Index:     uint32(idx),
 			Materials: materials,
 		})
 	}
@@ -462,8 +459,16 @@ func ConvertOpts(ctx *extractor.Context, gltfDoc *gltf.Document) error {
 			percentComplete := 100 * float32(idx+1+len(levelData.Prefabs)) / totalObjectCount
 			ctx.Statusf("%.2f%% - %v.unit", percentComplete, ctx.LookupHash(unit.Path()))
 		}
+		materialOverrides, ok := levelData.MaterialOverrides[idx]
+		if !ok {
+			materialOverrides = nil
+		}
+		metadata := make(map[string]any)
+		for _, entry := range levelData.Metadata[idx] {
+			metadata[entry.Key(ctx.LookupThinHash)] = entry.Value()
+		}
 		unitId := stingray.NewFileID(unit.Path(), stingray.Sum("unit"))
-		err := extr_prefab.AddOrDuplicateModel(ctx.WithFileID(unitId), doc, imgOpts, &unit, levelIdx)
+		err := extr_prefab.AddOrDuplicateModel(ctx.WithFileID(unitId), doc, imgOpts, &unit, levelIdx, materialOverrides, metadata)
 		if err != nil {
 			return err
 		}
@@ -487,7 +492,7 @@ func ConvertOpts(ctx *extractor.Context, gltfDoc *gltf.Document) error {
 					ScaleVec:    mgl32.Vec3{1, 1, 1},
 				},
 			}
-			err := extr_prefab.AddOrDuplicateModel(ctx.WithFileID(speedtreeId), doc, imgOpts, &speedtreeTransformed, levelIdx)
+			err := extr_prefab.AddOrDuplicateModel(ctx.WithFileID(speedtreeId), doc, imgOpts, &speedtreeTransformed, levelIdx, nil, nil)
 			if err != nil {
 				return err
 			}

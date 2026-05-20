@@ -1272,6 +1272,9 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, me
 
 			for udim, indexAccessor := range udimIndexAccessors {
 				udimPrimitives[udim] = append(udimPrimitives[udim], &gltf.Primitive{
+					Extras: map[string]stingray.ThinHash{
+						"slot": header.Materials[group.MaterialIdx],
+					},
 					Attributes: groupAttr,
 					Indices:    gltf.Index(indexAccessor),
 					Material:   material,

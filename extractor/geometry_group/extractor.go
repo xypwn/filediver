@@ -53,7 +53,7 @@ func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gl
 		}
 
 		// Load materials
-		materialIdxs, err := extr_unit.AddMaterials(ctx.WithFileID(unitId), doc, imgOpts, unitInfo, nil)
+		materialIdxs, err := extr_unit.AddMaterials(ctx.WithFileID(unitId), doc, imgOpts, unitInfo, nil, nil)
 		if err != nil {
 			return err
 		}
