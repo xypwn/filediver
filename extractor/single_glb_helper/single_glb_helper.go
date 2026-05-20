@@ -1,17 +1,18 @@
 package single_glb_helper
 
 import (
-	"fmt"
-	"os"
+	"context"
 	"path/filepath"
 
 	"github.com/qmuntal/gltf"
+	"github.com/xypwn/filediver/app/appconfig"
 	"github.com/xypwn/filediver/exec"
-	"github.com/xypwn/filediver/extractor/blend_helper"
+	"github.com/xypwn/filediver/extractor"
+	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/stingray/ah_bin"
 )
 
-func CreateCloseableGltfDocument(outDir string, name string, formatBlend bool, runner *exec.Runner, buildInfo *ah_bin.BuildInfo) (*gltf.Document, func(doc *gltf.Document) error) {
+func CreateCloseableGltfDocument(ctx context.Context, statusf func(format string, args ...any), outDir string, name string, format string, runner *exec.Runner, buildInfo *ah_bin.BuildInfo) (*gltf.Document, func(doc *gltf.Document) error) {
 	document := gltf.NewDocument()
 	document.Asset.Generator = "https://github.com/xypwn/filediver"
 	if buildInfo != nil {
@@ -28,33 +29,26 @@ func CreateCloseableGltfDocument(outDir string, name string, formatBlend bool, r
 		if len(document.Buffers) == 0 {
 			return nil
 		}
-		if formatBlend {
-			err := blend_helper.ExportBlend(doc, outPath+".blend", runner)
-			if err != nil {
-				return fmt.Errorf("closing %v.blend: %w", outPath, err)
-			}
-		} else {
-			err := exportGLB(doc, outPath+".glb")
-			if err != nil {
-				return fmt.Errorf("closing %v.glb: %w", outPath, err)
-			}
-		}
+		closeCtx, _ := extractor.NewContext(
+			ctx,
+			stingray.NewFileID(stingray.Hash{}, stingray.Hash{}),
+			nil,
+			nil,
+			nil,
+			nil,
+			nil,
+			buildInfo,
+			nil,
+			nil,
+			runner,
+			appconfig.Config{},
+			outPath,
+			nil,
+			nil,
+			statusf,
+		)
+		extractor.SaveDocument(closeCtx, doc, "combined", format)
 		return nil
 	}
 	return document, closeGLB
-}
-
-func exportGLB(doc *gltf.Document, outPath string) error {
-	if err := os.MkdirAll(filepath.Dir(outPath), os.ModePerm); err != nil {
-		return err
-	}
-	out, err := os.Create(outPath)
-	if err != nil {
-		return err
-	}
-	enc := gltf.NewEncoder(out)
-	if err := enc.Encode(doc); err != nil {
-		return err
-	}
-	return nil
 }

@@ -660,21 +660,24 @@ Options:`)
 		var documents map[string]*gltf.Document = make(map[string]*gltf.Document)
 		var documentsToClose []func() error
 		if cfg.Unit.SingleFile {
-			for _, key := range []string{"unit", "geometry_group", "material", "speedtree"} {
+			for _, key := range []string{"unit", "geometry_group", "material", "speedtree", "level"} {
 				name := "combined_" + key
 				if optInclArchives != nil && len(*optInclArchives) > 0 {
 					name = fmt.Sprintf("%s_%s", strings.ReplaceAll(*optInclArchives, ",", "_"), key)
 				}
-				var formatBlend bool
+				var format string
 				switch key {
-				case "unit", "geometry_group":
-					formatBlend = cfg.Model.Format == "blend"
+				case "unit", "geometry_group", "speedtree", "level":
+					format = cfg.Model.Format
 				case "material":
-					formatBlend = cfg.Material.Format == "blend"
+					format = cfg.Material.Format
 				default:
 					panic("unknown format: " + key)
 				}
-				doc, close := single_glb_helper.CreateCloseableGltfDocument(*optOutDir, name, formatBlend, runner, a.GameBuildInfo)
+				statusf := func(format string, args ...any) {
+					prt.Statusf("Closing combined %v - %v", key, fmt.Sprintf(format, args...))
+				}
+				doc, close := single_glb_helper.CreateCloseableGltfDocument(ctx, statusf, *optOutDir, name, format, runner, a.GameBuildInfo)
 				documents[key] = doc
 				documentsToClose = append(documentsToClose, func() error { return close(doc) })
 			}
