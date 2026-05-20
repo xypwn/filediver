@@ -385,7 +385,7 @@ func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gl
 	AddPrefabMetadata(ctx, doc, gltf.Index(parent), doc.Nodes[parent].Children)
 
 	if gltfDoc == nil {
-		err := extractor.SaveDocument(ctx, doc, "speedtree")
+		err := extractor.SaveDocument(ctx, doc, "speedtree", cfg.Model.Format)
 		if err != nil {
 			return err
 		}

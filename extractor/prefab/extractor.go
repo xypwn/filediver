@@ -366,7 +366,7 @@ func ConvertOpts(ctx *extractor.Context, gltfDoc *gltf.Document) error {
 	extractor.ClearChildNodesFromScene(ctx, doc)
 
 	if gltfDoc == nil {
-		err := extractor.SaveDocument(ctx, doc, "prefab")
+		err := extractor.SaveDocument(ctx, doc, "prefab", cfg.Model.Format)
 		if err != nil {
 			return err
 		}

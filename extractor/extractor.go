@@ -171,7 +171,7 @@ func GetDocument(ctx *Context, inDoc *gltf.Document) *gltf.Document {
 	return doc
 }
 
-func SaveDocument(ctx *Context, doc *gltf.Document, format string) error {
+func SaveDocument(ctx *Context, doc *gltf.Document, stingrayFormat, fileFormat string) error {
 	extras, ok := doc.Extras.(map[string]any)
 	if ok {
 		for key := range extras {
@@ -181,10 +181,9 @@ func SaveDocument(ctx *Context, doc *gltf.Document, format string) error {
 		}
 		doc.Extras = extras
 	}
-	cfg := ctx.Config()
-	if cfg.Model.Format == "glb" {
-		ctx.Statusf("Creating glb file...")
-		name, err := ctx.AllocateFile(fmt.Sprintf(".%v.glb", format))
+	ctx.Statusf("Creating %v file...", fileFormat)
+	if fileFormat == "glb" {
+		name, err := ctx.AllocateFile(fmt.Sprintf(".%v.glb", stingrayFormat))
 		if err != nil {
 			return err
 		}
@@ -197,7 +196,7 @@ func SaveDocument(ctx *Context, doc *gltf.Document, format string) error {
 			if idx == 0 {
 				continue
 			}
-			bufName, err := ctx.AllocateFile(fmt.Sprintf(".%v.%v.bin", format, idx))
+			bufName, err := ctx.AllocateFile(fmt.Sprintf(".%v.%v.bin", stingrayFormat, idx))
 			if err != nil {
 				return err
 			}
@@ -211,15 +210,14 @@ func SaveDocument(ctx *Context, doc *gltf.Document, format string) error {
 		if err := enc.Encode(doc); err != nil {
 			return err
 		}
-	} else if cfg.Model.Format == "gltf" {
-		ctx.Statusf("Creating gltf file...")
-		name, err := ctx.AllocateFile(fmt.Sprintf(".%v.gltf", format))
+	} else if fileFormat == "gltf" {
+		name, err := ctx.AllocateFile(fmt.Sprintf(".%v.gltf", stingrayFormat))
 		if err != nil {
 			return err
 		}
 		folder := filepath.Dir(name)
 		for idx := range doc.Buffers {
-			bufName, err := ctx.AllocateFile(fmt.Sprintf(".%v.%v.bin", format, idx))
+			bufName, err := ctx.AllocateFile(fmt.Sprintf(".%v.%v.bin", stingrayFormat, idx))
 			if err != nil {
 				return err
 			}
@@ -232,9 +230,8 @@ func SaveDocument(ctx *Context, doc *gltf.Document, format string) error {
 		if err := gltf.Save(doc, name); err != nil {
 			return err
 		}
-	} else if cfg.Model.Format == "blend" {
-		ctx.Statusf("Creating blend file...")
-		outPath, err := ctx.AllocateFile(fmt.Sprintf(".%v.blend", format))
+	} else if fileFormat == "blend" {
+		outPath, err := ctx.AllocateFile(fmt.Sprintf(".%v.blend", stingrayFormat))
 		if err != nil {
 			return err
 		}

@@ -96,7 +96,7 @@ func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gl
 	}
 
 	if gltfDoc == nil {
-		err := extractor.SaveDocument(ctx, doc, "geometry_group")
+		err := extractor.SaveDocument(ctx, doc, "geometry_group", cfg.Model.Format)
 		if err != nil {
 			return err
 		}

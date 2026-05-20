@@ -775,7 +775,7 @@ func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gl
 	AddPrefabMetadata(ctx, doc, parent, skin, meshNodes, armorSetName)
 
 	if gltfDoc == nil {
-		err := extractor.SaveDocument(ctx, doc, "unit")
+		err := extractor.SaveDocument(ctx, doc, "unit", cfg.Model.Format)
 		if err != nil {
 			return err
 		}

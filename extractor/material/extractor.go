@@ -1567,7 +1567,7 @@ func convertOpts(ctx *extractor.Context, imgOpts *ImageOptions, gltfDoc *gltf.Do
 	doc.Scenes[0].Nodes = append(doc.Scenes[0].Nodes, uint32(len(doc.Nodes)-1))
 
 	if gltfDoc == nil {
-		err := extractor.SaveDocument(ctx, doc, "material")
+		err := extractor.SaveDocument(ctx, doc, "material", cfg.Material.Format)
 		if err != nil {
 			return err
 		}

@@ -502,7 +502,7 @@ func ConvertOpts(ctx *extractor.Context, gltfDoc *gltf.Document) error {
 	extractor.ClearChildNodesFromScene(ctx, doc)
 
 	if gltfDoc == nil {
-		err := extractor.SaveDocument(ctx, doc, "level")
+		err := extractor.SaveDocument(ctx, doc, "level", cfg.Model.Format)
 		if err != nil {
 			return err
 		}
