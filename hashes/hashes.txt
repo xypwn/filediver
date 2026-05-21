@@ -69875,6 +69875,7 @@ content/env_ship/hangar/robotic_arm_01/robotic_arm_03
 content/env_ship/hangar/robotics_module_hellpods/robotics_module_hellpods
 content/env_ship/hangar/se_destroyer_shiphub
 content/env_ship/hangar/se_destroyer_supportcannon_missile_launcher
+content/env_ship/hangar/se_destroyer_supportcannon_planet_killer
 content/env_ship/hangar/shiphub_collision
 content/env_ship/hangar/stairs
 content/env_ship/hangar/stratagem_hero

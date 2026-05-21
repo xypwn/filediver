@@ -7479,3 +7479,4 @@ content/art_shared/textures/noise_ion_3
 content/art_shared/textures/noise_flow_map
 content/art_shared/textures/screen_lightbleed
 content/env_ship/hangar/bay_10m
+content/env_ship/hangar/se_destroyer_supportcannon_planet_killer

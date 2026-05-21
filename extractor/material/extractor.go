@@ -166,33 +166,47 @@ func createPostProcessOpacityClip(ctx *extractor.Context, opacityClipHash stingr
 		return nil, fmt.Errorf("failed to convert opacity clip image to either gray or nrgba")
 	}
 
-	return func(img image.Image) (image.Image, error) {
+	return func(inImg image.Image) (image.Image, error) {
 		var opcBounds image.Rectangle
+		var outImg *image.NRGBA
 		if nrgbaOk {
 			opcBounds = opacityClipImage.Bounds()
 		} else {
 			opcBounds = opacityClipImageGray.Bounds()
 		}
-		imgToOpacityX := float32(opcBounds.Size().X) / float32(img.Bounds().Size().X)
-		imgToOpacityY := float32(opcBounds.Size().Y) / float32(img.Bounds().Size().Y)
-		switch img := img.(type) {
-		case *image.NRGBA:
-			for iY := img.Rect.Min.Y; iY < img.Rect.Max.Y; iY++ {
-				for iX := img.Rect.Min.X; iX < img.Rect.Max.X; iX++ {
-					idx := img.PixOffset(iX, iY)
-					if nrgbaOk {
-						opacityIdx := opacityClipImage.PixOffset(min(int(float32(iX)*imgToOpacityX), opacityClipImage.Rect.Max.X-1), min(int(float32(iY)*imgToOpacityY), opacityClipImage.Rect.Max.Y-1))
-						img.Pix[idx+3] = opacityClipImage.Pix[opacityIdx]
-					} else {
-						opacityIdx := opacityClipImageGray.PixOffset(min(int(float32(iX)*imgToOpacityX), opacityClipImageGray.Rect.Max.X-1), min(int(float32(iY)*imgToOpacityY), opacityClipImageGray.Rect.Max.Y-1))
-						img.Pix[idx+3] = opacityClipImageGray.Pix[opacityIdx]
-					}
-				}
-			}
-			return img, nil
-		default:
+		inImgNRGBA, ok := inImg.(*image.NRGBA)
+		if !ok {
 			return nil, errors.New("postProcessOpacityClip: unsupported image type")
 		}
+		if opcBounds.Dx() > inImg.Bounds().Dx() || opcBounds.Dy() > inImg.Bounds().Dy() {
+			outImg = image.NewNRGBA(opcBounds)
+		} else {
+			outImg = inImgNRGBA
+		}
+		imgToOpacityX := float32(opcBounds.Size().X) / float32(outImg.Bounds().Size().X)
+		imgToOpacityY := float32(opcBounds.Size().Y) / float32(outImg.Bounds().Size().Y)
+		outImgToInImgX := float32(inImg.Bounds().Size().X) / float32(outImg.Bounds().Size().X)
+		outImgToInImgY := float32(inImg.Bounds().Size().Y) / float32(outImg.Bounds().Size().Y)
+
+		for iY := outImg.Rect.Min.Y; iY < outImg.Rect.Max.Y; iY++ {
+			for iX := outImg.Rect.Min.X; iX < outImg.Rect.Max.X; iX++ {
+				idx := outImg.PixOffset(iX, iY)
+				inIdx := inImgNRGBA.PixOffset(min(int(float32(iX)*outImgToInImgX), inImgNRGBA.Rect.Max.X-1), min(int(float32(iY)*outImgToInImgY), inImgNRGBA.Rect.Max.Y-1))
+				outImg.Pix[idx] = inImgNRGBA.Pix[inIdx]
+				outImg.Pix[idx+1] = inImgNRGBA.Pix[inIdx+1]
+				outImg.Pix[idx+2] = inImgNRGBA.Pix[inIdx+2]
+				if nrgbaOk {
+					x, y := min(int(float32(iX)*imgToOpacityX), opacityClipImage.Rect.Max.X-1), min(int(float32(iY)*imgToOpacityY), opacityClipImage.Rect.Max.Y-1)
+					opacityIdx := opacityClipImage.PixOffset(x, y)
+					outImg.Pix[idx+3] = opacityClipImage.Pix[opacityIdx]
+				} else {
+					x, y := min(int(float32(iX)*imgToOpacityX), opacityClipImageGray.Rect.Max.X-1), min(int(float32(iY)*imgToOpacityY), opacityClipImageGray.Rect.Max.Y-1)
+					opacityIdx := opacityClipImageGray.PixOffset(x, y)
+					outImg.Pix[idx+3] = opacityClipImageGray.Pix[opacityIdx]
+				}
+			}
+		}
+		return outImg, nil
 	}, nil
 }
 
@@ -219,6 +233,29 @@ func createPostProcessEmissiveColor(color []float32, channel int) (func(image.Im
 		case *image.Gray:
 			outImg := image.NewNRGBA(img.Rect)
 			return outImg, nil
+		default:
+			return nil, errors.New("postProcessEmissiveColor: unsupported image type")
+		}
+	}, nil
+}
+
+// Returns a function that sets a constant color in the rgb channel of a texture
+func createPostProcessToColor(color []float32) (func(image.Image) (image.Image, error), error) {
+	if len(color) < 3 {
+		return nil, fmt.Errorf("createPostProcessEmissiveColor: color %v does not have enough entries", color)
+	}
+	return func(img image.Image) (image.Image, error) {
+		switch img := img.(type) {
+		case *image.NRGBA:
+			for iY := img.Rect.Min.Y; iY < img.Rect.Max.Y; iY++ {
+				for iX := img.Rect.Min.X; iX < img.Rect.Max.X; iX++ {
+					idx := img.PixOffset(iX, iY)
+					img.Pix[idx] = uint8(color[0] * 255.0)
+					img.Pix[idx+1] = uint8(color[1] * 255.0)
+					img.Pix[idx+2] = uint8(color[2] * 255.0)
+				}
+			}
+			return img, nil
 		default:
 			return nil, errors.New("postProcessEmissiveColor: unsupported image type")
 		}
@@ -543,6 +580,31 @@ func combineTankOcclusionMetallicRoughness(narImg, dataImg image.Image) error {
 		}
 	}
 	return nil
+}
+
+func extractRoughnessOpacity(nroImg image.Image) (image.Image, error) {
+	nroImgNRGBA, ok := nroImg.(*image.NRGBA)
+	if !ok {
+		return nil, fmt.Errorf("extractRoughnessOpacity: unsupported NAR image type")
+	}
+
+	/**
+	 * NRO:
+	 *	R - normal X
+	 *	G - normal Y
+	 *	B - roughness
+	 *	A - opacity
+	 */
+	for iY := nroImgNRGBA.Rect.Min.Y; iY < nroImgNRGBA.Rect.Max.Y; iY++ {
+		for iX := nroImgNRGBA.Rect.Min.X; iX < nroImgNRGBA.Rect.Max.X; iX++ {
+			nroIdx := nroImgNRGBA.PixOffset(iX, iY)
+			// Move NRO roughness to green channel
+			nroImgNRGBA.Pix[nroIdx+1] = nroImgNRGBA.Pix[nroIdx+2]
+			// Set metallic to 1 in blue channel
+			nroImgNRGBA.Pix[nroIdx+2] = 255
+		}
+	}
+	return nroImgNRGBA, nil
 }
 
 // Combines illuminate data/metallic intensity map/base color metal map and NAR into a gltf compliant ao, metallic, roughness map and returns the index
@@ -898,6 +960,13 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 			}
 			albedoPostProcess = postProcessToOpaque
 		case "emissive_map":
+			colourSetting, ok := mat.Settings[stingray.Sum("colour").Thin()]
+			if ok {
+				colorFactor[0] = colourSetting[0]
+				colorFactor[1] = colourSetting[1]
+				colorFactor[2] = colourSetting[2]
+				colorFactor[3] = 1.0
+			}
 			emissiveColorSetting, ok := mat.Settings[stingray.Sum("emissive_color").Thin()]
 			if !ok {
 				emissiveColorSetting, ok = mat.Settings[stingray.Sum("emissive").Thin()]
@@ -907,18 +976,25 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 				continue
 			}
 			useEmissiveMapSetting, ok := mat.Settings[stingray.Sum("use_emissive_map").Thin()]
-			if !ok {
-				ctx.Warnf("material %v has %v texture but no use_emissive_map setting", matName, texUsageStr)
-				continue
-			}
 
-			if useEmissiveMapSetting[0] > 0 {
+			if ok && useEmissiveMapSetting[0] > 0 {
 				postProcessEmissiveColor, err := createPostProcessEmissiveColor(emissiveColorSetting, 3)
 				if err != nil {
 					ctx.Warnf("createPostProcessEmissiveColor: %v", err)
 					continue
 				}
 				emissiveIndex, err := writeTexture(ctx, doc, mat.Textures[texUsage], postProcessEmissiveColor, imgOpts, "_emissive")
+				if err != nil {
+					return 0, err
+				}
+				emissiveTexture = &gltf.TextureInfo{
+					Index: emissiveIndex,
+				}
+				emissiveFactor[0] = 1.0
+				emissiveFactor[1] = 1.0
+				emissiveFactor[2] = 1.0
+			} else if !ok {
+				emissiveIndex, err := writeTexture(ctx, doc, mat.Textures[texUsage], postProcessToOpaque, imgOpts, "_emissive")
 				if err != nil {
 					return 0, err
 				}
@@ -1034,6 +1110,42 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 				Index: gltf.Index(index),
 			}
 			usedTextures[texUsageStr] = index
+		case "normal_xy_roughness_opacity":
+			hash := mat.Textures[texUsage]
+			index, err := writeTexture(ctx, doc, hash, postProcessReconstructNormalZ, imgOpts, "")
+			if err != nil {
+				ctx.Warnf("writeTexture: %v: %v", ctx.LookupThinHash(texUsage), err)
+				continue
+			}
+			normalTexture = &gltf.NormalTexture{
+				Index: gltf.Index(index),
+			}
+			roughnessIndex, err := writeTexture(ctx, doc, hash, extractRoughnessOpacity, imgOpts, "_r")
+			if err != nil {
+				ctx.Warnf("writeTexture: %v: %v", ctx.LookupThinHash(texUsage), err)
+				continue
+			}
+			metallicRoughnessTexture = &gltf.TextureInfo{
+				Index: roughnessIndex,
+			}
+			baseColor, ok := mat.Settings[stingray.Sum("base_color").Thin()]
+			if !ok {
+				continue
+			}
+			postProcessToColor, err := createPostProcessToColor(baseColor)
+			if err != nil {
+				ctx.Warnf("createPostProcessToColor: %v: %v", ctx.LookupThinHash(texUsage), err)
+				continue
+			}
+			colorOpacityIndex, err := writeTexture(ctx, doc, hash, postProcessToColor, imgOpts, "_bco")
+			if err != nil {
+				ctx.Warnf("writeTexture: %v: %v", ctx.LookupThinHash(texUsage), err)
+				continue
+			}
+			baseColorTexture = &gltf.TextureInfo{
+				Index: colorOpacityIndex,
+			}
+			alphaMode = gltf.AlphaBlend
 		case "NAR", "normal_xy_ao_rough_map", "nar":
 			hash := mat.Textures[texUsage]
 			index, err := writeTexture(ctx, doc, hash, postProcessReconstructNormalZ, imgOpts, "")
@@ -1371,6 +1483,16 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 			alphaCutoff = opacity_threshold[0]
 			alphaMode = gltf.AlphaBlend
 			doubleSided = true
+		} else if !ok && hasClipMap {
+			alphaMode = gltf.AlphaMask
+		}
+
+		colorSetting, ok := mat.Settings[stingray.Sum("color").Thin()]
+		if ok && len(colorSetting) >= 3 && len(mat.Textures) == 0 {
+			colorFactor[0] = colorSetting[0]
+			colorFactor[1] = colorSetting[1]
+			colorFactor[2] = colorSetting[2]
+			colorFactor[3] = 1.0
 		}
 	}
 
@@ -1391,6 +1513,21 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 	})
 	if baseColorTexture == nil && colorFactor[3] != 0 {
 		doc.Materials[len(doc.Materials)-1].PBRMetallicRoughness.BaseColorFactor = &colorFactor
+	}
+	if strings.Contains(matName, "gizmo") {
+		if !slices.Contains(doc.ExtensionsUsed, "KHR_materials_unlit") {
+			doc.ExtensionsUsed = append(doc.ExtensionsUsed, "KHR_materials_unlit")
+		}
+		if doc.Materials[len(doc.Materials)-1].Extensions == nil {
+			doc.Materials[len(doc.Materials)-1].Extensions = make(map[string]interface{})
+		}
+		doc.Materials[len(doc.Materials)-1].Extensions["KHR_materials_unlit"] = map[string]any{}
+		doc.Materials[len(doc.Materials)-1].DoubleSided = true
+	}
+	if strings.Contains(matName, "transparent") {
+		doc.Materials[len(doc.Materials)-1].AlphaMode = gltf.AlphaMask
+		doc.Materials[len(doc.Materials)-1].AlphaCutoff = gltf.Float(1.0)
+		doc.Materials[len(doc.Materials)-1].PBRMetallicRoughness.BaseColorFactor = &[4]float32{0.0, 0.0, 0.0, 0.0}
 	}
 	if coatTexture != nil {
 		clearcoat := make(map[string]interface{})
@@ -1448,6 +1585,52 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 				doc.ExtensionsUsed = append(doc.ExtensionsUsed, "KHR_materials_emissive_strength")
 			}
 			doc.Materials[len(doc.Materials)-1].Extensions["KHR_materials_emissive_strength"] = strength
+		}
+	}
+	if len(mat.Settings) != 0 {
+		roughnessSetting, ok := mat.Settings[stingray.Sum("roughness").Thin()]
+		if metallicRoughnessTexture == nil && ok {
+			doc.Materials[len(doc.Materials)-1].PBRMetallicRoughness.RoughnessFactor = gltf.Float(roughnessSetting[0])
+		}
+		uvOffset, containsOffset := mat.Settings[stingray.Sum("uv_offset").Thin()]
+		uvScale, containsScale := mat.Settings[stingray.Sum("uv_scale").Thin()]
+		textureTile, containsTile := mat.Settings[stingray.Sum("texture_tile").Thin()]
+		mat := doc.Materials[len(doc.Materials)-1]
+		if containsOffset || containsScale || containsTile {
+			if !slices.Contains(doc.ExtensionsUsed, "KHR_texture_transform") {
+				doc.ExtensionsUsed = append(doc.ExtensionsUsed, "KHR_texture_transform")
+			}
+		}
+		if !containsOffset {
+			uvOffset = []float32{0, 0}
+		}
+		if !containsScale && !containsTile {
+			uvScale = []float32{1, 1}
+		} else if containsTile {
+			uvScale = []float32{textureTile[0], textureTile[0]}
+		}
+		extensions := make(gltf.Extensions)
+		textureTransform := map[string]any{
+			"offset": uvOffset[:2],
+			"scale":  uvScale[:2],
+		}
+		extensions["KHR_texture_transform"] = textureTransform
+		if containsOffset || containsScale || containsTile {
+			if mat.EmissiveTexture != nil {
+				mat.EmissiveTexture.Extensions = extensions
+			}
+			if mat.PBRMetallicRoughness != nil && mat.PBRMetallicRoughness.BaseColorTexture != nil {
+				mat.PBRMetallicRoughness.BaseColorTexture.Extensions = extensions
+			}
+			if mat.PBRMetallicRoughness != nil && mat.PBRMetallicRoughness.MetallicRoughnessTexture != nil {
+				mat.PBRMetallicRoughness.MetallicRoughnessTexture.Extensions = extensions
+			}
+			if mat.NormalTexture != nil {
+				mat.NormalTexture.Extensions = extensions
+			}
+			if mat.OcclusionTexture != nil {
+				mat.OcclusionTexture.Extensions = extensions
+			}
 		}
 	}
 	return uint32(len(doc.Materials) - 1), nil
