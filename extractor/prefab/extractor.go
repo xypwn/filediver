@@ -95,6 +95,92 @@ func ExtractPrefabJSON(ctx *extractor.Context) error {
 	return nil
 }
 
+func getModelMetadata(ctx *extractor.Context, doc *gltf.Document, extrasId string) (extras map[string]any, modelMetadata map[string]any, instanceList []map[string]any, err error) {
+	extras, ok := doc.Extras.(map[string]any)
+	if !ok {
+		err = fmt.Errorf("could not resolve %s.%s gltf metadata? (this should not happen)", ctx.FileID().Name.String(), ctx.LookupHash(ctx.FileID().Type))
+		return
+	}
+	modelMetadataIface, ok := extras[extrasId]
+	if !ok {
+		err = fmt.Errorf("could not resolve %s.%s gltf metadata? (this should not happen)", ctx.FileID().Name.String(), ctx.LookupHash(ctx.FileID().Type))
+		return
+	}
+	modelMetadata, ok = modelMetadataIface.(map[string]any)
+	if !ok {
+		err = fmt.Errorf("could not cast %s.%s gltf metadata? (this should not happen)", ctx.FileID().Name.String(), ctx.LookupHash(ctx.FileID().Type))
+		return
+	}
+	instanceListIface, contains := modelMetadata["filediver_instances"]
+	if !contains {
+		instanceList = make([]map[string]any, 0)
+	} else if instanceList, ok = instanceListIface.([]map[string]any); !ok {
+		err = fmt.Errorf("failed to cast instance list")
+		return
+	}
+	return
+}
+
+func overrideDuplicateModelMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_material.ImageOptions, materialOverrides map[stingray.ThinHash]stingray.Hash, modelMetadata map[string]any) (materials map[uint32]uint32, err error) {
+	if materialOverrides == nil {
+		return
+	}
+
+	fMain, err := ctx.Open(ctx.FileID(), stingray.DataMain)
+	if err != nil {
+		return
+	}
+	unitInfo, err := unit.LoadInfo(fMain)
+	if err != nil {
+		return
+	}
+	materialVariants, err := extr_unit.AddMaterials(ctx.WithMaterialOverrides(materialOverrides), doc, imgOpts, unitInfo, nil)
+	if err != nil {
+		return
+	}
+	if len(materialVariants) > 1 {
+		return nil, fmt.Errorf("unexpected extra variants when duplicating model")
+	}
+	materialSlots := materialVariants[0].MaterialHashToIndex
+	materials = make(map[uint32]uint32)
+	meshNodesIface, contains := modelMetadata["objects"]
+	if !contains {
+		err = fmt.Errorf("no objects to duplicate? Should not happen")
+		return
+	}
+	meshNodes, ok := meshNodesIface.([]uint32)
+	if !ok {
+		err = fmt.Errorf("failed to convert meshnodes to []uint32")
+		return
+	}
+	for _, nodeIdx := range meshNodes {
+		meshIdx := doc.Nodes[nodeIdx].Mesh
+		if meshIdx == nil {
+			err = fmt.Errorf("object does not have a mesh? Should not happen")
+			return
+		}
+		for idx, primitive := range doc.Meshes[*meshIdx].Primitives {
+			slotExtras, ok := primitive.Extras.(map[string]stingray.ThinHash)
+			if !ok {
+				err = fmt.Errorf("failed to convert primitive extras to map[string]stingray.ThinHash")
+				return
+			}
+			slot, contains := slotExtras["slot"]
+			if !contains {
+				err = fmt.Errorf("primitive extras didn't have a slot?")
+				return
+			}
+			materialIdx, contains := materialSlots[slot]
+			if !contains {
+				// I mean I assume they don't need to override every slot?
+				continue
+			}
+			materials[uint32(idx)] = materialIdx
+		}
+	}
+	return
+}
+
 func AddOrDuplicateModel(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_material.ImageOptions, obj extractor.Object, parentNode uint32, materialOverrides map[stingray.ThinHash]stingray.Hash, levelMetadata map[string]any) error {
 	if ctxErr := ctx.Ctx().Err(); errors.Is(ctxErr, context.Canceled) {
 		return ctxErr
@@ -118,7 +204,7 @@ func AddOrDuplicateModel(ctx *extractor.Context, doc *gltf.Document, imgOpts *ex
 		var err error
 		switch ctx.FileID().Type {
 		case stingray.Sum("unit"):
-			err = extr_unit.ConvertOpts(ctx, imgOpts, doc, materialOverrides)
+			err = extr_unit.ConvertOpts(ctx.WithMaterialOverrides(materialOverrides), imgOpts, doc)
 		case stingray.Sum("speedtree"):
 			err = extr_speedtree.ConvertOpts(ctx, imgOpts, doc)
 		default:
@@ -167,75 +253,14 @@ func AddOrDuplicateModel(ctx *extractor.Context, doc *gltf.Document, imgOpts *ex
 		extras[extrasId] = modelMetadata
 		doc.Extras = extras
 	} else {
-		extras, ok := doc.Extras.(map[string]any)
-		if !ok {
-			return fmt.Errorf("could not resolve %s.%s gltf metadata? (this should not happen)", ctx.FileID().Name.String(), ctx.LookupHash(ctx.FileID().Type))
-		}
-		modelMetadataIface, ok := extras[extrasId]
-		if !ok {
-			return fmt.Errorf("could not resolve %s.%s gltf metadata? (this should not happen)", ctx.FileID().Name.String(), ctx.LookupHash(ctx.FileID().Type))
-		}
-		modelMetadata, ok := modelMetadataIface.(map[string]any)
-		if !ok {
-			return fmt.Errorf("could not cast %s.%s gltf metadata? (this should not happen)", ctx.FileID().Name.String(), ctx.LookupHash(ctx.FileID().Type))
-		}
-		var instanceList []map[string]any
-		instanceListIface, contains := modelMetadata["filediver_instances"]
-		if !contains {
-			instanceList = make([]map[string]any, 0)
-		} else if instanceList, ok = instanceListIface.([]map[string]any); !ok {
-			return fmt.Errorf("failed to cast instance list")
+		extras, modelMetadata, instanceList, err := getModelMetadata(ctx, doc, extrasId)
+		if err != nil {
+			return err
 		}
 
-		var materials map[uint32]uint32
-		if materialOverrides != nil {
-			fMain, err := ctx.Open(ctx.FileID(), stingray.DataMain)
-			if err != nil {
-				return err
-			}
-			unitInfo, err := unit.LoadInfo(fMain)
-			if err != nil {
-				return err
-			}
-			materialVariants, err := extr_unit.AddMaterials(ctx, doc, imgOpts, unitInfo, nil, materialOverrides)
-			if err != nil {
-				return err
-			}
-			if len(materialVariants) > 1 {
-				return fmt.Errorf("unexpected extra variants when duplicating model")
-			}
-			materialSlots := materialVariants[0].MaterialHashToIndex
-			materials = make(map[uint32]uint32)
-			meshNodesIface, contains := modelMetadata["objects"]
-			if !contains {
-				return fmt.Errorf("no objects to duplicate? Should not happen")
-			}
-			meshNodes, ok := meshNodesIface.([]uint32)
-			if !ok {
-				return fmt.Errorf("failed to convert meshnodes to []uint32")
-			}
-			for _, nodeIdx := range meshNodes {
-				meshIdx := doc.Nodes[nodeIdx].Mesh
-				if meshIdx == nil {
-					return fmt.Errorf("object does not have a mesh? Should not happen")
-				}
-				for idx, primitive := range doc.Meshes[*meshIdx].Primitives {
-					slotExtras, ok := primitive.Extras.(map[string]stingray.ThinHash)
-					if !ok {
-						return fmt.Errorf("failed to convert primitive extras to map[string]stingray.ThinHash")
-					}
-					slot, contains := slotExtras["slot"]
-					if !contains {
-						return fmt.Errorf("primitive extras didn't have a slot?")
-					}
-					materialIdx, contains := materialSlots[slot]
-					if !contains {
-						// I mean I assume they don't need to override every slot?
-						continue
-					}
-					materials[uint32(idx)] = materialIdx
-				}
-			}
+		materials, err := overrideDuplicateModelMaterials(ctx, doc, imgOpts, materialOverrides, modelMetadata)
+		if err != nil {
+			return err
 		}
 
 		translation, rotation, scale := obj.ToGLTF()

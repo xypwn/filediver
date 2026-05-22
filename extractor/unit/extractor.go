@@ -261,7 +261,7 @@ func getWeaponEntityHashFromUnitHash(weaponUnit stingray.Hash) stingray.Hash {
 	return weaponUnit
 }
 
-func AddMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_material.ImageOptions, unitInfo *unit.Info, metadata *datalib.UnitData, materialOverrides map[stingray.ThinHash]stingray.Hash) ([]geometry.MaterialVariantMap, error) {
+func AddMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_material.ImageOptions, unitInfo *unit.Info, metadata *datalib.UnitData) ([]geometry.MaterialVariantMap, error) {
 	materialVariants := make([]geometry.MaterialVariantMap, 0)
 	namesToVariantIdx := make(map[string]uint32)
 
@@ -281,12 +281,7 @@ func AddMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_mate
 	isHelldiverWeapon := len(equipmentData) > 0
 
 	for id, resID := range unitInfo.Materials {
-		if materialOverrides != nil {
-			overrideResId, contains := materialOverrides[id]
-			if contains {
-				resID = overrideResId
-			}
-		}
+		resID = ctx.OverrideMaterial(id, resID)
 		matR, err := ctx.Open(stingray.NewFileID(resID, stingray.Sum("material")), stingray.DataMain)
 		if err == stingray.ErrFileNotExist {
 			return nil, fmt.Errorf("referenced material resource %v doesn't exist", resID)
@@ -619,7 +614,7 @@ func GetUnitExtrasID(fileId stingray.FileID) string {
 	return fileId.Name.String() + ".unit"
 }
 
-func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gltfDoc *gltf.Document, materialOverrides map[stingray.ThinHash]stingray.Hash) error {
+func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gltfDoc *gltf.Document) error {
 	fMain, err := ctx.Open(ctx.FileID(), stingray.DataMain)
 	if err != nil {
 		return err
@@ -667,7 +662,7 @@ func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gl
 	var materialIdxs []geometry.MaterialVariantMap = make([]geometry.MaterialVariantMap, 0)
 	// Load materials
 	if len(armorSets) == 0 {
-		materialIdxs, err = AddMaterials(ctx, doc, imgOpts, unitInfo, metadata, materialOverrides)
+		materialIdxs, err = AddMaterials(ctx, doc, imgOpts, unitInfo, metadata)
 		if err != nil {
 			return err
 		}
@@ -677,7 +672,7 @@ func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gl
 				if armorSet.Type != datalib.KitCape && hash != ctx.FileID().Name {
 					continue
 				}
-				tmp, err := AddMaterials(ctx, doc, imgOpts, unitInfo, &meta, materialOverrides)
+				tmp, err := AddMaterials(ctx, doc, imgOpts, unitInfo, &meta)
 				if err != nil {
 					return err
 				}
@@ -832,6 +827,6 @@ func Convert(currDoc *gltf.Document) func(ctx *extractor.Context) error {
 		if err != nil {
 			return err
 		}
-		return ConvertOpts(ctx, opts, currDoc, nil)
+		return ConvertOpts(ctx, opts, currDoc)
 	}
 }

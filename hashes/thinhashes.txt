@@ -30156,3 +30156,6 @@ factoryworlds
 enemy markers
 enemy_markers
 sound source
+kill planes
+kill volumes
+box_walls
