@@ -1022,18 +1022,14 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 			emissiveStrength = emissiveStrengthSetting[0]
 			albedoPostProcess = postProcessToOpaque
 		case "color_map":
-			colorSetting, ok := mat.Settings[stingray.Sum("base_color").Thin()]
-			if !ok {
-				ctx.Warnf("material %v has %v texture but no base_color setting", matName, texUsageStr)
-				continue
-			}
+			colorSetting, colorOk := mat.Settings[stingray.Sum("base_color").Thin()]
 			useColorMapSetting, ok := mat.Settings[stingray.Sum("use_color_map").Thin()]
 			if !ok {
 				ctx.Warnf("material %v has %v texture but no use_color_map setting", matName, texUsageStr)
 				continue
 			}
 
-			if useColorMapSetting[0] == 0 {
+			if useColorMapSetting[0] == 0 && colorOk {
 				colorFactor[0] = colorSetting[0]
 				colorFactor[1] = colorSetting[1]
 				colorFactor[2] = colorSetting[2]

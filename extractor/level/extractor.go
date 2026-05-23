@@ -32,16 +32,16 @@ type SimpleMaterial struct {
 }
 
 type SimplePrefab struct {
-	UnkHash string `json:"unk_hash"`
-	Path    string `json:"path"`
+	UUID string `json:"uuid"`
+	Path string `json:"path"`
 	stingray.Transform
 	UnkExtraRotation mgl32.Vec4 `json:"extra_rotation"`
 }
 
 type SimpleUnit struct {
-	UnkHash00 string `json:"unk_hash_0"`
-	UnkHash01 string `json:"unk_hash_1"`
-	Path      string `json:"path"`
+	UUID string `json:"uuid"`
+	Name string `json:"name"`
+	Path string `json:"path"`
 	stingray.Transform
 	UnkFloats [6]float32 `json:"unk_floats"`
 }
@@ -71,9 +71,9 @@ type SimpleUnknownTransformedItem struct {
 }
 
 type SimpleExtraUnit struct {
-	UnkHash1 string `json:"unk_hash_1"`
-	Path     string `json:"path"`
-	UnkHash2 string `json:"unk_hash_2"`
+	UUID string `json:"uuid"`
+	Path string `json:"path"`
+	Name string `json:"name"`
 	stingray.Transform
 	UnkFloats [3]float32 `json:"unk_floats"`
 	UnkInt    uint32     `json:"unk_int"`
@@ -81,8 +81,8 @@ type SimpleExtraUnit struct {
 }
 
 type SimpleExtraPrefab struct {
-	UnkHash1 string `json:"unk_hash_1"`
-	Path     string `json:"path"`
+	UUID string `json:"uuid"`
+	Path string `json:"path"`
 	stingray.Transform
 	UnkFloats [3]float32 `json:"unk_floats"`
 	UnkInt    uint32     `json:"unk_int"`
@@ -159,7 +159,7 @@ func ExtractLevelJSON(ctx *extractor.Context) error {
 	prefabs := make([]SimplePrefab, 0)
 	for _, prefab := range levelData.Prefabs {
 		prefabs = append(prefabs, SimplePrefab{
-			UnkHash:          ctx.LookupHash(prefab.UnkHash00),
+			UUID:             ctx.LookupHash(prefab.UUIDHash),
 			Path:             ctx.LookupHash(prefab.Path),
 			Transform:        prefab.Transform,
 			UnkExtraRotation: prefab.UnkExtraRotation,
@@ -206,8 +206,8 @@ func ExtractLevelJSON(ctx *extractor.Context) error {
 	units := make([]SimpleUnit, 0)
 	for _, unit := range levelData.Units {
 		units = append(units, SimpleUnit{
-			UnkHash00: ctx.LookupHash(unit.UnkHash00),
-			UnkHash01: ctx.LookupHash(unit.UnkHash01),
+			UUID:      ctx.LookupHash(unit.UUIDHash),
+			Name:      ctx.LookupHash(unit.Name),
 			Path:      ctx.LookupHash(unit.Path()),
 			Transform: unit.Transform,
 			UnkFloats: unit.UnkFloats,
@@ -237,9 +237,9 @@ func ExtractLevelJSON(ctx *extractor.Context) error {
 		extraUnits := make([]SimpleExtraUnit, 0)
 		for _, unit := range container.ExtraUnits {
 			extraUnits = append(extraUnits, SimpleExtraUnit{
-				UnkHash1:  ctx.LookupHash(unit.UnkHash1),
+				UUID:      ctx.LookupHash(unit.UUIDHash),
 				Path:      ctx.LookupHash(unit.Path),
-				UnkHash2:  ctx.LookupHash(unit.UnkHash2),
+				Name:      ctx.LookupHash(unit.Name),
 				Transform: unit.Transform,
 				UnkFloats: unit.UnkFloats,
 				UnkInt:    unit.UnkInt,
@@ -249,7 +249,7 @@ func ExtractLevelJSON(ctx *extractor.Context) error {
 		extraPrefabs := make([]SimpleExtraPrefab, 0)
 		for _, prefab := range container.ExtraPrefabs {
 			extraPrefabs = append(extraPrefabs, SimpleExtraPrefab{
-				UnkHash1:  ctx.LookupHash(prefab.UnkHash1),
+				UUID:      ctx.LookupHash(prefab.UUIDHash),
 				Path:      ctx.LookupHash(prefab.Path),
 				Transform: prefab.Transform,
 				UnkFloats: prefab.UnkFloats,
