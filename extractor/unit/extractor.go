@@ -20,7 +20,6 @@ import (
 	datalib "github.com/xypwn/filediver/datalibrary"
 	"github.com/xypwn/filediver/datalibrary/enum"
 	"github.com/xypwn/filediver/extractor"
-	"github.com/xypwn/filediver/extractor/blend_helper"
 	"github.com/xypwn/filediver/extractor/geometry"
 	extr_material "github.com/xypwn/filediver/extractor/material"
 	"github.com/xypwn/filediver/extractor/state_machine"
@@ -282,6 +281,7 @@ func AddMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_mate
 	isHelldiverWeapon := len(equipmentData) > 0
 
 	for id, resID := range unitInfo.Materials {
+		resID = ctx.OverrideMaterial(id, resID)
 		matR, err := ctx.Open(stingray.NewFileID(resID, stingray.Sum("material")), stingray.DataMain)
 		if err == stingray.ErrFileNotExist {
 			return nil, fmt.Errorf("referenced material resource %v doesn't exist", resID)
@@ -316,6 +316,11 @@ func AddMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_mate
 			})
 		}
 		materialVariants[namesToVariantIdx["default"]].MaterialHashToIndex[id] = matIdx
+
+		if ctx.RootFileID().Type == stingray.Sum("level") {
+			// If we're exporting a level, just use the default material, don't make any variants
+			continue
+		}
 
 		// Handle vehicle variants
 		var skinOverrides []datalib.UnitSkinOverride = make([]datalib.UnitSkinOverride, 0)
@@ -764,22 +769,8 @@ func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gl
 
 	AddPrefabMetadata(ctx, doc, parent, skin, meshNodes, armorSetName)
 
-	formatIsBlend := cfg.Model.Format == "blend"
-	if gltfDoc == nil && !formatIsBlend {
-		out, err := ctx.CreateFile(".glb")
-		if err != nil {
-			return err
-		}
-		enc := gltf.NewEncoder(out)
-		if err := enc.Encode(doc); err != nil {
-			return err
-		}
-	} else if gltfDoc == nil && formatIsBlend {
-		outPath, err := ctx.AllocateFile(".blend")
-		if err != nil {
-			return err
-		}
-		err = blend_helper.ExportBlend(doc, outPath, ctx.Runner())
+	if gltfDoc == nil {
+		err := extractor.SaveDocument(ctx, doc, "unit", cfg.Model.Format)
 		if err != nil {
 			return err
 		}

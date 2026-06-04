@@ -10,8 +10,8 @@ import (
 )
 
 type Unit struct {
-	UnkHash00 stingray.Hash
-	UnkHash01 stingray.Hash
+	UUIDHash stingray.Hash // hm yes, today I'll represent a 128 bit number as a 64 bit hash of the string representation of the 128 bit number
+	Name     stingray.Hash
 	stingray.Hash
 	_ [8]uint8
 	stingray.Transform
@@ -23,8 +23,8 @@ func (p *Unit) Path() stingray.Hash {
 }
 
 type Prefab struct {
-	UnkHash00 stingray.Hash
-	Path      stingray.Hash
+	UUIDHash stingray.Hash
+	Path     stingray.Hash
 	stingray.Transform
 	UnkExtraRotation mgl32.Vec4
 }
@@ -82,6 +82,29 @@ type MetadataEntry struct {
 	ValueUint     uint32
 	ValueFloat    float32
 	ValueString   string
+}
+
+func (m *MetadataEntry) Key(lookupThinhash func(stingray.ThinHash) string) string {
+	toReturn := ""
+	for idx, name := range m.VariableNames {
+		if idx > 0 {
+			toReturn += " > "
+		}
+		toReturn += lookupThinhash(name)
+	}
+	return toReturn
+}
+
+func (m *MetadataEntry) Value() any {
+	switch m.Type {
+	case LevelMetadata_float32:
+		return m.ValueFloat
+	case LevelMetadata_string:
+		return m.ValueString
+	case LevelMetadata_uint32:
+		return m.ValueUint
+	}
+	return nil
 }
 
 func parseMetadataEntry(r io.ReadSeeker) (*MetadataEntry, error) {
@@ -158,9 +181,9 @@ type UnknownTransformedItem struct {
 }
 
 type ExtraUnit struct {
-	UnkHash1 stingray.Hash
+	UUIDHash stingray.Hash
 	Path     stingray.Hash
-	UnkHash2 stingray.Hash
+	Name     stingray.Hash
 	_        [8]uint8
 	stingray.Transform
 	UnkFloats [3]float32
@@ -169,7 +192,7 @@ type ExtraUnit struct {
 }
 
 type ExtraPrefab struct {
-	UnkHash1 stingray.Hash
+	UUIDHash stingray.Hash
 	Path     stingray.Hash
 	stingray.Transform
 	UnkFloats [3]float32
@@ -251,7 +274,7 @@ type Level struct {
 	Name                   stingray.Hash
 	Metadata               map[int][]MetadataEntry
 	Prefabs                []Prefab
-	MaterialOverrides      []MaterialSlotOverrides
+	MaterialOverrides      map[int]map[stingray.ThinHash]stingray.Hash
 	Units                  []Unit
 	Speedtrees             []Speedtree
 	UnkTransformedItems    []UnknownTransformedItem
@@ -474,7 +497,7 @@ func LoadLevel(r io.ReadSeeker) (*Level, error) {
 		}
 	}
 
-	materialOverrides := make([]MaterialSlotOverrides, 0)
+	materialOverrides := make(map[int]map[stingray.ThinHash]stingray.Hash)
 	if raw.MaterialOffset != 0 {
 		if _, err := r.Seek(int64(raw.MaterialOffset), io.SeekStart); err != nil {
 			return nil, fmt.Errorf("seek material offset: %v", err)
@@ -495,10 +518,11 @@ func LoadLevel(r io.ReadSeeker) (*Level, error) {
 			if err := binary.Read(r, binary.LittleEndian, materials); err != nil {
 				return nil, fmt.Errorf("read material overrides: %v", err)
 			}
-			materialOverrides = append(materialOverrides, MaterialSlotOverrides{
-				Index:     index,
-				Materials: materials,
-			})
+			materialMap := make(map[stingray.ThinHash]stingray.Hash)
+			for _, material := range materials {
+				materialMap[material.Slot] = material.Path
+			}
+			materialOverrides[int(index)] = materialMap
 		}
 	}
 

@@ -1,13 +1,14 @@
 package level
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/go-gl/mathgl/mgl32"
 	"github.com/qmuntal/gltf"
 	"github.com/xypwn/filediver/extractor"
-	"github.com/xypwn/filediver/extractor/blend_helper"
 	extr_material "github.com/xypwn/filediver/extractor/material"
 	extr_prefab "github.com/xypwn/filediver/extractor/prefab"
 	"github.com/xypwn/filediver/stingray"
@@ -21,8 +22,8 @@ type SimpleMetadata struct {
 }
 
 type SimpleMaterialOverride struct {
-	Index     uint32           `json:"index"`
-	Materials []SimpleMaterial `json:"materials"`
+	Index     uint32            `json:"index"`
+	Materials map[string]string `json:"materials"`
 }
 
 type SimpleMaterial struct {
@@ -31,16 +32,16 @@ type SimpleMaterial struct {
 }
 
 type SimplePrefab struct {
-	UnkHash string `json:"unk_hash"`
-	Path    string `json:"path"`
+	UUID string `json:"uuid"`
+	Path string `json:"path"`
 	stingray.Transform
 	UnkExtraRotation mgl32.Vec4 `json:"extra_rotation"`
 }
 
 type SimpleUnit struct {
-	UnkHash00 string `json:"unk_hash_0"`
-	UnkHash01 string `json:"unk_hash_1"`
-	Path      string `json:"path"`
+	UUID string `json:"uuid"`
+	Name string `json:"name"`
+	Path string `json:"path"`
 	stingray.Transform
 	UnkFloats [6]float32 `json:"unk_floats"`
 }
@@ -70,9 +71,9 @@ type SimpleUnknownTransformedItem struct {
 }
 
 type SimpleExtraUnit struct {
-	UnkHash1 string `json:"unk_hash_1"`
-	Path     string `json:"path"`
-	UnkHash2 string `json:"unk_hash_2"`
+	UUID string `json:"uuid"`
+	Path string `json:"path"`
+	Name string `json:"name"`
 	stingray.Transform
 	UnkFloats [3]float32 `json:"unk_floats"`
 	UnkInt    uint32     `json:"unk_int"`
@@ -80,8 +81,8 @@ type SimpleExtraUnit struct {
 }
 
 type SimpleExtraPrefab struct {
-	UnkHash1 string `json:"unk_hash_1"`
-	Path     string `json:"path"`
+	UUID string `json:"uuid"`
+	Path string `json:"path"`
 	stingray.Transform
 	UnkFloats [3]float32 `json:"unk_floats"`
 	UnkInt    uint32     `json:"unk_int"`
@@ -158,7 +159,7 @@ func ExtractLevelJSON(ctx *extractor.Context) error {
 	prefabs := make([]SimplePrefab, 0)
 	for _, prefab := range levelData.Prefabs {
 		prefabs = append(prefabs, SimplePrefab{
-			UnkHash:          ctx.LookupHash(prefab.UnkHash00),
+			UUID:             ctx.LookupHash(prefab.UUIDHash),
 			Path:             ctx.LookupHash(prefab.Path),
 			Transform:        prefab.Transform,
 			UnkExtraRotation: prefab.UnkExtraRotation,
@@ -191,16 +192,13 @@ func ExtractLevelJSON(ctx *extractor.Context) error {
 	}
 
 	materialOverrides := make([]SimpleMaterialOverride, 0)
-	for _, materialOverride := range levelData.MaterialOverrides {
-		materials := make([]SimpleMaterial, 0)
-		for _, material := range materialOverride.Materials {
-			materials = append(materials, SimpleMaterial{
-				Slot: ctx.LookupThinHash(material.Slot),
-				Path: ctx.LookupHash(material.Path),
-			})
+	for idx, materialOverride := range levelData.MaterialOverrides {
+		materials := make(map[string]string)
+		for slot, material := range materialOverride {
+			materials[ctx.LookupThinHash(slot)] = ctx.LookupHash(material)
 		}
 		materialOverrides = append(materialOverrides, SimpleMaterialOverride{
-			Index:     materialOverride.Index,
+			Index:     uint32(idx),
 			Materials: materials,
 		})
 	}
@@ -208,8 +206,8 @@ func ExtractLevelJSON(ctx *extractor.Context) error {
 	units := make([]SimpleUnit, 0)
 	for _, unit := range levelData.Units {
 		units = append(units, SimpleUnit{
-			UnkHash00: ctx.LookupHash(unit.UnkHash00),
-			UnkHash01: ctx.LookupHash(unit.UnkHash01),
+			UUID:      ctx.LookupHash(unit.UUIDHash),
+			Name:      ctx.LookupHash(unit.Name),
 			Path:      ctx.LookupHash(unit.Path()),
 			Transform: unit.Transform,
 			UnkFloats: unit.UnkFloats,
@@ -239,9 +237,9 @@ func ExtractLevelJSON(ctx *extractor.Context) error {
 		extraUnits := make([]SimpleExtraUnit, 0)
 		for _, unit := range container.ExtraUnits {
 			extraUnits = append(extraUnits, SimpleExtraUnit{
-				UnkHash1:  ctx.LookupHash(unit.UnkHash1),
+				UUID:      ctx.LookupHash(unit.UUIDHash),
 				Path:      ctx.LookupHash(unit.Path),
-				UnkHash2:  ctx.LookupHash(unit.UnkHash2),
+				Name:      ctx.LookupHash(unit.Name),
 				Transform: unit.Transform,
 				UnkFloats: unit.UnkFloats,
 				UnkInt:    unit.UnkInt,
@@ -251,7 +249,7 @@ func ExtractLevelJSON(ctx *extractor.Context) error {
 		extraPrefabs := make([]SimpleExtraPrefab, 0)
 		for _, prefab := range container.ExtraPrefabs {
 			extraPrefabs = append(extraPrefabs, SimpleExtraPrefab{
-				UnkHash1:  ctx.LookupHash(prefab.UnkHash1),
+				UUID:      ctx.LookupHash(prefab.UUIDHash),
 				Path:      ctx.LookupHash(prefab.Path),
 				Transform: prefab.Transform,
 				UnkFloats: prefab.UnkFloats,
@@ -410,6 +408,9 @@ func ConvertOpts(ctx *extractor.Context, gltfDoc *gltf.Document) error {
 
 	totalObjectCount := float32(len(levelData.Units) + len(levelData.Prefabs) + len(levelData.Speedtrees))
 	for idx, prefab := range levelData.Prefabs {
+		if ctxErr := ctx.Ctx().Err(); errors.Is(ctxErr, context.Canceled) {
+			return ctxErr
+		}
 		if ctx.FileID() == ctx.RootFileID() {
 			percentComplete := 100 * float32(idx+1) / totalObjectCount
 			ctx.Statusf("%.2f%% - %v.prefab", percentComplete, ctx.LookupHash(prefab.Path))
@@ -451,18 +452,32 @@ func ConvertOpts(ctx *extractor.Context, gltfDoc *gltf.Document) error {
 	}
 
 	for idx, unit := range levelData.Units {
+		if ctxErr := ctx.Ctx().Err(); errors.Is(ctxErr, context.Canceled) {
+			return ctxErr
+		}
 		if ctx.FileID() == ctx.RootFileID() {
 			percentComplete := 100 * float32(idx+1+len(levelData.Prefabs)) / totalObjectCount
 			ctx.Statusf("%.2f%% - %v.unit", percentComplete, ctx.LookupHash(unit.Path()))
 		}
+		materialOverrides, ok := levelData.MaterialOverrides[idx]
+		if !ok {
+			materialOverrides = nil
+		}
+		metadata := make(map[string]any)
+		for _, entry := range levelData.Metadata[idx] {
+			metadata[entry.Key(ctx.LookupThinHash)] = entry.Value()
+		}
 		unitId := stingray.NewFileID(unit.Path(), stingray.Sum("unit"))
-		err := extr_prefab.AddOrDuplicateModel(ctx.WithFileID(unitId), doc, imgOpts, &unit, levelIdx)
+		err := extr_prefab.AddOrDuplicateModel(ctx.WithFileID(unitId), doc, imgOpts, &unit, levelIdx, materialOverrides, metadata)
 		if err != nil {
 			return err
 		}
 	}
 
 	for idx, speedtree := range levelData.Speedtrees {
+		if ctxErr := ctx.Ctx().Err(); errors.Is(ctxErr, context.Canceled) {
+			return ctxErr
+		}
 		if ctx.FileID() == ctx.RootFileID() {
 			percentComplete := 100 * float32(idx+1+len(levelData.Prefabs)+len(levelData.Units)) / totalObjectCount
 			ctx.Statusf("%.2f%% - %v.speedtree", percentComplete, ctx.LookupHash(speedtree.Path()))
@@ -477,7 +492,7 @@ func ConvertOpts(ctx *extractor.Context, gltfDoc *gltf.Document) error {
 					ScaleVec:    mgl32.Vec3{1, 1, 1},
 				},
 			}
-			err := extr_prefab.AddOrDuplicateModel(ctx.WithFileID(speedtreeId), doc, imgOpts, &speedtreeTransformed, levelIdx)
+			err := extr_prefab.AddOrDuplicateModel(ctx.WithFileID(speedtreeId), doc, imgOpts, &speedtreeTransformed, levelIdx, nil, nil)
 			if err != nil {
 				return err
 			}
@@ -486,24 +501,8 @@ func ConvertOpts(ctx *extractor.Context, gltfDoc *gltf.Document) error {
 
 	extractor.ClearChildNodesFromScene(ctx, doc)
 
-	formatIsBlend := cfg.Model.Format == "blend"
-	if gltfDoc == nil && !formatIsBlend {
-		ctx.Statusf("Creating glb file...")
-		out, err := ctx.CreateFile(".level.glb")
-		if err != nil {
-			return err
-		}
-		enc := gltf.NewEncoder(out)
-		if err := enc.Encode(doc); err != nil {
-			return err
-		}
-	} else if gltfDoc == nil && formatIsBlend {
-		ctx.Statusf("Creating blend file...")
-		outPath, err := ctx.AllocateFile(".level.blend")
-		if err != nil {
-			return err
-		}
-		err = blend_helper.ExportBlend(doc, outPath, ctx.Runner())
+	if gltfDoc == nil {
+		err := extractor.SaveDocument(ctx, doc, "level", cfg.Model.Format)
 		if err != nil {
 			return err
 		}
