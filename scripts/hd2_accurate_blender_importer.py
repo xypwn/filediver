@@ -26,7 +26,7 @@ from bpy.types import (
 from mathutils import Vector, Quaternion
 from pathlib import Path
 from io import BytesIO
-from typing import Optional, Dict, List, Tuple, Union, Callable
+from typing import Optional, Dict, List, Tuple, Union
 from types import ModuleType
 from random import randint
 from dataclasses import dataclass, field, asdict
@@ -660,7 +660,7 @@ def add_il_ruins_material(il_ruins_mat: Material, material: dict, textures: Dict
     print("    Finalizing material")
     return object_mat
 
-def load_shaders(resource_path: str) -> Tuple[ModuleType, List[Material]]:
+def load_shaders(resource_path: str) -> Tuple[ModuleType, Material, Material, Material, Material, Material, Material, Material, Material, Material]:
     shader_script = bpy.data.texts.load(str(resource_path / "Helldivers2 shader script v1.0.6-1.py"))
     shader_script.use_fake_user = True
     shader_module = shader_script.as_module()
@@ -690,7 +690,7 @@ def load_shaders(resource_path: str) -> Tuple[ModuleType, List[Material]]:
     il_ruins_mat.use_fake_user = True
     cape_mat = bpy.data.materials["HD2 Cape"]
     cape_mat.use_fake_user = True
-    return shader_module, [shader_mat, skin_mat, lut_skin_mat, building_mat, concrete_mat, fence_mat, triplanar_illuminate_building_mat, illuminate_building_mat, portal_mat, il_ruins_mat, cape_mat]
+    return shader_module, shader_mat, skin_mat, lut_skin_mat, building_mat, concrete_mat, fence_mat, triplanar_illuminate_building_mat, illuminate_building_mat, portal_mat, il_ruins_mat, cape_mat
 
 def create_empty_texture(name: str, size: Tuple[int, int], fmt: str = 'PNG', colorspace: str = 'sRGB', alpha_mode: str = 'CHANNEL_PACKED') -> Image:
     unused_texture = bpy.data.images.new(name, size[0], size[1], alpha=True, float_buffer=True)
@@ -737,99 +737,7 @@ def get_material_key(is_lut: bool, is_tex_array_skin: bool, is_lut_skin: bool, i
         return "Cape"
     return "Mat"
 
-def get_material_info(material: dict, materialIndex: int, shader_module: ModuleType, shaders: List[Material], unused_texture: Image, unused_secondary_lut: Image) -> Tuple[bool, str, Callable[[dict, Dict[str, Image]], Optional[Material]]]:
-    is_pbr = "albedo" in material["extras"] or "albedo_iridescence" in material["extras"] or "normal" in material["extras"]
-    is_tex_array_skin = "color_roughness" in material["extras"] and "normal_specular_ao" in material["extras"] and len(material["extras"]) == 2
-    is_lut_skin = "grayscale_skin" in material["extras"] and "color_roughness_lut" in material["extras"]
-    is_lut = "material_lut" in material["extras"] and not "cape_lut" in material["extras"]
-    is_cape = "material_lut" in material["extras"] and "cape_lut" in material["extras"]
-    is_building = "texture_lut" in material["extras"] and "material_1_surface" in material["extras"]
-    is_concrete = "pattern_data" in material["extras"] and "material_surface" in material["extras"]
-    is_fence = "texture_map_319d3bb5" in material["extras"] and "fence_offset" in material["extras"]
-    is_illuminate_building_triplanar = "albedo_array" in material["extras"] and "surface_tiling" in material["extras"] and "bcm_tex_a" in material["extras"] and "noise_power" in material["extras"]
-    is_illuminate_ruins_triplanar = "noise_tiler_mask" in material["extras"] and "noise_mask_tiling" in material["extras"] and "detail_trimsheet_metallic_ceramic_masking" in material["extras"] and "ceramic_detail_tiler_basecolor" in material["extras"]
-    is_illuminate_building_monoplanar = "albedo_array" in material["extras"] and "surface_tiling" in material["extras"] and "bcm_tex_a" not in material["extras"] and "noise_power" not in material["extras"]
-    is_portal = "noise_map_01" in material["extras"] and "noise_map_02" in material["extras"] and "edge_noise_map" in material["extras"]
-
-    material_bools = (is_pbr, is_tex_array_skin, is_lut_skin, is_lut, is_building, is_concrete, is_fence, is_illuminate_building_triplanar, is_illuminate_building_monoplanar, is_portal, is_illuminate_ruins_triplanar, is_cape)
-    needs_further_processing = any(material_bools)
-
-    material_subname = get_material_key(is_lut, is_tex_array_skin, is_lut_skin, is_illuminate_building_triplanar, is_illuminate_building_monoplanar, is_portal, is_building, is_concrete, is_fence, is_illuminate_ruins_triplanar, is_cape)
-    key = f"HD2 {material_subname} " + material["name"]
-    i = 1
-    while key in bpy.data.materials and bpy.data.materials[key]["gltfId"] != materialIndex:
-        key = f"HD2 {material_subname} " + material["name"] + f".{i:03d}"
-        i += 1
-
-    shader_mat, skin_mat, lut_skin_mat, building_mat, concrete_mat, fence_mat, triplanar_illuminate_building_mat, illuminate_building_mat, portal_mat, il_ruins_mat, cape_mat = shaders
-    def add_material(material: dict, textures: Dict[str, Image]) -> Optional[Material]:
-        object_mat = None
-        if is_lut:
-            object_mat = add_accurate_material(shader_mat, material, shader_module, unused_secondary_lut, textures)
-            object_mat["needsBakeUVs"] = True
-        elif is_cape:
-            object_mat = add_cape_material(cape_mat, material, textures)
-            object_mat["needsBakeUVs"] = True
-        elif is_tex_array_skin:
-            object_mat = add_skin_material(skin_mat, material, textures)
-            object_mat["needsBakeUVs"] = True
-        elif is_lut_skin:
-            object_mat = add_lut_skin_material(lut_skin_mat, material, textures)
-            object_mat["needsBakeUVs"] = True
-        elif is_illuminate_building_triplanar:
-            object_mat = add_il_building_material(triplanar_illuminate_building_mat, material, textures)
-            object_mat["needsBakeUVs"] = True
-        elif is_illuminate_building_monoplanar:
-            object_mat = add_single_plane_il_building_material(illuminate_building_mat, material, textures)
-            object_mat["needsBakeUVs"] = True
-        elif is_portal:
-            object_mat = add_portal_material(portal_mat, material, textures)
-            object_mat["needsBakeUVs"] = True
-        elif is_building:
-            object_mat = add_building_material(building_mat, material, textures)
-            object_mat["needsBakeUVs"] = False
-            # Building material does not support automatically generating bake UVs
-        elif is_concrete:
-            object_mat = add_concrete_material(concrete_mat, material, textures)
-            object_mat["needsBakeUVs"] = False
-            # Building material does not support automatically generating bake UVs
-        elif is_fence:
-            object_mat = add_fence_material(fence_mat, material, textures)
-            object_mat["needsBakeUVs"] = False
-            # Building material does not support automatically generating bake UVs
-        elif is_illuminate_ruins_triplanar:
-            object_mat = add_il_ruins_material(il_ruins_mat, material, textures)
-            object_mat["needsBakeUVs"] = False
-            # Illuminate ruins material does not support automatically generating bake UVs
-        return object_mat
-
-    return (needs_further_processing, key, add_material)
-
-def get_textures(gltf: dict, materialTextures: Dict[int, Dict[str, Image]], materialIndex: int, material: dict, unused_texture: Image, needs_further_processing: bool):
-    textures = {}
-    optional_usages = ["decal_sheet", "pattern_masks_array"]
-    if materialIndex in materialTextures:
-        textures = materialTextures[materialIndex]
-    else:
-        if len(material["extras"]) == 0 or not needs_further_processing:
-            return None
-        print(f"    Packing textures for material {material['name']}")
-        try:
-            textures["filediver_unused"] = unused_texture
-            for usage, texIdx in material["extras"].items():
-                if type(texIdx) != int:
-                    continue
-                textures[usage] = add_texture(gltf, texIdx, usage)
-            for usage in optional_usages:
-                if usage not in textures:
-                    textures[usage] = unused_texture
-            materialTextures[materialIndex] = textures
-        except AssertionError as e:
-            print(f"Error: {e}")
-            return None
-    return textures
-
-def convert_materials(gltf: Dict, node: Dict, variants: List[Dict], hasVariants: bool, materialTextures: Dict[int, Dict[str, Image]], packall: bool, shader_module: ModuleType, shaders: List[Material], unused_texture: Image, unused_secondary_lut: Image):
+def convert_materials(gltf: Dict, node: Dict, variants: List[Dict], hasVariants: bool, materialTextures: Dict[int, Dict[str, Image]], packall: bool, shader_module: ModuleType, shader_mat: Material, skin_mat: Material, lut_skin_mat: Material, building_mat: Material, concrete_mat: Material, fence_mat: Material, triplanar_il_building_mat: Material, il_building_mat: Material, portal_mat: Material, il_ruins_mat: Material, cape_mat: Material, unused_texture: Image, unused_secondary_lut: Image):
     optional_usages = ["decal_sheet", "pattern_masks_array"]
 
     mesh = gltf["meshes"][node["mesh"]]
@@ -852,14 +760,87 @@ def convert_materials(gltf: Dict, node: Dict, variants: List[Dict], hasVariants:
                     if primIdx < len(item.material_slots) and item.material_slots[primIdx].material and item.material_slots[primIdx].material.name.startswith(material["name"]) and item.name.startswith(node["name"]) and len(item.material_slots) == len(mesh["primitives"]):
                         obj: Object = item
                         break
-            needs_further_processing, key, add_material = get_material_info(material, materialIndex, shader_module, shaders, unused_texture, unused_secondary_lut)
-            textures = get_textures(gltf, materialTextures, materialIndex, material, unused_texture, needs_further_processing)
+            is_pbr = "albedo" in material["extras"] or "albedo_iridescence" in material["extras"] or "normal" in material["extras"]
+            is_tex_array_skin = "color_roughness" in material["extras"] and "normal_specular_ao" in material["extras"] and len(material["extras"]) == 2
+            is_lut_skin = "grayscale_skin" in material["extras"] and "color_roughness_lut" in material["extras"]
+            is_lut = "material_lut" in material["extras"] and not "cape_lut" in material["extras"]
+            is_cape = "material_lut" in material["extras"] and "cape_lut" in material["extras"]
+            is_building = "texture_lut" in material["extras"] and "material_1_surface" in material["extras"]
+            is_concrete = "pattern_data" in material["extras"] and "material_surface" in material["extras"]
+            is_fence = "texture_map_319d3bb5" in material["extras"] and "fence_offset" in material["extras"]
+            is_illuminate_building_triplanar = "albedo_array" in material["extras"] and "surface_tiling" in material["extras"] and "bcm_tex_a" in material["extras"] and "noise_power" in material["extras"]
+            is_illuminate_ruins_triplanar = "noise_tiler_mask" in material["extras"] and "noise_mask_tiling" in material["extras"] and "detail_trimsheet_metallic_ceramic_masking" in material["extras"] and "ceramic_detail_tiler_basecolor" in material["extras"]
+            is_illuminate_building_monoplanar = "albedo_array" in material["extras"] and "surface_tiling" in material["extras"] and "bcm_tex_a" not in material["extras"] and "noise_power" not in material["extras"]
+            is_portal = "noise_map_01" in material["extras"] and "noise_map_02" in material["extras"] and "edge_noise_map" in material["extras"]
+            if materialIndex in materialTextures:
+                textures = materialTextures[materialIndex]
+            else:
+                if len(material["extras"]) == 0 or not any((is_pbr, is_tex_array_skin, is_lut_skin, is_lut, is_building, is_concrete, is_fence, is_illuminate_building_triplanar, is_illuminate_building_monoplanar, is_portal, is_illuminate_ruins_triplanar, is_cape)):
+                    continue
+                if not packall and is_pbr:
+                    continue
+                print(f"    Packing textures for material {material['name']}")
+                try:
+                    textures["filediver_unused"] = unused_texture
+                    for usage, texIdx in material["extras"].items():
+                        if type(texIdx) != int:
+                            continue
+                        textures[usage] = add_texture(gltf, texIdx, usage)
+                    for usage in optional_usages:
+                        if usage not in textures:
+                            textures[usage] = unused_texture
+                    materialTextures[materialIndex] = textures
+                except AssertionError as e:
+                    print(f"Error: {e}")
+                    continue
+                if is_pbr:
+                    continue
 
+            material_subname = get_material_key(is_lut, is_tex_array_skin, is_lut_skin, is_illuminate_building_triplanar, is_illuminate_building_monoplanar, is_portal, is_building, is_concrete, is_fence, is_illuminate_ruins_triplanar, is_cape)
+            key = f"HD2 {material_subname} " + material["name"]
+            i = 1
+            while key in bpy.data.materials and bpy.data.materials[key]["gltfId"] != materialIndex:
+                key = f"HD2 {material_subname} " + material["name"] + f".{i:03d}"
+                i += 1
             if not key in bpy.data.materials:
                 print("    Copying template material")
-                object_mat = add_material(material, textures)
-                if object_mat is None:
-                    continue
+                if is_lut:
+                    object_mat = add_accurate_material(shader_mat, material, shader_module, unused_secondary_lut, textures)
+                    object_mat["needsBakeUVs"] = True
+                elif is_cape:
+                    object_mat = add_cape_material(cape_mat, material, textures)
+                    object_mat["needsBakeUVs"] = True
+                elif is_tex_array_skin:
+                    object_mat = add_skin_material(skin_mat, material, textures)
+                    object_mat["needsBakeUVs"] = True
+                elif is_lut_skin:
+                    object_mat = add_lut_skin_material(lut_skin_mat, material, textures)
+                    object_mat["needsBakeUVs"] = True
+                elif is_illuminate_building_triplanar:
+                    object_mat = add_il_building_material(triplanar_il_building_mat, material, textures)
+                    object_mat["needsBakeUVs"] = True
+                elif is_illuminate_building_monoplanar:
+                    object_mat = add_single_plane_il_building_material(il_building_mat, material, textures)
+                    object_mat["needsBakeUVs"] = True
+                elif is_portal:
+                    object_mat = add_portal_material(portal_mat, material, textures)
+                    object_mat["needsBakeUVs"] = True
+                elif is_building:
+                    object_mat = add_building_material(building_mat, material, textures)
+                    object_mat["needsBakeUVs"] = False
+                    # Building material does not support automatically generating bake UVs
+                elif is_concrete:
+                    object_mat = add_concrete_material(concrete_mat, material, textures)
+                    object_mat["needsBakeUVs"] = False
+                    # Building material does not support automatically generating bake UVs
+                elif is_fence:
+                    object_mat = add_fence_material(fence_mat, material, textures)
+                    object_mat["needsBakeUVs"] = False
+                    # Building material does not support automatically generating bake UVs
+                elif is_illuminate_ruins_triplanar:
+                    object_mat = add_il_ruins_material(il_ruins_mat, material, textures)
+                    object_mat["needsBakeUVs"] = False
+                    # Illuminate ruins material does not support automatically generating bake UVs
                 object_mat["gltfId"] = materialIndex
             else:
                 print(f"    Found existing material '{key}'")
@@ -1461,12 +1442,12 @@ def main():
         if "extras" in gltf and "frameRate" in gltf["extras"]:
             print(f'Setting FPS to {gltf["extras"]["frameRate"]}')
             bpy.context.scene.render.fps = gltf["extras"]["frameRate"]
-        bpy.ops.import_scene.gltf(filepath=str(path), bone_heuristic="TEMPERANCE", import_unused_materials=True)
+        bpy.ops.import_scene.gltf(filepath=str(path), bone_heuristic="TEMPERANCE")
     finally:
         if tmp_file:
             os.unlink(tmp_file.name)
     print("Loading Custom Shaders")
-    shader_module, shaders = load_shaders(resource_path)
+    shader_module, shader_mat, skin_mat, lut_skin_mat, building_mat, concrete_mat, fence_mat, il_building_mat_triplanar, il_building_mat, portal_mat, il_ruins_mat, cape_mat = load_shaders(resource_path)
 
     unused_texture = create_empty_texture("unused", (1, 1))
     unused_secondary_lut = create_empty_texture("unused_secondary_lut", (23, 1), fmt='OPEN_EXR', colorspace='Non-Color')
@@ -1492,7 +1473,7 @@ def main():
         if node.get("extras", {}).get("default_hidden") == 1 and node["name"] in bpy.data.objects:
             hide_visibility_group(node)
         if "mesh" in node:
-            convert_materials(gltf, node, variants, hasVariants, materialTextures, args.packall, shader_module, shaders, unused_texture, unused_secondary_lut)
+            convert_materials(gltf, node, variants, hasVariants, materialTextures, args.packall, shader_module, shader_mat, skin_mat, lut_skin_mat, building_mat, concrete_mat, fence_mat, il_building_mat_triplanar, il_building_mat, portal_mat, il_ruins_mat, cape_mat, unused_texture, unused_secondary_lut)
         if "state_machine" in node.get("extras", {}):
             add_state_machine(gltf, node)
 
@@ -1531,35 +1512,8 @@ def main():
             new_child.location = convert_loc(instance["translation"])
             new_child.rotation_quaternion = convert_quat(instance["rotation"])
             new_child.scale = convert_scale(instance["scale"])
-            metadata = instance.get("metadata", {})
-            if metadata is None:
-                metadata = {}
-            for key, value in metadata.items():
-                new_child[key] = value
             for child in object.children:
                 new_nested_child = bpy.data.objects.new(child.name, child.data)
-                if instance["materials"] != None and len(new_nested_child.material_slots) > 0:
-                    new_nested_child.data = new_nested_child.data.copy()
-                    for slotIdx, materialIdx in instance["materials"].items():
-                        material = gltf["materials"][materialIdx]
-                        new_nested_child.material_slots[int(slotIdx)].material = bpy.data.materials[material["name"]]
-                        needs_further_processing, key, add_material = get_material_info(material, materialIdx, shader_module, shaders, unused_texture, unused_secondary_lut)
-                        textures = get_textures(gltf, materialTextures, materialIdx, material, unused_texture, needs_further_processing)
-
-                        if not key in bpy.data.materials:
-                            print("    Copying template material")
-                            object_mat = add_material(gltf["materials"][materialIdx], textures)
-                            if object_mat is None:
-                                continue
-                            object_mat["gltfId"] = materialIdx
-                        else:
-                            print(f"    Found existing material '{key}'")
-                            object_mat = bpy.data.materials[key]
-                        
-                        new_nested_child.material_slots[int(slotIdx)].material = object_mat
-                        if any([mat.get("needsBakeUVs", False) for mat in new_nested_child.data.materials if mat is not None]) and len(new_nested_child.data.uv_layers) > 0:
-                            print(f"    Adding bake uvs to {new_nested_child.name}...")
-                            shader_module.add_bake_uvs(new_nested_child)
                 new_nested_child.parent = new_child
                 new_nested_child.parent_type = child.parent_type
                 new_nested_child.parent_bone = child.parent_bone
@@ -1569,49 +1523,6 @@ def main():
                 new_nested_child.scale = child.scale
                 parent.users_collection[0].objects.link(new_nested_child)
 
-    upgrade_collections: Dict[str, List[Collection]] = {}
-    # sort into ship level collections
-    for object in bpy.data.objects:
-        if "0x7caa4777" not in object and "0xb1453ddb" not in object:
-            # Not a ship upgrade item, so we dgaf
-            continue
-        collection_name = ""
-        minimum = object.get("0xb1453ddb", 1)
-        maximum = object.get("0x7caa4777", 7)
-        if type(minimum) is str and ";" not in minimum:
-            minimum = 1
-        if type(maximum) is str and ";" not in maximum:
-            maximum = 7
-        if type(minimum) is str:
-            collection_name, level_str = minimum.split(";")
-            minimum = int(level_str)
-        if type(maximum) is str:
-            collection_name, level_str = maximum.split(";")
-            maximum = int(level_str)
-        if collection_name == "":
-            continue
-        if collection_name not in upgrade_collections:
-            base_collection = bpy.data.collections.new(collection_name)
-            object.users_collection[0].children.link(base_collection)
-            upgrade_collections[collection_name] = []
-            for level in range(1, 7):
-                level_collection = bpy.data.collections.new(f"{collection_name} level {level}")
-                base_collection.children.link(level_collection)
-                upgrade_collections[collection_name].append(level_collection)
-        for level in range(minimum, maximum):
-            upgrade_collections[collection_name][level-1].objects.link(object)
-            for child in object.children:
-                upgrade_collections[collection_name][level-1].objects.link(child)
-        unlink_collection = None
-        for collection in object.users_collection:
-            if collection.name == "Collection":
-                unlink_collection = collection
-                break
-        if unlink_collection is None:
-            continue
-        for child in object.children:
-            unlink_collection.objects.unlink(child)
-        unlink_collection.objects.unlink(object)
 
     if "animations" in gltf and len(gltf["animations"]) > 0:
         print("Applying animation beats")

@@ -8,6 +8,7 @@ import (
 
 	"github.com/qmuntal/gltf"
 	"github.com/xypwn/filediver/extractor"
+	"github.com/xypwn/filediver/extractor/blend_helper"
 	"github.com/xypwn/filediver/extractor/geometry"
 	extr_material "github.com/xypwn/filediver/extractor/material"
 	"github.com/xypwn/filediver/stingray"
@@ -384,8 +385,22 @@ func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gl
 
 	AddPrefabMetadata(ctx, doc, gltf.Index(parent), doc.Nodes[parent].Children)
 
-	if gltfDoc == nil {
-		err := extractor.SaveDocument(ctx, doc, "speedtree", cfg.Model.Format)
+	formatIsBlend := cfg.Model.Format == "blend"
+	if gltfDoc == nil && !formatIsBlend {
+		out, err := ctx.CreateFile(".glb")
+		if err != nil {
+			return err
+		}
+		enc := gltf.NewEncoder(out)
+		if err := enc.Encode(doc); err != nil {
+			return err
+		}
+	} else if gltfDoc == nil && formatIsBlend {
+		outPath, err := ctx.AllocateFile(".blend")
+		if err != nil {
+			return err
+		}
+		err = blend_helper.ExportBlend(doc, outPath, ctx.Runner())
 		if err != nil {
 			return err
 		}

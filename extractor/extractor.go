@@ -3,13 +3,9 @@ package extractor
 import (
 	"fmt"
 	"io"
-	"os"
-	"path/filepath"
 	"slices"
-	"strings"
 
 	"github.com/qmuntal/gltf"
-	"github.com/xypwn/filediver/extractor/blend_helper"
 	"github.com/xypwn/filediver/stingray"
 )
 
@@ -169,76 +165,4 @@ func GetDocument(ctx *Context, inDoc *gltf.Document) *gltf.Document {
 		WrapT:     gltf.WrapRepeat,
 	})
 	return doc
-}
-
-func SaveDocument(ctx *Context, doc *gltf.Document, stingrayFormat, fileFormat string) error {
-	extras, ok := doc.Extras.(map[string]any)
-	if ok {
-		for key := range extras {
-			if strings.HasSuffix(key, ".geometry_group cache") {
-				delete(extras, key)
-			}
-		}
-		doc.Extras = extras
-	}
-	ctx.Statusf("Creating %v file...", fileFormat)
-	if fileFormat == "glb" {
-		name, err := ctx.AllocateFile(fmt.Sprintf(".%v.glb", stingrayFormat))
-		if err != nil {
-			return err
-		}
-		out, err := os.Create(name)
-		if err != nil {
-			return err
-		}
-		folder := filepath.Dir(name)
-		for idx := range doc.Buffers {
-			if idx == 0 {
-				continue
-			}
-			bufName, err := ctx.AllocateFile(fmt.Sprintf(".%v.%v.bin", stingrayFormat, idx))
-			if err != nil {
-				return err
-			}
-			uri, err := filepath.Rel(folder, bufName)
-			if err != nil {
-				return err
-			}
-			doc.Buffers[idx].URI = uri
-		}
-		enc := gltf.NewEncoder(out)
-		if err := enc.Encode(doc); err != nil {
-			return err
-		}
-	} else if fileFormat == "gltf" {
-		name, err := ctx.AllocateFile(fmt.Sprintf(".%v.gltf", stingrayFormat))
-		if err != nil {
-			return err
-		}
-		folder := filepath.Dir(name)
-		for idx := range doc.Buffers {
-			bufName, err := ctx.AllocateFile(fmt.Sprintf(".%v.%v.bin", stingrayFormat, idx))
-			if err != nil {
-				return err
-			}
-			uri, err := filepath.Rel(folder, bufName)
-			if err != nil {
-				return err
-			}
-			doc.Buffers[idx].URI = uri
-		}
-		if err := gltf.Save(doc, name); err != nil {
-			return err
-		}
-	} else if fileFormat == "blend" {
-		outPath, err := ctx.AllocateFile(fmt.Sprintf(".%v.blend", stingrayFormat))
-		if err != nil {
-			return err
-		}
-		err = blend_helper.ExportBlend(doc, outPath, ctx.Runner())
-		if err != nil {
-			return err
-		}
-	}
-	return nil
 }

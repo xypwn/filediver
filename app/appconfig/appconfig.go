@@ -44,7 +44,7 @@ type Config struct {
 		ShaderFormat   string `cfg:"tags=advanced depends=Material.Format=folder options=none,dxbc,glsl help='material shader export format; if set to either dxbc or glsl will dump the shaders for the material in that format in the shaders/ subdirectory of the material folder'"`
 	} `cfg:"tags=t:material help='see unit options'"`
 	Model struct {
-		Format                    string `cfg:"options=blend,glb,gltf,raw help='model export format'"`
+		Format                    string `cfg:"options=blend,glb,raw help='model export format'"`
 		IncludeLODS               bool   `cfg:"help='include meshes of all levels-of-detail'"`
 		IncludeGibs               bool   `cfg:"help='include meshes with gib materials'"`
 		EnableAnimations          bool   `cfg:"help='export model animations, can take much longer'"`

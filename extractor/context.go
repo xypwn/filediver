@@ -46,8 +46,6 @@ type Context struct {
 
 	// Files created by the extractor so far
 	files []string
-
-	materialOverrides map[stingray.ThinHash]stingray.Hash
 }
 
 // NewContext creates a new [Context].
@@ -119,52 +117,9 @@ func (c *Context) WithFileID(newFileID stingray.FileID) *Context {
 		warnf:              c.warnf,
 		statusf:            c.statusf,
 
-		materialOverrides: c.materialOverrides,
-
 		fileID:     newFileID,
 		rootFileID: c.rootFileID,
-
-		files: c.files,
 	}
-}
-
-// Returns a copy of the context with different material overrides
-func (c *Context) WithMaterialOverrides(newOverrides map[stingray.ThinHash]stingray.Hash) *Context {
-	return &Context{
-		ctx:                c.ctx,
-		hashes:             c.hashes,
-		thinHashes:         c.thinHashes,
-		armorSets:          c.armorSets,
-		skinOverrideGroups: c.skinOverrideGroups,
-		weaponPaintSchemes: c.weaponPaintSchemes,
-		gameBuildInfo:      c.gameBuildInfo,
-		languageMap:        c.languageMap,
-		dataDir:            c.dataDir,
-		runner:             c.runner,
-		config:             c.config,
-		outPath:            c.outPath,
-		selectedArchives:   c.selectedArchives,
-		warnf:              c.warnf,
-		statusf:            c.statusf,
-
-		materialOverrides: newOverrides,
-
-		fileID:     c.fileID,
-		rootFileID: c.rootFileID,
-
-		files: c.files,
-	}
-}
-
-// Transparently return the override for a slot if it exists, otherwise return the original
-func (c *Context) OverrideMaterial(slot stingray.ThinHash, original stingray.Hash) stingray.Hash {
-	if c.materialOverrides == nil {
-		return original
-	}
-	if override, contains := c.materialOverrides[slot]; contains {
-		return override
-	}
-	return original
 }
 
 // FileID gets the ID of the current file to be extracted.
