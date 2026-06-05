@@ -147,18 +147,18 @@ func (gd *GameData) GoExport(extractCtx context.Context, files []stingray.FileID
 		var documents map[string]*gltf.Document = make(map[string]*gltf.Document)
 		var documentsToClose []func() error
 		if cfg.Unit.SingleFile {
-			for _, key := range []string{"unit", "geometry_group", "material"} {
+			for _, key := range []string{"unit", "geometry_group", "material", "level", "prefab", "speedtree"} {
 				name := "combined_" + key
-				var formatBlend bool
+				var format string
 				switch key {
-				case "unit", "geometry_group":
-					formatBlend = cfg.Model.Format == "blend"
+				case "unit", "geometry_group", "level", "prefab", "speedtree":
+					format = cfg.Model.Format
 				case "material":
-					formatBlend = cfg.Material.Format == "blend"
+					format = cfg.Material.Format
 				default:
 					panic("unknown format: " + key)
 				}
-				doc, close := single_glb_helper.CreateCloseableGltfDocument(outDir, name, formatBlend, runner, gd.GameBuildInfo)
+				doc, close := single_glb_helper.CreateCloseableGltfDocument(extractCtx, printer.Statusf, outDir, name, format, runner, gd.GameBuildInfo)
 				documents[key] = doc
 				documentsToClose = append(documentsToClose, func() error { return close(doc) })
 			}

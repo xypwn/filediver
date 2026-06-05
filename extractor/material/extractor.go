@@ -1023,13 +1023,9 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 			albedoPostProcess = postProcessToOpaque
 		case "color_map":
 			colorSetting, colorOk := mat.Settings[stingray.Sum("base_color").Thin()]
-			useColorMapSetting, ok := mat.Settings[stingray.Sum("use_color_map").Thin()]
-			if !ok {
-				ctx.Warnf("material %v has %v texture but no use_color_map setting", matName, texUsageStr)
-				continue
-			}
+			useColorMapSetting, useOk := mat.Settings[stingray.Sum("use_color_map").Thin()]
 
-			if useColorMapSetting[0] == 0 && colorOk {
+			if colorOk && useOk && useColorMapSetting[0] == 0 {
 				colorFactor[0] = colorSetting[0]
 				colorFactor[1] = colorSetting[1]
 				colorFactor[2] = colorSetting[2]
