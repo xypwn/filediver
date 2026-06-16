@@ -69602,6 +69602,7 @@ content/env_cyborg/factory_cities/buildings/meshes/b06
 content/env_cyborg/factory_cities/buildings/meshes/b07
 content/env_cyborg/factory_cities/buildings/meshes/b08
 content/env_cyborg/factory_cities/buildings/meshes/b09
+content/env_cyborg/factory_cities/buildings/meshes/b10
 content/env_cyborg/factory_cities/buildings/meshes/proxies/b01_proxy
 content/env_cyborg/factory_cities/buildings/meshes/proxies/b02_proxy
 content/env_cyborg/factory_cities/buildings/meshes/proxies/b03_proxy
@@ -69664,6 +69665,10 @@ content/env_cyborg/fortifications/scaffolding_ramp_01
 content/env_cyborg/fortifications/scaffolding_support_01
 content/env_cyborg/fortifications/scaffolding_support_02
 content/env_cyborg/fortifications/scaffolding_walkway_01
+content/env_cyborg/fortifications/scaffolding_walkway_01_2x2
+content/env_cyborg/fortifications/scaffolding_walkway_01_3x2
+content/env_cyborg/fortifications/scaffolding_walkway_01_4x1
+content/env_cyborg/fortifications/scaffolding_walkway_01_4x2
 content/env_cyborg/fortifications/tank_spikes_3m_01
 content/env_cyborg/fortifications/textures/banner_01_emissive
 content/env_cyborg/fortifications/textures/banner_01_nar
@@ -71587,7 +71592,10 @@ content/env_super_earth/habs/utilities/se_pipeline_bend
 content/env_super_earth/habs/utilities/se_pipeline_straight_3x
 content/env_super_earth/habs/utilities/se_pipeline_straight_4x
 content/env_super_earth/habs/utilities/small_generic_windmill_01
+content/env_super_earth/habs/utilities/small_pipes_2m
 content/env_super_earth/habs/utilities/small_pipes_connection
+content/env_super_earth/habs/utilities/small_pipes_holder
+content/env_super_earth/habs/utilities/small_pipes_over_connection
 content/env_super_earth/habs/utilities/textures/habs_antenna_roof_01_nar
 content/env_super_earth/habs/utilities/textures/habs_ground_tank_01_nar
 content/env_super_earth/habs/utilities/textures/habs_groundplate_01_nar
@@ -71607,6 +71615,7 @@ content/env_super_earth/habs/utilities/xl_elbow_45_side_sharp
 content/env_super_earth/habs/utilities/xl_elbow_90_down_sharp
 content/env_super_earth/habs/utilities/xl_elbow_90_down_sharp_01
 content/env_super_earth/habs/utilities/xl_elbow_90_side_sharp
+content/env_super_earth/habs/utilities/xl_elbow_90_standing
 content/env_super_earth/habs/utilities/xl_pipe_1x
 content/env_super_earth/habs/utilities/xl_pipe_2x
 content/env_super_earth/habs/utilities/xl_pipe_2x_01
@@ -71615,6 +71624,7 @@ content/env_super_earth/habs/utilities/xl_pipe_accessory_part_1
 content/env_super_earth/habs/utilities/xl_pipe_accessory_part_2
 content/env_super_earth/habs/utilities/xl_pipe_connection
 content/env_super_earth/habs/utilities/xl_pipe_connection_01
+content/env_super_earth/habs/utilities/xl_pipe_connection_02
 content/env_super_earth/habs/utilities/xl_pipe_electrical_grid
 content/env_super_earth/habs/utilities/xl_pipe_electrical_grid_01
 content/env_super_earth/habs/utilities/xl_t_connection
@@ -71713,6 +71723,7 @@ content/env_super_earth/military_base/pillbox_walls/se_pillbox_wall
 content/env_super_earth/military_base/pillbox_walls/se_pillbox_wall_30
 content/env_super_earth/military_base/pillbox_walls/se_pillbox_wall_45
 content/env_super_earth/military_base/pillbox_walls/se_pillbox_wall_60
+content/env_super_earth/military_base/pillbox_walls/se_pillbox_wall_extension
 content/env_super_earth/military_base/pillbox_walls/textures/se_pillbox_wall_nac
 content/env_super_earth/military_base/rocket_walkway/animation/extend
 content/env_super_earth/military_base/rocket_walkway/animation/extended
@@ -71808,6 +71819,7 @@ content/env_super_earth/military_base/utilities/gate_01/animation/open_idle
 content/env_super_earth/military_base/utilities/gate_02
 content/env_super_earth/military_base/utilities/gate_03
 content/env_super_earth/military_base/utilities/gate_04
+content/env_super_earth/military_base/utilities/gate_light_01
 content/env_super_earth/military_base/utilities/gen_armory_button
 content/env_super_earth/military_base/utilities/generator_lamp_01
 content/env_super_earth/military_base/utilities/generator_lamp_02
@@ -72569,7 +72581,9 @@ content/fac_helldivers/equipment/attachment/magazine/jet_rifle_stick_magazine_la
 content/fac_helldivers/equipment/attachment/magazine/laser_battery_large
 content/fac_helldivers/equipment/attachment/magazine/laser_battery_medium
 content/fac_helldivers/equipment/attachment/magazine/laser_battery_small
+content/fac_helldivers/equipment/attachment/magazine/laser_rifle_charge_extended_heatsink
 content/fac_helldivers/equipment/attachment/magazine/laser_rifle_charge_magazine
+content/fac_helldivers/equipment/attachment/magazine/laser_rifle_charge_quick_fire_heatsink
 content/fac_helldivers/equipment/attachment/magazine/lmg_box_large
 content/fac_helldivers/equipment/attachment/magazine/lmg_box_small
 content/fac_helldivers/equipment/attachment/magazine/machinegun_box_large
@@ -72581,7 +72595,9 @@ content/fac_helldivers/equipment/attachment/magazine/magazine_plasma_pistol_exte
 content/fac_helldivers/equipment/attachment/magazine/magazine_plasma_pistol_standard
 content/fac_helldivers/equipment/attachment/magazine/magnum_pistol_magazine_standard
 content/fac_helldivers/equipment/attachment/magazine/marksmanrifle_extended_magazine
+content/fac_helldivers/equipment/attachment/magazine/marksmanrifle_short_drake_magazine
 content/fac_helldivers/equipment/attachment/magazine/marksmanrifle_short_magazine
+content/fac_helldivers/equipment/attachment/magazine/marksmanrifle_standard_drake_magazine
 content/fac_helldivers/equipment/attachment/magazine/marksmanrifle_standard_magazine
 content/fac_helldivers/equipment/attachment/magazine/materials/faf_missile_standard
 content/fac_helldivers/equipment/attachment/magazine/materials/machinegun_box_large
@@ -72940,6 +72956,7 @@ content/fac_helldivers/equipment/primary_weapons/lmg_stalwart/animations/reload_
 content/fac_helldivers/equipment/primary_weapons/lmg_stalwart/lmg_stalwart
 content/fac_helldivers/equipment/primary_weapons/lmg_stalwart/textures/lmg_stalwart_nac
 content/fac_helldivers/equipment/primary_weapons/marksman_rifle/marksman_rifle
+content/fac_helldivers/equipment/primary_weapons/marksman_rifle_drake/marksman_rifle_drake
 content/fac_helldivers/equipment/primary_weapons/marksman_rifle_justice/marksman_rifle_justice
 content/fac_helldivers/equipment/primary_weapons/marksman_rifle_vigilance/animation/cover_closed
 content/fac_helldivers/equipment/primary_weapons/marksman_rifle_vigilance/animation/cover_open
@@ -73303,6 +73320,7 @@ content/fac_helldivers/equipment/throwables/arc_grenade/arc_grenade
 content/fac_helldivers/equipment/throwables/at_explosive_grenade/at_explosive_grenade
 content/fac_helldivers/equipment/throwables/at_explosive_grenade/materials/m_at_explosive_grenade
 content/fac_helldivers/equipment/throwables/caltrops_grenade/caltrops_grenade
+content/fac_helldivers/equipment/throwables/caltrops_grenade/caltrops_mine
 content/fac_helldivers/equipment/throwables/caltrops_grenade/materials/m_caltrops_grenade
 content/fac_helldivers/equipment/throwables/cluster_frag_grenade/cluster_frag_grenade
 content/fac_helldivers/equipment/throwables/contact_mine/contact_mine
@@ -73331,6 +73349,7 @@ content/fac_helldivers/equipment/throwables/incendiary_impact_grenade/incendiary
 content/fac_helldivers/equipment/throwables/incendiary_mine/incendiary_mine
 content/fac_helldivers/equipment/throwables/incendiary_mine/textures/incendiary_mine_nac
 content/fac_helldivers/equipment/throwables/luring_mine/luring_mine
+content/fac_helldivers/equipment/throwables/molotov_grenade/molotov_grenade
 content/fac_helldivers/equipment/throwables/self_destruct_drone/animation/closed
 content/fac_helldivers/equipment/throwables/self_destruct_drone/animation/deploy
 content/fac_helldivers/equipment/throwables/self_destruct_drone/animation/idle_add
@@ -74503,6 +74522,7 @@ content/objectives/obj_bugs/super_syringe/animation/package_initiate
 content/objectives/obj_bugs/super_syringe/super_syringe
 content/objectives/obj_bugs/super_syringe/textures/super_syringe_nac
 content/objectives/obj_bugs/tcs/bug_tcs_main_tower_01
+content/objectives/obj_bugs/tcs/bug_tcs_main_tower_011
 content/objectives/obj_bugs/tcs/bug_tcs_support_base_charger_01
 content/objectives/obj_bugs/tcs/bug_tcs_support_pillar_01
 content/objectives/obj_bugs/tcs/tcs_main_tower
