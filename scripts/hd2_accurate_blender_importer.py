@@ -214,6 +214,10 @@ def add_accurate_material(shader_mat: Material, material: dict, shader_module, u
             case "base_data":
                 config_nodes["Normal Map"].image = image
                 image.colorspace_settings.name = "Non-Color"
+    
+    detail_tile_factor_mult = material.get("extras", {}).get("detail_tile_factor_mult")
+    if detail_tile_factor_mult is not None:
+        config_nodes["HD2 Shader Template"].inputs['detail_tile_factor_mult'].default_value = detail_tile_factor_mult[0]
 
     print("    Finalizing material")
     shader_module.update_images(HD2_Shader, object_mat)
