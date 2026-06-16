@@ -30159,3 +30159,15 @@ sound source
 kill planes
 kill volumes
 box_walls
+frv_supply_rack
+g_frv_supply_rack
+g_frv_supply_rack_LOD1
+g_frv_supply_rack_LOD2
+g_frv_supply_rack_LOD3
+g_frv_supply_rack_LOD4
+g_frv_supply_rack_shadow
+g_frv_supply_rack_shadow_LOD1
+g_frv_supply_rack_shadow_LOD2
+g_frv_supply_rack_shadow_LOD3
+m_gauge
+m_frv_supply_body

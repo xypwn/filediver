@@ -73802,6 +73802,7 @@ content/fac_helldivers/vehicles/frv/frv_superearth
 content/fac_helldivers/vehicles/frv_heavy/armaments/frv_flamethrower/frv_flamethrower
 content/fac_helldivers/vehicles/frv_heavy/frv_flamer
 content/fac_helldivers/vehicles/frv_heavy/frv_heavy
+content/fac_helldivers/vehicles/frv_supply/armaments/frv_supply_rack/frv_supply_rack
 content/fac_helldivers/vehicles/frv_supply/frv_supply
 content/fac_helldivers/vehicles/lav/animations/enter_mg
 content/fac_helldivers/vehicles/lav/animations/enter_rear
