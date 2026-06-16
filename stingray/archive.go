@@ -135,7 +135,7 @@ func LoadArchive(mainFilename string, mainR io.Reader) (*Archive, error) {
 
 	var hdr HeaderData
 	if err := binary.Read(r, binary.LittleEndian, &hdr); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("reading header data: %v", err)
 	}
 
 	if hdr.MagicNum != [4]byte{0x11, 0x00, 0x00, 0xF0} {
@@ -144,18 +144,27 @@ func LoadArchive(mainFilename string, mainR io.Reader) (*Archive, error) {
 
 	types := make([]TypeData, hdr.NumTypes)
 	if err := binary.Read(r, binary.LittleEndian, types); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("reading types: %v", err)
 	}
 
 	files := make([]FileData, hdr.NumFiles)
 	if err := binary.Read(r, binary.LittleEndian, files); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("reading files: %v", err)
+	}
+	filecount := hdr.NumFiles
+	if len(files) > 0 && files[len(files)-1].Index != uint32(len(files)-1) {
+		for i, file := range files {
+			if uint32(i) != file.Index {
+				filecount = uint32(i)
+				break
+			}
+		}
 	}
 
 	return &Archive{
 		ID:     id,
 		Header: hdr,
 		Types:  types,
-		Files:  files,
+		Files:  files[:filecount],
 	}, nil
 }
