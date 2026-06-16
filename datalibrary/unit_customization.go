@@ -24,6 +24,8 @@ const (
 	CollectionCombatWalkerLumberer
 	CollectionCombatWalkerBreacher
 	CollectionFRV
+	CollectionFRVFlamer
+	CollectionFRVSupply
 	CollectionTank
 	CollectionCount
 )
@@ -40,6 +42,10 @@ func (ucct UnitCustomizationCollectionType) Unit() (stingray.Hash, error) {
 		return stingray.Sum("content/fac_helldivers/vehicles/combat_walker_lumberer/combat_walker_lumberer"), nil
 	case CollectionFRV:
 		return stingray.Sum("content/fac_helldivers/vehicles/frv/frv"), nil
+	case CollectionFRVFlamer:
+		return stingray.Sum("content/fac_helldivers/vehicles/frv_heavy/frv_flamer"), nil
+	case CollectionFRVSupply:
+		return stingray.Sum("content/fac_helldivers/vehicles/frv_supply/frv_supply"), nil
 	case CollectionHellpod:
 		return stingray.Sum("content/fac_helldivers/hellpod/hellpod/hellpod"), nil
 	case CollectionHellpodRack:

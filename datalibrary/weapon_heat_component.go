@@ -10,8 +10,7 @@ import (
 	"github.com/xypwn/filediver/stingray"
 )
 
-// DLHash 8f124598 name length 16
-type HeatsinkOverrides struct {
+type HeatLevelSetting struct {
 	HeatCapacity float32 // No clue really
 	ProjType     enum.ProjectileType
 	Particles    stingray.Hash
@@ -19,11 +18,26 @@ type HeatsinkOverrides struct {
 	StatusEffect enum.StatusEffectType
 }
 
+// name length 23, dlhash 6386883c
+type UnknownHeatStruct2 struct {
+	UnknownHash1 stingray.ThinHash
+	UnknownHash2 stingray.ThinHash
+	UnknownHash3 stingray.ThinHash
+}
+
+// name length 19, dlhash a6fde7cf
+type UnknownHeatStruct struct {
+	UnknownHeatStructs2 [5]UnknownHeatStruct2 // name length 18
+	UnknownFloat1       float32               // name length 26
+	UnknownFloat2       float32               // name length 22
+	UnknownEnum         uint32                // name length 9
+}
+
 type WeaponHeatComponent struct {
-	HSOverrides                   [3]HeatsinkOverrides
-	UnknownFloat                  float32
+	HeatLevelSettings             [3]HeatLevelSetting
+	UnknownFloat1                 float32
 	UnknownFloat2                 float32
-	UnknownBool                   uint8
+	UnknownBool1                  uint8
 	_                             [3]uint8
 	Magazines                     uint32  // Starting number of magazines.
 	MagazinesRefill               uint32  // Number of magazines given on refill.
@@ -55,12 +69,15 @@ type WeaponHeatComponent struct {
 	ChargingCompleteAudioEvent    stingray.ThinHash // [wwise]The audio event to play when charging complete.
 	DischargingStartAudioEvent    stingray.ThinHash // [wwise]The audio event to play on start discharging
 	DischargingCompleteAudioEvent stingray.ThinHash // [wwise]The audio event to play when discharging complete.
-	ChargeSourceNode              stingray.ThinHash // [string]The node to play the charge/discharge audio events at.
-	OnOverheatStartSoundEvent     stingray.ThinHash // [wwise]The wwise sound id to play when overheating starts.
-	OnOverheatStopSoundEvent      stingray.ThinHash // [wwise]The wwise sound id to play when overheating stops.
-	OnTempYellowStartSoundEvent   stingray.ThinHash // [wwise]The wwise sound id to play when yellow temperature starts.
-	UnknownSoundEvent             stingray.ThinHash // Its probably an intermediate sound effect. Length 18 chars
-	OnTempYellowStopSoundEvent    stingray.ThinHash // [wwise]The wwise sound id to play when yellow temperature stops.
+	UnknownBool2                  uint8             // name length 19
+	_                             [3]uint8
+	UnknownStructs                [4]UnknownHeatStruct // name length 22
+	ChargeSourceNode              stingray.ThinHash    // [string]The node to play the charge/discharge audio events at.
+	OnOverheatStartSoundEvent     stingray.ThinHash    // [wwise]The wwise sound id to play when overheating starts.
+	OnOverheatStopSoundEvent      stingray.ThinHash    // [wwise]The wwise sound id to play when overheating stops.
+	OnTempYellowStartSoundEvent   stingray.ThinHash    // [wwise]The wwise sound id to play when yellow temperature starts.
+	UnknownSoundEvent             stingray.ThinHash    // Its probably an intermediate sound effect. Length 18 chars
+	OnTempYellowStopSoundEvent    stingray.ThinHash    // [wwise]The wwise sound id to play when yellow temperature stops.
 	UnknownSoundEvent2            stingray.ThinHash
 	UnknownSoundEvent3            stingray.ThinHash
 	UnknownSoundEvent4            stingray.ThinHash
@@ -74,9 +91,10 @@ type WeaponHeatComponent struct {
 	CameraShakeOnFireStopConstant stingray.Hash  // [camera_shake]The exiting constant effect for when you stop firing the weapon.
 	CameraShakeOnFireStopKick     stingray.Hash  // [camera_shake]The exiting kick effect for when you stop firing the weapon.
 	OverheatAbility               enum.AbilityId // The ability to play when this weapon overheats.
+	UnknownFloat6                 float32        // name length 31
 }
 
-type SimpleHeatsinkOverrides struct {
+type SimpleHeatLevelSetting struct {
 	HeatCapacity float32               `json:"heat_capacity"` // No clue really
 	ProjType     enum.ProjectileType   `json:"projectile_type"`
 	Particles    string                `json:"particles"`
@@ -84,11 +102,26 @@ type SimpleHeatsinkOverrides struct {
 	StatusEffect enum.StatusEffectType `json:"status_effect"`
 }
 
+// name length 23, dlhash 6386883c
+type SimpleUnknownHeatStruct2 struct {
+	UnknownHash1 string `json:"unknown_hash1"`
+	UnknownHash2 string `json:"unknown_hash2"`
+	UnknownHash3 string `json:"unknown_hash3"`
+}
+
+// name length 19, dlhash a6fde7cf
+type SimpleUnknownHeatStruct struct {
+	UnknownHeatStructs2 []SimpleUnknownHeatStruct2 `json:"unknown_heat_structs2"` // name length 18
+	UnknownFloat1       float32                    `json:"unknown_float1"`        // name length 26
+	UnknownFloat2       float32                    `json:"unknown_float2"`        // name length 22
+	UnknownEnum         uint32                     `json:"unknown_enum"`          // name length 9
+}
+
 type SimpleWeaponHeatComponent struct {
-	HSOverrides                   []SimpleHeatsinkOverrides `json:"heatsink_overrides,omitempty"`
-	UnknownFloat                  float32                   `json:"unknown_float"`
+	HeatLevelSettings             []SimpleHeatLevelSetting  `json:"heat_level_settings,omitempty"`
+	UnknownFloat1                 float32                   `json:"unknown_float1"`
 	UnknownFloat2                 float32                   `json:"unknown_float2"`
-	UnknownBool                   bool                      `json:"unknown_bool"`
+	UnknownBool1                  bool                      `json:"unknown_bool1"`
 	Magazines                     uint32                    `json:"magazines"`                       // Starting number of magazines.
 	MagazinesRefill               uint32                    `json:"magazines_refill"`                // Number of magazines given on refill.
 	MagazinesMax                  uint32                    `json:"magazines_max"`                   // Maximum number of magazines.
@@ -117,6 +150,8 @@ type SimpleWeaponHeatComponent struct {
 	ChargingCompleteAudioEvent    string                    `json:"charging_complete_audio_event"`    // [wwise]The audio event to play when charging complete.
 	DischargingStartAudioEvent    string                    `json:"discharging_start_audio_event"`    // [wwise]The audio event to play on start discharging
 	DischargingCompleteAudioEvent string                    `json:"discharging_complete_audio_event"` // [wwise]The audio event to play when discharging complete.
+	UnknownBool2                  bool                      `json:"unknown_bool2"`
+	UnknownStructs                []SimpleUnknownHeatStruct `json:"unknown_structs,omitempty"`
 	ChargeSourceNode              string                    `json:"charge_source_node"`               // [string]The node to play the charge/discharge audio events at.
 	OnOverheatStartSoundEvent     string                    `json:"on_overheat_start_sound_event"`    // [wwise]The wwise sound id to play when overheating starts.
 	OnOverheatStopSoundEvent      string                    `json:"on_overheat_stop_sound_event"`     // [wwise]The wwise sound id to play when overheating stops.
@@ -136,28 +171,50 @@ type SimpleWeaponHeatComponent struct {
 	CameraShakeOnFireStopConstant string                    `json:"camera_shake_on_fire_stop_constant"` // [camera_shake]The exiting constant effect for when you stop firing the weapon.
 	CameraShakeOnFireStopKick     string                    `json:"camera_shake_on_fire_stop_kick"`     // [camera_shake]The exiting kick effect for when you stop firing the weapon.
 	OverheatAbility               enum.AbilityId            `json:"overheat_ability"`                   // The ability to play when this weapon overheats.
+	UnknownFloat6                 float32                   `json:"unknown_float6"`
 }
 
 func (h WeaponHeatComponent) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookupStrings StringsLookup) any {
-	heatsinkOverrides := make([]SimpleHeatsinkOverrides, 0)
-	for _, override := range h.HSOverrides {
-		if override.Particles.Value == 0 {
+	heatLevelSettings := make([]SimpleHeatLevelSetting, 0)
+	for _, setting := range h.HeatLevelSettings {
+		if setting.Particles.Value == 0 {
 			break
 		}
-		heatsinkOverrides = append(heatsinkOverrides, SimpleHeatsinkOverrides{
-			HeatCapacity: override.HeatCapacity,
-			ProjType:     override.ProjType,
-			Particles:    lookupHash(override.Particles),
-			MaybeEvent:   lookupThinHash(override.MaybeEvent),
-			StatusEffect: override.StatusEffect,
+		heatLevelSettings = append(heatLevelSettings, SimpleHeatLevelSetting{
+			HeatCapacity: setting.HeatCapacity,
+			ProjType:     setting.ProjType,
+			Particles:    lookupHash(setting.Particles),
+			MaybeEvent:   lookupThinHash(setting.MaybeEvent),
+			StatusEffect: setting.StatusEffect,
+		})
+	}
+
+	unknownStructs := make([]SimpleUnknownHeatStruct, 0)
+	for _, unknown := range h.UnknownStructs {
+		if unknown.UnknownEnum == 0 {
+			break
+		}
+		unknownHashes := make([]SimpleUnknownHeatStruct2, 0)
+		for _, hashes := range unknown.UnknownHeatStructs2 {
+			unknownHashes = append(unknownHashes, SimpleUnknownHeatStruct2{
+				UnknownHash1: lookupThinHash(hashes.UnknownHash1),
+				UnknownHash2: lookupThinHash(hashes.UnknownHash2),
+				UnknownHash3: lookupThinHash(hashes.UnknownHash3),
+			})
+		}
+		unknownStructs = append(unknownStructs, SimpleUnknownHeatStruct{
+			UnknownHeatStructs2: unknownHashes,
+			UnknownFloat1:       unknown.UnknownFloat1,
+			UnknownFloat2:       unknown.UnknownFloat2,
+			UnknownEnum:         unknown.UnknownEnum,
 		})
 	}
 
 	return SimpleWeaponHeatComponent{
-		HSOverrides:                   heatsinkOverrides,
-		UnknownFloat:                  h.UnknownFloat,
+		HeatLevelSettings:             heatLevelSettings,
+		UnknownFloat1:                 h.UnknownFloat1,
 		UnknownFloat2:                 h.UnknownFloat2,
-		UnknownBool:                   h.UnknownBool != 0,
+		UnknownBool1:                  h.UnknownBool1 != 0,
 		Magazines:                     h.Magazines,
 		MagazinesRefill:               h.MagazinesRefill,
 		MagazinesMax:                  h.MagazinesMax,
@@ -186,6 +243,8 @@ func (h WeaponHeatComponent) ToSimple(lookupHash HashLookup, lookupThinHash Thin
 		ChargingCompleteAudioEvent:    lookupThinHash(h.ChargingCompleteAudioEvent),
 		DischargingStartAudioEvent:    lookupThinHash(h.DischargingStartAudioEvent),
 		DischargingCompleteAudioEvent: lookupThinHash(h.DischargingCompleteAudioEvent),
+		UnknownBool2:                  h.UnknownBool2 != 0,
+		UnknownStructs:                unknownStructs,
 		ChargeSourceNode:              lookupThinHash(h.ChargeSourceNode),
 		OnOverheatStartSoundEvent:     lookupThinHash(h.OnOverheatStartSoundEvent),
 		OnOverheatStopSoundEvent:      lookupThinHash(h.OnOverheatStopSoundEvent),
@@ -205,6 +264,7 @@ func (h WeaponHeatComponent) ToSimple(lookupHash HashLookup, lookupThinHash Thin
 		CameraShakeOnFireStopConstant: lookupHash(h.CameraShakeOnFireStopConstant),
 		CameraShakeOnFireStopKick:     lookupHash(h.CameraShakeOnFireStopKick),
 		OverheatAbility:               h.OverheatAbility,
+		UnknownFloat6:                 h.UnknownFloat6,
 	}
 }
 

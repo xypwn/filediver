@@ -51,12 +51,14 @@ type WeaponCustomizationComponent struct {
 	MagazineSecondaryPath                   stingray.Hash                    // [unit]Path to the second magazine unit.
 	UnknownHash                             stingray.Hash                    // [unit]Path to some unit (name length 22).
 	MuzzlePath                              stingray.Hash                    // [unit]Path to the muzzle unit.
-	OpticsCrosshairParams                   mgl32.Vec2                       // Offset and scale applied to the crosshair node in the optics unit. X=Forward offset, Y=Scale.
-	Unknown0Path                            stingray.Hash                    // Paintscheme path? 26 chars long
-	Unknown1Path                            stingray.Hash                    // Some other path - 31 chars long
-	UnderbarrelPath                         stingray.Hash                    // [adhd]Path to the underbarrel entity.
-	MaterialOverride                        WeaponMaterialOverride           // Overrides the base material of the weapon.
-	TriggerSettings                         WeaponTriggerSettings            // Set trigger settings
+	UnknownThinHash0                        stingray.ThinHash
+	UnknownThinHash1                        stingray.ThinHash
+	OpticsCrosshairParams                   mgl32.Vec2             // Offset and scale applied to the crosshair node in the optics unit. X=Forward offset, Y=Scale.
+	Unknown0Path                            stingray.Hash          // Paintscheme path? 26 chars long
+	Unknown1Path                            stingray.Hash          // Some other path - 31 chars long
+	UnderbarrelPath                         stingray.Hash          // [adhd]Path to the underbarrel entity.
+	MaterialOverride                        WeaponMaterialOverride // Overrides the base material of the weapon.
+	TriggerSettings                         WeaponTriggerSettings  // Set trigger settings
 	HideMagazineOnStart                     uint8
 	_                                       [3]uint8
 	MagazineAdjustingNodes                  [20]stingray.ThinHash // [string]Do we have any magazine nodes that need to be autoadjusted based on rounds left?
@@ -69,7 +71,7 @@ type WeaponCustomizationComponent struct {
 	MagazineAdjustingAnimationVariable      stingray.ThinHash                // [string]Animation variable to adjust with the rounds on the magazine.
 	IKAttachSetting                         enum.WeaponCustomizationIKAttach // What unit should we attach our left hand to? If set to None, it will default to the weapon
 	IKAttachAnimationEvent                  stingray.ThinHash                // [string]Animation event to call, if an attachment is specified for altering our left hand.
-	UnknownThinHash                         stingray.ThinHash                // No clue. Name should be 22 characters long in snake_case
+	UnknownThinHash2                        stingray.ThinHash                // No clue. Name should be 22 characters long in snake_case
 }
 
 type SimpleWeaponDefaultAttachment struct {
@@ -111,6 +113,8 @@ type SimpleWeaponCustomizationComponent struct {
 	MagazineSecondaryPath                   string                              `json:"magazine_secondary_path"`
 	UnknownHash                             string                              `json:"unknown_hash"`
 	MuzzlePath                              string                              `json:"muzzle_path"`
+	UnknownThinHash0                        string                              `json:"unknown_thin_hash_0"`
+	UnknownThinHash1                        string                              `json:"unknown_thin_hash_1"`
 	OpticsCrosshairParams                   mgl32.Vec2                          `json:"optics_crosshair_params"`
 	Unknown0Path                            string                              `json:"unknown0_path"`
 	Unknown1Path                            string                              `json:"unknown1_path"`
@@ -126,7 +130,7 @@ type SimpleWeaponCustomizationComponent struct {
 	MagazineAdjustingAnimationVariable      string                              `json:"magazine_adjusting_animation_variable"`
 	IKAttachSetting                         enum.WeaponCustomizationIKAttach    `json:"ik_attach_setting"`
 	IKAttachAnimationEvent                  string                              `json:"ik_attach_animation_event"`
-	UnknownThinHash                         string                              `json:"unknown_thin_hash"`
+	UnknownThinHash2                        string                              `json:"unknown_thin_hash_2"`
 }
 
 func (component WeaponCustomizationComponent) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookupStrings StringsLookup) any {
@@ -192,6 +196,8 @@ func (component WeaponCustomizationComponent) ToSimple(lookupHash HashLookup, lo
 		MagazineSecondaryPath: lookupHash(component.MagazineSecondaryPath),
 		UnknownHash:           lookupHash(component.UnknownHash),
 		MuzzlePath:            lookupHash(component.MuzzlePath),
+		UnknownThinHash0:      lookupThinHash(component.UnknownThinHash0),
+		UnknownThinHash1:      lookupThinHash(component.UnknownThinHash1),
 		OpticsCrosshairParams: component.OpticsCrosshairParams,
 		Unknown0Path:          lookupHash(component.Unknown0Path),
 		Unknown1Path:          lookupHash(component.Unknown1Path),
@@ -221,7 +227,7 @@ func (component WeaponCustomizationComponent) ToSimple(lookupHash HashLookup, lo
 		MagazineAdjustingAnimationVariable:      lookupThinHash(component.MagazineAdjustingAnimationVariable),
 		IKAttachSetting:                         component.IKAttachSetting,
 		IKAttachAnimationEvent:                  lookupThinHash(component.IKAttachAnimationEvent),
-		UnknownThinHash:                         lookupThinHash(component.UnknownThinHash),
+		UnknownThinHash2:                        lookupThinHash(component.UnknownThinHash2),
 	}
 }
 

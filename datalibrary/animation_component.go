@@ -16,8 +16,11 @@ type AnimationMergeOptions struct {
 }
 
 type AnimationVariable struct {
-	Name  stingray.ThinHash // [string]The name of the animation variable to set.
-	Value float32           // The value to set on the animation variable.
+	Name         stingray.ThinHash // [string]The name of the animation variable to set.
+	Value        float32           // The value to set on the animation variable.
+	UnknownBool1 uint8             // name length 12
+	UnknownBool2 uint8             // name length 21
+	_            [2]uint8
 }
 
 type AnimationComponent struct {
