@@ -107,11 +107,30 @@ type Archive struct {
 	Files  []FileData
 }
 
+// Gets the archive size (excluding main data; meaning size of header, type info and file info)
+// by reading only the header.
+func LoadArchiveSize(mainR io.Reader) (int, error) {
+	r := bufio.NewReader(mainR)
+
+	var hdr HeaderData
+	if err := binary.Read(r, binary.LittleEndian, &hdr); err != nil {
+		return -1, err
+	}
+
+	if hdr.MagicNum != [4]byte{0x11, 0x00, 0x00, 0xF0} {
+		return -1, errors.New("invalid magic number")
+	}
+
+	return binary.Size(HeaderData{}) +
+		binary.Size(TypeData{})*int(hdr.NumTypes) +
+		binary.Size(FileData{})*int(hdr.NumFiles), nil
+}
+
 func LoadArchive(mainFilename string, mainR io.Reader) (*Archive, error) {
 	r := bufio.NewReader(mainR)
 	id, err := ParseHash(mainFilename)
 	if err != nil {
-		return nil, fmt.Errorf("parsing archive main filename: %w", err)
+		return nil, fmt.Errorf("parsing archive main, filename: %w", err)
 	}
 
 	var hdr HeaderData
