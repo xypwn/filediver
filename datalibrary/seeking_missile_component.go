@@ -31,7 +31,7 @@ type SeekingMissileDeviationSettings struct {
 
 type SeekingMissileComponent struct {
 	TargetingMode                               enum.SeekingMissileTargetingMode // Determines which targeting mode is used.
-	UnknownFloat                                float32                          // name length 19, maybe targeting_mode_time?
+	UnknownFloat1                               float32                          // name length 19, maybe targeting_mode_time?
 	AutoplayStartingEffects                     uint8                            // [bool]If disabled, the missile wont play the audio and trail FX.
 	_                                           [3]uint8
 	TimeToEnableGuidance                        float32           // Time that it takes to enable guidance, 0 means will be enable from the start, -1 means that we should enable it manually.
@@ -40,6 +40,7 @@ type SeekingMissileComponent struct {
 	UnknownFloat3                               float32           // name length 28
 	AngleLostGuidance                           float32           // [0,180] - If the angle between the target and the missile exceeds this, disable guidance
 	MovementPredictionAccuracy                  float32           // [0,1] - How much the missile is predicting the point of impact depending on current target velocity (1 is best prediction)
+	UnknownFloats                               [5]float32        // some unknown floats name lengths 38, 37, 47, 46, 36
 	TimeToEnableMovement                        float32           // Time that it takes to enable movement, 0 means will be enable from the start, -1 means that we should enable it manually.
 	TimeToEnableExplosive                       float32           // Time that it takes to enable explosive, 0 means will be enable from the start, -1 means that we should enable it manually.
 	MaxLifetime                                 float32           // Time before the missile blows itself up. Set to 0 or lower to disable and have the missile live forever.
@@ -91,7 +92,7 @@ type SimpleSeekingMissileDeviationSettings struct {
 
 type SimpleSeekingMissileComponent struct {
 	TargetingMode                               enum.SeekingMissileTargetingMode      `json:"targeting_mode"`                                    // Determines which targeting mode is used.
-	UnknownFloat                                float32                               `json:"unknown_float"`                                     // name length 19, maybe targeting_mode_time?
+	UnknownFloat1                               float32                               `json:"unknown_float1"`                                    // name length 19, maybe targeting_mode_time?
 	AutoplayStartingEffects                     bool                                  `json:"autoplay_starting_effects"`                         // [bool]If disabled, the missile wont play the audio and trail FX.
 	TimeToEnableGuidance                        float32                               `json:"time_to_enable_guidance"`                           // Time that it takes to enable guidance, 0 means will be enable from the start, -1 means that we should enable it manually.
 	TimeToDisableGuidance                       float32                               `json:"time_to_disable_guidance"`                          // Time that it takes to disable guidance, 0 means will be disable from the start, -1 means that we should disable it manually.
@@ -99,6 +100,7 @@ type SimpleSeekingMissileComponent struct {
 	UnknownFloat3                               float32                               `json:"unknown_float3"`                                    // name length 28
 	AngleLostGuidance                           float32                               `json:"angle_lost_guidance"`                               // [0,180] - If the angle between the target and the missile exceeds this, disable guidance
 	MovementPredictionAccuracy                  float32                               `json:"movement_prediction_accuracy"`                      // [0,1] - How much the missile is predicting the point of impact depending on current target velocity (1 is best prediction)
+	UnknownFloats                               []float32                             `json:"unknown_floats"`                                    // some unknown floats name lengths 38, 37, 47, 46, 36
 	TimeToEnableMovement                        float32                               `json:"time_to_enable_movement"`                           // Time that it takes to enable movement, 0 means will be enable from the start, -1 means that we should enable it manually.
 	TimeToEnableExplosive                       float32                               `json:"time_to_enable_explosive"`                          // Time that it takes to enable explosive, 0 means will be enable from the start, -1 means that we should enable it manually.
 	MaxLifetime                                 float32                               `json:"max_lifetime"`                                      // Time before the missile blows itself up. Set to 0 or lower to disable and have the missile live forever.
@@ -132,7 +134,7 @@ type SimpleSeekingMissileComponent struct {
 func (w SeekingMissileComponent) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookupStrings StringsLookup) any {
 	return SimpleSeekingMissileComponent{
 		TargetingMode:              w.TargetingMode,
-		UnknownFloat:               w.UnknownFloat,
+		UnknownFloat1:              w.UnknownFloat1,
 		AutoplayStartingEffects:    w.AutoplayStartingEffects != 0,
 		TimeToEnableGuidance:       w.TimeToEnableGuidance,
 		TimeToDisableGuidance:      w.TimeToDisableGuidance,
@@ -140,6 +142,7 @@ func (w SeekingMissileComponent) ToSimple(lookupHash HashLookup, lookupThinHash 
 		UnknownFloat3:              w.UnknownFloat3,
 		AngleLostGuidance:          w.AngleLostGuidance,
 		MovementPredictionAccuracy: w.MovementPredictionAccuracy,
+		UnknownFloats:              w.UnknownFloats[:],
 		TimeToEnableMovement:       w.TimeToEnableMovement,
 		TimeToEnableExplosive:      w.TimeToEnableExplosive,
 		MaxLifetime:                w.MaxLifetime,

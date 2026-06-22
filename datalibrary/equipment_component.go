@@ -30,31 +30,34 @@ type EquipmentComponent struct {
 	UnknownBool                   uint8             // unknown, name length 30
 	UnknownBool2                  uint8             // unknown, name length 20
 	_                             [2]uint8
-	HolsterDurationForAttach      float32                // The time it takes to have the equipment attach itself to the holster node when we start holstering.
-	WieldDurationForAttach        float32                // The time it takes to have the equipment attach itself to the wield node when we start wielding.
-	AttachLerpTime                float32                // Should we apply lerp to the attachable component when we wield/holster and if so, how long should it lerp for?
-	OnHolsterAnimationEvent       stingray.ThinHash      // [string]Animation event to trigger when this entity is holstered.
-	WieldAnimationSelf            stingray.ThinHash      // [string]Name of the animation to play on the equipment when wielding.
-	PickupAnimationSelf           stingray.ThinHash      // [string]Name of the animation to play on the equipment when picking up otherwise fallback to wield animation.
-	HolsterAnimationSelf          stingray.ThinHash      // [string]Name of the animation to play on the equipment when holstering.
-	UnknownHash3                  stingray.ThinHash      // Unknown, name length 29
-	EquipmentType                 enum.EquipmentType     // The category of this equipment piece, mostly used for AI purposes.
+	HolsterDurationForAttach      float32            // The time it takes to have the equipment attach itself to the holster node when we start holstering.
+	WieldDurationForAttach        float32            // The time it takes to have the equipment attach itself to the wield node when we start wielding.
+	AttachLerpTime                float32            // Should we apply lerp to the attachable component when we wield/holster and if so, how long should it lerp for?
+	OnHolsterAnimationEvent       stingray.ThinHash  // [string]Animation event to trigger when this entity is holstered.
+	WieldAnimationSelf            stingray.ThinHash  // [string]Name of the animation to play on the equipment when wielding.
+	PickupAnimationSelf           stingray.ThinHash  // [string]Name of the animation to play on the equipment when picking up otherwise fallback to wield animation.
+	HolsterAnimationSelf          stingray.ThinHash  // [string]Name of the animation to play on the equipment when holstering.
+	UnknownHash3                  stingray.ThinHash  // Unknown, name length 29
+	EquipmentType                 enum.EquipmentType // The category of this equipment piece, mostly used for AI purposes.
+	UnknownBool3                  uint8              //unknown, name length 18
+	_                             [3]uint8
 	DropMode                      enum.EquipmentDropMode // How the equipment should be treated when dropped.
 	DropAudioEvent                stingray.ThinHash      // [wwise]Audio event to trigger when getting rid of an equipment.
 	UnknownAudioEvent             stingray.ThinHash      // Unknown, name length 20, probably an audio event
-	DropIconUi                    stingray.Hash          // Unknown, name length 12
-	PickupAudioEvent              stingray.ThinHash      // [wwise]Audio event to trigger when putting on a new equipment.
-	UnknownEvent2                 stingray.ThinHash      // Unknown, name length 21
-	UnknownEvent3                 stingray.ThinHash      // Unknown, name length 33
-	UnknownEvent4                 stingray.ThinHash      // Unknown, name length 32
-	WeaponSwitchWieldAudioEvent   stingray.ThinHash      // [wwise]Audio event to trigger when wielding the weapon.
-	WeaponSwitchHolsterAudioEvent stingray.ThinHash      // [wwise]Audio event to trigger when holstering the weapon.
-	PickupAbility                 enum.AbilityId         // Ability to play when picking up from the ground. Currently only used for the avatar.
-	DropAbility                   enum.AbilityId         // ability to play when dropping equipment
-	GripType                      enum.WeaponGripType    // Grip type for this weapon.
-	IsOneHanded                   uint8                  // [bool]Whether the weapon can be wielded in one hand or not.
-	AllowWieldOnShip              uint8                  // [bool]If the weapon can be wielded while on the ship, only intended use for debug purposes.
-	ShowInPickupWidget            uint8                  // [bool]True the equipment should be shown in the pickup widget.
+	_                             [4]uint8
+	DropIconUi                    stingray.Hash       // Unknown, name length 12
+	PickupAudioEvent              stingray.ThinHash   // [wwise]Audio event to trigger when putting on a new equipment.
+	UnknownEvent2                 stingray.ThinHash   // Unknown, name length 21
+	UnknownEvent3                 stingray.ThinHash   // Unknown, name length 33
+	UnknownEvent4                 stingray.ThinHash   // Unknown, name length 32
+	WeaponSwitchWieldAudioEvent   stingray.ThinHash   // [wwise]Audio event to trigger when wielding the weapon.
+	WeaponSwitchHolsterAudioEvent stingray.ThinHash   // [wwise]Audio event to trigger when holstering the weapon.
+	PickupAbility                 enum.AbilityId      // Ability to play when picking up from the ground. Currently only used for the avatar.
+	DropAbility                   enum.AbilityId      // ability to play when dropping equipment
+	GripType                      enum.WeaponGripType // Grip type for this weapon.
+	IsOneHanded                   uint8               // [bool]Whether the weapon can be wielded in one hand or not.
+	AllowWieldOnShip              uint8               // [bool]If the weapon can be wielded while on the ship, only intended use for debug purposes.
+	ShowInPickupWidget            uint8               // [bool]True the equipment should be shown in the pickup widget.
 	_                             uint8
 	HolsterUnit                   stingray.Hash            // [unit]Path to the holster unit. This is an additional unit to spawn on the holster node that doesn't move with the equipment. Useful for sheaths etc. Note that since it's an additional unit it's more expensive than building the sheath into the parent unit, so only use when needed.
 	HintId                        stingray.ThinHash        // [string]Hint ID to trigger when equipping this equipment
@@ -93,6 +96,7 @@ type SimpleEquipmentComponent struct {
 	HolsterAnimationSelf          string                   `json:"holster_animation_self"`
 	UnknownHash3                  string                   `json:"unknown_hash3"`
 	EquipmentType                 enum.EquipmentType       `json:"equipment_type"`
+	UnknownBool3                  bool                     `json:"unknown_bool3"`
 	DropMode                      enum.EquipmentDropMode   `json:"drop_mode"`
 	DropAudioEvent                string                   `json:"drop_audio_event"`
 	UnknownAudioEvent             string                   `json:"unknown_event"`
@@ -146,6 +150,7 @@ func (w EquipmentComponent) ToSimple(lookupHash HashLookup, lookupThinHash ThinH
 		HolsterAnimationSelf:          lookupThinHash(w.HolsterAnimationSelf),
 		UnknownHash3:                  lookupThinHash(w.UnknownHash3),
 		EquipmentType:                 w.EquipmentType,
+		UnknownBool3:                  w.UnknownBool3 != 0,
 		DropMode:                      w.DropMode,
 		DropAudioEvent:                lookupThinHash(w.DropAudioEvent),
 		UnknownAudioEvent:             lookupThinHash(w.UnknownAudioEvent),

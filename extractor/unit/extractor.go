@@ -284,7 +284,10 @@ func AddMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_mate
 		resID = ctx.OverrideMaterial(id, resID)
 		matR, err := ctx.Open(stingray.NewFileID(resID, stingray.Sum("material")), stingray.DataMain)
 		if err == stingray.ErrFileNotExist {
-			return nil, fmt.Errorf("referenced material resource %v doesn't exist", resID)
+			// Some unit files reference materials that don't exist, maybe they're dev materials?
+			// The bastion tank and frv_mg are example units
+			// Skipping the non-existant materials doesn't change how the output model looks
+			continue
 		}
 		if err != nil {
 			return nil, err

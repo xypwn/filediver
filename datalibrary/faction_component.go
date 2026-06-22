@@ -13,7 +13,7 @@ import (
 type FactionComponent struct {
 	Factions              [3]enum.FactionType   // Which factions this entity belongs to.
 	TargetingNode         stingray.ThinHash     // [string]Node used for line of sight/aiming at entity.
-	UnknownHashes         [4]stingray.Hash      // name length 28
+	UnknownHashes         [6]stingray.Hash      // name length 28
 	HalfWidth             float32               // Distance from which an enemy can attack you from the side.
 	HalfForwardSize       float32               // Distance from which an enemy can attack you from the front or back.
 	Priority              float32               // Used when selecting target

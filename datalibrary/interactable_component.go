@@ -22,9 +22,11 @@ type InteractZoneInfo struct {
 	RequireMigration          uint8             // [bool]Need migration on interact.
 	StartEnabled              uint8             // [bool]When spawn, should it be enabled or not?
 	_                         [2]uint8
-	StartEnabledDelay         float32                     // When spawns, after how many second it should enable the interaction, -1 Indicates that the mechanism is disabled.
-	Label                     uint32                      // [string]Localization string describing the interaction in the HUD.
-	InactiveLabel             uint32                      // [string]Localization string describing an unavailable interaction in the HUD.
+	StartEnabledDelay         float32 // When spawns, after how many second it should enable the interaction, -1 Indicates that the mechanism is disabled.
+	Label                     uint32  // [string]Localization string describing the interaction in the HUD.
+	InactiveLabel             uint32  // [string]Localization string describing an unavailable interaction in the HUD.
+	UnknownBool0              uint8   // Name length 10
+	_                         [3]uint8
 	ApproachDirection         float32                     // 2D angle between approaching unit and interactable, in the interactable's local space, that we center the interaction cone around
 	ApproachAngle             float32                     // Half angle of the cone centered around approach_direction that we allow interaction in. If > 180 degreres, full circle is allowed.
 	ApproachApexShift         float32                     // Shifts cone towards -direction
@@ -37,7 +39,7 @@ type InteractZoneInfo struct {
 	ReenableImmediately       uint8                       // [bool]When used, re-enable the zone immediately
 	DeleteAfterInteract       uint8                       // [bool]This will delete the entity after a successful interact.
 	DisallowProneInteract     uint8                       // [bool]Disallows interacting when interactor is prone.
-	UnknownBool               uint8                       // Name length 29
+	UnknownBool1              uint8                       // Name length 29
 	UnknownBool2              uint8                       // Name length 25
 	_                         [3]uint8
 	HoldTime                  float32 // Hold time required to trigger this interact.
@@ -48,6 +50,7 @@ type InteractZoneInfo struct {
 	_                         [2]uint8
 	HintId                    uint32 // [string] Hint to show
 	OptHintId                 uint32 // [string] Second hint to show
+	UnknownHintId             uint32 // name length 29
 }
 
 type InteractableComponent struct {
@@ -74,6 +77,7 @@ type SimpleInteractZoneInfo struct {
 	StartEnabledDelay         float32                     `json:"start_enabled_delay"`           // When spawns, after how many second it should enable the interaction, -1 Indicates that the mechanism is disabled.
 	Label                     string                      `json:"label"`                         // [string]Localization string describing the interaction in the HUD.
 	InactiveLabel             string                      `json:"inactive_label"`                // [string]Localization string describing an unavailable interaction in the HUD.
+	UnknownBool0              bool                        `json:"unknown_bool0"`                 // name length 10
 	ApproachDirection         float32                     `json:"approach_direction"`            // 2D angle between approaching unit and interactable, in the interactable's local space, that we center the interaction cone around
 	ApproachAngle             float32                     `json:"approach_angle"`                // Half angle of the cone centered around approach_direction that we allow interaction in. If > 180 degreres, full circle is allowed.
 	ApproachApexShift         float32                     `json:"approach_apex_shift"`           // Shifts cone towards -direction
@@ -86,7 +90,7 @@ type SimpleInteractZoneInfo struct {
 	ReenableImmediately       bool                        `json:"reenable_immediately"`          // [bool]When used, re-enable the zone immediately
 	DeleteAfterInteract       bool                        `json:"delete_after_interact"`         // [bool]This will delete the entity after a successful interact.
 	DisallowProneInteract     bool                        `json:"disallow_prone_interact"`       // [bool]Disallows interacting when interactor is prone.
-	UnknownBool               bool                        `json:"unknown_bool"`                  // Name length 29
+	UnknownBool1              bool                        `json:"unknown_bool1"`                 // Name length 29
 	UnknownBool2              bool                        `json:"unknown_bool2"`                 // Name length 25
 	HoldTime                  float32                     `json:"hold_time"`                     // Hold time required to trigger this interact.
 	HoverIconHeight           float32                     `json:"hover_icon_height"`             // The in-world height offset of the interact type icon from the interact point.
@@ -95,6 +99,7 @@ type SimpleInteractZoneInfo struct {
 	ShowIfDisabled            bool                        `json:"show_if_disabled"`              // [bool]If true, then the disabled UI will be shown when this interact is disabled. If false then nothing will be shown.
 	HintId                    string                      `json:"hint_id"`                       // [string] Hint to show
 	OptHintId                 string                      `json:"opt_hint_id"`                   // [string] Second hint to show
+	UnknownHintId             string                      `json:"unk_hint_id"`                   // [string] Third? hint to show (name length 29)
 }
 
 type SimpleInteractableComponent struct {
@@ -134,7 +139,8 @@ func (w InteractZoneInfo) ToSimple(lookupHash HashLookup, lookupThinHash ThinHas
 		ReenableImmediately:       w.ReenableImmediately != 0,
 		DeleteAfterInteract:       w.DeleteAfterInteract != 0,
 		DisallowProneInteract:     w.DisallowProneInteract != 0,
-		UnknownBool:               w.UnknownBool != 0,
+		UnknownBool0:              w.UnknownBool0 != 0,
+		UnknownBool1:              w.UnknownBool1 != 0,
 		UnknownBool2:              w.UnknownBool2 != 0,
 		HoldTime:                  w.HoldTime,
 		HoverIconHeight:           w.HoverIconHeight,
@@ -143,6 +149,7 @@ func (w InteractZoneInfo) ToSimple(lookupHash HashLookup, lookupThinHash ThinHas
 		ShowIfDisabled:            w.ShowIfDisabled != 0,
 		HintId:                    lookupStrings(w.HintId),
 		OptHintId:                 lookupStrings(w.OptHintId),
+		UnknownHintId:             lookupStrings(w.UnknownHintId),
 	}
 }
 
