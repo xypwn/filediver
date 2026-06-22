@@ -372,10 +372,15 @@ func openDataDirSlim(ctx context.Context, dirPath string, onProgress func(curr, 
 		}
 		var data bytes.Buffer
 		writeEntryToBuffer := func(data *bytes.Buffer, entIdx int) error {
-			ent := arItem.Entries[entIdx]
-			bundle := bundles[ent.BundleIndex]
+			entry := arItem.Entries[entIdx]
+			entrySize := arItem.Header.Size - uint64(entry.ArchiveOffset)
+			if entIdx+1 < len(arItem.Entries) {
+				nextEntry := arItem.Entries[entIdx+1]
+				entrySize = uint64(nextEntry.ArchiveOffset) - uint64(entry.ArchiveOffset)
+			}
+			bundle := bundles[entry.BundleIndex]
 			dsar := bundle.DSAR
-			chkIdx, err := findDSARChunkForDSAAEntry(dsar, ent)
+			chkIdx, err := findDSARChunkForDSAAEntry(dsar, entry)
 			if err != nil {
 				return err
 			}
@@ -383,12 +388,20 @@ func openDataDirSlim(ctx context.Context, dirPath string, onProgress func(curr, 
 			if err != nil {
 				return fmt.Errorf("opening bundle %s: %w", bundle.Filename, err)
 			}
-			chunkData, err := ReadDSARChunkData(f, dsar.Chunks[chkIdx])
-			f.Close()
-			if err != nil {
-				return fmt.Errorf("reading DSAR chunk %d in %s: %w", chkIdx, bundle.Filename, err)
+			defer f.Close()
+			writtenEntrySize := uint64(0)
+			for writtenEntrySize < entrySize {
+				chunkData, err := ReadDSARChunkData(f, dsar.Chunks[chkIdx])
+				if err != nil {
+					return fmt.Errorf("reading DSAR chunk %d in %s: %w", chkIdx, bundle.Filename, err)
+				}
+				written, err := data.Write(chunkData)
+				if err != nil {
+					return fmt.Errorf("writing DSAR chunk %d in %s to buffer: %w", chkIdx, bundle.Filename, err)
+				}
+				writtenEntrySize += uint64(written)
+				chkIdx += 1
 			}
-			data.Write(chunkData)
 			return nil
 		}
 		if err := writeEntryToBuffer(&data, 0); err != nil {
