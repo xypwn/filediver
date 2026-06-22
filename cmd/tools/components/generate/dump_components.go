@@ -12,6 +12,7 @@ import (
 	arcs "github.com/xypwn/filediver/cmd/tools/components/arc-setting-json-dumper/dumper"
 	armor "github.com/xypwn/filediver/cmd/tools/components/armor-set-json-dumper/dumper"
 	beam "github.com/xypwn/filediver/cmd/tools/components/beam-setting-json-dumper/dumper"
+	damage "github.com/xypwn/filediver/cmd/tools/components/damage-setting-json-dumper/dumper"
 	ecs "github.com/xypwn/filediver/cmd/tools/components/entity-component-settings-json-dumper/dumper"
 	env "github.com/xypwn/filediver/cmd/tools/components/environment-setting-json-dumper/dumper"
 	expl "github.com/xypwn/filediver/cmd/tools/components/explosion-setting-json-dumper/dumper"
@@ -73,6 +74,7 @@ func main() {
 	dumpArc(a, outputFormat, prt, currStdout)
 	dumpArmor(a, outputFormat, prt, currStdout)
 	dumpBeam(a, outputFormat, prt, currStdout)
+	dumpDamage(a, outputFormat, prt, currStdout)
 	dumpEcs(a, outputFormat, prt, currStdout, lookupDLHash)
 	dumpEnv(a, outputFormat, prt, currStdout)
 	dumpExpl(a, outputFormat, prt, currStdout)
@@ -129,6 +131,22 @@ func dumpBeam(a *app.App, outputFormat string, prt app.Printer, currStdout *os.F
 		}()
 		os.Stdout = newStdout
 		beam.Dump(a)
+		os.Stdout = currStdout
+	}
+}
+func dumpDamage(a *app.App, outputFormat string, prt app.Printer, currStdout *os.File) {
+	filename := "damage_settings"
+	newStdout, err := CreateFile(fmt.Sprintf(outputFormat, filename), ".json")
+	if err == nil {
+		defer func() {
+			os.Stdout = currStdout
+			newStdout.Close()
+			if r := recover(); r != nil {
+				prt.Errorf("Failed to generate %v: %v", filename, r)
+			}
+		}()
+		os.Stdout = newStdout
+		damage.Dump(a)
 		os.Stdout = currStdout
 	}
 }

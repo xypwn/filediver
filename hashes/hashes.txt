@@ -72664,6 +72664,8 @@ content/fac_helldivers/equipment/attachment/muzzle/muzzle_8mm_naked
 content/fac_helldivers/equipment/attachment/muzzle/muzzle_9mm_compensator
 content/fac_helldivers/equipment/attachment/muzzle/muzzle_9mm_flashhider
 content/fac_helldivers/equipment/attachment/muzzle/muzzle_9mm_suppressor
+content/fac_helldivers/equipment/attachment/muzzle/muzzle_drake
+content/fac_helldivers/equipment/attachment/muzzle/muzzle_laser_rifle_charge_standard
 content/fac_helldivers/equipment/attachment/muzzle/muzzle_plasma_choke
 content/fac_helldivers/equipment/attachment/muzzle/muzzle_plasma_compensator
 content/fac_helldivers/equipment/attachment/muzzle/muzzle_plasma_standard
