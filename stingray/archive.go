@@ -151,20 +151,11 @@ func LoadArchive(mainFilename string, mainR io.Reader) (*Archive, error) {
 	if err := binary.Read(r, binary.LittleEndian, files); err != nil {
 		return nil, fmt.Errorf("reading files: %v", err)
 	}
-	filecount := hdr.NumFiles
-	if len(files) > 0 && files[len(files)-1].Index != uint32(len(files)-1) {
-		for i, file := range files {
-			if uint32(i) != file.Index {
-				filecount = uint32(i)
-				break
-			}
-		}
-	}
 
 	return &Archive{
 		ID:     id,
 		Header: hdr,
 		Types:  types,
-		Files:  files[:filecount],
+		Files:  files,
 	}, nil
 }
