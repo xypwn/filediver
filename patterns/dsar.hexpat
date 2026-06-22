@@ -20,7 +20,7 @@ struct Chunk {
     CompressionType compression;
     ResourceType type;
     padding[6];
-    u8 data[compressed_size] @ compressed_offset;
+    //u8 data[compressed_size] @ compressed_offset; // commented for perf
 };
 
 struct DSAR {

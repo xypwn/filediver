@@ -268,7 +268,7 @@ func loadDSAAFromBundlesNXA(bundlesNXAPath string) (_ *DSAA, err error) {
 	return dsaa, err
 }
 
-func findDSARChunkForDSAAEntry(dsar *DSARStructure, ent DSAAEntry) (entryIndex int, err error) {
+func findDSARChunkForDSAAEntry(dsar *DSARStructure, ent DSAAEntry) (chunkIndex int, err error) {
 	idx, ok := slices.BinarySearchFunc(dsar.Chunks, ent.UncompressedBundleOffset, func(chk DSARChunk, uncompOffs uint32) int {
 		return cmp.Compare(chk.UncompressedOffset, uint64(uncompOffs))
 	})
@@ -370,25 +370,55 @@ func openDataDirSlim(ctx context.Context, dirPath string, onProgress func(curr, 
 		if len(arItem.Entries) == 0 {
 			return nil, fmt.Errorf("expected DSAA archive to have at least one entry")
 		}
-		ent := arItem.Entries[0]
-		bundle := bundles[ent.BundleIndex]
-		dsar := bundle.DSAR
-		chkIdx, err := findDSARChunkForDSAAEntry(dsar, ent)
-		if err != nil {
+		var data bytes.Buffer
+		writeEntryToBuffer := func(data *bytes.Buffer, entIdx int) error {
+			entry := arItem.Entries[entIdx]
+			entrySize := arItem.Header.Size - uint64(entry.ArchiveOffset)
+			if entIdx+1 < len(arItem.Entries) {
+				nextEntry := arItem.Entries[entIdx+1]
+				entrySize = uint64(nextEntry.ArchiveOffset) - uint64(entry.ArchiveOffset)
+			}
+			bundle := bundles[entry.BundleIndex]
+			dsar := bundle.DSAR
+			chkIdx, err := findDSARChunkForDSAAEntry(dsar, entry)
+			if err != nil {
+				return err
+			}
+			f, err := os.Open(filepath.Join(dirPath, bundle.Filename))
+			if err != nil {
+				return fmt.Errorf("opening bundle %s: %w", bundle.Filename, err)
+			}
+			defer f.Close()
+			writtenEntrySize := uint64(0)
+			for writtenEntrySize < entrySize {
+				chunkData, err := ReadDSARChunkData(f, dsar.Chunks[chkIdx])
+				if err != nil {
+					return fmt.Errorf("reading DSAR chunk %d in %s: %w", chkIdx, bundle.Filename, err)
+				}
+				written, err := data.Write(chunkData)
+				if err != nil {
+					return fmt.Errorf("writing DSAR chunk %d in %s to buffer: %w", chkIdx, bundle.Filename, err)
+				}
+				writtenEntrySize += uint64(written)
+				chkIdx += 1
+			}
+			return nil
+		}
+		if err := writeEntryToBuffer(&data, 0); err != nil {
 			return nil, err
 		}
-		f, err := os.Open(filepath.Join(dirPath, bundle.Filename))
+		arSize, err := LoadArchiveSize(bytes.NewReader(data.Bytes()))
 		if err != nil {
-			return nil, fmt.Errorf("opening bundle %s: %w", bundle.Filename, err)
+			return nil, fmt.Errorf("loading size of archive %s: %w", arItem.Filename, err)
 		}
-		data, err := ReadDSARChunkData(f, dsar.Chunks[chkIdx])
-		f.Close()
-		if err != nil {
-			return nil, fmt.Errorf("reading DSAR chunk %d in %s: %w", chkIdx, bundle.Filename, err)
+		for i := 1; i < len(arItem.Entries) && data.Len() < arSize; i++ {
+			if err := writeEntryToBuffer(&data, i); err != nil {
+				return nil, err
+			}
 		}
-		archive, err := LoadArchive(arItem.Filename, bytes.NewReader(data))
+		archive, err := LoadArchive(arItem.Filename, bytes.NewReader(data.Bytes()))
 		if err != nil {
-			return nil, fmt.Errorf("loading archive %s from %s: %w", arItem.Filename, bundle.Filename, err)
+			return nil, fmt.Errorf("loading archive %s: %w", arItem.Filename, err)
 		}
 		addArchive(archive)
 	}
