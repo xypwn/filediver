@@ -46,13 +46,13 @@ func main() {
 		if _, ok := datalib.DLHashesToStrings[hash]; ok {
 			continue
 		}
-		fmt.Printf("%08x\n", uint32(hash))
+		fmt.Printf("%08x:%v\n", uint32(hash), typelib.Types[hash].NameLength)
 	}
 
 	for hash := range typelib.Enums {
 		if _, ok := datalib.DLHashesToStrings[hash]; ok {
 			continue
 		}
-		fmt.Printf("%08x\n", uint32(hash))
+		fmt.Printf("%08x:%v\n", uint32(hash), typelib.Enums[hash].NameLength)
 	}
 }

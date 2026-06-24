@@ -195,6 +195,7 @@ func main() {
 			a.ArmorSets,
 			a.SkinOverrideGroups,
 			a.WeaponPaintSchemes,
+			a.AttachmentSlots,
 			a.GameBuildInfo,
 			a.LanguageMap,
 			a.DataDir,

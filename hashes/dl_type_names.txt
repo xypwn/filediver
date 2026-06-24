@@ -1093,6 +1093,15 @@ ObjectiveSelectionType
 ExplorationGenerationMode
 LevelGenerationMode
 WallGenerationPhase
+ObjectiveCollectResourcesComponentData
+ObjectiveCollectResourcesComponent
+ObjectivePreventInvasionComponentData
+ObjectivePreventInvasionComponent
+VistaShipPositionComponentData
+VistaShipPositionComponent
+ShieldHitFilterComponentData
+ShieldHitFilterComponent
+RelevantEntityType
 
 // ======== Enums and Values ========
 HelldiverCustomizationPassiveBonus

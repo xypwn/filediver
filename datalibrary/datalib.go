@@ -322,16 +322,19 @@ type rawDLMemberDesc struct {
 }
 
 type DLMemberDesc struct {
-	Name         string      `json:"name"`
-	NameOffset   uint32      `json:"name_offset"`
-	Comment      string      `json:"comment,omitempty"`
-	Type         DLType      `json:"type_flags"`
-	TypeID       DLHash      `json:"type"`
-	Size         uint32      `json:"size"`
-	Alignment    uint32      `json:"alignment"`
-	Offset       uint32      `json:"offset"`
-	DefaultValue []uint8     `json:"-"`
-	Flags        DLTypeFlags `json:"flags"`
+	Name          string      `json:"name"`
+	NameOffset    uint32      `json:"name_offset"`
+	NameLength    uint32      `json:"name_length"`
+	Comment       string      `json:"comment,omitempty"`
+	CommentOffset uint32      `json:"comment_offset,omitzero"`
+	CommentLength uint32      `json:"comment_length,omitzero"`
+	Type          DLType      `json:"type_flags"`
+	TypeID        DLHash      `json:"type"`
+	Size          uint32      `json:"size"`
+	Alignment     uint32      `json:"alignment"`
+	Offset        uint32      `json:"offset"`
+	DefaultValue  []uint8     `json:"-"`
+	Flags         DLTypeFlags `json:"flags"`
 }
 
 type rawDLTypeDesc struct {
@@ -347,12 +350,14 @@ type rawDLTypeDesc struct {
 type DLTypeDesc struct {
 	Name          string         `json:"name"`
 	NameOffset    uint32         `json:"name_offset"`
+	NameLength    uint32         `json:"name_length"`
 	Flags         DLTypeFlags    `json:"flags"`
 	Size          uint32         `json:"size"`
 	Alignment     uint32         `json:"alignment"`
 	Members       []DLMemberDesc `json:"members,omitempty"`
 	Comment       string         `json:"comment,omitempty"`
 	CommentOffset uint32         `json:"comment_offset,omitzero"`
+	CommentLength uint32         `json:"comment_length,omitzero"`
 }
 
 type rawDLEnumDesc struct {
@@ -379,18 +384,25 @@ type rawDLEnumAliasDesc struct {
 }
 
 type DLEnumValueDesc struct {
-	Name    string   `json:"name"`
-	Comment string   `json:"comment,omitempty"`
-	Value   uint64   `json:"value"`
-	Aliases []string `json:"aliases,omitempty"`
+	Name          string   `json:"name"`
+	NameOffset    uint32   `json:"name_offset"`
+	NameLength    uint32   `json:"name_length"`
+	Comment       string   `json:"comment,omitempty"`
+	CommentOffset uint32   `json:"comment_offset,omitzero"`
+	CommentLength uint32   `json:"comment_length,omitzero"`
+	Value         uint64   `json:"value"`
+	Aliases       []string `json:"aliases,omitempty"`
 }
 
 type DLEnumDesc struct {
-	Name       string            `json:"name"`
-	NameOffset uint32            `json:"name_offset"`
-	Flags      DLTypeFlags       `json:"flags"`
-	Storage    DLTypeStorage     `json:"storage"`
-	Values     []DLEnumValueDesc `json:"values"`
+	Name          string            `json:"name"`
+	NameOffset    uint32            `json:"name_offset"`
+	NameLength    uint32            `json:"name_length"`
+	Comment       string            `json:"comment,omitempty"`
+	CommentOffset uint32            `json:"comment_offset,omitzero"`
+	Flags         DLTypeFlags       `json:"flags"`
+	Storage       DLTypeStorage     `json:"storage"`
+	Values        []DLEnumValueDesc `json:"values"`
 }
 
 type DLTypeLib struct {
@@ -506,6 +518,8 @@ func ParseTypeLib(data []byte) (*DLTypeLib, error) {
 		return text
 	}
 
+	stringOffsets := make([]uint32, 0)
+	stringOffsetsMap := make(map[uint32]int)
 	Types := make(map[DLHash]DLTypeDesc)
 	for hashIdx, typeDesc := range typeDescs {
 		members := make([]DLMemberDesc, 0)
@@ -514,23 +528,36 @@ func ParseTypeLib(data []byte) (*DLTypeLib, error) {
 			if memberDescs[i].DefaultValueOffset != math.MaxUint32 && memberDescs[i].DefaultValueSize != math.MaxUint32 {
 				defaultValue = defaultData[memberDescs[i].DefaultValueOffset : memberDescs[i].DefaultValueOffset+memberDescs[i].DefaultValueSize]
 			}
+			stringOffsetsMap[memberDescs[i].NameOffset] = len(stringOffsets)
+			stringOffsets = append(stringOffsets, memberDescs[i].NameOffset)
+			commentOffset := memberDescs[i].CommentOffset
+			if commentOffset == math.MaxUint32 {
+				commentOffset = 0
+			} else {
+				stringOffsetsMap[commentOffset] = len(stringOffsets)
+				stringOffsets = append(stringOffsets, commentOffset)
+			}
 			members = append(members, DLMemberDesc{
-				Name:         getDLUnhashedText(memberDescs[i].NameOffset),
-				NameOffset:   memberDescs[i].NameOffset,
-				Comment:      getDLUnhashedText(memberDescs[i].CommentOffset),
-				Type:         memberDescs[i].Type,
-				TypeID:       memberDescs[i].TypeID,
-				Size:         memberDescs[i].Size.GetNative(),
-				Alignment:    memberDescs[i].Alignment.GetNative(),
-				Offset:       memberDescs[i].Offset.GetNative(),
-				DefaultValue: defaultValue,
-				Flags:        memberDescs[i].Flags,
+				Name:          getDLUnhashedText(memberDescs[i].NameOffset),
+				NameOffset:    memberDescs[i].NameOffset,
+				Comment:       getDLUnhashedText(memberDescs[i].CommentOffset),
+				CommentOffset: commentOffset,
+				Type:          memberDescs[i].Type,
+				TypeID:        memberDescs[i].TypeID,
+				Size:          memberDescs[i].Size.GetNative(),
+				Alignment:     memberDescs[i].Alignment.GetNative(),
+				Offset:        memberDescs[i].Offset.GetNative(),
+				DefaultValue:  defaultValue,
+				Flags:         memberDescs[i].Flags,
 			})
 		}
-
+		stringOffsetsMap[typeDesc.NameOffset] = len(stringOffsets)
+		stringOffsets = append(stringOffsets, typeDesc.NameOffset)
 		var commentOffset uint32 = 0
 		if typeDesc.CommentOffset != math.MaxUint32 {
 			commentOffset = typeDesc.CommentOffset
+			stringOffsetsMap[typeDesc.CommentOffset] = len(stringOffsets)
+			stringOffsets = append(stringOffsets, typeDesc.CommentOffset)
 		}
 		Types[typeHashes[hashIdx]] = DLTypeDesc{
 			Name:          getDLText(typeHashes[hashIdx], typeDesc.NameOffset),
@@ -554,6 +581,10 @@ func ParseTypeLib(data []byte) (*DLTypeLib, error) {
 
 			aliasNames := make([]string, 0)
 			for _, alias := range aliases {
+				if alias.NameOffset != math.MaxUint32 {
+					stringOffsetsMap[alias.NameOffset] = len(stringOffsets)
+					stringOffsets = append(stringOffsets, alias.NameOffset)
+				}
 				if alias.ValueIndex != i {
 					continue
 				}
@@ -565,20 +596,118 @@ func ParseTypeLib(data []byte) (*DLTypeLib, error) {
 			} else {
 				aliasNames = make([]string, 0)
 			}
+
+			var commentOffset uint32 = 0
+			if enumValueDescs[i].CommentOffset != math.MaxUint32 {
+				commentOffset = enumValueDescs[i].CommentOffset
+				stringOffsetsMap[enumValueDescs[i].CommentOffset] = len(stringOffsets)
+				stringOffsets = append(stringOffsets, enumValueDescs[i].CommentOffset)
+			}
 			values = append(values, DLEnumValueDesc{
-				Name:    getDLEnumAliasText(enumName, mainAlias.NameOffset),
-				Comment: getDLUnhashedText(enumValueDescs[i].CommentOffset),
-				Value:   enumValueDescs[i].Value,
-				Aliases: aliasNames,
+				Name:          getDLEnumAliasText(enumName, mainAlias.NameOffset),
+				NameOffset:    mainAlias.NameOffset,
+				Comment:       getDLUnhashedText(enumValueDescs[i].CommentOffset),
+				CommentOffset: commentOffset,
+				Value:         enumValueDescs[i].Value,
+				Aliases:       aliasNames,
 			})
 		}
 
+		stringOffsetsMap[enumDesc.NameOffset] = len(stringOffsets)
+		stringOffsets = append(stringOffsets, enumDesc.NameOffset)
+
+		var enumComment string
+		var commentOffset uint32 = 0
+		if enumDesc.CommentOffset != math.MaxUint32 {
+			commentOffset = enumDesc.CommentOffset
+			stringOffsetsMap[enumDesc.CommentOffset] = len(stringOffsets)
+			stringOffsets = append(stringOffsets, enumDesc.CommentOffset)
+			enumComment = getDLUnhashedText(commentOffset)
+		}
+
 		Enums[enumHashes[hashIdx]] = DLEnumDesc{
-			Name:       enumName,
-			NameOffset: enumDesc.NameOffset,
-			Flags:      enumDesc.Flags,
-			Storage:    enumDesc.Storage,
-			Values:     values,
+			Name:          enumName,
+			NameOffset:    enumDesc.NameOffset,
+			Comment:       enumComment,
+			CommentOffset: commentOffset,
+			Flags:         enumDesc.Flags,
+			Storage:       enumDesc.Storage,
+			Values:        values,
+		}
+	}
+
+	for hash := range Types {
+		offsetIndex := stringOffsetsMap[Types[hash].NameOffset]
+		nameOffset := stringOffsets[offsetIndex]
+		var nameLength uint32 = 0
+		if offsetIndex+1 < len(stringOffsets) {
+			nameLength = stringOffsets[offsetIndex+1] - nameOffset - 1 // account for null terminator
+		}
+
+		var commentLength uint32 = 0
+		if Types[hash].CommentOffset != 0 {
+			offsetIndex = stringOffsetsMap[Types[hash].CommentOffset]
+			commentOffset := stringOffsets[offsetIndex]
+			if offsetIndex+1 < len(stringOffsets) {
+				commentLength = stringOffsets[offsetIndex+1] - commentOffset - 1 // account for null terminator
+			}
+		}
+
+		for i, member := range Types[hash].Members {
+			offsetIndex = stringOffsetsMap[member.NameOffset]
+			memberNameOffset := stringOffsets[offsetIndex]
+			var memberNameLength uint32 = 0
+			if offsetIndex+1 < len(stringOffsets) {
+				memberNameLength = stringOffsets[offsetIndex+1] - memberNameOffset - 1 // account for null terminator
+			}
+			Types[hash].Members[i].NameLength = memberNameLength
+
+			if member.CommentOffset != 0 {
+				offsetIndex = stringOffsetsMap[member.CommentOffset]
+				memberCommentOffset := stringOffsets[offsetIndex]
+				var memberCommentLength uint32 = 0
+				if offsetIndex+1 < len(stringOffsets) {
+					memberCommentLength = stringOffsets[offsetIndex+1] - memberCommentOffset - 1 // account for null terminator
+				}
+				Types[hash].Members[i].CommentLength = memberCommentLength
+			}
+		}
+
+		typeDesc := Types[hash]
+		typeDesc.NameLength = nameLength
+		typeDesc.CommentLength = commentLength
+		Types[hash] = typeDesc
+	}
+
+	for hash := range Enums {
+		offsetIndex := stringOffsetsMap[Enums[hash].NameOffset]
+		nameOffset := stringOffsets[offsetIndex]
+		var nameLength uint32 = 0
+		if offsetIndex+1 < len(stringOffsets) {
+			nameLength = stringOffsets[offsetIndex+1] - nameOffset - 1 // account for null terminator
+		}
+		enumDesc := Enums[hash]
+		enumDesc.NameLength = nameLength
+		Enums[hash] = enumDesc
+
+		for i, value := range Enums[hash].Values {
+			offsetIndex = stringOffsetsMap[value.NameOffset]
+			valueNameOffset := stringOffsets[offsetIndex]
+			var valueNameLength uint32 = 0
+			if offsetIndex+1 < len(stringOffsets) {
+				valueNameLength = stringOffsets[offsetIndex+1] - valueNameOffset - 1 // account for null terminator
+			}
+			Enums[hash].Values[i].NameLength = valueNameLength
+
+			if value.CommentOffset != 0 {
+				offsetIndex = stringOffsetsMap[value.CommentOffset]
+				valueCommentOffset := stringOffsets[offsetIndex]
+				var valueCommentLength uint32 = 0
+				if offsetIndex+1 < len(stringOffsets) {
+					valueCommentLength = stringOffsets[offsetIndex+1] - valueCommentOffset - 1 // account for null terminator
+				}
+				Enums[hash].Values[i].CommentLength = valueCommentLength
+			}
 		}
 	}
 

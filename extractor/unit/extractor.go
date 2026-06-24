@@ -265,13 +265,23 @@ func AddMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_mate
 	materialVariants := make([]geometry.MaterialVariantMap, 0)
 	namesToVariantIdx := make(map[string]uint32)
 
-	// Check if this is a weapon with weapon customization component
+	// Check if this is a weapon with weapon customization component or an attachment in the weapon customization settings
 	weaponHash := getWeaponEntityHashFromUnitHash(ctx.FileID().Name)
 	weaponCustCmpData, weaponErr := datalib.GetWeaponCustomizationComponentDataForHash(weaponHash)
+
+	attachmentSlot, isAttachment := ctx.AttachmentSlots()[ctx.FileID().Name]
 	var weaponCustCmp datalib.WeaponCustomizationComponent
 	if weaponErr == nil {
 		if _, err := binary.Decode(weaponCustCmpData, binary.LittleEndian, &weaponCustCmp); err != nil {
 			ctx.Warnf("AddMaterials: couldn't parse weapon customization component: %v", err)
+			weaponErr = err
+		}
+	} else if isAttachment {
+		weaponErr = nil
+		weaponCustCmpData = make([]byte, binary.Size(weaponCustCmp))
+		weaponCustCmp = datalib.DefaultWeaponCustomizationComponent()
+		if _, err := binary.Encode(weaponCustCmpData, binary.LittleEndian, weaponCustCmp); err != nil {
+			ctx.Warnf("AddMaterials: making a fake weapon customization component failed: %v", err)
 			weaponErr = err
 		}
 	}
@@ -415,6 +425,9 @@ func AddMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_mate
 			}
 
 			for _, slotCustomization := range component.MaterialOverride.WeaponSlotMaterialCustomization {
+				if isAttachment && attachmentSlot != slotCustomization.Slot {
+					continue
+				}
 				for _, matOverride := range slotCustomization.Overrides {
 					if matOverride.MaterialID.Value == 0 {
 						continue

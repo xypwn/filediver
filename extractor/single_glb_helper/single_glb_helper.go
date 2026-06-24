@@ -37,6 +37,7 @@ func CreateCloseableGltfDocument(ctx context.Context, statusf func(format string
 			nil,
 			nil,
 			nil,
+			nil,
 			buildInfo,
 			nil,
 			nil,

@@ -73801,6 +73801,7 @@ content/fac_helldivers/vehicles/frv/armaments/frv_mg/frv_mg
 content/fac_helldivers/vehicles/frv/frv
 content/fac_helldivers/vehicles/frv/frv_mask
 content/fac_helldivers/vehicles/frv/frv_superearth
+content/fac_helldivers/vehicles/frv_heavy/armaments/frv_flamer_fuel_tank/frv_flamer_fuel_tank
 content/fac_helldivers/vehicles/frv_heavy/armaments/frv_flamethrower/frv_flamethrower
 content/fac_helldivers/vehicles/frv_heavy/frv_flamer
 content/fac_helldivers/vehicles/frv_heavy/frv_heavy

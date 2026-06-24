@@ -11146,3 +11146,4 @@ content/fac_helldivers/equipment/attachment/magazine/marksmanrifle_standard_drak
 content/fac_helldivers/vehicles/frv_supply/armaments/frv_supply_rack/frv_supply_rack
 content/fac_helldivers/equipment/attachment/muzzle/muzzle_drake
 content/fac_helldivers/equipment/attachment/muzzle/muzzle_laser_rifle_charge_standard
+content/fac_helldivers/vehicles/frv_heavy/armaments/frv_flamer_fuel_tank/frv_flamer_fuel_tank

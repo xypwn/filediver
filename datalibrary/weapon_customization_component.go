@@ -48,11 +48,11 @@ type WeaponCustomizationComponent struct {
 	CustomizationSlots                      [10]enum.WeaponCustomizationSlot // Which slots can we use to customize the weapon?
 	OpticsPath                              stingray.Hash                    // [unit]Path to the optics/scope unit.
 	MagazinePath                            stingray.Hash                    // [unit]Path to the magazine unit.
-	MagazineSecondaryPath                   stingray.Hash                    // [unit]Path to the second magazine unit.
-	UnknownHash                             stingray.Hash                    // [unit]Path to some unit (name length 22).
-	MuzzlePath                              stingray.Hash                    // [unit]Path to the muzzle unit.
 	UnknownThinHash0                        stingray.ThinHash
 	UnknownThinHash1                        stingray.ThinHash
+	MagazineSecondaryPath                   stingray.Hash          // [unit]Path to the second magazine unit.
+	UnknownHash                             stingray.Hash          // [unit]Path to some unit (name length 22).
+	MuzzlePath                              stingray.Hash          // [unit]Path to the muzzle unit.
 	OpticsCrosshairParams                   mgl32.Vec2             // Offset and scale applied to the crosshair node in the optics unit. X=Forward offset, Y=Scale.
 	Unknown0Path                            stingray.Hash          // Paintscheme path? 26 chars long
 	Unknown1Path                            stingray.Hash          // Some other path - 31 chars long
@@ -61,10 +61,10 @@ type WeaponCustomizationComponent struct {
 	TriggerSettings                         WeaponTriggerSettings  // Set trigger settings
 	HideMagazineOnStart                     uint8
 	_                                       [3]uint8
-	MagazineAdjustingNodes                  [20]stingray.ThinHash // [string]Do we have any magazine nodes that need to be autoadjusted based on rounds left?
+	MagazineAdjustingNodes                  [24]stingray.ThinHash // [string]Do we have any magazine nodes that need to be autoadjusted based on rounds left?
 	MagazineAdjustingNodesVisibleChambering uint8                 // [bool]The very first node in the list will only be hidden if there isn't a chambered round
 	_                                       [3]uint8
-	UnknownEnum                             enum.WeaponCustomizationUnknownEnum // Not sure what this enum is. The type name should be 22 characters long and probably starts with Weapon
+	UnknownEnum                             enum.WeaponCustomizationUnknownEnum // Not sure what this enum is. The type name should be 18 characters long and probably starts with Weapon
 	UnknownBool                             uint8                               // [bool]No clue what this controls, maybe something to do with the unknown enum
 	_                                       [3]uint8
 	MagazineAdjustingAnimation              stingray.ThinHash                // [string]Animation to play on the magazine when adjusting the rounds (outside of the initial spawn).
@@ -80,13 +80,13 @@ type SimpleWeaponDefaultAttachment struct {
 }
 
 type SimpleWeaponMaterialOverride struct {
-	DefaultWeaponSlotMaterial       []UnitCustomizationMaterialOverrides     `json:"default_weapon_slot_material,omitempty"` // Default material overrides per slot
-	WeaponSlotMaterialCustomization []SimpleWeaponSlotCustomizationMaterials `json:"weapon_slot_material_customization,omitempty"`
+	DefaultWeaponSlotMaterial       []SimpleUnitCustomizationMaterialOverrides `json:"default_weapon_slot_material,omitempty"` // Default material overrides per slot
+	WeaponSlotMaterialCustomization []SimpleWeaponSlotCustomizationMaterials   `json:"weapon_slot_material_customization,omitempty"`
 }
 
 type SimpleWeaponSlotCustomizationMaterials struct {
-	Slot      enum.WeaponCustomizationSlot         `json:"slot"`
-	Overrides []UnitCustomizationMaterialOverrides `json:"overrides"`
+	Slot      enum.WeaponCustomizationSlot               `json:"slot"`
+	Overrides []SimpleUnitCustomizationMaterialOverrides `json:"overrides"`
 }
 
 type SimpleWeaponTriggerSettings struct {
@@ -110,11 +110,11 @@ type SimpleWeaponCustomizationComponent struct {
 	CustomizationSlots                      []enum.WeaponCustomizationSlot      `json:"customization_slots,omitempty"`
 	OpticsPath                              string                              `json:"optics_path"`
 	MagazinePath                            string                              `json:"magazine_path"`
+	UnknownThinHash0                        string                              `json:"unknown_thin_hash_0"`
+	UnknownThinHash1                        string                              `json:"unknown_thin_hash_1"`
 	MagazineSecondaryPath                   string                              `json:"magazine_secondary_path"`
 	UnknownHash                             string                              `json:"unknown_hash"`
 	MuzzlePath                              string                              `json:"muzzle_path"`
-	UnknownThinHash0                        string                              `json:"unknown_thin_hash_0"`
-	UnknownThinHash1                        string                              `json:"unknown_thin_hash_1"`
 	OpticsCrosshairParams                   mgl32.Vec2                          `json:"optics_crosshair_params"`
 	Unknown0Path                            string                              `json:"unknown0_path"`
 	Unknown1Path                            string                              `json:"unknown1_path"`
@@ -162,12 +162,24 @@ func (component WeaponCustomizationComponent) ToSimple(lookupHash HashLookup, lo
 	}
 
 	var materialOverride SimpleWeaponMaterialOverride
-	materialOverride.DefaultWeaponSlotMaterial = make([]UnitCustomizationMaterialOverrides, 0)
+	materialOverride.DefaultWeaponSlotMaterial = make([]SimpleUnitCustomizationMaterialOverrides, 0)
+	lookupHashEmpty := func(h stingray.Hash) string {
+		if h.Value == 0 {
+			return ""
+		}
+		return lookupHash(h)
+	}
 	for _, slotMat := range component.MaterialOverride.DefaultWeaponSlotMaterial {
 		if slotMat.MaterialID.Value == 0 {
 			break
 		}
-		materialOverride.DefaultWeaponSlotMaterial = append(materialOverride.DefaultWeaponSlotMaterial, slotMat)
+		materialOverride.DefaultWeaponSlotMaterial = append(materialOverride.DefaultWeaponSlotMaterial, SimpleUnitCustomizationMaterialOverrides{
+			MaterialID:        lookupThinHash(slotMat.MaterialID),
+			MaterialLut:       lookupHashEmpty(slotMat.MaterialLut),
+			DecalSheet:        lookupHashEmpty(slotMat.DecalSheet),
+			PatternLut:        lookupHashEmpty(slotMat.PatternLut),
+			PatternMasksArray: lookupHashEmpty(slotMat.PatternMasksArray),
+		})
 	}
 
 	materialOverride.WeaponSlotMaterialCustomization = make([]SimpleWeaponSlotCustomizationMaterials, 0)
@@ -175,12 +187,18 @@ func (component WeaponCustomizationComponent) ToSimple(lookupHash HashLookup, lo
 		if mat_cust.Slot == enum.WeaponCustomizationSlot_None {
 			break
 		}
-		overrides := make([]UnitCustomizationMaterialOverrides, 0)
+		overrides := make([]SimpleUnitCustomizationMaterialOverrides, 0)
 		for _, override := range mat_cust.Overrides {
 			if override.MaterialID.Value == 0 {
 				break
 			}
-			overrides = append(overrides, override)
+			overrides = append(overrides, SimpleUnitCustomizationMaterialOverrides{
+				MaterialID:        lookupThinHash(override.MaterialID),
+				MaterialLut:       lookupHashEmpty(override.MaterialLut),
+				DecalSheet:        lookupHashEmpty(override.DecalSheet),
+				PatternLut:        lookupHashEmpty(override.PatternLut),
+				PatternMasksArray: lookupHashEmpty(override.PatternMasksArray),
+			})
 		}
 		materialOverride.WeaponSlotMaterialCustomization = append(materialOverride.WeaponSlotMaterialCustomization, SimpleWeaponSlotCustomizationMaterials{
 			Slot:      mat_cust.Slot,
@@ -228,6 +246,82 @@ func (component WeaponCustomizationComponent) ToSimple(lookupHash HashLookup, lo
 		IKAttachSetting:                         component.IKAttachSetting,
 		IKAttachAnimationEvent:                  lookupThinHash(component.IKAttachAnimationEvent),
 		UnknownThinHash2:                        lookupThinHash(component.UnknownThinHash2),
+	}
+}
+
+func DefaultWeaponCustomizationComponent() WeaponCustomizationComponent {
+	return WeaponCustomizationComponent{
+		CustomizationSlots: [10]enum.WeaponCustomizationSlot{
+			enum.WeaponCustomizationSlot_PaintScheme,
+		},
+		MaterialOverride: WeaponMaterialOverride{
+			DefaultWeaponSlotMaterial: [10]UnitCustomizationMaterialOverrides{
+				{
+					MaterialID: stingray.Sum("m_weapon").Thin(),
+				},
+				{
+					MaterialID: stingray.Sum("m_weapon_arc").Thin(),
+				},
+				{
+					MaterialID: stingray.Sum("m_weapon_flame").Thin(),
+				},
+				{
+					MaterialID: stingray.Sum("m_weapon_laser").Thin(),
+				},
+				{
+					MaterialID: stingray.Sum("m_weapon_plasma").Thin(),
+				},
+				{
+					MaterialID: stingray.Sum("m_weapon_kit").Thin(),
+				},
+				{
+					MaterialID: stingray.ThinHash{Value: 0xf4135551},
+				},
+				{
+					MaterialID: stingray.ThinHash{Value: 0x97aab472},
+				},
+				{
+					MaterialID: stingray.Sum("m_rail").Thin(),
+				},
+			},
+			WeaponSlotMaterialCustomization: [10]WeaponSlotCustomizationMaterials{
+				{
+					Slot: enum.WeaponCustomizationSlot_Muzzle,
+					Overrides: [10]UnitCustomizationMaterialOverrides{
+						{
+							MaterialID: stingray.Sum("m_attachments").Thin(),
+						},
+					},
+				},
+				{
+					Slot: enum.WeaponCustomizationSlot_Magazine,
+					Overrides: [10]UnitCustomizationMaterialOverrides{
+						{
+							MaterialID: stingray.Sum("m_magazine").Thin(),
+						},
+						{
+							MaterialID: stingray.Sum("m_ammo").Thin(),
+						},
+					},
+				},
+				{
+					Slot: enum.WeaponCustomizationSlot_Optics,
+					Overrides: [10]UnitCustomizationMaterialOverrides{
+						{
+							MaterialID: stingray.Sum("m_attachments").Thin(),
+						},
+					},
+				},
+				{
+					Slot: enum.WeaponCustomizationSlot_Underbarrel,
+					Overrides: [10]UnitCustomizationMaterialOverrides{
+						{
+							MaterialID: stingray.Sum("m_attachments").Thin(),
+						},
+					},
+				},
+			},
+		},
 	}
 }
 
