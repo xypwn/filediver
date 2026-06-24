@@ -11,6 +11,7 @@ import (
 
 	"github.com/xypwn/filediver/app/appconfig"
 	datalib "github.com/xypwn/filediver/datalibrary"
+	"github.com/xypwn/filediver/datalibrary/enum"
 	"github.com/xypwn/filediver/exec"
 	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/stingray/ah_bin"
@@ -28,6 +29,7 @@ type Context struct {
 	armorSets          map[stingray.Hash]datalib.ArmorSet
 	skinOverrideGroups []datalib.UnitSkinOverrideGroup
 	weaponPaintSchemes []datalib.WeaponCustomizableItem
+	attachmentSlots    map[stingray.Hash]enum.WeaponCustomizationSlot
 	gameBuildInfo      *ah_bin.BuildInfo
 	languageMap        map[uint32]string
 	dataDir            *stingray.DataDir
@@ -62,6 +64,7 @@ func NewContext(
 	armorSets map[stingray.Hash]datalib.ArmorSet,
 	skinOverrideGroups []datalib.UnitSkinOverrideGroup,
 	weaponPaintSchemes []datalib.WeaponCustomizableItem,
+	attachmentSlots map[stingray.Hash]enum.WeaponCustomizationSlot,
 	gameBuildInfo *ah_bin.BuildInfo,
 	languageMap map[uint32]string,
 	dataDir *stingray.DataDir,
@@ -79,6 +82,7 @@ func NewContext(
 		armorSets:          armorSets,
 		skinOverrideGroups: skinOverrideGroups,
 		weaponPaintSchemes: weaponPaintSchemes,
+		attachmentSlots:    attachmentSlots,
 		gameBuildInfo:      gameBuildInfo,
 		languageMap:        languageMap,
 		dataDir:            dataDir,
@@ -109,6 +113,7 @@ func (c *Context) WithFileID(newFileID stingray.FileID) *Context {
 		armorSets:          c.armorSets,
 		skinOverrideGroups: c.skinOverrideGroups,
 		weaponPaintSchemes: c.weaponPaintSchemes,
+		attachmentSlots:    c.attachmentSlots,
 		gameBuildInfo:      c.gameBuildInfo,
 		languageMap:        c.languageMap,
 		dataDir:            c.dataDir,
@@ -137,6 +142,7 @@ func (c *Context) WithMaterialOverrides(newOverrides map[stingray.ThinHash]sting
 		armorSets:          c.armorSets,
 		skinOverrideGroups: c.skinOverrideGroups,
 		weaponPaintSchemes: c.weaponPaintSchemes,
+		attachmentSlots:    c.attachmentSlots,
 		gameBuildInfo:      c.gameBuildInfo,
 		languageMap:        c.languageMap,
 		dataDir:            c.dataDir,
@@ -301,6 +307,10 @@ func (c *Context) SkinOverrideGroups() []datalib.UnitSkinOverrideGroup {
 
 func (c *Context) WeaponPaintSchemes() []datalib.WeaponCustomizableItem {
 	return c.weaponPaintSchemes
+}
+
+func (c *Context) AttachmentSlots() map[stingray.Hash]enum.WeaponCustomizationSlot {
+	return c.attachmentSlots
 }
 
 // Warnf logs a user-visible warning message.

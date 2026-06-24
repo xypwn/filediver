@@ -214,10 +214,10 @@ type UnitCustomizationComponent struct {
 
 type SimpleUnitCustomizationMaterialOverrides struct {
 	MaterialID        string `json:"material"`
-	MaterialLut       string `json:"material_lut"`
-	DecalSheet        string `json:"decal_sheet"`
-	PatternLut        string `json:"pattern_lut"`
-	PatternMasksArray string `json:"pattern_masks_array"`
+	MaterialLut       string `json:"material_lut,omitempty"`
+	DecalSheet        string `json:"decal_sheet,omitempty"`
+	PatternLut        string `json:"pattern_lut,omitempty"`
+	PatternMasksArray string `json:"pattern_masks_array,omitempty"`
 }
 
 type SimpleUnitCustomizationComponent struct {

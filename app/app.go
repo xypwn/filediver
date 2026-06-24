@@ -43,6 +43,7 @@ import (
 	"github.com/xypwn/filediver/steampath"
 	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/stingray/ah_bin"
+	stingray_package "github.com/xypwn/filediver/stingray/package"
 	stingray_strings "github.com/xypwn/filediver/stingray/strings"
 	stingray_material "github.com/xypwn/filediver/stingray/unit/material"
 	stingray_wwise "github.com/xypwn/filediver/stingray/wwise"
@@ -120,6 +121,7 @@ type App struct {
 	ArmorSets          map[stingray.Hash]datalib.ArmorSet
 	SkinOverrideGroups []datalib.UnitSkinOverrideGroup
 	WeaponPaintSchemes []datalib.WeaponCustomizableItem
+	AttachmentSlots    map[stingray.Hash]enum.WeaponCustomizationSlot
 	DataDir            *stingray.DataDir
 	LanguageMap        map[uint32]string
 	Metadata           map[stingray.FileID]FileMetadata
@@ -337,6 +339,83 @@ func LoadPaintSchemes(dataDir *stingray.DataDir, languageMap map[uint32]string) 
 	return nil, fmt.Errorf("could not find any weapon customization settings?")
 }
 
+func LoadAttachmentSlots(dataDir *stingray.DataDir, languageMap map[uint32]string, lookupHash datalib.HashLookup) (map[stingray.Hash]enum.WeaponCustomizationSlot, error) {
+	var getResource datalib.GetResourceFunc = func(id stingray.FileID, typ stingray.DataType) (data []byte, exists bool, err error) {
+		fileInfo, ok := dataDir.Files[id]
+		if !ok || !fileInfo[0].Exists(typ) {
+			return nil, false, nil
+		}
+		exists = true
+		data, err = dataDir.Read(id, typ)
+		return
+
+	}
+
+	weaponCustomizations, err := datalib.ParseWeaponCustomizationSettings(getResource, languageMap)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing weapon customization settings: %v", err)
+	}
+
+	result := make(map[stingray.Hash]enum.WeaponCustomizationSlot)
+	for _, customization := range weaponCustomizations {
+		if len(customization.Items) == 0 || len(customization.Items[0].Slots) == 0 {
+			continue
+		}
+		if customization.Items[0].Slots[0] == enum.WeaponCustomizationSlot_AmmoType ||
+			customization.Items[0].Slots[0] == enum.WeaponCustomizationSlot_AmmoTypeAlternate ||
+			customization.Items[0].Slots[0] == enum.WeaponCustomizationSlot_Internals ||
+			customization.Items[0].Slots[0] == enum.WeaponCustomizationSlot_Triggers ||
+			customization.Items[0].Slots[0] == enum.WeaponCustomizationSlot_PaintScheme {
+			// These slots don't have units that will be overwritten
+			continue
+		}
+		for _, item := range customization.Items {
+			if item.AddPath.Value == 0x0 || item.Archive.Value == 0x0 {
+				continue
+			}
+			_, ok := dataDir.Files[stingray.NewFileID(item.AddPath, stingray.Sum("unit"))]
+			// Some items in the settings just use the unit path as the add path, others are indirect and use the package
+			unitHashes := []stingray.Hash{item.AddPath}
+			if !ok {
+				archiveData, exists, err := getResource(stingray.NewFileID(item.Archive, stingray.Sum("package")), stingray.DataMain)
+				if !exists || err != nil {
+					return nil, fmt.Errorf("failed to load package file %v: %v", lookupHash(item.Archive), err)
+				}
+				archive, err := stingray_package.LoadPackage(bytes.NewReader(archiveData))
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse package file %v: %v", lookupHash(item.Archive), err)
+				}
+				clear(unitHashes)
+				for _, item := range archive.Items {
+					if item.Type == stingray.Sum("unit") {
+						unitHashes = append(unitHashes, item.Name)
+					}
+				}
+			}
+			//fmt.Printf("Adding %v: %v to attachment slots\n", lookupHash(unitHash), item.Slots[0].String())
+
+			if len(unitHashes) == 0 {
+				return nil, fmt.Errorf("expected each attachment to have at least some unit hash: %v", item.AddPath.String())
+			}
+
+			for _, unitHash := range unitHashes {
+				if _, contains := result[unitHash]; contains {
+					continue
+					//return nil, fmt.Errorf("expected each attachment to appear only once in weapon customization settings: %v", item.AddPath.String())
+				}
+				// smg underbarrel flamerthrower canister doesn't have its own weapon customization setting, so we have to set it manually
+				if unitHash == stingray.Sum("content/fac_helldivers/equipment/attachment/magazine/smg_flamer_cannister") {
+					result[unitHash] = enum.WeaponCustomizationSlot_Magazine
+					continue
+				}
+				result[unitHash] = item.Slots[0]
+			}
+		}
+	}
+
+	return result, nil
+}
+
 // Open game dir and read metadata.
 func OpenGameDir(ctx context.Context, gameDir string, hashStrings []string, thinhashes []string, language stingray.ThinHash, onProgress func(curr, total int)) (*App, error) {
 	dataDir, err := stingray.OpenDataDir(ctx, filepath.Join(gameDir, "data"), onProgress)
@@ -407,6 +486,10 @@ func OpenGameDir(ctx context.Context, gameDir string, hashStrings []string, thin
 	if err != nil {
 		return nil, fmt.Errorf("error loading weapon paint schemes: %v", err)
 	}
+	attachmentSlots, err := LoadAttachmentSlots(dataDir, mapping, lookupHash)
+	if err != nil {
+		return nil, fmt.Errorf("error loading weapon attachment slots: %v", err)
+	}
 
 	return &App{
 		Hashes:             hashesMap,
@@ -414,6 +497,7 @@ func OpenGameDir(ctx context.Context, gameDir string, hashStrings []string, thin
 		ArmorSets:          armorSets,
 		SkinOverrideGroups: skinOverrideGroups,
 		WeaponPaintSchemes: weaponPaintSchemes,
+		AttachmentSlots:    attachmentSlots,
 		DataDir:            dataDir,
 		LanguageMap:        mapping,
 		Metadata:           getFileMetadata(dataDir),
@@ -715,6 +799,7 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 		a.ArmorSets,
 		a.SkinOverrideGroups,
 		a.WeaponPaintSchemes,
+		a.AttachmentSlots,
 		a.GameBuildInfo,
 		a.LanguageMap,
 		a.DataDir,
