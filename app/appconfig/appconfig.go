@@ -77,7 +77,7 @@ type Config struct {
 var _ = Config{} == Config{}
 
 // Replaces c with preferences in JSON file specified by path.
-// Leaves p unchanged if an error occurs. If the file isn't present,
+// Leaves c unchanged if an error occurs. If the file isn't present,
 // attempts to write the current state of p to the file.
 func (c *Config) Load(path string) error {
 	b, err := os.ReadFile(path)
