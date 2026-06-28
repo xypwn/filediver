@@ -69,6 +69,7 @@ func main() {
 	var optExclGlob *string
 	var optInclOnlyTypes *string
 	var optInclArchives *string
+	var optInclTriads *string
 	var optStringsLanguage *string
 	var optMetadataFilter *string
 	var optKnownHashesPath *string
@@ -79,10 +80,10 @@ func main() {
 
 	if argp, dontExit, err := cliHandleArgs(&cfg, func(argp *argparse.Parser) {
 		optList = argp.Flag("l", "list", &argparse.Option{
-			Help: "list all files without extracting anything; format: known_name.known_type, name_hash.type_hash <- archives...",
+			Help: "list files without extracting anything; format: known_name.known_type, name_hash.type_hash <- archives...",
 		})
 		optListArchives = argp.Flag("la", "list-archives", &argparse.Option{
-			Help: "list all archives without extracting anything",
+			Help: "list archives without extracting anything",
 		})
 		optThinToFind = argp.String("f", "find-thin", &argparse.Option{
 			Help: "search for given thinhash (bone or material) name and print the file(s) containing it, then exit",
@@ -105,10 +106,13 @@ func main() {
 		}
 		optInclOnlyTypes = argp.String("T", "types", &argparse.Option{
 			Default: "all",
-			Help:    "only include comma-separated type name(s) (aliases: " + strings.Join(typeAliasStrs, ", ") + ")",
+			Help:    "only include comma-separated type name(s) (aliases: " + strings.Join(typeAliasStrs, "; ") + ")",
 		})
-		optInclArchives = argp.String("t", "triads", &argparse.Option{
-			Help: "include comma-separated archive name(s) [formerly triads] as found in game data directory, e.g. 0x9ba626afa44a3aa3",
+		optInclArchives = argp.String("a", "archives", &argparse.Option{
+			Help: "include comma-separated archive name(s) as found in game data directory, e.g. 0x9ba626afa44a3aa3",
+		})
+		optInclTriads = argp.String("t", "triads", &argparse.Option{ // value is automatically copied to optInclArchives after some checks
+			Help: "deprecated alias for --archives",
 		})
 		langs := make([]any, len(stingray_strings.LanguageFriendlyNames))
 		for i := range langs {
@@ -165,10 +169,18 @@ Options:`)
 		}
 		tabw.Flush()
 		os.Exit(0)
-	} else if *optInclGlob == "" && *optInclArchives == "" && *optMetadataFilter == "" {
+	} else if *optInclGlob == "" && *optInclArchives == "" && *optInclTriads == "" && *optMetadataFilter == "" {
 		cliShowHelp(argp)
-		fmt.Println("\nExpected some specifier of which files to extract/list/search (--include, --triads or --filter-metadata).\nIf you wish to select all files, just pass -i \"*\".")
+		fmt.Println("\nExpected some specifier of which files to extract/list/search (--include, --archives or --filter-metadata).\nIf you wish to select all files, just pass -i \"*\".")
 		os.Exit(1)
+	}
+
+	if *optInclTriads != "" {
+		if *optInclArchives != "" {
+			prt.Fatalf("Cannot use --triads/-t and --archives/-a at the same time")
+		}
+		prt.Warnf("--triads/-t is deprecated; use --archives/-a instead")
+		*optInclArchives = *optInclTriads
 	}
 
 	if value, ok := os.LookupEnv("FILEDIVER_CPU_PROFILE"); ok && value != "" && value != "0" {
