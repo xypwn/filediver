@@ -95,6 +95,35 @@ func ParseThinHash(s string) (ThinHash, error) {
 	return ThinHash{Value: uint32(x)}, nil
 }
 
+func cleanupHashForParse(s string) string {
+	s, has0x := strings.CutPrefix(s, "0x")
+	var b strings.Builder
+	b.Grow(len(s))
+	if has0x {
+		b.WriteString("0x")
+	}
+	for _, r := range s {
+		if (r >= 'a' && r <= 'z') ||
+			(r >= 'A' && r <= 'Z') ||
+			(r >= '0' && r <= '9') {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
+// Like ParseHash, but ignores any non-alphanumeric
+// characters.
+func ParseHashLax(s string) (Hash, error) {
+	return ParseHash(cleanupHashForParse(s))
+}
+
+// Like ParseThinHash, but ignores any non-alphanumeric
+// characters.
+func ParseHashThinLax(s string) (ThinHash, error) {
+	return ParseThinHash(cleanupHashForParse(s))
+}
+
 type ThinHash struct{ Value uint32 }
 
 func (h ThinHash) StringEndian(endian binary.ByteOrder) string {

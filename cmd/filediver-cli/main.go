@@ -223,7 +223,7 @@ Options:`)
 	if *optInclArchives != "" {
 		split := strings.Split(*optInclArchives, ",")
 		for _, archive := range split {
-			hash, err := stingray.ParseHash(archive)
+			hash, err := stingray.ParseHashLax(archive)
 			if err != nil {
 				prt.Fatalf("parsing archive name: %v", err)
 			}
