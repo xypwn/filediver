@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -126,7 +127,9 @@ func (gd *GameData) UpdateSearchQuery(query string, allowedTypes map[stingray.Ha
 	})
 }
 
-func (gd *GameData) GoExport(extractCtx context.Context, files []stingray.FileID, outDir string, cfg appconfig.Config, runner *exec.Runner, archiveIDs []stingray.Hash, printer app.Printer) *GameDataExport {
+func (gd *GameData) GoExport(extractCtx context.Context, files []stingray.FileID, outDir string, cfg appconfig.Config, runner *exec.Runner, archiveIDs []stingray.Hash, printer app.Printer, allowMp4Export bool) *GameDataExport {
+	_ = cfg == cfg // make sure we can't create side effects
+
 	ex := &GameDataExport{}
 	ex.NumFiles = len(files)
 	extractCtx, cancel := context.WithCancel(extractCtx)
@@ -176,6 +179,20 @@ func (gd *GameData) GoExport(extractCtx context.Context, files []stingray.FileID
 				printer.Errorf("%v", err)
 			}
 			return
+		}
+
+		if cfg.Video.Format == "mp4" {
+			for _, fileID := range files {
+				if fileID.Type == stingray.Sum("bk2") {
+					if runtime.GOOS == "windows" && !allowMp4Export {
+						printer.Errorf("MP4 export not enabled, exporting as bk2 (you can enable MP4 export in Settings->Preferences)")
+					} else if runtime.GOOS == "linux" {
+						printer.Errorf("MP4 export is not available on Linux at the moment")
+					}
+					cfg.Video.Format = "bk2"
+					break
+				}
+			}
 		}
 
 		for _, fileID := range files {

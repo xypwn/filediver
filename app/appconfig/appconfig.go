@@ -23,8 +23,8 @@ type Config struct {
 		Format string `cfg:"options=ogg,wav,aac,mp3,wwise,raw help='common media formats: ogg,wav,aac,mp3; wwise to extract as wem/bnk'"`
 	} `cfg:"tags=t:wwise_stream,t:wwise_bank help='audio collections/streams'"`
 	Video struct {
-		Format string `cfg:"options=mp4,bik,raw"`
-	} `cfg:"tags=t:bik help='video streams'"`
+		Format string `cfg:"options=bk2,mp4,raw help='bk2 is raw bink2 video (use RAD Video Tools to convert); mp4 has artifacts due to incomplete decoder implementation'"`
+	} `cfg:"tags=t:bk2 help='video streams'"`
 	Texture struct {
 		Format string `cfg:"options=png,dds,raw"`
 	} `cfg:"tags=t:texture"`

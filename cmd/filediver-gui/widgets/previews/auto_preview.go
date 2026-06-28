@@ -41,7 +41,7 @@ type AutoPreviewState struct {
 		unit      *UnitPreviewState
 		speedtree *SpeedtreePreviewState
 		audio     *WwisePreviewState
-		video     *BikPreviewState
+		video     *BinkPreviewState
 		texture   *DDSPreviewState
 		strings   *StringsPreviewState
 		material  *MaterialPreviewState
@@ -70,7 +70,7 @@ func NewAutoPreview(otoCtx *oto.Context, audioSampleRate int, hashes map[stingra
 		return nil, err
 	}
 	pv.state.audio = NewWwisePreview(otoCtx, audioSampleRate)
-	pv.state.video = NewBikPreview(runner)
+	pv.state.video = NewBinkPreview(runner)
 	pv.state.texture = NewDDSPreview()
 	pv.state.strings = NewStringsPreview()
 	pv.state.material = NewMaterialPreview()
@@ -203,7 +203,7 @@ func (pv *AutoPreviewState) LoadFile(ctx context.Context, fileID stingray.FileID
 			stream := streams[id]
 			pv.state.audio.LoadStream(fmt.Sprint(id), stream.Data, stream.Err, false)
 		}
-	case stingray.Sum("bik"):
+	case stingray.Sum("bik"), stingray.Sum("bk2"):
 		pv.activeType = AutoPreviewVideo
 		if err := loadFiles(stingray.DataMain, stingray.DataStream, stingray.DataGPU); err != nil {
 			pv.err = err
@@ -316,7 +316,7 @@ func AutoPreview(name string, pv *AutoPreviewState) bool {
 	case AutoPreviewAudio:
 		WwisePreview(name, pv.state.audio)
 	case AutoPreviewVideo:
-		BikPreview(pv.state.video)
+		BinkPreview(pv.state.video)
 	case AutoPreviewTexture:
 		DDSPreview(name, pv.state.texture)
 	case AutoPreviewStrings:

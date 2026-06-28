@@ -12,12 +12,11 @@ func TestGetInfo(t *testing.T) {
 
 	for _, pinnedVersion := range []string{"", "v0.5.14"} {
 		info, err := Target{
-			SubdirName:        "filediver-scripts",
-			GHUser:            "xypwn",
-			GHRepo:            "filediver",
-			PinnedVersion:     pinnedVersion,
-			GHFilenameWindows: "scripts-dist-windows.zip",
-			GHFilenameLinux:   "scripts-dist-linux.tar.xz",
+			SubdirName:    "filediver-scripts",
+			GHUser:        "xypwn",
+			GHRepo:        "filediver",
+			PinnedVersion: pinnedVersion,
+			GHFilename:    "scripts-dist-windows.zip",
 		}.GetInfo(true)
 		require.NoError(err)
 
