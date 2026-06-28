@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -52,10 +53,14 @@ func detectAndMaybeDeleteLegacyExtensions(downloadsDir string) error {
 
 func getNewestVersion() (newVersion, downloadURL string, err error) {
 	target := getter.Target{
-		GHUser:            "xypwn",
-		GHRepo:            "filediver",
-		GHFilenameWindows: "filediver-gui-windows.exe",
-		GHFilenameLinux:   "filediver-gui-linux",
+		GHUser: "xypwn",
+		GHRepo: "filediver",
+	}
+	switch runtime.GOOS {
+	case "windows":
+		target.GHFilename = "filediver-gui-windows.exe"
+	case "linux":
+		target.GHFilename = "filediver-gui-linux"
 	}
 	info, err := target.GetInfo(true)
 	if err != nil {

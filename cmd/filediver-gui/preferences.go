@@ -13,6 +13,7 @@ type Preferences struct {
 	TargetFPS                      float64
 	AutoCheckForUpdates            bool
 	PreviewVideoVerticalResolution int
+	AllowVideoMP4Export            bool
 }
 
 type _assert_comparable[T comparable] = struct{}

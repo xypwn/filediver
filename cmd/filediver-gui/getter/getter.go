@@ -18,13 +18,12 @@ import (
 var reGHVersionedReleaseDLURL = regexp.MustCompile(`^https:\/\/github\.com\/[^\/]+\/[^\/]+\/releases\/download\/([^\/]+)\/([^\/]+)$`)
 
 type Target struct {
-	SubdirName        string
-	GHUser            string
-	GHRepo            string
-	PinnedVersion     string // empty for latest, or a specific version
-	GHFilenameWindows string
-	GHFilenameLinux   string
-	StripFirstDir     bool // remove first top-level folder from destination directory
+	SubdirName    string
+	GHUser        string
+	GHRepo        string
+	PinnedVersion string // empty for latest, or a specific version
+	GHFilename    string
+	StripFirstDir bool // remove first top-level folder from destination directory
 }
 
 // GetInfo will only use the network if allowNetworkVersionResolution is set to true.
@@ -33,20 +32,11 @@ func (t Target) GetInfo(allowNetworkVersionResolution bool) (Info, error) {
 		return Info{}, fmt.Errorf("unsupported CPU architecture: %v", runtime.GOARCH)
 	}
 
-	var ghFilename string
-	switch runtime.GOOS {
-	case "windows":
-		ghFilename = t.GHFilenameWindows
-	case "linux":
-		ghFilename = t.GHFilenameLinux
-	default:
-		return Info{}, fmt.Errorf("unsupported OS: %v", runtime.GOOS)
-	}
 	var url string
 	if t.PinnedVersion == "" {
-		url = fmt.Sprintf("https://github.com/%v/%v/releases/latest/download/%v", t.GHUser, t.GHRepo, ghFilename)
+		url = fmt.Sprintf("https://github.com/%v/%v/releases/latest/download/%v", t.GHUser, t.GHRepo, t.GHFilename)
 	} else {
-		url = fmt.Sprintf("https://github.com/%v/%v/releases/download/%v/%v", t.GHUser, t.GHRepo, t.PinnedVersion, ghFilename)
+		url = fmt.Sprintf("https://github.com/%v/%v/releases/download/%v/%v", t.GHUser, t.GHRepo, t.PinnedVersion, t.GHFilename)
 	}
 
 	versionFromURL := func(url string) (version string, ok bool) {

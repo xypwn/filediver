@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"runtime/debug"
 	"slices"
 	"strings"
@@ -41,6 +42,7 @@ var license string
 var (
 	gameFileTypeDescriptions = map[stingray.Hash]string{
 		stingray.Sum("bik"):            "video",
+		stingray.Sum("bk2"):            "video",
 		stingray.Sum("wwise_bank"):     "audio bank",
 		stingray.Sum("wwise_stream"):   "loose audio",
 		stingray.Sum("texture"):        "image/texture",
@@ -200,27 +202,45 @@ func (a *guiApp) onInitWindow(state *imgui_wrapper.State) error {
 	}
 
 	{
+		if runtime.GOARCH != "amd64" {
+			a.showErrorPopup(fmt.Errorf("unsupported CPU architecture: %v", runtime.GOARCH))
+		}
+		if runtime.GOOS != "windows" && runtime.GOOS != "linux" {
+			a.showErrorPopup(fmt.Errorf("unsupported operating system: %v", runtime.GOOS))
+		}
+
 		ffmpegTarget := getter.Target{
-			SubdirName:        "ffmpeg",
-			GHUser:            "BtbN",
-			GHRepo:            "FFmpeg-Builds",
-			PinnedVersion:     "latest",
-			GHFilenameWindows: "ffmpeg-master-latest-win64-gpl.zip",
-			GHFilenameLinux:   "ffmpeg-master-latest-linux64-gpl.tar.xz",
-			StripFirstDir:     true,
+			SubdirName:    "ffmpeg",
+			StripFirstDir: true,
+		}
+		switch runtime.GOOS {
+		case "windows":
+			ffmpegTarget.GHUser = "xypwn"
+			ffmpegTarget.GHRepo = "ffmpeg-bink2-builds"
+			ffmpegTarget.PinnedVersion = "v0.0.3"
+			ffmpegTarget.GHFilename = "ffmpeg-bink2-windows.zip"
+		case "linux":
+			ffmpegTarget.GHUser = "BtbN"
+			ffmpegTarget.GHRepo = "FFmpeg-Builds"
+			ffmpegTarget.PinnedVersion = "latest"
+			ffmpegTarget.GHFilename = "ffmpeg-master-latest-linux64-gpl.tar.xz"
 		}
 		ffmpegInfo, err := ffmpegTarget.GetInfo(false)
 		if err != nil {
 			a.showErrorPopup(err)
 		}
 		scriptsDistTarget := getter.Target{
-			SubdirName:        "filediver-scripts",
-			GHUser:            "xypwn",
-			GHRepo:            "filediver",
-			PinnedVersion:     version,
-			GHFilenameWindows: "scripts-dist-windows.zip",
-			GHFilenameLinux:   "scripts-dist-linux.tar.xz",
-			StripFirstDir:     true,
+			SubdirName:    "filediver-scripts",
+			GHUser:        "xypwn",
+			GHRepo:        "filediver",
+			PinnedVersion: version,
+			StripFirstDir: true,
+		}
+		switch runtime.GOOS {
+		case "windows":
+			scriptsDistTarget.GHFilename = "scripts-dist-windows.zip"
+		case "linux":
+			scriptsDistTarget.GHFilename = "scripts-dist-linux.tar.xz"
 		}
 		var scriptsDistInfo getter.Info
 		if version != "" {
@@ -415,13 +435,20 @@ func (a *guiApp) goCheckForUpdates(isOnStartup bool) {
 }
 
 func (a *guiApp) redetectRunnerProgs() {
-	ffmpegPath := filepath.Join(a.ffmpegDownloadState.Dir(), "bin", "ffmpeg")
+	var ffmpegBasePath string
+	switch runtime.GOOS {
+	case "windows":
+		ffmpegBasePath = a.ffmpegDownloadState.Dir()
+	case "linux":
+		ffmpegBasePath = filepath.Join(a.ffmpegDownloadState.Dir(), "bin")
+	}
+	ffmpegPath := filepath.Join(ffmpegBasePath, "ffmpeg")
 	ffmpegArgs := []string{"-y", "-hide_banner", "-loglevel", "error"}
 	if !a.runner.Add(ffmpegPath, ffmpegArgs...) {
 		// Try to use a local FFmpeg instance if the extension isn't installed
 		a.runner.Add("ffmpeg", ffmpegArgs...)
 	}
-	ffprobePath := filepath.Join(a.ffmpegDownloadState.Dir(), "bin", "ffprobe")
+	ffprobePath := filepath.Join(ffmpegBasePath, "ffprobe")
 	ffprobeArgs := []string{"-hide_banner", "-loglevel", "error"}
 	if !a.runner.Add(ffprobePath, ffprobeArgs...) {
 		// Try to use a local FFprobe instance if the extension isn't installed
@@ -552,6 +579,7 @@ func (a *guiApp) drawBrowserWindow() {
 							switch typ {
 							case // previewable and exportable
 								stingray.Sum("bik"),
+								stingray.Sum("bk2"),
 								stingray.Sum("texture"),
 								stingray.Sum("material"),
 								stingray.Sum("wwise_bank"),
@@ -970,6 +998,7 @@ func (a *guiApp) drawExportWindow() {
 					a.runner,
 					slices.SortedFunc(maps.Keys(a.selectedArchives), (stingray.Hash).Cmp),
 					a.logger,
+					a.preferences.AllowVideoMP4Export,
 				)
 			}
 			if a.gameData == nil {
@@ -1229,6 +1258,38 @@ func (a *guiApp) drawExtensionsPopup() {
 func (a *guiApp) drawPreferencesPopup(state *imgui_wrapper.State) {
 	viewport := imgui.MainViewport()
 	imgui.SetNextWindowPosV(viewport.Center(), imgui.CondAlways, imgui.NewVec2(0.5, 0.5))
+
+	// Bink2 info popup
+	bink2PopupBody := func() {
+		imutils.Textf("The patched FFmpeg version's bink2 video support has\nbugs and produces video artifacts.")
+		imutils.Textf("To get a clean video, export as bk2 and convert the resulting\nfile using RAD Video Tools.")
+		imgui.Bullet()
+		imgui.TextLinkOpenURLV("RAD Video Tools Download", "https://www.radgametools.com/bnkdown.htm")
+	}
+	a.popupManager.Popup("MP4 video export info", func(close func()) {
+		bink2PopupBody()
+		imgui.Separator()
+		if imgui.ButtonV("OK", imgui.NewVec2(imgui.ContentRegionAvail().X, 0)) {
+			close()
+		}
+	}, 0, false)
+	a.popupManager.Popup("Allow video export as MP4", func(close func()) {
+		bink2PopupBody()
+		imgui.Separator()
+		imutils.CenterAlignButtons("Allow anyway", "Cancel")
+		if imgui.ButtonV("Allow anyway", imgui.NewVec2(0, 0)) {
+			a.preferences.AllowVideoMP4Export = true
+			if err := a.preferences.Save(a.preferencesPath); err != nil {
+				a.showErrorPopup(err)
+			}
+			close()
+		}
+		imgui.SameLine()
+		if imgui.ButtonV("Cancel", imgui.NewVec2(0, 0)) {
+			close()
+		}
+	}, 0, false)
+
 	a.popupManager.Popup("Preferences", func(close func()) {
 		prevPrefs := a.preferences
 		imutils.ComboChoice(
@@ -1251,6 +1312,22 @@ func (a *guiApp) drawPreferencesPopup(state *imgui_wrapper.State) {
 		imgui.SetItemTooltip(fnt.I.Info + ` The preview player isn't very well optimized, so higher
 resolutions may cause low frame rates and poor responsiveness.`)
 		imgui.Checkbox("Check for updates on start", &a.preferences.AutoCheckForUpdates)
+		if runtime.GOOS == "windows" {
+			// TODO(darwin): Add ffmpeg Linux builds so this can also be enabled on Linux
+			imgui.SetItemTooltip(fnt.I.Info + " The patched FFmpeg version's bink2 video support has bugs and produces video artifacts.")
+			mp4ExportCheckboxEnabled := a.preferences.AllowVideoMP4Export
+			if imgui.Checkbox("Allow video export as MP4 "+fnt.I.Warning, &mp4ExportCheckboxEnabled) {
+				if mp4ExportCheckboxEnabled {
+					a.popupManager.Open["Allow video export as MP4"] = true
+				} else {
+					a.preferences.AllowVideoMP4Export = false
+				}
+			}
+			if imgui.IsItemClickedV(imgui.MouseButtonRight) {
+				a.popupManager.Open["MP4 video export info"] = true
+			}
+			imgui.SetItemTooltip(fnt.I.Warning + " FFmpeg produces video artifacts (right-click for more info)")
+		}
 
 		imgui.BeginDisabledV(a.preferences == a.defaultPreferences)
 		if imgui.ButtonV(fnt.I.Undo+" Reset all", imgui.NewVec2(imgui.ContentRegionAvail().X, 0)) {
