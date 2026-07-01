@@ -9,8 +9,6 @@ const (
 	PlanetType_sandy
 	PlanetType_savanna
 	PlanetType_rocky
-	PlanetType_paradise
-	PlanetType_grassland
 	PlanetType_swamp
 	PlanetType_snowy_forest
 	PlanetType_primordial
@@ -18,6 +16,9 @@ const (
 	PlanetType_superearth
 	PlanetType_bug_hiveworld
 	PlanetType_magma
+	PlanetType_oasis
+	PlanetType_deciduous
+	PlanetType_coniferous
 	PlanetType_count
 	PlanetType_All PlanetType = 4294967295
 )

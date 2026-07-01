@@ -149,6 +149,10 @@ func getComponentDataForHash(componentType DLHash, resource stingray.Hash) ([]by
 		return getTagComponentDataForHash(resource)
 	case Sum("TruthTransmitterFactionComponentData"):
 		return getTruthTransmitterFactionComponentDataForHash(resource)
+	case Sum("TwoPointChainAttachTargetComponentData"):
+		return getTwoPointChainAttachTargetComponentDataForHash(resource)
+	case Sum("TwoPointChainComponentData"):
+		return getTwoPointChainComponentDataForHash(resource)
 	case Sum("UnitComponentData"):
 		return getUnitComponentDataForHash(resource)
 	case Sum("UnitCustomizationComponentData"):
@@ -161,6 +165,8 @@ func getComponentDataForHash(componentType DLHash, resource stingray.Hash) ([]by
 		return getWeaponDataComponentDataForHash(resource)
 	case Sum("WeaponHeatComponentData"):
 		return getWeaponHeatComponentDataForHash(resource)
+	case Sum("WeaponLinkedAmmoComponentData"):
+		return getWeaponLinkedAmmoComponentDataForHash(resource)
 	case Sum("WeaponMagazineComponentData"):
 		return getWeaponMagazineComponentDataForHash(resource)
 	case Sum("WeaponReloadComponentData"):
@@ -384,6 +390,18 @@ func parseComponent(componentType DLHash, data []byte) (Component, error) {
 			return nil, err
 		}
 		return toReturn, nil
+	case Sum("TwoPointChainAttachTargetComponentData"):
+		var toReturn TwoPointChainAttachTargetComponent
+		if _, err := binary.Decode(data, binary.LittleEndian, &toReturn); err != nil {
+			return nil, err
+		}
+		return toReturn, nil
+	case Sum("TwoPointChainComponentData"):
+		var toReturn TwoPointChainComponent
+		if _, err := binary.Decode(data, binary.LittleEndian, &toReturn); err != nil {
+			return nil, err
+		}
+		return toReturn, nil
 	case Sum("UnitComponentData"):
 		var toReturn UnitComponent
 		if _, err := binary.Decode(data, binary.LittleEndian, &toReturn); err != nil {
@@ -513,6 +531,12 @@ func parseComponent(componentType DLHash, data []byte) (Component, error) {
 		return toReturn, nil
 	case Sum("WeaponHeatComponentData"):
 		var toReturn WeaponHeatComponent
+		if _, err := binary.Decode(data, binary.LittleEndian, &toReturn); err != nil {
+			return nil, err
+		}
+		return toReturn, nil
+	case Sum("WeaponLinkedAmmoComponentData"):
+		var toReturn WeaponLinkedAmmoComponent
 		if _, err := binary.Decode(data, binary.LittleEndian, &toReturn); err != nil {
 			return nil, err
 		}

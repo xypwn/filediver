@@ -14,31 +14,32 @@ func _() {
 	_ = x[PlanetType_sandy-3]
 	_ = x[PlanetType_savanna-4]
 	_ = x[PlanetType_rocky-5]
-	_ = x[PlanetType_paradise-6]
-	_ = x[PlanetType_grassland-7]
-	_ = x[PlanetType_swamp-8]
-	_ = x[PlanetType_snowy_forest-9]
-	_ = x[PlanetType_primordial-10]
-	_ = x[PlanetType_moor-11]
-	_ = x[PlanetType_superearth-12]
-	_ = x[PlanetType_bug_hiveworld-13]
-	_ = x[PlanetType_magma-14]
-	_ = x[PlanetType_count-15]
+	_ = x[PlanetType_swamp-6]
+	_ = x[PlanetType_snowy_forest-7]
+	_ = x[PlanetType_primordial-8]
+	_ = x[PlanetType_moor-9]
+	_ = x[PlanetType_superearth-10]
+	_ = x[PlanetType_bug_hiveworld-11]
+	_ = x[PlanetType_magma-12]
+	_ = x[PlanetType_oasis-13]
+	_ = x[PlanetType_deciduous-14]
+	_ = x[PlanetType_coniferous-15]
+	_ = x[PlanetType_count-16]
 	_ = x[PlanetType_All-4294967295]
 }
 
 const (
-	_PlanetType_name_0 = "PlanetType_forestPlanetType_desertPlanetType_arcticPlanetType_sandyPlanetType_savannaPlanetType_rockyPlanetType_paradisePlanetType_grasslandPlanetType_swampPlanetType_snowy_forestPlanetType_primordialPlanetType_moorPlanetType_superearthPlanetType_bug_hiveworldPlanetType_magmaPlanetType_count"
+	_PlanetType_name_0 = "PlanetType_forestPlanetType_desertPlanetType_arcticPlanetType_sandyPlanetType_savannaPlanetType_rockyPlanetType_swampPlanetType_snowy_forestPlanetType_primordialPlanetType_moorPlanetType_superearthPlanetType_bug_hiveworldPlanetType_magmaPlanetType_oasisPlanetType_deciduousPlanetType_coniferousPlanetType_count"
 	_PlanetType_name_1 = "PlanetType_All"
 )
 
 var (
-	_PlanetType_index_0 = [...]uint16{0, 17, 34, 51, 67, 85, 101, 120, 140, 156, 179, 200, 215, 236, 260, 276, 292}
+	_PlanetType_index_0 = [...]uint16{0, 17, 34, 51, 67, 85, 101, 117, 140, 161, 176, 197, 221, 237, 253, 273, 294, 310}
 )
 
 func (i PlanetType) String() string {
 	switch {
-	case i <= 15:
+	case i <= 16:
 		return _PlanetType_name_0[_PlanetType_index_0[i]:_PlanetType_index_0[i+1]]
 	case i == 4294967295:
 		return _PlanetType_name_1
