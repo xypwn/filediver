@@ -30,39 +30,52 @@ class ConcreteMaterialLoader(FilediverMaterialLoaderInterface):
         config_nodes: Dict[str, ShaderNodeTexImage] = object_mat.node_tree.nodes
         for usage, image in textures.items():
             match usage:
-                case "texture_lut":
-                    config_nodes["Image Texture.001"].image = image
-                    config_nodes["Image Texture.001"].interpolation = "Closest"
-                    image.colorspace_settings.name = "sRGB"
-                case "NAC":
+                case "pattern_data":
                     config_nodes["Image Texture"].image = image
-                    image.colorspace_settings.name = "Non-Color"
-                case "decal_sheet":
+                    config_nodes["Image Texture.001"].image = image
                     config_nodes["Image Texture.002"].image = image
-                    image.colorspace_settings.name = "sRGB"
+                    config_nodes["Image Texture.003"].image = image
+                    image.colorspace_settings.name = "Non-Color"
+                case "surface_data_array":
+                    config_nodes["Image Texture.004"].image = image
+                    config_nodes["Image Texture.005"].image = image
+                    config_nodes["Image Texture.006"].image = image
+                    config_nodes["Image Texture.007"].image = image
+                    image.colorspace_settings.name = "Non-Color"
         
         print("    Applying settings")
-        building_group = object_mat.node_tree.nodes['Group.002']
+        concrete_group = object_mat.node_tree.nodes['Group']
+        pattern_uv_group = object_mat.node_tree.nodes['Group.001']
+        surface_uv_group = object_mat.node_tree.nodes['Group.003']
         for name, setting in config["extras"].items():
-            if name not in building_group.inputs or name == "NAC":
+            if name not in concrete_group.inputs:
                 continue
-            if "roughness_build_up" in name:
-                building_group.inputs[name].default_value = setting[:3]
-                building_group.inputs[name + " w"].default_value = setting[3]
+            if name == "disable_triplanar_distance":
+                setting[0] *= 100
+            if len(setting) == 1:
+                concrete_group.inputs[name].default_value = setting[0]
+                continue
+            if "color" in name and len(setting) == 3:
+                setting = setting + [1]
+            concrete_group.inputs[name].default_value = setting
+
+        for name, setting in config["extras"].items():
+            if name not in pattern_uv_group.inputs:
                 continue
             if len(setting) == 1:
-                building_group.inputs[name].default_value = setting[0]
+                pattern_uv_group.inputs[name].default_value = setting[0]
                 continue
-            building_group.inputs[name].default_value = setting
-        if "decal_wear" not in config["extras"]:
-            config_nodes["Image Texture.002"].image = textures["filediver_unused"]
-        decal_uv_node: ShaderNodeUVMap = object_mat.node_tree.nodes['UV Map']
-        suffix = f'.{config["extras"].get("filediver_decal_uvmap", 0):03d}' if config["extras"].get("filediver_decal_uvmap", 0) > 0 else ""
-        decal_uv_node.uv_map = f"UVMap{suffix}"
+            pattern_uv_group.inputs[name].default_value = setting
+
+        for name, setting in config["extras"].items():
+            if name not in surface_uv_group.inputs:
+                continue
+            if len(setting) == 1:
+                surface_uv_group.inputs[name].default_value = setting[0]
+                continue
+            surface_uv_group.inputs[name].default_value = setting
 
         print("    Finalizing material")
-
-        object_mat["needsBakeUVs"] = False
         return object_mat
 
     @classmethod
