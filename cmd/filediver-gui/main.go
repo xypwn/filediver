@@ -2,9 +2,13 @@ package main
 
 import (
 	"context"
+	crand "crypto/rand"
 	_ "embed"
+	"encoding/hex"
+	"errors"
 	"fmt"
 	"image"
+	"io/fs"
 	"maps"
 	"math"
 	"net/http"
@@ -13,6 +17,7 @@ import (
 	"runtime"
 	"runtime/debug"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -25,9 +30,10 @@ import (
 	"github.com/xypwn/filediver/app/appconfig"
 	"github.com/xypwn/filediver/appicons"
 	fnt "github.com/xypwn/filediver/cmd/filediver-gui/fonts"
-	"github.com/xypwn/filediver/cmd/filediver-gui/getter"
+	"github.com/xypwn/filediver/cmd/filediver-gui/github"
 	"github.com/xypwn/filediver/cmd/filediver-gui/imgui_wrapper"
 	"github.com/xypwn/filediver/cmd/filediver-gui/imutils"
+	"github.com/xypwn/filediver/cmd/filediver-gui/tasks"
 	"github.com/xypwn/filediver/cmd/filediver-gui/widgets"
 	"github.com/xypwn/filediver/cmd/filediver-gui/widgets/previews"
 	"github.com/xypwn/filediver/config"
@@ -108,6 +114,8 @@ type guiApp struct {
 	checkUpdatesErr             error
 	checkUpdatesLock            sync.Mutex
 
+	autoUpdateEx *tasks.TaskExecution
+
 	exportDir                   string
 	exportNotifyWhenDone        bool
 	extractorConfig             appconfig.Config
@@ -117,11 +125,11 @@ type guiApp struct {
 
 	logger *Logger
 
-	downloadsDir              string
-	ffmpegDownloadState       *widgets.DownloaderState
-	scriptsDistDownloadState  *widgets.DownloaderState
-	prevFfmpegDownloaded      bool
-	prevScriptsDistDownloaded bool
+	downloadsDir               string
+	ffmpegExtensionWidget      *widgets.Extension
+	scriptsDistExtensionWidget *widgets.Extension
+	prevFfmpegDownloaded       bool
+	prevScriptsDistDownloaded  bool
 
 	runner *exec.Runner
 
@@ -184,6 +192,7 @@ func (a *guiApp) Delete() {
 func (a *guiApp) onInitWindow(state *imgui_wrapper.State) error {
 	state.DarkWindowDecorations = true
 
+	// Init audio
 	{
 		var readyChan chan struct{}
 		var err error
@@ -201,75 +210,87 @@ func (a *guiApp) onInitWindow(state *imgui_wrapper.State) error {
 		return fmt.Errorf("audio context: %w", err)
 	}
 
+	// Init extension info
 	{
+		ffmpegAsset := github.ReleaseAsset{}
+		var ffmpegVersion string
 		if runtime.GOARCH != "amd64" {
 			a.showErrorPopup(fmt.Errorf("unsupported CPU architecture: %v", runtime.GOARCH))
 		}
 		if runtime.GOOS != "windows" && runtime.GOOS != "linux" {
 			a.showErrorPopup(fmt.Errorf("unsupported operating system: %v", runtime.GOOS))
 		}
-
-		ffmpegTarget := getter.Target{
-			SubdirName:    "ffmpeg",
-			StripFirstDir: true,
+		if runtime.GOOS == "windows" {
+			ffmpegAsset.User = "xypwn"
+			ffmpegAsset.Repo = "ffmpeg-bink2-builds"
+			ffmpegVersion = "v0.0.3"
+			ffmpegAsset.Filename = "ffmpeg-bink2-windows.zip"
+		} else {
+			ffmpegAsset.User = "BtbN"
+			ffmpegAsset.Repo = "FFmpeg-Builds"
+			ffmpegVersion = "latest"
+			ffmpegAsset.Filename = "ffmpeg-master-latest-linux64-gpl.tar.xz"
 		}
-		switch runtime.GOOS {
-		case "windows":
-			ffmpegTarget.GHUser = "xypwn"
-			ffmpegTarget.GHRepo = "ffmpeg-bink2-builds"
-			ffmpegTarget.PinnedVersion = "v0.0.3"
-			ffmpegTarget.GHFilename = "ffmpeg-bink2-windows.zip"
-		case "linux":
-			ffmpegTarget.GHUser = "BtbN"
-			ffmpegTarget.GHRepo = "FFmpeg-Builds"
-			ffmpegTarget.PinnedVersion = "latest"
-			ffmpegTarget.GHFilename = "ffmpeg-master-latest-linux64-gpl.tar.xz"
-		}
-		ffmpegInfo, err := ffmpegTarget.GetInfo(false)
+		ffmpegInfo, err := ffmpegAsset.FetchInfo(ffmpegVersion)
 		if err != nil {
 			a.showErrorPopup(err)
 		}
-		scriptsDistTarget := getter.Target{
-			SubdirName:    "filediver-scripts",
-			GHUser:        "xypwn",
-			GHRepo:        "filediver",
-			PinnedVersion: version,
-			StripFirstDir: true,
+
+		scriptsDistAsset := github.ReleaseAsset{}
+		scriptsDistAsset.User = "xypwn"
+		scriptsDistAsset.Repo = "filediver"
+		if runtime.GOOS == "windows" {
+			scriptsDistAsset.Filename = "scripts-dist-windows.zip"
+		} else {
+			scriptsDistAsset.Filename = "scripts-dist-linux.tar.xz"
 		}
-		switch runtime.GOOS {
-		case "windows":
-			scriptsDistTarget.GHFilename = "scripts-dist-windows.zip"
-		case "linux":
-			scriptsDistTarget.GHFilename = "scripts-dist-linux.tar.xz"
-		}
-		var scriptsDistInfo getter.Info
+		var scriptsDistInfo github.ReleaseAssetInfo
 		if version != "" {
 			var err error
-			scriptsDistInfo, err = scriptsDistTarget.GetInfo(false)
+			scriptsDistInfo, err = scriptsDistAsset.FetchInfo(version)
 			if err != nil {
 				a.showErrorPopup(err)
 			}
 		}
 
-		a.ffmpegDownloadState = widgets.NewDownloader(a.downloadsDir, ffmpegInfo)
-		a.scriptsDistDownloadState = widgets.NewDownloader(a.downloadsDir, scriptsDistInfo)
+		a.ffmpegExtensionWidget = widgets.NewExtension(a.downloadsDir, "ffmpeg", ffmpegInfo, true)
+		a.scriptsDistExtensionWidget = widgets.NewExtension(a.downloadsDir, "filediver-scripts", scriptsDistInfo, true)
 	}
 
+	// Delete legacy extensions
 	if err := detectAndMaybeDeleteLegacyExtensions(a.downloadsDir); err != nil {
 		a.showErrorPopup(err)
 	}
 
-	a.prevFfmpegDownloaded = a.ffmpegDownloadState.HaveRequestedVersion()
-	a.prevScriptsDistDownloaded = a.scriptsDistDownloadState.HaveRequestedVersion()
+	// Delete old executable
+	if err := func() error {
+		oldExePtrPath := filepath.Join(a.downloadsDir, "old_executable")
+		if oldExe, err := os.ReadFile(oldExePtrPath); err == nil {
+			if err := os.Remove(string(oldExe)); err != nil {
+				return err
+			}
+			if err := os.Remove(oldExePtrPath); err != nil {
+				return err
+			}
+		} else if !errors.Is(err, fs.ErrNotExist) {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		a.showErrorPopup(err)
+	}
 
+	// Detect extensions
+	a.prevFfmpegDownloaded = a.ffmpegExtensionWidget.HaveRequestedVersion()
+	a.prevScriptsDistDownloaded = a.scriptsDistExtensionWidget.HaveRequestedVersion()
 	a.redetectRunnerProgs()
-
 	if version != "" {
 		a.popupManager.Open["Missing or out of date extensions"] =
-			!a.ffmpegDownloadState.HaveRequestedVersion() || !a.scriptsDistDownloadState.HaveRequestedVersion()
+			!a.ffmpegExtensionWidget.HaveRequestedVersion() || !a.scriptsDistExtensionWidget.HaveRequestedVersion()
 		a.popupManager.Open["Welcome to Filediver GUI"] = true
 	}
 
+	// Init preferences
 	{
 		a.defaultPreferences = Preferences{
 			AutoCheckForUpdates:            true,
@@ -287,16 +308,19 @@ func (a *guiApp) onInitWindow(state *imgui_wrapper.State) error {
 		state.FrameRate = a.preferences.TargetFPS
 	}
 
+	// Laod extractor config
 	{
 		if err := a.extractorConfig.Load(a.extractorConfigPath); err != nil {
 			return fmt.Errorf("loading extractor config: %w", err)
 		}
 	}
 
+	// Check for app updates
 	if a.preferences.AutoCheckForUpdates && version != "" {
 		a.goCheckForUpdates(true)
 	}
 
+	// Load game files
 	a.gameDataLoad.GoLoadGameData(a.ctx, a.extractorConfig.Gamedir)
 
 	return nil
@@ -392,7 +416,7 @@ func (a *guiApp) onDraw(state *imgui_wrapper.State) {
 	// imutils.PopupManager, meaning
 	// the popups will appear in the
 	// order they're drawn.
-	a.drawCheckForUpdatesPopup()
+	a.drawCheckForUpdatesPopup(state)
 	a.drawWelcomePopup()
 	a.drawExtensionsWarningPopup()
 	a.drawExtensionsPopup()
@@ -438,9 +462,9 @@ func (a *guiApp) redetectRunnerProgs() {
 	var ffmpegBasePath string
 	switch runtime.GOOS {
 	case "windows":
-		ffmpegBasePath = a.ffmpegDownloadState.Dir()
+		ffmpegBasePath = a.ffmpegExtensionWidget.Dir()
 	case "linux":
-		ffmpegBasePath = filepath.Join(a.ffmpegDownloadState.Dir(), "bin")
+		ffmpegBasePath = filepath.Join(a.ffmpegExtensionWidget.Dir(), "bin")
 	}
 	ffmpegPath := filepath.Join(ffmpegBasePath, "ffmpeg")
 	ffmpegArgs := []string{"-y", "-hide_banner", "-loglevel", "error"}
@@ -454,7 +478,7 @@ func (a *guiApp) redetectRunnerProgs() {
 		// Try to use a local FFprobe instance if the extension isn't installed
 		a.runner.Add("ffprobe", ffprobeArgs...)
 	}
-	blenderImporterArgs := []string{filepath.Join(a.scriptsDistDownloadState.Dir(), "hd2_accurate_blender_importer", "hd2_accurate_blender_importer")}
+	blenderImporterArgs := []string{filepath.Join(a.scriptsDistExtensionWidget.Dir(), "hd2_accurate_blender_importer", "hd2_accurate_blender_importer")}
 	if value := os.Getenv("FILEDIVER_BLENDER_IMPORTER_COMMAND"); value != "" {
 		// Custom blender importer path (intended for dev only)
 		if args, err := shellwords.Parse(value); err == nil && len(args) >= 1 {
@@ -989,7 +1013,6 @@ func (a *guiApp) drawExportWindow() {
 			label := fmt.Sprintf("%v Begin export (%v)", fnt.I.FileExport, len(a.filesSelectedForExport))
 			if imgui.ButtonV(label, imgui.NewVec2(-math.SmallestNonzeroFloat32, 0)) && a.gameData != nil {
 				a.logger.Reset()
-				a.redetectRunnerProgs()
 				a.gameDataExport = a.gameData.GoExport(
 					a.ctx,
 					slices.SortedFunc(maps.Keys(a.filesSelectedForExport), (stingray.FileID).Cmp),
@@ -1151,7 +1174,7 @@ func (a *guiApp) drawMaterialSettingsWindow() {
 	a.previewState.SetMaterialSettingsVisible(visible)
 }
 
-func (a *guiApp) drawCheckForUpdatesPopup() {
+func (a *guiApp) drawCheckForUpdatesPopup(state *imgui_wrapper.State) {
 	a.checkUpdatesLock.Lock()
 	if a.checkUpdatesOnStartupBGDone && !a.checkUpdatesOnStartupFGDone {
 		if a.checkUpdatesErr == nil && a.checkUpdatesNewVersion != version {
@@ -1162,26 +1185,87 @@ func (a *guiApp) drawCheckForUpdatesPopup() {
 	a.checkUpdatesLock.Unlock()
 
 	imgui.SetNextWindowPosV(imgui.MainViewport().Center(), imgui.CondAlways, imgui.NewVec2(0.5, 0.5))
+	a.popupManager.Popup("Restart for update to take effect", func(close func()) {
+		imgui.PushTextWrapPos()
+		imgui.TextUnformatted("Update completed.")
+		imgui.TextUnformatted("Restart Filediver for the changes to take effect.")
+		if imgui.ButtonV("Close Filediver", imutils.SVec2(200, 0)) {
+			state.WindowShouldClose = true
+		}
+		imgui.SameLine()
+		if imgui.ButtonV("Dismiss", imutils.SVec2(200, 0)) {
+			close()
+		}
+		imgui.PopTextWrapPos()
+	}, imgui.WindowFlagsAlwaysAutoResize, true)
+
+	imgui.SetNextWindowPosV(imgui.MainViewport().Center(), imgui.CondAlways, imgui.NewVec2(0.5, 0.5))
 	a.popupManager.Popup("Check for updates", func(close func()) {
 		a.checkUpdatesLock.Lock()
 		if a.checkUpdatesErr == nil {
 			if a.checkingForUpdates {
-				imgui.ProgressBarV(-1*float32(imgui.Time()), imutils.SVec2(200, 0), "Checking for updates")
+				imgui.ProgressBarV(-1*float32(imgui.Time()), imutils.SVec2(250, 0), "Checking for updates")
 			} else if a.checkUpdatesNewVersion == version {
 				imutils.Textcf(imgui.NewVec4(0, 0.7, 0, 1), fnt.I.Check+"Up-to-date (version %v)", version)
 			} else {
 				imutils.Textcf(imgui.NewVec4(0.8, 0.8, 0, 1), fnt.I.Exclamation+"New version available: %v", a.checkUpdatesNewVersion)
-				if imgui.ButtonV(fnt.I.Download+" Download "+a.checkUpdatesNewVersion, imutils.SVec2(200, 0)) {
-					open.Start(a.checkUpdatesDownloadURL)
+				imgui.TextLinkOpenURLV(fnt.I.OpenInBrowser+" Download from Browser", a.checkUpdatesDownloadURL)
+				autoUpdateEx := a.autoUpdateEx.Snap()
+				if autoUpdateEx.Done {
+					if autoUpdateEx.Err != nil {
+						imutils.TextError(autoUpdateEx.Err)
+					}
+					if imgui.ButtonV(fnt.I.Download+" Self-Update", imutils.SVec2(250, 0)) {
+						task := tasks.Sequential(
+							99, tasks.Tasks.Download,
+							"Installing", 1, func(ctx context.Context, params map[string]any, onProgress func(prog float64), onStatus func(string)) (result map[string]any, err error) {
+								outPath := params["outPath"].(string)
+								exePath := params["exePath"].(string)
+								oldPath := params["oldPath"].(string)
+								if err := os.Rename(exePath, oldPath); err != nil {
+									return nil, err
+								}
+								if err := os.Rename(outPath, exePath); err != nil {
+									return nil, err
+								}
+								if err := os.WriteFile(filepath.Join(a.downloadsDir, "old_executable"), []byte(oldPath), 0666); err != nil {
+									return nil, err
+								}
+								if err := hideFile(oldPath); err != nil {
+									return nil, err
+								}
+								a.popupManager.Open["Restart for update to take effect"] = true
+								a.popupManager.Open["Check for updates"] = false
+								return nil, nil
+							},
+						)
+						executable, err := os.Executable()
+						if err != nil {
+							a.autoUpdateEx = tasks.NewErroredTaskExecution(err)
+						}
+						executable, err = filepath.EvalSymlinks(executable)
+						if err != nil {
+							a.autoUpdateEx = tasks.NewErroredTaskExecution(err)
+						}
+						tempPath := executable + "." + randomHexString(8)
+						a.autoUpdateEx = task.Go(a.ctx, map[string]any{
+							"outPath":        tempPath,
+							"url":            a.checkUpdatesDownloadURL,
+							"progressStatus": true,
+							"exePath":        executable,
+							"oldPath":        filepath.Join(filepath.Dir(tempPath), "."+filepath.Base(tempPath)+".old"),
+						}, nil)
+					}
+				} else {
+					autoUpdateEx.Draw(fnt.I.Update + " Updating")
 				}
-				imgui.SetItemTooltip("Open '" + a.checkUpdatesDownloadURL + "'")
 			}
 		} else {
 			imutils.TextError(a.checkUpdatesErr)
 		}
 		a.checkUpdatesLock.Unlock()
 		imgui.Separator()
-		if imgui.ButtonV("Close", imutils.SVec2(200, 0)) {
+		if imgui.ButtonV("Close", imutils.SVec2(250, 0)) {
 			close()
 		}
 	}, imgui.WindowFlagsAlwaysAutoResize, true)
@@ -1209,13 +1293,13 @@ func (a *guiApp) drawExtensionsWarningPopup() {
 	a.popupManager.Popup("Missing or out of date extensions", func(close func()) {
 		imgui.PushTextWrapPos()
 		imgui.TextUnformatted("The following recommended extensions are missing or out of date:")
-		if !a.ffmpegDownloadState.HaveRequestedVersion() {
+		if !a.ffmpegExtensionWidget.HaveRequestedVersion() {
 			imgui.TextWrapped("FFmpeg")
 			imgui.Indent()
 			imgui.TextWrapped(ffmpegFeatures)
 			imgui.Unindent()
 		}
-		if !a.scriptsDistDownloadState.HaveRequestedVersion() {
+		if !a.scriptsDistExtensionWidget.HaveRequestedVersion() {
 			imgui.TextWrapped("ScriptsDist")
 			imgui.Indent()
 			imgui.TextWrapped(scriptsDistFeatures)
@@ -1237,10 +1321,10 @@ func (a *guiApp) drawExtensionsWarningPopup() {
 func (a *guiApp) drawExtensionsPopup() {
 	viewport := imgui.MainViewport()
 	imgui.SetNextWindowPosV(viewport.Center(), imgui.CondAlways, imgui.NewVec2(0.5, 0.5))
-	a.popupManager.Popup("Extensions", func(close func()) {
-		widgets.Downloader("FFmpeg", ffmpegFeatures, a.ffmpegDownloadState)
+	if a.popupManager.Popup("Extensions", func(close func()) {
+		a.ffmpegExtensionWidget.Draw("FFmpeg", ffmpegFeatures)
 		imgui.Separator()
-		widgets.Downloader("ScriptsDist", scriptsDistFeatures, a.scriptsDistDownloadState)
+		a.scriptsDistExtensionWidget.Draw("ScriptsDist", scriptsDistFeatures)
 		imgui.Separator()
 		if imgui.ButtonV(fnt.I.FolderOpen+" Open extensions folder", imgui.NewVec2(imgui.ContentRegionAvail().X, 0)) {
 			_ = os.MkdirAll(a.downloadsDir, os.ModePerm)
@@ -1252,7 +1336,9 @@ func (a *guiApp) drawExtensionsPopup() {
 		if imgui.ButtonV("Close", imgui.NewVec2(imgui.ContentRegionAvail().X, 0)) {
 			close()
 		}
-	}, imgui.WindowFlagsAlwaysAutoResize, true)
+	}, imgui.WindowFlagsAlwaysAutoResize, true).Closed {
+		a.redetectRunnerProgs()
+	}
 }
 
 func (a *guiApp) drawPreferencesPopup(state *imgui_wrapper.State) {
@@ -1418,6 +1504,70 @@ func (a *guiApp) drawAboutPopup() {
 			close()
 		}
 	}, imgui.WindowFlagsNoMove, true)
+}
+
+func detectAndMaybeDeleteLegacyExtensions(downloadsDir string) error {
+	dlDir, err := os.ReadDir(downloadsDir)
+	if err != nil {
+		return err
+	}
+
+	var toDelete []string
+	for _, ent := range dlDir {
+		ext := filepath.Ext(ent.Name())
+		if ext != "" && ext != ".complete" && ext != ".tmp" {
+			continue
+		}
+		name := strings.TrimSuffix(ent.Name(), ext)
+		_, err := strconv.Atoi(name)
+		if err == nil {
+			toDelete = append(toDelete, filepath.Join(downloadsDir, ent.Name()))
+		}
+	}
+	if len(toDelete) == 0 {
+		return nil
+	}
+
+	if zenity.Question(
+		fmt.Sprintf(
+			"Delete unneeded legacy extensions?\nThe following files will be deleted:\n%v",
+			strings.Join(toDelete, "\n"),
+		),
+		zenity.Title("Legacy extensions detected"),
+	) == nil {
+		for _, path := range toDelete {
+			if err := os.RemoveAll(path); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func getNewestVersion() (newVersion, downloadURL string, err error) {
+	asset := github.ReleaseAsset{
+		Repository: github.Repository{
+			User: "xypwn",
+			Repo: "filediver",
+		},
+	}
+	if runtime.GOOS == "windows" {
+		asset.Filename = "filediver-gui-windows.exe"
+	} else {
+		asset.Filename = "filediver-gui-linux"
+	}
+	info, err := asset.FetchInfo("")
+	if err != nil {
+		return "", "", err
+	}
+	return info.ResolvedVersion, info.DownloadUrl, nil
+}
+
+func randomHexString(nBytes int) string {
+	b := make([]byte, nBytes)
+	crand.Read(b)
+	return hex.EncodeToString(b)
 }
 
 func main() {

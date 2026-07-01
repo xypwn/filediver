@@ -18,6 +18,7 @@ typedef struct GLFWvidmode {
 typedef void (*GLFWwindowsizefun)(GLFWwindow* window, int width, int height);
 typedef void (*GLFWwindowrefreshfun)(GLFWwindow* window);
 int glfwWindowShouldClose(GLFWwindow *window);
+void glfwSetWindowShouldClose(GLFWwindow *window, int value);
 void glfwPollEvents();
 void glfwGetFramebufferSize(GLFWwindow *window, int *width, int *height);
 void glfwSwapInterval(int interval);
@@ -113,6 +114,8 @@ type State struct {
 	GUIScale              float32
 	LoadCJKFonts          bool
 	DarkWindowDecorations bool
+	// WindowShouldClose app on next frame.
+	WindowShouldClose bool
 
 	glfwWindow                *C.GLFWwindow
 	currGuiScale              float32
@@ -286,6 +289,9 @@ func Main(title string, options Options) error {
 			state.currGuiScale = state.GUIScale
 			state.cjkFontsLoaded = state.LoadCJKFonts
 			state.currDarkWindowDecorations = state.DarkWindowDecorations
+		}
+		if state.WindowShouldClose {
+			C.glfwSetWindowShouldClose(state.glfwWindow, 1)
 		}
 
 		timeToDraw := time.Since(lastDrawTimestamp)

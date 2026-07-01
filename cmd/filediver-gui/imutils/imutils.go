@@ -198,6 +198,14 @@ type PopupManager struct {
 	orderCounter int
 }
 
+type PopupInfo struct {
+	// Whether the popup is currently visible.
+	Visible bool
+	// Whether the popup was just closed (setting
+	// PopupManager.Open[X] = false doesn't count).
+	Closed bool
+}
+
 func NewPopupManager() *PopupManager {
 	return &PopupManager{
 		Open:  map[string]bool{},
@@ -209,7 +217,7 @@ func NewPopupManager() *PopupManager {
 // Internally uses BeginPopupModal.
 // Put content drawing code into the body() function body.
 // Call close() to close the current popup.
-func (m *PopupManager) Popup(name string, content func(close func()), flags imgui.WindowFlags, closeBtn bool) {
+func (m *PopupManager) Popup(name string, content func(close func()), flags imgui.WindowFlags, closeBtn bool) PopupInfo {
 	defer func() {
 		// Make sure we always clear the SetNextWindowXXX options.
 		ctx := imgui.CurrentContext()
@@ -224,7 +232,7 @@ func (m *PopupManager) Popup(name string, content func(close func()), flags imgu
 	}
 
 	if !m.Open[name] {
-		return
+		return PopupInfo{}
 	}
 
 	selfPos := m.order[name]
@@ -232,7 +240,7 @@ func (m *PopupManager) Popup(name string, content func(close func()), flags imgu
 		if n != name && m.Open[n] && pos < selfPos {
 			// If there's already a different popup with
 			// a lower position open, don't show this one.
-			return
+			return PopupInfo{}
 		}
 	}
 
@@ -245,7 +253,7 @@ func (m *PopupManager) Popup(name string, content func(close func()), flags imgu
 	if imgui.BeginPopupModalV(name, pOpen, flags) {
 		close := func() {
 			imgui.CloseCurrentPopup()
-			m.Open[name] = false
+			isOpen = false
 		}
 		content(close)
 		imgui.EndPopup()
@@ -253,6 +261,7 @@ func (m *PopupManager) Popup(name string, content func(close func()), flags imgu
 	if !isOpen {
 		m.Open[name] = false
 	}
+	return PopupInfo{Visible: true, Closed: !isOpen}
 }
 
 func FilePicker(label string, path *string, directory bool) (changed bool) {
