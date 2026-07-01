@@ -25,7 +25,7 @@ import (
 	"github.com/xypwn/filediver/extractor"
 	extr_ah_bin "github.com/xypwn/filediver/extractor/ah_bin"
 	extr_animation "github.com/xypwn/filediver/extractor/animation"
-	extr_bik "github.com/xypwn/filediver/extractor/bik"
+	extr_bik "github.com/xypwn/filediver/extractor/bink"
 	extr_bones "github.com/xypwn/filediver/extractor/bones"
 	extr_entity "github.com/xypwn/filediver/extractor/entity"
 	extr_geogroup "github.com/xypwn/filediver/extractor/geometry_group"
@@ -714,11 +714,11 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 		switch typ {
 		case "animation":
 			extr = extr_animation.ExtractAnimationJson
-		case "bik":
-			if extrFormat == "bik" {
-				extr = extr_bik.ExtractBik
+		case "bik", "bk2":
+			if extrFormat == "bik" || extrFormat == "bk2" {
+				extr = extr_bik.ExtractBink(typ)
 			} else {
-				extr = extr_bik.ConvertToMP4
+				extr = extr_bik.ConvertBinkToMP4(typ)
 			}
 		case "wwise_stream":
 			if extrFormat == "wwise" {
