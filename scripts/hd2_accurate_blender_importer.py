@@ -44,6 +44,7 @@ material_loaders: List[FilediverMaterialLoaderInterface] = [
     IlluminateBuildingMaterialLoader(),
     IlluminateBuildingMonoplanarMaterialLoader(),
     IlluminateRuinsMaterialLoader(),
+    LightsMaterialLoader(),
     LutSkinMaterialLoader(),
     PortalMaterialLoader(),
     SkinMaterialLoader(),
