@@ -48,51 +48,69 @@ func _() {
 	_ = x[Tag_Value_2000000000_Len_26-137438953472]
 	_ = x[Tag_Value_4000000000_Len_13-274877906944]
 	_ = x[Tag_Value_8000000000_Len_20-549755813888]
+	_ = x[Tag_Value_10000000000_Len_23-1099511627776]
+	_ = x[Tag_Value_20000000000_Len_36-2199023255552]
+	_ = x[Tag_Value_40000000000_Len_33-4398046511104]
+	_ = x[Tag_Value_80000000000_Len_38-8796093022208]
+	_ = x[Tag_Value_100000000000_Len_12-17592186044416]
+	_ = x[Tag_Value_200000000000_Len_20-35184372088832]
+	_ = x[Tag_Value_400000000000_Len_18-70368744177664]
+	_ = x[Tag_Value_800000000000_Len_15-140737488355328]
+	_ = x[Tag_Value_1000000000000_Len_15-281474976710656]
 }
 
-const _Tag_name = "Tag_NoneTag_CharacterTag_MountableTag_DeployableTag_IgnoreBroadphaseTag_SupportMountableTag_SurvivesStateTransitionTag_ObjectiveTag_DefenseTag_LandingZoneTag_EagleTag_DiscoverableTag_BeaconTag_ChargerTag_HeavyTag_RemoveOnMigrationTag_EnemyFlyingTag_CanHellpodAttachToTag_TwoHandedThrowableTag_AIObjectiveTargetTag_Value_100000_Len_28Tag_CanArcTag_NoTransportDeploymentTag_NoAimAssistTag_IgnoreEncounterCountTag_IgnoredByEnemiesTag_InvalidEnemyTargetTag_CanBeLockedOnTag_NoStatTrackingTag_SuitableMeleeTargetTag_Value_40000000_Len_29Tag_Value_80000000_Len_17Tag_Value_100000000_Len_28Tag_Value_200000000_Len_26Tag_Value_400000000_Len_22Tag_Value_800000000_Len_12Tag_Value_1000000000_Len_21Tag_Value_2000000000_Len_26Tag_Value_4000000000_Len_13Tag_Value_8000000000_Len_20"
+const _Tag_name = "Tag_NoneTag_CharacterTag_MountableTag_DeployableTag_IgnoreBroadphaseTag_SupportMountableTag_SurvivesStateTransitionTag_ObjectiveTag_DefenseTag_LandingZoneTag_EagleTag_DiscoverableTag_BeaconTag_ChargerTag_HeavyTag_RemoveOnMigrationTag_EnemyFlyingTag_CanHellpodAttachToTag_TwoHandedThrowableTag_AIObjectiveTargetTag_Value_100000_Len_28Tag_CanArcTag_NoTransportDeploymentTag_NoAimAssistTag_IgnoreEncounterCountTag_IgnoredByEnemiesTag_InvalidEnemyTargetTag_CanBeLockedOnTag_NoStatTrackingTag_SuitableMeleeTargetTag_Value_40000000_Len_29Tag_Value_80000000_Len_17Tag_Value_100000000_Len_28Tag_Value_200000000_Len_26Tag_Value_400000000_Len_22Tag_Value_800000000_Len_12Tag_Value_1000000000_Len_21Tag_Value_2000000000_Len_26Tag_Value_4000000000_Len_13Tag_Value_8000000000_Len_20Tag_Value_10000000000_Len_23Tag_Value_20000000000_Len_36Tag_Value_40000000000_Len_33Tag_Value_80000000000_Len_38Tag_Value_100000000000_Len_12Tag_Value_200000000000_Len_20Tag_Value_400000000000_Len_18Tag_Value_800000000000_Len_15Tag_Value_1000000000000_Len_15"
 
 var _Tag_map = map[Tag]string{
-	0:            _Tag_name[0:8],
-	1:            _Tag_name[8:21],
-	2:            _Tag_name[21:34],
-	4:            _Tag_name[34:48],
-	8:            _Tag_name[48:68],
-	16:           _Tag_name[68:88],
-	32:           _Tag_name[88:115],
-	64:           _Tag_name[115:128],
-	128:          _Tag_name[128:139],
-	256:          _Tag_name[139:154],
-	512:          _Tag_name[154:163],
-	2048:         _Tag_name[163:179],
-	4096:         _Tag_name[179:189],
-	8192:         _Tag_name[189:200],
-	16384:        _Tag_name[200:209],
-	32768:        _Tag_name[209:230],
-	65536:        _Tag_name[230:245],
-	131072:       _Tag_name[245:267],
-	262144:       _Tag_name[267:289],
-	524288:       _Tag_name[289:310],
-	1048576:      _Tag_name[310:333],
-	2097152:      _Tag_name[333:343],
-	4194304:      _Tag_name[343:368],
-	8388608:      _Tag_name[368:383],
-	16777216:     _Tag_name[383:407],
-	33554432:     _Tag_name[407:427],
-	67108864:     _Tag_name[427:449],
-	134217728:    _Tag_name[449:466],
-	268435456:    _Tag_name[466:484],
-	536870912:    _Tag_name[484:507],
-	1073741824:   _Tag_name[507:532],
-	2147483648:   _Tag_name[532:557],
-	4294967296:   _Tag_name[557:583],
-	8589934592:   _Tag_name[583:609],
-	17179869184:  _Tag_name[609:635],
-	34359738368:  _Tag_name[635:661],
-	68719476736:  _Tag_name[661:688],
-	137438953472: _Tag_name[688:715],
-	274877906944: _Tag_name[715:742],
-	549755813888: _Tag_name[742:769],
+	0:               _Tag_name[0:8],
+	1:               _Tag_name[8:21],
+	2:               _Tag_name[21:34],
+	4:               _Tag_name[34:48],
+	8:               _Tag_name[48:68],
+	16:              _Tag_name[68:88],
+	32:              _Tag_name[88:115],
+	64:              _Tag_name[115:128],
+	128:             _Tag_name[128:139],
+	256:             _Tag_name[139:154],
+	512:             _Tag_name[154:163],
+	2048:            _Tag_name[163:179],
+	4096:            _Tag_name[179:189],
+	8192:            _Tag_name[189:200],
+	16384:           _Tag_name[200:209],
+	32768:           _Tag_name[209:230],
+	65536:           _Tag_name[230:245],
+	131072:          _Tag_name[245:267],
+	262144:          _Tag_name[267:289],
+	524288:          _Tag_name[289:310],
+	1048576:         _Tag_name[310:333],
+	2097152:         _Tag_name[333:343],
+	4194304:         _Tag_name[343:368],
+	8388608:         _Tag_name[368:383],
+	16777216:        _Tag_name[383:407],
+	33554432:        _Tag_name[407:427],
+	67108864:        _Tag_name[427:449],
+	134217728:       _Tag_name[449:466],
+	268435456:       _Tag_name[466:484],
+	536870912:       _Tag_name[484:507],
+	1073741824:      _Tag_name[507:532],
+	2147483648:      _Tag_name[532:557],
+	4294967296:      _Tag_name[557:583],
+	8589934592:      _Tag_name[583:609],
+	17179869184:     _Tag_name[609:635],
+	34359738368:     _Tag_name[635:661],
+	68719476736:     _Tag_name[661:688],
+	137438953472:    _Tag_name[688:715],
+	274877906944:    _Tag_name[715:742],
+	549755813888:    _Tag_name[742:769],
+	1099511627776:   _Tag_name[769:797],
+	2199023255552:   _Tag_name[797:825],
+	4398046511104:   _Tag_name[825:853],
+	8796093022208:   _Tag_name[853:881],
+	17592186044416:  _Tag_name[881:910],
+	35184372088832:  _Tag_name[910:939],
+	70368744177664:  _Tag_name[939:968],
+	140737488355328: _Tag_name[968:997],
+	281474976710656: _Tag_name[997:1027],
 }
 
 func (i Tag) String() string {

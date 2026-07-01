@@ -319,7 +319,7 @@ func (customization UnitCustomizationComponent) ToSimple(lookupHash HashLookup, 
 	matOverrides := make([]SimpleUnitCustomizationMaterialOverrides, 0)
 	for _, override := range customization.MaterialsTexturesOverrides {
 		if override.MaterialID.Value == 0 {
-			break
+			continue
 		}
 		matOverrides = append(matOverrides, SimpleUnitCustomizationMaterialOverrides{
 			MaterialID:        lookupThinHash(override.MaterialID),
@@ -333,7 +333,7 @@ func (customization UnitCustomizationComponent) ToSimple(lookupHash HashLookup, 
 	mountOverrides := make([]SimpleUnitCustomizationMaterialOverrides, 0)
 	for _, override := range customization.MountedWeaponTextureOverrides {
 		if override.MaterialID.Value == 0 {
-			break
+			continue
 		}
 		mountOverrides = append(mountOverrides, SimpleUnitCustomizationMaterialOverrides{
 			MaterialID:        lookupThinHash(override.MaterialID),
@@ -347,7 +347,7 @@ func (customization UnitCustomizationComponent) ToSimple(lookupHash HashLookup, 
 	unkOverrides := make([]SimpleUnitCustomizationMaterialOverrides, 0)
 	for _, override := range customization.UnknownTextureOverrides {
 		if override.MaterialID.Value == 0 {
-			break
+			continue
 		}
 		unkOverrides = append(mountOverrides, SimpleUnitCustomizationMaterialOverrides{
 			MaterialID:        lookupThinHash(override.MaterialID),
@@ -361,7 +361,7 @@ func (customization UnitCustomizationComponent) ToSimple(lookupHash HashLookup, 
 	unkOverrides2 := make([]SimpleUnitCustomizationMaterialOverrides, 0)
 	for _, override := range customization.UnknownTextureOverrides {
 		if override.MaterialID.Value == 0 {
-			break
+			continue
 		}
 		unkOverrides2 = append(mountOverrides, SimpleUnitCustomizationMaterialOverrides{
 			MaterialID:        lookupThinHash(override.MaterialID),
@@ -539,25 +539,25 @@ func ParseUnitCustomizationSettings(getResource GetResourceFunc, stringmap map[u
 			matOverrides.UnknownTextureOverrides2 = make([]UnitCustomizationMaterialOverrides, 0)
 			for _, override := range materialsTexturesOverrides {
 				if override.MaterialID.Value == 0 {
-					break
+					continue
 				}
 				matOverrides.MaterialsTexturesOverrides = append(matOverrides.MaterialsTexturesOverrides, override)
 			}
 			for _, override := range mountedWeaponTextureOverrides {
 				if override.MaterialID.Value == 0 {
-					break
+					continue
 				}
 				matOverrides.MountedWeaponTextureOverrides = append(matOverrides.MountedWeaponTextureOverrides, override)
 			}
 			for _, override := range unkTextureOverrides {
 				if override.MaterialID.Value == 0 {
-					break
+					continue
 				}
 				matOverrides.UnknownTextureOverrides = append(matOverrides.UnknownTextureOverrides, override)
 			}
 			for _, override := range unk2TextureOverrides {
 				if override.MaterialID.Value == 0 {
-					break
+					continue
 				}
 				matOverrides.UnknownTextureOverrides2 = append(matOverrides.UnknownTextureOverrides2, override)
 			}
