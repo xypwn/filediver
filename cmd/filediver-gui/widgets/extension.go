@@ -2,6 +2,7 @@ package widgets
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
 	"math"
@@ -141,6 +142,9 @@ func (es *Extension) Dir() string {
 
 // Returns true if requested version is already downloaded.
 func (es *Extension) HaveRequestedVersion() bool {
+	if !es.checked.Load() {
+		es.check()
+	}
 	return es.presentVersion == es.ghAsset.ResolvedVersion
 }
 
@@ -174,10 +178,11 @@ func (es *Extension) Draw(title, description string) {
 			if es.presentVersion != "" {
 				label = fnt.I.Download + " Update to version " + es.ghAsset.ResolvedVersion
 			}
-			if es.err != nil || ex.Err != nil {
+			if es.err != nil || (ex.Err != nil && !errors.Is(ex.Err, context.Canceled)) {
 				if es.err != nil {
 					imutils.TextError(es.err)
-				} else {
+				}
+				if ex.Err != nil {
 					imutils.TextError(ex.Err)
 				}
 				label = fnt.I.Download + " Retry"
@@ -211,20 +216,6 @@ func (es *Extension) Draw(title, description string) {
 		}
 	} else {
 		ex.Draw("##DownloadStatus")
-		/*imutils.Textcf(imgui.NewVec4(0.8, 0.8, 0.8, 1), "Downloading")
-		progBarProg := -1 * float32(imgui.Time())
-		var progBarText string
-		switch es.progress.State {
-		case getter.Fetching:
-			progBarText = "Fetching"
-		case getter.Extracting:
-			progBarText = "Extracting"
-		case getter.Downloading:
-			curr, total := float32(es.progress.ContentCurrentBytes), float32(es.progress.ContentTotalBytes)
-			progBarProg = curr / total
-			progBarText = fmt.Sprintf("%3.1f/%3.1f MiB", curr/mebi, total/mebi)
-		}
-		imgui.ProgressBarV(progBarProg, imgui.NewVec2(-math.SmallestNonzeroFloat32, 0), progBarText)*/
 		if imgui.ButtonV(fnt.I.Cancel+" Cancel", imgui.NewVec2(-math.SmallestNonzeroFloat32, 0)) {
 			es.cancel()
 		}
