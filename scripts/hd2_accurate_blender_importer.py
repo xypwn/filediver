@@ -10,12 +10,8 @@ from bpy.types import (
     Action,
     ActionPoseMarkers,
     Armature,
-    BlendData,
     Image,
     Object,
-    ShaderNodeGroup,
-    ShaderNodeTexImage,
-    ShaderNodeUVMap,
     Material,
     Collection,
     Armature,
@@ -26,9 +22,7 @@ from bpy.types import (
 from mathutils import Vector, Quaternion
 from pathlib import Path
 from io import BytesIO
-from typing import Optional, Dict, List, Tuple, Union, Callable
-from types import ModuleType
-from random import randint
+from typing import Optional, Dict, List, Tuple
 from dataclasses import dataclass, field, asdict
 from copy import deepcopy
 import math
@@ -38,6 +32,23 @@ from openexr.types import OpenEXR
 
 from resources.filediver_animation_controller_ui import filediver_animation_state, filediver_state_transition, filediver_animation_variable, register as register_ui
 from resources.filediver_drivers import register as register_drivers
+
+from material_loaders import *
+
+material_loaders: List[FilediverMaterialLoaderInterface] = [
+    ArmorMaterialLoader(),
+    BuildingMaterialLoader(),
+    CapeMaterialLoader(),
+    ConcreteMaterialLoader(),
+    FenceMaterialLoader(),
+    IlluminateBuildingMaterialLoader(),
+    IlluminateBuildingMonoplanarMaterialLoader(),
+    IlluminateRuinsMaterialLoader(),
+    LightsMaterialLoader(),
+    LutSkinMaterialLoader(),
+    PortalMaterialLoader(),
+    SkinMaterialLoader(),
+]
 
 class IDPropertyUIManager:
     def update(subtype=None, min=None, max=None, soft_min=None, soft_max=None, precision=None, step=None, default=None, id_type=None, items=None, description=None):
@@ -182,520 +193,6 @@ def add_texture(gltf, textureIdx, usage: Optional[str] = None) -> Image:
     blImage.use_fake_user = True
     return blImage
 
-def add_accurate_material(shader_mat: Material, material: dict, shader_module, unused_secondary_lut: Image, textures: Dict[str, Image]):
-    object_mat = shader_mat.copy()
-    object_mat.name = "HD2 Mat " + material["name"]
-    template_group: ShaderNodeGroup = object_mat.node_tree.nodes["HD2 Shader Template"]
-    template_group.node_tree = template_group.node_tree.copy()
-    template_group.node_tree.name = object_mat.name + shader_module.ScriptVersion
-    HD2_Shader = template_group.node_tree
-
-    print("    Applying textures")
-    config_nodes: Dict[str, ShaderNodeTexImage] = object_mat.node_tree.nodes
-    config_nodes["Secondary Material LUT Texture"].image = unused_secondary_lut
-    for usage, image in textures.items():
-        match usage:
-            case "id_masks_array":
-                config_nodes["ID Mask Array Texture"].image = image
-                image.colorspace_settings.name = "Non-Color"
-            case "pattern_masks_array":
-                config_nodes["Pattern Mask Array"].image = image
-                image.colorspace_settings.name = "Non-Color"
-            case "decal_sheet":
-                config_nodes["Decal Texture"].image = image
-                image.colorspace_settings.name = "sRGB"
-                image.alpha_mode = "CHANNEL_PACKED"
-            case "material_lut":
-                config_nodes["Primary Material LUT Texture"].image = image
-                image.colorspace_settings.name = "Non-Color"
-            case "pattern_lut":
-                config_nodes["Pattern LUT Texture"].image = image
-                image.colorspace_settings.name = "Non-Color"
-            case "base_data":
-                config_nodes["Normal Map"].image = image
-                image.colorspace_settings.name = "Non-Color"
-    
-    detail_tile_factor_mult = material.get("extras", {}).get("detail_tile_factor_mult")
-    if detail_tile_factor_mult is not None:
-        config_nodes["HD2 Shader Template"].inputs['detail_tile_factor_mult'].default_value = detail_tile_factor_mult[0]
-
-    print("    Finalizing material")
-    shader_module.update_images(HD2_Shader, object_mat)
-    shader_module.update_slot_defaults(HD2_Shader, object_mat)
-    shader_module.connect_input_links(HD2_Shader)
-    shader_module.update_array_uvs(object_mat)
-    return object_mat
-
-def add_cape_material(cape_mat: Material, material: dict, textures: Dict[str, Image]):
-    object_mat = cape_mat.copy()
-    object_mat.name = "HD2 Cape " + material["name"]
-
-    print("    Applying textures")
-    config_nodes: Dict[str, ShaderNodeTexImage] = object_mat.node_tree.nodes
-    for usage, image in textures.items():
-        image.colorspace_settings.name = "Non-Color"
-        match usage:
-            case "cape_tear":
-                config_nodes["Image Texture"].image = image
-            case "cape_scalar_fields":
-                config_nodes["Image Texture.001"].image = image
-            case "cape_gradient":
-                config_nodes["Image Texture.002"].image = image
-            case "base_data":
-                config_nodes["Image Texture.003"].image = image
-            case "weathering_dirt":
-                config_nodes["Image Texture.004"].image = image
-            case "weathering_special":
-                config_nodes["Image Texture.005"].image = image
-            case "blood_splatter_tiler":
-                config_nodes["Image Texture.006"].image = image
-            case "bug_splatter_tiler":
-                config_nodes["Image Texture.007"].image = image
-            case "decal_sheet":
-                for i in range(8, 12):
-                    config_nodes[f"Image Texture.{i:03d}"].image = image
-            case "material_lut":
-                for i in range(100, 123):
-                    config_nodes[f"Image Texture.{i:03d}"].image = image
-            case "cape_lut":
-                for i in range(123, 139):
-                    config_nodes[f"Image Texture.{i:03d}"].image = image
-            case "palette_lut":
-                config_nodes["Image Texture.012"].image = image
-    print("    Applying settings")
-    cape_group = object_mat.node_tree.nodes['Group.015']
-    weathering_group = object_mat.node_tree.nodes['Group.011']
-    for name, setting in material["extras"].items():
-        if name == "weathering_tile_factor":
-            config_nodes["Value.051"].outputs[0].default_value = setting[0]
-            continue
-        if name == "blood_scale":
-            config_nodes["Value.052"].outputs[0].default_value = setting[0]
-            continue
-        if name == "gunk_scale":
-            config_nodes["Value.053"].outputs[0].default_value = setting[0]
-            continue
-        if name not in cape_group.inputs and name not in weathering_group.inputs:
-            continue
-        for group in (weathering_group, cape_group):
-            if name not in group.inputs:
-                continue
-            if "height_wetness_and_wash" in name:
-                group.inputs[name].default_value = setting[:3]
-                group.inputs[name + " w"].default_value = setting[3]
-                continue
-            if len(setting) == 1:
-                group.inputs[name].default_value = setting[0]
-                continue
-            group.inputs[name].default_value = setting
-    print("    Finalizing material")
-    return object_mat
-
-def add_skin_material(skin_mat: Material, material: dict, textures: Dict[str, Image]):
-    object_mat = skin_mat.copy()
-    object_mat.name = "HD2 Mat " + material["name"]
-
-    print("    Applying textures")
-    config_nodes: Dict[str, ShaderNodeTexImage] = object_mat.node_tree.nodes
-    for usage, image in textures.items():
-        image.colorspace_settings.name = "Non-Color"
-        match usage:
-            case "color_roughness":
-                config_nodes["Image Texture"].image = image
-            case "normal_specular_ao":
-                config_nodes["Image Texture.001"].image = image
-    print("    Finalizing material")
-    # Set ethnicity to a random value
-    config_nodes["Value"].outputs[0].default_value = float(randint(0, 4))
-    return object_mat
-
-def add_lut_skin_material(skin_mat: Material, material: dict, textures: Dict[str, Image]):
-    object_mat = skin_mat.copy()
-    object_mat.name = "HD2 Mat " + material["name"]
-
-    print("    Applying textures")
-    config_nodes: Dict[str, ShaderNodeTexImage] = object_mat.node_tree.nodes
-    for usage, image in textures.items():
-        image.colorspace_settings.name = "Non-Color"
-        match usage:
-            case "color_roughness_lut":
-                config_nodes["Image Texture"].image = image
-                config_nodes["Image Texture"].interpolation = "Closest"
-            case "normal_specular_ao":
-                config_nodes["Image Texture.001"].image = image
-            case "grayscale_skin":
-                config_nodes["Image Texture.002"].image = image
-                config_nodes["Image Texture.002"].interpolation = "Smart"
-    print("    Finalizing material")
-    # Set ethnicity to a random value
-    config_nodes["Value"].outputs[0].default_value = float(randint(0, 4))
-    return object_mat
-
-def add_building_material(building_mat: Material, material: dict, textures: Dict[str, Image]):
-    object_mat = building_mat.copy()
-    object_mat.name = "HD2 Building " + material["name"]
-
-    print("    Applying textures")
-    config_nodes: Dict[str, ShaderNodeTexImage] = object_mat.node_tree.nodes
-    for usage, image in textures.items():
-        match usage:
-            case "texture_lut":
-                config_nodes["Image Texture.001"].image = image
-                config_nodes["Image Texture.001"].interpolation = "Closest"
-                image.colorspace_settings.name = "sRGB"
-            case "NAC":
-                config_nodes["Image Texture"].image = image
-                image.colorspace_settings.name = "Non-Color"
-            case "decal_sheet":
-                config_nodes["Image Texture.002"].image = image
-                image.colorspace_settings.name = "sRGB"
-    
-    print("    Applying settings")
-    building_group = object_mat.node_tree.nodes['Group.002']
-    for name, setting in material["extras"].items():
-        if name not in building_group.inputs or name == "NAC":
-            continue
-        if "roughness_build_up" in name:
-            building_group.inputs[name].default_value = setting[:3]
-            building_group.inputs[name + " w"].default_value = setting[3]
-            continue
-        if len(setting) == 1:
-            building_group.inputs[name].default_value = setting[0]
-            continue
-        building_group.inputs[name].default_value = setting
-    if "decal_wear" not in material["extras"]:
-        config_nodes["Image Texture.002"].image = textures["filediver_unused"]
-    decal_uv_node: ShaderNodeUVMap = object_mat.node_tree.nodes['UV Map']
-    suffix = f'.{material["extras"].get("filediver_decal_uvmap", 0):03d}' if material["extras"].get("filediver_decal_uvmap", 0) > 0 else ""
-    decal_uv_node.uv_map = f"UVMap{suffix}"
-
-    print("    Finalizing material")
-    return object_mat
-
-def add_concrete_material(concrete_mat: Material, material: dict, textures: Dict[str, Image]):
-    object_mat = concrete_mat.copy()
-    object_mat.name = "HD2 Concrete " + material["name"]
-
-    print("    Applying textures")
-    config_nodes: Dict[str, ShaderNodeTexImage] = object_mat.node_tree.nodes
-    for usage, image in textures.items():
-        match usage:
-            case "pattern_data":
-                config_nodes["Image Texture"].image = image
-                config_nodes["Image Texture.001"].image = image
-                config_nodes["Image Texture.002"].image = image
-                config_nodes["Image Texture.003"].image = image
-                image.colorspace_settings.name = "Non-Color"
-            case "surface_data_array":
-                config_nodes["Image Texture.004"].image = image
-                config_nodes["Image Texture.005"].image = image
-                config_nodes["Image Texture.006"].image = image
-                config_nodes["Image Texture.007"].image = image
-                image.colorspace_settings.name = "Non-Color"
-    
-    print("    Applying settings")
-    concrete_group = object_mat.node_tree.nodes['Group']
-    pattern_uv_group = object_mat.node_tree.nodes['Group.001']
-    surface_uv_group = object_mat.node_tree.nodes['Group.003']
-    for name, setting in material["extras"].items():
-        if name not in concrete_group.inputs:
-            continue
-        if name == "disable_triplanar_distance":
-            setting[0] *= 100
-        if len(setting) == 1:
-            concrete_group.inputs[name].default_value = setting[0]
-            continue
-        if "color" in name and len(setting) == 3:
-            setting = setting + [1]
-        concrete_group.inputs[name].default_value = setting
-
-    for name, setting in material["extras"].items():
-        if name not in pattern_uv_group.inputs:
-            continue
-        if len(setting) == 1:
-            pattern_uv_group.inputs[name].default_value = setting[0]
-            continue
-        pattern_uv_group.inputs[name].default_value = setting
-
-    for name, setting in material["extras"].items():
-        if name not in surface_uv_group.inputs:
-            continue
-        if len(setting) == 1:
-            surface_uv_group.inputs[name].default_value = setting[0]
-            continue
-        surface_uv_group.inputs[name].default_value = setting
-
-    print("    Finalizing material")
-    return object_mat
-
-def add_fence_material(fence_mat: Material, material: dict, _: Dict[str, Image]):
-    object_mat = fence_mat.copy()
-    object_mat.name = "HD2 Fence " + material["name"]
-
-    print("    Applying settings")
-    fence_group = object_mat.node_tree.nodes['Group']
-    for name, setting in material["extras"].items():
-        if name not in fence_group.inputs:
-            continue
-        if len(setting) == 1:
-            fence_group.inputs[name].default_value = setting[0]
-            continue
-        fence_group.inputs[name].default_value = setting[:3]
-
-    print("    Finalizing material")
-    return object_mat
-
-def add_il_building_material(il_building_mat: Material, material: dict, textures: Dict[str, Image]):
-    object_mat = il_building_mat.copy()
-    object_mat.name = "HD2 IllBldg " + material["name"]
-
-    print("    Applying textures")
-    config_nodes: Dict[str, ShaderNodeTexImage] = object_mat.node_tree.nodes
-    for usage, image in textures.items():
-        match usage:
-            case "blend_tex_mask":
-                config_nodes["Image Texture"].image = image
-                config_nodes["Image Texture.001"].image = image
-                config_nodes["Image Texture.002"].image = image
-                image.colorspace_settings.name = "Non-Color"
-            case "bcm_tex_a":
-                config_nodes["Image Texture.003"].image = image
-                config_nodes["Image Texture.004"].image = image
-                config_nodes["Image Texture.005"].image = image
-                image.colorspace_settings.name = "sRGB"
-                image.alpha_mode = "CHANNEL_PACKED"
-            case "nar_tex_a":
-                config_nodes["Image Texture.006"].image = image
-                config_nodes["Image Texture.007"].image = image
-                config_nodes["Image Texture.008"].image = image
-                image.colorspace_settings.name = "Non-Color"
-            case "bcm_tex_b":
-                config_nodes["Image Texture.009"].image = image
-                config_nodes["Image Texture.010"].image = image
-                config_nodes["Image Texture.011"].image = image
-                image.colorspace_settings.name = "sRGB"
-                image.alpha_mode = "CHANNEL_PACKED"
-            case "nar_tex_b":
-                config_nodes["Image Texture.012"].image = image
-                config_nodes["Image Texture.013"].image = image
-                config_nodes["Image Texture.014"].image = image
-                image.colorspace_settings.name = "Non-Color"
-            case "mask":
-                config_nodes["Image Texture.015"].image = image
-                image.colorspace_settings.name = "Non-Color"
-            case "albedo_array":
-                config_nodes["Image Texture.016"].image = image
-                config_nodes["Image Texture.017"].image = image
-                config_nodes["Image Texture.018"].image = image
-                config_nodes["Image Texture.019"].image = image
-                image.colorspace_settings.name = "sRGB"
-                image.alpha_mode = "CHANNEL_PACKED"
-            case "normal_array":
-                config_nodes["Image Texture.020"].image = image
-                config_nodes["Image Texture.021"].image = image
-                config_nodes["Image Texture.022"].image = image
-                config_nodes["Image Texture.023"].image = image
-                image.colorspace_settings.name = "Non-Color"
-            case "normal_map":
-                config_nodes["Image Texture.024"].image = image
-                image.colorspace_settings.name = "Non-Color"
-
-    print("    Applying settings")
-    for name, setting in material["extras"].items():
-        match name:
-            case "noise_power":
-                object_mat.node_tree.nodes['Group.011'].inputs[name].default_value = setting[0]
-            case "mask_tiling":
-                object_mat.node_tree.nodes['Value'].outputs[0].default_value = setting[0]
-            case "tiling_a":
-                object_mat.node_tree.nodes['Value.001'].outputs[0].default_value = setting[0]
-            case "tiling_b":
-                object_mat.node_tree.nodes['Value.002'].outputs[0].default_value = setting[0]
-            case "surface_tiling":
-                object_mat.node_tree.nodes['Value.003'].outputs[0].default_value = setting[0]
-
-    print("    Finalizing material")
-    return object_mat
-
-def add_single_plane_il_building_material(il_building_mat: Material, material: dict, textures: Dict[str, Image]):
-    object_mat = il_building_mat.copy()
-    object_mat.name = "HD2 IllBldg " + material["name"]
-
-    print("    Applying textures")
-    config_nodes: Dict[str, ShaderNodeTexImage] = object_mat.node_tree.nodes
-    for usage, image in textures.items():
-        match usage:
-            case "mask":
-                config_nodes["Image Texture"].image = image
-                image.colorspace_settings.name = "Non-Color"
-            case "albedo_array":
-                config_nodes["Image Texture.001"].image = image
-                config_nodes["Image Texture.002"].image = image
-                config_nodes["Image Texture.003"].image = image
-                config_nodes["Image Texture.004"].image = image
-                config_nodes["Image Texture.005"].image = image
-                image.colorspace_settings.name = "sRGB"
-                image.alpha_mode = "CHANNEL_PACKED"
-            case "normal_array":
-                config_nodes["Image Texture.006"].image = image
-                config_nodes["Image Texture.007"].image = image
-                config_nodes["Image Texture.008"].image = image
-                config_nodes["Image Texture.009"].image = image
-                config_nodes["Image Texture.010"].image = image
-                image.colorspace_settings.name = "Non-Color"
-            case "normal_map":
-                config_nodes["Image Texture.011"].image = image
-                image.colorspace_settings.name = "Non-Color"
-            case "emissive":
-                config_nodes["Image Texture.012"].image = image
-                image.colorspace_settings.name = "Non-Color"
-
-    print("    Applying settings")
-    for name, setting in material["extras"].items():
-        match name:
-            case "surface_tiling":
-                object_mat.node_tree.nodes['Value.003'].outputs[0].default_value = setting[0]
-            case "emissive_color":
-                object_mat.node_tree.nodes['RGB'].outputs[0].default_value = setting[0:3] + [1]
-            case "emissive_power":
-                object_mat.node_tree.nodes['Principled BSDF.001'].inputs['Emission Strength'].default_value = setting[0]
-
-    print("    Finalizing material")
-    return object_mat
-
-def add_portal_material(il_building_mat: Material, material: dict, textures: Dict[str, Image]):
-    object_mat = il_building_mat.copy()
-    object_mat.name = "HD2 Portal " + material["name"]
-
-    print("    Applying textures")
-    config_nodes: Dict[str, ShaderNodeTexImage] = object_mat.node_tree.nodes
-    for usage, image in textures.items():
-        match usage:
-            case "noise_map_01":
-                config_nodes["Image Texture"].image = image
-                image.colorspace_settings.name = "Non-Color"
-            case "noise_map_02":
-                config_nodes["Image Texture.001"].image = image
-                image.colorspace_settings.name = "Non-Color"
-            case "edge_noise_map":
-                config_nodes["Image Texture.002"].image = image
-                image.colorspace_settings.name = "Non-Color"
-            
-
-    print("    Applying settings")
-    for name, setting in material["extras"].items():
-        for i in range(4):
-            key = f"Group{f'.{i:03d}' if (i > 0) else ''}"
-            group = config_nodes.get(key)
-            if group is None:
-                continue
-            if name not in group.inputs:
-                continue
-            if len(setting) == 1:
-                group.inputs[name].default_value = setting[0]
-                continue
-            group.inputs[name].default_value = setting[:3]
-
-    print("    Finalizing material")
-    return object_mat
-
-def add_il_ruins_material(il_ruins_mat: Material, material: dict, textures: Dict[str, Image]):
-    object_mat = il_ruins_mat.copy()
-    object_mat.name = "HD2 IlRuins " + material["name"]
-
-    print("    Applying textures")
-    config_nodes: Dict[str, ShaderNodeTexImage] = object_mat.node_tree.nodes
-    for usage, image in textures.items():
-        match usage:
-            case "noise_tiler_mask":
-                config_nodes["Image Texture"].image = image
-                config_nodes["Image Texture.001"].image = image
-                config_nodes["Image Texture.002"].image = image
-                image.colorspace_settings.name = "Non-Color"
-            case "base_tiler_nan":
-                config_nodes["Image Texture.003"].image = image
-                config_nodes["Image Texture.004"].image = image
-                config_nodes["Image Texture.005"].image = image
-                image.colorspace_settings.name = "Non-Color"
-            case "detail_trimsheet_metallic_ceramic_masking":
-                config_nodes["Image Texture.006"].image = image
-                image.colorspace_settings.name = "Non-Color"
-            case "ceramic_detail_tiler_basecolor":
-                config_nodes["Image Texture.007"].image = image
-                image.colorspace_settings.name = "sRGB"
-                image.alpha_mode = "CHANNEL_PACKED"
-            case "ceramic_detail_tiler_nar":
-                config_nodes["Image Texture.008"].image = image
-                image.colorspace_settings.name = "Non-Color"
-            case "rock_detail_tiler_basecolor":
-                config_nodes["Image Texture.009"].image = image
-                image.colorspace_settings.name = "sRGB"
-                image.alpha_mode = "CHANNEL_PACKED"
-            case "rock_detail_tiler_nar":
-                config_nodes["Image Texture.010"].image = image
-                image.colorspace_settings.name = "Non-Color"
-            case "detail_trimsheet_nar":
-                config_nodes["Image Texture.011"].image = image
-                image.colorspace_settings.name = "Non-Color"
-            case "metallic_lut":
-                config_nodes["Image Texture.012"].image = image
-                image.colorspace_settings.name = "Non-Color"
-            
-
-    print("    Applying settings")
-    group = config_nodes['Group']
-    for name, setting in material["extras"].items():
-        if name not in group.inputs:
-            match name:
-                case "noise_mask_tiling":
-                    config_nodes["Value"].outputs[0].default_value = setting[0]
-                case "base_nar_tiling":
-                    config_nodes["Value.001"].outputs[0].default_value = setting[0]
-                case "ceramic_detail_tiling":
-                    config_nodes["Value.002"].outputs[0].default_value = setting[0]
-                case "rock_detail_tiling":
-                    config_nodes["Value.003"].outputs[0].default_value = setting[0]
-            continue
-        if len(setting) == 1:
-            group.inputs[name].default_value = setting[0]
-            continue
-        group.inputs[name].default_value = setting[:3]
-
-    print("    Finalizing material")
-    return object_mat
-
-def load_shaders(resource_path: str) -> Tuple[ModuleType, List[Material]]:
-    shader_script = bpy.data.texts.load(str(resource_path / "Helldivers2 shader script v1.0.6-1.py"))
-    shader_script.use_fake_user = True
-    shader_module = shader_script.as_module()
-    with bpy.data.libraries.load(str(resource_path / "Helldivers2 Shader v1.0.5.blend")) as (shader_blend, our_blend):
-        our_blend: BlendData # not actually but they share member names 
-        shader_blend: BlendData
-        our_blend.materials = shader_blend.materials
-    shader_mat = bpy.data.materials["HD2 Shader"]
-    shader_mat.use_fake_user = True
-    skin_mat = bpy.data.materials["HD2 Skin"]
-    skin_mat.use_fake_user = True
-    lut_skin_mat = bpy.data.materials["HD2 LUT Skin"]
-    lut_skin_mat.use_fake_user = True
-    building_mat = bpy.data.materials["HD2 Building"]
-    building_mat.use_fake_user = True
-    concrete_mat = bpy.data.materials["HD2 Concrete"]
-    concrete_mat.use_fake_user = True
-    fence_mat = bpy.data.materials["HD2 Fence"]
-    fence_mat.use_fake_user = True
-    triplanar_illuminate_building_mat = bpy.data.materials["HD2 Illuminate Building"]
-    triplanar_illuminate_building_mat.use_fake_user = True
-    illuminate_building_mat = bpy.data.materials["HD2 Illuminate Building Single Plane"]
-    illuminate_building_mat.use_fake_user = True
-    portal_mat = bpy.data.materials["HD2 Portal"]
-    portal_mat.use_fake_user = True
-    il_ruins_mat = bpy.data.materials["HD2 Illuminate Ruins"]
-    il_ruins_mat.use_fake_user = True
-    cape_mat = bpy.data.materials["HD2 Cape"]
-    cape_mat.use_fake_user = True
-    return shader_module, [shader_mat, skin_mat, lut_skin_mat, building_mat, concrete_mat, fence_mat, triplanar_illuminate_building_mat, illuminate_building_mat, portal_mat, il_ruins_mat, cape_mat]
-
 def create_empty_texture(name: str, size: Tuple[int, int], fmt: str = 'PNG', colorspace: str = 'sRGB', alpha_mode: str = 'CHANNEL_PACKED') -> Image:
     unused_texture = bpy.data.images.new(name, size[0], size[1], alpha=True, float_buffer=True)
     #unused_texture.pixels[3] = 0.0
@@ -724,92 +221,7 @@ def add_to_armor_set(node: Dict):
         other.objects.unlink(obj)
     collection.objects.link(obj)
 
-def get_material_key(is_lut: bool, is_tex_array_skin: bool, is_lut_skin: bool, is_illuminate_building_triplanar: bool, is_illuminate_building_monoplanar: bool, is_portal: bool, is_building: bool, is_concrete: bool, is_fence: bool, is_illuminate_ruins_triplanar: bool, is_cape: bool):
-    if is_illuminate_building_triplanar or is_illuminate_building_monoplanar:
-        return "IllBldg"
-    elif is_portal:
-        return "Portal"
-    elif is_building:
-        return "Building"
-    elif is_concrete:
-        return "Concrete"
-    elif is_fence:
-        return "Fence"
-    elif is_illuminate_ruins_triplanar:
-        return "IlRuins"
-    elif is_cape:
-        return "Cape"
-    return "Mat"
-
-def get_material_info(material: dict, materialIndex: int, shader_module: ModuleType, shaders: List[Material], unused_texture: Image, unused_secondary_lut: Image) -> Tuple[bool, str, Callable[[dict, Dict[str, Image]], Optional[Material]]]:
-    is_pbr = "albedo" in material["extras"] or "albedo_iridescence" in material["extras"] or "normal" in material["extras"]
-    is_tex_array_skin = "color_roughness" in material["extras"] and "normal_specular_ao" in material["extras"] and len(material["extras"]) == 2
-    is_lut_skin = "grayscale_skin" in material["extras"] and "color_roughness_lut" in material["extras"]
-    is_lut = "material_lut" in material["extras"] and not "cape_lut" in material["extras"]
-    is_cape = "material_lut" in material["extras"] and "cape_lut" in material["extras"]
-    is_building = "texture_lut" in material["extras"] and "material_1_surface" in material["extras"]
-    is_concrete = "pattern_data" in material["extras"] and "material_surface" in material["extras"]
-    is_fence = "texture_map_319d3bb5" in material["extras"] and "fence_offset" in material["extras"]
-    is_illuminate_building_triplanar = "albedo_array" in material["extras"] and "surface_tiling" in material["extras"] and "bcm_tex_a" in material["extras"] and "noise_power" in material["extras"]
-    is_illuminate_ruins_triplanar = "noise_tiler_mask" in material["extras"] and "noise_mask_tiling" in material["extras"] and "detail_trimsheet_metallic_ceramic_masking" in material["extras"] and "ceramic_detail_tiler_basecolor" in material["extras"]
-    is_illuminate_building_monoplanar = "albedo_array" in material["extras"] and "surface_tiling" in material["extras"] and "bcm_tex_a" not in material["extras"] and "noise_power" not in material["extras"]
-    is_portal = "noise_map_01" in material["extras"] and "noise_map_02" in material["extras"] and "edge_noise_map" in material["extras"]
-
-    material_bools = (is_pbr, is_tex_array_skin, is_lut_skin, is_lut, is_building, is_concrete, is_fence, is_illuminate_building_triplanar, is_illuminate_building_monoplanar, is_portal, is_illuminate_ruins_triplanar, is_cape)
-    needs_further_processing = any(material_bools)
-
-    material_subname = get_material_key(is_lut, is_tex_array_skin, is_lut_skin, is_illuminate_building_triplanar, is_illuminate_building_monoplanar, is_portal, is_building, is_concrete, is_fence, is_illuminate_ruins_triplanar, is_cape)
-    key = f"HD2 {material_subname} " + material["name"]
-    i = 1
-    while key in bpy.data.materials and bpy.data.materials[key]["gltfId"] != materialIndex:
-        key = f"HD2 {material_subname} " + material["name"] + f".{i:03d}"
-        i += 1
-
-    shader_mat, skin_mat, lut_skin_mat, building_mat, concrete_mat, fence_mat, triplanar_illuminate_building_mat, illuminate_building_mat, portal_mat, il_ruins_mat, cape_mat = shaders
-    def add_material(material: dict, textures: Dict[str, Image]) -> Optional[Material]:
-        object_mat = None
-        if is_lut:
-            object_mat = add_accurate_material(shader_mat, material, shader_module, unused_secondary_lut, textures)
-            object_mat["needsBakeUVs"] = True
-        elif is_cape:
-            object_mat = add_cape_material(cape_mat, material, textures)
-            object_mat["needsBakeUVs"] = True
-        elif is_tex_array_skin:
-            object_mat = add_skin_material(skin_mat, material, textures)
-            object_mat["needsBakeUVs"] = True
-        elif is_lut_skin:
-            object_mat = add_lut_skin_material(lut_skin_mat, material, textures)
-            object_mat["needsBakeUVs"] = True
-        elif is_illuminate_building_triplanar:
-            object_mat = add_il_building_material(triplanar_illuminate_building_mat, material, textures)
-            object_mat["needsBakeUVs"] = True
-        elif is_illuminate_building_monoplanar:
-            object_mat = add_single_plane_il_building_material(illuminate_building_mat, material, textures)
-            object_mat["needsBakeUVs"] = True
-        elif is_portal:
-            object_mat = add_portal_material(portal_mat, material, textures)
-            object_mat["needsBakeUVs"] = True
-        elif is_building:
-            object_mat = add_building_material(building_mat, material, textures)
-            object_mat["needsBakeUVs"] = False
-            # Building material does not support automatically generating bake UVs
-        elif is_concrete:
-            object_mat = add_concrete_material(concrete_mat, material, textures)
-            object_mat["needsBakeUVs"] = False
-            # Building material does not support automatically generating bake UVs
-        elif is_fence:
-            object_mat = add_fence_material(fence_mat, material, textures)
-            object_mat["needsBakeUVs"] = False
-            # Building material does not support automatically generating bake UVs
-        elif is_illuminate_ruins_triplanar:
-            object_mat = add_il_ruins_material(il_ruins_mat, material, textures)
-            object_mat["needsBakeUVs"] = False
-            # Illuminate ruins material does not support automatically generating bake UVs
-        return object_mat
-
-    return (needs_further_processing, key, add_material)
-
-def get_textures(gltf: dict, materialTextures: Dict[int, Dict[str, Image]], materialIndex: int, material: dict, unused_texture: Image, needs_further_processing: bool):
+def get_textures(gltf: dict, materialTextures: Dict[int, Dict[str, Image]], materialIndex: int, material: dict, needs_further_processing: bool):
     textures = {}
     optional_usages = ["decal_sheet", "pattern_masks_array"]
     if materialIndex in materialTextures:
@@ -819,6 +231,10 @@ def get_textures(gltf: dict, materialTextures: Dict[int, Dict[str, Image]], mate
             return None
         print(f"    Packing textures for material {material['name']}")
         try:
+            if "unused" not in bpy.data.images:
+                unused_texture = create_empty_texture("unused", (1, 1))
+            else:
+                unused_texture = bpy.data.images["unused"]
             textures["filediver_unused"] = unused_texture
             for usage, texIdx in material["extras"].items():
                 if type(texIdx) != int:
@@ -833,9 +249,8 @@ def get_textures(gltf: dict, materialTextures: Dict[int, Dict[str, Image]], mate
             return None
     return textures
 
-def convert_materials(gltf: Dict, node: Dict, variants: List[Dict], hasVariants: bool, materialTextures: Dict[int, Dict[str, Image]], packall: bool, shader_module: ModuleType, shaders: List[Material], unused_texture: Image, unused_secondary_lut: Image):
-    optional_usages = ["decal_sheet", "pattern_masks_array"]
-
+def convert_materials(gltf: Dict, node: Dict, variants: List[Dict], hasVariants: bool, materialTextures: Dict[int, Dict[str, Image]], packall: bool):
+    global material_loaders
     mesh = gltf["meshes"][node["mesh"]]
     textures: Dict[str, Image] = {}
     obj: Object = None
@@ -856,18 +271,25 @@ def convert_materials(gltf: Dict, node: Dict, variants: List[Dict], hasVariants:
                     if primIdx < len(item.material_slots) and item.material_slots[primIdx].material and item.material_slots[primIdx].material.name.startswith(material["name"]) and item.name.startswith(node["name"]) and len(item.material_slots) == len(mesh["primitives"]):
                         obj: Object = item
                         break
-            needs_further_processing, key, add_material = get_material_info(material, materialIndex, shader_module, shaders, unused_texture, unused_secondary_lut)
-            textures = get_textures(gltf, materialTextures, materialIndex, material, unused_texture, needs_further_processing)
 
-            if not key in bpy.data.materials:
+            loader: FilediverMaterialLoaderInterface = None
+            for _loader in material_loaders:
+                if _loader.can_configure(material):
+                    loader = _loader
+                    break
+
+            textures = get_textures(gltf, materialTextures, materialIndex, material, loader is not None)
+
+            if loader is None:
+                continue
+
+            object_mat: Material = loader.get_material(material, materialIndex)
+            if object_mat is None:
                 print("    Copying template material")
-                object_mat = add_material(material, textures)
-                if object_mat is None:
-                    continue
+                object_mat = loader.add_material(material, textures)
                 object_mat["gltfId"] = materialIndex
             else:
-                print(f"    Found existing material '{key}'")
-                object_mat = bpy.data.materials[key]
+                print(f"    Found existing material '{object_mat.name}'")
 
             if obj is None:
                 continue
@@ -896,7 +318,11 @@ def convert_materials(gltf: Dict, node: Dict, variants: List[Dict], hasVariants:
 
     if obj is not None and obj.data is not None and any([mat.get("needsBakeUVs", False) for mat in obj.data.materials if mat is not None]) and len(obj.data.uv_layers) > 0:
         print(f"    Adding bake uvs to {obj.name}...")
-        shader_module.add_bake_uvs(obj)
+        for _loader in material_loaders:
+            if not hasattr(_loader, "shader_module"):
+                continue
+            _loader.shader_module.add_bake_uvs(obj)
+            break
 
     if obj is not None:
         obj.select_set(True)
@@ -1470,10 +896,8 @@ def main():
         if tmp_file:
             os.unlink(tmp_file.name)
     print("Loading Custom Shaders")
-    shader_module, shaders = load_shaders(resource_path)
-
-    unused_texture = create_empty_texture("unused", (1, 1))
-    unused_secondary_lut = create_empty_texture("unused_secondary_lut", (23, 1), fmt='OPEN_EXR', colorspace='Non-Color')
+    for loader in material_loaders:
+        loader.load_material(resource_path)
 
     materialTextures: Dict[int, Dict[str, Image]] = {}
 
@@ -1496,7 +920,7 @@ def main():
         if node.get("extras", {}).get("default_hidden") == 1 and node["name"] in bpy.data.objects:
             hide_visibility_group(node)
         if "mesh" in node:
-            convert_materials(gltf, node, variants, hasVariants, materialTextures, args.packall, shader_module, shaders, unused_texture, unused_secondary_lut)
+            convert_materials(gltf, node, variants, hasVariants, materialTextures, args.packall)
         if "state_machine" in node.get("extras", {}):
             add_state_machine(gltf, node)
 
@@ -1547,23 +971,33 @@ def main():
                     for slotIdx, materialIdx in instance["materials"].items():
                         material = gltf["materials"][materialIdx]
                         new_nested_child.material_slots[int(slotIdx)].material = bpy.data.materials[material["name"]]
-                        needs_further_processing, key, add_material = get_material_info(material, materialIdx, shader_module, shaders, unused_texture, unused_secondary_lut)
-                        textures = get_textures(gltf, materialTextures, materialIdx, material, unused_texture, needs_further_processing)
+                        loader: FilediverMaterialLoaderInterface = None
+                        for _loader in material_loaders:
+                            if _loader.can_configure(material):
+                                loader = _loader
+                                break
 
-                        if not key in bpy.data.materials:
+                        textures = get_textures(gltf, materialTextures, materialIdx, material, loader is not None)
+
+                        if loader is None:
+                            continue
+
+                        object_mat: Material = loader.get_material(material, materialIdx)
+                        if object_mat is None:
                             print("    Copying template material")
-                            object_mat = add_material(gltf["materials"][materialIdx], textures)
-                            if object_mat is None:
-                                continue
+                            object_mat = loader.add_material(material, textures)
                             object_mat["gltfId"] = materialIdx
                         else:
-                            print(f"    Found existing material '{key}'")
-                            object_mat = bpy.data.materials[key]
-                        
+                            print(f"    Found existing material '{object_mat.name}'")
+
                         new_nested_child.material_slots[int(slotIdx)].material = object_mat
                         if any([mat.get("needsBakeUVs", False) for mat in new_nested_child.data.materials if mat is not None]) and len(new_nested_child.data.uv_layers) > 0:
                             print(f"    Adding bake uvs to {new_nested_child.name}...")
-                            shader_module.add_bake_uvs(new_nested_child)
+                            for _loader in material_loaders:
+                                if not hasattr(_loader, "shader_module"):
+                                    continue
+                                _loader.shader_module.add_bake_uvs(new_nested_child)
+                                break
                 new_nested_child.parent = new_child
                 new_nested_child.parent_type = child.parent_type
                 new_nested_child.parent_bone = child.parent_bone
