@@ -30401,3 +30401,12 @@ shotgun_doublebarrel_marker
 g_shotgun_doublebarrel_marker
 marksmanrifle
 weapon_rack_wreck
+m_air_control_tower_glass
+reload_trenchgun
+reload_trenchgun_fast
+reload_onehanded
+reload_broomhandle
+reload_broomhandle_onehand
+reload_smart_pistol_missile
+reload_smart_pistol_missile_onehand
+reload_laser_rifle_charge
