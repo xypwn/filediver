@@ -3,7 +3,7 @@ package ttf
 import (
 	"github.com/xypwn/filediver/extractor"
 	"github.com/xypwn/filediver/stingray"
-	stingray_xaml "github.com/xypwn/filediver/stingray/ttf"
+	stingray_ttf "github.com/xypwn/filediver/stingray/ttf"
 )
 
 func extract(ctx *extractor.Context, suffix string) error {
@@ -11,7 +11,7 @@ func extract(ctx *extractor.Context, suffix string) error {
 	if err != nil {
 		return err
 	}
-	ttf, err := stingray_xaml.LoadTTF(r)
+	ttf, err := stingray_ttf.LoadTTF(r)
 	if err != nil {
 		return err
 	}
