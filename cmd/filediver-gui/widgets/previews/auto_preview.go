@@ -34,17 +34,17 @@ const (
 	AutoPreviewMaterial
 )
 
-type AutoPreviewState struct {
+type AutoPreview struct {
 	activeType AutoPreviewType
 	activeID   stingray.FileID
-	state      struct {
+	previews   struct {
 		unit      *UnitPreviewState
 		speedtree *SpeedtreePreviewState
-		audio     *WwisePreviewState
-		video     *BinkPreviewState
-		texture   *DDSPreviewState
-		strings   *StringsPreviewState
-		material  *MaterialPreviewState
+		audio     *WwisePreview
+		video     *BinkPreview
+		texture   *ImagePreview
+		strings   *StringsPreview
+		material  *MaterialPreview
 	}
 
 	hashes      map[stingray.Hash]string
@@ -54,50 +54,51 @@ type AutoPreviewState struct {
 	err error
 }
 
-func NewAutoPreview(otoCtx *oto.Context, audioSampleRate int, hashes map[stingray.Hash]string, thinhashes map[stingray.ThinHash]string, getResource GetResourceFunc, runner *exec.Runner) (*AutoPreviewState, error) {
+func NewAutoPreview(otoCtx *oto.Context, audioSampleRate int, hashes map[stingray.Hash]string, thinhashes map[stingray.ThinHash]string, getResource GetResourceFunc, runner *exec.Runner) (*AutoPreview, error) {
 	var err error
-	pv := &AutoPreviewState{
+	pv := &AutoPreview{
 		hashes:      hashes,
 		thinhashes:  thinhashes,
 		getResource: getResource,
 	}
-	pv.state.unit, err = NewUnitPreview()
+	pv.previews.unit, err = NewUnitPreview()
 	if err != nil {
 		return nil, err
 	}
-	pv.state.speedtree, err = NewSpeedtreePreview()
+	pv.previews.speedtree, err = NewSpeedtreePreview()
 	if err != nil {
 		return nil, err
 	}
-	pv.state.audio = NewWwisePreview(otoCtx, audioSampleRate)
-	pv.state.video = NewBinkPreview(runner)
-	pv.state.texture = NewDDSPreview()
-	pv.state.strings = NewStringsPreview()
-	pv.state.material = NewMaterialPreview()
+	pv.previews.audio = NewWwisePreview(otoCtx, audioSampleRate)
+	pv.previews.video = NewBinkPreview(runner)
+	pv.previews.texture = NewImagePreview()
+	pv.previews.texture.Flags = LinearFilteringButton | IgnoreAlphaButton
+	pv.previews.strings = NewStringsPreview()
+	pv.previews.material = NewMaterialPreview()
 	return pv, nil
 }
 
-func (pv *AutoPreviewState) Delete() {
-	pv.state.unit.Delete()
-	pv.state.speedtree.Delete()
-	pv.state.audio.Delete()
-	pv.state.video.Delete()
-	pv.state.texture.Delete()
+func (pv *AutoPreview) Delete() {
+	pv.previews.unit.Delete()
+	pv.previews.speedtree.Delete()
+	pv.previews.audio.Delete()
+	pv.previews.video.Delete()
+	pv.previews.texture.Delete()
 }
 
-func (pv *AutoPreviewState) ActiveID() stingray.FileID {
+func (pv *AutoPreview) ActiveID() stingray.FileID {
 	return pv.activeID
 }
 
-func (pv *AutoPreviewState) ActiveType() AutoPreviewType {
+func (pv *AutoPreview) ActiveType() AutoPreviewType {
 	return pv.activeType
 }
 
-func (pv *AutoPreviewState) NeedCJKFont() bool {
-	return pv.state.strings.NeedCJKFont()
+func (pv *AutoPreview) NeedCJKFont() bool {
+	return pv.previews.strings.NeedCJKFont()
 }
 
-func (pv *AutoPreviewState) LoadFile(ctx context.Context, fileID stingray.FileID, maxVideoVerticalResolution int) {
+func (pv *AutoPreview) LoadFile(ctx context.Context, fileID stingray.FileID, maxVideoVerticalResolution int) {
 	if fileID == (stingray.FileID{}) {
 		pv.activeID.Name.Value = 0
 		pv.activeID.Type.Value = 0
@@ -136,7 +137,7 @@ func (pv *AutoPreviewState) LoadFile(ctx context.Context, fileID stingray.FileID
 			pv.err = err
 			return
 		}
-		if err := pv.state.unit.LoadUnit(
+		if err := pv.previews.unit.LoadUnit(
 			fileID.Name,
 			data[stingray.DataMain],
 			data[stingray.DataGPU],
@@ -152,7 +153,7 @@ func (pv *AutoPreviewState) LoadFile(ctx context.Context, fileID stingray.FileID
 			pv.err = err
 			return
 		}
-		if err := pv.state.speedtree.LoadSpeedtree(
+		if err := pv.previews.speedtree.LoadSpeedtree(
 			fileID.Name,
 			data[stingray.DataMain],
 			data[stingray.DataGPU],
@@ -163,16 +164,16 @@ func (pv *AutoPreviewState) LoadFile(ctx context.Context, fileID stingray.FileID
 			return
 		}
 	case stingray.Sum("wwise_stream"):
-		pv.state.audio.ClearStreams()
+		pv.previews.audio.ClearStreams()
 		pv.activeType = AutoPreviewAudio
 		if err := loadFiles(stingray.DataStream); err != nil {
 			pv.err = err
 			return
 		}
-		pv.state.audio.Title = fileID.Name.String()
-		pv.state.audio.LoadStream(fileID.Name.String(), data[stingray.DataStream], nil, true)
+		pv.previews.audio.Title = fileID.Name.String()
+		pv.previews.audio.LoadStream(fileID.Name.String(), data[stingray.DataStream], nil, true)
 	case stingray.Sum("wwise_bank"):
-		pv.state.audio.ClearStreams()
+		pv.previews.audio.ClearStreams()
 		pv.activeType = AutoPreviewAudio
 		if err := loadFiles(stingray.DataMain); err != nil {
 			pv.err = err
@@ -183,7 +184,7 @@ func (pv *AutoPreviewState) LoadFile(ctx context.Context, fileID stingray.FileID
 			pv.err = fmt.Errorf("expected wwise bank file %v.wwise_bank to have a known name", fileID.Name)
 			return
 		}
-		pv.state.audio.Title = bnkFile
+		pv.previews.audio.Title = bnkFile
 		dir := path.Dir(bnkFile)
 		streams, err := stingray_wwise.BnkGetAllReferencedStreamData(
 			bytes.NewReader(data[stingray.DataMain]),
@@ -201,7 +202,7 @@ func (pv *AutoPreviewState) LoadFile(ctx context.Context, fileID stingray.FileID
 		}
 		for _, id := range slices.Sorted(maps.Keys(streams)) {
 			stream := streams[id]
-			pv.state.audio.LoadStream(fmt.Sprint(id), stream.Data, stream.Err, false)
+			pv.previews.audio.LoadStream(fmt.Sprint(id), stream.Data, stream.Err, false)
 		}
 	case stingray.Sum("bik"), stingray.Sum("bk2"):
 		pv.activeType = AutoPreviewVideo
@@ -223,7 +224,7 @@ func (pv *AutoPreviewState) LoadFile(ctx context.Context, fileID stingray.FileID
 			return
 		}
 
-		if err := pv.state.video.Load(r, maxVideoVerticalResolution); err != nil {
+		if err := pv.previews.video.Load(r, maxVideoVerticalResolution); err != nil {
 			cmdNotRegisteredErr := &exec.CommandNotRegisteredError{}
 			if errors.As(err, &cmdNotRegisteredErr) {
 				pv.err = errors.New(`FFmpeg not found; go to Settings->Extensions to install FFmpeg`)
@@ -252,7 +253,7 @@ func (pv *AutoPreviewState) LoadFile(ctx context.Context, fileID stingray.FileID
 			pv.err = fmt.Errorf("loading DDS image: %w", err)
 			return
 		}
-		pv.state.texture.LoadImage(img)
+		ImagePreviewLoadDDS(pv.previews.texture, img)
 	case stingray.Sum("strings"):
 		pv.activeType = AutoPreviewStrings
 		if err := loadFiles(stingray.DataMain); err != nil {
@@ -266,7 +267,7 @@ func (pv *AutoPreviewState) LoadFile(ctx context.Context, fileID stingray.FileID
 			pv.err = fmt.Errorf("loading DDS image: %w", err)
 			return
 		}
-		pv.state.strings.Load(data, pv.thinhashes)
+		pv.previews.strings.Load(data, pv.thinhashes)
 	case stingray.Sum("material"):
 		pv.activeType = AutoPreviewMaterial
 		if err := loadFiles(stingray.DataMain); err != nil {
@@ -279,7 +280,7 @@ func (pv *AutoPreviewState) LoadFile(ctx context.Context, fileID stingray.FileID
 			return
 		}
 
-		err = pv.state.material.LoadMaterial(data, pv.getResource, pv.hashes, pv.thinhashes)
+		err = pv.previews.material.LoadMaterial(data, pv.getResource, pv.hashes, pv.thinhashes)
 		if err != nil {
 			pv.err = fmt.Errorf("loading material state: %w", err)
 			return
@@ -289,19 +290,19 @@ func (pv *AutoPreviewState) LoadFile(ctx context.Context, fileID stingray.FileID
 	}
 }
 
-func (pv *AutoPreviewState) MaterialSettingsEmpty() bool {
-	return pv.state.material.SettingsEmpty()
+func (pv *AutoPreview) MaterialSettingsEmpty() bool {
+	return pv.previews.material.SettingsEmpty()
 }
 
-func (pv *AutoPreviewState) MaterialSettingsVisible() bool {
-	return pv.state.material.SettingsVisible()
+func (pv *AutoPreview) MaterialSettingsVisible() bool {
+	return pv.previews.material.SettingsVisible()
 }
 
-func (pv *AutoPreviewState) SetMaterialSettingsVisible(visible bool) {
-	pv.state.material.SetSettingsVisible(visible)
+func (pv *AutoPreview) SetMaterialSettingsVisible(visible bool) {
+	pv.previews.material.SetSettingsVisible(visible)
 }
 
-func AutoPreview(name string, pv *AutoPreviewState) bool {
+func (pv *AutoPreview) Draw(name string) bool {
 	if pv.err != nil {
 		imutils.TextError(pv.err)
 		return true
@@ -310,26 +311,26 @@ func AutoPreview(name string, pv *AutoPreviewState) bool {
 	case AutoPreviewEmpty:
 		return false
 	case AutoPreviewUnit:
-		UnitPreview(name, pv.state.unit)
+		UnitPreview(name, pv.previews.unit)
 	case AutoPreviewTree:
-		SpeedtreePreview(name, pv.state.speedtree)
+		SpeedtreePreview(name, pv.previews.speedtree)
 	case AutoPreviewAudio:
-		WwisePreview(name, pv.state.audio)
+		pv.previews.audio.Draw(name)
 	case AutoPreviewVideo:
-		BinkPreview(pv.state.video)
+		pv.previews.video.Draw()
 	case AutoPreviewTexture:
-		DDSPreview(name, pv.state.texture)
+		pv.previews.texture.Draw(name)
 	case AutoPreviewStrings:
-		StringsPreview(pv.state.strings)
+		pv.previews.strings.Draw()
 	case AutoPreviewMaterial:
-		MaterialPreview(name, pv.state.material)
+		pv.previews.material.Draw(name)
 	default:
 		panic("unhandled case")
 	}
 	return true
 }
 
-func AutoPreviewMaterialSettings(pv *AutoPreviewState) bool {
+func (pv *AutoPreview) DrawMaterialSettings() bool {
 	if pv.err != nil {
 		return true
 	}
@@ -337,7 +338,7 @@ func AutoPreviewMaterialSettings(pv *AutoPreviewState) bool {
 	case AutoPreviewEmpty:
 		return false
 	case AutoPreviewMaterial:
-		MaterialPreviewMaterialSettings(pv.state.material)
+		pv.previews.material.DrawSettings()
 	}
 	return true
 }

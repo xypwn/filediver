@@ -130,7 +130,7 @@ type guiApp struct {
 	gameDataExport *GameDataExport
 	gameData       *GameData
 
-	previewState *previews.AutoPreviewState
+	preview *previews.AutoPreview
 
 	gameFileSearchQuery     string
 	filesSelectedForExport  map[stingray.FileID]struct{}
@@ -225,8 +225,8 @@ func (a *guiApp) Delete() {
 	if a.icon != nil {
 		a.icon.Delete()
 	}
-	if a.previewState != nil {
-		a.previewState.Delete()
+	if a.preview != nil {
+		a.preview.Delete()
 	}
 }
 
@@ -369,9 +369,9 @@ func (a *guiApp) onInitWindow(state *imgui_wrapper.State) error {
 
 func (a *guiApp) onPreDraw(state *imgui_wrapper.State) error {
 	imutils.GlobalScale = state.GUIScale
-	if a.gameData != nil && a.previewState == nil {
+	if a.gameData != nil && a.preview == nil {
 		var err error
-		a.previewState, err = previews.NewAutoPreview(
+		a.preview, err = previews.NewAutoPreview(
 			a.otoCtx, a.audioSampleRate,
 			a.gameData.Hashes,
 			a.gameData.ThinHashes,
@@ -732,8 +732,8 @@ func (a *guiApp) drawBrowserWindow() {
 			}
 
 			var newActiveFileID stingray.FileID
-			if a.previewState != nil {
-				newActiveFileID = a.previewState.ActiveID()
+			if a.preview != nil {
+				newActiveFileID = a.preview.ActiveID()
 			}
 			if jumpToFile, ok := widgets.PopGamefileLinkFile(); ok {
 				newActiveFileID = jumpToFile
@@ -890,11 +890,11 @@ func (a *guiApp) drawBrowserWindow() {
 				imgui.EndTable()
 			}
 
-			if a.previewState != nil && newActiveFileID != a.previewState.ActiveID() {
+			if a.preview != nil && newActiveFileID != a.preview.ActiveID() {
 				if !noPushToHistory {
-					a.historyPush(a.previewState.ActiveID(), newActiveFileID)
+					a.historyPush(a.preview.ActiveID(), newActiveFileID)
 				}
-				a.previewState.LoadFile(a.ctx, newActiveFileID, a.preferences.PreviewVideoVerticalResolution)
+				a.preview.LoadFile(a.ctx, newActiveFileID, a.preferences.PreviewVideoVerticalResolution)
 			}
 
 			imutils.Textf("Showing %v/%v files (%v selected for export)", len(a.gameData.SortedSearchResultFileIDs), len(a.gameData.DataDir.Files), len(a.filesSelectedForExport))
@@ -1165,9 +1165,9 @@ func (a *guiApp) drawLogWindow() {
 
 func (a *guiApp) drawPreviewWindow(state *imgui_wrapper.State) {
 	if imgui.Begin(fnt.I.Preview + " Preview") {
-		if a.previewState != nil {
-			if !previews.AutoPreview("Preview", a.previewState) {
-				active := a.previewState.ActiveID()
+		if a.preview != nil {
+			if !a.preview.Draw("Preview") {
+				active := a.preview.ActiveID()
 				imgui.PushTextWrapPos()
 				if active.Name.Value == 0 {
 					imgui.TextUnformatted("Nothing selected to preview. Select an item from the Browser.")
@@ -1175,7 +1175,7 @@ func (a *guiApp) drawPreviewWindow(state *imgui_wrapper.State) {
 					imutils.Textf("Cannot preview type %v.", a.gameData.LookupHash(active.Type))
 				}
 			}
-			if a.previewState.NeedCJKFont() && !state.LoadCJKFonts {
+			if a.preview.NeedCJKFont() && !state.LoadCJKFonts {
 				state.LoadCJKFonts = true
 			}
 		} else {
@@ -1188,8 +1188,8 @@ func (a *guiApp) drawPreviewWindow(state *imgui_wrapper.State) {
 
 func (a *guiApp) drawMetadataWindow() {
 	if imgui.Begin(fnt.I.Tag + " Metadata") {
-		if a.gameData != nil && a.previewState != nil && a.previewState.ActiveID() != (stingray.FileID{}) {
-			widgets.FileMetadata(a.gameData.Metadata[a.previewState.ActiveID()])
+		if a.gameData != nil && a.preview != nil && a.preview.ActiveID() != (stingray.FileID{}) {
+			widgets.FileMetadata(a.gameData.Metadata[a.preview.ActiveID()])
 		} else {
 			imgui.PushTextWrapPos()
 			imgui.TextUnformatted("No file selected")
@@ -1200,19 +1200,19 @@ func (a *guiApp) drawMetadataWindow() {
 }
 
 func (a *guiApp) drawMaterialSettingsWindow() {
-	if a.gameData == nil || a.previewState == nil ||
-		a.previewState.ActiveType() != previews.AutoPreviewMaterial ||
-		a.previewState.MaterialSettingsEmpty() {
+	if a.gameData == nil || a.preview == nil ||
+		a.preview.ActiveType() != previews.AutoPreviewMaterial ||
+		a.preview.MaterialSettingsEmpty() {
 		return
 	}
-	visible := a.previewState.MaterialSettingsVisible()
+	visible := a.preview.MaterialSettingsVisible()
 	if visible {
 		if imgui.BeginV(fnt.I.DisplaySettings+" Material Settings", &visible, imgui.WindowFlagsNoFocusOnAppearing) {
-			previews.AutoPreviewMaterialSettings(a.previewState)
+			a.preview.DrawMaterialSettings()
 		}
 		imgui.End()
 	}
-	a.previewState.SetMaterialSettingsVisible(visible)
+	a.preview.SetMaterialSettingsVisible(visible)
 }
 
 func (a *guiApp) drawCheckForUpdatesPopup(state *imgui_wrapper.State) {

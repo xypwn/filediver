@@ -15,7 +15,7 @@ import (
 	stingray_strings "github.com/xypwn/filediver/stingray/strings"
 )
 
-type StringsPreviewState struct {
+type StringsPreview struct {
 	queryBuf             string
 	shownIDs             []uint32
 	languageNameOrHash   string
@@ -24,11 +24,11 @@ type StringsPreviewState struct {
 	needCJKFont          bool
 }
 
-func NewStringsPreview() *StringsPreviewState {
-	return &StringsPreviewState{}
+func NewStringsPreview() *StringsPreview {
+	return &StringsPreview{}
 }
 
-func (pv *StringsPreviewState) Load(data *stingray_strings.Strings, thinhashes map[stingray.ThinHash]string) {
+func (pv *StringsPreview) Load(data *stingray_strings.Strings, thinhashes map[stingray.ThinHash]string) {
 	pv.queryBuf = ""
 	pv.strings = data.Strings
 	pv.updateShownIDs()
@@ -54,11 +54,11 @@ func (pv *StringsPreviewState) Load(data *stingray_strings.Strings, thinhashes m
 	}
 }
 
-func (pv *StringsPreviewState) NeedCJKFont() bool {
+func (pv *StringsPreview) NeedCJKFont() bool {
 	return pv.needCJKFont
 }
 
-func (pv *StringsPreviewState) updateShownIDs() {
+func (pv *StringsPreview) updateShownIDs() {
 	pv.shownIDs = pv.shownIDs[:0]
 	for _, id := range slices.Sorted(maps.Keys(pv.strings)) {
 		if textutils.QueryMatchesAny(pv.queryBuf,
@@ -68,7 +68,7 @@ func (pv *StringsPreviewState) updateShownIDs() {
 	}
 }
 
-func StringsPreview(pv *StringsPreviewState) {
+func (pv *StringsPreview) Draw() {
 	imgui.SetNextItemWidth(imgui.ContentRegionAvail().X)
 	if imgui.InputTextWithHint("##Search Strings", fnt.I.Search+" Filter by ID or string...", &pv.queryBuf, 0, nil) {
 		pv.updateShownIDs()
