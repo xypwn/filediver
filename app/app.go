@@ -38,8 +38,10 @@ import (
 	extr_state_machine "github.com/xypwn/filediver/extractor/state_machine"
 	extr_strings "github.com/xypwn/filediver/extractor/strings"
 	extr_texture "github.com/xypwn/filediver/extractor/texture"
+	extr_ttf "github.com/xypwn/filediver/extractor/ttf"
 	extr_unit "github.com/xypwn/filediver/extractor/unit"
 	extr_wwise "github.com/xypwn/filediver/extractor/wwise"
+	extr_xaml "github.com/xypwn/filediver/extractor/xaml"
 	"github.com/xypwn/filediver/steampath"
 	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/stingray/ah_bin"
@@ -782,6 +784,16 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 			extr = extr_shading_environment.ExtractShadingEnvironmentJSON
 		case "shading_environment_mapping":
 			extr = extr_shading_environment.ExtractShadingEnvironmentMappingJSON
+		case "xaml":
+			if extrFormat == "svg" {
+				extr = extr_xaml.ExtractSVG
+			} else {
+				extr = extr_xaml.ExtractXAML
+			}
+		case "ttf":
+			extr = extr_ttf.ExtractTTF
+		case "otf":
+			extr = extr_ttf.ExtractOTF
 		default:
 			extr = getSourceExtractFunc(extrCfg, typ)
 		}

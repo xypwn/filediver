@@ -36,7 +36,7 @@ type SimplePassive struct {
 }
 
 type SimpleHelldiverCustomizationKit struct {
-	Id          uint32                         `json:"id"`
+	Id          string                         `json:"id"`
 	DlcId       uint32                         `json:"dlc_id"`
 	SetId       uint32                         `json:"set_id"`
 	Name        string                         `json:"name"`
@@ -112,7 +112,7 @@ func Dump(a *app.App) {
 		}
 		passiveDescription := armor.Passive.ResolveDescription()
 		result = append(result, SimpleHelldiverCustomizationKit{
-			Id:          armor.Id,
+			Id:          a.LookupThinHash(armor.Id),
 			DlcId:       armor.DlcId,
 			SetId:       armor.SetId,
 			Name:        armor.Name,
