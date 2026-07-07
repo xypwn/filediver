@@ -206,7 +206,7 @@ func (p CustomizationKitRarity) MarshalText() ([]byte, error) {
 }
 
 type HelldiverCustomizationKit struct {
-	Id               uint32
+	Id               stingray.ThinHash
 	DlcId            uint32
 	SetId            uint32
 	NameUpper        uint32
@@ -238,7 +238,7 @@ type UnitData struct {
 }
 
 type ArmorSet struct {
-	Id           uint32
+	Id           stingray.ThinHash
 	DlcId        uint32
 	SetId        uint32
 	Name         string

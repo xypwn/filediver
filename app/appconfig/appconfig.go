@@ -68,6 +68,9 @@ type Config struct {
 	SpeedTree struct {
 		Format string `cfg:"options=model,json,raw"`
 	} `cfg:"tags=t:speedtree help='Tree model export format'"`
+	XAML struct {
+		Format string `cfg:"options=svg,xaml,raw"`
+	} `cfg:"tags=t:xaml help='XAML export format (only XAML files with paths may be exported as svg successfully)'"`
 	Raw struct {
 		Format string `cfg:"options=separate,combined,main,stream,gpu help='how to handle the different file sub-types (each file may have a main, stream and GPU file)'"`
 	} `cfg:"help='applies to any file without an available extractor or \"raw\" as the selected format'"`
@@ -123,6 +126,7 @@ var Extractable = map[string]bool{
 	"strings":        true,
 	"package":        true,
 	"bones":          true,
+	"xaml":           true,
 }
 
 var ConfigFields = config.MustFields(Config{})

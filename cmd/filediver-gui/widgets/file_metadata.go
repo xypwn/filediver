@@ -15,6 +15,9 @@ func FileMetadata(meta app.FileMetadata) {
 		drawHash := func(h stingray.Hash) {
 			imutils.CopyableTextf("%v", h)
 		}
+		drawThinHash := func(h stingray.ThinHash) {
+			imutils.CopyableTextf("%v", h)
+		}
 		switch val := val.Interface().(type) {
 		case []stingray.Hash:
 			for i, h := range val {
@@ -26,6 +29,8 @@ func FileMetadata(meta app.FileMetadata) {
 			}
 		case stingray.Hash:
 			drawHash(val)
+		case stingray.ThinHash:
+			drawThinHash(val)
 		case string, int, float64:
 			imutils.Textf("%v", val)
 		default:
