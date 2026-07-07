@@ -9,13 +9,36 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync/atomic"
 
 	"github.com/AllenDang/cimgui-go/imgui"
 	fnt "github.com/xypwn/filediver/cmd/filediver-gui/fonts"
 	"github.com/xypwn/filediver/cmd/filediver-gui/github"
 	"github.com/xypwn/filediver/cmd/filediver-gui/imutils"
 	"github.com/xypwn/filediver/cmd/filediver-gui/tasks"
+)
+
+var extensionDownloadAndInstallTask tasks.TaskFunc = tasks.Pipeline(
+	"outDir->prep.dir",
+	"Preparing##prep##0.1", func(ctx context.Context, params map[string]any, onProgress func(prog float64), onStatus func(string)) (map[string]any, error) {
+		return nil, os.MkdirAll(params["dir"].(string), os.ModePerm)
+	},
+	"temp->dl.dest", "url->dl.url", true, "->dl.progressStatus",
+	"##dl##100", tasks.Tasks.Download,
+	"temp->ex.path", "outDir->ex.dest", "stripFirstDir->ex.stripFirstDir",
+	"Extracting##ex##10", tasks.Tasks.Unarchive,
+	"temp->inst.temp", "versionFile->inst.versionFile", "resolvedVersion->inst.resolvedVersion",
+	"Installing##inst##1", func(ctx context.Context, params map[string]any, onProgress func(prog float64), onStatus func(string)) (map[string]any, error) {
+		temp := params["temp"].(string)
+		versionFile := params["versionFile"].(string)
+		resolvedVersion := params["resolvedVersion"].(string)
+		if err := os.WriteFile(versionFile, []byte(resolvedVersion), 0666); err != nil {
+			return nil, err
+		}
+		if err := os.Remove(temp); err != nil {
+			return nil, err
+		}
+		return nil, nil
+	},
 )
 
 func diskUsage(path string) (int64, error) {
@@ -40,7 +63,7 @@ func diskUsage(path string) (int64, error) {
 }
 
 type Extension struct {
-	cancel        func()
+	ctx           context.Context
 	parentDir     string
 	name          string
 	ghAsset       github.ReleaseAssetInfo
@@ -49,13 +72,13 @@ type Extension struct {
 	ex            *tasks.TaskExecution
 
 	err            error
-	checked        atomic.Bool
+	checked        bool
 	presentVersion string // "" if not downloaded
 }
 
-func NewExtension(parentDir, name string, ghAsset github.ReleaseAssetInfo, stripFirstDir bool) *Extension {
+func NewExtension(ctx context.Context, parentDir, name string, ghAsset github.ReleaseAssetInfo, stripFirstDir bool) *Extension {
 	return &Extension{
-		cancel:        func() {},
+		ctx:           ctx,
 		parentDir:     parentDir,
 		name:          name,
 		ghAsset:       ghAsset,
@@ -63,8 +86,8 @@ func NewExtension(parentDir, name string, ghAsset github.ReleaseAssetInfo, strip
 	}
 }
 
-func (es *Extension) checkPresentVersion() (string, error) {
-	versionPath := filepath.Join(es.parentDir, es.name+"_version")
+func (ex *Extension) checkPresentVersion() (string, error) {
+	versionPath := filepath.Join(ex.parentDir, ex.name+"_version")
 	if _, err := os.Stat(versionPath); err == nil {
 		verB, err := os.ReadFile(versionPath)
 		if err != nil {
@@ -77,78 +100,58 @@ func (es *Extension) checkPresentVersion() (string, error) {
 	return "", nil
 }
 
-func (es *Extension) goDownload() {
-	if !es.checked.Load() {
-		es.check()
+func (ex *Extension) goDownload() {
+	if !ex.checked {
+		ex.check()
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-	es.cancel = cancel
-	task := tasks.Sequential(
-		"Preparing", 0, func(ctx context.Context, params map[string]any, onProgress func(prog float64), onStatus func(string)) (map[string]any, error) {
-			return nil, os.MkdirAll(es.Dir(), os.ModePerm)
-		},
-		100, tasks.Tasks.Download,
-		tasks.Rename("outPath", "path"),
-		"Extracting", 10, tasks.Tasks.Unarchive,
-		"Installing", 1, func(ctx context.Context, params map[string]any, onProgress func(prog float64), onStatus func(string)) (map[string]any, error) {
-			versionPath := filepath.Join(es.parentDir, es.name+"_version")
-			if err := os.WriteFile(versionPath, []byte(es.ghAsset.ResolvedVersion), 0666); err != nil {
-				return nil, err
-			}
-			if err := os.Remove(params["outPath"].(string)); err != nil {
-				return nil, err
-			}
-			es.checked.Store(false)
-			return nil, nil
-		},
-	)
-	es.ex = task.Go(ctx, map[string]any{
-		"outPath":        filepath.Join(es.Dir(), es.ghAsset.Filename),
-		"url":            es.ghAsset.DownloadUrl,
-		"progressStatus": true,
-		"outDir":         es.Dir(),
-		"stripFirstDir":  es.stripFirstDir,
-	}, nil)
+	ex.ex = extensionDownloadAndInstallTask.Go(ex.ctx, map[string]any{
+		"temp":            filepath.Join(ex.Dir(), ex.ghAsset.Filename),
+		"url":             ex.ghAsset.DownloadUrl,
+		"outDir":          ex.Dir(),
+		"stripFirstDir":   ex.stripFirstDir,
+		"versionFile":     filepath.Join(ex.parentDir, ex.name+"_version"),
+		"resolvedVersion": ex.ghAsset.ResolvedVersion,
+	})
 }
 
 // Checks if the archive is downloaded.
 // If it is, check also sets the diskUsage.
-func (es *Extension) check() {
+func (ex *Extension) check() {
 	defer func() {
-		es.checked.Store(true)
+		ex.checked = true
 	}()
 
-	presentVersion, err := es.checkPresentVersion()
+	presentVersion, err := ex.checkPresentVersion()
 	if err != nil {
-		es.err = fmt.Errorf("checking current version: %w", err)
+		ex.err = fmt.Errorf("checking current version: %w", err)
 		return
 	}
-	es.presentVersion = presentVersion
+	ex.presentVersion = presentVersion
 
-	if es.presentVersion != "" {
-		du, err := diskUsage(es.Dir())
+	if ex.presentVersion != "" {
+		du, err := diskUsage(ex.Dir())
 		if err != nil {
-			es.err = fmt.Errorf("checking disk usage: %w", err)
+			ex.err = fmt.Errorf("checking disk usage: %w", err)
 			return
 		}
-		es.diskUsage = int(du)
+		ex.diskUsage = int(du)
 	}
 }
 
 // Returns the output directory.
-func (es *Extension) Dir() string {
-	return filepath.Join(es.parentDir, es.name)
+func (ex *Extension) Dir() string {
+	return filepath.Join(ex.parentDir, ex.name)
 }
 
 // Returns true if requested version is already downloaded.
-func (es *Extension) HaveRequestedVersion() bool {
-	if !es.checked.Load() {
-		es.check()
+func (ex *Extension) HaveRequestedVersion() bool {
+	if !ex.checked {
+		ex.check()
 	}
-	return es.presentVersion == es.ghAsset.ResolvedVersion
+	return ex.presentVersion == ex.ghAsset.ResolvedVersion
 }
 
-func (es *Extension) Draw(title, description string) {
+func (ex *Extension) DrawAndUpdate(title, description string) {
 	imgui.PushIDStr(title)
 	defer imgui.PopID()
 
@@ -157,42 +160,46 @@ func (es *Extension) Draw(title, description string) {
 
 	const mebi = 1 << 20
 
-	if !es.checked.Load() {
-		es.check()
+	if !ex.checked {
+		ex.check()
 	}
-	ex := es.ex.Snap()
-	if ex.Done {
-		if es.presentVersion == "" {
+	ts := ex.ex.Poll()
+	if ts.Done {
+		if ts.JustFinished {
+			ex.checked = false
+			ex.ex.Cancel()
+		}
+		if ex.presentVersion == "" {
 			imutils.Textcf(imgui.NewVec4(0.8, 0.8, 0.8, 1), "Not downloaded")
 		} else {
 			var prefix string
-			if es.HaveRequestedVersion() {
+			if ex.HaveRequestedVersion() {
 				prefix = "Downloaded"
 			} else {
 				prefix = "Out of date"
 			}
-			imutils.Textcf(imgui.NewVec4(0.8, 0.8, 0.8, 1), "%v (version: %v, size: %3.1f MiB)", prefix, es.presentVersion, float32(es.diskUsage)/mebi)
+			imutils.Textcf(imgui.NewVec4(0.8, 0.8, 0.8, 1), "%v (version: %v, size: %3.1f MiB)", prefix, ex.presentVersion, float32(ex.diskUsage)/mebi)
 		}
-		if !es.HaveRequestedVersion() {
+		if !ex.HaveRequestedVersion() {
 			label := fnt.I.Download + " Download"
-			if es.presentVersion != "" {
-				label = fnt.I.Download + " Update to version " + es.ghAsset.ResolvedVersion
+			if ex.presentVersion != "" {
+				label = fnt.I.Download + " Update to version " + ex.ghAsset.ResolvedVersion
 			}
-			if es.err != nil || (ex.Err != nil && !errors.Is(ex.Err, context.Canceled)) {
-				if es.err != nil {
-					imutils.TextError(es.err)
+			if ex.err != nil || (ts.Err != nil && !errors.Is(ts.Err, context.Canceled)) {
+				if ex.err != nil {
+					imutils.TextError(ex.err)
 				}
-				if ex.Err != nil {
-					imutils.TextError(ex.Err)
+				if ts.Err != nil {
+					imutils.TextError(ts.Err)
 				}
 				label = fnt.I.Download + " Retry"
 			}
 			if imgui.ButtonV(label, imgui.NewVec2(-math.SmallestNonzeroFloat32, 0)) {
-				es.err = nil
-				es.goDownload()
+				ex.err = nil
+				ex.goDownload()
 			}
 		}
-		if es.presentVersion != "" {
+		if ex.presentVersion != "" {
 			if imgui.ButtonV(fnt.I.Delete+" Delete", imgui.NewVec2(-math.SmallestNonzeroFloat32, 0)) {
 				imgui.OpenPopupStr("Confirm delete")
 			}
@@ -201,11 +208,11 @@ func (es *Extension) Draw(title, description string) {
 		if imgui.BeginPopupModalV("Confirm delete", nil, imgui.WindowFlagsAlwaysAutoResize) {
 			imutils.Textf("Delete %v?\nYou can always re-download it.", title)
 			if imgui.ButtonV("Delete", imutils.SVec2(80, 0)) {
-				if err := os.Remove(filepath.Join(es.parentDir, es.name+"_version")); err == nil {
-					_ = os.Remove(filepath.Join(es.parentDir, es.name+".tmp"))
-					_ = os.RemoveAll(es.Dir())
+				if err := os.Remove(filepath.Join(ex.parentDir, ex.name+"_version")); err == nil {
+					_ = os.Remove(filepath.Join(ex.parentDir, ex.name+".tmp"))
+					_ = os.RemoveAll(ex.Dir())
 				}
-				es.checked.Store(false)
+				ex.checked = false
 				imgui.CloseCurrentPopup()
 			}
 			imgui.SameLine()
@@ -215,9 +222,9 @@ func (es *Extension) Draw(title, description string) {
 			imgui.EndPopup()
 		}
 	} else {
-		ex.Draw("##DownloadStatus")
+		DrawTask("##DownloadStatus", ts)
 		if imgui.ButtonV(fnt.I.Cancel+" Cancel", imgui.NewVec2(-math.SmallestNonzeroFloat32, 0)) {
-			es.cancel()
+			ex.ex.Cancel()
 		}
 	}
 }

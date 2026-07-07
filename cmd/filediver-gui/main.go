@@ -73,6 +73,47 @@ const ffmpegFeatures = `- Preview video
 
 const scriptsDistFeatures = `- Export models (units/geometry_groups/prefabs) and materials to .blend (Blender)`
 
+var selfUpdateTask tasks.TaskFunc = tasks.Pipeline(
+	"Preparing##prep##0.1", func(ctx context.Context, params map[string]any, onProgress func(prog float64), onStatus func(string)) (result map[string]any, err error) {
+		executable, err := os.Executable()
+		if err != nil {
+			return nil, err
+		}
+		executable, err = filepath.EvalSymlinks(executable)
+		if err != nil {
+			return nil, err
+		}
+		tempPath := executable + "." + randomHexString(8)
+		return map[string]any{
+			"temp": tempPath,
+			"exe":  executable,
+			"old":  filepath.Join(filepath.Dir(tempPath), "."+filepath.Base(tempPath)+".old"),
+		}, nil
+	},
+	"prep.temp->dl.dest", "url->dl.url", true, "->dl.progressStatus", 0777, "->dl.perms",
+	"##dl##100", tasks.Tasks.Download,
+	"prep.temp->inst.temp", "prep.exe->inst.exe", "prep.old->inst.old", "oldExeInfoPath->inst.oldExeInfoPath",
+	"Installing##inst##1", func(ctx context.Context, params map[string]any, onProgress func(prog float64), onStatus func(string)) (result map[string]any, err error) {
+		tempPath := params["temp"].(string)
+		exePath := params["exe"].(string)
+		oldPath := params["old"].(string)
+		oldExeInfoPath := params["oldExeInfoPath"].(string)
+		if err := os.Rename(exePath, oldPath); err != nil {
+			return nil, err
+		}
+		if err := os.Rename(tempPath, exePath); err != nil {
+			return nil, err
+		}
+		if err := os.WriteFile(oldExeInfoPath, []byte(oldPath), 0666); err != nil {
+			return nil, err
+		}
+		if err := hideFile(oldPath); err != nil {
+			return nil, err
+		}
+		return nil, nil
+	},
+)
+
 type guiApp struct {
 	showErrorPopup func(error)
 
@@ -253,8 +294,8 @@ func (a *guiApp) onInitWindow(state *imgui_wrapper.State) error {
 			}
 		}
 
-		a.ffmpegExtensionWidget = widgets.NewExtension(a.downloadsDir, "ffmpeg", ffmpegInfo, true)
-		a.scriptsDistExtensionWidget = widgets.NewExtension(a.downloadsDir, "filediver-scripts", scriptsDistInfo, true)
+		a.ffmpegExtensionWidget = widgets.NewExtension(a.ctx, a.downloadsDir, "ffmpeg", ffmpegInfo, true)
+		a.scriptsDistExtensionWidget = widgets.NewExtension(a.ctx, a.downloadsDir, "filediver-scripts", scriptsDistInfo, true)
 	}
 
 	// Delete legacy extensions
@@ -266,7 +307,7 @@ func (a *guiApp) onInitWindow(state *imgui_wrapper.State) error {
 	if err := func() error {
 		oldExePtrPath := filepath.Join(a.downloadsDir, "old_executable")
 		if oldExe, err := os.ReadFile(oldExePtrPath); err == nil {
-			if err := os.Remove(string(oldExe)); err != nil {
+			if err := os.Remove(string(oldExe)); err != nil && !errors.Is(err, os.ErrNotExist) {
 				return err
 			}
 			if err := os.Remove(oldExePtrPath); err != nil {
@@ -1210,54 +1251,29 @@ func (a *guiApp) drawCheckForUpdatesPopup(state *imgui_wrapper.State) {
 			} else {
 				imutils.Textcf(imgui.NewVec4(0.8, 0.8, 0, 1), fnt.I.Exclamation+"New version available: %v", a.checkUpdatesNewVersion)
 				imgui.TextLinkOpenURLV(fnt.I.OpenInBrowser+" Download from Browser", a.checkUpdatesDownloadURL)
-				autoUpdateEx := a.autoUpdateEx.Snap()
-				if autoUpdateEx.Done {
-					if autoUpdateEx.Err != nil {
-						imutils.TextError(autoUpdateEx.Err)
+				autoUpdateSt := a.autoUpdateEx.Poll()
+				if autoUpdateSt.Done {
+					if autoUpdateSt.Err != nil && !errors.Is(autoUpdateSt.Err, context.Canceled) {
+						imutils.TextError(autoUpdateSt.Err)
+					}
+					if autoUpdateSt.JustFinished {
+						if autoUpdateSt.Err == nil {
+							a.popupManager.Open["Restart for update to take effect"] = true
+							a.popupManager.Open["Check for updates"] = false
+						}
+						a.autoUpdateEx.Cancel()
 					}
 					if imgui.ButtonV(fnt.I.Download+" Self-Update", imutils.SVec2(250, 0)) {
-						task := tasks.Sequential(
-							99, tasks.Tasks.Download,
-							"Installing", 1, func(ctx context.Context, params map[string]any, onProgress func(prog float64), onStatus func(string)) (result map[string]any, err error) {
-								outPath := params["outPath"].(string)
-								exePath := params["exePath"].(string)
-								oldPath := params["oldPath"].(string)
-								if err := os.Rename(exePath, oldPath); err != nil {
-									return nil, err
-								}
-								if err := os.Rename(outPath, exePath); err != nil {
-									return nil, err
-								}
-								if err := os.WriteFile(filepath.Join(a.downloadsDir, "old_executable"), []byte(oldPath), 0666); err != nil {
-									return nil, err
-								}
-								if err := hideFile(oldPath); err != nil {
-									return nil, err
-								}
-								a.popupManager.Open["Restart for update to take effect"] = true
-								a.popupManager.Open["Check for updates"] = false
-								return nil, nil
-							},
-						)
-						executable, err := os.Executable()
-						if err != nil {
-							a.autoUpdateEx = tasks.NewErroredTaskExecution(err)
-						}
-						executable, err = filepath.EvalSymlinks(executable)
-						if err != nil {
-							a.autoUpdateEx = tasks.NewErroredTaskExecution(err)
-						}
-						tempPath := executable + "." + randomHexString(8)
-						a.autoUpdateEx = task.Go(a.ctx, map[string]any{
-							"outPath":        tempPath,
+						a.autoUpdateEx = selfUpdateTask.Go(a.ctx, map[string]any{
 							"url":            a.checkUpdatesDownloadURL,
-							"progressStatus": true,
-							"exePath":        executable,
-							"oldPath":        filepath.Join(filepath.Dir(tempPath), "."+filepath.Base(tempPath)+".old"),
-						}, nil)
+							"oldExeInfoPath": filepath.Join(a.downloadsDir, "old_executable"),
+						})
 					}
 				} else {
-					autoUpdateEx.Draw(fnt.I.Update + " Updating")
+					widgets.DrawTask(fnt.I.Update+" Updating", autoUpdateSt)
+					if imgui.ButtonV(fnt.I.Cancel+" Cancel", imutils.SVec2(250, 0)) {
+						a.autoUpdateEx.Cancel()
+					}
 				}
 			}
 		} else {
@@ -1322,9 +1338,9 @@ func (a *guiApp) drawExtensionsPopup() {
 	viewport := imgui.MainViewport()
 	imgui.SetNextWindowPosV(viewport.Center(), imgui.CondAlways, imgui.NewVec2(0.5, 0.5))
 	if a.popupManager.Popup("Extensions", func(close func()) {
-		a.ffmpegExtensionWidget.Draw("FFmpeg", ffmpegFeatures)
+		a.ffmpegExtensionWidget.DrawAndUpdate("FFmpeg", ffmpegFeatures)
 		imgui.Separator()
-		a.scriptsDistExtensionWidget.Draw("ScriptsDist", scriptsDistFeatures)
+		a.scriptsDistExtensionWidget.DrawAndUpdate("ScriptsDist", scriptsDistFeatures)
 		imgui.Separator()
 		if imgui.ButtonV(fnt.I.FolderOpen+" Open extensions folder", imgui.NewVec2(imgui.ContentRegionAvail().X, 0)) {
 			_ = os.MkdirAll(a.downloadsDir, os.ModePerm)
