@@ -32,6 +32,7 @@ const (
 	AutoPreviewTexture
 	AutoPreviewStrings
 	AutoPreviewMaterial
+	AutoPreviewXAML
 )
 
 type AutoPreview struct {
@@ -45,6 +46,7 @@ type AutoPreview struct {
 		texture   *ImagePreview
 		strings   *StringsPreview
 		material  *MaterialPreview
+		xaml      *XamlPreview
 	}
 
 	hashes      map[stingray.Hash]string
@@ -75,6 +77,7 @@ func NewAutoPreview(otoCtx *oto.Context, audioSampleRate int, hashes map[stingra
 	pv.previews.texture.Flags = LinearFilteringButton | IgnoreAlphaButton
 	pv.previews.strings = NewStringsPreview()
 	pv.previews.material = NewMaterialPreview()
+	pv.previews.xaml = NewXamlPreview()
 	return pv, nil
 }
 
@@ -84,6 +87,7 @@ func (pv *AutoPreview) Delete() {
 	pv.previews.audio.Delete()
 	pv.previews.video.Delete()
 	pv.previews.texture.Delete()
+	pv.previews.xaml.Delete()
 }
 
 func (pv *AutoPreview) ActiveID() stingray.FileID {
@@ -282,7 +286,17 @@ func (pv *AutoPreview) LoadFile(ctx context.Context, fileID stingray.FileID, max
 
 		err = pv.previews.material.LoadMaterial(data, pv.getResource, pv.hashes, pv.thinhashes)
 		if err != nil {
-			pv.err = fmt.Errorf("loading material state: %w", err)
+			pv.err = fmt.Errorf("loading material: %w", err)
+			return
+		}
+	case stingray.Sum("xaml"):
+		pv.activeType = AutoPreviewXAML
+		if err := loadFiles(stingray.DataMain); err != nil {
+			pv.err = err
+			return
+		}
+		if err := pv.previews.xaml.LoadXaml(data[stingray.DataMain]); err != nil {
+			pv.err = fmt.Errorf("loading xaml: %w", err)
 			return
 		}
 	default:
@@ -324,6 +338,8 @@ func (pv *AutoPreview) Draw(name string) bool {
 		pv.previews.strings.Draw()
 	case AutoPreviewMaterial:
 		pv.previews.material.Draw(name)
+	case AutoPreviewXAML:
+		pv.previews.xaml.Draw(name)
 	default:
 		panic("unhandled case")
 	}

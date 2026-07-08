@@ -67,7 +67,7 @@ func (pv *ImagePreview) addImage(img image.Image) {
 		pv.Images = append(pv.Images, pvImg)
 	}()
 
-	if img == nil {
+	if img == nil || img.Bounds().Dx() == 0 || img.Bounds().Dy() == 0 {
 		return
 	}
 
@@ -101,6 +101,16 @@ func (pv *ImagePreview) addImage(img image.Image) {
 			data[4*i+1] = y
 			data[4*i+2] = y
 			data[4*i+3] = 255
+		}
+	case *image.RGBA:
+		for i := range width * height {
+			a := img.Pix[4*i+3]
+			if a != 0 {
+				data[4*i+0] = uint8(uint32(img.Pix[4*i+0]) * 255 / uint32(a))
+				data[4*i+1] = uint8(uint32(img.Pix[4*i+1]) * 255 / uint32(a))
+				data[4*i+2] = uint8(uint32(img.Pix[4*i+2]) * 255 / uint32(a))
+			} // else keep rgb at 0 (avoid div by 0)
+			data[4*i+3] = a
 		}
 	case *image.NRGBA:
 		copy(data, img.Pix)

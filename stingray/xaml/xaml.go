@@ -23,10 +23,10 @@ type MatrixTransform struct {
 
 type Path struct {
 	XMLName         xml.Name         `xml:"Path"`
-	Fill            string           `xml:",attr"`
-	Stroke          string           `xml:",attr"`
+	Fill            Color            `xml:",attr"`
+	Stroke          Color            `xml:",attr"`
 	StrokeThickness *uint32          `xml:",attr"`
-	Data            string           `xml:",attr"`
+	Data            PathData         `xml:",attr"`
 	Stretch         string           `xml:",attr"`
 	Height          float32          `xml:",attr"`
 	Width           float32          `xml:",attr"`

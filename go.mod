@@ -3,6 +3,7 @@ module github.com/xypwn/filediver
 go 1.25.0
 
 require (
+	git.sr.ht/~sbinet/gg v0.8.0
 	github.com/AllenDang/cimgui-go v1.4.0
 	github.com/adrg/xdg v0.5.3
 	github.com/andygrunwald/vdf v1.1.0
@@ -29,9 +30,9 @@ require (
 	github.com/x448/float16 v0.8.4
 	golang.design/x/clipboard v0.7.1
 	golang.org/x/exp v0.0.0-20260218203240-3dfff04db8fa
-	golang.org/x/image v0.36.0
-	golang.org/x/sys v0.42.0
-	golang.org/x/text v0.34.0
+	golang.org/x/image v0.40.0
+	golang.org/x/sys v0.44.0
+	golang.org/x/text v0.37.0
 )
 
 require (
@@ -47,6 +48,7 @@ require (
 	github.com/dsnet/compress v0.0.2-0.20230904184137-39efe44ab707 // indirect
 	github.com/ebitengine/purego v0.9.1 // indirect
 	github.com/go-audio/riff v1.0.0 // indirect
+	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/josephspurrier/goversioninfo v1.5.0 // indirect
 	github.com/klauspost/pgzip v1.2.6 // indirect
@@ -69,10 +71,10 @@ require (
 	go4.org v0.0.0-20260112195520-a5071408f32f // indirect
 	golang.org/x/exp/shiny v0.0.0-20260218203240-3dfff04db8fa // indirect
 	golang.org/x/mobile v0.0.0-20260217195705-b56b3793a9c4 // indirect
-	golang.org/x/mod v0.34.0 // indirect
+	golang.org/x/mod v0.36.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/term v0.40.0 // indirect
-	golang.org/x/tools v0.43.0 // indirect
+	golang.org/x/tools v0.45.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
