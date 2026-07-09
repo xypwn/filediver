@@ -6,157 +6,19 @@ import (
 	"image/color"
 	"slices"
 	"strconv"
+	"strings"
+
+	"golang.org/x/image/colornames"
 )
 
-// See https://learn.microsoft.com/en-us/uwp/api/windows.ui.colors?view=winrt-28000.
-var predefinedColors = map[string]Color{
-	"AliceBlue":            {A: 0xff, R: 0xf0, G: 0xf8, B: 0xff},
-	"AntiqueWhite":         {A: 0xff, R: 0xfa, G: 0xeb, B: 0xd7},
-	"Aqua":                 {A: 0xff, R: 0x00, G: 0xff, B: 0xff},
-	"Aquamarine":           {A: 0xff, R: 0x7f, G: 0xff, B: 0xd4},
-	"Azure":                {A: 0xff, R: 0xf0, G: 0xff, B: 0xff},
-	"Beige":                {A: 0xff, R: 0xf5, G: 0xf5, B: 0xdc},
-	"Bisque":               {A: 0xff, R: 0xff, G: 0xe4, B: 0xc4},
-	"Black":                {A: 0xff, R: 0x00, G: 0x00, B: 0x00},
-	"BlanchedAlmond":       {A: 0xff, R: 0xff, G: 0xeb, B: 0xcd},
-	"Blue":                 {A: 0xff, R: 0x00, G: 0x00, B: 0xff},
-	"BlueViolet":           {A: 0xff, R: 0x8a, G: 0x2b, B: 0xe2},
-	"Brown":                {A: 0xff, R: 0xa5, G: 0x2a, B: 0x2a},
-	"BurlyWood":            {A: 0xff, R: 0xde, G: 0xb8, B: 0x87},
-	"CadetBlue":            {A: 0xff, R: 0x5f, G: 0x9e, B: 0xa0},
-	"Chartreuse":           {A: 0xff, R: 0x7f, G: 0xff, B: 0x00},
-	"Chocolate":            {A: 0xff, R: 0xd2, G: 0x69, B: 0x1e},
-	"Coral":                {A: 0xff, R: 0xff, G: 0x7f, B: 0x50},
-	"CornflowerBlue":       {A: 0xff, R: 0x64, G: 0x95, B: 0xed},
-	"Cornsilk":             {A: 0xff, R: 0xff, G: 0xf8, B: 0xdc},
-	"Crimson":              {A: 0xff, R: 0xdc, G: 0x14, B: 0x3c},
-	"Cyan":                 {A: 0xff, R: 0x00, G: 0xff, B: 0xff},
-	"DarkBlue":             {A: 0xff, R: 0x00, G: 0x00, B: 0x8b},
-	"DarkCyan":             {A: 0xff, R: 0x00, G: 0x8b, B: 0x8b},
-	"DarkGoldenrod":        {A: 0xff, R: 0xb8, G: 0x86, B: 0x0b},
-	"DarkGray":             {A: 0xff, R: 0xa9, G: 0xa9, B: 0xa9},
-	"DarkGreen":            {A: 0xff, R: 0x00, G: 0x64, B: 0x00},
-	"DarkKhaki":            {A: 0xff, R: 0xbd, G: 0xb7, B: 0x6b},
-	"DarkMagenta":          {A: 0xff, R: 0x8b, G: 0x00, B: 0x8b},
-	"DarkOliveGreen":       {A: 0xff, R: 0x55, G: 0x6b, B: 0x2f},
-	"DarkOrange":           {A: 0xff, R: 0xff, G: 0x8c, B: 0x00},
-	"DarkOrchid":           {A: 0xff, R: 0x99, G: 0x32, B: 0xcc},
-	"DarkRed":              {A: 0xff, R: 0x8b, G: 0x00, B: 0x00},
-	"DarkSalmon":           {A: 0xff, R: 0xe9, G: 0x96, B: 0x7a},
-	"DarkSeaGreen":         {A: 0xff, R: 0x8f, G: 0xbc, B: 0x8f},
-	"DarkSlateBlue":        {A: 0xff, R: 0x48, G: 0x3d, B: 0x8b},
-	"DarkSlateGray":        {A: 0xff, R: 0x2f, G: 0x4f, B: 0x4f},
-	"DarkTurquoise":        {A: 0xff, R: 0x00, G: 0xce, B: 0xd1},
-	"DarkViolet":           {A: 0xff, R: 0x94, G: 0x00, B: 0xd3},
-	"DeepPink":             {A: 0xff, R: 0xff, G: 0x14, B: 0x93},
-	"DeepSkyBlue":          {A: 0xff, R: 0x00, G: 0xbf, B: 0xff},
-	"DimGray":              {A: 0xff, R: 0x69, G: 0x69, B: 0x69},
-	"DodgerBlue":           {A: 0xff, R: 0x1e, G: 0x90, B: 0xff},
-	"Firebrick":            {A: 0xff, R: 0xb2, G: 0x22, B: 0x22},
-	"FloralWhite":          {A: 0xff, R: 0xff, G: 0xfa, B: 0xf0},
-	"ForestGreen":          {A: 0xff, R: 0x22, G: 0x8b, B: 0x22},
-	"Fuchsia":              {A: 0xff, R: 0xff, G: 0x00, B: 0xff},
-	"Gainsboro":            {A: 0xff, R: 0xdc, G: 0xdc, B: 0xdc},
-	"GhostWhite":           {A: 0xff, R: 0xf8, G: 0xf8, B: 0xff},
-	"Gold":                 {A: 0xff, R: 0xff, G: 0xd7, B: 0x00},
-	"Goldenrod":            {A: 0xff, R: 0xda, G: 0xa5, B: 0x20},
-	"Gray":                 {A: 0xff, R: 0x80, G: 0x80, B: 0x80},
-	"Green":                {A: 0xff, R: 0x00, G: 0x80, B: 0x00},
-	"GreenYellow":          {A: 0xff, R: 0xad, G: 0xff, B: 0x2f},
-	"Honeydew":             {A: 0xff, R: 0xf0, G: 0xff, B: 0xf0},
-	"HotPink":              {A: 0xff, R: 0xff, G: 0x69, B: 0xb4},
-	"IndianRed":            {A: 0xff, R: 0xcd, G: 0x5c, B: 0x5c},
-	"Indigo":               {A: 0xff, R: 0x4b, G: 0x00, B: 0x82},
-	"Ivory":                {A: 0xff, R: 0xff, G: 0xff, B: 0xf0},
-	"Khaki":                {A: 0xff, R: 0xf0, G: 0xe6, B: 0x8c},
-	"Lavender":             {A: 0xff, R: 0xe6, G: 0xe6, B: 0xfa},
-	"LavenderBlush":        {A: 0xff, R: 0xff, G: 0xf0, B: 0xf5},
-	"LawnGreen":            {A: 0xff, R: 0x7c, G: 0xfc, B: 0x00},
-	"LemonChiffon":         {A: 0xff, R: 0xff, G: 0xfa, B: 0xcd},
-	"LightBlue":            {A: 0xff, R: 0xad, G: 0xd8, B: 0xe6},
-	"LightCoral":           {A: 0xff, R: 0xf0, G: 0x80, B: 0x80},
-	"LightCyan":            {A: 0xff, R: 0xe0, G: 0xff, B: 0xff},
-	"LightGoldenrodYellow": {A: 0xff, R: 0xfa, G: 0xfa, B: 0xd2},
-	"LightGray":            {A: 0xff, R: 0xd3, G: 0xd3, B: 0xd3},
-	"LightGreen":           {A: 0xff, R: 0x90, G: 0xee, B: 0x90},
-	"LightPink":            {A: 0xff, R: 0xff, G: 0xb6, B: 0xc1},
-	"LightSalmon":          {A: 0xff, R: 0xff, G: 0xa0, B: 0x7a},
-	"LightSeaGreen":        {A: 0xff, R: 0x20, G: 0xb2, B: 0xaa},
-	"LightSkyBlue":         {A: 0xff, R: 0x87, G: 0xce, B: 0xfa},
-	"LightSlateGray":       {A: 0xff, R: 0x77, G: 0x88, B: 0x99},
-	"LightSteelBlue":       {A: 0xff, R: 0xb0, G: 0xc4, B: 0xde},
-	"LightYellow":          {A: 0xff, R: 0xff, G: 0xff, B: 0xe0},
-	"Lime":                 {A: 0xff, R: 0x00, G: 0xff, B: 0x00},
-	"LimeGreen":            {A: 0xff, R: 0x32, G: 0xcd, B: 0x32},
-	"Linen":                {A: 0xff, R: 0xfa, G: 0xf0, B: 0xe6},
-	"Magenta":              {A: 0xff, R: 0xff, G: 0x00, B: 0xff},
-	"Maroon":               {A: 0xff, R: 0x80, G: 0x00, B: 0x00},
-	"MediumAquamarine":     {A: 0xff, R: 0x66, G: 0xcd, B: 0xaa},
-	"MediumBlue":           {A: 0xff, R: 0x00, G: 0x00, B: 0xcd},
-	"MediumOrchid":         {A: 0xff, R: 0xba, G: 0x55, B: 0xd3},
-	"MediumPurple":         {A: 0xff, R: 0x93, G: 0x70, B: 0xdb},
-	"MediumSeaGreen":       {A: 0xff, R: 0x3c, G: 0xb3, B: 0x71},
-	"MediumSlateBlue":      {A: 0xff, R: 0x7b, G: 0x68, B: 0xee},
-	"MediumSpringGreen":    {A: 0xff, R: 0x00, G: 0xfa, B: 0x9a},
-	"MediumTurquoise":      {A: 0xff, R: 0x48, G: 0xd1, B: 0xcc},
-	"MediumVioletRed":      {A: 0xff, R: 0xc7, G: 0x15, B: 0x85},
-	"MidnightBlue":         {A: 0xff, R: 0x19, G: 0x19, B: 0x70},
-	"MintCream":            {A: 0xff, R: 0xf5, G: 0xff, B: 0xfa},
-	"MistyRose":            {A: 0xff, R: 0xff, G: 0xe4, B: 0xe1},
-	"Moccasin":             {A: 0xff, R: 0xff, G: 0xe4, B: 0xb5},
-	"NavajoWhite":          {A: 0xff, R: 0xff, G: 0xde, B: 0xad},
-	"Navy":                 {A: 0xff, R: 0x00, G: 0x00, B: 0x80},
-	"OldLace":              {A: 0xff, R: 0xfd, G: 0xf5, B: 0xe6},
-	"Olive":                {A: 0xff, R: 0x80, G: 0x80, B: 0x00},
-	"OliveDrab":            {A: 0xff, R: 0x6b, G: 0x8e, B: 0x23},
-	"Orange":               {A: 0xff, R: 0xff, G: 0xa5, B: 0x00},
-	"OrangeRed":            {A: 0xff, R: 0xff, G: 0x45, B: 0x00},
-	"Orchid":               {A: 0xff, R: 0xda, G: 0x70, B: 0xd6},
-	"PaleGoldenrod":        {A: 0xff, R: 0xee, G: 0xe8, B: 0xaa},
-	"PaleGreen":            {A: 0xff, R: 0x98, G: 0xfb, B: 0x98},
-	"PaleTurquoise":        {A: 0xff, R: 0xaf, G: 0xee, B: 0xee},
-	"PaleVioletRed":        {A: 0xff, R: 0xdb, G: 0x70, B: 0x93},
-	"PapayaWhip":           {A: 0xff, R: 0xff, G: 0xef, B: 0xd5},
-	"PeachPuff":            {A: 0xff, R: 0xff, G: 0xda, B: 0xb9},
-	"Peru":                 {A: 0xff, R: 0xcd, G: 0x85, B: 0x3f},
-	"Pink":                 {A: 0xff, R: 0xff, G: 0xc0, B: 0xcb},
-	"Plum":                 {A: 0xff, R: 0xdd, G: 0xa0, B: 0xdd},
-	"PowderBlue":           {A: 0xff, R: 0xb0, G: 0xe0, B: 0xe6},
-	"Purple":               {A: 0xff, R: 0x80, G: 0x00, B: 0x80},
-	"Red":                  {A: 0xff, R: 0xff, G: 0x00, B: 0x00},
-	"RosyBrown":            {A: 0xff, R: 0xbc, G: 0x8f, B: 0x8f},
-	"RoyalBlue":            {A: 0xff, R: 0x41, G: 0x69, B: 0xe1},
-	"SaddleBrown":          {A: 0xff, R: 0x8b, G: 0x45, B: 0x13},
-	"Salmon":               {A: 0xff, R: 0xfa, G: 0x80, B: 0x72},
-	"SandyBrown":           {A: 0xff, R: 0xf4, G: 0xa4, B: 0x60},
-	"SeaGreen":             {A: 0xff, R: 0x2e, G: 0x8b, B: 0x57},
-	"SeaShell":             {A: 0xff, R: 0xff, G: 0xf5, B: 0xee},
-	"Sienna":               {A: 0xff, R: 0xa0, G: 0x52, B: 0x2d},
-	"Silver":               {A: 0xff, R: 0xc0, G: 0xc0, B: 0xc0},
-	"SkyBlue":              {A: 0xff, R: 0x87, G: 0xce, B: 0xeb},
-	"SlateBlue":            {A: 0xff, R: 0x6a, G: 0x5a, B: 0xcd},
-	"SlateGray":            {A: 0xff, R: 0x70, G: 0x80, B: 0x90},
-	"Snow":                 {A: 0xff, R: 0xff, G: 0xfa, B: 0xfa},
-	"SpringGreen":          {A: 0xff, R: 0x00, G: 0xff, B: 0x7f},
-	"SteelBlue":            {A: 0xff, R: 0x46, G: 0x82, B: 0xb4},
-	"Tan":                  {A: 0xff, R: 0xd2, G: 0xb4, B: 0x8c},
-	"Teal":                 {A: 0xff, R: 0x00, G: 0x80, B: 0x80},
-	"Thistle":              {A: 0xff, R: 0xd8, G: 0xbf, B: 0xd8},
-	"Tomato":               {A: 0xff, R: 0xff, G: 0x63, B: 0x47},
-	"Transparent":          {A: 0x00, R: 0xff, G: 0xff, B: 0xff},
-	"Turquoise":            {A: 0xff, R: 0x40, G: 0xe0, B: 0xd0},
-	"Violet":               {A: 0xff, R: 0xee, G: 0x82, B: 0xee},
-	"Wheat":                {A: 0xff, R: 0xf5, G: 0xde, B: 0xb3},
-	"White":                {A: 0xff, R: 0xff, G: 0xff, B: 0xff},
-	"WhiteSmoke":           {A: 0xff, R: 0xf5, G: 0xf5, B: 0xf5},
-	"Yellow":               {A: 0xff, R: 0xff, G: 0xff, B: 0x00},
-	"YellowGreen":          {A: 0xff, R: 0x9a, G: 0xcd, B: 0x32},
+type Color struct {
+	HaveColor           bool
+	Color               color.RGBA
+	MarkupExtensionData []byte
 }
 
-type Color color.NRGBA
-
-func (c Color) RGBA() (uint32, uint32, uint32, uint32) {
-	return color.NRGBA(c).RGBA()
+func (c Color) RGBA() (r, g, b, a uint32) {
+	return c.Color.RGBA()
 }
 
 func (c *Color) UnmarshalText(text []byte) (err error) {
@@ -165,7 +27,9 @@ func (c *Color) UnmarshalText(text []byte) (err error) {
 			err = fmt.Errorf("parse color %q: %w", text, err)
 		}
 	}()
+	*c = Color{}
 	var haveAlpha bool
+	var setColorFromCh bool
 	var ch [4]uint8
 	if b, ok := bytes.CutPrefix(text, []byte("sc#")); ok {
 		valStrs := bytes.SplitN(b, []byte(","), 4)
@@ -180,6 +44,7 @@ func (c *Color) UnmarshalText(text []byte) (err error) {
 			}
 			ch[i] = uint8(min(max(f*255, 0), 255))
 		}
+		setColorFromCh = true
 	} else if b, ok := bytes.CutPrefix(text, []byte("#")); ok {
 		if !slices.Contains([]int{3, 4, 6, 8}, len(b)) {
 			return fmt.Errorf("expected RGB color to have format #rgb, #argb, #rrggbb or #aarrggbb")
@@ -199,28 +64,33 @@ func (c *Color) UnmarshalText(text []byte) (err error) {
 			}
 			ch[i] = uint8(v)
 		}
-	} else if col, ok := predefinedColors[string(text)]; ok {
-		*c = col
-		return nil
+		setColorFromCh = true
+	} else if col, ok := colornames.Map[strings.ToLower(string(text))]; ok {
+		c.Color = col
+		c.HaveColor = true
+	} else if bytes.HasPrefix(text, []byte("{")) && bytes.HasSuffix(text, []byte("}")) {
+		c.MarkupExtensionData = bytes.Clone(text)
+		c.Color = colornames.Gray // use gray as placeholder color for now
 	} else {
-		*c = predefinedColors["White"]
-		return nil // TODO: Parse the fucking binding declarations somehow, which I initially missed https://learn.microsoft.com/en-us/dotnet/desktop/wpf/data/binding-declarations-overview
-		//return fmt.Errorf("expected color to start with \"sc#\" or \"#\", or be a predefined color")
+		return fmt.Errorf("expected color to start with \"sc#\" or \"#\", be a predefined color or markup extension")
 	}
-	if haveAlpha {
-		*c = Color{A: ch[0], R: ch[1], G: ch[2], B: ch[3]}
-	} else {
-		*c = Color{A: 255, R: ch[0], G: ch[1], B: ch[2]}
+	if setColorFromCh {
+		if haveAlpha {
+			c.Color = color.RGBA{A: ch[0], R: ch[1], G: ch[2], B: ch[3]}
+		} else {
+			c.Color = color.RGBA{A: 255, R: ch[0], G: ch[1], B: ch[2]}
+		}
+		c.HaveColor = true
 	}
 	return nil
 }
 
 // XAML and SVG-compatible color string.
 func (c Color) String() string {
-	if c.A == 255 {
-		return fmt.Sprintf("#%02d%02d%02d", c.R, c.G, c.B)
+	if c.Color.A == 255 {
+		return fmt.Sprintf("#%02x%02x%02x", c.Color.R, c.Color.G, c.Color.B)
 	} else {
-		return fmt.Sprintf("#%02d%02d%02d%02d", c.A, c.R, c.G, c.B)
+		return fmt.Sprintf("#%02x%02x%02x%02x", c.Color.A, c.Color.R, c.Color.G, c.Color.B)
 	}
 }
 

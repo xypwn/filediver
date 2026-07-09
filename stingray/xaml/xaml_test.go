@@ -1,6 +1,7 @@
 package xaml_test
 
 import (
+	"image/color"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -31,20 +32,20 @@ func TestParseColor(t *testing.T) {
 
 	testCases := []struct {
 		S string
-		C xaml.Color
+		C color.RGBA
 	}{
-		{"#000", xaml.Color{0, 0, 0, 0xff}},
-		{"#111", xaml.Color{0x11, 0x11, 0x11, 0xff}},
-		{"#123", xaml.Color{0x11, 0x22, 0x33, 0xff}},
-		{"#a123", xaml.Color{0x11, 0x22, 0x33, 0xaa}},
-		{"#ab123456", xaml.Color{0x12, 0x34, 0x56, 0xab}},
-		{"DarkCyan", xaml.Color{0x00, 0x8b, 0x8b, 0xff}},
+		{"#000", color.RGBA{0, 0, 0, 0xff}},
+		{"#111", color.RGBA{0x11, 0x11, 0x11, 0xff}},
+		{"#123", color.RGBA{0x11, 0x22, 0x33, 0xff}},
+		{"#a123", color.RGBA{0x11, 0x22, 0x33, 0xaa}},
+		{"#ab123456", color.RGBA{0x12, 0x34, 0x56, 0xab}},
+		{"DarkCyan", color.RGBA{0x00, 0x8b, 0x8b, 0xff}},
 	}
 
 	for _, tc := range testCases {
 		var c xaml.Color
 		err := c.UnmarshalText([]byte(tc.S))
 		require.NoError(err)
-		require.Equal(tc.C, c)
+		require.Equal(tc.C, c.Color)
 	}
 }

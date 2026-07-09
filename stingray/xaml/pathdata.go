@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"math"
-	"slices"
 	"strconv"
 	"strings"
 )
@@ -64,7 +63,7 @@ func (c PathCmdChar) ToByte(relative bool) byte {
 type PathCmd struct {
 	Cmd      PathCmdChar // uppercase version of command char
 	Relative bool        // whether position is relative, i.e. command char is uppercase
-	Params   []float64   // has exactly as many elements as the cmd requires
+	Params   [7]float64
 }
 
 type PathData struct {
@@ -74,21 +73,19 @@ type PathData struct {
 
 // Returns a simplified copy of the path data for
 // easier rendering or conversion.
-//
-// Converts all relative positions to absolute and
-// converts all commands into the following subset:
-// M,L,C,Q,A (removes H,V,S,T,Z).
+//   - Converts all relative positions to absolute.
+//   - Converts all commands into the following subset: M,L,C,Q,A (removes H,V,S,T,Z).
 func (pd PathData) Simplify() PathData {
 	// Reflects x, y over px, py.
 	reflect := func(x, y, px, py float64) (rx, ry float64) {
 		return px - (x - px), py - (y - py)
 	}
 	// Converts all position params to absolute coords.
-	paramsToAbsolute := func(cmd PathCmd, x, y float64) (r []float64) {
+	paramsToAbsolute := func(cmd PathCmd, x, y float64) (r [7]float64) {
 		if !cmd.Relative {
 			return cmd.Params
 		}
-		r = slices.Clone(cmd.Params)
+		r = cmd.Params
 		firstPointXIdx := 0
 		if cmd.Cmd == PathEllipticalArc {
 			firstPointXIdx = 5
@@ -105,7 +102,10 @@ func (pd PathData) Simplify() PathData {
 		return
 	}
 
-	resPd := PathData{FillRule: pd.FillRule}
+	resPd := PathData{
+		FillRule: pd.FillRule,
+		Cmds:     make([]PathCmd, 0, len(pd.Cmds)),
+	}
 	haveFirstPoint := false
 	var firstX, firstY float64 // first point or first point after "Z" command
 	var x, y float64
@@ -124,13 +124,13 @@ func (pd PathData) Simplify() PathData {
 		case PathHLine:
 			resCmd = PathCmd{
 				Cmd:    PathLine,
-				Params: []float64{p[0], y},
+				Params: [7]float64{p[0], y},
 			}
 			x = p[0]
 		case PathVLine:
 			resCmd = PathCmd{
 				Cmd:    PathLine,
-				Params: []float64{x, p[0]},
+				Params: [7]float64{x, p[0]},
 			}
 			y = p[0]
 		case PathCubicBezier:
@@ -143,7 +143,7 @@ func (pd PathData) Simplify() PathData {
 			cx, cy := reflect(ctrlPtX, ctrlPtY, x, y)
 			resCmd = PathCmd{
 				Cmd:    PathCubicBezier,
-				Params: []float64{cx, cy, p[0], p[1], p[2], p[3]},
+				Params: [7]float64{cx, cy, p[0], p[1], p[2], p[3]},
 			}
 			x, y = p[2], p[3]
 			ctrlPtX, ctrlPtY = p[0], p[1]
@@ -151,7 +151,7 @@ func (pd PathData) Simplify() PathData {
 			cx, cy := reflect(ctrlPtX, ctrlPtY, x, y)
 			resCmd = PathCmd{
 				Cmd:    PathQuadraticBezier,
-				Params: []float64{cx, cy, p[0], p[1]},
+				Params: [7]float64{cx, cy, p[0], p[1]},
 			}
 			x, y = p[0], p[1]
 			ctrlPtX, ctrlPtY = p[0], p[1]
@@ -160,7 +160,7 @@ func (pd PathData) Simplify() PathData {
 		case PathClose:
 			resCmd = PathCmd{
 				Cmd:    PathLine,
-				Params: []float64{firstX, firstY},
+				Params: [7]float64{firstX, firstY},
 			}
 			x, y = firstX, firstY
 			haveFirstPoint = false
@@ -257,7 +257,9 @@ func (pd *PathData) UnmarshalText(text []byte) error {
 		}
 		if wantParams > 0 {
 			for p := 0; p < len(params); p += wantParams {
-				pd.Cmds = append(pd.Cmds, PathCmd{cmd, isRel, params[p : p+wantParams]})
+				var cmdParams [7]float64
+				copy(cmdParams[:], params[p:p+wantParams])
+				pd.Cmds = append(pd.Cmds, PathCmd{cmd, isRel, cmdParams})
 				if cmd == PathMove {
 					// "M x0 y0 x1 y1 x2 y2" should draw a line from
 					// the first point to the second point etc, i.e.
@@ -267,7 +269,7 @@ func (pd *PathData) UnmarshalText(text []byte) error {
 				}
 			}
 		} else {
-			pd.Cmds = append(pd.Cmds, PathCmd{cmd, isRel, nil})
+			pd.Cmds = append(pd.Cmds, PathCmd{cmd, isRel, [7]float64{}})
 		}
 	}
 	return nil
@@ -287,10 +289,12 @@ func (pd PathData) ToString(svgMode bool) string {
 		if cmdByte != lastCmdByte {
 			b.WriteByte(cmdByte)
 		}
-		for j, param := range cmd.Params {
+
+		for j := range pathCmdNumParams[cmd.Cmd] {
 			if j != 0 {
 				b.WriteString(",")
 			}
+			param := cmd.Params[j]
 			switch {
 			case math.IsInf(param, -1):
 				if svgMode {

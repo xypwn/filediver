@@ -364,6 +364,7 @@ func (a *guiApp) onInitWindow(state *imgui_wrapper.State) error {
 
 	// Load game files
 	a.gameDataLoad.GoLoadGameData(a.ctx, a.extractorConfig.Gamedir)
+	//a.gameData = &GameData{App: &app.App{DataDir: &stingray.DataDir{}}}
 
 	return nil
 }

@@ -6,13 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"regexp"
 	"strings"
 )
 
 var ErrNoResources = errors.New("xaml file does not contain a ResourceDictionary")
-
-var re *regexp.Regexp = regexp.MustCompile(`^M[\d\.,]*(\D)`)
 
 func (xaml *XAML) ToSVGs() (svgs map[string][]byte, err error) {
 	svgs = make(map[string][]byte)
@@ -50,6 +47,10 @@ func (xaml *XAML) ToSVGs() (svgs map[string][]byte, err error) {
 				*canvas.Width = float32(math.Max(float64(path.Width+path.Left), float64(*canvas.Width)))
 				*canvas.Height = float32(math.Max(float64(path.Height+path.Top), float64(*canvas.Height)))
 			}
+			if width == 0 || height == 0 {
+				// TODO: Properly figure out dims
+				width, height = 512, 512
+			}
 		}
 
 		fmt.Fprintf(&b, "<svg viewBox=\"0 0 %v %v\" xmlns=\"http://www.w3.org/2000/svg\">\n", *(canvas.Width), *(canvas.Height))
@@ -60,17 +61,25 @@ func (xaml *XAML) ToSVGs() (svgs map[string][]byte, err error) {
 				fillRule = "nonzero"
 			}
 			fmt.Fprintf(&b, "  <path d=\"%s\"\n", path.Data.ToString(true))
-			fmt.Fprintf(&b, "    fill=\"%s\"\n", path.Fill)
+			if path.FillAttr != nil {
+				fmt.Fprintf(&b, "    fill=\"%s\"\n", *path.FillAttr)
+			}
+			if path.FillElem != nil && path.FillElem.SolidColorBrush != nil {
+				fmt.Fprintf(&b, "    fill=\"%s\"\n", path.FillElem.SolidColorBrush.Color)
+			}
 			if fillRule != "nonzero" {
 				fmt.Fprintf(&b, "    fill-rule=\"%v\"\n", fillRule)
 			}
-			fmt.Fprintf(&b, "    stroke=\"%v\"\n", path.Stroke)
+			if path.Stroke != nil {
+				fmt.Fprintf(&b, "    stroke=\"%v\"\n", *path.Stroke)
+			}
 			if path.StrokeThickness != nil {
 				fmt.Fprintf(&b, "    stroke-width=\"%v\"\n", *path.StrokeThickness)
 			}
 			if path.MatrixTransform != nil {
-				matrix := fmt.Sprintf("%v,%v,%v", strings.TrimSuffix(path.MatrixTransform.Matrix, ",0,0"), path.Left, path.Top)
-				fmt.Fprintf(&b, "    transform=\"matrix(%v)\"\n", strings.ReplaceAll(matrix, ",", " "))
+				m := path.MatrixTransform.Matrix
+				m[4], m[5] = float64(path.Left), float64(path.Top)
+				fmt.Fprintf(&b, "    transform=\"matrix(%s)\"\n", strings.ReplaceAll(m.String(), ",", " "))
 			}
 			fmt.Fprint(&b, "  />\n")
 		}

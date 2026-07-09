@@ -3,7 +3,6 @@ module github.com/xypwn/filediver
 go 1.25.0
 
 require (
-	git.sr.ht/~sbinet/gg v0.8.0
 	github.com/AllenDang/cimgui-go v1.4.0
 	github.com/adrg/xdg v0.5.3
 	github.com/andygrunwald/vdf v1.1.0
@@ -26,6 +25,7 @@ require (
 	github.com/pierrec/lz4/v4 v4.1.25
 	github.com/qmuntal/gltf v0.24.3
 	github.com/skratchdot/open-golang v0.0.0-20200116055534-eef842397966
+	github.com/srwiley/rasterx v0.0.0-20220730225603-2ab79fcdd4ef
 	github.com/stretchr/testify v1.11.1
 	github.com/x448/float16 v0.8.4
 	golang.design/x/clipboard v0.7.1
@@ -48,7 +48,6 @@ require (
 	github.com/dsnet/compress v0.0.2-0.20230904184137-39efe44ab707 // indirect
 	github.com/ebitengine/purego v0.9.1 // indirect
 	github.com/go-audio/riff v1.0.0 // indirect
-	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/josephspurrier/goversioninfo v1.5.0 // indirect
 	github.com/klauspost/pgzip v1.2.6 // indirect
