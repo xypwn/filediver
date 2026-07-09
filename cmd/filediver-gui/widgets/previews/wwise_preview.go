@@ -41,7 +41,7 @@ type loadableWwiseStream struct {
 	*wwiseStream
 }
 
-type WwisePreviewState struct {
+type WwisePreview struct {
 	Title string
 
 	sampleRate int
@@ -56,8 +56,8 @@ type WwisePreviewState struct {
 	streamWg sync.WaitGroup
 }
 
-func NewWwisePreview(otoCtx *oto.Context, sampleRate int) *WwisePreviewState {
-	return &WwisePreviewState{
+func NewWwisePreview(otoCtx *oto.Context, sampleRate int) *WwisePreview {
+	return &WwisePreview{
 		otoCtx:           otoCtx,
 		sampleRate:       sampleRate,
 		currentStreamIdx: -1,
@@ -65,13 +65,13 @@ func NewWwisePreview(otoCtx *oto.Context, sampleRate int) *WwisePreviewState {
 	}
 }
 
-func (pv *WwisePreviewState) Delete() {
+func (pv *WwisePreview) Delete() {
 	if pv.otoPlayer != nil {
 		pv.otoPlayer.Close()
 	}
 }
 
-func (pv *WwisePreviewState) ClearStreams() {
+func (pv *WwisePreview) ClearStreams() {
 	if pv.otoPlayer != nil {
 		pv.otoPlayer.Close()
 	}
@@ -86,7 +86,7 @@ func (pv *WwisePreviewState) ClearStreams() {
 }
 
 // If streamErr != nil, it will be shown and the wemData will be ignored.
-func (pv *WwisePreviewState) LoadStream(title string, wemData []byte, streamErr error, playWhenDoneLoading bool) {
+func (pv *WwisePreview) LoadStream(title string, wemData []byte, streamErr error, playWhenDoneLoading bool) {
 	loadableStream := &loadableWwiseStream{
 		title: title,
 	}
@@ -229,7 +229,7 @@ func (pv *WwisePreviewState) LoadStream(title string, wemData []byte, streamErr 
 	}()
 }
 
-func (pv *WwisePreviewState) currentStream() *wwiseStream {
+func (pv *WwisePreview) currentStream() *wwiseStream {
 	if pv.currentStreamIdx < 0 ||
 		pv.currentStreamIdx >= len(pv.streams) ||
 		!pv.streams[pv.currentStreamIdx].loaded.Load() {
@@ -238,7 +238,7 @@ func (pv *WwisePreviewState) currentStream() *wwiseStream {
 	return pv.streams[pv.currentStreamIdx].wwiseStream
 }
 
-func (pv *WwisePreviewState) playStreamIndex(idx int) {
+func (pv *WwisePreview) playStreamIndex(idx int) {
 	if pv.currentStreamIdx == idx {
 		pv.otoPlayer.Play()
 		pv.currentStream().paused = false
@@ -259,7 +259,7 @@ func (pv *WwisePreviewState) playStreamIndex(idx int) {
 	pv.otoPlayer.Play()
 }
 
-func (pv *WwisePreviewState) pause() {
+func (pv *WwisePreview) pause() {
 	if pv.otoPlayer != nil {
 		pv.otoPlayer.Pause()
 	}
@@ -268,13 +268,13 @@ func (pv *WwisePreviewState) pause() {
 	}
 }
 
-func (pv *WwisePreviewState) updateVolume() {
+func (pv *WwisePreview) updateVolume() {
 	if pv.otoPlayer != nil {
 		pv.otoPlayer.SetVolume(float64(pv.volume / 100))
 	}
 }
 
-func WwisePreview(name string, pv *WwisePreviewState) {
+func (pv *WwisePreview) Draw(name string) {
 	if imgui.BeginChildStr(name) {
 		if pv.Title != "" {
 			imgui.TextUnformatted(pv.Title)

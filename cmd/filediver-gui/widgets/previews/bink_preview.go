@@ -43,7 +43,7 @@ type ffprobeInfo struct {
 	} `json:"format"`
 }
 
-type BinkPreviewState struct {
+type BinkPreview struct {
 	runner *exec.Runner
 
 	// vidWidth/-Height may be less than the source video width/height
@@ -73,8 +73,8 @@ type BinkPreviewState struct {
 	textureRef          imgui.TextureRef // must be kept in sync with textureID
 }
 
-func NewBinkPreview(runner *exec.Runner) *BinkPreviewState {
-	pv := &BinkPreviewState{
+func NewBinkPreview(runner *exec.Runner) *BinkPreview {
+	pv := &BinkPreview{
 		runner:        runner,
 		decoderCancel: func() {},
 	}
@@ -83,12 +83,12 @@ func NewBinkPreview(runner *exec.Runner) *BinkPreviewState {
 	return pv
 }
 
-func (pv *BinkPreviewState) Delete() {
+func (pv *BinkPreview) Delete() {
 	gl.DeleteTextures(1, &pv.textureID)
 	_ = pv.stopVideoStream()
 }
 
-func (pv *BinkPreviewState) Load(bikVideo io.Reader, maxVerticalResolution int) error {
+func (pv *BinkPreview) Load(bikVideo io.Reader, maxVerticalResolution int) error {
 	var err error
 	pv.bikVideo, err = io.ReadAll(bikVideo)
 	if err != nil {
@@ -176,7 +176,7 @@ func (pv *BinkPreviewState) Load(bikVideo io.Reader, maxVerticalResolution int) 
 	return nil
 }
 
-func (pv *BinkPreviewState) stopVideoStream() error {
+func (pv *BinkPreview) stopVideoStream() error {
 	if pv.decoderCmd != nil {
 		select {
 		case <-pv.decoderDone:
@@ -195,7 +195,7 @@ func (pv *BinkPreviewState) stopVideoStream() error {
 	return nil
 }
 
-func (pv *BinkPreviewState) reloadVideoStream(seekFrames int) error {
+func (pv *BinkPreview) reloadVideoStream(seekFrames int) error {
 	if err := pv.stopVideoStream(); err != nil {
 		return err
 	}
@@ -296,7 +296,7 @@ func (pv *BinkPreviewState) reloadVideoStream(seekFrames int) error {
 	return nil
 }
 
-func BinkPreview(pv *BinkPreviewState) {
+func (pv *BinkPreview) Draw() {
 	imgui.PushIDInt(int32(pv.textureID))
 	defer imgui.PopID()
 

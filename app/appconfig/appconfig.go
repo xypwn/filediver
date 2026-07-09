@@ -126,6 +126,8 @@ var Extractable = map[string]bool{
 	"strings":        true,
 	"package":        true,
 	"bones":          true,
+	"ttf":            true,
+	"otf":            true,
 	"xaml":           true,
 }
 
