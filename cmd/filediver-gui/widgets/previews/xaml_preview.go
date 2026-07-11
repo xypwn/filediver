@@ -63,6 +63,28 @@ func sFromFixed(x fixed.Int26_6) float64 {
 func rFromFixed(r fixed.Rectangle26_6) (x0, y0, x1, y1 float64) {
 	return sFromFixed(r.Min.X), sFromFixed(r.Min.Y), sFromFixed(r.Max.X), sFromFixed(r.Max.Y)
 }
+func transformRect(x0, y0, x1, y1 float64, m rasterx.Matrix2D) (nx0, ny0, nx1, ny1 float64) {
+	corners := [4][2]float64{
+		{x0, y0},
+		{x1, y0},
+		{x1, y1},
+		{x0, y1},
+	}
+	first := true
+	for _, c := range corners {
+		tx, ty := m.Transform(c[0], c[1])
+		if first {
+			nx0, ny0, nx1, ny1 = tx, ty, tx, ty
+			first = false
+		} else {
+			nx0 = min(nx0, tx)
+			ny0 = min(ny0, ty)
+			nx1 = max(nx1, tx)
+			ny1 = max(ny1, ty)
+		}
+	}
+	return
+}
 
 /*type imguiScanner struct {
 	pos    imgui.Vec2
@@ -167,6 +189,8 @@ func addSimplePath(cmds []xaml.PathCmd, adder rasterx.Adder) {
 				p[4] == 0, p[3] == 0,
 			)
 			x, y = rasterx.AddArc(p[:], cx, cy, x, y, adder)
+		case xaml.PathClose:
+			adder.Stop(true)
 		default:
 			panic(fmt.Sprintf("unhandled command type %q (expected simplified command, meaning one of M,L,C,Q,A)", cmd.Cmd.ToByte(cmd.Relative)))
 		}
@@ -298,16 +322,11 @@ func (pv *XamlPreview) LoadXaml(src []byte) error {
 
 			mAdder.M = defaultMat
 			if path.MatrixTransform != nil {
-				// TODO: Add proper layouting functionality:
-				//  - Width, Height
-				//  - Stretch="Fill"
-				//	- Canvas.Top/Left
-				// This probably needs some kind of intermediate representation to be feasible for SVG and and preview.
 				tm := path.MatrixTransform.Matrix
 				m := rasterx.Matrix2D{A: tm[0], B: tm[1], C: tm[2], D: tm[3], E: tm[4], F: tm[5]}
-				m = m.Translate(float64(path.Left /*+path.Width/2*/), float64(path.Top /*+path.Height/2*/)) // this is broken here, but seems to work on exported SVGs?
-				m = mAdder.M.Mult(m)
-				mAdder.M = m
+				m.E += float64(path.Left)
+				m.F += float64(path.Top)
+				mAdder.M = mAdder.M.Mult(m)
 			}
 
 			drawFill := false
@@ -322,30 +341,37 @@ func (pv *XamlPreview) LoadXaml(src []byte) error {
 					drawFill = true
 				}
 				if lg := path.FillElem.LinearGradientBrush; lg != nil {
-					x0, y0, x1, y1 := rFromFixed(pathExtents[i])
-					//fmt.Println(x0, y0, x1, y1, lg) // TODO: Not working
-					g := rasterx.Gradient{
-						Points: [5]float64{lg.StartPoint[0], lg.StartPoint[1], lg.EndPoint[0], lg.EndPoint[1]},
-						Bounds: struct {
-							X float64
-							Y float64
-							W float64
-							H float64
-						}{x0, y0, x1 - x0, y1 - y0},
-						Matrix:   rasterx.Identity,
-						Spread:   rasterx.PadSpread,
-						Units:    rasterx.ObjectBoundingBox,
-						IsRadial: false,
+					ext := pathExtents[i]
+					if ext.Empty() {
+						// Fall back to default fill if path has no extent
+						fill = color.RGBA{R: 255, G: 255, B: 255, A: 255}
+						drawFill = true
+					} else {
+						x0, y0, x1, y1 := rFromFixed(ext)
+						x0, y0, x1, y1 = transformRect(x0, y0, x1, y1, mAdder.M)
+						g := rasterx.Gradient{
+							Points: [5]float64{lg.StartPoint[0], lg.StartPoint[1], lg.EndPoint[0], lg.EndPoint[1]},
+							Bounds: struct {
+								X float64
+								Y float64
+								W float64
+								H float64
+							}{x0, y0, x1 - x0, y1 - y0},
+							Matrix:   rasterx.Identity,
+							Spread:   rasterx.PadSpread,
+							Units:    rasterx.ObjectBoundingBox,
+							IsRadial: false,
+						}
+						for _, gs := range lg.GradientStop {
+							g.Stops = append(g.Stops, rasterx.GradStop{
+								StopColor: gs.Color.Color,
+								Offset:    gs.Offset,
+								Opacity:   float64(gs.Color.Color.A) / 255.0,
+							})
+						}
+						fill = g.GetColorFunction(1)
+						drawFill = true
 					}
-					for _, gs := range lg.GradientStop {
-						g.Stops = append(g.Stops, rasterx.GradStop{
-							StopColor: gs.Color.Color,
-							Offset:    gs.Offset,
-							Opacity:   1,
-						})
-					}
-					fill = g.GetColorFunction(1)
-					drawFill = true
 				}
 			}
 			drawStroke := false

@@ -74,7 +74,8 @@ type PathData struct {
 // Returns a simplified copy of the path data for
 // easier rendering or conversion.
 //   - Converts all relative positions to absolute.
-//   - Converts all commands into the following subset: M,L,C,Q,A (removes H,V,S,T,Z).
+//   - Converts all commands into the following subset: M,L,C,Q,A,Z (removes H,V,S,T).
+//   - In the Z command, the first point x, y are now the first 2 parameters for convenience.
 func (pd PathData) Simplify() PathData {
 	// Reflects x, y over px, py.
 	reflect := func(x, y, px, py float64) (rx, ry float64) {
@@ -86,12 +87,15 @@ func (pd PathData) Simplify() PathData {
 			return cmd.Params
 		}
 		r = cmd.Params
-		firstPointXIdx := 0
-		if cmd.Cmd == PathEllipticalArc {
-			firstPointXIdx = 5
-		}
+		firstCoordIdx := 0
 		isX := true
-		for i := firstPointXIdx; i < len(cmd.Params); i++ {
+		if cmd.Cmd == PathEllipticalArc {
+			firstCoordIdx = 5 // A/a has its first coord parameter at index 5
+		}
+		if cmd.Cmd == PathVLine {
+			isX = false // V/v takes a Y coordinate
+		}
+		for i := firstCoordIdx; i < int(pathCmdNumParams[cmd.Cmd]); i++ {
 			if isX {
 				r[i] += x
 			} else {
@@ -118,6 +122,7 @@ func (pd PathData) Simplify() PathData {
 			x, y = p[0], p[1]
 			if !haveFirstPoint {
 				firstX, firstY = x, y
+				haveFirstPoint = true
 			}
 		case PathLine:
 			x, y = p[0], p[1]
@@ -158,10 +163,7 @@ func (pd PathData) Simplify() PathData {
 		case PathEllipticalArc:
 			x, y = p[5], p[6]
 		case PathClose:
-			resCmd = PathCmd{
-				Cmd:    PathLine,
-				Params: [7]float64{firstX, firstY},
-			}
+			resCmd.Params = [7]float64{firstX, firstY}
 			x, y = firstX, firstY
 			haveFirstPoint = false
 		}
@@ -199,12 +201,18 @@ func (pd *PathData) UnmarshalText(text []byte) error {
 		} else if parseStr("NaN") {
 			return math.NaN(), nil
 		} else {
-			isDoubleChr := func(c byte) bool {
-				return (c >= '0' && c <= '9') || c == '+' || c == '-' || c == '.' || c == 'e' || c == 'E'
-			}
 			start := i
-			for isDoubleChr(peek()) {
+			expectSign := true
+			for {
+				c := peek()
+				ok := (c >= '0' && c <= '9') ||
+					(expectSign && (c == '+' || c == '-')) ||
+					c == '.' || c == 'e' || c == 'E'
+				if !ok {
+					break
+				}
 				i++
+				expectSign = c == 'e' || c == 'E'
 			}
 			end := i
 			return strconv.ParseFloat(string(text[start:end]), 64)

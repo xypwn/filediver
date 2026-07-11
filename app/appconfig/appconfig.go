@@ -70,7 +70,7 @@ type Config struct {
 	} `cfg:"tags=t:speedtree help='Tree model export format'"`
 	XAML struct {
 		Format string `cfg:"options=svg,xaml,raw"`
-	} `cfg:"tags=t:xaml help='XAML export format (only XAML files with paths may be exported as svg successfully)'"`
+	} `cfg:"tags=t:xaml help='XAML can be opened as XAML in Noesis Studio; only XAML files of type ResourceDictionary which contain vector graphics can be exported as SVG'"`
 	Raw struct {
 		Format string `cfg:"options=separate,combined,main,stream,gpu help='how to handle the different file sub-types (each file may have a main, stream and GPU file)'"`
 	} `cfg:"help='applies to any file without an available extractor or \"raw\" as the selected format'"`

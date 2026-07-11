@@ -60,7 +60,7 @@ var (
 		stingray.Sum("physics"):        "unit physics",
 		stingray.Sum("geometry_group"): "group of 3D models",
 		stingray.Sum("material"):       "shader settings",
-		stingray.Sum("xaml"):           "UI / vector graphics",
+		stingray.Sum("xaml"):           "Noesis GUI [UI / vector graphics]",
 	}
 	gameFileTypeTooltipsExtra = map[stingray.Hash]string{
 		stingray.Sum("wwise_stream"): "All wwise_streams are also contained in a wwise_bank.\nYou probably want to use wwise_bank instead.",

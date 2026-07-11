@@ -10,3 +10,5 @@ filediver-gui.exe
 filediver-cli.exe
 /rsrc_windows_*.syso
 /bundles.dsaa
+/xamls-dumps
+/xamls
