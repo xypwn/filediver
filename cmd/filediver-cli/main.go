@@ -944,39 +944,12 @@ func handleEntityThinHashes(prt app.Printer, a *app.App, id stingray.FileID, opt
 		prt.Errorf("opening %v.entity's main file: %v", err)
 		return 0
 	}
-	info, err := entity.LoadEntity(bytes.NewReader(b))
+	ent, err := entity.LoadEntity(bytes.NewReader(b))
 
 	fileCount := 0
-	for _, event := range info.ComponentThinHashes {
-		if *optThinToFind != "" && stingray.Sum(*optThinToFind).Thin() == event {
-			entityName, exists := a.Hashes[id.Name]
-			if !exists {
-				entityName = id.Name.String()
-			}
-			fmt.Printf("%v.entity\n", entityName)
-			fileCount = 1
-			break
-		} else if val, err := strconv.ParseInt(*optThinToFind, 0, 32); err == nil && val == int64(event.Value) {
-			entityName, exists := a.Hashes[id.Name]
-			if !exists {
-				entityName = id.Name.String()
-			}
-			fmt.Printf("%v.entity\n", entityName)
-			fileCount = 1
-			break
-		} else if *optThinToFind != "" {
-			continue
-		}
-
-		if name, exists := a.ThinHashes[event]; exists {
-			knownHash[name] = true
-		} else {
-			unknownHash[event.String()] = true
-		}
-	}
-	for _, component := range info.Components {
-		for _, category := range component.CategoryNames {
-			if *optThinToFind != "" && stingray.Sum(*optThinToFind).Thin() == category {
+	for _, info := range ent.Infos {
+		for _, event := range info.ComponentThinHashes {
+			if *optThinToFind != "" && stingray.Sum(*optThinToFind).Thin() == event {
 				entityName, exists := a.Hashes[id.Name]
 				if !exists {
 					entityName = id.Name.String()
@@ -984,7 +957,7 @@ func handleEntityThinHashes(prt app.Printer, a *app.App, id stingray.FileID, opt
 				fmt.Printf("%v.entity\n", entityName)
 				fileCount = 1
 				break
-			} else if val, err := strconv.ParseInt(*optThinToFind, 0, 32); err == nil && val == int64(category.Value) {
+			} else if val, err := strconv.ParseInt(*optThinToFind, 0, 32); err == nil && val == int64(event.Value) {
 				entityName, exists := a.Hashes[id.Name]
 				if !exists {
 					entityName = id.Name.String()
@@ -996,37 +969,70 @@ func handleEntityThinHashes(prt app.Printer, a *app.App, id stingray.FileID, opt
 				continue
 			}
 
-			if name, exists := a.ThinHashes[category]; exists {
+			if name, exists := a.ThinHashes[event]; exists {
 				knownHash[name] = true
 			} else {
-				unknownHash[category.String()] = true
+				unknownHash[event.String()] = true
 			}
 		}
-		for _, setting := range component.SettingNames {
-			if *optThinToFind != "" && stingray.Sum(*optThinToFind).Thin() == setting {
-				entityName, exists := a.Hashes[id.Name]
-				if !exists {
-					entityName = id.Name.String()
-				}
-				fmt.Printf("%v.entity\n", entityName)
-				fileCount = 1
-				break
-			} else if val, err := strconv.ParseInt(*optThinToFind, 0, 32); err == nil && val == int64(setting.Value) {
-				entityName, exists := a.Hashes[id.Name]
-				if !exists {
-					entityName = id.Name.String()
-				}
-				fmt.Printf("%v.entity\n", entityName)
-				fileCount = 1
-				break
-			} else if *optThinToFind != "" {
-				continue
-			}
+		for _, component := range info.Components {
+			if component.ComponentHeader != nil {
+				for _, category := range component.CategoryNames {
+					if *optThinToFind != "" && stingray.Sum(*optThinToFind).Thin() == category {
+						entityName, exists := a.Hashes[id.Name]
+						if !exists {
+							entityName = id.Name.String()
+						}
+						fmt.Printf("%v.entity\n", entityName)
+						fileCount = 1
+						break
+					} else if val, err := strconv.ParseInt(*optThinToFind, 0, 32); err == nil && val == int64(category.Value) {
+						entityName, exists := a.Hashes[id.Name]
+						if !exists {
+							entityName = id.Name.String()
+						}
+						fmt.Printf("%v.entity\n", entityName)
+						fileCount = 1
+						break
+					} else if *optThinToFind != "" {
+						continue
+					}
 
-			if name, exists := a.ThinHashes[setting]; exists {
-				knownHash[name] = true
-			} else {
-				unknownHash[setting.String()] = true
+					if name, exists := a.ThinHashes[category]; exists {
+						knownHash[name] = true
+					} else {
+						unknownHash[category.String()] = true
+					}
+				}
+			}
+			if component.ComponentData != nil {
+				for _, setting := range component.SettingNames {
+					if *optThinToFind != "" && stingray.Sum(*optThinToFind).Thin() == setting {
+						entityName, exists := a.Hashes[id.Name]
+						if !exists {
+							entityName = id.Name.String()
+						}
+						fmt.Printf("%v.entity\n", entityName)
+						fileCount = 1
+						break
+					} else if val, err := strconv.ParseInt(*optThinToFind, 0, 32); err == nil && val == int64(setting.Value) {
+						entityName, exists := a.Hashes[id.Name]
+						if !exists {
+							entityName = id.Name.String()
+						}
+						fmt.Printf("%v.entity\n", entityName)
+						fileCount = 1
+						break
+					} else if *optThinToFind != "" {
+						continue
+					}
+
+					if name, exists := a.ThinHashes[setting]; exists {
+						knownHash[name] = true
+					} else {
+						unknownHash[setting.String()] = true
+					}
+				}
 			}
 		}
 	}

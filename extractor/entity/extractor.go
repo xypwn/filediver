@@ -3,6 +3,7 @@ package entity
 import (
 	"encoding/json"
 
+	"github.com/go-gl/mathgl/mgl32"
 	"github.com/xypwn/filediver/extractor"
 	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/stingray/entity"
@@ -22,60 +23,81 @@ type SimpleComponentData map[string]entity.SettingData
 type SimpleComponent struct {
 	Padding       uint32              `json:"padding_value"`
 	ThinHashes    []string            `json:"thin_hashes"`
-	CategoryNames []string            `json:"categories"`
-	Data          SimpleComponentData `json:"data"`
+	CategoryNames []string            `json:"categories,omitempty"`
+	Data          SimpleComponentData `json:"data,omitempty"`
+	UnkInt        *uint32             `json:"unk_int,omitempty"`
+	UnkFloat      *float32            `json:"unk_float,omitempty"`
+	UnkMatrix     *mgl32.Mat3         `json:"matrix,omitempty"`
+	UnkVector1    *mgl32.Vec3         `json:"vector1,omitempty"`
+	UnkVector2    *mgl32.Vec3         `json:"vector2,omitempty"`
+	UnkInts       []int32             `json:"unk_ints,omitempty"`
+	UnkString     string              `json:"unk_string,omitempty"`
 }
 
 type SimpleInfo struct {
-	UnkHash    string            `json:"unk_hash"`
-	Components []SimpleComponent `json:"components"`
+	InfoType   string            `json:"info_type"`
+	Components []SimpleComponent `json:"components,omitempty"`
 }
 
 type SimpleEntity struct {
 	Header      SimpleHeader `json:"header"`
 	UnknownInts []int32      `json:"unk_ints"`
-	Info        SimpleInfo   `json:"info"`
+	Infos       []SimpleInfo `json:"infos"`
 }
 
-func (s *SimpleEntity) FromEntity(ctx *extractor.Context, entity *entity.Entity) {
-	simpleComponents := make([]SimpleComponent, 0)
-	for index := range entity.Components {
-		categoryNames := make([]string, 0)
-		for _, name := range entity.Info.Components[index].CategoryNames {
-			categoryNames = append(categoryNames, ctx.LookupThinHash(name))
+func (s *SimpleEntity) FromEntity(ctx *extractor.Context, ent *entity.Entity) {
+	simpleInfos := make([]SimpleInfo, 0)
+	for _, info := range ent.Infos {
+		simpleComponents := make([]SimpleComponent, len(info.ComponentPadding))
+		for index := range simpleComponents {
+			var categoryNames []string
+			var data SimpleComponentData
+			thinhashes := make([]string, 0)
+			for _, hash := range info.ComponentThinHashes[index*3 : index*3+3] {
+				thinhashes = append(thinhashes, ctx.LookupThinHash(hash))
+			}
+			if info.InfoType == entity.InfoTypeMap1 || info.InfoType == entity.InfoTypeMap2 {
+				categoryNames = make([]string, 0)
+				for _, name := range info.Components[index].CategoryNames {
+					categoryNames = append(categoryNames, ctx.LookupThinHash(name))
+				}
+				data = make(SimpleComponentData)
+				for settingIndex, setting := range info.Components[index].Settings {
+					key := ctx.LookupThinHash(info.Components[index].SettingNames[settingIndex])
+					data[key] = setting
+				}
+			}
+			simpleComponents[index] = SimpleComponent{
+				Padding:       info.ComponentPadding[index],
+				ThinHashes:    thinhashes,
+				CategoryNames: categoryNames,
+				Data:          data,
+				UnkInt:        info.Components[index].UnkInt,
+				UnkFloat:      info.Components[index].UnkFloat,
+				UnkMatrix:     info.Components[index].UnkMatrix,
+				UnkVector1:    info.Components[index].UnkVector1,
+				UnkVector2:    info.Components[index].UnkVector2,
+				UnkInts:       info.Components[index].UnkInts,
+				UnkString:     info.Components[index].UnkString,
+			}
 		}
-		data := make(SimpleComponentData)
-		for settingIndex, setting := range entity.Info.Components[index].Settings {
-			key := ctx.LookupThinHash(entity.Info.Components[index].SettingNames[settingIndex])
-			data[key] = setting
-		}
-		thinhashes := make([]string, 0)
-		for _, hash := range entity.ComponentThinHashes[index*3 : index*3+3] {
-			thinhashes = append(thinhashes, ctx.LookupThinHash(hash))
-		}
-		simpleComponents = append(simpleComponents, SimpleComponent{
-			Padding:       entity.ComponentPadding[index],
-			ThinHashes:    thinhashes,
-			CategoryNames: categoryNames,
-			Data:          data,
-		})
-	}
 
-	simpleInfo := SimpleInfo{
-		UnkHash:    ctx.LookupThinHash(entity.Info.UnkHash),
-		Components: simpleComponents,
+		simpleInfos = append(simpleInfos, SimpleInfo{
+			InfoType:   ctx.LookupThinHash(info.InfoType),
+			Components: simpleComponents,
+		})
 	}
 	*s = SimpleEntity{
 		Header: SimpleHeader{
-			Magic:           string(entity.Magic[:]),
-			UnkInt0:         entity.UnkInt0,
-			UnkInt1:         entity.UnkInt1,
-			UnkHash:         ctx.LookupHash(entity.Header.UnkHash),
-			SignedIntsCount: entity.SignedIntsCount,
-			EntityDataCount: entity.EntityDataCount,
+			Magic:           string(ent.Magic[:]),
+			UnkInt0:         ent.UnkInt0,
+			UnkInt1:         ent.UnkInt1,
+			UnkHash:         ctx.LookupHash(ent.Header.UnkHash),
+			SignedIntsCount: ent.SignedIntsCount,
+			EntityDataCount: ent.EntityDataCount,
 		},
-		UnknownInts: entity.UnknownInts,
-		Info:        simpleInfo,
+		UnknownInts: ent.UnknownInts,
+		Infos:       simpleInfos,
 	}
 }
 
