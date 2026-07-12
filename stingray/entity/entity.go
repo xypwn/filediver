@@ -9,19 +9,20 @@ import (
 )
 
 type Header struct {
-	Magic   [12]byte
-	UnkInt1 uint32
-	UnkHash stingray.Hash
-	UnkInt2 uint32
-	UnkInt3 uint32
-	UnkInt4 int32
+	Magic           [6]byte
+	_               [2]byte
+	UnkInt0         uint32
+	UnkInt1         uint32
+	UnkHash         stingray.Hash
+	SignedIntsCount uint32
+	EntityDataCount uint32
 }
 
 type ComponentHeader struct {
 	CategoryNames []stingray.ThinHash
 }
 
-type SettingType uint32
+type SettingType uint64
 
 const (
 	SettingType_Unknown SettingType = iota
@@ -39,7 +40,6 @@ func (p SettingType) MarshalText() ([]byte, error) {
 
 type rawSettingData struct {
 	Type SettingType
-	_    [4]uint8
 	Data [4]uint8
 	_    [4]uint8
 }
@@ -81,6 +81,7 @@ type Info struct {
 
 type Entity struct {
 	Header
+	UnknownInts []int32
 	Info
 }
 
@@ -88,6 +89,11 @@ func LoadEntity(r io.ReadSeeker) (*Entity, error) {
 	var header Header
 	if err := binary.Read(r, binary.LittleEndian, &header); err != nil {
 		return nil, fmt.Errorf("reading header: %v", err)
+	}
+
+	unkInts := make([]int32, header.SignedIntsCount)
+	if err := binary.Read(r, binary.LittleEndian, unkInts); err != nil {
+		return nil, fmt.Errorf("reading unk ints: %v", err)
 	}
 
 	var info rawInfo
@@ -205,7 +211,8 @@ func LoadEntity(r io.ReadSeeker) (*Entity, error) {
 	}
 
 	return &Entity{
-		Header: header,
+		Header:      header,
+		UnknownInts: unkInts,
 		Info: Info{
 			UnkHash:             info.UnkHash,
 			ComponentPadding:    componentPadding,

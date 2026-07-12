@@ -65,6 +65,9 @@ type Config struct {
 	Text struct {
 		Format string `cfg:"options=json,raw"`
 	} `cfg:"tags=t:strings,t:package,t:bones help='only-text-exportable formats'"`
+	ShadingEnvironment struct {
+		Format string `cfg:"options=json,raw"`
+	} `cfg:"tags=t:entity,t:shading_environment_mapping,t:shading_environment help='Shading environment configuration file export settings'"`
 	SpeedTree struct {
 		Format string `cfg:"options=model,json,raw"`
 	} `cfg:"tags=t:speedtree help='Tree model export format'"`

@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-gl/mathgl/mgl32"
 	"github.com/xypwn/filediver/stingray"
+	"github.com/xypwn/filediver/stingray/entity"
 )
 
 type Unit struct {
@@ -259,7 +260,9 @@ type rawLevel struct {
 	PrefabHashIndexRangeOffset     uint32
 	UnkHashIndexRangeOffset3       uint32
 	UnkHashIndexRangeOffset4       uint32
-	UnkOffsets03                   [5]uint32
+	UnkOffsets03                   [3]uint32
+	EntityOffset                   uint32
+	UnkOffsets06                   [1]uint32
 	MaterialOffset                 uint32
 	UnkThinHashesOffset            uint32
 	SpeedtreesOffset               uint32
@@ -277,6 +280,7 @@ type Level struct {
 	MaterialOverrides      map[int]map[stingray.ThinHash]stingray.Hash
 	Units                  []Unit
 	Speedtrees             []Speedtree
+	Entity                 *entity.Entity
 	UnkTransformedItems    []UnknownTransformedItem
 	UnkExtraUnitContainers []ExtraUnitsContainer
 	UnitHashIndexRange     []HashIndexRange
@@ -497,6 +501,18 @@ func LoadLevel(r io.ReadSeeker) (*Level, error) {
 		}
 	}
 
+	var embeddedEntity *entity.Entity
+	if raw.EntityOffset != 0 {
+		if _, err := r.Seek(int64(raw.EntityOffset), io.SeekStart); err != nil {
+			return nil, fmt.Errorf("seek entity offset: %v", err)
+		}
+		var err error
+		embeddedEntity, err = entity.LoadEntity(r)
+		if err != nil {
+			return nil, fmt.Errorf("read embedded entity: %v", err)
+		}
+	}
+
 	materialOverrides := make(map[int]map[stingray.ThinHash]stingray.Hash)
 	if raw.MaterialOffset != 0 {
 		if _, err := r.Seek(int64(raw.MaterialOffset), io.SeekStart); err != nil {
@@ -644,6 +660,7 @@ func LoadLevel(r io.ReadSeeker) (*Level, error) {
 		MaterialOverrides:      materialOverrides,
 		Units:                  units,
 		Speedtrees:             speedtrees,
+		Entity:                 embeddedEntity,
 		UnkTransformedItems:    unkTransformedItems,
 		UnkExtraUnitContainers: extraUnitsContainers,
 		UnitHashIndexRange:     unitHashIndexRangeList,

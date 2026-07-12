@@ -230,6 +230,66 @@ struct UnknownTransformedItem {
     float unknown[6];
 };
 
+struct Header {
+    char magic[6];
+    padding[2];
+    u32 unkInt0;
+    u32 unkInt1;
+    MurmurHash unkHash0;
+    u32 unkInt2;
+    u32 unkInt3;
+    s32 unkInts[unkInt2];
+};
+
+enum SettingType : u64 {
+    Unknown,
+    U32,
+    F32,
+    String,
+    Vector
+};
+
+struct SettingData {
+    SettingType type;
+    if (type == SettingType::F32) {
+        float val;
+    }
+    else if (type == SettingType::U32) {
+        u32 val;
+    }
+    else if (type == SettingType::String || type == SettingType::Vector) {
+        u16 offset, size;
+    }
+    padding[4];
+};
+
+struct Component {
+    u32 categoryCount;
+    ThinMurmurHash categoryNames[categoryCount];
+    u32 size;
+    u32 settingsCount;
+    u32 dataLength;
+    u32 dataOffset;
+    ThinMurmurHash settingsNames[settingsCount];
+    SettingData settings[settingsCount];
+    u8 data[size-16-sizeof(settingsNames)-sizeof(settings)];
+};
+
+struct EntityData {
+    ThinMurmurHash unkThinHash0;
+    u32 size;
+    u32 numComponents;
+    u8 data[size-12];
+    //u32 unkInts[numComponents];
+    //ThinMurmurHash componentHashes[numComponents*3];
+    //Component components[numComponents];
+};
+
+struct Entity {
+    Header header;
+    EntityData values[header.unkInt3];
+};
+
 struct Level {
     u32 unk00;
     u32 unitCount;
@@ -262,7 +322,8 @@ struct Level {
     std::ptr::NullablePtr<Array<Prefab, prefabCount>, u32> prefabs;
     u32 hashCount;
     std::ptr::NullablePtr<Array<MurmurHash, hashCount>, u32> unkHashes;
-    std::ptr::NullablePtr<std::ptr::NullablePtr<UnknownTransformedItem, u32>, u32> unkTransformedItemPtr;
+    u32 unk;
+    //std::ptr::NullablePtr<std::ptr::NullablePtr<UnknownTransformedItem, u32>, u32> unkTransformedItemPtr;
     std::ptr::NullablePtr<ExtraUnitDataBlockSizeInfo<hashCount>, u32> extraUnitsPtr;
     std::ptr::NullablePtr<List<HashIndexRange>, u32> unitHashIndexRange;
     std::ptr::NullablePtr<List<HashIndexRange>, u32> unkHashIndexRange;
@@ -271,7 +332,9 @@ struct Level {
     std::ptr::NullablePtr<List<HashIndexRange>, u32> prefabHashIndexRange;
     std::ptr::NullablePtr<List<HashIndexRange>, u32> unkHashIndexRange4;
     std::ptr::NullablePtr<List<HashIndexRange>, u32> unkHashIndexRange5;
-    std::ptr::NullablePtr<u8, u32> unkPtrs00[5];
+    std::ptr::NullablePtr<u8, u32> unkPtrs00[3];
+    std::ptr::NullablePtr<Entity, u32> embeddedEntity;
+    std::ptr::NullablePtr<u8, u32> unk26;
     std::ptr::NullablePtr<List<MaterialOverrides>, u32> materials;
     std::ptr::NullablePtr<List<ThinMurmurHash>, u32> unkThinHashes;
     std::ptr::NullablePtr<List<Speedtree>, u32> speedtrees;
