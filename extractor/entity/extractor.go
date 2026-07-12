@@ -56,7 +56,7 @@ type SimpleInfo struct {
 }
 
 func (s SimpleInfo) ToInfo() (*entity.Info, error) {
-	unkHash, err := stingray.ParseThinOrSum(s.UnkHash)
+	infoType, err := stingray.ParseThinOrSum(s.InfoType)
 	if err != nil {
 		return nil, err
 	}
@@ -74,37 +74,50 @@ func (s SimpleInfo) ToInfo() (*entity.Info, error) {
 			}
 			componentThinHashes[i*3+j] = thin
 		}
-		settingNames := make([]stingray.ThinHash, 0)
-		settings := make([]entity.SettingData, 0)
-		for name, setting := range component.Data {
-			hash, err := stingray.ParseThinOrSum(name)
-			if err != nil {
-				return nil, err
+		var header *entity.ComponentHeader
+		var data *entity.ComponentData
+		if infoType == entity.InfoTypeMap1 || infoType == entity.InfoTypeMap2 {
+			settingNames := make([]stingray.ThinHash, 0)
+			settings := make([]entity.SettingData, 0)
+			for name, setting := range component.Data {
+				hash, err := stingray.ParseThinOrSum(name)
+				if err != nil {
+					return nil, err
+				}
+				settingNames = append(settingNames, hash)
+				settings = append(settings, setting)
 			}
-			settingNames = append(settingNames, hash)
-			settings = append(settings, setting)
-		}
-		categoryNames := make([]stingray.ThinHash, 0)
-		for _, name := range component.CategoryNames {
-			hash, err := stingray.ParseThinOrSum(name)
-			if err != nil {
-				return nil, err
+			categoryNames := make([]stingray.ThinHash, 0)
+			for _, name := range component.CategoryNames {
+				hash, err := stingray.ParseThinOrSum(name)
+				if err != nil {
+					return nil, err
+				}
+				categoryNames = append(categoryNames, hash)
 			}
-			categoryNames = append(categoryNames, hash)
-		}
-		components[i] = entity.Component{
-			ComponentHeader: entity.ComponentHeader{
+			header = &entity.ComponentHeader{
 				CategoryNames: categoryNames,
-			},
-			ComponentData: entity.ComponentData{
+			}
+			data = &entity.ComponentData{
 				SettingNames: settingNames,
 				Settings:     settings,
-			},
+			}
+		}
+		components[i] = entity.Component{
+			ComponentHeader: header,
+			ComponentData:   data,
+			UnkInt:          component.UnkInt,
+			UnkFloat:        component.UnkFloat,
+			Rotation:        component.Rotation,
+			Position:        component.Position,
+			Scale:           component.Scale,
+			UnkInts:         component.UnkInts,
+			UnkString:       component.UnkString,
 		}
 	}
 
 	return &entity.Info{
-		UnkHash:             unkHash,
+		InfoType:            infoType,
 		ComponentPadding:    padding,
 		ComponentThinHashes: componentThinHashes,
 		Components:          components,
@@ -179,15 +192,19 @@ func (s *SimpleEntity) ToEntity() (*entity.Entity, error) {
 		return nil, err
 	}
 
-	info, err := s.Info.ToInfo()
-	if err != nil {
-		return nil, err
+	infos := make([]entity.Info, 0)
+	for _, simpleInfo := range s.Infos {
+		info, err := simpleInfo.ToInfo()
+		if err != nil {
+			return nil, err
+		}
+		infos = append(infos, *info)
 	}
 
 	return &entity.Entity{
 		Header:      *header,
 		UnknownInts: s.UnknownInts,
-		Info:        *info,
+		Infos:       infos,
 	}, nil
 }
 

@@ -99,7 +99,7 @@ var (
 	InfoTypeString   = stingray.ThinHash{Value: 0x297611d5}
 )
 
-func (c Component) MarshalBinary() ([]byte, error) {
+func (c Component) marshalSettingsBinary() ([]byte, error) {
 	settingNamesData := make([]byte, 0)
 	settingNamesData, err := binary.Append(settingNamesData, binary.LittleEndian, c.SettingNames)
 	if err != nil {
@@ -202,6 +202,46 @@ func (c Component) MarshalBinary() ([]byte, error) {
 	return toReturn, nil
 }
 
+func (c Component) MarshalBinary() ([]byte, error) {
+	if c.ComponentData != nil {
+		return c.marshalSettingsBinary()
+	}
+	toReturn := make([]byte, 0)
+	var err error
+	if c.UnkInt != nil && c.UnkFloat != nil {
+		toReturn, err = binary.Append(toReturn, binary.LittleEndian, *c.UnkInt)
+		if err != nil {
+			return nil, err
+		}
+		toReturn, err = binary.Append(toReturn, binary.LittleEndian, *c.UnkFloat)
+		if err != nil {
+			return nil, err
+		}
+	} else if c.Rotation != nil && c.Position != nil && c.Scale != nil && c.UnkInts != nil {
+		toReturn, err = binary.Append(toReturn, binary.LittleEndian, *c.Rotation)
+		if err != nil {
+			return nil, err
+		}
+		toReturn, err = binary.Append(toReturn, binary.LittleEndian, *c.Position)
+		if err != nil {
+			return nil, err
+		}
+		toReturn, err = binary.Append(toReturn, binary.LittleEndian, *c.Scale)
+		if err != nil {
+			return nil, err
+		}
+		toReturn, err = binary.Append(toReturn, binary.LittleEndian, c.UnkInts)
+		if err != nil {
+			return nil, err
+		}
+	} else if len(c.UnkString) > 0 {
+		toReturn = append(toReturn, []byte(c.UnkString)...)
+	} else {
+		return nil, fmt.Errorf("Empty component value? Likely a new type of component")
+	}
+	return toReturn, nil
+}
+
 type rawInfo struct {
 	InfoType      stingray.ThinHash
 	Size          uint32
@@ -235,45 +275,48 @@ func (e Entity) MarshalBinary() ([]byte, error) {
 		}
 	}
 
-	entityData := make([]byte, 0)
-	entityData, err = binary.Append(entityData, binary.LittleEndian, e.ComponentPadding)
-	if err != nil {
-		return nil, err
-	}
-	entityData, err = binary.Append(entityData, binary.LittleEndian, e.ComponentThinHashes)
-	if err != nil {
-		return nil, err
-	}
-	for _, component := range e.Components {
-		entityData, err = binary.Append(entityData, binary.LittleEndian, uint32(len(component.CategoryNames)))
+	for _, info := range e.Infos {
+		infoData := make([]byte, 0)
+		infoData, err = binary.Append(infoData, binary.LittleEndian, info.ComponentPadding)
 		if err != nil {
 			return nil, err
 		}
-		for _, name := range component.CategoryNames {
-			entityData, err = binary.Append(entityData, binary.LittleEndian, name)
+		infoData, err = binary.Append(infoData, binary.LittleEndian, info.ComponentThinHashes)
+		if err != nil {
+			return nil, err
+		}
+		for _, component := range info.Components {
+			if component.ComponentHeader != nil {
+				infoData, err = binary.Append(infoData, binary.LittleEndian, uint32(len(component.CategoryNames)))
+				if err != nil {
+					return nil, err
+				}
+				for _, name := range component.CategoryNames {
+					infoData, err = binary.Append(infoData, binary.LittleEndian, name)
+					if err != nil {
+						return nil, err
+					}
+				}
+			}
+			componentData, err := component.MarshalBinary()
 			if err != nil {
 				return nil, err
 			}
+			infoData = append(infoData, componentData...)
 		}
-		componentData, err := component.MarshalBinary()
+		raw := rawInfo{
+			InfoType:      info.InfoType,
+			Size:          uint32(len(infoData)),
+			NumComponents: uint32(len(info.Components)),
+		}
+		raw.Size += uint32(binary.Size(raw))
+		output, err = binary.Append(output, binary.LittleEndian, raw)
 		if err != nil {
 			return nil, err
 		}
-		entityData = append(entityData, componentData...)
+		output = append(output, infoData...)
 	}
 
-	info := rawInfo{
-		UnkHash:       e.Info.UnkHash,
-		Size:          uint32(len(entityData)),
-		NumComponents: uint32(len(e.Components)),
-	}
-
-	output, err = binary.Append(output, binary.LittleEndian, info)
-	if err != nil {
-		return nil, err
-	}
-
-	output = append(output, entityData...)
 	return output, nil
 }
 
@@ -421,15 +464,15 @@ func LoadEntity(r io.ReadSeeker) (*Entity, error) {
 			case InfoTypeMatrix:
 				var rotation mgl32.Mat3
 				if err := binary.Read(r, binary.LittleEndian, &rotation); err != nil {
-					return nil, fmt.Errorf("reading component unknown matrix: %v", err)
+					return nil, fmt.Errorf("reading component rotation: %v", err)
 				}
 				var position mgl32.Vec3
 				if err := binary.Read(r, binary.LittleEndian, &position); err != nil {
-					return nil, fmt.Errorf("reading component unknown vector 1: %v", err)
+					return nil, fmt.Errorf("reading component position: %v", err)
 				}
 				var scale mgl32.Vec3
 				if err := binary.Read(r, binary.LittleEndian, &scale); err != nil {
-					return nil, fmt.Errorf("reading component unknown vector 2: %v", err)
+					return nil, fmt.Errorf("reading component scale: %v", err)
 				}
 				unkInts := make([]int32, 2)
 				if err := binary.Read(r, binary.LittleEndian, unkInts); err != nil {
