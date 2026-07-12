@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"reflect"
 
 	"github.com/go-gl/mathgl/mgl32"
 	"github.com/xypwn/filediver/stingray"
@@ -35,6 +36,22 @@ const (
 
 func (p SettingType) MarshalText() ([]byte, error) {
 	return []byte(p.String()), nil
+}
+
+func (p *SettingType) UnmarshalText(text []byte) error {
+	switch string(text) {
+	case SettingType_U32.String():
+		*p = SettingType_U32
+	case SettingType_F32.String():
+		*p = SettingType_F32
+	case SettingType_String.String():
+		*p = SettingType_String
+	case SettingType_Vector.String():
+		*p = SettingType_Vector
+	default:
+		*p = SettingType_Unknown
+	}
+	return nil
 }
 
 //go:generate go run golang.org/x/tools/cmd/stringer -type=SettingType
@@ -82,6 +99,109 @@ var (
 	InfoTypeString   = stingray.ThinHash{Value: 0x297611d5}
 )
 
+func (c Component) MarshalBinary() ([]byte, error) {
+	settingNamesData := make([]byte, 0)
+	settingNamesData, err := binary.Append(settingNamesData, binary.LittleEndian, c.SettingNames)
+	if err != nil {
+		return nil, err
+	}
+	settingsData := make([]byte, binary.Size(rawSettingData{})*len(c.Settings))
+	valuesData := make([]byte, 0)
+	offset := 0
+	for i, setting := range c.Settings {
+		written, err := binary.Encode(settingsData[offset:], binary.LittleEndian, setting.Type)
+		if err != nil {
+			return nil, err
+		}
+		offset += written
+		switch setting.Type {
+		case SettingType_U32:
+			value, ok := setting.Data.(float64)
+			if !ok {
+				return nil, fmt.Errorf("Failed to convert value to f64")
+			}
+			written, err := binary.Encode(settingsData[offset:], binary.LittleEndian, uint32(value))
+			if err != nil {
+				return nil, err
+			}
+			offset += written + 4
+		case SettingType_F32:
+			value, ok := setting.Data.(float64)
+			if !ok {
+				return nil, fmt.Errorf("Failed to convert value to f64")
+			}
+			written, err := binary.Encode(settingsData[offset:], binary.LittleEndian, float32(value))
+			if err != nil {
+				return nil, err
+			}
+			offset += written + 4
+		case SettingType_String, SettingType_Vector:
+			valueOffset := uint16(16 + len(c.Settings)*4 + len(settingsData) + len(valuesData))
+			written, err := binary.Encode(settingsData[offset:], binary.LittleEndian, valueOffset)
+			if err != nil {
+				return nil, err
+			}
+			offset += written
+
+			var valueLen uint16
+			switch value := setting.Data.(type) {
+			case []any:
+				valueLen = uint16(len(value) * 4)
+				result := make([]float32, 0)
+				for _, item := range value {
+					itemVal, ok := item.(float64)
+					if !ok {
+						return nil, fmt.Errorf("not float64")
+					}
+					result = append(result, float32(itemVal))
+				}
+				valuesData, err = binary.Append(valuesData, binary.LittleEndian, result)
+				if err != nil {
+					return nil, err
+				}
+			case string:
+				valueLen = uint16(len(value))
+				if valueLen%4 != 0 {
+					valueLen += 4 - valueLen%4
+				}
+				valuesData = append(valuesData, []byte(value)...)
+				if uint16(binary.Size(setting.Data)) < valueLen {
+					padding := make([]byte, valueLen-uint16(len(value)))
+					valuesData = append(valuesData, padding...)
+				}
+			default:
+				return nil, fmt.Errorf("invalid setting type %v for type %v index %v name %v", setting.Type.String(), reflect.TypeOf(value).String(), i, c.SettingNames[i].String())
+			}
+			written, err = binary.Encode(settingsData[offset:], binary.LittleEndian, valueLen)
+			if err != nil {
+				return nil, err
+			}
+			offset += written + 4
+		}
+	}
+	toReturn := make([]byte, 0)
+	toReturn, err = binary.Append(toReturn, binary.LittleEndian, uint32(len(settingNamesData)+len(settingsData)+len(valuesData)+16))
+	if err != nil {
+		return nil, err
+	}
+	toReturn, err = binary.Append(toReturn, binary.LittleEndian, uint32(len(c.Settings)))
+	if err != nil {
+		return nil, err
+	}
+	toReturn, err = binary.Append(toReturn, binary.LittleEndian, uint32(len(valuesData)))
+	if err != nil {
+		return nil, err
+	}
+	toReturn, err = binary.Append(toReturn, binary.LittleEndian, uint32(len(settingNamesData)+len(settingsData)+16))
+	if err != nil {
+		return nil, err
+	}
+	toReturn = append(toReturn, settingNamesData...)
+	toReturn = append(toReturn, settingsData...)
+	toReturn = append(toReturn, valuesData...)
+	return toReturn, nil
+}
+
 type rawInfo struct {
 	InfoType      stingray.ThinHash
 	Size          uint32
@@ -99,6 +219,62 @@ type Entity struct {
 	Header
 	UnknownInts []int32
 	Infos       []Info
+}
+
+func (e Entity) MarshalBinary() ([]byte, error) {
+	output := make([]byte, 0)
+	output, err := binary.Append(output, binary.LittleEndian, e.Header)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, val := range e.UnknownInts {
+		output, err = binary.Append(output, binary.LittleEndian, val)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	entityData := make([]byte, 0)
+	entityData, err = binary.Append(entityData, binary.LittleEndian, e.ComponentPadding)
+	if err != nil {
+		return nil, err
+	}
+	entityData, err = binary.Append(entityData, binary.LittleEndian, e.ComponentThinHashes)
+	if err != nil {
+		return nil, err
+	}
+	for _, component := range e.Components {
+		entityData, err = binary.Append(entityData, binary.LittleEndian, uint32(len(component.CategoryNames)))
+		if err != nil {
+			return nil, err
+		}
+		for _, name := range component.CategoryNames {
+			entityData, err = binary.Append(entityData, binary.LittleEndian, name)
+			if err != nil {
+				return nil, err
+			}
+		}
+		componentData, err := component.MarshalBinary()
+		if err != nil {
+			return nil, err
+		}
+		entityData = append(entityData, componentData...)
+	}
+
+	info := rawInfo{
+		UnkHash:       e.Info.UnkHash,
+		Size:          uint32(len(entityData)),
+		NumComponents: uint32(len(e.Components)),
+	}
+
+	output, err = binary.Append(output, binary.LittleEndian, info)
+	if err != nil {
+		return nil, err
+	}
+
+	output = append(output, entityData...)
+	return output, nil
 }
 
 func LoadEntity(r io.ReadSeeker) (*Entity, error) {

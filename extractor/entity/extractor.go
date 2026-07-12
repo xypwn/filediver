@@ -18,6 +18,22 @@ type SimpleHeader struct {
 	EntityDataCount uint32 `json:"entity_data_count"`
 }
 
+func (s SimpleHeader) ToHeader() (*entity.Header, error) {
+	unkHash, err := stingray.ParseOrSum(s.UnkHash)
+	if err != nil {
+		return nil, err
+	}
+
+	return &entity.Header{
+		Magic:           [6]byte{'e', 'n', 't', 'i', 't', 'y'},
+		UnkInt0:         s.UnkInt0,
+		UnkInt1:         s.UnkInt1,
+		UnkHash:         unkHash,
+		SignedIntsCount: s.SignedIntsCount,
+		EntityDataCount: s.EntityDataCount,
+	}, nil
+}
+
 type SimpleComponentData map[string]entity.SettingData
 
 type SimpleComponent struct {
@@ -37,6 +53,62 @@ type SimpleComponent struct {
 type SimpleInfo struct {
 	InfoType   string            `json:"info_type"`
 	Components []SimpleComponent `json:"components,omitempty"`
+}
+
+func (s SimpleInfo) ToInfo() (*entity.Info, error) {
+	unkHash, err := stingray.ParseThinOrSum(s.UnkHash)
+	if err != nil {
+		return nil, err
+	}
+
+	padding := make([]uint32, len(s.Components))
+	componentThinHashes := make([]stingray.ThinHash, len(s.Components)*3)
+	components := make([]entity.Component, len(s.Components))
+
+	for i, component := range s.Components {
+		padding[i] = component.Padding
+		for j := range 3 {
+			thin, err := stingray.ParseThinOrSum(component.ThinHashes[j])
+			if err != nil {
+				return nil, err
+			}
+			componentThinHashes[i*3+j] = thin
+		}
+		settingNames := make([]stingray.ThinHash, 0)
+		settings := make([]entity.SettingData, 0)
+		for name, setting := range component.Data {
+			hash, err := stingray.ParseThinOrSum(name)
+			if err != nil {
+				return nil, err
+			}
+			settingNames = append(settingNames, hash)
+			settings = append(settings, setting)
+		}
+		categoryNames := make([]stingray.ThinHash, 0)
+		for _, name := range component.CategoryNames {
+			hash, err := stingray.ParseThinOrSum(name)
+			if err != nil {
+				return nil, err
+			}
+			categoryNames = append(categoryNames, hash)
+		}
+		components[i] = entity.Component{
+			ComponentHeader: entity.ComponentHeader{
+				CategoryNames: categoryNames,
+			},
+			ComponentData: entity.ComponentData{
+				SettingNames: settingNames,
+				Settings:     settings,
+			},
+		}
+	}
+
+	return &entity.Info{
+		UnkHash:             unkHash,
+		ComponentPadding:    padding,
+		ComponentThinHashes: componentThinHashes,
+		Components:          components,
+	}, nil
 }
 
 type SimpleEntity struct {
@@ -99,6 +171,24 @@ func (s *SimpleEntity) FromEntity(ctx *extractor.Context, ent *entity.Entity) {
 		UnknownInts: ent.UnknownInts,
 		Infos:       simpleInfos,
 	}
+}
+
+func (s *SimpleEntity) ToEntity() (*entity.Entity, error) {
+	header, err := s.Header.ToHeader()
+	if err != nil {
+		return nil, err
+	}
+
+	info, err := s.Info.ToInfo()
+	if err != nil {
+		return nil, err
+	}
+
+	return &entity.Entity{
+		Header:      *header,
+		UnknownInts: s.UnknownInts,
+		Info:        *info,
+	}, nil
 }
 
 func ExtractEntityJSON(ctx *extractor.Context) error {

@@ -95,6 +95,24 @@ func ParseThinHash(s string) (ThinHash, error) {
 	return ThinHash{Value: uint32(x)}, nil
 }
 
+// ParseOrSum parses a big endian murmur64 hash when prefixed with 0x
+// Otherwise, it will sum the input string and return the resulting hash
+func ParseOrSum(s string) (Hash, error) {
+	if found := strings.HasPrefix(s, "0x"); found {
+		return ParseHash(s)
+	}
+	return Sum(s), nil
+}
+
+// ParseThinOrSum parses a big endian murmur32 hash when prefixed with 0x
+// Otherwise, it will sum the input string and return the resulting hash
+func ParseThinOrSum(s string) (ThinHash, error) {
+	if found := strings.HasPrefix(s, "0x"); found {
+		return ParseThinHash(s)
+	}
+	return Sum(s).Thin(), nil
+}
+
 func cleanupHashForParse(s string) string {
 	s, has0x := strings.CutPrefix(s, "0x")
 	var b strings.Builder
