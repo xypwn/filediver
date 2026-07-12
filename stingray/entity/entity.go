@@ -65,13 +65,13 @@ type ComponentData struct {
 type Component struct {
 	*ComponentHeader
 	*ComponentData
-	UnkInt     *uint32
-	UnkFloat   *float32
-	UnkMatrix  *mgl32.Mat3
-	UnkVector1 *mgl32.Vec3
-	UnkVector2 *mgl32.Vec3
-	UnkInts    []int32
-	UnkString  string
+	UnkInt    *uint32
+	UnkFloat  *float32
+	Rotation  *mgl32.Mat3
+	Position  *mgl32.Vec3
+	Scale     *mgl32.Vec3
+	UnkInts   []int32
+	UnkString string
 }
 
 var (
@@ -243,16 +243,16 @@ func LoadEntity(r io.ReadSeeker) (*Entity, error) {
 					UnkFloat: &unkFloat,
 				})
 			case InfoTypeMatrix:
-				var unkMatrix mgl32.Mat3
-				if err := binary.Read(r, binary.LittleEndian, &unkMatrix); err != nil {
+				var rotation mgl32.Mat3
+				if err := binary.Read(r, binary.LittleEndian, &rotation); err != nil {
 					return nil, fmt.Errorf("reading component unknown matrix: %v", err)
 				}
-				var unkVector1 mgl32.Vec3
-				if err := binary.Read(r, binary.LittleEndian, &unkVector1); err != nil {
+				var position mgl32.Vec3
+				if err := binary.Read(r, binary.LittleEndian, &position); err != nil {
 					return nil, fmt.Errorf("reading component unknown vector 1: %v", err)
 				}
-				var unkVector2 mgl32.Vec3
-				if err := binary.Read(r, binary.LittleEndian, &unkVector2); err != nil {
+				var scale mgl32.Vec3
+				if err := binary.Read(r, binary.LittleEndian, &scale); err != nil {
 					return nil, fmt.Errorf("reading component unknown vector 2: %v", err)
 				}
 				unkInts := make([]int32, 2)
@@ -260,10 +260,10 @@ func LoadEntity(r io.ReadSeeker) (*Entity, error) {
 					return nil, fmt.Errorf("reading component unknown ints: %v", err)
 				}
 				components = append(components, Component{
-					UnkMatrix:  &unkMatrix,
-					UnkVector1: &unkVector1,
-					UnkVector2: &unkVector2,
-					UnkInts:    unkInts,
+					Rotation: &rotation,
+					Position: &position,
+					Scale:    &scale,
+					UnkInts:  unkInts,
 				})
 			case InfoTypeString:
 				unkString := make([]byte, info.Size-uint32(binary.Size(info))-uint32(binary.Size(componentThinHashes))-uint32(binary.Size(componentPadding)))

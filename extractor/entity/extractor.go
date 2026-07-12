@@ -27,9 +27,9 @@ type SimpleComponent struct {
 	Data          SimpleComponentData `json:"data,omitempty"`
 	UnkInt        *uint32             `json:"unk_int,omitempty"`
 	UnkFloat      *float32            `json:"unk_float,omitempty"`
-	UnkMatrix     *mgl32.Mat3         `json:"matrix,omitempty"`
-	UnkVector1    *mgl32.Vec3         `json:"vector1,omitempty"`
-	UnkVector2    *mgl32.Vec3         `json:"vector2,omitempty"`
+	Rotation      *mgl32.Mat3         `json:"rotation,omitempty"`
+	Position      *mgl32.Vec3         `json:"position,omitempty"`
+	Scale         *mgl32.Vec3         `json:"scale,omitempty"`
 	UnkInts       []int32             `json:"unk_ints,omitempty"`
 	UnkString     string              `json:"unk_string,omitempty"`
 }
@@ -74,9 +74,9 @@ func (s *SimpleEntity) FromEntity(ctx *extractor.Context, ent *entity.Entity) {
 				Data:          data,
 				UnkInt:        info.Components[index].UnkInt,
 				UnkFloat:      info.Components[index].UnkFloat,
-				UnkMatrix:     info.Components[index].UnkMatrix,
-				UnkVector1:    info.Components[index].UnkVector1,
-				UnkVector2:    info.Components[index].UnkVector2,
+				Rotation:      info.Components[index].Rotation,
+				Position:      info.Components[index].Position,
+				Scale:         info.Components[index].Scale,
 				UnkInts:       info.Components[index].UnkInts,
 				UnkString:     info.Components[index].UnkString,
 			}
