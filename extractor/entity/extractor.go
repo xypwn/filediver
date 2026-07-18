@@ -34,7 +34,14 @@ func (s SimpleHeader) ToHeader() (*entity.Header, error) {
 	}, nil
 }
 
-type SimpleComponentData map[string]entity.SettingData
+type SimpleSettingData struct {
+	ShaderName  string             `json:"shader_name"`
+	ShaderIndex uint32             `json:"shader_index"`
+	Type        entity.SettingType `json:"type"`
+	Data        any                `json:"data"` // May be a uint32, float32, string, or []float32
+}
+
+type SimpleComponentData map[string]SimpleSettingData
 
 type SimpleComponent struct {
 	Padding       uint32              `json:"padding_value"`
@@ -48,6 +55,44 @@ type SimpleComponent struct {
 	Scale         *mgl32.Vec3         `json:"scale,omitempty"`
 	UnkInts       []int32             `json:"unk_ints,omitempty"`
 	UnkString     string              `json:"unk_string,omitempty"`
+}
+
+func (s *SimpleComponent) FromEntity(ctx *extractor.Context, info entity.Info, index int) {
+	var categoryNames []string
+	var data SimpleComponentData
+	thinhashes := make([]string, 0)
+	for _, hash := range info.ComponentThinHashes[index*3 : index*3+3] {
+		thinhashes = append(thinhashes, ctx.LookupThinHash(hash))
+	}
+	if info.InfoType == entity.InfoTypeMap1 || info.InfoType == entity.InfoTypeMap2 {
+		categoryNames = make([]string, 0)
+		for _, name := range info.Components[index].CategoryNames {
+			categoryNames = append(categoryNames, ctx.LookupThinHash(name))
+		}
+		data = make(SimpleComponentData)
+		for settingIndex, setting := range info.Components[index].Settings {
+			key := ctx.LookupThinHash(info.Components[index].SettingNames[settingIndex])
+			data[key] = SimpleSettingData{
+				ShaderName:  ctx.LookupThinHash(setting.ShaderName),
+				ShaderIndex: setting.ShaderIndex,
+				Type:        setting.Type,
+				Data:        setting.Data,
+			}
+		}
+	}
+	*s = SimpleComponent{
+		Padding:       info.ComponentPadding[index],
+		ThinHashes:    thinhashes,
+		CategoryNames: categoryNames,
+		Data:          data,
+		UnkInt:        info.Components[index].UnkInt,
+		UnkFloat:      info.Components[index].UnkFloat,
+		Rotation:      info.Components[index].Rotation,
+		Position:      info.Components[index].Position,
+		Scale:         info.Components[index].Scale,
+		UnkInts:       info.Components[index].UnkInts,
+		UnkString:     info.Components[index].UnkString,
+	}
 }
 
 type SimpleInfo struct {
@@ -85,7 +130,14 @@ func (s SimpleInfo) ToInfo() (*entity.Info, error) {
 					return nil, err
 				}
 				settingNames = append(settingNames, hash)
-				settings = append(settings, setting)
+				// the shader name isn't actually part of the data, so we don't care if it fails to parse
+				shaderName, _ := stingray.ParseThinOrSum(setting.ShaderName)
+				settings = append(settings, entity.SettingData{
+					ShaderName:  shaderName,
+					ShaderIndex: setting.ShaderIndex,
+					Type:        setting.Type,
+					Data:        setting.Data,
+				})
 			}
 			categoryNames := make([]stingray.ThinHash, 0)
 			for _, name := range component.CategoryNames {
@@ -135,36 +187,7 @@ func (s *SimpleEntity) FromEntity(ctx *extractor.Context, ent *entity.Entity) {
 	for _, info := range ent.Infos {
 		simpleComponents := make([]SimpleComponent, len(info.ComponentPadding))
 		for index := range simpleComponents {
-			var categoryNames []string
-			var data SimpleComponentData
-			thinhashes := make([]string, 0)
-			for _, hash := range info.ComponentThinHashes[index*3 : index*3+3] {
-				thinhashes = append(thinhashes, ctx.LookupThinHash(hash))
-			}
-			if info.InfoType == entity.InfoTypeMap1 || info.InfoType == entity.InfoTypeMap2 {
-				categoryNames = make([]string, 0)
-				for _, name := range info.Components[index].CategoryNames {
-					categoryNames = append(categoryNames, ctx.LookupThinHash(name))
-				}
-				data = make(SimpleComponentData)
-				for settingIndex, setting := range info.Components[index].Settings {
-					key := ctx.LookupThinHash(info.Components[index].SettingNames[settingIndex])
-					data[key] = setting
-				}
-			}
-			simpleComponents[index] = SimpleComponent{
-				Padding:       info.ComponentPadding[index],
-				ThinHashes:    thinhashes,
-				CategoryNames: categoryNames,
-				Data:          data,
-				UnkInt:        info.Components[index].UnkInt,
-				UnkFloat:      info.Components[index].UnkFloat,
-				Rotation:      info.Components[index].Rotation,
-				Position:      info.Components[index].Position,
-				Scale:         info.Components[index].Scale,
-				UnkInts:       info.Components[index].UnkInts,
-				UnkString:     info.Components[index].UnkString,
-			}
+			simpleComponents[index].FromEntity(ctx, info, index)
 		}
 
 		simpleInfos = append(simpleInfos, SimpleInfo{
@@ -214,7 +237,7 @@ func ExtractEntityJSON(ctx *extractor.Context) error {
 		return err
 	}
 
-	entityInfo, err := entity.LoadEntity(r)
+	entityInfo, err := entity.LoadEntity(r, ctx.EntityVarMapping())
 	if err != nil {
 		return err
 	}

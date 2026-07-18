@@ -10,14 +10,14 @@ import (
 
 type SimpleVariableInfo1 struct {
 	ContainerType shading_environment.VariableContainerType `json:"type"`
-	Unk1          uint32                                    `json:"unk1"`
+	Unk1          uint32                                    `json:"some_count"`
 	Name          string                                    `json:"name"`
 	Offset        uint32                                    `json:"offset"`
 }
 
 type SimpleVariableInfo2 struct {
-	Index         uint32                                    `json:"unk1"`
-	Index2        uint32                                    `json:"unk2"`
+	GlobalIndex   uint32                                    `json:"global_index"`
+	GroupIndex    uint32                                    `json:"group_index"`
 	ContainerType shading_environment.VariableContainerType `json:"type"`
 	Name          string                                    `json:"name"`
 }
@@ -29,10 +29,11 @@ type SimpleVariable struct {
 }
 
 type SimpleShadingEnvironment struct {
-	Material       string                `json:"material"`
-	Variables      []SimpleVariable      `json:"variables"`
-	VariableInfos1 []SimpleVariableInfo1 `json:"variable_infos_1"`
-	VariableInfos2 []SimpleVariableInfo2 `json:"variable_infos_2"`
+	Material         string                `json:"material"`
+	DefaultDataCount uint32                `json:"default_data_count"`
+	Variables        []SimpleVariable      `json:"variables"`
+	VariableInfos1   []SimpleVariableInfo1 `json:"variable_infos_1"`
+	VariableInfos2   []SimpleVariableInfo2 `json:"variable_infos_2"`
 }
 
 func ExtractShadingEnvironmentJSON(ctx *extractor.Context) error {
@@ -81,16 +82,17 @@ func ExtractShadingEnvironmentJSON(ctx *extractor.Context) error {
 		variableInfos2 = append(variableInfos2, SimpleVariableInfo2{
 			ContainerType: variableInfo.ContainerType,
 			Name:          ctx.LookupThinHash(variableInfo.Name),
-			Index:         variableInfo.Index,
-			Index2:        variableInfo.Index2,
+			GlobalIndex:   variableInfo.GlobalIndex,
+			GroupIndex:    variableInfo.GroupIndex,
 		})
 	}
 
 	simpleEnvironment := SimpleShadingEnvironment{
-		Material:       ctx.LookupHash(environmentInfo.Material),
-		Variables:      variables,
-		VariableInfos1: variableInfos1,
-		VariableInfos2: variableInfos2,
+		Material:         ctx.LookupHash(environmentInfo.Material),
+		DefaultDataCount: environmentInfo.DefaultDataCount,
+		Variables:        variables,
+		VariableInfos1:   variableInfos1,
+		VariableInfos2:   variableInfos2,
 	}
 
 	out, err := ctx.CreateFile(".shading_environment.json")
@@ -114,12 +116,9 @@ type SimpleShaderVariableMapping struct {
 }
 
 type SimpleEntitySettingMapping struct {
-	UnkInt1                    uint16 `json:"unk_int_1"`
-	ShaderVariableMappingIndex uint16 `json:"shader_variable_mapping_index"`
-	SettingName                string `json:"setting_name"`
-	SettingName2               string `json:"setting_name_2"`
-	SettingName3               string `json:"setting_name_3"`
-	SettingName4               string `json:"setting_name_4"`
+	SettingType                shading_environment.EntitySettingType `json:"setting_type"`
+	ShaderVariableMappingIndex uint16                                `json:"shader_variable_mapping_index"`
+	SettingNames               []string                              `json:"setting_names"`
 }
 type SimpleShadingEnvironmentMapping struct {
 	ShaderVariableMappings []SimpleShaderVariableMapping `json:"shader_variable_mappings"`
@@ -138,6 +137,13 @@ func ExtractShadingEnvironmentMappingJSON(ctx *extractor.Context) error {
 		return err
 	}
 
+	emptyThinHashLookup := func(t stingray.ThinHash) string {
+		if t.Value == 0x0 {
+			return ""
+		}
+		return ctx.LookupThinHash(t)
+	}
+
 	mappings1 := make([]SimpleShaderVariableMapping, 0)
 	for _, mapping1 := range mappingInfo.ShaderVariableMappings {
 		mappings1 = append(mappings1, SimpleShaderVariableMapping{
@@ -145,25 +151,29 @@ func ExtractShadingEnvironmentMappingJSON(ctx *extractor.Context) error {
 			UnkInt2: mapping1.UnkInt2,
 			UnkInt3: mapping1.UnkInt3,
 			UnkInt4: mapping1.UnkInt4,
-			Name:    ctx.LookupThinHash(mapping1.VariableName),
+			Name:    emptyThinHashLookup(mapping1.VariableName),
 		})
 	}
 
 	mappings2 := make([]SimpleEntitySettingMapping, 0)
 	for _, mapping2 := range mappingInfo.EntitySettingMappings {
+		settingNames := make([]string, 0)
+		for _, name := range mapping2.SettingNames {
+			if name.Value == 0x0 {
+				break
+			}
+			settingNames = append(settingNames, ctx.LookupThinHash(name))
+		}
 		mappings2 = append(mappings2, SimpleEntitySettingMapping{
-			UnkInt1:                    mapping2.UnkInt1,
-			SettingName:                ctx.LookupThinHash(mapping2.SettingName),
-			SettingName2:               ctx.LookupThinHash(mapping2.SettingName2),
-			SettingName3:               ctx.LookupThinHash(mapping2.SettingName3),
-			SettingName4:               ctx.LookupThinHash(mapping2.SettingName4),
+			SettingType:                mapping2.SettingType,
+			SettingNames:               settingNames,
 			ShaderVariableMappingIndex: mapping2.Index,
 		})
 	}
 
 	hashes := make([]string, 0)
 	for _, hash := range mappingInfo.TextureNames {
-		hashes = append(hashes, ctx.LookupThinHash(hash))
+		hashes = append(hashes, emptyThinHashLookup(hash))
 	}
 
 	simpleMapping := SimpleShadingEnvironmentMapping{

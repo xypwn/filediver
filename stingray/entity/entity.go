@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-gl/mathgl/mgl32"
 	"github.com/xypwn/filediver/stingray"
+	"github.com/xypwn/filediver/stingray/shading_environment"
 )
 
 type Header struct {
@@ -63,8 +64,10 @@ type rawSettingData struct {
 }
 
 type SettingData struct {
-	Type SettingType `json:"type"`
-	Data any         `json:"data"` // May be a uint32, float32, string, or []float32
+	Type        SettingType
+	ShaderName  stingray.ThinHash
+	ShaderIndex uint32
+	Data        any // May be a uint32, float32, string, or []float32
 }
 
 type rawComponentData struct {
@@ -320,7 +323,7 @@ func (e Entity) MarshalBinary() ([]byte, error) {
 	return output, nil
 }
 
-func LoadEntity(r io.ReadSeeker) (*Entity, error) {
+func LoadEntity(r io.ReadSeeker, entityVarMapping shading_environment.ShadingEnvironmentEntityToShaderMapping) (*Entity, error) {
 	var header Header
 	if err := binary.Read(r, binary.LittleEndian, &header); err != nil {
 		return nil, fmt.Errorf("reading header: %v", err)
@@ -384,7 +387,7 @@ func LoadEntity(r io.ReadSeeker) (*Entity, error) {
 				}
 
 				settings := make([]SettingData, 0)
-				for _, rawSetting := range settingsData {
+				for i, rawSetting := range settingsData {
 					var setting SettingData
 					setting.Type = rawSetting.Type
 					switch rawSetting.Type {
@@ -432,6 +435,13 @@ func LoadEntity(r io.ReadSeeker) (*Entity, error) {
 							return nil, fmt.Errorf("reading component setting vector data: %v", err)
 						}
 						setting.Data = data
+					}
+					if entityVarMapping != nil {
+						shaderMapping, ok := entityVarMapping[settingsNames[i]]
+						if ok {
+							setting.ShaderIndex = shaderMapping.ShaderIndex
+							setting.ShaderName = shaderMapping.ShaderName
+						}
 					}
 					settings = append(settings, setting)
 				}

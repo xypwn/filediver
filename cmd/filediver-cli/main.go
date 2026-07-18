@@ -944,7 +944,7 @@ func handleEntityThinHashes(prt app.Printer, a *app.App, id stingray.FileID, opt
 		prt.Errorf("opening %v.entity's main file: %v", err)
 		return 0
 	}
-	ent, err := entity.LoadEntity(bytes.NewReader(b))
+	ent, err := entity.LoadEntity(bytes.NewReader(b), nil)
 
 	fileCount := 0
 	for _, info := range ent.Infos {
@@ -1084,7 +1084,7 @@ func handleLevelThinHashes(prt app.Printer, a *app.App, id stingray.FileID, optT
 		prt.Errorf("opening %v.shading_environment's main file: %v", err)
 		return 0
 	}
-	info, err := level.LoadLevel(bytes.NewReader(b))
+	info, err := level.LoadLevel(bytes.NewReader(b), nil)
 
 	fileCount := 0
 	for _, metadata := range info.Metadata {

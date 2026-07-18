@@ -11838,3 +11838,6 @@ content/ui/shared/stratagem/icon_strat_hud_supportbackpack_jetpack
 content/ui/shared/stratagem/icon_strat_hud_supportbackpack_recoillessrifle
 content/ui/shared/stratagem/icon_strat_hud_supportdrone_laser
 content/ui/shared/stratagem/icon_strat_hud_supportdrone_machinegun
+rendering/components/skybox_effect
+core/stingray_renderer/shading_environment_components/camera_band_filter
+core/stingray_renderer/shading_environment_components/terrain_debug

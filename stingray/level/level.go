@@ -8,6 +8,7 @@ import (
 	"github.com/go-gl/mathgl/mgl32"
 	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/stingray/entity"
+	"github.com/xypwn/filediver/stingray/shading_environment"
 )
 
 type Unit struct {
@@ -73,6 +74,22 @@ const (
 
 func (p LevelMetadataType) MarshalText() ([]byte, error) {
 	return []byte(p.String()), nil
+}
+
+func (p *LevelMetadataType) UnmarshalText(text []byte) error {
+	switch string(text) {
+	case LevelMetadata_NotSeen.String():
+		*p = LevelMetadata_NotSeen
+	case LevelMetadata_uint32.String():
+		*p = LevelMetadata_uint32
+	case LevelMetadata_float32.String():
+		*p = LevelMetadata_float32
+	case LevelMetadata_string.String():
+		*p = LevelMetadata_string
+	default:
+		return fmt.Errorf("unexpected value for level metadata: %v", string(text))
+	}
+	return nil
 }
 
 //go:generate go run golang.org/x/tools/cmd/stringer -type=LevelMetadataType
@@ -238,7 +255,7 @@ type ExtraUnitsContainer struct {
 	UnkIntsAndFloatList []IntsAndFloat
 }
 
-type rawLevel struct {
+type RawLevel struct {
 	Magic                          uint32
 	UnitCount                      uint32
 	DataCount                      uint32
@@ -411,8 +428,8 @@ func readExtraUnitsContainer(r io.ReadSeeker, extraUnitsHeaderOffset uint32) (*E
 	return extraUnitsContainer, nil
 }
 
-func LoadLevel(r io.ReadSeeker) (*Level, error) {
-	var raw rawLevel
+func LoadLevel(r io.ReadSeeker, entityVarMapping shading_environment.ShadingEnvironmentEntityToShaderMapping) (*Level, error) {
+	var raw RawLevel
 	if err := binary.Read(r, binary.LittleEndian, &raw); err != nil {
 		return nil, fmt.Errorf("read raw level: %v", err)
 	}
@@ -507,7 +524,7 @@ func LoadLevel(r io.ReadSeeker) (*Level, error) {
 			return nil, fmt.Errorf("seek entity offset: %v", err)
 		}
 		var err error
-		embeddedEntity, err = entity.LoadEntity(r)
+		embeddedEntity, err = entity.LoadEntity(r, entityVarMapping)
 		if err != nil {
 			return nil, fmt.Errorf("read embedded entity: %v", err)
 		}

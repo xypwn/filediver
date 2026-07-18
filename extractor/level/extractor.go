@@ -130,7 +130,7 @@ func ExtractLevelJSON(ctx *extractor.Context) error {
 	if err != nil {
 		return err
 	}
-	levelData, err := level.LoadLevel(r)
+	levelData, err := level.LoadLevel(r, ctx.EntityVarMapping())
 	if err != nil {
 		return err
 	}
@@ -384,7 +384,7 @@ func ConvertOpts(ctx *extractor.Context, gltfDoc *gltf.Document) error {
 	if err != nil {
 		return err
 	}
-	levelData, err := level.LoadLevel(r)
+	levelData, err := level.LoadLevel(r, ctx.EntityVarMapping())
 	if err != nil {
 		return err
 	}
