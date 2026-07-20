@@ -63,6 +63,7 @@ func main() {
 	// CLI options
 	var optList *bool
 	var optListArchives *bool
+	var optListFormat *string
 	var optThinToFind *string
 	var optOutDir *string
 	var optInclGlob *string
@@ -84,6 +85,9 @@ func main() {
 		})
 		optListArchives = argp.Flag("la", "list-archives", &argparse.Option{
 			Help: "list archives without extracting anything",
+		})
+		optListFormat = argp.String("lf", "list-format", &argparse.Option{
+			Help: "list files without extracting anything, with custom format string: %N = known name, %T = known type, %n = name hash, %t = type hash",
 		})
 		optThinToFind = argp.String("f", "find-thin", &argparse.Option{
 			Help: "search for given thinhash (bone or material) name and print the file(s) containing it, then exit",
@@ -271,7 +275,7 @@ Options:`)
 	var knownThinHashes []string
 	knownThinHashes = append(knownThinHashes, app.ParseHashes(hashes.ThinHashes)...)
 
-	if !(*optList || *optListArchives || *optThinHashListMode != "none" || *optThinToFind != "") {
+	if !(*optList || *optListArchives || *optListFormat != "" || *optThinHashListMode != "none" || *optThinToFind != "") {
 		prt.Infof("Output directory: \"%v\"", *optOutDir)
 	}
 
@@ -354,6 +358,22 @@ Options:`)
 				id.Name.String(), id.Type.String(),
 				strings.Join(archiveIDStrings, ", "),
 			)
+		}
+	} else if *optListFormat != "" {
+		seenLines := make(map[string]struct{})
+		seenLines[""] = struct{}{} // don't output empty line
+		for _, id := range sortedFileIDs {
+			line := strings.NewReplacer(
+				"%%", "%",
+				"%N", a.Hashes[id.Name],
+				"%T", a.Hashes[id.Type],
+				"%n", fmt.Sprintf("%016x", id.Name.Value),
+				"%t", fmt.Sprintf("%016x", id.Type.Value),
+			).Replace(*optListFormat)
+			if _, seen := seenLines[line]; !seen {
+				fmt.Println(line)
+				seenLines[line] = struct{}{}
+			}
 		}
 	} else if *optListArchives {
 		archiveIDStrings := make(map[string]bool)
