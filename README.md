@@ -68,6 +68,7 @@ The program is called "filediver.exe" (or just "filediver" on Linux). See [usage
 ## Links
 - [HD 2 Archive Labelling](https://docs.google.com/spreadsheets/d/1oQys_OI5DWou4GeRE3mW56j7BIi4M7KftBIPAl1ULFw) (IDs can be used with -t option)
 - [Helldivers Archive Discord server](https://discord.gg/y7P38h2B9Q)
+- [Helldivers 2 Guides](https://hd2guides.com/) — Helldivers 2 stratagem tier lists, warbond guides, mission strategies, and loadout builds.
 
 ## Credits
 - Filediver icon by @gobashroom on [HD2 Modding Discord](https://discord.gg/helldiversmodding)
