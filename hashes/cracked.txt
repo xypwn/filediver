@@ -4922,8 +4922,14 @@ content/env_super_earth/habs/playground/se_playground_monkeybar_01
 content/env_super_earth/habs/playground/se_playground_monkeybar_02
 content/env_super_earth/habs/playground/se_playground_spring_rocker_01
 packages/boot
+packages/content/cyborg_gunship_spawner
+packages/content/cyborg_spawner_factory
+packages/content/il_destroy_weather_device
+packages/content/mechanical_bughole
 packages/debug
 packages/foundation
+packages/generated/exploration_rewards
+packages/localization/jp
 packages/pre_boot
 packages/splash
 packages/terrain
@@ -4931,6 +4937,7 @@ content/art_shared/base_shaders/character
 content/art_shared/base_shaders/video
 content/art_shared/base_shaders/poster
 content/entities/dummy
+content/entities/directional_light_2
 content/env_ship/shiplight
 content/env_ship/hangar/airlock
 content/fac_bugs/cha_boomer/animations/unburrow
@@ -7163,6 +7170,8 @@ content/level_generation_settings/env_shared/weather_settings/high_altitude_clou
 content/level_generation_settings/env_shared/weather_settings/volumetric_clouds/clear_day_01
 content/level_generation_settings/env_shared/weather_settings/volumetric_clouds/cloudy_day_01
 content/level_generation_settings/env_shared_desert/weather_settings/desert_cloudy_day_01
+content/level_generation_settings/level_generation_render_settings
+content/level_generation_settings/wind_shader_settings
 content/levels/lighting/desert/desert_day-cubemaps/reflection_probe_diffuse_bake
 content/levels/lighting/desert/desert_day-cubemaps/reflection_probe_radiance_bake
 content/levels/lighting/desert/desert_day-cubemaps/reflection_probe_specular_bake
@@ -11521,3 +11530,4 @@ content/ui/shared/xaml/content/ui/component_warbond_item_thumbnail
 content/ui/ship/menu/info_terminal/ui_elements/super_earth_logo
 content/ui/ship/menu/menbackgrounds/loaderbgp/menu/info_terminal/ui_elements/super_earth_logo
 content/ui/ship/menu/menbackgrounds/loaderbg
+high_altitude_clouds
