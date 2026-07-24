@@ -69228,6 +69228,7 @@ content/entities/corpse
 content/entities/corpse_unit_customization
 content/entities/corpse_weapon
 content/entities/detector
+content/entities/directional_light_2
 content/entities/dummy
 content/entities/encounter
 content/entities/huge_explosion
@@ -74285,6 +74286,7 @@ content/level_generation_settings/generated_level_minimap
 content/level_generation_settings/generated_level_rebuild_stamps
 content/level_generation_settings/generated_level_refresh_scatter
 content/level_generation_settings/generated_level_reload
+content/level_generation_settings/level_generation_render_settings
 content/level_generation_settings/planet_arctic_glacier/weather_settings/planet_arctic_glacier_base_clear
 content/level_generation_settings/planet_arctic_glacier/weather_settings/planet_arctic_glacier_base_cloudy
 content/level_generation_settings/planet_arctic_glacier/weather_settings/planet_arctic_glacier_base_snowstorm
@@ -74350,6 +74352,7 @@ content/level_generation_settings/planet_settings/planet_setup/planet_forest_pri
 content/level_generation_settings/planet_settings/planet_setup/planet_forest_primordial_dead
 content/level_generation_settings/planet_settings/planet_setup/planet_forest_primordial_purple
 content/level_generation_settings/planet_settings/planet_setup/planet_homeworld_superearth
+content/level_generation_settings/wind_shader_settings
 content/levels/arrival_travel
 content/levels/asset_preview_levels/desert_style_test
 content/levels/basic
@@ -79835,6 +79838,7 @@ hellpod_optimized_landed_lid
 hellpod_warning_light_01
 hidden
 hide_helper_mesh
+high_altitude_clouds
 high_height
 highlight_color
 hinge_open
@@ -80878,8 +80882,8 @@ packages/content/cy_convoy_assault
 packages/content/cy_destroy_airbase
 packages/content/cy_destroy_ammo
 packages/content/cy_destroy_command_bunker
-packages/content/cy_destroy_cooling_structure
 packages/content/cy_destroy_control_tower
+packages/content/cy_destroy_cooling_structure
 packages/content/cy_destroy_detector_tower
 packages/content/cy_destroy_fuel
 packages/content/cy_destroy_gunship
@@ -80897,6 +80901,8 @@ packages/content/cy_shutdown_grinder
 packages/content/cy_steal_battery_cores
 packages/content/cy_steal_coordinates
 packages/content/cy_steal_platinum
+packages/content/cyborg_gunship_spawner
+packages/content/cyborg_spawner_factory
 packages/content/cyborgs
 packages/content/effects_base
 packages/content/effects_bugs
@@ -80946,11 +80952,13 @@ packages/content/grenade_box
 packages/content/health_pack
 packages/content/il_board_mothership
 packages/content/il_destroy_texts
+packages/content/il_destroy_weather_device
 packages/content/il_raise_flag
 packages/content/il_reclaim_location
 packages/content/illuminate
 packages/content/loadout_shared
 packages/content/localization
+packages/content/mechanical_bughole
 packages/content/medals
 packages/content/mission_defense
 packages/content/mission_extraction_return
@@ -80961,8 +80969,8 @@ packages/content/mission_infiltration_cyborg
 packages/content/mission_infiltration_illuminate
 packages/content/mission_tutorial
 packages/content/mission_tutorial_music
-packages/content/seaf
 packages/content/se_corp_ulterior
+packages/content/seaf
 packages/content/ship
 packages/content/ship_extended
 packages/content/stamp_proxies
@@ -80994,6 +81002,13 @@ packages/content/utility_savanna
 packages/content/utility_swamp_day
 packages/content/utility_swamp_editor_testing
 packages/content/warbond
+packages/debug
+packages/foundation
+packages/generated/exploration_rewards
+packages/localization/jp
+packages/pre_boot
+packages/splash
+packages/terrain
 packages/debug
 packages/fallback_resources
 packages/foundation
