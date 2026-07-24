@@ -277,6 +277,14 @@ const (
 	Color
 )
 
+var Order []GradingType = []GradingType{
+	Color,
+	Hue,
+	Saturation,
+	Value,
+	Contrast,
+}
+
 //go:generate go run golang.org/x/tools/cmd/stringer -type=GradingType
 
 func (g GradingType) MarshalText() ([]byte, error) {
@@ -305,7 +313,63 @@ func (g *GradingType) UnmarshalText(data []byte) error {
 	return nil
 }
 
+const (
+	sqrt3over3 float32 = 0.577350269
+	// from luminance formula from wikipedia
+	lumR float32 = 0.2126
+	lumG float32 = 0.7152
+	lumB float32 = 0.0722
+)
+
+// These matrices are from https://lisyarus.github.io/blog/posts/transforming-colors-with-matrices.html
 func (g GradingType) GetMatrix(data any) mgl32.Mat4 {
+	switch g {
+	case Hue:
+		angle, ok := data.(float32)
+		if !ok {
+			return mgl32.Ident4()
+		}
+		return mgl32.HomogRotate3D(angle, mgl32.Vec3{sqrt3over3, sqrt3over3, sqrt3over3})
+	case Saturation:
+		s, ok := data.(float32)
+		if !ok {
+			return mgl32.Ident4()
+		}
+		return mgl32.Mat4FromRows(
+			mgl32.Vec4{s + (1-s)*lumR, (1 - s) * lumG, (1 - s) * lumB, 0.0},
+			mgl32.Vec4{(1 - s) * lumR, s + (1-s)*lumG, (1 - s) * lumB, 0.0},
+			mgl32.Vec4{(1 - s) * lumR, (1 - s) * lumG, s + (1-s)*lumB, 0.0},
+			mgl32.Vec4{0.0, 0.0, 0.0, 1.0},
+		)
+	case Value:
+		val, ok := data.(float32)
+		if !ok {
+			return mgl32.Ident4()
+		}
+		return mgl32.Diag4(mgl32.Vec4{val, val, val, 1})
+	case Contrast:
+		val, ok := data.(float32)
+		if !ok {
+			return mgl32.Ident4()
+		}
+		return mgl32.Mat4FromRows(
+			mgl32.Vec4{val, 0.0, 0.0, (1 - val) / 2},
+			mgl32.Vec4{0.0, val, 0.0, (1 - val) / 2},
+			mgl32.Vec4{0.0, 0.0, val, (1 - val) / 2},
+			mgl32.Vec4{0.0, 0.0, 0.0, 1.0},
+		)
+	case Color:
+		color, ok := data.(mgl32.Vec3)
+		if !ok {
+			return mgl32.Ident4()
+		}
+		return mgl32.Mat4FromRows(
+			mgl32.Vec4{0.0, 0.0, 0.0, color[0]},
+			mgl32.Vec4{0.0, 0.0, 0.0, color[1]},
+			mgl32.Vec4{0.0, 0.0, 0.0, color[2]},
+			mgl32.Vec4{0.0, 0.0, 0.0, 1.0},
+		)
+	}
 	return mgl32.Ident4()
 }
 

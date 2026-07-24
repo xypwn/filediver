@@ -1,12 +1,15 @@
 package entity
 
 import (
+	"encoding/binary"
 	"encoding/json"
+	"slices"
 
 	"github.com/go-gl/mathgl/mgl32"
 	"github.com/xypwn/filediver/extractor"
 	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/stingray/entity"
+	"github.com/xypwn/filediver/stingray/entity/asset_grading"
 )
 
 type SimpleHeader struct {
@@ -242,6 +245,52 @@ func ExtractEntityJSON(ctx *extractor.Context) error {
 		return err
 	}
 
+	var colorGradingLut []mgl32.Vec4
+	for _, info := range entityInfo.Infos {
+		if colorGradingLut != nil {
+			break
+		}
+		for _, component := range info.Components {
+			if component.ComponentData == nil {
+				continue
+			}
+			if !slices.Contains(component.CategoryNames, stingray.Sum("asset_color_grading").Thin()) {
+				continue
+			}
+			colorGradingLut = make([]mgl32.Vec4, 0)
+			matrixMap := make(map[uint32]map[asset_grading.GradingType]mgl32.Mat4)
+			for _, setting := range component.Settings {
+				gradingType, err := asset_grading.GetGradingType(setting.ShaderName)
+				if err != nil {
+					continue
+				}
+				if gradingType == asset_grading.Color && setting.ShaderIndex != 0 {
+					continue
+				}
+				groupId, _ := asset_grading.GetGradingGroupId(setting.ShaderName)
+				existing, ok := matrixMap[groupId]
+				if !ok {
+					existing = make(map[asset_grading.GradingType]mgl32.Mat4)
+				}
+				existing[gradingType] = gradingType.GetMatrix(setting.Data)
+				matrixMap[groupId] = existing
+			}
+			for groupId := range asset_grading.Groups {
+				if groupId == 0 {
+					continue
+				}
+				result := mgl32.Ident4()
+				for _, val := range asset_grading.Order {
+					result = result.Mul4(matrixMap[uint32(groupId)][val])
+				}
+				colorGradingLut = append(colorGradingLut, result.Row(0))
+				colorGradingLut = append(colorGradingLut, result.Row(1))
+				colorGradingLut = append(colorGradingLut, result.Row(2))
+				colorGradingLut = append(colorGradingLut, result.Row(3))
+			}
+		}
+	}
+
 	var simpleEntity SimpleEntity
 	simpleEntity.FromEntity(ctx, entityInfo)
 
@@ -249,10 +298,20 @@ func ExtractEntityJSON(ctx *extractor.Context) error {
 	if err != nil {
 		return err
 	}
+	defer out.Close()
 	enc := json.NewEncoder(out)
 	enc.SetIndent("", "    ")
 	if err := enc.Encode(simpleEntity); err != nil {
 		return err
+	}
+
+	if colorGradingLut != nil {
+		out, err := ctx.CreateFile(".asset_grading_lut.bin")
+		if err != nil {
+			return err
+		}
+		defer out.Close()
+		binary.Write(out, binary.LittleEndian, colorGradingLut)
 	}
 	return nil
 }

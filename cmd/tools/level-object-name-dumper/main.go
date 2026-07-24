@@ -23,7 +23,7 @@ func dumpLevelObjectNames(a *app.App, fileID stingray.FileID) error {
 	if err != nil {
 		return err
 	}
-	levelData, err := level.LoadLevel(bytes.NewReader(bs))
+	levelData, err := level.LoadLevel(bytes.NewReader(bs), nil)
 	if err != nil {
 		return err
 	}
