@@ -380,6 +380,66 @@ func (customization UnitCustomizationComponent) ToSimple(lookupHash HashLookup, 
 	}
 }
 
+func parseUnitCustomizationComponent(overrideComponentData []byte) (*UnitCustomizationComponent, error) {
+	matTextOverridesLen, mountedWeaponOverridesLen, unkOverridesLen, unk2OverridesLen, err := getOverrideArrayLengths(nil)
+	if err != nil {
+		return nil, fmt.Errorf("error getting override array lengths: %v", err)
+	}
+	var matOverrides UnitCustomizationComponent
+	materialsTexturesOverrides := make([]UnitCustomizationMaterialOverrides, matTextOverridesLen)
+	mountedWeaponTextureOverrides := make([]UnitCustomizationMaterialOverrides, mountedWeaponOverridesLen)
+	unkTextureOverrides := make([]UnitCustomizationMaterialOverrides, unkOverridesLen)
+	unk2TextureOverrides := make([]UnitCustomizationMaterialOverrides, unk2OverridesLen)
+	length, err := binary.Decode(overrideComponentData, binary.LittleEndian, &materialsTexturesOverrides)
+	if err != nil {
+		return nil, fmt.Errorf("error decoding material texture overrides: %v", err)
+	}
+	offset, err := binary.Decode(overrideComponentData[length:], binary.LittleEndian, &mountedWeaponTextureOverrides)
+	if err != nil {
+		return nil, fmt.Errorf("error decoding mounted weapon texture overrides: %v", err)
+	}
+	length += offset
+	offset, err = binary.Decode(overrideComponentData[length:], binary.LittleEndian, &unkTextureOverrides)
+	if err != nil {
+		return nil, fmt.Errorf("error decoding unknown texture overrides: %v", err)
+	}
+	length += offset
+	_, err = binary.Decode(overrideComponentData[length:], binary.LittleEndian, &unk2TextureOverrides)
+	if err != nil {
+		return nil, fmt.Errorf("error decoding second unknown texture overrides: %v", err)
+	}
+	matOverrides.MaterialsTexturesOverrides = make([]UnitCustomizationMaterialOverrides, 0)
+	matOverrides.MountedWeaponTextureOverrides = make([]UnitCustomizationMaterialOverrides, 0)
+	matOverrides.UnknownTextureOverrides = make([]UnitCustomizationMaterialOverrides, 0)
+	matOverrides.UnknownTextureOverrides2 = make([]UnitCustomizationMaterialOverrides, 0)
+	for _, override := range materialsTexturesOverrides {
+		if override.MaterialID.Value == 0 {
+			continue
+		}
+		matOverrides.MaterialsTexturesOverrides = append(matOverrides.MaterialsTexturesOverrides, override)
+	}
+	for _, override := range mountedWeaponTextureOverrides {
+		if override.MaterialID.Value == 0 {
+			continue
+		}
+		matOverrides.MountedWeaponTextureOverrides = append(matOverrides.MountedWeaponTextureOverrides, override)
+	}
+	for _, override := range unkTextureOverrides {
+		if override.MaterialID.Value == 0 {
+			continue
+		}
+		matOverrides.UnknownTextureOverrides = append(matOverrides.UnknownTextureOverrides, override)
+	}
+	for _, override := range unk2TextureOverrides {
+		if override.MaterialID.Value == 0 {
+			continue
+		}
+		matOverrides.UnknownTextureOverrides2 = append(matOverrides.UnknownTextureOverrides2, override)
+	}
+
+	return &matOverrides, nil
+}
+
 func ParseUnitCustomizationSettings(getResource GetResourceFunc, stringmap map[uint32]string) ([]UnitCustomizationSettings, error) {
 	// I guess this hash_lookup file must be the material add path lookup file or something
 	// Each hash lookup seems to have a slightly different format, so I don't have a general parser
@@ -405,11 +465,6 @@ func ParseUnitCustomizationSettings(getResource GetResourceFunc, stringmap map[u
 	deltas, err := ParseEntityDeltas()
 	if err != nil {
 		return nil, fmt.Errorf("error parsing entity deltas: %v", err)
-	}
-
-	matTextOverridesLen, mountedWeaponOverridesLen, unkOverridesLen, unk2OverridesLen, err := getOverrideArrayLengths(nil)
-	if err != nil {
-		return nil, fmt.Errorf("error getting override array lengths: %v", err)
 	}
 
 	r := bytes.NewReader(unitCustomizationSettings)
@@ -510,58 +565,30 @@ func ParseUnitCustomizationSettings(getResource GetResourceFunc, stringmap map[u
 				return nil, fmt.Errorf("error patching component data: %v", err)
 			}
 
-			var matOverrides UnitCustomizationComponent
-			materialsTexturesOverrides := make([]UnitCustomizationMaterialOverrides, matTextOverridesLen)
-			mountedWeaponTextureOverrides := make([]UnitCustomizationMaterialOverrides, mountedWeaponOverridesLen)
-			unkTextureOverrides := make([]UnitCustomizationMaterialOverrides, unkOverridesLen)
-			unk2TextureOverrides := make([]UnitCustomizationMaterialOverrides, unk2OverridesLen)
-			length, err := binary.Decode(overrideComponentData, binary.LittleEndian, &materialsTexturesOverrides)
+			matOverrides, err := parseUnitCustomizationComponent(overrideComponentData)
 			if err != nil {
-				return nil, fmt.Errorf("error decoding material texture overrides: %v", err)
+				return nil, fmt.Errorf("parsing patched component: %v", err)
 			}
-			offset, err := binary.Decode(overrideComponentData[length:], binary.LittleEndian, &mountedWeaponTextureOverrides)
+			skin.Customization = *matOverrides
+
+			skins = append(skins, skin)
+		}
+
+		if unitHash == stingray.Sum("content/fac_helldivers/vehicles/frv/frv") {
+			seafFrvHash := stingray.Sum("content/fac_helldivers/vehicles/frv/frv_superearth")
+			componentData, err = getUnitCustomizationComponentDataForHash(seafFrvHash)
 			if err != nil {
-				return nil, fmt.Errorf("error decoding mounted weapon texture overrides: %v", err)
+				return nil, fmt.Errorf("error getting unit customization component data for hash %v: %v", unitHash.String(), err)
 			}
-			length += offset
-			offset, err = binary.Decode(overrideComponentData[length:], binary.LittleEndian, &unkTextureOverrides)
+			var skin UnitCustomizationSetting
+			matOverrides, err := parseUnitCustomizationComponent(componentData)
 			if err != nil {
-				return nil, fmt.Errorf("error decoding unknown texture overrides: %v", err)
+				return nil, fmt.Errorf("parsing patched component: %v", err)
 			}
-			length += offset
-			_, err = binary.Decode(overrideComponentData[length:], binary.LittleEndian, &unk2TextureOverrides)
-			if err != nil {
-				return nil, fmt.Errorf("error decoding second unknown texture overrides: %v", err)
-			}
-			matOverrides.MaterialsTexturesOverrides = make([]UnitCustomizationMaterialOverrides, 0)
-			matOverrides.MountedWeaponTextureOverrides = make([]UnitCustomizationMaterialOverrides, 0)
-			matOverrides.UnknownTextureOverrides = make([]UnitCustomizationMaterialOverrides, 0)
-			matOverrides.UnknownTextureOverrides2 = make([]UnitCustomizationMaterialOverrides, 0)
-			for _, override := range materialsTexturesOverrides {
-				if override.MaterialID.Value == 0 {
-					continue
-				}
-				matOverrides.MaterialsTexturesOverrides = append(matOverrides.MaterialsTexturesOverrides, override)
-			}
-			for _, override := range mountedWeaponTextureOverrides {
-				if override.MaterialID.Value == 0 {
-					continue
-				}
-				matOverrides.MountedWeaponTextureOverrides = append(matOverrides.MountedWeaponTextureOverrides, override)
-			}
-			for _, override := range unkTextureOverrides {
-				if override.MaterialID.Value == 0 {
-					continue
-				}
-				matOverrides.UnknownTextureOverrides = append(matOverrides.UnknownTextureOverrides, override)
-			}
-			for _, override := range unk2TextureOverrides {
-				if override.MaterialID.Value == 0 {
-					continue
-				}
-				matOverrides.UnknownTextureOverrides2 = append(matOverrides.UnknownTextureOverrides2, override)
-			}
-			skin.Customization = matOverrides
+			skin.Customization = *matOverrides
+			skin.Name = "SUPEREARTH VEHICLE PATTERN"
+			skin.ID = stingray.Sum("frv_superearth").Thin()
+			skin.Archive.Value = 0x81da0125a3af89ee
 
 			skins = append(skins, skin)
 		}

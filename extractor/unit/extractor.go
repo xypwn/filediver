@@ -293,12 +293,6 @@ func AddMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_mate
 	for id, resID := range unitInfo.Materials {
 		resID = ctx.OverrideMaterial(id, resID)
 		matR, err := ctx.Open(stingray.NewFileID(resID, stingray.Sum("material")), stingray.DataMain)
-		if err == stingray.ErrFileNotExist {
-			// Some unit files reference materials that don't exist, maybe they're dev materials?
-			// The bastion tank and frv_mg are example units
-			// Skipping the non-existant materials doesn't change how the output model looks
-			continue
-		}
 		if err != nil {
 			return nil, err
 		}
@@ -342,6 +336,13 @@ func AddMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_mate
 				continue
 			}
 			skinOverrides = skinOverrideGroup.Skins
+			unit, err := skinOverrideGroup.CollectionType.Unit()
+			if err != nil {
+				continue
+			}
+			if ctx.FileID().Name == unit {
+				break
+			}
 		}
 		for _, skinOverride := range skinOverrides {
 			skinName := cases.Title(language.English).String(skinOverride.Name)
