@@ -60,6 +60,9 @@ func main() {
 	entities := parser.Strings("e", "entities", &argparse.Option{
 		Positional: false,
 	})
+	entityNames := parser.Strings("", "entity-names", &argparse.Option{
+		Positional: false,
+	})
 	levels := parser.Strings("l", "levels", &argparse.Option{
 		Positional: false,
 	})
@@ -68,6 +71,10 @@ func main() {
 	})
 	if err := parser.Parse(nil); err != nil {
 		prt.Fatalf("%v", err)
+	}
+
+	if entityNames != nil && entities != nil && len(*entities) > 1 && len(*entities) != len(*entityNames) {
+		prt.Fatalf("When multiple entities are being loaded into the patch, each entity must have a corresponding name")
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -100,14 +107,23 @@ func main() {
 	archive := stingray.Archive{}
 	marshalledFiles := make(map[stingray.FileID][]byte)
 
+	if entityNames == nil {
+		entityNames = entities
+	}
+
 	outputPath := filepath.Clean(*output)
-	for _, name := range *entities {
+	for i, name := range *entityNames {
 		prt.Infof("%v", name)
-		inputPath := filepath.Clean(name)
+		inputPath := filepath.Clean((*entities)[i%len(*entities)])
 		if _, err := os.Stat(inputPath); err != nil {
 			prt.Fatalf("%v: %v", inputPath, err)
 		}
-		fileId, err := getFileId(inputPath, "entity")
+		var fileId stingray.FileID
+		if entityNames != entities {
+			fileId, err = getFileId(name, "entity")
+		} else {
+			fileId, err = getFileId(inputPath, "entity")
+		}
 		if err != nil {
 			prt.Fatalf("getFileId: %v")
 		}

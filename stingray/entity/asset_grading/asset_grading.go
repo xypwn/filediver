@@ -3,6 +3,7 @@ package asset_grading
 import (
 	"errors"
 	"fmt"
+	"math"
 	"slices"
 
 	"github.com/go-gl/mathgl/mgl32"
@@ -316,54 +317,90 @@ func (g *GradingType) UnmarshalText(data []byte) error {
 const (
 	sqrt3over3 float32 = 0.577350269
 	// from luminance formula from wikipedia
-	lumR float32 = 0.2126
-	lumG float32 = 0.7152
-	lumB float32 = 0.0722
+	lumR float32 = 0.3086
+	lumG float32 = 0.6094
+	lumB float32 = 0.0820
 )
 
+func getF32(data any) (float32, error) {
+	s, ok := data.(float32)
+	if !ok {
+		s64, ok := data.(float64)
+		if !ok {
+			return 0, fmt.Errorf("could not cast to float")
+		}
+		s = float32(s64)
+	}
+	return s, nil
+}
+
+func getVec3(data any) (mgl32.Vec3, error) {
+	s, ok := data.(mgl32.Vec3)
+	if !ok {
+		s64, ok := data.([3]float64)
+		if !ok {
+			return mgl32.Vec3{}, fmt.Errorf("could not cast to float")
+		}
+		s = mgl32.Vec3{float32(s64[0]), float32(s64[1]), float32(s64[2])}
+	}
+	return s, nil
+}
+
 // These matrices are from https://lisyarus.github.io/blog/posts/transforming-colors-with-matrices.html
+// Also helpful: https://docs.rainmeter.net/tips/colormatrix-guide/ (just chop off the 5th row and col)
 func (g GradingType) GetMatrix(data any) mgl32.Mat4 {
 	switch g {
 	case Hue:
-		angle, ok := data.(float32)
-		if !ok {
+		angle, err := getF32(data)
+		if err != nil {
 			return mgl32.Ident4()
 		}
-		return mgl32.HomogRotate3D(angle, mgl32.Vec3{sqrt3over3, sqrt3over3, sqrt3over3})
+		return mgl32.HomogRotate3D(angle*2*math.Pi, mgl32.Vec3{sqrt3over3, sqrt3over3, sqrt3over3}).Transpose()
 	case Saturation:
-		s, ok := data.(float32)
-		if !ok {
+		s, err := getF32(data)
+		if err != nil {
 			return mgl32.Ident4()
 		}
-		return mgl32.Mat4FromRows(
+		return mgl32.Mat4FromCols(
 			mgl32.Vec4{s + (1-s)*lumR, (1 - s) * lumG, (1 - s) * lumB, 0.0},
 			mgl32.Vec4{(1 - s) * lumR, s + (1-s)*lumG, (1 - s) * lumB, 0.0},
 			mgl32.Vec4{(1 - s) * lumR, (1 - s) * lumG, s + (1-s)*lumB, 0.0},
 			mgl32.Vec4{0.0, 0.0, 0.0, 1.0},
 		)
 	case Value:
-		val, ok := data.(float32)
-		if !ok {
+		val, err := getF32(data)
+		if err != nil {
 			return mgl32.Ident4()
 		}
 		return mgl32.Diag4(mgl32.Vec4{val, val, val, 1})
 	case Contrast:
-		val, ok := data.(float32)
-		if !ok {
+		val, err := getF32(data)
+		if err != nil {
 			return mgl32.Ident4()
 		}
-		return mgl32.Mat4FromRows(
+		return mgl32.Mat4FromCols(
 			mgl32.Vec4{val, 0.0, 0.0, (1 - val) / 2},
 			mgl32.Vec4{0.0, val, 0.0, (1 - val) / 2},
 			mgl32.Vec4{0.0, 0.0, val, (1 - val) / 2},
 			mgl32.Vec4{0.0, 0.0, 0.0, 1.0},
 		)
-	case Color:
-		color, ok := data.(mgl32.Vec3)
-		if !ok {
+	case ContrastMidpoint:
+		val, err := getF32(data)
+		if err != nil {
 			return mgl32.Ident4()
 		}
-		return mgl32.Mat4FromRows(
+		return mgl32.Mat4FromCols(
+			mgl32.Vec4{0.0, 0.0, 0.0, val},
+			mgl32.Vec4{0.0, 0.0, 0.0, val},
+			mgl32.Vec4{0.0, 0.0, 0.0, val},
+			mgl32.Vec4{0.0, 0.0, 0.0, 1.0},
+		)
+	case Color:
+		color, err := getVec3(data)
+		if err != nil {
+			return mgl32.Ident4()
+		}
+		return mgl32.Mat4FromCols(
 			mgl32.Vec4{0.0, 0.0, 0.0, color[0]},
 			mgl32.Vec4{0.0, 0.0, 0.0, color[1]},
 			mgl32.Vec4{0.0, 0.0, 0.0, color[2]},
@@ -388,7 +425,7 @@ func GetGradingType(t stingray.ThinHash) (GradingType, error) {
 	case ColorBushes, ColorBushes2, ColorGenericRock, ColorGrass, ColorGrass2, ColorGrass3, ColorLeaves, ColorLeaves2, ColorLeaves3, ColorMoss, ColorMossSec, ColorPebbles, ColorPebbles2, ColorRoads, ColorRoadsSec, ColorRocks, ColorRocksSec, ColorTerrain1, ColorTerrain1Sec, ColorTerrain2, ColorTerrain2Sec, ColorTerrain3, ColorTerrain3Sec, ColorTrunks, ColorVista:
 		return Color, nil
 	default:
-		return None, fmt.Errorf("not a grading type")
+		return None, fmt.Errorf("not a grading type: %v", t.String())
 	}
 }
 
