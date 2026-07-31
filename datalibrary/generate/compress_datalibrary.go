@@ -41,6 +41,7 @@ func main() {
 		"generated_environment_settings.dl_bin",
 		"generated_explosion_settings.dl_bin",
 		"generated_planet_data.dl_bin",
+		"generated_planet_override_settings.dl_bin",
 		"generated_projectile_settings.dl_bin",
 		"generated_sky_settings.dl_bin",
 		"generated_unit_customization_settings.dl_bin",
