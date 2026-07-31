@@ -1042,6 +1042,8 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 				usedTextures[texUsageStr] = index
 			}
 			albedoPostProcess = postProcessToOpaque
+		case "base_data":
+			fallthrough
 		case "normal_specular_ao":
 			// GLTF normals will look wonky, but our own material will be able to use the specular+ao in this map
 			// in blender
@@ -1056,8 +1058,6 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 		case "covering_normal":
 			fallthrough
 		case "NAC":
-			fallthrough
-		case "base_data":
 			useNormalMapAlphaSetting, ok := mat.Settings[stingray.Sum("use_normal_map_alpha").Thin()]
 			if ok && useNormalMapAlphaSetting[0] == 0 {
 				normalPostProcess = postProcessReconstructNormalZ
