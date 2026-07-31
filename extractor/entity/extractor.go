@@ -3,9 +3,13 @@ package entity
 import (
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
+	"io"
 	"slices"
 
 	"github.com/go-gl/mathgl/mgl32"
+	"github.com/x448/float16"
+	"github.com/xypwn/filediver/dds"
 	"github.com/xypwn/filediver/extractor"
 	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/stingray/entity"
@@ -245,6 +249,73 @@ func ExtractEntityJSON(ctx *extractor.Context) error {
 		return err
 	}
 
+	var simpleEntity SimpleEntity
+	simpleEntity.FromEntity(ctx, entityInfo)
+
+	out, err := ctx.CreateFile(".entity.json")
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+	enc := json.NewEncoder(out)
+	enc.SetIndent("", "    ")
+	if err := enc.Encode(simpleEntity); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+type Vec4F16 struct {
+	X, Y, Z, W float16.Float16
+}
+
+func applyContrastMidpoint(matrix mgl32.Mat4, midpoint *mgl32.Mat4) mgl32.Mat4 {
+	if midpoint == nil {
+		midpoint = &mgl32.Mat4{}
+		*midpoint = mgl32.Mat4FromCols(
+			mgl32.Vec4{0.0, 0.0, 0.0, 0.5},
+			mgl32.Vec4{0.0, 0.0, 0.0, 0.5},
+			mgl32.Vec4{0.0, 0.0, 0.0, 0.5},
+			mgl32.Vec4{0.0, 0.0, 0.0, 1.0},
+		)
+	}
+	row := matrix.Row(3)
+	row = row.Vec3().Mul(midpoint.At(3, 0)).Vec4(row.W())
+	return mgl32.Mat4FromRows(
+		matrix.Row(0),
+		matrix.Row(1),
+		matrix.Row(2),
+		row,
+	)
+}
+
+func convertToFloat16(rows []mgl32.Vec4) []Vec4F16 {
+	result := make([]Vec4F16, 0)
+	for _, row := range rows {
+		result = append(result, Vec4F16{
+			X: float16.Fromfloat32(row.X()),
+			Y: float16.Fromfloat32(row.Y()),
+			Z: float16.Fromfloat32(row.Z()),
+			W: float16.Fromfloat32(row.W()),
+		})
+	}
+	return result
+}
+
+func getF32(data any) (float32, error) {
+	s, ok := data.(float32)
+	if !ok {
+		s64, ok := data.(float64)
+		if !ok {
+			return 0, fmt.Errorf("could not cast to float")
+		}
+		s = float32(s64)
+	}
+	return s, nil
+}
+
+func createColorGradingLut(entityInfo *entity.Entity) ([]Vec4F16, error) {
 	var colorGradingLut []mgl32.Vec4
 	for _, info := range entityInfo.Infos {
 		if colorGradingLut != nil {
@@ -264,13 +335,39 @@ func ExtractEntityJSON(ctx *extractor.Context) error {
 				if err != nil {
 					continue
 				}
-				if gradingType == asset_grading.Color && setting.ShaderIndex != 0 {
-					continue
-				}
 				groupId, _ := asset_grading.GetGradingGroupId(setting.ShaderName)
 				existing, ok := matrixMap[groupId]
 				if !ok {
 					existing = make(map[asset_grading.GradingType]mgl32.Mat4)
+				}
+				if gradingType == asset_grading.Color {
+					colorMatrix, ok := existing[gradingType]
+					if !ok && setting.ShaderIndex != 0 {
+						val, err := getF32(setting.Data)
+						if err != nil {
+							existing[gradingType] = mgl32.Ident4()
+						} else {
+							existing[gradingType] = mgl32.Diag4(mgl32.Vec4{val, val, val, 1.0})
+						}
+						matrixMap[groupId] = existing
+						continue
+					} else if ok && setting.ShaderIndex != 0 {
+						val, err := getF32(setting.Data)
+						var matrix mgl32.Mat4
+						if err != nil {
+							matrix = mgl32.Ident4()
+						} else {
+							matrix = mgl32.Diag4(mgl32.Vec4{val, val, val, 1.0})
+						}
+						existing[gradingType] = colorMatrix.Mul4(matrix)
+						matrixMap[groupId] = existing
+						continue
+					} else if ok && setting.ShaderIndex == 0 {
+						matrix := gradingType.GetMatrix(setting.Data)
+						existing[gradingType] = matrix.Mul4(colorMatrix)
+						matrixMap[groupId] = existing
+						continue
+					}
 				}
 				existing[gradingType] = gradingType.GetMatrix(setting.Data)
 				matrixMap[groupId] = existing
@@ -281,37 +378,95 @@ func ExtractEntityJSON(ctx *extractor.Context) error {
 				}
 				result := mgl32.Ident4()
 				for _, val := range asset_grading.Order {
-					result = result.Mul4(matrixMap[uint32(groupId)][val])
+					matrix, exists := matrixMap[uint32(groupId)][val]
+					if !exists {
+						matrix = mgl32.Ident4()
+					}
+					if val == asset_grading.Contrast {
+						var midpoint *mgl32.Mat4
+						midpointValue, exists := matrixMap[uint32(groupId)][asset_grading.ContrastMidpoint]
+						if exists {
+							midpoint = &midpointValue
+						}
+						matrix = applyContrastMidpoint(matrix, midpoint)
+					}
+					result = result.Mul4(matrix)
 				}
-				colorGradingLut = append(colorGradingLut, result.Row(0))
-				colorGradingLut = append(colorGradingLut, result.Row(1))
-				colorGradingLut = append(colorGradingLut, result.Row(2))
-				colorGradingLut = append(colorGradingLut, result.Row(3))
+
+				row0, row1, row2, row3 := result.Rows()
+				colorGradingLut = append(colorGradingLut, row0, row1, row2, row3)
 			}
 		}
 	}
 
-	var simpleEntity SimpleEntity
-	simpleEntity.FromEntity(ctx, entityInfo)
+	return convertToFloat16(colorGradingLut), nil
+}
 
-	out, err := ctx.CreateFile(".entity.json")
+func writeDDS(w io.Writer, colorGradingLut []Vec4F16) error {
+	if err := binary.Write(w, binary.LittleEndian, []byte("DDS ")); err != nil {
+		return err
+	}
+
+	header := dds.Header{
+		Size:              124,
+		Flags:             dds.HeaderFlagCaps | dds.HeaderFlagHeight | dds.HeaderFlagWidth | dds.HeaderFlagPixelFormat | dds.HeaderFlagMipMapCount,
+		Height:            1,
+		Width:             100,
+		PitchOrLinearSize: 0,
+		Depth:             0,
+		MipMapCount:       1,
+		Reserved:          [11]uint32{0, 0, 0, 0, 0, 0, 0, 0x52455655, 0, 0x5454564E, 0x00020100}, // UVER NVTT
+		PixelFormat: dds.PixelFormat{
+			Size:        32,
+			Flags:       dds.PixelFormatFlagFourCC,
+			FourCC:      [4]uint8{'D', 'X', '1', '0'},
+			RGBBitCount: 0,
+			RBitMask:    0,
+			GBitMask:    0,
+			BBitMask:    0,
+			ABitMask:    0,
+		},
+		Caps:      dds.CapsTexture | dds.CapsMipMap | dds.CapsFlag,
+		Caps2:     0,
+		Caps3:     0,
+		Caps4:     0,
+		Reserved2: 0,
+	}
+	if err := binary.Write(w, binary.LittleEndian, header); err != nil {
+		return err
+	}
+
+	dx10Header := dds.DXT10Header{
+		DXGIFormat:        dds.DXGIFormatR16G16B16A16Float,
+		ResourceDimension: dds.D3D10ResourceDimensionTexture2D,
+		MiscFlag:          0,
+		ArraySize:         1,
+		MiscFlags2:        0,
+	}
+	if err := binary.Write(w, binary.LittleEndian, dx10Header); err != nil {
+		return err
+	}
+
+	return binary.Write(w, binary.LittleEndian, colorGradingLut)
+}
+
+func WriteDDSColorGradingLut(w io.Writer, entityInfo *entity.Entity) error {
+	colorGradingLut, err := createColorGradingLut(entityInfo)
 	if err != nil {
 		return err
 	}
-	defer out.Close()
-	enc := json.NewEncoder(out)
-	enc.SetIndent("", "    ")
-	if err := enc.Encode(simpleEntity); err != nil {
-		return err
-	}
 
-	if colorGradingLut != nil {
-		out, err := ctx.CreateFile(".asset_grading_lut.bin")
-		if err != nil {
-			return err
-		}
-		defer out.Close()
-		binary.Write(out, binary.LittleEndian, colorGradingLut)
-	}
-	return nil
+	return writeDDS(w, colorGradingLut)
+}
+
+func WriteDDSIdentityColorGradingLut(w io.Writer) error {
+	row0, row1, row2, row3 := mgl32.Ident4().Rows()
+	colorGradingLut := convertToFloat16([]mgl32.Vec4{row0, row1, row2, row3}) // 4
+	colorGradingLut = append(colorGradingLut, colorGradingLut...)             // 8
+	colorGradingLut = append(colorGradingLut, colorGradingLut...)             // 16
+	colorGradingLut = append(colorGradingLut, colorGradingLut...)             // 32
+	colorGradingLut = append(colorGradingLut, colorGradingLut...)             // 64
+	colorGradingLut = append(colorGradingLut, colorGradingLut[:36]...)        // 100
+
+	return writeDDS(w, colorGradingLut)
 }

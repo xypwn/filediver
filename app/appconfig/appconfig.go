@@ -69,7 +69,8 @@ type Config struct {
 		Format string `cfg:"options=json,raw"`
 	} `cfg:"tags=t:entity,t:shading_environment_mapping,t:shading_environment help='Shading environment configuration file export settings'"`
 	SpeedTree struct {
-		Format string `cfg:"options=model,json,raw"`
+		Format       string `cfg:"options=model,json,raw"`
+		ColorGrading string `cfg:"tags=advanced help='entity file to use for color grading lut'"`
 	} `cfg:"tags=t:speedtree help='Tree model export format'"`
 	XAML struct {
 		Format string `cfg:"options=svg,xaml,raw"`

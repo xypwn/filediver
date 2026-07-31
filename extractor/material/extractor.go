@@ -378,21 +378,8 @@ func postProcessMRA(img image.Image) (image.Image, error) {
 	}
 }
 
-// Adds a texture to doc. Returns new texture ID if err != nil.
-// postProcess optionally applies image post-processing.
-func writeTexture(ctx *extractor.Context, doc *gltf.Document, id stingray.Hash, postProcess func(image.Image) (image.Image, error), imgOpts *ImageOptions, suffix string) (uint32, error) {
-	// Check if we've already added this texture
-	for j, texture := range doc.Textures {
-		if doc.Images[*texture.Source].Name == (id.String() + suffix) {
-			return uint32(j), nil
-		}
-	}
-
-	ddsData, err := extr_texture.ExtractDDSData(ctx, stingray.NewFileID(id, stingray.Sum("texture")))
-	if err != nil {
-		return 0, err
-	}
-	tex, err := dds.Decode(bytes.NewReader(ddsData), false)
+func WriteDDS(ctx *extractor.Context, doc *gltf.Document, ddsR io.ReadSeeker, postProcess func(image.Image) (image.Image, error), imgOpts *ImageOptions, suffix string) (uint32, error) {
+	tex, err := dds.Decode(ddsR, false)
 	if err != nil {
 		return 0, err
 	}
@@ -431,6 +418,7 @@ func writeTexture(ctx *extractor.Context, doc *gltf.Document, id stingray.Hash, 
 		}
 		mimeType = "image/png"
 	}
+	id := ctx.FileID().Name
 	imgIdx, err := modeler.WriteImage(doc, id.String()+suffix, mimeType, &encData)
 	if err != nil {
 		return 0, err
@@ -441,11 +429,14 @@ func writeTexture(ctx *extractor.Context, doc *gltf.Document, id stingray.Hash, 
 	})
 	texIdx := uint32(len(doc.Textures) - 1)
 	if imgOpts != nil && imgOpts.Raw {
-		reader := bytes.NewReader(ddsData)
+		if _, err := ddsR.Seek(0, io.SeekStart); err != nil {
+			ctx.Warnf("WriteTexture: dds reader failed to seek start")
+			return texIdx, nil
+		}
 		mimeType = "image/vnd-ms.dds"
-		imgIdx, err = modeler.WriteImage(doc, id.String()+suffix+".dds", mimeType, reader)
+		imgIdx, err = modeler.WriteImage(doc, id.String()+suffix+".dds", mimeType, ddsR)
 		if err != nil {
-			ctx.Warnf("writeTexture: failed to write dds image to document")
+			ctx.Warnf("WriteTexture: failed to write dds image to document")
 			return texIdx, nil
 		}
 		doc.Textures[texIdx].Extensions = make(gltf.Extensions)
@@ -464,6 +455,24 @@ func writeTexture(ctx *extractor.Context, doc *gltf.Document, id stingray.Hash, 
 		}
 	}
 	return texIdx, nil
+}
+
+// Adds a texture to doc. Returns new texture ID if err != nil.
+// postProcess optionally applies image post-processing.
+func writeTexture(ctx *extractor.Context, doc *gltf.Document, id stingray.Hash, postProcess func(image.Image) (image.Image, error), imgOpts *ImageOptions, suffix string) (uint32, error) {
+	// Check if we've already added this texture
+	for j, texture := range doc.Textures {
+		if doc.Images[*texture.Source].Name == (id.String() + suffix) {
+			return uint32(j), nil
+		}
+	}
+
+	ddsData, err := extr_texture.ExtractDDSData(ctx, stingray.NewFileID(id, stingray.Sum("texture")))
+	if err != nil {
+		return 0, err
+	}
+	ddsR := bytes.NewReader(ddsData)
+	return WriteDDS(ctx.WithFileID(stingray.NewFileID(id, stingray.Sum("texture"))), doc, ddsR, postProcess, imgOpts, suffix)
 }
 
 func combineIlluminateOcclusionMetallicRoughness(narImg, dataImg image.Image) error {
@@ -1274,6 +1283,8 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 		case "palette_lut":
 			fallthrough
 		case "specular_brdf_lut":
+			fallthrough
+		case "asset_color_grading_lut":
 			fallthrough
 		case "pattern_lut":
 			// Save raw DDS for all LUT types, to later be processed into exr

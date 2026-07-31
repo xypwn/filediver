@@ -279,11 +279,11 @@ const (
 )
 
 var Order []GradingType = []GradingType{
-	Color,
 	Hue,
 	Saturation,
 	Value,
 	Contrast,
+	Color,
 }
 
 //go:generate go run golang.org/x/tools/cmd/stringer -type=GradingType
@@ -335,15 +335,28 @@ func getF32(data any) (float32, error) {
 }
 
 func getVec3(data any) (mgl32.Vec3, error) {
-	s, ok := data.(mgl32.Vec3)
-	if !ok {
-		s64, ok := data.([3]float64)
-		if !ok {
-			return mgl32.Vec3{}, fmt.Errorf("could not cast to float")
+	result := mgl32.Vec3{}
+	switch dataArr := data.(type) {
+	case []any:
+		for i, val := range dataArr {
+			floatVal, ok := val.(float32)
+			if !ok {
+				doubleVal, ok := val.(float64)
+				if !ok {
+					fmt.Println("failed to cast vec3 value")
+					return mgl32.Vec3{}, fmt.Errorf("could not cast to float")
+				}
+				floatVal = float32(doubleVal)
+			}
+			result[i] = floatVal
 		}
-		s = mgl32.Vec3{float32(s64[0]), float32(s64[1]), float32(s64[2])}
+	case []float32:
+		copy(result[:], dataArr)
+	default:
+		return mgl32.Vec3{}, fmt.Errorf("could not cast to slice")
 	}
-	return s, nil
+
+	return result, nil
 }
 
 // These matrices are from https://lisyarus.github.io/blog/posts/transforming-colors-with-matrices.html
@@ -401,9 +414,9 @@ func (g GradingType) GetMatrix(data any) mgl32.Mat4 {
 			return mgl32.Ident4()
 		}
 		return mgl32.Mat4FromCols(
-			mgl32.Vec4{0.0, 0.0, 0.0, color[0]},
-			mgl32.Vec4{0.0, 0.0, 0.0, color[1]},
-			mgl32.Vec4{0.0, 0.0, 0.0, color[2]},
+			mgl32.Vec4{color[0], 0.0, 0.0, 0.0},
+			mgl32.Vec4{0.0, color[1], 0.0, 0.0},
+			mgl32.Vec4{0.0, 0.0, color[2], 0.0},
 			mgl32.Vec4{0.0, 0.0, 0.0, 1.0},
 		)
 	}
