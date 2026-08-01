@@ -107,6 +107,89 @@ type Archive struct {
 	Files  []FileData
 }
 
+// Relocates all file offsets and updates the archive's Files with the result
+func (a *Archive) MarshalBinary() ([]byte, error) {
+	a.Header.MagicNum = [4]byte{0x11, 0x00, 0x00, 0xf0}
+	a.Header.NumFiles = uint32(len(a.Files))
+	a.Header.NumTypes = uint32(len(a.Types))
+
+	var err error
+	result := make([]byte, 0)
+	if result, err = binary.Append(result, binary.LittleEndian, a.Header); err != nil {
+		return nil, err
+	}
+	if result, err = binary.Append(result, binary.LittleEndian, a.Types); err != nil {
+		return nil, err
+	}
+	relocatedFiles := make([]FileData, len(a.Files))
+	offset := uint64(len(result) + binary.Size(a.Files))
+	for idx, fileData := range a.Files {
+		if offset%uint64(fileData.MainAlignment) != 0 {
+			offset += uint64(fileData.MainAlignment) - offset%uint64(fileData.MainAlignment)
+		}
+		fileData.Offsets[DataMain] = offset
+		offset += uint64(fileData.Sizes[DataMain])
+		relocatedFiles[idx] = fileData
+	}
+	a.Files = relocatedFiles
+	if result, err = binary.Append(result, binary.LittleEndian, a.Files); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (a Archive) TypeIdx(typeId Hash) int {
+	for i, typ := range a.Types {
+		if typ.Name == typeId {
+			return i
+		}
+	}
+	return -1
+}
+
+func (a Archive) FileIdx(fileId FileID) int {
+	for i, file := range a.Files {
+		if file.ID.Name == fileId.Name && file.ID.Type == fileId.Type {
+			return i
+		}
+	}
+	return -1
+}
+
+func (a *Archive) AddFile(fileId FileID, size, alignment uint32) {
+	typeIdx := a.TypeIdx(fileId.Type)
+	if typeIdx == -1 {
+		typeIdx = len(a.Types)
+		a.Types = append(a.Types, TypeData{
+			Name:          fileId.Type,
+			Count:         0,
+			MainAlignment: alignment,
+			GPUAlignment:  alignment,
+		})
+	}
+	typeData := a.Types[typeIdx]
+	typeData.Count += 1
+	a.Types[typeIdx] = typeData
+
+	fileIdx := a.FileIdx(fileId)
+	if fileIdx == -1 {
+		fileIdx = len(a.Files)
+		a.Files = append(a.Files, FileData{
+			ID:               fileId,
+			Offsets:          [3]uint64{},
+			MainBufferOffset: 0,
+			GPUBufferOffset:  0,
+			Sizes:            [3]uint32{},
+			Index:            uint32(fileIdx),
+			MainAlignment:    alignment,
+			GPUAlignment:     alignment,
+		})
+	}
+	fileData := a.Files[fileIdx]
+	fileData.Sizes[DataMain] = size
+	a.Files[fileIdx] = fileData
+}
+
 // Gets the archive size (excluding main data; meaning size of header, type info and file info)
 // by reading only the header.
 func LoadArchiveSize(mainR io.Reader) (int, error) {

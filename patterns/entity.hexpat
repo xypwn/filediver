@@ -49,51 +49,64 @@ struct Array<typ, auto count> {
     typ data[count] [[inline]];
 };
 
-u64 defaultDataOffset = 0;
-
-struct VariableIndexInfo {
-    u32 unk1;
-    u32 unk2;
-    ThinMurmurHash name;
-    u32 index;
+struct Header {
+    char magic[6];
+    padding[2];
+    u32 unkInt0;
+    u32 unkInt1;
+    MurmurHash unkHash0;
+    u32 signedIntsCount;
+    u32 entityDataCount;
+    s32 unkInts[signedIntsCount];
 };
 
-struct VariableInfo2 {
-    u32 unk1;
-    u32 unk2;
-    u32 unk3;
-    ThinMurmurHash name;
+enum SettingType : u64 {
+    Unknown,
+    U32,
+    F32,
+    String,
+    Vector
 };
 
-struct DefaultData {
-    ThinMurmurHash name;
+struct SettingData {
+    SettingType type;
+    if (type == SettingType::F32) {
+        float val;
+    }
+    else if (type == SettingType::U32) {
+        u32 val;
+    }
+    else if (type == SettingType::String || type == SettingType::Vector) {
+        u16 offset, size;
+    }
     padding[4];
+};
+
+struct Component {
+    u32 categoryCount;
+    ThinMurmurHash categoryNames[categoryCount];
+    u32 size;
+    u32 settingsCount;
     u32 dataLength;
-    u32 dataOffset [[hidden]];
-    defaultDataOffset = dataOffset;
-    Array<u8, dataLength> data @ dataOffset;
-    padding[8];
-    u32 floatCount;
-    Array<float, floatCount> *floats : u32;
+    u32 dataOffset;
+    ThinMurmurHash settingsNames[settingsCount];
+    SettingData settings[settingsCount];
+    u8 data[size-16-sizeof(settingsNames)-sizeof(settings)];
 };
 
-struct ShadingEnvironment {
-    u32 magic;
-    padding[4];
-    MurmurHash material;
-    u32 variableIndexInfoCount;
-    u32 variableIndexInfoOffset;
-    padding[8];
-    u32 defaultDataCount;
-    Array<DefaultData, defaultDataCount> *defaultData : u32;
-    padding[8];
-    u32 unknownCount;
-    Array<u8, unknownCount> *unknownOffset : u32;
-    padding[8];
-    u32 variableInfo2Count;
-    u32 variableInfo2Offset;
-    Array<VariableIndexInfo, variableIndexInfoCount> variableIndexInfo @ variableIndexInfoOffset;
-    Array<VariableInfo2, variableInfo2Count> variableInfo2 @ variableInfo2Offset;
+struct EntityData {
+    ThinMurmurHash unkThinHash0;
+    u32 size;
+    u32 numComponents;
+    u8 data[size-12];
+    //u32 unkInts[numComponents];
+    //ThinMurmurHash componentHashes[numComponents*3];
+    //Component components[numComponents];
 };
 
-ShadingEnvironment environment @0x00;
+struct Entity {
+    Header header;
+    EntityData values[header.entityDataCount];
+};
+
+Entity entity @0x00;

@@ -33,6 +33,10 @@ var damageSettings []byte
 var planetDataCompressed []byte
 var planetData []byte
 
+//go:embed generated_planet_override_settings.dl_bin.gz
+var planetOverrideSettingsCompressed []byte
+var planetOverrideSettings []byte
+
 //go:embed generated_sky_settings.dl_bin.gz
 var skySettingsCompressed []byte
 var skySettings []byte
@@ -126,6 +130,7 @@ func init() {
 	goDecompress(&environmentSettings, environmentSettingsCompressed)
 	goDecompress(&explosionSettings, explosionSettingsCompressed)
 	goDecompress(&planetData, planetDataCompressed)
+	goDecompress(&planetOverrideSettings, planetOverrideSettingsCompressed)
 	goDecompress(&projectileSettings, projectileSettingsCompressed)
 	goDecompress(&skySettings, skySettingsCompressed)
 	goDecompress(&unitCustomizationSettings, unitCustomizationSettingsCompressed)

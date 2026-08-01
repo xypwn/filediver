@@ -1,9 +1,12 @@
 package shading_environment
 
 import (
+	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
+	"maps"
 
 	"github.com/xypwn/filediver/stingray"
 )
@@ -38,8 +41,8 @@ type VariableInfo1 struct {
 }
 
 type VariableInfo2 struct {
-	Index         uint32
-	Index2        uint32
+	GlobalIndex   uint32
+	GroupIndex    uint32
 	ContainerType VariableContainerType
 	Name          stingray.ThinHash
 }
@@ -78,10 +81,11 @@ type Variable struct {
 }
 
 type ShadingEnvironment struct {
-	Material       stingray.Hash
-	Variables      []Variable
-	VariableInfos1 []VariableInfo1
-	VariableInfos2 []VariableInfo2
+	Material         stingray.Hash
+	DefaultDataCount uint32
+	Variables        []Variable
+	VariableInfos1   []VariableInfo1
+	VariableInfos2   []VariableInfo2
 }
 
 type ShaderVariableMapping struct {
@@ -92,28 +96,115 @@ type ShaderVariableMapping struct {
 	UnkInt4      uint32
 }
 
+type EntitySettingType uint16
+
+const (
+	SettingType_Scalar EntitySettingType = iota
+	SettingType_CombinedScalars
+	SettingType_VectorScalar
+	SettingType_Texture
+)
+
+func (e EntitySettingType) MarshalText() ([]byte, error) {
+	return []byte(e.String()), nil
+}
+
+func (e *EntitySettingType) UnmarshalText(data []byte) error {
+	switch string(data) {
+	case SettingType_Scalar.String():
+		*e = SettingType_Scalar
+	case SettingType_CombinedScalars.String():
+		*e = SettingType_CombinedScalars
+	case SettingType_VectorScalar.String():
+		*e = SettingType_VectorScalar
+	case SettingType_Texture.String():
+		*e = SettingType_Texture
+	default:
+		return errors.ErrUnsupported
+	}
+	return nil
+}
+
+//go:generate go run golang.org/x/tools/cmd/stringer -type=EntitySettingType
+
 type EntitySettingMapping struct {
-	UnkInt1      uint16
+	SettingType  EntitySettingType
 	Index        uint16
-	SettingName  stingray.ThinHash
-	SettingName2 stingray.ThinHash
-	SettingName3 stingray.ThinHash
-	SettingName4 stingray.ThinHash
+	SettingNames [4]stingray.ThinHash
 }
 
 type rawShadingEnvironmentMapping struct {
-	Mapping1Count  uint32
-	Mapping1Offset uint32
-	HashesCount    uint32
-	HashesOffset   uint32
-	Mapping2Count  uint32
-	Mapping2Offset uint32
+	ShaderVariableMappingCount  uint32
+	ShaderVariableMappingOffset uint32
+	TextureNameCount            uint32
+	TextureNameOffset           uint32
+	EntitySettingMappingCount   uint32
+	EntitySettingMappingOffset  uint32
 }
 
 type ShadingEnvironmentMapping struct {
 	ShaderVariableMappings []ShaderVariableMapping
 	TextureNames           []stingray.ThinHash
 	EntitySettingMappings  []EntitySettingMapping
+}
+
+type ShadingEnvironmentEntityToShaderMapping map[stingray.ThinHash]struct {
+	ShaderName  stingray.ThinHash
+	ShaderIndex uint32
+}
+
+func (s ShadingEnvironmentMapping) ToEntityMap(in ShadingEnvironmentEntityToShaderMapping) ShadingEnvironmentEntityToShaderMapping {
+	result := make(ShadingEnvironmentEntityToShaderMapping)
+	for _, entityMapping := range s.EntitySettingMappings {
+		switch entityMapping.SettingType {
+		case SettingType_Scalar:
+			result[entityMapping.SettingNames[0]] = struct {
+				ShaderName  stingray.ThinHash
+				ShaderIndex uint32
+			}{
+				ShaderName:  s.ShaderVariableMappings[entityMapping.Index].VariableName,
+				ShaderIndex: 0,
+			}
+		case SettingType_CombinedScalars:
+			for i := range entityMapping.SettingNames {
+				if entityMapping.SettingNames[i].Value == 0x0 {
+					break
+				}
+				result[entityMapping.SettingNames[i]] = struct {
+					ShaderName  stingray.ThinHash
+					ShaderIndex uint32
+				}{
+					ShaderName:  s.ShaderVariableMappings[entityMapping.Index].VariableName,
+					ShaderIndex: uint32(i),
+				}
+			}
+		case SettingType_VectorScalar:
+			result[entityMapping.SettingNames[0]] = struct {
+				ShaderName  stingray.ThinHash
+				ShaderIndex uint32
+			}{
+				ShaderName:  s.ShaderVariableMappings[entityMapping.Index].VariableName,
+				ShaderIndex: 0,
+			}
+			result[entityMapping.SettingNames[1]] = struct {
+				ShaderName  stingray.ThinHash
+				ShaderIndex uint32
+			}{
+				ShaderName:  s.ShaderVariableMappings[entityMapping.Index].VariableName,
+				ShaderIndex: 3,
+			}
+		case SettingType_Texture:
+			result[entityMapping.SettingNames[0]] = struct {
+				ShaderName  stingray.ThinHash
+				ShaderIndex uint32
+			}{
+				ShaderName:  s.TextureNames[entityMapping.Index],
+				ShaderIndex: 0,
+			}
+		}
+	}
+	maps.Copy(result, in)
+	return result
 }
 
 func LoadShadingEnvironment(r io.ReadSeeker) (*ShadingEnvironment, error) {
@@ -210,10 +301,11 @@ func LoadShadingEnvironment(r io.ReadSeeker) (*ShadingEnvironment, error) {
 	}
 
 	return &ShadingEnvironment{
-		Material:       environment.Material,
-		Variables:      variables,
-		VariableInfos1: variableInfos1,
-		VariableInfos2: variableInfos2,
+		Material:         environment.Material,
+		DefaultDataCount: environment.DefaultDataCount,
+		Variables:        variables,
+		VariableInfos1:   variableInfos1,
+		VariableInfos2:   variableInfos2,
 	}, nil
 }
 
@@ -223,33 +315,53 @@ func LoadShadingEnvironmentMapping(r io.ReadSeeker) (*ShadingEnvironmentMapping,
 		return nil, err
 	}
 
-	mappings1 := make([]ShaderVariableMapping, mapping.Mapping1Count)
-	if _, err := r.Seek(int64(mapping.Mapping1Offset), io.SeekStart); err != nil {
+	shaderVariables := make([]ShaderVariableMapping, mapping.ShaderVariableMappingCount)
+	if _, err := r.Seek(int64(mapping.ShaderVariableMappingOffset), io.SeekStart); err != nil {
 		return nil, err
 	}
-	if err := binary.Read(r, binary.LittleEndian, mappings1); err != nil {
-		return nil, err
-	}
-
-	hashes := make([]stingray.ThinHash, mapping.HashesCount)
-	if _, err := r.Seek(int64(mapping.HashesOffset), io.SeekStart); err != nil {
-		return nil, err
-	}
-	if err := binary.Read(r, binary.LittleEndian, hashes); err != nil {
+	if err := binary.Read(r, binary.LittleEndian, shaderVariables); err != nil {
 		return nil, err
 	}
 
-	mappings2 := make([]EntitySettingMapping, mapping.Mapping2Count)
-	if _, err := r.Seek(int64(mapping.Mapping2Offset), io.SeekStart); err != nil {
+	textureNames := make([]stingray.ThinHash, mapping.TextureNameCount)
+	if _, err := r.Seek(int64(mapping.TextureNameOffset), io.SeekStart); err != nil {
 		return nil, err
 	}
-	if err := binary.Read(r, binary.LittleEndian, mappings2); err != nil {
+	if err := binary.Read(r, binary.LittleEndian, textureNames); err != nil {
+		return nil, err
+	}
+
+	entitySettings := make([]EntitySettingMapping, mapping.EntitySettingMappingCount)
+	if _, err := r.Seek(int64(mapping.EntitySettingMappingOffset), io.SeekStart); err != nil {
+		return nil, err
+	}
+	if err := binary.Read(r, binary.LittleEndian, entitySettings); err != nil {
 		return nil, err
 	}
 
 	return &ShadingEnvironmentMapping{
-		ShaderVariableMappings: mappings1,
-		TextureNames:           hashes,
-		EntitySettingMappings:  mappings2,
+		ShaderVariableMappings: shaderVariables,
+		TextureNames:           textureNames,
+		EntitySettingMappings:  entitySettings,
 	}, nil
+}
+
+func LoadMappingsFromDataDir(dataDir *stingray.DataDir) ([]ShadingEnvironmentMapping, error) {
+	shadingEnvironmentMappingType := stingray.Sum("shading_environment_mapping")
+	result := make([]ShadingEnvironmentMapping, 0)
+	for fileId := range dataDir.Files {
+		if fileId.Type != shadingEnvironmentMappingType {
+			continue
+		}
+		mappingData, err := dataDir.Read(fileId, stingray.DataMain)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read %v.shading_environment_mapping", fileId.Name.String())
+		}
+		mapping, err := LoadShadingEnvironmentMapping(bytes.NewReader(mappingData))
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, *mapping)
+	}
+	return result, nil
 }

@@ -48,6 +48,7 @@ material_loaders: List[FilediverMaterialLoaderInterface] = [
     LutSkinMaterialLoader(),
     PortalMaterialLoader(),
     SkinMaterialLoader(),
+    SpeedtreeMaterialLoader(),
 ]
 
 class IDPropertyUIManager:

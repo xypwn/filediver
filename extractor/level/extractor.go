@@ -9,6 +9,7 @@ import (
 	"github.com/go-gl/mathgl/mgl32"
 	"github.com/qmuntal/gltf"
 	"github.com/xypwn/filediver/extractor"
+	"github.com/xypwn/filediver/extractor/entity"
 	extr_material "github.com/xypwn/filediver/extractor/material"
 	extr_prefab "github.com/xypwn/filediver/extractor/prefab"
 	"github.com/xypwn/filediver/stingray"
@@ -112,6 +113,7 @@ type SimpleLevel struct {
 	MaterialOverrides    []SimpleMaterialOverride       `json:"material_overrides"`
 	Units                []SimpleUnit                   `json:"units"`
 	Speedtrees           []SimpleSpeedtree              `json:"speedtrees"`
+	Entity               *entity.SimpleEntity           `json:"entity"`
 	UnkTransformedItems  []SimpleUnknownTransformedItem `json:"unk_transformed_item"`
 	UnkExtraUnits        []SimpleExtraUnitsContainer    `json:"unk_extra_units"`
 	UnitHashIndexRange   []SimpleHashIndexRange         `json:"unit_hash_index_range"`
@@ -128,7 +130,7 @@ func ExtractLevelJSON(ctx *extractor.Context) error {
 	if err != nil {
 		return err
 	}
-	levelData, err := level.LoadLevel(r)
+	levelData, err := level.LoadLevel(r, ctx.EntityVarMapping())
 	if err != nil {
 		return err
 	}
@@ -214,6 +216,12 @@ func ExtractLevelJSON(ctx *extractor.Context) error {
 		})
 	}
 
+	var simpleEntity *entity.SimpleEntity
+	if levelData.Entity != nil {
+		simpleEntity = &entity.SimpleEntity{}
+		simpleEntity.FromEntity(ctx, levelData.Entity)
+	}
+
 	outData := SimpleLevel{
 		Name:              ctx.LookupHash(levelData.Name),
 		Metadata:          metadata,
@@ -221,6 +229,7 @@ func ExtractLevelJSON(ctx *extractor.Context) error {
 		MaterialOverrides: materialOverrides,
 		Units:             units,
 		Speedtrees:        speedtrees,
+		Entity:            simpleEntity,
 	}
 
 	outData.UnkTransformedItems = make([]SimpleUnknownTransformedItem, 0)
@@ -375,7 +384,7 @@ func ConvertOpts(ctx *extractor.Context, gltfDoc *gltf.Document) error {
 	if err != nil {
 		return err
 	}
-	levelData, err := level.LoadLevel(r)
+	levelData, err := level.LoadLevel(r, ctx.EntityVarMapping())
 	if err != nil {
 		return err
 	}

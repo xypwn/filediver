@@ -46,6 +46,7 @@ import (
 	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/stingray/ah_bin"
 	stingray_package "github.com/xypwn/filediver/stingray/package"
+	"github.com/xypwn/filediver/stingray/shading_environment"
 	stingray_strings "github.com/xypwn/filediver/stingray/strings"
 	stingray_material "github.com/xypwn/filediver/stingray/unit/material"
 	stingray_wwise "github.com/xypwn/filediver/stingray/wwise"
@@ -124,6 +125,7 @@ type App struct {
 	SkinOverrideGroups []datalib.UnitSkinOverrideGroup
 	WeaponPaintSchemes []datalib.WeaponCustomizableItem
 	AttachmentSlots    map[stingray.Hash]enum.WeaponCustomizationSlot
+	EntityVarMapping   shading_environment.ShadingEnvironmentEntityToShaderMapping
 	DataDir            *stingray.DataDir
 	LanguageMap        map[uint32]string
 	Metadata           map[stingray.FileID]FileMetadata
@@ -448,6 +450,15 @@ func OpenGameDir(ctx context.Context, gameDir string, hashStrings []string, thin
 		return nil, fmt.Errorf("error loading game build info: %v", err)
 	}
 
+	var entityVarMapping shading_environment.ShadingEnvironmentEntityToShaderMapping
+	shadingEnvironmentMappings, err := shading_environment.LoadMappingsFromDataDir(dataDir)
+	if err == nil {
+		entityVarMapping = make(shading_environment.ShadingEnvironmentEntityToShaderMapping)
+		for _, mapping := range shadingEnvironmentMappings {
+			entityVarMapping = mapping.ToEntityMap(entityVarMapping)
+		}
+	}
+
 	lookupHash := func(hash stingray.Hash) string {
 		if name, ok := hashesMap[hash]; ok {
 			return name
@@ -500,6 +511,7 @@ func OpenGameDir(ctx context.Context, gameDir string, hashStrings []string, thin
 		SkinOverrideGroups: skinOverrideGroups,
 		WeaponPaintSchemes: weaponPaintSchemes,
 		AttachmentSlots:    attachmentSlots,
+		EntityVarMapping:   entityVarMapping,
 		DataDir:            dataDir,
 		LanguageMap:        mapping,
 		Metadata:           getFileMetadata(dataDir),
@@ -812,6 +824,7 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 		a.SkinOverrideGroups,
 		a.WeaponPaintSchemes,
 		a.AttachmentSlots,
+		a.EntityVarMapping,
 		a.GameBuildInfo,
 		a.LanguageMap,
 		a.DataDir,

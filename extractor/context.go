@@ -15,6 +15,7 @@ import (
 	"github.com/xypwn/filediver/exec"
 	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/stingray/ah_bin"
+	"github.com/xypwn/filediver/stingray/shading_environment"
 )
 
 // Context is what's passed to the extractor when
@@ -30,6 +31,7 @@ type Context struct {
 	skinOverrideGroups []datalib.UnitSkinOverrideGroup
 	weaponPaintSchemes []datalib.WeaponCustomizableItem
 	attachmentSlots    map[stingray.Hash]enum.WeaponCustomizationSlot
+	entityVarMapping   shading_environment.ShadingEnvironmentEntityToShaderMapping
 	gameBuildInfo      *ah_bin.BuildInfo
 	languageMap        map[uint32]string
 	dataDir            *stingray.DataDir
@@ -65,6 +67,7 @@ func NewContext(
 	skinOverrideGroups []datalib.UnitSkinOverrideGroup,
 	weaponPaintSchemes []datalib.WeaponCustomizableItem,
 	attachmentSlots map[stingray.Hash]enum.WeaponCustomizationSlot,
+	entityVarMapping shading_environment.ShadingEnvironmentEntityToShaderMapping,
 	gameBuildInfo *ah_bin.BuildInfo,
 	languageMap map[uint32]string,
 	dataDir *stingray.DataDir,
@@ -83,6 +86,7 @@ func NewContext(
 		skinOverrideGroups: skinOverrideGroups,
 		weaponPaintSchemes: weaponPaintSchemes,
 		attachmentSlots:    attachmentSlots,
+		entityVarMapping:   entityVarMapping,
 		gameBuildInfo:      gameBuildInfo,
 		languageMap:        languageMap,
 		dataDir:            dataDir,
@@ -114,6 +118,7 @@ func (c *Context) WithFileID(newFileID stingray.FileID) *Context {
 		skinOverrideGroups: c.skinOverrideGroups,
 		weaponPaintSchemes: c.weaponPaintSchemes,
 		attachmentSlots:    c.attachmentSlots,
+		entityVarMapping:   c.entityVarMapping,
 		gameBuildInfo:      c.gameBuildInfo,
 		languageMap:        c.languageMap,
 		dataDir:            c.dataDir,
@@ -143,6 +148,7 @@ func (c *Context) WithMaterialOverrides(newOverrides map[stingray.ThinHash]sting
 		skinOverrideGroups: c.skinOverrideGroups,
 		weaponPaintSchemes: c.weaponPaintSchemes,
 		attachmentSlots:    c.attachmentSlots,
+		entityVarMapping:   c.entityVarMapping,
 		gameBuildInfo:      c.gameBuildInfo,
 		languageMap:        c.languageMap,
 		dataDir:            c.dataDir,
@@ -311,6 +317,10 @@ func (c *Context) WeaponPaintSchemes() []datalib.WeaponCustomizableItem {
 
 func (c *Context) AttachmentSlots() map[stingray.Hash]enum.WeaponCustomizationSlot {
 	return c.attachmentSlots
+}
+
+func (c *Context) EntityVarMapping() shading_environment.ShadingEnvironmentEntityToShaderMapping {
+	return c.entityVarMapping
 }
 
 // Warnf logs a user-visible warning message.
