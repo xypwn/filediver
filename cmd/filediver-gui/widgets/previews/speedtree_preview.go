@@ -594,7 +594,7 @@ func (pv *SpeedtreePreviewState) LoadSpeedtree(fileID stingray.Hash, mainData, g
 				err = uploadStingrayTexture(pv.object.materials[materialIndex].tex2, tex2Hash)
 			}
 			if err != nil {
-				return fmt.Errorf("load tex2 %v.texture: %w", normalHash, err)
+				return fmt.Errorf("load tex2 %v.texture: %w", tex2Hash, err)
 			}
 
 			assetGradingLut := extr_entity.CreateIdentityColorGradingLut()
@@ -808,6 +808,7 @@ func SpeedtreePreview(name string, pv *SpeedtreePreviewState) {
 					gl.Uniform1f(pv.treeUniforms["grading_group_id_trunk"], pv.object.materials[idx].gradingGroupIdTrunk)
 					gl.Uniform1f(pv.treeUniforms["world_grading_color_value_variation"], pv.object.materials[idx].worldGradingCVV)
 					gl.Uniform1f(pv.treeUniforms["ss_intensity_mult"], pv.object.materials[idx].subsurfaceIntensity)
+					gl.Uniform1f(pv.treeUniforms["world"], 0.0)
 					gl.ActiveTexture(gl.TEXTURE0)
 					gl.BindTexture(gl.TEXTURE_2D, pv.object.materials[idx].texAlbedoOpacity)
 					gl.ActiveTexture(gl.TEXTURE1)
@@ -815,7 +816,7 @@ func SpeedtreePreview(name string, pv *SpeedtreePreviewState) {
 					gl.ActiveTexture(gl.TEXTURE2)
 					gl.BindTexture(gl.TEXTURE_2D, pv.object.lutFibonacci)
 					gl.ActiveTexture(gl.TEXTURE3)
-					gl.BindTexture(gl.TEXTURE_BUFFER, pv.object.materials[idx].tex2)
+					gl.BindTexture(gl.TEXTURE_2D, pv.object.materials[idx].tex2)
 					gl.ActiveTexture(gl.TEXTURE4)
 					gl.BindTexture(gl.TEXTURE_BUFFER, pv.object.materials[idx].texAssetGrading)
 				}

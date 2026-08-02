@@ -48,9 +48,8 @@ vec3 gradeColor(vec3 color, mat4 matrix) {
 }
 
 vec3 graded(vec3 color) {
-    //color = pow(color, vec3(1.0/2.2));
-    float worldval = (abs(fract(world*12) - 0.5) * 2 - 1) * world_grading_color_value_variation + 1;
     float tex2_alpha = texture(tex2, fragUV).w;
+    float worldval = (abs(fract(world*12) - 0.5) * 2 - 1) * world_grading_color_value_variation + 1;
     float subsurface = 1.0 - min(clamp(clamp(floor(tex2_alpha * 63.75) / 63.0, 0.0, 1.0) * ss_intensity_mult, 0.0, 1.0) * 100, 1.0);
     int leafGroup = group(vec3(grading_group_id, grading_group_id_secondworld, grading_group_id_thirdworld));
     int trunkGroup = group(vec3(grading_group_id_trunk));
@@ -67,7 +66,6 @@ vec3 graded(vec3 color) {
     vec3 trunkGraded = gradeColor(color, trunkGrading);
 
     return (-leafGraded * worldval + trunkGraded) * subsurface + (leafGraded * worldval);
-    return pow((-leafGraded * worldval + trunkGraded) * subsurface + (leafGraded * worldval), vec3(2.2));
 }
 
 void main() {
