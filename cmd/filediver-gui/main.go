@@ -380,20 +380,22 @@ func (a *guiApp) onPreDraw(state *imgui_wrapper.State) error {
 			a.otoCtx, a.audioSampleRate,
 			a.gameData.Hashes,
 			a.gameData.ThinHashes,
-			func(id stingray.FileID, typ stingray.DataType) (data []byte, exists bool, err error) {
-				if a.gameData.AssetOverrides != nil && *a.gameData.AssetOverrides != nil {
-					if val, contains := (*a.gameData.AssetOverrides)[id]; contains {
-						id = val
+			func(allowOverride bool) func(id stingray.FileID, typ stingray.DataType) (data []byte, exists bool, err error) {
+				return func(id stingray.FileID, typ stingray.DataType) (data []byte, exists bool, err error) {
+					if allowOverride && a.gameData.AssetOverrides != nil && *a.gameData.AssetOverrides != nil {
+						if val, contains := (*a.gameData.AssetOverrides)[id]; contains {
+							id = val
+						}
 					}
+					data, err = a.gameData.DataDir.Read(id, typ)
+					if err == stingray.ErrFileNotExist || err == stingray.ErrFileDataTypeNotExist {
+						return nil, false, nil
+					}
+					if err != nil {
+						return nil, false, err
+					}
+					return data, true, nil
 				}
-				data, err = a.gameData.DataDir.Read(id, typ)
-				if err == stingray.ErrFileNotExist || err == stingray.ErrFileDataTypeNotExist {
-					return nil, false, nil
-				}
-				if err != nil {
-					return nil, false, err
-				}
-				return data, true, nil
 			},
 			a.runner,
 		)
@@ -683,6 +685,7 @@ func (a *guiApp) drawBrowserWindow() {
 								}),
 							},
 						}
+						a.gameData.UpdateAssetOverrides(a.extractorConfig.Planet.Name, a.extractorConfig.Planet.City)
 					}
 				} else {
 					imutils.TextError(a.gameDataLoad.Err)

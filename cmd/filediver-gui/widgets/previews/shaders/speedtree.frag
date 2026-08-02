@@ -55,9 +55,12 @@ vec3 graded(vec3 color) {
     int leafGroup = group(vec3(grading_group_id, grading_group_id_secondworld, grading_group_id_thirdworld));
     int trunkGroup = group(vec3(grading_group_id_trunk));
 
-    mat4 leafGrading = gradingMatrix(leafGroup);
+    mat4 leafGrading = mat4(1.0);
+    if (leafGroup >= 0) {
+        leafGrading = gradingMatrix(leafGroup);
+    }
     mat4 trunkGrading = mat4(1.0);
-    if (grading_group_id_trunk > 0.0) {
+    if (trunkGroup >= 0) {
         trunkGrading = gradingMatrix(trunkGroup);
     }
     vec3 leafGraded = gradeColor(color, leafGrading);

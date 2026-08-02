@@ -51,19 +51,19 @@ type AutoPreview struct {
 		xaml      *XamlPreview
 	}
 
-	hashes      map[stingray.Hash]string
-	thinhashes  map[stingray.ThinHash]string
-	getResource GetResourceFunc
+	hashes               map[stingray.Hash]string
+	thinhashes           map[stingray.ThinHash]string
+	getResourceGenerator GetResourceGeneratorFunc
 
 	err error
 }
 
-func NewAutoPreview(otoCtx *oto.Context, audioSampleRate int, hashes map[stingray.Hash]string, thinhashes map[stingray.ThinHash]string, getResource GetResourceFunc, runner *exec.Runner) (*AutoPreview, error) {
+func NewAutoPreview(otoCtx *oto.Context, audioSampleRate int, hashes map[stingray.Hash]string, thinhashes map[stingray.ThinHash]string, getResourceGenerator GetResourceGeneratorFunc, runner *exec.Runner) (*AutoPreview, error) {
 	var err error
 	pv := &AutoPreview{
-		hashes:      hashes,
-		thinhashes:  thinhashes,
-		getResource: getResource,
+		hashes:               hashes,
+		thinhashes:           thinhashes,
+		getResourceGenerator: getResourceGenerator,
 	}
 	pv.previews.unit, err = NewUnitPreview()
 	if err != nil {
@@ -125,7 +125,7 @@ func (pv *AutoPreview) LoadFile(ctx context.Context, fileID stingray.FileID, max
 			if data[typ] != nil {
 				panic("programmer error: duplicate data type")
 			}
-			b, exists, err := pv.getResource(fileID, typ)
+			b, exists, err := pv.getResourceGenerator(false)(fileID, typ)
 			if err != nil {
 				return fmt.Errorf("reading file: %w", err)
 			}
@@ -147,7 +147,7 @@ func (pv *AutoPreview) LoadFile(ctx context.Context, fileID stingray.FileID, max
 			fileID.Name,
 			data[stingray.DataMain],
 			data[stingray.DataGPU],
-			pv.getResource,
+			pv.getResourceGenerator(true),
 			pv.thinhashes,
 		); err != nil {
 			pv.err = fmt.Errorf("loading unit: %w", err)
@@ -160,7 +160,7 @@ func (pv *AutoPreview) LoadFile(ctx context.Context, fileID stingray.FileID, max
 			return
 		}
 		var entityInfo *entity.Entity
-		entityData, exists, err := pv.getResource(colorGrading, stingray.DataMain)
+		entityData, exists, err := pv.getResourceGenerator(false)(colorGrading, stingray.DataMain)
 		if err == nil && exists {
 			entityInfo, err = entity.LoadEntity(bytes.NewReader(entityData), entityVarMapping)
 		}
@@ -168,7 +168,7 @@ func (pv *AutoPreview) LoadFile(ctx context.Context, fileID stingray.FileID, max
 			fileID.Name,
 			data[stingray.DataMain],
 			data[stingray.DataGPU],
-			pv.getResource,
+			pv.getResourceGenerator(true),
 			pv.thinhashes,
 			entityInfo,
 		); err != nil {
@@ -205,7 +205,7 @@ func (pv *AutoPreview) LoadFile(ctx context.Context, fileID stingray.FileID, max
 					Name: stingray.Sum(path.Join(dir, fmt.Sprint(id))),
 					Type: stingray.Sum("wwise_stream"),
 				}
-				return pv.getResource(fileID, stingray.DataStream)
+				return pv.getResourceGenerator(false)(fileID, stingray.DataStream)
 			},
 		)
 		if err != nil {
@@ -292,7 +292,7 @@ func (pv *AutoPreview) LoadFile(ctx context.Context, fileID stingray.FileID, max
 			return
 		}
 
-		err = pv.previews.material.LoadMaterial(data, pv.getResource, pv.hashes, pv.thinhashes)
+		err = pv.previews.material.LoadMaterial(data, pv.getResourceGenerator(false), pv.hashes, pv.thinhashes)
 		if err != nil {
 			pv.err = fmt.Errorf("loading material: %w", err)
 			return
