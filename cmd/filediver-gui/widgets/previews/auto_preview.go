@@ -15,6 +15,8 @@ import (
 	"github.com/xypwn/filediver/dds"
 	"github.com/xypwn/filediver/exec"
 	"github.com/xypwn/filediver/stingray"
+	"github.com/xypwn/filediver/stingray/entity"
+	"github.com/xypwn/filediver/stingray/shading_environment"
 	stingray_strings "github.com/xypwn/filediver/stingray/strings"
 	"github.com/xypwn/filediver/stingray/unit/material"
 	"github.com/xypwn/filediver/stingray/unit/texture"
@@ -102,7 +104,7 @@ func (pv *AutoPreview) NeedCJKFont() bool {
 	return pv.previews.strings.NeedCJKFont()
 }
 
-func (pv *AutoPreview) LoadFile(ctx context.Context, fileID stingray.FileID, maxVideoVerticalResolution int) {
+func (pv *AutoPreview) LoadFile(ctx context.Context, fileID stingray.FileID, maxVideoVerticalResolution int, colorGrading stingray.FileID, entityVarMapping shading_environment.ShadingEnvironmentEntityToShaderMapping) {
 	if fileID == (stingray.FileID{}) {
 		pv.activeID.Name.Value = 0
 		pv.activeID.Type.Value = 0
@@ -157,12 +159,18 @@ func (pv *AutoPreview) LoadFile(ctx context.Context, fileID stingray.FileID, max
 			pv.err = err
 			return
 		}
+		var entityInfo *entity.Entity
+		entityData, exists, err := pv.getResource(colorGrading, stingray.DataMain)
+		if err == nil && exists {
+			entityInfo, err = entity.LoadEntity(bytes.NewReader(entityData), entityVarMapping)
+		}
 		if err := pv.previews.speedtree.LoadSpeedtree(
 			fileID.Name,
 			data[stingray.DataMain],
 			data[stingray.DataGPU],
 			pv.getResource,
 			pv.thinhashes,
+			entityInfo,
 		); err != nil {
 			pv.err = fmt.Errorf("loading speedtree: %w", err)
 			return

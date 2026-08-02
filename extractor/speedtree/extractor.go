@@ -207,16 +207,11 @@ func AddPrefabMetadata(ctx *extractor.Context, doc *gltf.Document, root *uint32,
 	doc.Extras = extras
 }
 
-func WriteColorGradingLut(ctx *extractor.Context, colorGradingEntity string, colorGradingDDS *bytes.Buffer) error {
-	entityHash, err := stingray.ParseOrSum(colorGradingEntity)
-	if err != nil {
-		extr_entity.WriteDDSIdentityColorGradingLut(colorGradingDDS)
-		return err
-	}
-	entityID := stingray.NewFileID(entityHash, stingray.Sum("entity"))
+func WriteColorGradingLut(ctx *extractor.Context, colorGradingDDS *bytes.Buffer) error {
+	entityID := stingray.NewFileID(ctx.ColorGrading(), stingray.Sum("entity"))
 	if !ctx.Exists(entityID, stingray.DataMain) {
 		extr_entity.WriteDDSIdentityColorGradingLut(colorGradingDDS)
-		return fmt.Errorf("entity %v does not exist", colorGradingEntity)
+		return fmt.Errorf("entity %v does not exist", entityID.Name.String())
 	}
 	entityData, err := ctx.Open(entityID, stingray.DataMain)
 	if err != nil {
@@ -260,10 +255,12 @@ func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gl
 	}
 
 	var colorGradingDDS bytes.Buffer
-	if cfg.SpeedTree.ColorGrading == "" {
+	if ctx.ColorGrading().Value == 0x0 {
+		ctx.Warnf("Writing identity color grading lut")
 		err = extr_entity.WriteDDSIdentityColorGradingLut(&colorGradingDDS)
 	} else {
-		err = WriteColorGradingLut(ctx, cfg.SpeedTree.ColorGrading, &colorGradingDDS)
+		ctx.Warnf("Writing color grading lut")
+		err = WriteColorGradingLut(ctx, &colorGradingDDS)
 	}
 	if err != nil {
 		ctx.Warnf("Writing color grading lut: %v", err)
@@ -271,9 +268,10 @@ func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gl
 
 	materialMap := make(map[uint64]uint32)
 	for _, mat := range treeInfo.StingrayMaterials {
-		matR, err := ctx.Open(stingray.NewFileID(mat.Path, stingray.Sum("material")), stingray.DataMain)
+		materialId := ctx.OverrideAsset(stingray.NewFileID(mat.Path, stingray.Sum("material")))
+		matR, err := ctx.Open(materialId, stingray.DataMain)
 		if err == stingray.ErrFileNotExist {
-			return fmt.Errorf("referenced material resource %v doesn't exist", mat.Path)
+			return fmt.Errorf("referenced material resource %v doesn't exist", materialId.Name)
 		}
 		if err != nil {
 			return err
@@ -282,14 +280,13 @@ func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gl
 		if err != nil {
 			return err
 		}
-		matPath := ctx.LookupHash(mat.Path)
+		matPath := ctx.LookupHash(materialId.Name)
 		if strings.Contains(matPath, "/") {
 			split := strings.Split(matPath, "/")
 			matPath = strings.Join(split[len(split)-2:], "/")
 		}
-		colorGradingName, err := stingray.ParseOrSum(cfg.SpeedTree.ColorGrading)
-		if err != nil {
-			ctx.Warnf("Invalid speed tree color grading entity name")
+		colorGradingName := ctx.ColorGrading()
+		if ctx.ColorGrading().Value == 0x0 {
 			colorGradingName = stingray.Sum("identity")
 		}
 		colorGradingId := stingray.NewFileID(colorGradingName, stingray.Sum("texture"))

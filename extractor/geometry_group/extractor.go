@@ -38,7 +38,7 @@ func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gl
 	doc := extractor.GetDocument(ctx, gltfDoc)
 
 	for unitHash, meshInfo := range geoGroup.MeshInfos {
-		unitId := stingray.NewFileID(unitHash, stingray.Sum("unit"))
+		unitId := ctx.OverrideAsset(stingray.NewFileID(unitHash, stingray.Sum("unit")))
 		f, err := ctx.Open(unitId, stingray.DataMain)
 		if err == stingray.ErrFileNotExist {
 			return fmt.Errorf("%v.unit does not exist", unitId.Name.String())

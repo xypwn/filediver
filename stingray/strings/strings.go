@@ -9,6 +9,7 @@ import (
 	"maps"
 
 	"github.com/xypwn/filediver/stingray"
+	"golang.org/x/text/language"
 )
 
 var LanguageHashToFriendlyName = map[stingray.ThinHash]string{
@@ -28,6 +29,25 @@ var LanguageHashToFriendlyName = map[stingray.ThinHash]string{
 	stingray.Sum("sc").Thin(): "Chinese (Simplified)",
 	stingray.Sum("tc").Thin(): "Chinese (Traditional)",
 	stingray.Sum("us").Thin(): "English (US)",
+}
+
+var LanguageHashToLanguageTag = map[stingray.ThinHash]language.Tag{
+	stingray.Sum("bp").Thin(): language.BrazilianPortuguese,
+	stingray.Sum("de").Thin(): language.German,
+	stingray.Sum("es").Thin(): language.EuropeanSpanish,
+	stingray.Sum("fr").Thin(): language.French,
+	stingray.Sum("gb").Thin(): language.BritishEnglish,
+	stingray.Sum("it").Thin(): language.Italian,
+	stingray.Sum("jp").Thin(): language.Japanese,
+	stingray.Sum("ko").Thin(): language.Korean,
+	stingray.Sum("ms").Thin(): language.LatinAmericanSpanish,
+	stingray.Sum("nl").Thin(): language.Dutch,
+	stingray.Sum("pl").Thin(): language.Polish,
+	stingray.Sum("pt").Thin(): language.EuropeanPortuguese,
+	stingray.Sum("ru").Thin(): language.Russian,
+	stingray.Sum("sc").Thin(): language.SimplifiedChinese,
+	stingray.Sum("tc").Thin(): language.TraditionalChinese,
+	stingray.Sum("us").Thin(): language.AmericanEnglish,
 }
 
 var LanguageFriendlyNameToHash map[string]stingray.ThinHash

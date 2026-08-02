@@ -3,6 +3,7 @@ package previews
 import (
 	"bytes"
 	"cmp"
+	"encoding/binary"
 	"fmt"
 	"image"
 	"io"
@@ -18,7 +19,9 @@ import (
 	"github.com/xypwn/filediver/cmd/filediver-gui/widgets"
 	datalib "github.com/xypwn/filediver/datalibrary"
 	"github.com/xypwn/filediver/dds"
+	extr_entity "github.com/xypwn/filediver/extractor/entity"
 	"github.com/xypwn/filediver/stingray"
+	"github.com/xypwn/filediver/stingray/entity"
 	"github.com/xypwn/filediver/stingray/speedtree"
 	"github.com/xypwn/filediver/stingray/unit"
 	"github.com/xypwn/filediver/stingray/unit/material"
@@ -28,10 +31,18 @@ import (
 type speedtreeMaterial struct {
 	texAlbedoOpacity uint32
 	texNormalRG      uint32
+	tex2             uint32
+	texAssetGrading  uint32
 
-	indexOffset      int32
-	indexCount       int32
-	opacityThreshold float32
+	indexOffset         int32
+	indexCount          int32
+	opacityThreshold    float32
+	gradingGroupId      float32
+	gradingGroupId2     float32
+	gradingGroupId3     float32
+	gradingGroupIdTrunk float32
+	worldGradingCVV     float32
+	subsurfaceIntensity float32
 }
 
 type speedtreePreviewObject struct {
@@ -39,6 +50,7 @@ type speedtreePreviewObject struct {
 	ibo          uint32 // index buffer object
 	vbo          uint32 // vertex buffer object
 	lutFibonacci uint32
+	lutGrading   uint32
 
 	numVertices int32
 	numIndices  int32
@@ -55,6 +67,7 @@ func (obj *speedtreePreviewObject) genObjects() {
 	gl.GenVertexArrays(1, &obj.vao)
 	gl.GenBuffers(1, &obj.vbo)
 	gl.GenBuffers(1, &obj.ibo)
+	gl.GenBuffers(1, &obj.lutGrading)
 	gl.GenTextures(1, &obj.lutFibonacci)
 
 	gl.BindVertexArray(obj.vao)
@@ -71,6 +84,8 @@ func (obj *speedtreePreviewObject) genMaterials(count int) {
 	for idx := range obj.materials {
 		gl.GenTextures(1, &obj.materials[idx].texAlbedoOpacity)
 		gl.GenTextures(1, &obj.materials[idx].texNormalRG)
+		gl.GenTextures(1, &obj.materials[idx].tex2)
+		gl.GenTextures(1, &obj.materials[idx].texAssetGrading)
 	}
 }
 
@@ -96,10 +111,13 @@ func (obj speedtreePreviewObject) deleteObjects() {
 	gl.DeleteVertexArrays(1, &obj.vao)
 	gl.DeleteBuffers(1, &obj.vbo)
 	gl.DeleteBuffers(1, &obj.ibo)
+	gl.DeleteBuffers(1, &obj.lutGrading)
 	gl.DeleteTextures(1, &obj.lutFibonacci)
 	for _, material := range obj.materials {
 		gl.DeleteTextures(1, &material.texAlbedoOpacity)
 		gl.DeleteTextures(1, &material.texNormalRG)
+		gl.DeleteTextures(1, &material.tex2)
+		gl.DeleteTextures(1, &material.texAssetGrading)
 	}
 }
 
@@ -178,7 +196,7 @@ func NewSpeedtreePreview() (*SpeedtreePreviewState, error) {
 	if err != nil {
 		return nil, err
 	}
-	pv.treeUniforms.generate(pv.treeProgram, "mvp", "model", "normalMat", "viewPosition", "texAlbedo", "texNormal", "opacityThreshold", "fibonacci_normal_lut")
+	pv.treeUniforms.generate(pv.treeProgram, "mvp", "model", "normalMat", "viewPosition", "texAlbedo", "texNormal", "tex2", "texAssetGrading", "opacityThreshold", "fibonacci_normal_lut", "grading_group_id", "grading_group_id_secondworld", "grading_group_id_thirdworld", "grading_group_id_trunk", "world_grading_color_value_variation", "ss_intensity_mult", "world")
 
 	pv.objectWireframeProgram, err = glutils.CreateProgramFromSources(unitPreviewShaderCode,
 		"shaders/speedtree_wireframe.vert",
@@ -225,6 +243,8 @@ func NewSpeedtreePreview() (*SpeedtreePreviewState, error) {
 	gl.Uniform1i(pv.treeUniforms["texAlbedo"], 0)
 	gl.Uniform1i(pv.treeUniforms["texNormal"], 1)
 	gl.Uniform1i(pv.treeUniforms["fibonacci_normal_lut"], 2)
+	gl.Uniform1i(pv.treeUniforms["tex2"], 3)
+	gl.Uniform1i(pv.treeUniforms["texAssetGrading"], 4)
 	gl.UseProgram(0)
 
 	gl.UseProgram(pv.objectNormalVisProgram)
@@ -277,7 +297,7 @@ func (pv *SpeedtreePreviewState) loadMesh(meshInfos []unit.MeshInfo, meshLayouts
 	return mesh, nil
 }
 
-func (pv *SpeedtreePreviewState) LoadSpeedtree(fileID stingray.Hash, mainData, gpuData []byte, getResource GetResourceFunc, thinhashes map[stingray.ThinHash]string) error {
+func (pv *SpeedtreePreviewState) LoadSpeedtree(fileID stingray.Hash, mainData, gpuData []byte, getResource GetResourceFunc, thinhashes map[stingray.ThinHash]string, entityInfo *entity.Entity) error {
 	info, err := speedtree.LoadSpeedTree(bytes.NewReader(mainData))
 	if err != nil {
 		return err
@@ -470,6 +490,16 @@ func (pv *SpeedtreePreviewState) LoadSpeedtree(fileID stingray.Hash, mainData, g
 		return nil
 	}
 
+	uploadGradingTexture := func(textureID uint32, data []byte) error {
+		gl.BindBuffer(gl.TEXTURE_BUFFER, pv.object.lutGrading)
+		gl.BufferData(gl.TEXTURE_BUFFER, len(data), gl.Ptr(data), gl.STATIC_DRAW)
+		gl.BindBuffer(gl.TEXTURE_BUFFER, 0)
+		gl.BindTexture(gl.TEXTURE_BUFFER, textureID)
+		gl.TexBuffer(gl.TEXTURE_BUFFER, gl.RGBA16F, pv.object.lutGrading)
+		gl.BindTexture(gl.TEXTURE_BUFFER, 0)
+		return nil
+	}
+
 	// Load materials
 	{
 		pv.object.genMaterials(int(lod0.MeshCount))
@@ -501,10 +531,41 @@ func (pv *SpeedtreePreviewState) LoadSpeedtree(fileID stingray.Hash, mainData, g
 			if !ok {
 				opacityThreshold = []float32{0.5}
 			}
+			gradingGroupId, ok := mat.Settings[stingray.Sum("grading_group_id").Thin()]
+			if !ok {
+				gradingGroupId = []float32{0.0}
+			}
+			gradingGroupId2, ok := mat.Settings[stingray.Sum("grading_group_id_secondworld").Thin()]
+			if !ok {
+				gradingGroupId2 = gradingGroupId
+			}
+			gradingGroupId3, ok := mat.Settings[stingray.Sum("grading_group_id_thirdworld").Thin()]
+			if !ok {
+				gradingGroupId3 = gradingGroupId
+			}
+			gradingGroupIdTrunk, ok := mat.Settings[stingray.Sum("grading_group_id_trunk").Thin()]
+			if !ok {
+				gradingGroupIdTrunk = []float32{0.5}
+			}
+			worldGradingCVV, ok := mat.Settings[stingray.Sum("world_grading_color_value_variation").Thin()]
+			if !ok {
+				worldGradingCVV = []float32{0}
+			}
+			subsurfaceIntensity, ok := mat.Settings[stingray.Sum("ss_intensity_mult").Thin()]
+			if !ok {
+				subsurfaceIntensity = []float32{1.0}
+			}
 			pv.object.materials[materialIndex].opacityThreshold = opacityThreshold[0]
+			pv.object.materials[materialIndex].gradingGroupId = gradingGroupId[0]
+			pv.object.materials[materialIndex].gradingGroupId2 = gradingGroupId2[0]
+			pv.object.materials[materialIndex].gradingGroupId3 = gradingGroupId3[0]
+			pv.object.materials[materialIndex].gradingGroupIdTrunk = gradingGroupIdTrunk[0]
+			pv.object.materials[materialIndex].worldGradingCVV = worldGradingCVV[0]
+			pv.object.materials[materialIndex].subsurfaceIntensity = subsurfaceIntensity[0]
 
 			setupTexture(pv.object.materials[materialIndex].texAlbedoOpacity)
 			setupTexture(pv.object.materials[materialIndex].texNormalRG)
+			setupTexture(pv.object.materials[materialIndex].tex2)
 
 			albedoOpacityHash := getTextureSlotPath(mat, stingray.Sum("tex0").Thin())
 			if albedoOpacityHash.Value == 0x0 {
@@ -524,6 +585,30 @@ func (pv *SpeedtreePreviewState) LoadSpeedtree(fileID stingray.Hash, mainData, g
 			}
 			if err != nil {
 				return fmt.Errorf("load tex1 %v.texture: %w", normalHash, err)
+			}
+
+			tex2Hash := getTextureSlotPath(mat, stingray.Sum("tex2").Thin())
+			if tex2Hash.Value == 0x0 {
+				err = uploadMissingTexture(pv.object.materials[materialIndex].tex2, []byte{255, 255, 255, 255})
+			} else {
+				err = uploadStingrayTexture(pv.object.materials[materialIndex].tex2, tex2Hash)
+			}
+			if err != nil {
+				return fmt.Errorf("load tex2 %v.texture: %w", normalHash, err)
+			}
+
+			assetGradingLut := extr_entity.CreateIdentityColorGradingLut()
+			if entityInfo != nil {
+				entityAssetGradingLut, err := extr_entity.CreateColorGradingLut(entityInfo)
+				if err == nil {
+					assetGradingLut = entityAssetGradingLut
+				}
+			}
+			var buf bytes.Buffer
+			binary.Write(&buf, binary.LittleEndian, assetGradingLut)
+			err = uploadGradingTexture(pv.object.materials[materialIndex].texAssetGrading, buf.Bytes())
+			if err != nil {
+				return fmt.Errorf("upload grading texture: %w", err)
 			}
 
 			pv.object.materials[materialIndex].indexCount = int32(meshDef.IndexCount)
@@ -717,12 +802,22 @@ func SpeedtreePreview(name string, pv *SpeedtreePreviewState) {
 			for idx := range pv.object.materials {
 				if !pv.showWireframe {
 					gl.Uniform1f(pv.treeUniforms["opacityThreshold"], pv.object.materials[idx].opacityThreshold)
+					gl.Uniform1f(pv.treeUniforms["grading_group_id"], pv.object.materials[idx].gradingGroupId)
+					gl.Uniform1f(pv.treeUniforms["grading_group_id_secondworld"], pv.object.materials[idx].gradingGroupId2)
+					gl.Uniform1f(pv.treeUniforms["grading_group_id_thirdworld"], pv.object.materials[idx].gradingGroupId3)
+					gl.Uniform1f(pv.treeUniforms["grading_group_id_trunk"], pv.object.materials[idx].gradingGroupIdTrunk)
+					gl.Uniform1f(pv.treeUniforms["world_grading_color_value_variation"], pv.object.materials[idx].worldGradingCVV)
+					gl.Uniform1f(pv.treeUniforms["ss_intensity_mult"], pv.object.materials[idx].subsurfaceIntensity)
 					gl.ActiveTexture(gl.TEXTURE0)
 					gl.BindTexture(gl.TEXTURE_2D, pv.object.materials[idx].texAlbedoOpacity)
 					gl.ActiveTexture(gl.TEXTURE1)
 					gl.BindTexture(gl.TEXTURE_2D, pv.object.materials[idx].texNormalRG)
 					gl.ActiveTexture(gl.TEXTURE2)
 					gl.BindTexture(gl.TEXTURE_2D, pv.object.lutFibonacci)
+					gl.ActiveTexture(gl.TEXTURE3)
+					gl.BindTexture(gl.TEXTURE_BUFFER, pv.object.materials[idx].tex2)
+					gl.ActiveTexture(gl.TEXTURE4)
+					gl.BindTexture(gl.TEXTURE_BUFFER, pv.object.materials[idx].texAssetGrading)
 				}
 				gl.DrawElements(gl.TRIANGLES, pv.object.materials[idx].indexCount, pv.object.indexType, gl.Ptr(uintptr(pv.object.indexStride*pv.object.materials[idx].indexOffset)))
 			}

@@ -8,12 +8,16 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path"
 	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
+
+	"golang.org/x/text/cases"
+	language_lib "golang.org/x/text/language"
 
 	"github.com/gobwas/glob"
 	"github.com/qmuntal/gltf"
@@ -126,10 +130,22 @@ type App struct {
 	WeaponPaintSchemes []datalib.WeaponCustomizableItem
 	AttachmentSlots    map[stingray.Hash]enum.WeaponCustomizationSlot
 	EntityVarMapping   shading_environment.ShadingEnvironmentEntityToShaderMapping
+	Planets            map[string]datalib.PlanetData
+	PlanetOverrides    datalib.PlanetOverridesMap
+	AssetOverrides     *map[stingray.FileID]stingray.FileID
 	DataDir            *stingray.DataDir
+	Language           stingray.ThinHash
 	LanguageMap        map[uint32]string
 	Metadata           map[stingray.FileID]FileMetadata
 	GameBuildInfo      *ah_bin.BuildInfo
+}
+
+func getLowerCaser(language stingray.ThinHash) cases.Caser {
+	languageTag, contains := stingray_strings.LanguageHashToLanguageTag[language]
+	if !contains {
+		languageTag = language_lib.English
+	}
+	return cases.Lower(languageTag)
 }
 
 // Automatically gets most wwise-related hashes by reading the game files
@@ -503,6 +519,28 @@ func OpenGameDir(ctx context.Context, gameDir string, hashStrings []string, thin
 	if err != nil {
 		return nil, fmt.Errorf("error loading weapon attachment slots: %v", err)
 	}
+	planetData, err := datalib.LoadPlanetData(lookupHash, lookupThinHash, lookupString)
+	if err != nil {
+		return nil, fmt.Errorf("error loading planet data: %v", err)
+	}
+	planetMap := make(map[string]datalib.PlanetData)
+	caser := getLowerCaser(language)
+	for _, planet := range planetData {
+		if planet.PlanetNameLoc == "" {
+			continue
+		}
+		planetNameLower := caser.String(planet.PlanetNameLoc)
+		planetMap[planetNameLower] = planet
+	}
+	planetOverrides, err := datalib.LoadPlanetOverrideSettings(lookupHash, lookupThinHash, lookupString)
+	if err != nil {
+		return nil, fmt.Errorf("error loading planet overrides data: %v", err)
+	}
+	planetOverridesMap := make(datalib.PlanetOverridesMap)
+	for _, override := range planetOverrides {
+		maps.Copy(planetOverridesMap, override.ToMap())
+	}
+	var assetOverrides map[stingray.FileID]stingray.FileID
 
 	return &App{
 		Hashes:             hashesMap,
@@ -512,7 +550,11 @@ func OpenGameDir(ctx context.Context, gameDir string, hashStrings []string, thin
 		WeaponPaintSchemes: weaponPaintSchemes,
 		AttachmentSlots:    attachmentSlots,
 		EntityVarMapping:   entityVarMapping,
+		Planets:            planetMap,
+		PlanetOverrides:    planetOverridesMap,
+		AssetOverrides:     &assetOverrides,
 		DataDir:            dataDir,
+		Language:           language,
 		LanguageMap:        mapping,
 		Metadata:           getFileMetadata(dataDir),
 		GameBuildInfo:      buildInfo,
@@ -694,6 +736,30 @@ func (a *App) LookupString(stringId uint32) string {
 	return strconv.FormatUint(uint64(stringId), 10)
 }
 
+func (a *App) UpdateAssetOverrides(planetName string, city bool) *datalib.PlanetData {
+	caser := getLowerCaser(a.Language)
+	planetName = caser.String(planetName)
+	var planet datalib.PlanetData
+	var contains bool
+	if planet, contains = a.Planets[planetName]; !contains {
+		*a.AssetOverrides = nil
+		return nil
+	}
+	assetOverrides := make(map[stingray.FileID]stingray.FileID)
+	for _, region := range planet.ResourceRegionOverrides {
+		if !city && region.RegionFlag == enum.RegionFlag_City {
+			continue
+		}
+		regionOverrides, contains := a.PlanetOverrides[region.ID]
+		if !contains {
+			continue
+		}
+		maps.Copy(assetOverrides, regionOverrides)
+	}
+	*a.AssetOverrides = assetOverrides
+	return &planet
+}
+
 func getSourceExtractFunc(extrCfg appconfig.Config, typ string) (extr extractor.ExtractFunc) {
 	switch extrCfg.Raw.Format {
 	case "main":
@@ -838,6 +904,14 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 		},
 		statusf,
 	)
+
+	caser := getLowerCaser(a.Language)
+	planetName := caser.String(extrCfg.Planet.Name)
+	if planet, contains := a.Planets[planetName]; contains {
+		a.UpdateAssetOverrides(planetName, extrCfg.Planet.City)
+		extrCtx = extrCtx.WithAssetOverrides(*a.AssetOverrides).WithColorGrading(planet.PaletteGroupLowland.AssetGrading)
+	}
+
 	err := extr(extrCtx)
 	outFiles := getOutFiles()
 	if err != nil {

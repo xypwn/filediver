@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"runtime/debug"
 	"slices"
@@ -40,6 +41,8 @@ import (
 	"github.com/xypwn/filediver/exec"
 	"github.com/xypwn/filediver/stingray"
 	"golang.design/x/clipboard"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 //go:embed LICENSE
@@ -350,7 +353,7 @@ func (a *guiApp) onInitWindow(state *imgui_wrapper.State) error {
 		state.FrameRate = a.preferences.TargetFPS
 	}
 
-	// Laod extractor config
+	// Load extractor config
 	{
 		if err := a.extractorConfig.Load(a.extractorConfigPath); err != nil {
 			return fmt.Errorf("loading extractor config: %w", err)
@@ -378,6 +381,11 @@ func (a *guiApp) onPreDraw(state *imgui_wrapper.State) error {
 			a.gameData.Hashes,
 			a.gameData.ThinHashes,
 			func(id stingray.FileID, typ stingray.DataType) (data []byte, exists bool, err error) {
+				if a.gameData.AssetOverrides != nil && *a.gameData.AssetOverrides != nil {
+					if val, contains := (*a.gameData.AssetOverrides)[id]; contains {
+						id = val
+					}
+				}
 				data, err = a.gameData.DataDir.Read(id, typ)
 				if err == stingray.ErrFileNotExist || err == stingray.ErrFileDataTypeNotExist {
 					return nil, false, nil
@@ -893,11 +901,12 @@ func (a *guiApp) drawBrowserWindow() {
 				imgui.EndTable()
 			}
 
-			if a.preview != nil && newActiveFileID != a.preview.ActiveID() {
+			if a.preview != nil && (newActiveFileID != a.preview.ActiveID() || a.gameData.AssetOverridesDirty) {
 				if !noPushToHistory {
 					a.historyPush(a.preview.ActiveID(), newActiveFileID)
 				}
-				a.preview.LoadFile(a.ctx, newActiveFileID, a.preferences.PreviewVideoVerticalResolution)
+				a.preview.LoadFile(a.ctx, newActiveFileID, a.preferences.PreviewVideoVerticalResolution, a.gameData.ColorGrading, a.gameData.EntityVarMapping)
+				a.gameData.AssetOverridesDirty = false
 			}
 
 			imutils.Textf("Showing %v/%v files (%v selected for export)", len(a.gameData.SortedSearchResultFileIDs), len(a.gameData.DataDir.Files), len(a.filesSelectedForExport))
@@ -1119,12 +1128,36 @@ func (a *guiApp) drawExportWindow() {
 }
 
 func (a *guiApp) drawExtractorConfigWindow() {
+	// Hack to add dynamic options for planet names so that we don't have to regenerate the code
+	// every game update
+	//
+	// (There's probably a better place for this to go)
+	if a.gameData != nil && appconfig.ConfigFields.ByName["Planet.Name"].Options == nil {
+		hasAlpha := regexp.MustCompile("[a-z]").MatchString
+		titleCaser := cases.Title(language.English)
+		romanNumeral := regexp.MustCompile("(?i)\\WM{0,4}(CM|CD|D?C{0,3})(XC|XL|L?X{0,3})(IX|IV|V?I{0,3})\\W?")
+		planetNames := slices.Collect(maps.Keys(a.gameData.Planets))
+		slices.Sort(planetNames)
+		for i := 0; i < len(planetNames); {
+			if !hasAlpha(planetNames[i]) || (i+1 < len(planetNames) && planetNames[i] == planetNames[i+1]) {
+				planetNames = append(planetNames[:i], planetNames[i+1:]...)
+				continue
+			}
+			planetNames[i] = titleCaser.String(planetNames[i])
+			planetNames[i] = romanNumeral.ReplaceAllStringFunc(planetNames[i], strings.ToUpper)
+			i++
+		}
+		appconfig.ConfigFields.ByName["Planet.Name"].Options = append([]string{" "}, planetNames...)
+	}
 	if imgui.Begin(fnt.I.SettingsApplications + " Extractor config") {
 		prevExtrCfg := a.extractorConfig
 		if widgets.ConfigEditor(&a.extractorConfig, &a.extractorConfigShowAdvanced, &a.extractorConfigSearchQuery) {
 			if a.extractorConfig.Gamedir != prevExtrCfg.Gamedir {
 				a.gameData = nil
 				a.gameDataLoad.GoLoadGameData(a.ctx, a.extractorConfig.Gamedir)
+			}
+			if a.extractorConfig.Planet.Name != prevExtrCfg.Planet.Name || a.extractorConfig.Planet.City != prevExtrCfg.Planet.City {
+				a.gameData.UpdateAssetOverrides(a.extractorConfig.Planet.Name, a.extractorConfig.Planet.City)
 			}
 			if a.extractorConfig != prevExtrCfg {
 				if err := a.extractorConfig.Save(a.extractorConfigPath); err != nil {

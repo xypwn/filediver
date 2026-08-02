@@ -69,8 +69,7 @@ type Config struct {
 		Format string `cfg:"options=json,raw"`
 	} `cfg:"tags=t:entity,t:shading_environment_mapping,t:shading_environment help='Shading environment configuration file export settings'"`
 	SpeedTree struct {
-		Format       string `cfg:"options=model,json,raw"`
-		ColorGrading string `cfg:"tags=advanced help='entity file to use for color grading lut'"`
+		Format string `cfg:"options=model,json,raw"`
 	} `cfg:"tags=t:speedtree help='Tree model export format'"`
 	XAML struct {
 		Format string `cfg:"options=svg,xaml,raw"`
@@ -78,6 +77,10 @@ type Config struct {
 	Raw struct {
 		Format string `cfg:"options=separate,combined,main,stream,gpu help='how to handle the different file sub-types (each file may have a main, stream and GPU file)'"`
 	} `cfg:"help='applies to any file without an available extractor or \"raw\" as the selected format'"`
+	Planet struct {
+		Name string `cfg:"help='Name of planet to use for asset customization'"`
+		City bool   `cfg:"help='Use city-specific overrides'"`
+	} `cfg:"help='Apply overrides from a specific planet to the exported assets'"`
 }
 
 // Config must be comparable

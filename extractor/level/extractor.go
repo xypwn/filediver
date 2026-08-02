@@ -424,7 +424,7 @@ func ConvertOpts(ctx *extractor.Context, gltfDoc *gltf.Document) error {
 			percentComplete := 100 * float32(idx+1) / totalObjectCount
 			ctx.Statusf("%.2f%% - %v.prefab", percentComplete, ctx.LookupHash(prefab.Path))
 		}
-		prefabId := stingray.NewFileID(prefab.Path, stingray.Sum("prefab"))
+		prefabId := ctx.OverrideAsset(stingray.NewFileID(prefab.Path, stingray.Sum("prefab")))
 		node, err := extr_prefab.AddPrefab(ctx.WithFileID(prefabId), doc, imgOpts)
 		if err != nil {
 			return err
@@ -476,7 +476,7 @@ func ConvertOpts(ctx *extractor.Context, gltfDoc *gltf.Document) error {
 		for _, entry := range levelData.Metadata[idx] {
 			metadata[entry.Key(ctx.LookupThinHash)] = entry.Value()
 		}
-		unitId := stingray.NewFileID(unit.Path(), stingray.Sum("unit"))
+		unitId := ctx.OverrideAsset(stingray.NewFileID(unit.Path(), stingray.Sum("unit")))
 		err := extr_prefab.AddOrDuplicateModel(ctx.WithFileID(unitId), doc, imgOpts, &unit, levelIdx, materialOverrides, metadata)
 		if err != nil {
 			return err
@@ -491,7 +491,7 @@ func ConvertOpts(ctx *extractor.Context, gltfDoc *gltf.Document) error {
 			percentComplete := 100 * float32(idx+1+len(levelData.Prefabs)+len(levelData.Units)) / totalObjectCount
 			ctx.Statusf("%.2f%% - %v.speedtree", percentComplete, ctx.LookupHash(speedtree.Path()))
 		}
-		speedtreeId := stingray.NewFileID(speedtree.Path(), stingray.Sum("speedtree"))
+		speedtreeId := ctx.OverrideAsset(stingray.NewFileID(speedtree.Path(), stingray.Sum("speedtree")))
 		for _, transform := range speedtree.Transforms {
 			speedtreeTransformed := SpeedtreeTransformed{
 				Speedtree: speedtree,

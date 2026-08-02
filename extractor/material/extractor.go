@@ -460,19 +460,21 @@ func WriteDDS(ctx *extractor.Context, doc *gltf.Document, ddsR io.ReadSeeker, po
 // Adds a texture to doc. Returns new texture ID if err != nil.
 // postProcess optionally applies image post-processing.
 func writeTexture(ctx *extractor.Context, doc *gltf.Document, id stingray.Hash, postProcess func(image.Image) (image.Image, error), imgOpts *ImageOptions, suffix string) (uint32, error) {
+	textureId := ctx.OverrideAsset(stingray.NewFileID(id, stingray.Sum("texture")))
 	// Check if we've already added this texture
 	for j, texture := range doc.Textures {
-		if doc.Images[*texture.Source].Name == (id.String() + suffix) {
+		if doc.Images[*texture.Source].Name == (textureId.Name.String() + suffix) {
 			return uint32(j), nil
 		}
 	}
 
-	ddsData, err := extr_texture.ExtractDDSData(ctx, stingray.NewFileID(id, stingray.Sum("texture")))
+	ddsData, err := extr_texture.ExtractDDSData(ctx, textureId)
 	if err != nil {
 		return 0, err
 	}
 	ddsR := bytes.NewReader(ddsData)
-	return WriteDDS(ctx.WithFileID(stingray.NewFileID(id, stingray.Sum("texture"))), doc, ddsR, postProcess, imgOpts, suffix)
+
+	return WriteDDS(ctx.WithFileID(textureId), doc, ddsR, postProcess, imgOpts, suffix)
 }
 
 func combineIlluminateOcclusionMetallicRoughness(narImg, dataImg image.Image) error {

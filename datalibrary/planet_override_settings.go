@@ -35,6 +35,20 @@ type PlanetOverrideSettings struct {
 	Overrides []PlanetOverrides
 }
 
+type PlanetOverridesMap map[stingray.ThinHash]map[stingray.FileID]stingray.FileID
+
+func (p PlanetOverrideSettings) ToMap() PlanetOverridesMap {
+	result := make(PlanetOverridesMap)
+	for _, override := range p.Overrides {
+		resources := make(map[stingray.FileID]stingray.FileID)
+		for _, resourceOverride := range override.Resources {
+			resources[stingray.NewFileID(resourceOverride.Replace, resourceOverride.Type)] = stingray.NewFileID(resourceOverride.ReplaceWith, resourceOverride.Type)
+		}
+		result[override.ID] = resources
+	}
+	return result
+}
+
 func LoadPlanetOverrideSettings(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookupStrings StringsLookup) ([]PlanetOverrideSettings, error) {
 	r := bytes.NewReader(planetOverrideSettings)
 
