@@ -256,10 +256,8 @@ func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gl
 
 	var colorGradingDDS bytes.Buffer
 	if ctx.ColorGrading().Value == 0x0 {
-		ctx.Warnf("Writing identity color grading lut")
 		err = extr_entity.WriteDDSIdentityColorGradingLut(&colorGradingDDS)
 	} else {
-		ctx.Warnf("Writing color grading lut")
 		err = WriteColorGradingLut(ctx, &colorGradingDDS)
 	}
 	if err != nil {
