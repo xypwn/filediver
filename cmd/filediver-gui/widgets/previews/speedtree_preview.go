@@ -13,6 +13,7 @@ import (
 	"github.com/AllenDang/cimgui-go/imgui"
 	"github.com/go-gl/gl/v4.3-core/gl"
 	"github.com/go-gl/mathgl/mgl32"
+	"github.com/xypwn/filediver/app/appconfig"
 	fnt "github.com/xypwn/filediver/cmd/filediver-gui/fonts"
 	"github.com/xypwn/filediver/cmd/filediver-gui/glutils"
 	"github.com/xypwn/filediver/cmd/filediver-gui/imutils"
@@ -176,12 +177,33 @@ type SpeedtreePreviewState struct {
 	visualizeTangentBitangent int32 // 1 or 0
 	autoZoomEnabled           bool
 	doAutoZoomNextFrame       bool
+
+	extractorPlanet      *string
+	extractorUseCity     *bool
+	updateAssetOverrides func(string, bool)
+	planetComboWidth     float32
 }
 
-func NewSpeedtreePreview() (*SpeedtreePreviewState, error) {
+func NewSpeedtreePreview(planetParams ExtractorPlanetParameters) (*SpeedtreePreviewState, error) {
 	var err error
 
 	pv := &SpeedtreePreviewState{}
+	if planetParams.Name == nil || planetParams.UseCity == nil || planetParams.UpdateAssetOverrides == nil {
+		return nil, fmt.Errorf("programming error - extractor planet parameters not correctly set")
+	}
+	pv.extractorPlanet = planetParams.Name
+	pv.extractorUseCity = planetParams.UseCity
+	pv.updateAssetOverrides = planetParams.UpdateAssetOverrides
+
+	currentStyle := imgui.CurrentStyle()
+	maxPlanetWidth := float32(0.0)
+	comboBoxArrowWidth := imgui.TextLineHeightWithSpacing()
+	for _, option := range appconfig.ConfigFields.ByName["Planet.Name"].Options {
+		if newWidth := imgui.CalcTextSize(option).X + currentStyle.FramePadding().X*2.0 + comboBoxArrowWidth; newWidth > maxPlanetWidth {
+			maxPlanetWidth = newWidth
+		}
+	}
+	pv.planetComboWidth = maxPlanetWidth
 
 	pv.fb, err = widgets.NewGLView()
 	if err != nil {
@@ -1023,6 +1045,10 @@ func SpeedtreePreview(name string, pv *SpeedtreePreviewState) {
 		},
 	)
 
+	// TODO: refactor this + unit controls/settings into a separate window
+	// in the same vein as the material settings display - should help with
+	// resizing and allowing the controls to take up as much or as little
+	// spaces as they need
 	if imgui.Button(fnt.I.Home) {
 		pv.viewRotation = mgl32.Vec2{}
 		pv.doAutoZoomNextFrame = true
@@ -1082,6 +1108,15 @@ func SpeedtreePreview(name string, pv *SpeedtreePreviewState) {
 	imgui.SameLine()
 	if imgui.Checkbox(fnt.I.AllOut+" Auto-zoom", &pv.autoZoomEnabled) && pv.autoZoomEnabled {
 		pv.doAutoZoomNextFrame = true
+	}
+	imgui.SameLine()
+	imgui.SetNextItemWidth(pv.planetComboWidth)
+	if imutils.ComboChoice(fnt.I.Planet+" Planet", pv.extractorPlanet, appconfig.ConfigFields.ByName["Planet.Name"].Options) {
+		pv.updateAssetOverrides(*pv.extractorPlanet, *pv.extractorUseCity)
+	}
+	imgui.SameLine()
+	if imgui.Checkbox(fnt.I.LocationCity+" City", pv.extractorUseCity) {
+		pv.updateAssetOverrides(*pv.extractorPlanet, *pv.extractorUseCity)
 	}
 	imgui.SameLine()
 	// UDim selection

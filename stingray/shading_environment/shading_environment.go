@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"maps"
 
 	"github.com/xypwn/filediver/stingray"
 )
@@ -153,7 +152,7 @@ type ShadingEnvironmentEntityToShaderMapping map[stingray.ThinHash]struct {
 	ShaderIndex uint32
 }
 
-func (s ShadingEnvironmentMapping) ToEntityMap(in ShadingEnvironmentEntityToShaderMapping) ShadingEnvironmentEntityToShaderMapping {
+func (s ShadingEnvironmentMapping) ToEntityMap() ShadingEnvironmentEntityToShaderMapping {
 	result := make(ShadingEnvironmentEntityToShaderMapping)
 	for _, entityMapping := range s.EntitySettingMappings {
 		switch entityMapping.SettingType {
@@ -203,7 +202,6 @@ func (s ShadingEnvironmentMapping) ToEntityMap(in ShadingEnvironmentEntityToShad
 			}
 		}
 	}
-	maps.Copy(result, in)
 	return result
 }
 

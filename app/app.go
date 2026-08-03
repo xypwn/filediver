@@ -436,6 +436,17 @@ func LoadAttachmentSlots(dataDir *stingray.DataDir, languageMap map[uint32]strin
 	return result, nil
 }
 
+func LoadEntityVariableMappings(dataDir *stingray.DataDir) (entityVarMapping shading_environment.ShadingEnvironmentEntityToShaderMapping) {
+	shadingEnvironmentMappings, err := shading_environment.LoadMappingsFromDataDir(dataDir)
+	if err == nil {
+		entityVarMapping = make(shading_environment.ShadingEnvironmentEntityToShaderMapping)
+		for _, mapping := range shadingEnvironmentMappings {
+			maps.Copy(entityVarMapping, mapping.ToEntityMap())
+		}
+	}
+	return
+}
+
 // Open game dir and read metadata.
 func OpenGameDir(ctx context.Context, gameDir string, hashStrings []string, thinhashes []string, language stingray.ThinHash, onProgress func(curr, total int)) (*App, error) {
 	dataDir, err := stingray.OpenDataDir(ctx, filepath.Join(gameDir, "data"), onProgress)
@@ -464,15 +475,6 @@ func OpenGameDir(ctx context.Context, gameDir string, hashStrings []string, thin
 	buildInfo, err := ah_bin.LoadFromDataDir(dataDir)
 	if err != nil && err != ah_bin.NotFound {
 		return nil, fmt.Errorf("error loading game build info: %v", err)
-	}
-
-	var entityVarMapping shading_environment.ShadingEnvironmentEntityToShaderMapping
-	shadingEnvironmentMappings, err := shading_environment.LoadMappingsFromDataDir(dataDir)
-	if err == nil {
-		entityVarMapping = make(shading_environment.ShadingEnvironmentEntityToShaderMapping)
-		for _, mapping := range shadingEnvironmentMappings {
-			entityVarMapping = mapping.ToEntityMap(entityVarMapping)
-		}
 	}
 
 	lookupHash := func(hash stingray.Hash) string {
@@ -519,6 +521,9 @@ func OpenGameDir(ctx context.Context, gameDir string, hashStrings []string, thin
 	if err != nil {
 		return nil, fmt.Errorf("error loading weapon attachment slots: %v", err)
 	}
+
+	entityVarMapping := LoadEntityVariableMappings(dataDir)
+
 	planetData, err := datalib.LoadPlanetData(lookupHash, lookupThinHash, lookupString)
 	if err != nil {
 		return nil, fmt.Errorf("error loading planet data: %v", err)
@@ -736,13 +741,20 @@ func (a *App) LookupString(stringId uint32) string {
 	return strconv.FormatUint(uint64(stringId), 10)
 }
 
-func (a *App) UpdateAssetOverrides(planetName string, city bool) *datalib.PlanetData {
+func (a *App) GetPlanet(planetName string, city bool) *datalib.PlanetData {
 	caser := getLowerCaser(a.Language)
 	planetName = caser.String(planetName)
 	var planet datalib.PlanetData
 	var contains bool
 	if planet, contains = a.Planets[planetName]; !contains {
-		*a.AssetOverrides = nil
+		return nil
+	}
+	return &planet
+}
+
+func (a *App) GetAssetOverrides(planetName string, city bool) map[stingray.FileID]stingray.FileID {
+	planet := a.GetPlanet(planetName, city)
+	if planet == nil {
 		return nil
 	}
 	assetOverrides := make(map[stingray.FileID]stingray.FileID)
@@ -756,8 +768,12 @@ func (a *App) UpdateAssetOverrides(planetName string, city bool) *datalib.Planet
 		}
 		maps.Copy(assetOverrides, regionOverrides)
 	}
+	return assetOverrides
+}
+
+func (a *App) UpdateAssetOverrides(planetName string, city bool) {
+	assetOverrides := a.GetAssetOverrides(planetName, city)
 	*a.AssetOverrides = assetOverrides
-	return &planet
 }
 
 func getSourceExtractFunc(extrCfg appconfig.Config, typ string) (extr extractor.ExtractFunc) {

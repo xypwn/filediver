@@ -58,7 +58,13 @@ type AutoPreview struct {
 	err error
 }
 
-func NewAutoPreview(otoCtx *oto.Context, audioSampleRate int, hashes map[stingray.Hash]string, thinhashes map[stingray.ThinHash]string, getResourceGenerator GetResourceGeneratorFunc, runner *exec.Runner) (*AutoPreview, error) {
+type ExtractorPlanetParameters struct {
+	Name                 *string
+	UseCity              *bool
+	UpdateAssetOverrides func(string, bool)
+}
+
+func NewAutoPreview(otoCtx *oto.Context, audioSampleRate int, hashes map[stingray.Hash]string, thinhashes map[stingray.ThinHash]string, getResourceGenerator GetResourceGeneratorFunc, runner *exec.Runner, planetParams ExtractorPlanetParameters) (*AutoPreview, error) {
 	var err error
 	pv := &AutoPreview{
 		hashes:               hashes,
@@ -69,7 +75,7 @@ func NewAutoPreview(otoCtx *oto.Context, audioSampleRate int, hashes map[stingra
 	if err != nil {
 		return nil, err
 	}
-	pv.previews.speedtree, err = NewSpeedtreePreview()
+	pv.previews.speedtree, err = NewSpeedtreePreview(planetParams)
 	if err != nil {
 		return nil, err
 	}

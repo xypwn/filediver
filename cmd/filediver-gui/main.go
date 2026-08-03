@@ -14,7 +14,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"runtime/debug"
 	"slices"
@@ -41,8 +40,6 @@ import (
 	"github.com/xypwn/filediver/exec"
 	"github.com/xypwn/filediver/stingray"
 	"golang.design/x/clipboard"
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
 )
 
 //go:embed LICENSE
@@ -398,6 +395,11 @@ func (a *guiApp) onPreDraw(state *imgui_wrapper.State) error {
 				}
 			},
 			a.runner,
+			previews.ExtractorPlanetParameters{
+				Name:                 &a.extractorConfig.Planet.Name,
+				UseCity:              &a.extractorConfig.Planet.City,
+				UpdateAssetOverrides: a.gameData.UpdateAssetOverrides,
+			},
 		)
 		if err != nil {
 			return fmt.Errorf("creating preview: %w", err)
@@ -1131,27 +1133,6 @@ func (a *guiApp) drawExportWindow() {
 }
 
 func (a *guiApp) drawExtractorConfigWindow() {
-	// Hack to add dynamic options for planet names so that we don't have to regenerate the code
-	// every game update
-	//
-	// (There's probably a better place for this to go)
-	if a.gameData != nil && appconfig.ConfigFields.ByName["Planet.Name"].Options == nil {
-		hasAlpha := regexp.MustCompile("[a-z]").MatchString
-		titleCaser := cases.Title(language.English)
-		romanNumeral := regexp.MustCompile("(?i)\\WM{0,4}(CM|CD|D?C{0,3})(XC|XL|L?X{0,3})(IX|IV|V?I{0,3})\\W?")
-		planetNames := slices.Collect(maps.Keys(a.gameData.Planets))
-		slices.Sort(planetNames)
-		for i := 0; i < len(planetNames); {
-			if !hasAlpha(planetNames[i]) || (i+1 < len(planetNames) && planetNames[i] == planetNames[i+1]) {
-				planetNames = append(planetNames[:i], planetNames[i+1:]...)
-				continue
-			}
-			planetNames[i] = titleCaser.String(planetNames[i])
-			planetNames[i] = romanNumeral.ReplaceAllStringFunc(planetNames[i], strings.ToUpper)
-			i++
-		}
-		appconfig.ConfigFields.ByName["Planet.Name"].Options = append([]string{" "}, planetNames...)
-	}
 	if imgui.Begin(fnt.I.SettingsApplications + " Extractor config") {
 		prevExtrCfg := a.extractorConfig
 		if widgets.ConfigEditor(&a.extractorConfig, &a.extractorConfigShowAdvanced, &a.extractorConfigSearchQuery) {
