@@ -1,6 +1,9 @@
 package appconfig
 
 import (
+	"bufio"
+	"bytes"
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"io/fs"
@@ -11,6 +14,22 @@ import (
 
 	"github.com/xypwn/filediver/config"
 )
+
+//go:embed planets.txt
+var planets []byte
+
+var ConfigFields *config.FieldSet
+
+func init() {
+	ConfigFields = config.MustFields(Config{})
+	var _ = GetTypeFormats(Config{}) // config sanity check (see GetTypeFormats)
+
+	planetsScanner := bufio.NewScanner(bytes.NewReader(planets))
+	ConfigFields.ByName["Planet.Name"].Options = []string{"<none>"}
+	for planetsScanner.Scan() {
+		ConfigFields.ByName["Planet.Name"].Options = append(ConfigFields.ByName["Planet.Name"].Options, planetsScanner.Text())
+	}
+}
 
 // This is the central config structure used in the GUI
 // and CLI.
@@ -78,7 +97,7 @@ type Config struct {
 		Format string `cfg:"options=separate,combined,main,stream,gpu help='how to handle the different file sub-types (each file may have a main, stream and GPU file)'"`
 	} `cfg:"help='applies to any file without an available extractor or \"raw\" as the selected format'"`
 	Planet struct {
-		Name string `cfg:"help='Name of planet to use for asset customization'"`
+		Name string `cfg:"options=test help='Name of planet to use for asset customization'"`
 		City bool   `cfg:"help='Use city-specific overrides'"`
 	} `cfg:"help='Apply overrides from a specific planet to the exported assets'"`
 }
@@ -137,9 +156,6 @@ var Extractable = map[string]bool{
 	"otf":            true,
 	"xaml":           true,
 }
-
-var ConfigFields = config.MustFields(Config{})
-var _ = GetTypeFormats(Config{}) // config sanity check (see GetTypeFormats)
 
 // GetTypeFormats maps each affected type
 // (denoted by t:<type> tag in config struct) to

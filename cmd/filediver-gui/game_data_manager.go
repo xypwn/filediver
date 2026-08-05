@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
-	"regexp"
 	"runtime"
 	"slices"
 	"strings"
@@ -23,8 +21,6 @@ import (
 	"github.com/xypwn/filediver/hashes"
 	"github.com/xypwn/filediver/stingray"
 	stingray_strings "github.com/xypwn/filediver/stingray/strings"
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
 )
 
 type GameDataExport struct {
@@ -142,29 +138,6 @@ func (gd *GameData) UpdateAssetOverrides(planetName string, city bool) {
 		gd.ColorGrading = stingray.NewFileID(planet.PaletteGroupLowland.AssetGrading, stingray.Sum("entity"))
 	}
 	gd.AssetOverridesDirty = true
-}
-
-func (gd *GameData) EnsurePlanetNameOptions() {
-	// Hack to add dynamic options for planet names so that we don't have to regenerate the code
-	// every game update
-	if appconfig.ConfigFields.ByName["Planet.Name"].Options != nil {
-		return
-	}
-	hasAlpha := regexp.MustCompile("[a-z]").MatchString
-	titleCaser := cases.Title(language.English)
-	romanNumeral := regexp.MustCompile("(?i)\\WM{0,4}(CM|CD|D?C{0,3})(XC|XL|L?X{0,3})(IX|IV|V?I{0,3})\\W?")
-	planetNames := slices.Collect(maps.Keys(gd.Planets))
-	slices.Sort(planetNames)
-	for i := 0; i < len(planetNames); {
-		if !hasAlpha(planetNames[i]) || (i+1 < len(planetNames) && planetNames[i] == planetNames[i+1]) {
-			planetNames = append(planetNames[:i], planetNames[i+1:]...)
-			continue
-		}
-		planetNames[i] = titleCaser.String(planetNames[i])
-		planetNames[i] = romanNumeral.ReplaceAllStringFunc(planetNames[i], strings.ToUpper)
-		i++
-	}
-	appconfig.ConfigFields.ByName["Planet.Name"].Options = append([]string{" "}, planetNames...)
 }
 
 func (gd *GameData) GoExport(extractCtx context.Context, files []stingray.FileID, outDir string, cfg appconfig.Config, runner *exec.Runner, archiveIDs []stingray.Hash, printer app.Printer, allowMp4Export bool) *GameDataExport {
@@ -309,7 +282,6 @@ func (gd *GameDataLoad) loadGameData(ctx context.Context, gameDir string) {
 	res := NewGameData(a)
 	gd.Lock()
 	gd.Result = res
-	gd.Result.EnsurePlanetNameOptions()
 	gd.Done = true
 	gd.Unlock()
 }

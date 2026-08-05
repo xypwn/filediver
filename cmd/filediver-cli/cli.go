@@ -13,6 +13,7 @@ import (
 	"github.com/iancoleman/strcase"
 	"github.com/jwalton/go-supportscolor"
 
+	"github.com/xypwn/filediver/app/appconfig"
 	"github.com/xypwn/filediver/config"
 )
 
@@ -65,6 +66,12 @@ func cliHandleArgs(configStruct any, addExtraArgs func(argp *argparse.Parser)) (
 	fs, err := config.Fields(configStruct)
 	if err != nil {
 		return nil, false, err
+	}
+	if showAdvancedHelp {
+		fs = appconfig.ConfigFields
+	} else {
+		shownOptions := 4
+		fs.ByName["Planet.Name"].Options = append(appconfig.ConfigFields.ByName["Planet.Name"].Options[:shownOptions], fmt.Sprintf("%v... [Use --help-all to show all %v options]", appconfig.ConfigFields.ByName["Planet.Name"].Options[shownOptions], len(appconfig.ConfigFields.ByName["Planet.Name"].Options)))
 	}
 
 	formatFieldName := func(field string) string {
