@@ -37,7 +37,7 @@ func main() {
 	argp := argparse.NewParser("planet-name-generator", "", &argparse.ParserConfig{
 		DisableDefaultShowHelp: true,
 	})
-	prt, app := fdtools.InitWithLanguage(argp, "English (US)")
+	prt, app := fdtools.Init(argp)
 	planetNames := generatePlanetNames(app)
 	output, err := os.Create("planets.txt")
 	if err != nil {

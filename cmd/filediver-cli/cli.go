@@ -63,17 +63,7 @@ func cliHandleArgs(configStruct any, addExtraArgs func(argp *argparse.Parser)) (
 		addExtraArgs(argp)
 	}
 
-	fs, err := config.Fields(configStruct)
-	if err != nil {
-		return nil, false, err
-	}
-	if showAdvancedHelp {
-		fs = appconfig.ConfigFields
-	} else {
-		shownOptions := 4
-		fs.ByName["Planet.Name"].Options = append(appconfig.ConfigFields.ByName["Planet.Name"].Options[:shownOptions], fmt.Sprintf("%v... [Use --help-all to show all %v options]", appconfig.ConfigFields.ByName["Planet.Name"].Options[shownOptions], len(appconfig.ConfigFields.ByName["Planet.Name"].Options)))
-	}
-
+	fs := appconfig.ConfigFields
 	formatFieldName := func(field string) string {
 		return "--" + strcase.ToKebab(field)
 	}
@@ -115,7 +105,7 @@ func cliHandleArgs(configStruct any, addExtraArgs func(argp *argparse.Parser)) (
 		if !isAdvanced && categoryHelp != "" {
 			opts.Group = opts.Group + " (" + categoryHelp + ")"
 		}
-		opts.HintInfo = fs.FieldFormatHint(field.Name, formatFieldName)
+		opts.HintInfo = fs.FieldFormatHint(field.Name, formatFieldName, showAdvancedHelp)
 		var short string
 		if field.Short != 0 {
 			short = string(field.Short)

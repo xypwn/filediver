@@ -23,6 +23,8 @@ type Tag struct {
 	Help string
 	// String enum options, or nil
 	Options []string
+	// Truncate options after 5 values
+	Truncate bool
 	// Default values in order of priority (highest first)
 	// (type-checked), or nil
 	Default []any
@@ -238,6 +240,11 @@ func parseTag(
 				return nil, fmt.Errorf("options is only available for fields of type string")
 			}
 			res.Options = strings.Split(value, ",")
+		case "truncate":
+			if res.Truncate != false {
+				return nil, fmt.Errorf("duplicate %v field", strconv.Quote(key))
+			}
+			res.Truncate = true
 		case "default":
 			if res.Default != nil {
 				return nil, fmt.Errorf("duplicate %v field", strconv.Quote(key))
@@ -575,6 +582,7 @@ func (f Field) DefaultValue() any {
 func (fs *FieldSet) FieldFormatHint(
 	field string,
 	formatFieldName func(field string) string,
+	showAdvancedHelp bool,
 ) string {
 	f := fs.ByName[field]
 
@@ -584,7 +592,13 @@ func (fs *FieldSet) FieldFormatHint(
 
 	var items []string
 	if len(f.Options) > 0 {
-		items = append(items, fmt.Sprintf("options: %v", strings.Join(f.Options, "|")))
+		length := len(f.Options)
+		showExtra := ""
+		if length > 5 && f.Truncate && !showAdvancedHelp {
+			showExtra = fmt.Sprintf("... [Use --help-all to show all %v options]", length)
+			length = 5
+		}
+		items = append(items, fmt.Sprintf("options: %v%v", strings.Join(f.Options[:length], "|"), showExtra))
 	}
 	if f.RangeMin != nil || f.RangeMax != nil {
 		items = append(items, fmt.Sprintf("range: %v...%v", f.RangeMin, f.RangeMax))
