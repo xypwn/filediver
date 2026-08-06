@@ -13,6 +13,7 @@ import (
 	"github.com/iancoleman/strcase"
 	"github.com/jwalton/go-supportscolor"
 
+	"github.com/xypwn/filediver/app/appconfig"
 	"github.com/xypwn/filediver/config"
 )
 
@@ -62,11 +63,7 @@ func cliHandleArgs(configStruct any, addExtraArgs func(argp *argparse.Parser)) (
 		addExtraArgs(argp)
 	}
 
-	fs, err := config.Fields(configStruct)
-	if err != nil {
-		return nil, false, err
-	}
-
+	fs := appconfig.ConfigFields
 	formatFieldName := func(field string) string {
 		return "--" + strcase.ToKebab(field)
 	}
@@ -108,7 +105,7 @@ func cliHandleArgs(configStruct any, addExtraArgs func(argp *argparse.Parser)) (
 		if !isAdvanced && categoryHelp != "" {
 			opts.Group = opts.Group + " (" + categoryHelp + ")"
 		}
-		opts.HintInfo = fs.FieldFormatHint(field.Name, formatFieldName)
+		opts.HintInfo = fs.FieldFormatHint(field.Name, formatFieldName, showAdvancedHelp)
 		var short string
 		if field.Short != 0 {
 			short = string(field.Short)

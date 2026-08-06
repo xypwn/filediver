@@ -315,7 +315,7 @@ func getF32(data any) (float32, error) {
 	return s, nil
 }
 
-func createColorGradingLut(entityInfo *entity.Entity) ([]Vec4F16, error) {
+func CreateColorGradingLut(entityInfo *entity.Entity) ([]Vec4F16, error) {
 	var colorGradingLut []mgl32.Vec4
 	for _, info := range entityInfo.Infos {
 		if colorGradingLut != nil {
@@ -402,6 +402,18 @@ func createColorGradingLut(entityInfo *entity.Entity) ([]Vec4F16, error) {
 	return convertToFloat16(colorGradingLut), nil
 }
 
+func CreateIdentityColorGradingLut() []Vec4F16 {
+	row0, row1, row2, row3 := mgl32.Ident4().Rows()
+	colorGradingLut := convertToFloat16([]mgl32.Vec4{row0, row1, row2, row3}) // 4
+	colorGradingLut = append(colorGradingLut, colorGradingLut...)             // 8
+	colorGradingLut = append(colorGradingLut, colorGradingLut...)             // 16
+	colorGradingLut = append(colorGradingLut, colorGradingLut...)             // 32
+	colorGradingLut = append(colorGradingLut, colorGradingLut...)             // 64
+	colorGradingLut = append(colorGradingLut, colorGradingLut[:36]...)        // 100
+
+	return colorGradingLut
+}
+
 func writeDDS(w io.Writer, colorGradingLut []Vec4F16) error {
 	if err := binary.Write(w, binary.LittleEndian, []byte("DDS ")); err != nil {
 		return err
@@ -451,7 +463,7 @@ func writeDDS(w io.Writer, colorGradingLut []Vec4F16) error {
 }
 
 func WriteDDSColorGradingLut(w io.Writer, entityInfo *entity.Entity) error {
-	colorGradingLut, err := createColorGradingLut(entityInfo)
+	colorGradingLut, err := CreateColorGradingLut(entityInfo)
 	if err != nil {
 		return err
 	}
@@ -460,13 +472,5 @@ func WriteDDSColorGradingLut(w io.Writer, entityInfo *entity.Entity) error {
 }
 
 func WriteDDSIdentityColorGradingLut(w io.Writer) error {
-	row0, row1, row2, row3 := mgl32.Ident4().Rows()
-	colorGradingLut := convertToFloat16([]mgl32.Vec4{row0, row1, row2, row3}) // 4
-	colorGradingLut = append(colorGradingLut, colorGradingLut...)             // 8
-	colorGradingLut = append(colorGradingLut, colorGradingLut...)             // 16
-	colorGradingLut = append(colorGradingLut, colorGradingLut...)             // 32
-	colorGradingLut = append(colorGradingLut, colorGradingLut...)             // 64
-	colorGradingLut = append(colorGradingLut, colorGradingLut[:36]...)        // 100
-
-	return writeDDS(w, colorGradingLut)
+	return writeDDS(w, CreateIdentityColorGradingLut())
 }

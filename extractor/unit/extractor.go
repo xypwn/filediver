@@ -292,7 +292,8 @@ func AddMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_mate
 
 	for id, resID := range unitInfo.Materials {
 		resID = ctx.OverrideMaterial(id, resID)
-		matR, err := ctx.Open(stingray.NewFileID(resID, stingray.Sum("material")), stingray.DataMain)
+		materialId := ctx.OverrideAsset(stingray.NewFileID(resID, stingray.Sum("material")))
+		matR, err := ctx.Open(materialId, stingray.DataMain)
 		if err != nil {
 			return nil, err
 		}
@@ -301,7 +302,7 @@ func AddMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_mate
 			return nil, err
 		}
 
-		resPath := ctx.LookupHash(resID)
+		resPath := ctx.LookupHash(materialId.Name)
 		if strings.Contains(resPath, "/") {
 			split := strings.Split(resPath, "/")
 			resPath = strings.Join(split[len(split)-2:], "/")

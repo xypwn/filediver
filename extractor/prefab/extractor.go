@@ -326,7 +326,7 @@ func AddPrefab(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_materia
 			percentComplete := 100 * float32(idx+1) / float32(len(prefabData.Units)+len(prefabData.NestedPrefabs))
 			ctx.Statusf("%.2f%% - %v.unit", percentComplete, ctx.LookupHash(object.Path()))
 		}
-		unitId := stingray.NewFileID(object.Path(), stingray.Sum("unit"))
+		unitId := ctx.OverrideAsset(stingray.NewFileID(object.Path(), stingray.Sum("unit")))
 		err := AddOrDuplicateModel(ctx.WithFileID(unitId), doc, imgOpts, &object, prefabRoot, nil, nil)
 		if err != nil {
 			return 0, err
@@ -341,7 +341,7 @@ func AddPrefab(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_materia
 			percentComplete := 100 * float32(idx+1+len(prefabData.Units)) / float32(len(prefabData.Units)+len(prefabData.NestedPrefabs))
 			ctx.Statusf("%.2f%% - %v.prefab", percentComplete, ctx.LookupHash(nested.Path))
 		}
-		nestedId := stingray.NewFileID(nested.Path, stingray.Sum("prefab"))
+		nestedId := ctx.OverrideAsset(stingray.NewFileID(nested.Path, stingray.Sum("prefab")))
 		root, err := AddPrefab(ctx.WithFileID(nestedId), doc, imgOpts)
 		if err != nil {
 			return 0, fmt.Errorf("extracting prefab %v: %v", ctx.LookupHash(nested.Path), err)

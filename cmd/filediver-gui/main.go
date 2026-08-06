@@ -350,7 +350,7 @@ func (a *guiApp) onInitWindow(state *imgui_wrapper.State) error {
 		state.FrameRate = a.preferences.TargetFPS
 	}
 
-	// Laod extractor config
+	// Load extractor config
 	{
 		if err := a.extractorConfig.Load(a.extractorConfigPath); err != nil {
 			return fmt.Errorf("loading extractor config: %w", err)
@@ -377,17 +377,29 @@ func (a *guiApp) onPreDraw(state *imgui_wrapper.State) error {
 			a.otoCtx, a.audioSampleRate,
 			a.gameData.Hashes,
 			a.gameData.ThinHashes,
-			func(id stingray.FileID, typ stingray.DataType) (data []byte, exists bool, err error) {
-				data, err = a.gameData.DataDir.Read(id, typ)
-				if err == stingray.ErrFileNotExist || err == stingray.ErrFileDataTypeNotExist {
-					return nil, false, nil
+			func(allowOverride bool) func(id stingray.FileID, typ stingray.DataType) (data []byte, exists bool, err error) {
+				return func(id stingray.FileID, typ stingray.DataType) (data []byte, exists bool, err error) {
+					if allowOverride && a.gameData.AssetOverrides != nil && *a.gameData.AssetOverrides != nil {
+						if val, contains := (*a.gameData.AssetOverrides)[id]; contains {
+							id = val
+						}
+					}
+					data, err = a.gameData.DataDir.Read(id, typ)
+					if err == stingray.ErrFileNotExist || err == stingray.ErrFileDataTypeNotExist {
+						return nil, false, nil
+					}
+					if err != nil {
+						return nil, false, err
+					}
+					return data, true, nil
 				}
-				if err != nil {
-					return nil, false, err
-				}
-				return data, true, nil
 			},
 			a.runner,
+			previews.ExtractorPlanetParameters{
+				Name:                 &a.extractorConfig.Planet.Name,
+				UseCity:              &a.extractorConfig.Planet.City,
+				UpdateAssetOverrides: a.gameData.UpdateAssetOverrides,
+			},
 		)
 		if err != nil {
 			return fmt.Errorf("creating preview: %w", err)
@@ -675,6 +687,7 @@ func (a *guiApp) drawBrowserWindow() {
 								}),
 							},
 						}
+						a.gameData.UpdateAssetOverrides(a.extractorConfig.Planet.Name, a.extractorConfig.Planet.City)
 					}
 				} else {
 					imutils.TextError(a.gameDataLoad.Err)
@@ -893,11 +906,12 @@ func (a *guiApp) drawBrowserWindow() {
 				imgui.EndTable()
 			}
 
-			if a.preview != nil && newActiveFileID != a.preview.ActiveID() {
+			if a.preview != nil && (newActiveFileID != a.preview.ActiveID() || a.gameData.AssetOverridesDirty) {
 				if !noPushToHistory {
 					a.historyPush(a.preview.ActiveID(), newActiveFileID)
 				}
-				a.preview.LoadFile(a.ctx, newActiveFileID, a.preferences.PreviewVideoVerticalResolution)
+				a.preview.LoadFile(a.ctx, newActiveFileID, a.preferences.PreviewVideoVerticalResolution, a.gameData.ColorGrading, a.gameData.EntityVarMapping)
+				a.gameData.AssetOverridesDirty = false
 			}
 
 			imutils.Textf("Showing %v/%v files (%v selected for export)", len(a.gameData.SortedSearchResultFileIDs), len(a.gameData.DataDir.Files), len(a.filesSelectedForExport))
@@ -1125,6 +1139,9 @@ func (a *guiApp) drawExtractorConfigWindow() {
 			if a.extractorConfig.Gamedir != prevExtrCfg.Gamedir {
 				a.gameData = nil
 				a.gameDataLoad.GoLoadGameData(a.ctx, a.extractorConfig.Gamedir)
+			}
+			if a.extractorConfig.Planet.Name != prevExtrCfg.Planet.Name || a.extractorConfig.Planet.City != prevExtrCfg.Planet.City {
+				a.gameData.UpdateAssetOverrides(a.extractorConfig.Planet.Name, a.extractorConfig.Planet.City)
 			}
 			if a.extractorConfig != prevExtrCfg {
 				if err := a.extractorConfig.Save(a.extractorConfigPath); err != nil {

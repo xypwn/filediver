@@ -9,7 +9,7 @@ import (
 	"github.com/jwalton/go-supportscolor"
 	"github.com/xypwn/filediver/app"
 	"github.com/xypwn/filediver/hashes"
-	"github.com/xypwn/filediver/stingray"
+	stingray_strings "github.com/xypwn/filediver/stingray/strings"
 )
 
 // Initializes the tool with a printer and app with game files and
@@ -29,6 +29,15 @@ func Init(argp *argparse.Parser) (prt app.Printer, a *app.App) {
 	)
 
 	optGameDir := argp.String("g", "gamedir", nil)
+	langs := make([]any, len(stingray_strings.LanguageFriendlyNames))
+	for i := range langs {
+		langs[i] = stingray_strings.LanguageFriendlyNames[i]
+	}
+	optLanguage := argp.String("l", "language", &argparse.Option{
+		Default: "English (US)",
+		Choices: langs,
+		Help:    "Language to use when exporting names and descriptions",
+	})
 	if err := argp.Parse(nil); err != nil {
 		if err == argparse.BreakAfterHelpError {
 			os.Exit(0)
@@ -54,7 +63,7 @@ func Init(argp *argparse.Parser) (prt app.Printer, a *app.App) {
 	ctx := context.Background() // no need to exit cleanly since we're only reading
 	knownHashes := app.ParseHashes(hashes.Hashes)
 	knownThinHashes := app.ParseHashes(hashes.ThinHashes)
-	a, err := app.OpenGameDir(ctx, gameDir, knownHashes, knownThinHashes, stingray.ThinHash{}, func(curr, total int) {
+	a, err := app.OpenGameDir(ctx, gameDir, knownHashes, knownThinHashes, stingray_strings.LanguageFriendlyNameToHash[*optLanguage], func(curr, total int) {
 		prt.Statusf("Reading metadata %.0f%%", float64(curr)/float64(total)*100)
 	})
 	if err != nil {

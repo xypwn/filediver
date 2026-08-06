@@ -52,6 +52,8 @@ type Context struct {
 	files []string
 
 	materialOverrides map[stingray.ThinHash]stingray.Hash
+	assetOverrides    map[stingray.FileID]stingray.FileID
+	colorGrading      stingray.Hash
 }
 
 // NewContext creates a new [Context].
@@ -99,6 +101,8 @@ func NewContext(
 
 		fileID:     fileID,
 		rootFileID: fileID,
+
+		colorGrading: stingray.Hash{Value: 0x0},
 	}
 	return c, func() []string { return c.files }
 }
@@ -130,6 +134,8 @@ func (c *Context) WithFileID(newFileID stingray.FileID) *Context {
 		statusf:            c.statusf,
 
 		materialOverrides: c.materialOverrides,
+		assetOverrides:    c.assetOverrides,
+		colorGrading:      c.colorGrading,
 
 		fileID:     newFileID,
 		rootFileID: c.rootFileID,
@@ -160,6 +166,72 @@ func (c *Context) WithMaterialOverrides(newOverrides map[stingray.ThinHash]sting
 		statusf:            c.statusf,
 
 		materialOverrides: newOverrides,
+		assetOverrides:    c.assetOverrides,
+		colorGrading:      c.colorGrading,
+
+		fileID:     c.fileID,
+		rootFileID: c.rootFileID,
+
+		files: c.files,
+	}
+}
+
+// Returns a copy of the context with different asset overrides
+func (c *Context) WithAssetOverrides(newOverrides map[stingray.FileID]stingray.FileID) *Context {
+	return &Context{
+		ctx:                c.ctx,
+		hashes:             c.hashes,
+		thinHashes:         c.thinHashes,
+		armorSets:          c.armorSets,
+		skinOverrideGroups: c.skinOverrideGroups,
+		weaponPaintSchemes: c.weaponPaintSchemes,
+		attachmentSlots:    c.attachmentSlots,
+		entityVarMapping:   c.entityVarMapping,
+		gameBuildInfo:      c.gameBuildInfo,
+		languageMap:        c.languageMap,
+		dataDir:            c.dataDir,
+		runner:             c.runner,
+		config:             c.config,
+		outPath:            c.outPath,
+		selectedArchives:   c.selectedArchives,
+		warnf:              c.warnf,
+		statusf:            c.statusf,
+
+		materialOverrides: c.materialOverrides,
+		assetOverrides:    newOverrides,
+		colorGrading:      c.colorGrading,
+
+		fileID:     c.fileID,
+		rootFileID: c.rootFileID,
+
+		files: c.files,
+	}
+}
+
+// Returns a copy of the context with different asset overrides
+func (c *Context) WithColorGrading(colorGrading stingray.Hash) *Context {
+	return &Context{
+		ctx:                c.ctx,
+		hashes:             c.hashes,
+		thinHashes:         c.thinHashes,
+		armorSets:          c.armorSets,
+		skinOverrideGroups: c.skinOverrideGroups,
+		weaponPaintSchemes: c.weaponPaintSchemes,
+		attachmentSlots:    c.attachmentSlots,
+		entityVarMapping:   c.entityVarMapping,
+		gameBuildInfo:      c.gameBuildInfo,
+		languageMap:        c.languageMap,
+		dataDir:            c.dataDir,
+		runner:             c.runner,
+		config:             c.config,
+		outPath:            c.outPath,
+		selectedArchives:   c.selectedArchives,
+		warnf:              c.warnf,
+		statusf:            c.statusf,
+
+		materialOverrides: c.materialOverrides,
+		assetOverrides:    c.assetOverrides,
+		colorGrading:      colorGrading,
 
 		fileID:     c.fileID,
 		rootFileID: c.rootFileID,
@@ -177,6 +249,22 @@ func (c *Context) OverrideMaterial(slot stingray.ThinHash, original stingray.Has
 		return override
 	}
 	return original
+}
+
+// Transparently return the override for an asset if it exists, otherwise return the original
+func (c *Context) OverrideAsset(asset stingray.FileID) stingray.FileID {
+	if c.assetOverrides == nil {
+		return asset
+	}
+	if override, contains := c.assetOverrides[asset]; contains {
+		return override
+	}
+	return asset
+}
+
+// Get the current context's color grading entity hash
+func (c *Context) ColorGrading() stingray.Hash {
+	return c.colorGrading
 }
 
 // FileID gets the ID of the current file to be extracted.

@@ -41,6 +41,9 @@ type GameData struct {
 
 	FilterExpr    *app.FilterExprProgram
 	FilterExprErr error
+
+	AssetOverridesDirty bool
+	ColorGrading        stingray.FileID
 }
 
 func NewGameData(a *app.App) *GameData {
@@ -125,6 +128,16 @@ func (gd *GameData) UpdateSearchQuery(query string, allowedTypes map[stingray.Ha
 	slices.SortFunc(gd.SortedSearchResultFileIDs, func(a, b stingray.FileID) int {
 		return strings.Compare(gd.KnownFileNames[a], gd.KnownFileNames[b])
 	})
+}
+
+func (gd *GameData) UpdateAssetOverrides(planetName string, city bool) {
+	gd.App.UpdateAssetOverrides(planetName, city)
+	planet := gd.GetPlanet(planetName, city)
+	gd.ColorGrading = stingray.FileID{}
+	if planet != nil {
+		gd.ColorGrading = stingray.NewFileID(planet.PaletteGroupLowland.AssetGrading, stingray.Sum("entity"))
+	}
+	gd.AssetOverridesDirty = true
 }
 
 func (gd *GameData) GoExport(extractCtx context.Context, files []stingray.FileID, outDir string, cfg appconfig.Config, runner *exec.Runner, archiveIDs []stingray.Hash, printer app.Printer, allowMp4Export bool) *GameDataExport {

@@ -11,15 +11,15 @@ func _() {
 	_ = x[RegionFlag_None-0]
 	_ = x[RegionFlag_Value_1_Len_17-1]
 	_ = x[RegionFlag_Value_2_Len_17-2]
-	_ = x[RegionFlag_Value_3_Len_15-3]
+	_ = x[RegionFlag_City-3]
 	_ = x[RegionFlag_Value_4_Len_15-4]
 	_ = x[RegionFlag_Value_5_Len_24-5]
 	_ = x[RegionFlag_Count-6]
 }
 
-const _RegionFlag_name = "RegionFlag_NoneRegionFlag_Value_1_Len_17RegionFlag_Value_2_Len_17RegionFlag_Value_3_Len_15RegionFlag_Value_4_Len_15RegionFlag_Value_5_Len_24RegionFlag_Count"
+const _RegionFlag_name = "RegionFlag_NoneRegionFlag_Value_1_Len_17RegionFlag_Value_2_Len_17RegionFlag_CityRegionFlag_Value_4_Len_15RegionFlag_Value_5_Len_24RegionFlag_Count"
 
-var _RegionFlag_index = [...]uint8{0, 15, 40, 65, 90, 115, 140, 156}
+var _RegionFlag_index = [...]uint8{0, 15, 40, 65, 80, 105, 130, 146}
 
 func (i RegionFlag) String() string {
 	idx := int(i) - 0
