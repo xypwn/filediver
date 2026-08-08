@@ -30,12 +30,37 @@ func murmur64aSum(b []byte) Hash {
 		hash *= mix
 	}
 
-	if len(b) > 0 {
+	switch len(b) & 7 /* we know len(b) <= 7, but just so the compiler knows it can optimize this */ {
+	case 7:
+		hash ^= uint64(b[6]) << uint64(8*6)
+		fallthrough
+	case 6:
+		hash ^= uint64(b[5]) << uint64(8*5)
+		fallthrough
+	case 5:
+		hash ^= uint64(b[4]) << uint64(8*4)
+		fallthrough
+	case 4:
+		hash ^= uint64(b[3]) << uint64(8*3)
+		fallthrough
+	case 3:
+		hash ^= uint64(b[2]) << uint64(8*2)
+		fallthrough
+	case 2:
+		hash ^= uint64(b[1]) << uint64(8*1)
+		fallthrough
+	case 1:
+		hash ^= uint64(b[0])
+		hash *= mix
+	}
+
+	// Equivalent to the above switch statement, but a decent bit slower.
+	/*if len(b) > 0 {
 		for i := len(b) - 1; i >= 0; i-- {
 			hash ^= uint64(b[i]) << uint64(8*i)
 		}
 		hash *= mix
-	}
+	}*/
 
 	hash ^= hash >> shifts
 
