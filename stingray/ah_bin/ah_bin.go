@@ -33,17 +33,17 @@ func LoadBuildInfo(r io.Reader) (*BuildInfo, error) {
 		return nil, err
 	}
 
-	hash, err := util.ReadCStringWithSkip(r)
+	hash, err := util.ReadCStringSkipLeadingNulls(r)
 	if err != nil {
 		return nil, err
 	}
 
-	version, err := util.ReadCStringWithSkip(r)
+	version, err := util.ReadCStringSkipLeadingNulls(r)
 	if err != nil {
 		return nil, err
 	}
 
-	combined, err := util.ReadCStringWithSkip(r)
+	combined, err := util.ReadCStringSkipLeadingNulls(r)
 	if err != nil {
 		return nil, err
 	}
@@ -100,10 +100,10 @@ func LoadBuildInfo(r io.Reader) (*BuildInfo, error) {
 	}
 
 	return &BuildInfo{
-		Commit:   *commit,
-		Hash:     *hash,
-		Version:  *version,
-		Combined: *combined,
+		Commit:   commit,
+		Hash:     hash,
+		Version:  version,
+		Combined: combined,
 		Year:     year,
 		Month:    month,
 		Day:      day,

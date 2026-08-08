@@ -169,7 +169,7 @@ func variableFromRawVariable(r io.ReadSeeker, rawVar RawVariable) (*d3dops.Varia
 		}
 	}
 	return &d3dops.Variable{
-		Name:         *varName,
+		Name:         varName,
 		BufferOffset: rawVar.BufferOffset,
 		Size:         rawVar.Size,
 		Flags:        rawVar.Flags,
@@ -182,7 +182,7 @@ func variableFromRawVariable(r io.ReadSeeker, rawVar RawVariable) (*d3dops.Varia
 			Elements:     rawType.Elements,
 			Members:      rawType.Members,
 			MemberOffset: rawType.MemberOffset,
-			Name:         *typeName,
+			Name:         typeName,
 		},
 	}, nil
 }
@@ -208,7 +208,7 @@ func constantBufferFromRawConstantBuffer(r io.ReadSeeker, rawCBuf RawConstantBuf
 		variables = append(variables, *variable)
 	}
 	return &d3dops.ConstantBuffer{
-		Name:      *cbName,
+		Name:      cbName,
 		Variables: variables,
 		Size:      rawCBuf.Size,
 		Flags:     rawCBuf.Flags,
@@ -278,7 +278,7 @@ func RDEFFromChunk(chunk *Chunk) (*RDEF, error) {
 			return nil, fmt.Errorf("util.ReadCString: %v", err)
 		}
 		resourceBindings = append(resourceBindings, d3dops.ResourceBinding{
-			Name:          *rbName,
+			Name:          rbName,
 			InputType:     rawRB.InputType,
 			ReturnType:    rawRB.ReturnType,
 			ViewDimension: rawRB.ViewDimension,
@@ -301,7 +301,7 @@ func RDEFFromChunk(chunk *Chunk) (*RDEF, error) {
 		Version:          version,
 		ProgramType:      programType,
 		Flags:            flags,
-		Creator:          *creatorName,
+		Creator:          creatorName,
 	}, nil
 }
 
@@ -370,7 +370,7 @@ func ISG1FromChunk(chunk *Chunk) (*ISG1, error) {
 			return nil, fmt.Errorf("util.ReadCString: %v", err)
 		}
 		elements = append(elements, d3dops.Element{
-			Name:          *name,
+			Name:          name,
 			SemanticIndex: rawElem.SemanticIndex,
 			SystemValue:   rawElem.SystemValue,
 			ComponentType: rawElem.ComponentType,
@@ -421,7 +421,7 @@ func ISGNFromChunk(chunk *Chunk) (*ISG1, error) {
 			return nil, fmt.Errorf("util.ReadCString: %v", err)
 		}
 		elements = append(elements, d3dops.Element{
-			Name:          *name,
+			Name:          name,
 			SemanticIndex: rawElem.SemanticIndex,
 			SystemValue:   rawElem.SystemValue,
 			ComponentType: rawElem.ComponentType,
