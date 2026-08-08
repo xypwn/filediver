@@ -234,7 +234,7 @@ func LoadPlanetData(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookup
 		if err != nil {
 			return nil, err
 		}
-		setting.Inherits = *inherits
+		setting.Inherits = inherits
 
 		resourceOverrides := make([]ResourceOverride, rawSetting.ResourceOverridesCount)
 		if rawSetting.ResourceOverridesOffset > 0 {
@@ -254,7 +254,7 @@ func LoadPlanetData(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookup
 		if err != nil {
 			return nil, err
 		}
-		setting.DebugName = *debugName
+		setting.DebugName = debugName
 
 		if _, err := r.Seek(int64(base+rawSetting.RegionLowland.NameOffset), io.SeekStart); err != nil {
 			return nil, err
@@ -264,7 +264,7 @@ func LoadPlanetData(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookup
 			return nil, err
 		}
 		setting.RegionLowland = LevelGenerationRegion{
-			Name:          *name,
+			Name:          name,
 			ID:            rawSetting.RegionLowland.ID,
 			Region:        rawSetting.RegionLowland.Region,
 			VarListPtr:    rawSetting.RegionLowland.VarListPtr,
@@ -280,7 +280,7 @@ func LoadPlanetData(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookup
 			return nil, err
 		}
 		setting.RegionHighland = LevelGenerationRegion{
-			Name:          *name,
+			Name:          name,
 			ID:            rawSetting.RegionHighland.ID,
 			Region:        rawSetting.RegionHighland.Region,
 			VarListPtr:    rawSetting.RegionHighland.VarListPtr,

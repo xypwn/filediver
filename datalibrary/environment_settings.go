@@ -289,9 +289,7 @@ func LoadEnvironmentSettings(lookupHash HashLookup, lookupThinHash ThinHashLooku
 			if err != nil {
 				return nil, err
 			}
-			if debugName != nil {
-				intermediate.DebugName = *debugName
-			}
+			intermediate.DebugName = debugName
 		}
 
 		if rawSettings.NameLocStr > 0 {
@@ -300,9 +298,7 @@ func LoadEnvironmentSettings(lookupHash HashLookup, lookupThinHash ThinHashLooku
 			if err != nil {
 				return nil, err
 			}
-			if nameLocStr != nil {
-				intermediate.NameLocStr = *nameLocStr
-			}
+			intermediate.NameLocStr = nameLocStr
 		}
 
 		if rawSettings.WwiseStateStrOffset > 0 {
@@ -311,9 +307,7 @@ func LoadEnvironmentSettings(lookupHash HashLookup, lookupThinHash ThinHashLooku
 			if err != nil {
 				return nil, err
 			}
-			if wwiseStateStr != nil {
-				intermediate.WwiseStateStr = *wwiseStateStr
-			}
+			intermediate.WwiseStateStr = wwiseStateStr
 		}
 
 		if rawSettings.DefaultReverbZoneStrOffset > 0 {
@@ -322,9 +316,7 @@ func LoadEnvironmentSettings(lookupHash HashLookup, lookupThinHash ThinHashLooku
 			if err != nil {
 				return nil, err
 			}
-			if defaultReverbZoneStr != nil {
-				intermediate.DefaultReverbZoneStr = *defaultReverbZoneStr
-			}
+			intermediate.DefaultReverbZoneStr = defaultReverbZoneStr
 		}
 
 		if rawSettings.UnkStr > 0 {
@@ -333,9 +325,7 @@ func LoadEnvironmentSettings(lookupHash HashLookup, lookupThinHash ThinHashLooku
 			if err != nil {
 				return nil, err
 			}
-			if unkStr != nil {
-				intermediate.UnkStr = *unkStr
-			}
+			intermediate.UnkStr = unkStr
 		}
 
 		infos = append(infos, intermediate.Resolve(lookupHash, lookupThinHash, lookupStrings))

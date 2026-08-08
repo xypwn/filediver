@@ -101,7 +101,7 @@ func LoadPlanetOverrideSettings(lookupHash HashLookup, lookupThinHash ThinHashLo
 				return nil, fmt.Errorf("reading resource overrides: %v", err)
 			}
 			overrides = append(overrides, PlanetOverrides{
-				Name:      *name,
+				Name:      name,
 				ID:        rawOverride.ID,
 				Package:   rawOverride.Package,
 				Resources: resources,
