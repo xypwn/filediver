@@ -13,17 +13,28 @@ import (
 	"github.com/iancoleman/strcase"
 	"github.com/jwalton/go-supportscolor"
 
+	"github.com/walles/moor/v2/pkg/moor"
 	"github.com/xypwn/filediver/app/appconfig"
 	"github.com/xypwn/filediver/config"
 )
 
-func cliShowHelp(argp *argparse.Parser) {
+func cliShowHelp(argp *argparse.Parser, noPager bool) error {
 	supportsColor := supportscolor.Stdout().SupportsColor
 	color := argparse.NoColor
 	if supportsColor {
 		color = argparse.DefaultColor
 	}
-	fmt.Println(argp.FormatHelpWithColor(color))
+	help := argp.FormatHelpWithColor(color)
+	if noPager {
+		fmt.Println(help)
+		return nil
+	} else {
+		return moor.PageFromString(help, moor.Options{
+			Title:         "Filediver CLI Help",
+			NoLineNumbers: true,
+			WrapLongLines: true,
+		})
+	}
 }
 
 func cliHandleArgs(configStruct any, addExtraArgs func(argp *argparse.Parser)) (argp *argparse.Parser, dontExit bool, err error) {
@@ -36,12 +47,16 @@ func cliHandleArgs(configStruct any, addExtraArgs func(argp *argparse.Parser)) (
 
 	showHelp := false
 	showAdvancedHelp := false
+	showHelpNoPager := false
 	if slices.Contains(args, "-h") || slices.Contains(args, "--help") {
 		showHelp = true
 	}
 	if slices.Contains(args, "--help-all") {
 		showHelp = true
 		showAdvancedHelp = true
+	}
+	if slices.Contains(args, "--no-pager") || slices.Contains(args, "-P") {
+		showHelpNoPager = true
 	}
 
 	argpCfg := &argparse.ParserConfig{
@@ -58,6 +73,7 @@ func cliHandleArgs(configStruct any, addExtraArgs func(argp *argparse.Parser)) (
 	argp = argparse.NewParser("filediver", "Helldivers 2 game asset extractor. https://github.com/xypwn/filediver", argpCfg)
 	argp.Flag("h", "help", &argparse.Option{Help: "show help page"})
 	argp.Flag("", "help-all", &argparse.Option{Help: "show help including advanced options"})
+	argp.Flag("P", "no-pager", &argparse.Option{Help: "disable paging for --help/--help-all (just print the help text)"})
 
 	if addExtraArgs != nil {
 		addExtraArgs(argp)
@@ -127,8 +143,7 @@ func cliHandleArgs(configStruct any, addExtraArgs func(argp *argparse.Parser)) (
 	}
 
 	if showHelp {
-		cliShowHelp(argp)
-		return nil, false, nil
+		return nil, false, cliShowHelp(argp, showHelpNoPager)
 	}
 
 	if err := argp.Parse(args); err != nil {

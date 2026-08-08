@@ -17,7 +17,7 @@ require (
 	github.com/iancoleman/strcase v0.3.0
 	github.com/jfreymuth/vorbis v1.0.2
 	github.com/jwalton/go-supportscolor v1.2.0
-	github.com/klauspost/compress v1.18.4
+	github.com/klauspost/compress v1.19.1
 	github.com/mattn/go-shellwords v1.0.12
 	github.com/mholt/archives v0.1.5
 	github.com/ncruces/zenity v0.10.14
@@ -27,27 +27,33 @@ require (
 	github.com/skratchdot/open-golang v0.0.0-20200116055534-eef842397966
 	github.com/srwiley/rasterx v0.0.0-20220730225603-2ab79fcdd4ef
 	github.com/stretchr/testify v1.11.1
+	github.com/walles/moor/v2 v2.16.2
 	github.com/x448/float16 v0.8.4
 	golang.design/x/clipboard v0.7.1
 	golang.org/x/exp v0.0.0-20260218203240-3dfff04db8fa
 	golang.org/x/image v0.40.0
-	golang.org/x/sys v0.44.0
+	golang.org/x/sys v0.47.0
 	golang.org/x/text v0.37.0
 )
 
 require (
 	github.com/STARRY-S/zip v0.2.3 // indirect
 	github.com/akavel/rsrc v0.10.2 // indirect
+	github.com/alecthomas/chroma/v2 v2.22.0 // indirect
 	github.com/andybalholm/brotli v1.2.0 // indirect
 	github.com/bodgit/plumbing v1.3.0 // indirect
 	github.com/bodgit/sevenzip v1.6.1 // indirect
 	github.com/bodgit/windows v1.0.1 // indirect
+	github.com/charlievieth/strcase v0.0.6 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dchest/jsmin v1.0.0 // indirect
+	github.com/dlclark/regexp2 v1.11.5 // indirect
 	github.com/dsnet/compress v0.0.2-0.20230904184137-39efe44ab707 // indirect
 	github.com/ebitengine/purego v0.9.1 // indirect
 	github.com/go-audio/riff v1.0.0 // indirect
+	github.com/go-enry/go-enry/v2 v2.9.6 // indirect
+	github.com/go-enry/go-oniguruma v1.2.1 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/josephspurrier/goversioninfo v1.5.0 // indirect
 	github.com/klauspost/pgzip v1.2.6 // indirect
@@ -58,21 +64,23 @@ require (
 	github.com/nwaples/rardecode/v2 v2.2.2 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/randall77/makefat v0.0.0-20210315173500-7ddd0e42c844 // indirect
+	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
+	github.com/sirupsen/logrus v1.9.4 // indirect
 	github.com/sorairolake/lzip-go v0.3.8 // indirect
 	github.com/spf13/afero v1.15.0 // indirect
 	github.com/tc-hib/go-winres v0.3.3 // indirect
 	github.com/tc-hib/winres v0.2.1 // indirect
-	github.com/ulikunitz/xz v0.5.15 // indirect
+	github.com/ulikunitz/xz v0.5.16 // indirect
 	github.com/urfave/cli/v2 v2.25.7 // indirect
 	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
 	go4.org v0.0.0-20260112195520-a5071408f32f // indirect
 	golang.org/x/exp/shiny v0.0.0-20260218203240-3dfff04db8fa // indirect
 	golang.org/x/mobile v0.0.0-20260217195705-b56b3793a9c4 // indirect
 	golang.org/x/mod v0.36.0 // indirect
-	golang.org/x/sync v0.20.0 // indirect
-	golang.org/x/term v0.40.0 // indirect
+	golang.org/x/sync v0.22.0 // indirect
+	golang.org/x/term v0.45.0 // indirect
 	golang.org/x/tools v0.45.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

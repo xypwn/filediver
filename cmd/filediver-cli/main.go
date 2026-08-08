@@ -79,7 +79,7 @@ func main() {
 	// Config common to CLI and GUI
 	cfg := appconfig.Config{}
 
-	if argp, dontExit, err := cliHandleArgs(&cfg, func(argp *argparse.Parser) {
+	if _, dontExit, err := cliHandleArgs(&cfg, func(argp *argparse.Parser) {
 		optList = argp.Flag("l", "list", &argparse.Option{
 			Help: "list files without extracting anything; format: known_name.known_type, name_hash.type_hash <- archives...",
 		})
@@ -174,8 +174,7 @@ Options:`)
 		tabw.Flush()
 		os.Exit(0)
 	} else if *optInclGlob == "" && *optInclArchives == "" && *optInclTriads == "" && *optMetadataFilter == "" {
-		cliShowHelp(argp)
-		fmt.Println("\nExpected some specifier of which files to extract/list/search (--include, --archives or --filter-metadata).\nIf you wish to select all files, just pass -i \"*\".")
+		fmt.Println("\nExpected some specifier of which files to extract/list/search (--include, --archives or --filter-metadata).\nIf you wish to select all files, just pass -i \"*\".\nSee --help for help page")
 		os.Exit(1)
 	}
 
