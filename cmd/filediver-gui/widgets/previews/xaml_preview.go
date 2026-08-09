@@ -1,6 +1,8 @@
 package previews
 
 import (
+	"bytes"
+	"encoding/xml"
 	"fmt"
 	"image"
 	"image/color"
@@ -211,17 +213,19 @@ func NewXamlPreview() *XamlPreview {
 func (pv *XamlPreview) LoadXaml(src []byte) error {
 	pv.Flags = MultipleImages
 
-	src, err := xaml.StripStingrayHeader(src)
+	srXaml, err := xaml.LoadXAML(bytes.NewReader(src))
 	if err != nil {
 		return err
 	}
-	xamlData, err := xaml.Load(src)
-	if err != nil {
-		return err
-	}
-	resources, ok := xamlData.(*xaml.ResourceDictionary)
-	if !ok {
+
+	if !bytes.HasPrefix(srXaml.Data, []byte("<ResourceDictionary")) {
 		return xaml.ErrNoResources
+	}
+
+	var resources xaml.ResourceDictionary
+	err = xml.Unmarshal(srXaml.Data, &resources)
+	if err != nil {
+		return err
 	}
 
 	var imgs []image.Image
