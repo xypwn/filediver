@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"os"
 	"slices"
+
+	"github.com/xypwn/filediver/util"
 )
 
 func parseHashes(b []byte) (hashes []string, comments []string) {
@@ -40,16 +42,7 @@ func TidyHashes(b []byte) []byte {
 
 	hashes, comments := parseHashes(b)
 	slices.Sort(hashes)
-	{
-		uniqHashes := hashes
-		hashes = make([]string, 0, len(hashes))
-		for i := 0; i < len(hashes)-1; i++ {
-			if hashes[i] != hashes[i+1] {
-				uniqHashes = append(uniqHashes, hashes[i])
-			}
-		}
-		hashes = uniqHashes
-	}
+	util.Uniq(hashes)
 
 	var buf bytes.Buffer
 	buf.Grow(len(b))
