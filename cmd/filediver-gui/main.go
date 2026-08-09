@@ -666,7 +666,9 @@ func (a *guiApp) drawBrowserWindow() {
 								stingray.Sum("unit"),
 								stingray.Sum("speedtree"),
 								stingray.Sum("strings"),
-								stingray.Sum("xaml"):
+								stingray.Sum("xaml"),
+								stingray.Sum("ttf"),
+								stingray.Sum("otf"):
 								sectionIdx = 0
 							default:
 								typName := a.gameData.LookupHash(typ)
@@ -740,7 +742,7 @@ func (a *guiApp) drawBrowserWindow() {
 				flags := imgui.ChildFlagsFrameStyle | imgui.ChildFlagsAutoResizeY | imgui.ChildFlagsAlwaysAutoResize
 				imgui.SetNextWindowPos(bottomLeft)
 				if imgui.BeginChildStrV("FilterExprErr", imgui.NewVec2(width, 0), flags, 0) {
-					imgui.PushFont(imgui_wrapper.FontMono, 0)
+					imgui.PushFont(imgui_wrapper.FontMono(), 0)
 					imutils.TextError(a.gameData.FilterExprErr)
 					imgui.PopFont()
 				}
@@ -1510,7 +1512,7 @@ func (a *guiApp) drawAboutPopup() {
 		drawLicense := func(heading, body string) {
 			if imgui.CollapsingHeaderBoolPtr(heading, nil) {
 				imgui.PushTextWrapPos()
-				imgui.PushFont(imgui_wrapper.FontMono, 0)
+				imgui.PushFont(imgui_wrapper.FontMono(), 0)
 				imgui.TextUnformatted(body)
 				imgui.PopFont()
 				imgui.PopTextWrapPos()

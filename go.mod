@@ -3,7 +3,7 @@ module github.com/xypwn/filediver
 go 1.25.0
 
 require (
-	github.com/AllenDang/cimgui-go v1.4.0
+	github.com/AllenDang/cimgui-go v1.6.0
 	github.com/adrg/xdg v0.5.3
 	github.com/andygrunwald/vdf v1.1.0
 	github.com/ebitengine/oto/v3 v3.4.0
@@ -50,7 +50,7 @@ require (
 	github.com/dchest/jsmin v1.0.0 // indirect
 	github.com/dlclark/regexp2 v1.11.5 // indirect
 	github.com/dsnet/compress v0.0.2-0.20230904184137-39efe44ab707 // indirect
-	github.com/ebitengine/purego v0.9.1 // indirect
+	github.com/ebitengine/purego v0.10.0 // indirect
 	github.com/go-audio/riff v1.0.0 // indirect
 	github.com/go-enry/go-enry/v2 v2.9.6 // indirect
 	github.com/go-enry/go-oniguruma v1.2.1 // indirect

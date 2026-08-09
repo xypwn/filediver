@@ -197,7 +197,7 @@ func Main(title string, options Options) error {
 	flags |= imgui.ConfigFlagsDockingEnable | imgui.ConfigFlagsViewportsEnable
 	io.SetConfigFlags(flags)
 	io.SetIniFilename("")
-	setupFonts(state.LoadCJKFonts)
+	addDefaultFonts()
 
 	{
 		_, yScale := currentBackend.ContentScale()
@@ -240,7 +240,9 @@ func Main(title string, options Options) error {
 		gl.ClearColor(0.2, 0.2, 0.2, 1)
 		gl.Clear(gl.COLOR_BUFFER_BIT)
 
+		imgui.PushFont(FontDefault(), 0)
 		options.OnDraw(&state)
+		imgui.PopFont()
 
 		imgui.Render()
 		C.ImGui_ImplOpenGL3_RenderDrawData(C.igGetDrawData())
@@ -278,7 +280,11 @@ func Main(title string, options Options) error {
 			state.LoadCJKFonts != state.cjkFontsLoaded ||
 			state.DarkWindowDecorations != state.currDarkWindowDecorations {
 			if state.LoadCJKFonts != state.cjkFontsLoaded {
-				setupFonts(state.LoadCJKFonts)
+				if state.LoadCJKFonts {
+					addCjkFonts()
+				} else {
+					removeCjkFonts()
+				}
 			}
 			io.Ctx().SetStyle(*makeStyle(state.GUIScale))
 			if state.DarkWindowDecorations {
@@ -290,6 +296,8 @@ func Main(title string, options Options) error {
 			state.cjkFontsLoaded = state.LoadCJKFonts
 			state.currDarkWindowDecorations = state.DarkWindowDecorations
 		}
+		updateFonts()
+
 		if state.WindowShouldClose {
 			C.glfwSetWindowShouldClose(state.glfwWindow, 1)
 		}

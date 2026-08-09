@@ -18,6 +18,7 @@ import (
 	"github.com/xypwn/filediver/stingray/entity"
 	"github.com/xypwn/filediver/stingray/shading_environment"
 	stingray_strings "github.com/xypwn/filediver/stingray/strings"
+	"github.com/xypwn/filediver/stingray/ttf"
 	"github.com/xypwn/filediver/stingray/unit/material"
 	"github.com/xypwn/filediver/stingray/unit/texture"
 	stingray_wwise "github.com/xypwn/filediver/stingray/wwise"
@@ -35,6 +36,7 @@ const (
 	AutoPreviewStrings
 	AutoPreviewMaterial
 	AutoPreviewXAML
+	AutoPreviewFont
 )
 
 type AutoPreview struct {
@@ -49,6 +51,7 @@ type AutoPreview struct {
 		strings   *StringsPreview
 		material  *MaterialPreview
 		xaml      *XamlPreview
+		font      *FontPreview
 	}
 
 	hashes               map[stingray.Hash]string
@@ -86,6 +89,7 @@ func NewAutoPreview(otoCtx *oto.Context, audioSampleRate int, hashes map[stingra
 	pv.previews.strings = NewStringsPreview()
 	pv.previews.material = NewMaterialPreview()
 	pv.previews.xaml = NewXamlPreview()
+	pv.previews.font = NewFontPreview()
 	return pv, nil
 }
 
@@ -96,6 +100,7 @@ func (pv *AutoPreview) Delete() {
 	pv.previews.video.Delete()
 	pv.previews.texture.Delete()
 	pv.previews.xaml.Delete()
+	pv.previews.font.Delete()
 }
 
 func (pv *AutoPreview) ActiveID() stingray.FileID {
@@ -313,6 +318,21 @@ func (pv *AutoPreview) LoadFile(ctx context.Context, fileID stingray.FileID, max
 			pv.err = fmt.Errorf("loading xaml: %w", err)
 			return
 		}
+	case stingray.Sum("ttf"), stingray.Sum("otf"):
+		pv.activeType = AutoPreviewFont
+		if err := loadFiles(stingray.DataMain); err != nil {
+			pv.err = err
+			return
+		}
+		ttf, err := ttf.LoadTTF(bytes.NewReader(data[stingray.DataMain]))
+		if err != nil {
+			pv.err = fmt.Errorf("loading ttf/otf: %w", err)
+			return
+		}
+		if err := pv.previews.font.Load(ttf.Data); err != nil {
+			pv.err = fmt.Errorf("loading ttf/otf into preview: %w", err)
+			return
+		}
 	default:
 		pv.activeType = AutoPreviewEmpty
 	}
@@ -354,6 +374,8 @@ func (pv *AutoPreview) Draw(name string) bool {
 		pv.previews.material.Draw(name)
 	case AutoPreviewXAML:
 		pv.previews.xaml.Draw(name)
+	case AutoPreviewFont:
+		pv.previews.font.Draw(name)
 	default:
 		panic("unhandled case")
 	}
