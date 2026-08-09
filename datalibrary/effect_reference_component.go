@@ -32,6 +32,18 @@ type SimpleCameraShake struct {
 	Linked         bool                          `json:"linked"`
 }
 
+func (c CameraShake) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup, _ StringsLookup) SimpleCameraShake {
+	return SimpleCameraShake{
+		Shake:          lookupHash(c.Shake),
+		NodeId:         lookupThinHash(c.NodeId),
+		Offset:         c.Offset,
+		InnerRadius:    c.InnerRadius,
+		InnerOuter:     c.InnerOuter,
+		OrphanedPolicy: c.OrphanedPolicy,
+		Linked:         c.Linked != 0,
+	}
+}
+
 type CameraShakeSettings struct {
 	ID        stingray.ThinHash // [string]The id of this effect. Referenced when playing/stopping this particle effect.
 	_         [4]uint8
@@ -51,16 +63,8 @@ type SimpleCameraShakeSettings struct {
 
 func (w CameraShakeSettings) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookupStrings StringsLookup) SimpleCameraShakeSettings {
 	return SimpleCameraShakeSettings{
-		ID: lookupThinHash(w.ID),
-		Settings: SimpleCameraShake{
-			Shake:          lookupHash(w.Settings.Shake),
-			NodeId:         lookupThinHash(w.Settings.NodeId),
-			Offset:         w.Settings.Offset,
-			InnerRadius:    w.Settings.InnerRadius,
-			InnerOuter:     w.Settings.InnerOuter,
-			OrphanedPolicy: w.Settings.OrphanedPolicy,
-			Linked:         w.Settings.Linked != 0,
-		},
+		ID:        lookupThinHash(w.ID),
+		Settings:  w.Settings.ToSimple(lookupHash, lookupThinHash, lookupStrings),
 		OnDestroy: w.OnDestroy,
 		OnReplace: w.OnReplace,
 		OnDeath:   w.OnDeath,
