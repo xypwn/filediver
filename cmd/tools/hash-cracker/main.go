@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -11,45 +12,48 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"text/tabwriter"
 	"time"
 
 	"github.com/hellflame/argparse"
 	"github.com/xypwn/filediver/app"
 	"github.com/xypwn/filediver/cmd/tools/fdtools-common"
+	"github.com/xypwn/filediver/hashes"
 	"github.com/xypwn/filediver/stingray"
 )
 
 var reAudioPath = regexp.MustCompile(`^content/audio(/[a-z]{2})?/[0-9]+$`)
 
-type generatorContext struct {
+type hashInfo struct {
 	hashes      map[stingray.Hash]struct{}
 	knownHashes map[string]struct{}
 }
 
 // generator is a hash string generator.
 type generator struct {
+	// Generator name (lowercase, no spaces, "-" as word separator)
 	Name string
-	// ctx is used for cancellation and the function MUST return within a reasonable time frame
-	// after a cancellation is issued. Use the return value of try to poll ctx.Err() only some times
-	// as to not impact generator performance too much.
-	//
+	// Generator description
+	Desc string
 	// progressStore (TODO) can be used to store arbitrary data (GOB) before shutdown and retrieve
 	// it again on the next startup.
 	//
-	// try should be called to try a hash string. doHousekeeping is returned as true every hundred
-	// thousand or so iterations, which is when e.g. the context should be polled.
-	Fn func(ctx context.Context, aCtx generatorContext, progressStore *any, try func([]byte) (doHousekeeping bool)) error
+	// try should be called to try a hash string. If cont is returned as false, the generator must
+	// return within a reasonable time frame.
+	Fn func(info hashInfo, progressStore *any, try func([]byte) (cont bool)) error
 }
 
 type worker struct {
 	name     string
 	active   atomic.Bool
+	ctxErr   error
 	err      error
 	triesCnt int
 	_padding [128]byte // prevent false sharing (yes this much is a bit wasteful, but we don't have many workers so who cares)
 }
 
 type cracker struct {
+	ctx context.Context
 	prt app.Printer
 	// All hashes present in the game
 	// (the ones we're trying to crack and the
@@ -71,7 +75,7 @@ type cracker struct {
 	hashesPerSecond     float64
 }
 
-func newCracker(prt app.Printer, a *app.App) *cracker {
+func crack(ctx context.Context, generators []generator, prt app.Printer, a *app.App) (newHashes []string, err error) {
 	hashes := make(map[stingray.Hash]struct{})
 	for k := range a.DataDir.Files {
 		hashes[k.Name] = struct{}{}
@@ -83,32 +87,14 @@ func newCracker(prt app.Printer, a *app.App) *cracker {
 			knownHashes[s] = struct{}{}
 		}
 	}
-	c := &cracker{
+	c := cracker{
+		ctx:         ctx,
 		prt:         prt,
 		hashes:      hashes,
 		knownHashes: knownHashes,
 	}
 	c.updateCliStatus()
-	return c
-}
 
-func (c *cracker) getNumActiveWorkers() int {
-	numActiveWorkers := 0
-	for i := range c.workers {
-		if c.workers[i].active.Load() {
-			numActiveWorkers++
-		}
-	}
-	return numActiveWorkers
-}
-
-func (c *cracker) updateCliStatus() {
-	c.mu.Lock()
-	c.prt.Statusf("Cracked %d/%d new hashes (%v/%v workers, %.2fMH/s)", len(c.newHashes), len(c.hashes)-len(c.knownHashes), c.getNumActiveWorkers(), len(c.workers), c.hashesPerSecond/1e6)
-	c.mu.Unlock()
-}
-
-func (c *cracker) start(ctx context.Context, generators []generator) error {
 	var wg sync.WaitGroup
 	c.workers = make([]worker, len(generators))
 	for i := range c.workers {
@@ -118,8 +104,7 @@ func (c *cracker) start(ctx context.Context, generators []generator) error {
 			c.msgFromWorker(i, "Starting")
 			c.workers[i].active.Store(true)
 			c.workers[i].err = generators[i].Fn(
-				ctx,
-				generatorContext{
+				hashInfo{
 					hashes:      c.hashes,
 					knownHashes: c.knownHashes,
 				},
@@ -155,13 +140,44 @@ func (c *cracker) start(ctx context.Context, generators []generator) error {
 		c.mu.Unlock()
 	}
 	wg.Wait()
+	var firstErr error
+	var numErrs int
 	for i := range c.workers {
-		err := c.workers[i].err
-		if err != nil && !errors.Is(err, context.Canceled) {
-			return err
+		w := &c.workers[i]
+		if w.ctxErr != nil && !errors.Is(w.ctxErr, context.Canceled) {
+			if firstErr == nil {
+				firstErr = fmt.Errorf("worker %d (%s): context: %w", i, w.name, w.ctxErr)
+			}
+			numErrs++
+		}
+		if w.err != nil {
+			if firstErr == nil {
+				firstErr = fmt.Errorf("worker %d (%s): %w", i, w.name, w.err)
+			}
+			numErrs++
 		}
 	}
-	return nil
+	if numErrs <= 1 {
+		return nil, firstErr
+	} else {
+		return nil, fmt.Errorf("%w (and %v more errors)", firstErr, numErrs-1)
+	}
+}
+
+func (c *cracker) getNumActiveWorkers() int {
+	numActiveWorkers := 0
+	for i := range c.workers {
+		if c.workers[i].active.Load() {
+			numActiveWorkers++
+		}
+	}
+	return numActiveWorkers
+}
+
+func (c *cracker) updateCliStatus() {
+	c.mu.Lock()
+	c.prt.Statusf("Cracked %d/%d new hashes (%v/%v workers, %.2fMH/s)", len(c.newHashes), len(c.hashes)-len(c.knownHashes), c.getNumActiveWorkers(), len(c.workers), c.hashesPerSecond/1e6)
+	c.mu.Unlock()
 }
 
 // Must be called from the thread of the worker with the given ID.
@@ -174,7 +190,10 @@ func (c *cracker) msgFromWorker(workerId int, format string, args ...any) {
 }
 
 // Must be called from the thread of the worker with the given ID.
-func (c *cracker) try(s []byte, workerId int) (doHousekeeping bool) {
+//
+// If cont is returned false, the worker must do its cleanup and return
+// within a reasonable time.
+func (c *cracker) try(s []byte, workerId int) (cont bool) {
 	w := &c.workers[workerId]
 	w.triesCnt++
 	if w.triesCnt >= 65536 {
@@ -182,20 +201,23 @@ func (c *cracker) try(s []byte, workerId int) (doHousekeeping bool) {
 		c.numTriesSinceUpdate += w.triesCnt
 		c.mu.Unlock()
 		w.triesCnt = 0
-		doHousekeeping = true
+		if err := c.ctx.Err(); err != nil {
+			w.ctxErr = err
+			return false
+		}
 	}
 
 	if _, exists := c.hashes[stingray.Sum(s)]; !exists {
-		return
+		return true
 	}
 	if _, exists := c.knownHashes[string(s)]; exists {
-		return
+		return true
 	}
 	c.mu.Lock()
 	c.newHashes = append(c.newHashes, string(s))
 	c.mu.Unlock()
 	c.msgFromWorker(workerId, "%s=%s", stingray.Sum(s), s)
-	return
+	return true
 }
 
 func main() {
@@ -206,11 +228,25 @@ func main() {
 		genNames = append(genNames, g.Name)
 	}
 	slices.Sort(genNames)
-	genNamesStr := strings.Join(genNames, ",")
 
-	argp := argparse.NewParser("hd2-hash-cracker", "HD2 hash cracking tool", &argparse.ParserConfig{})
+	var epilog strings.Builder
+	{
+		epilog.WriteString("generators:\n")
+		tw := tabwriter.NewWriter(&epilog, 0, 1, 2, ' ', 0)
+		for _, g := range generators {
+			fmt.Fprintf(tw, "  %s\t%s\n", g.Name, g.Desc)
+		}
+		tw.Flush()
+	}
+
+	argp := argparse.NewParser("hd2-hash-cracker", "HD2 hash cracking tool", &argparse.ParserConfig{
+		EpiLog: epilog.String(),
+	})
 	optGenerators := argp.String("G", "generators", &argparse.Option{
-		Help: "crack using comma-separated generators (options: " + genNamesStr + ")",
+		Help: "crack using comma-separated generators (options: see 'generators' section below)",
+	})
+	optWrite := argp.Flag("w", "write", &argparse.Option{
+		Help: "write newly cracked hashes to hashes/cracked.txt (program must be run from project root)",
 	})
 	prt, a := fdtools.Init(argp)
 	var selectedGens []generator
@@ -218,16 +254,35 @@ func main() {
 		name = strings.TrimSpace(name)
 		gen, ok := genByName[name]
 		if !ok {
-			prt.Fatalf("Unknown generator %q (options: %s)", name, genNamesStr)
+			prt.Fatalf("Unknown generator %q (options: %s [see --help for descriptions])", name, strings.Join(genNames, ", "))
 		}
 		selectedGens = append(selectedGens, gen)
 	}
 	prt.Infof("Ctrl+C to quit")
-	c := newCracker(prt, a)
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 	if err := func() error {
-		return c.start(ctx, selectedGens)
+		newHashes, err := crack(ctx, selectedGens, prt, a)
+		if err != nil {
+			return err
+		}
+		if *optWrite {
+			const crackedFile = "hashes/cracked.txt"
+			prt.Infof("Adding %d hashes to %s...", len(newHashes), crackedFile)
+			fb, err := os.ReadFile(crackedFile)
+			if err != nil {
+				return err
+			}
+			b := bytes.NewBuffer(fb)
+			for _, h := range newHashes {
+				b.WriteString(h)
+				b.WriteString("\n")
+			}
+			if err := os.WriteFile(crackedFile, hashes.TidyHashes(b.Bytes()), 0666); err != nil {
+				return err
+			}
+		}
+		return nil
 	}(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

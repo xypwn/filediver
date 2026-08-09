@@ -3,18 +3,17 @@ package main
 import (
 	"bytes"
 	"cmp"
-	"context"
 	"maps"
 	"slices"
 	"strings"
 )
 
 var generators = []generator{
-	// Reshuffles known path segments.
 	{
 		Name: "reshuffle",
-		Fn: func(ctx context.Context, aCtx generatorContext, progressStore *any, try func([]byte) (doHousekeeping bool)) error {
-			examples := slices.Sorted(maps.Keys(aCtx.knownHashes))
+		Desc: "reshuffle known path segments",
+		Fn: func(info hashInfo, progressStore *any, try func([]byte) (cont bool)) error {
+			examples := slices.Sorted(maps.Keys(info.knownHashes))
 
 			var words []string
 			seenWords := make(map[string]struct{})
@@ -74,27 +73,25 @@ var generators = []generator{
 						}
 						buf.WriteString(words[idx])
 					}
-					doHousekeeping := try(buf.Bytes())
+					cont := try(buf.Bytes())
 					buf.Reset()
 					if !inc(idxs, len(words)) {
 						break
 					}
 
-					if doHousekeeping {
-						if err := ctx.Err(); err != nil {
-							*progressStore = idxs
-							return err
-						}
+					if !cont {
+						*progressStore = idxs
+						return nil
 					}
 				}
 			}
 		},
 	},
-	// Tries to concatenate together existing prefix and suffix segments.
 	{
 		Name: "prefix-suffix",
-		Fn: func(ctx context.Context, aCtx generatorContext, progressStore *any, try func([]byte) (doHousekeeping bool)) error {
-			examples := slices.Sorted(maps.Keys(aCtx.knownHashes))
+		Desc: "concatenate together existing prefix and suffix segments",
+		Fn: func(info hashInfo, progressStore *any, try func([]byte) (cont bool)) error {
+			examples := slices.Sorted(maps.Keys(info.knownHashes))
 
 			prefixesByN := make(map[string]int) // prefix to number of occurrences
 			suffixesByN := make(map[string]int) // suffix to number of occurrences
@@ -147,11 +144,8 @@ var generators = []generator{
 					buf.Reset()
 					buf.WriteString(pfx)
 					buf.WriteString(sfx)
-					doHousekeeping := try(buf.Bytes())
-					if doHousekeeping {
-						if err := ctx.Err(); err != nil {
-							return err
-						}
+					if !try(buf.Bytes()) {
+						return nil
 					}
 				}
 			}
