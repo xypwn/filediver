@@ -1,7 +1,6 @@
 package app
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/binary"
@@ -108,18 +107,6 @@ func VerifyGameDir(path string) error {
 		return fmt.Errorf("invalid game directory: %v: valid data directory not found", path)
 	}
 	return nil
-}
-
-func ParseHashes(str string) []string {
-	var res []string
-	sc := bufio.NewScanner(strings.NewReader(str))
-	for sc.Scan() {
-		s := strings.TrimSpace(sc.Text())
-		if s != "" && !strings.HasPrefix(s, "//") {
-			res = append(res, s)
-		}
-	}
-	return res
 }
 
 type App struct {

@@ -3,14 +3,13 @@ package main
 import (
 	"fmt"
 
-	"github.com/xypwn/filediver/app"
 	datalib "github.com/xypwn/filediver/datalibrary"
 	"github.com/xypwn/filediver/hashes"
 	"github.com/xypwn/filediver/stingray"
 )
 
 func main() {
-	knownThinHashes := app.ParseHashes(hashes.ThinHashes)
+	knownThinHashes := hashes.ParseHashes(hashes.ThinHashes)
 
 	thinHashesMap := make(map[stingray.ThinHash]string)
 	for _, h := range knownThinHashes {

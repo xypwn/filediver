@@ -49,9 +49,9 @@ func main() {
 		prt.Fatalf("Unable to detect game install directory.")
 	}
 
-	knownHashes := app.ParseHashes(hashes.Hashes)
-	knownThinHashes := app.ParseHashes(hashes.ThinHashes)
-	knownDLHashes := app.ParseHashes(hashes.DLTypeNames)
+	knownHashes := hashes.ParseHashes(hashes.Hashes)
+	knownThinHashes := hashes.ParseHashes(hashes.ThinHashes)
+	knownDLHashes := hashes.ParseHashes(hashes.DLTypeNames)
 
 	dlHashesMap := make(map[datalib.DLHash]string)
 	for _, name := range knownDLHashes {

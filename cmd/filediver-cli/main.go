@@ -262,17 +262,17 @@ Options:`)
 	}
 
 	var knownHashes []string
-	knownHashes = append(knownHashes, app.ParseHashes(hashes.Hashes)...)
+	knownHashes = append(knownHashes, hashes.ParseHashes(hashes.Hashes)...)
 	if *optKnownHashesPath != "" {
 		b, err := os.ReadFile(*optKnownHashesPath)
 		if err != nil {
 			prt.Fatalf("%v", err)
 		}
-		knownHashes = append(knownHashes, app.ParseHashes(string(b))...)
+		knownHashes = append(knownHashes, hashes.ParseHashes(string(b))...)
 	}
 
 	var knownThinHashes []string
-	knownThinHashes = append(knownThinHashes, app.ParseHashes(hashes.ThinHashes)...)
+	knownThinHashes = append(knownThinHashes, hashes.ParseHashes(hashes.ThinHashes)...)
 
 	if !(*optList || *optListArchives || *optListFormat != "" || *optThinHashListMode != "none" || *optThinToFind != "") {
 		prt.Infof("Output directory: \"%v\"", *optOutDir)

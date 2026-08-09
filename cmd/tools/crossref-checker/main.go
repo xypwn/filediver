@@ -197,8 +197,8 @@ func main() {
 	}
 
 	ctx := context.Background() // no need to exit cleanly since we're only reading
-	knownHashes := app.ParseHashes(hashes.Hashes)
-	knownThinHashes := app.ParseHashes(hashes.ThinHashes)
+	knownHashes := hashes.ParseHashes(hashes.Hashes)
+	knownThinHashes := hashes.ParseHashes(hashes.ThinHashes)
 	a, err := app.OpenGameDir(ctx, gameDir, knownHashes, knownThinHashes, stingray.ThinHash{}, func(curr, total int) {
 		prt.Statusf("Reading metadata %.0f%%", float64(curr)/float64(total)*100)
 	})

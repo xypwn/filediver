@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/xypwn/filediver/app"
 	datalib "github.com/xypwn/filediver/datalibrary"
 	"github.com/xypwn/filediver/hashes"
 	"github.com/xypwn/filediver/stingray"
@@ -27,8 +26,8 @@ type SimpleComponentEntityDeltaStorage struct {
 }
 
 func main() {
-	knownHashes := app.ParseHashes(hashes.Hashes)
-	knownDatalibHashes := app.ParseHashes(hashes.DLTypeNames)
+	knownHashes := hashes.ParseHashes(hashes.Hashes)
+	knownDatalibHashes := hashes.ParseHashes(hashes.DLTypeNames)
 
 	hashesMap := make(map[stingray.Hash]string)
 	for _, h := range knownHashes {

@@ -4,14 +4,13 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/xypwn/filediver/app"
 	datalib "github.com/xypwn/filediver/datalibrary"
 	"github.com/xypwn/filediver/hashes"
 	"github.com/xypwn/filediver/stingray"
 )
 
 func main() {
-	knownThinHashes := app.ParseHashes(hashes.ThinHashes)
+	knownThinHashes := hashes.ParseHashes(hashes.ThinHashes)
 
 	thinHashesMap := make(map[stingray.ThinHash]string)
 	for _, h := range knownThinHashes {
@@ -25,7 +24,7 @@ func main() {
 		return hash.String()
 	}
 
-	knownHashes := app.ParseHashes(hashes.Hashes)
+	knownHashes := hashes.ParseHashes(hashes.Hashes)
 
 	hashesMap := make(map[stingray.Hash]string)
 	for _, h := range knownHashes {

@@ -37,8 +37,8 @@ func main() {
 		prt.Fatalf("%v", err)
 	}
 
-	knownHashes := app.ParseHashes(hashes.Hashes)
-	knownThinHashes := app.ParseHashes(hashes.ThinHashes)
+	knownHashes := hashes.ParseHashes(hashes.Hashes)
+	knownThinHashes := hashes.ParseHashes(hashes.ThinHashes)
 
 	hashesMap := make(map[stingray.Hash]string)
 	for _, h := range knownHashes {

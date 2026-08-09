@@ -61,8 +61,8 @@ func Init(argp *argparse.Parser) (prt app.Printer, a *app.App) {
 	}
 
 	ctx := context.Background() // no need to exit cleanly since we're only reading
-	knownHashes := app.ParseHashes(hashes.Hashes)
-	knownThinHashes := app.ParseHashes(hashes.ThinHashes)
+	knownHashes := hashes.ParseHashes(hashes.Hashes)
+	knownThinHashes := hashes.ParseHashes(hashes.ThinHashes)
 	a, err := app.OpenGameDir(ctx, gameDir, knownHashes, knownThinHashes, stingray_strings.LanguageFriendlyNameToHash[*optLanguage], func(curr, total int) {
 		prt.Statusf("Reading metadata %.0f%%", float64(curr)/float64(total)*100)
 	})

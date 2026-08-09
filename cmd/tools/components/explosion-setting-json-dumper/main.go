@@ -33,8 +33,8 @@ func main() {
 		prt.Fatalf("Unable to detect game install directory.")
 	}
 
-	knownHashes := app.ParseHashes(hashes.Hashes)
-	knownThinHashes := app.ParseHashes(hashes.ThinHashes)
+	knownHashes := hashes.ParseHashes(hashes.Hashes)
+	knownThinHashes := hashes.ParseHashes(hashes.ThinHashes)
 
 	a, err := app.OpenGameDir(ctx, gameDir, knownHashes, knownThinHashes, stingray_strings.LanguageFriendlyNameToHash["English (US)"], func(curr int, total int) {
 		prt.Statusf("Opening game directory %.0f%%", float64(curr)/float64(total)*100)

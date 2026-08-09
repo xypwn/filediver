@@ -50,9 +50,9 @@ func main() {
 		prt.Fatalf("Could not parse hash %v: %v", *hash, err)
 	}
 
-	knownHashes := app.ParseHashes(hashes.Hashes)
-	knownThinHashes := app.ParseHashes(hashes.ThinHashes)
-	knownDatalibHashes := app.ParseHashes(hashes.DLTypeNames)
+	knownHashes := hashes.ParseHashes(hashes.Hashes)
+	knownThinHashes := hashes.ParseHashes(hashes.ThinHashes)
+	knownDatalibHashes := hashes.ParseHashes(hashes.DLTypeNames)
 
 	hashesMap := make(map[stingray.Hash]string)
 	for _, h := range knownHashes {
