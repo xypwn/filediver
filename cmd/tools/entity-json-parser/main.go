@@ -68,6 +68,7 @@ func main() {
 	})
 	output := parser.String("o", "output", &argparse.Option{
 		Positional: false,
+		Default:    "9ba626afa44a3aa3.patch_0",
 	})
 	if err := parser.Parse(nil); err != nil {
 		prt.Fatalf("%v", err)
