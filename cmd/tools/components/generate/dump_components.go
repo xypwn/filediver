@@ -9,6 +9,7 @@ import (
 
 	"github.com/jwalton/go-supportscolor"
 	"github.com/xypwn/filediver/app"
+	animation_events "github.com/xypwn/filediver/cmd/tools/components/animation-event-trigger-settings-json-dumper/dumper"
 	arcs "github.com/xypwn/filediver/cmd/tools/components/arc-setting-json-dumper/dumper"
 	armor "github.com/xypwn/filediver/cmd/tools/components/armor-set-json-dumper/dumper"
 	beam "github.com/xypwn/filediver/cmd/tools/components/beam-setting-json-dumper/dumper"
@@ -72,6 +73,7 @@ func main() {
 
 	currStdout := os.Stdout
 
+	dumpAET(a, outputFormat, prt, currStdout)
 	dumpArc(a, outputFormat, prt, currStdout)
 	dumpArmor(a, outputFormat, prt, currStdout)
 	dumpBeam(a, outputFormat, prt, currStdout)
@@ -86,6 +88,22 @@ func main() {
 	dumpSky(a, outputFormat, prt, currStdout)
 	dumpUnit(a, outputFormat, prt, currStdout)
 	dumpWeapon(a, outputFormat, prt, currStdout)
+}
+
+func dumpAET(a *app.App, outputFormat string, prt app.Printer, currStdout *os.File) {
+	filename := "animation_event_trigger_settings"
+	newStdout, err := CreateFile(fmt.Sprintf(outputFormat, filename), ".json")
+	if err == nil {
+		defer func() {
+			os.Stdout = currStdout
+			if r := recover(); r != nil {
+				prt.Errorf("Failed to generate %v: %v", filename, r)
+			}
+		}()
+		defer newStdout.Close()
+		os.Stdout = newStdout
+		animation_events.Dump(a)
+	}
 }
 
 func dumpArc(a *app.App, outputFormat string, prt app.Printer, currStdout *os.File) {

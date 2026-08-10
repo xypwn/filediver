@@ -33,6 +33,7 @@ func compressFile(filename string, buf *bytes.Buffer) {
 func main() {
 	filenames := []string{
 		"dl_library.dl_typelib",
+		"generated_animation_event_trigger_settings.dl_bin",
 		"generated_arc_settings.dl_bin",
 		"generated_beam_settings.dl_bin",
 		"generated_customization_armor_sets.dl_bin",
