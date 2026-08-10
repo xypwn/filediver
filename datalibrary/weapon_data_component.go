@@ -172,8 +172,8 @@ type SimpleOpticSetting struct {
 }
 
 type SimpleUnitNodeScale struct {
-	NodeID string
-	Scale  mgl32.Vec3
+	NodeID string     `json:"node_id"`
+	Scale  mgl32.Vec3 `json:"scale"`
 }
 
 type SimpleWeaponFireModeFunction struct {

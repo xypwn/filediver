@@ -42,7 +42,7 @@ func main() {
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
 			prt.NoStatus()
-			prt.Warnf("passive bonus dump canceled")
+			prt.Warnf("animation event trigger settings dump canceled")
 			return
 		} else {
 			prt.Fatalf("%v", err)

@@ -100,7 +100,7 @@ func LoadAnimationEventTriggerSettings(lookupHash HashLookup, lookupThinHash Thi
 					if _, err := r.Seek(base+trigger.SetVisibilityGroupArray.Offset, io.SeekStart); err != nil {
 						return nil, fmt.Errorf("seeking unit visibility offset: %v", err)
 					}
-					if err := binary.Read(r, binary.LittleEndian, &rawSetVisibilityGroupArray); err != nil {
+					if err := binary.Read(r, binary.LittleEndian, rawSetVisibilityGroupArray); err != nil {
 						return nil, fmt.Errorf("reading unit visibility array: %v", err)
 					}
 				}
@@ -117,7 +117,7 @@ func LoadAnimationEventTriggerSettings(lookupHash HashLookup, lookupThinHash Thi
 					if _, err := r.Seek(base+trigger.ScaleNodeArray.Offset, io.SeekStart); err != nil {
 						return nil, fmt.Errorf("seeking scale node offset: %v", err)
 					}
-					if err := binary.Read(r, binary.LittleEndian, &rawScaleNodeArray); err != nil {
+					if err := binary.Read(r, binary.LittleEndian, rawScaleNodeArray); err != nil {
 						return nil, fmt.Errorf("reading scale node array: %v", err)
 					}
 				}
