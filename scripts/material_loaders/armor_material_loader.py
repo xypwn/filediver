@@ -79,6 +79,9 @@ class ArmorMaterialLoader(FilediverMaterialLoaderInterface):
                 case "base_data":
                     config_nodes["Normal Map"].image = image
                     image.colorspace_settings.name = "Non-Color"
+                case "customization_camo_tiler_array":
+                    config_nodes["Camo Array"].image = image
+                    image.colorspace_settings.name = "Non-Color"
         
         detail_tile_factor_mult = config.get("extras", {}).get("detail_tile_factor_mult")
         if detail_tile_factor_mult is not None:
