@@ -5723,6 +5723,7 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
 
 #get texture for camo array             
     try:
+
         customization_camo_tiler_array.image = bpy.data.images.get("customization_camo_tiler_array.png")
         customization_camo_tiler_array.image.colorspace_settings.name = "Non-Color"
         customization_camo_tiler_array.image.alpha_mode = "CHANNEL_PACKED"
@@ -12744,6 +12745,7 @@ def update_images(HD2_Shader: NodeTree, material: Material):
     pattern_luts = [HD2_Shader.nodes[f"pattern_lut {i:02d}"] for i in range(2, 4)] + [HD2_Shader.nodes["pattern_lut"]]
     primary_material_luts = [HD2_Shader.nodes[f"Primary Material LUT_{i:02d}"] for i in range(23)]
     secondary_material_luts = [HD2_Shader.nodes[f"Secondary Material LUT_{i:02d}"] for i in range(23)]
+    camo_array = HD2_Shader.nodes["customization_camo_tiler_array"]
 
     #Get Pattern LUT from external texture node for shader repetition
     pattern_lut_image = node_tree.nodes["Pattern LUT Texture"].image
@@ -12759,6 +12761,17 @@ def update_images(HD2_Shader: NodeTree, material: Material):
 
     #Get ID Mask Array from external texture node for shader repetition
     id_mask_array_02.image = node_tree.nodes["ID Mask Array Texture"].image
+
+    #Get Camo Array from external texture node for shader repetition
+    if "Camo Array" in node_tree.nodes and node_tree.nodes["Camo Array"].image is not None:
+        camo_array.image = node_tree.nodes["Camo Array"].image
+        width, height = camo_array.image.size[:]
+        tiles = (height / width)
+        camo_math = HD2_Shader.nodes["Math.267"]
+        camo_math.inputs[0].default_value = tiles - 1
+        camo_vector_math = HD2_Shader.nodes["Vector Math.107"]
+        camo_vector_math.inputs[1].default_value = (1.0, 1.0 / tiles, 0.0)
+
 
     for node in pattern_luts:
         node.image = pattern_lut_image
@@ -12836,13 +12849,13 @@ def connect_input_links(hd2_shader: NodeTree):
     #group_input_1.Normal Map_Alpha -> combine_xyz_023.X
     hd2_shader.links.new(group_input_1.outputs[11], hd2_shader.nodes["Combine XYZ.023"].inputs[0])
     #group_input_1.detail_tile_factor_mult -> math_044.Value
-    hd2_shader.links.new(group_input_1.outputs[12], hd2_shader.nodes["Math.044"].inputs[0])
+    hd2_shader.links.new(group_input_1.outputs["detail_tile_factor_mult"], hd2_shader.nodes["Math.044"].inputs[0])
     #group_input_1.detail_tile_factor_mult -> math_079.Value
-    hd2_shader.links.new(group_input_1.outputs[12], hd2_shader.nodes["Math.079"].inputs[0])
+    hd2_shader.links.new(group_input_1.outputs["detail_tile_factor_mult"], hd2_shader.nodes["Math.079"].inputs[0])
     #group_input_1.detail_tile_factor_mult -> math_019.Value
-    hd2_shader.links.new(group_input_1.outputs[12], hd2_shader.nodes["Math.019"].inputs[0])
+    hd2_shader.links.new(group_input_1.outputs["detail_tile_factor_mult"], hd2_shader.nodes["Math.019"].inputs[0])
     #group_input_1.detail_tile_factor_mult -> math_152.Value
-    hd2_shader.links.new(group_input_1.outputs[12], hd2_shader.nodes["Math.152"].inputs[0])
+    hd2_shader.links.new(group_input_1.outputs["detail_tile_factor_mult"], hd2_shader.nodes["Math.152"].inputs[0])
 
 def update_slot_defaults(hd2_shader: NodeTree, material: Material):
     PrimaryMaterialLUTSizeX = material.node_tree.nodes['Primary Material LUT Texture'].inputs[0].node.image.size[0]
