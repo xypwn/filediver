@@ -355,6 +355,10 @@ Unregistered System
 Urectem
 Ursica XI
 Ustotu
+Uvp Alpha
+Uvp Beta
+Uvp Delta
+Uvp Gamma
 Vacca
 Valgaard
 Valmox
@@ -369,6 +373,7 @@ Vinge
 Viridia Prime
 Vital System
 Vog-Sojoth
+Void Source Planet
 Volterra
 Wasat
 Watchdog 5
