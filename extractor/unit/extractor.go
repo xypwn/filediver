@@ -331,6 +331,14 @@ func AddMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_mate
 			continue
 		}
 
+		entityHash := ctx.FileID().Name
+		if cfg.Unit.EntityName != "" {
+			newHash, err := stingray.ParseOrSum(cfg.Unit.EntityName)
+			if err == nil {
+				entityHash = newHash
+			}
+		}
+
 		{
 			// Handle vehicle variants
 			var skinOverrides []datalib.UnitSkinOverride = make([]datalib.UnitSkinOverride, 0)
@@ -343,7 +351,7 @@ func AddMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_mate
 				if err != nil {
 					continue
 				}
-				if ctx.FileID().Name == unit {
+				if entityHash == unit {
 					break
 				}
 			}
@@ -373,14 +381,6 @@ func AddMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_mate
 
 		func() {
 			// Handle entity material swaps
-			entityHash := ctx.FileID().Name
-			if cfg.Unit.EntityName != "" {
-				newHash, err := stingray.ParseOrSum(cfg.Unit.EntityName)
-				if err == nil {
-					entityHash = newHash
-				}
-			}
-
 			materialSwapData, err := datalib.GetMaterialSwapComponentDataForHash(entityHash)
 			if err != nil {
 				return
