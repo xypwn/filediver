@@ -262,6 +262,7 @@ func getWeaponEntityHashFromUnitHash(weaponUnit stingray.Hash) stingray.Hash {
 }
 
 func AddMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_material.ImageOptions, unitInfo *unit.Info, metadata *datalib.UnitData) ([]geometry.MaterialVariantMap, error) {
+	cfg := ctx.Config()
 	materialVariants := make([]geometry.MaterialVariantMap, 0)
 	namesToVariantIdx := make(map[string]uint32)
 
@@ -330,107 +331,163 @@ func AddMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_mate
 			continue
 		}
 
-		// Handle vehicle variants
-		var skinOverrides []datalib.UnitSkinOverride = make([]datalib.UnitSkinOverride, 0)
-		for _, skinOverrideGroup := range ctx.SkinOverrideGroups() {
-			if !skinOverrideGroup.HasMaterial(id) || isHelldiverWeapon {
-				continue
-			}
-			skinOverrides = skinOverrideGroup.Skins
-			unit, err := skinOverrideGroup.CollectionType.Unit()
-			if err != nil {
-				continue
-			}
-			if ctx.FileID().Name == unit {
-				break
-			}
-		}
-		for _, skinOverride := range skinOverrides {
-			skinName := cases.Title(language.English).String(skinOverride.Name)
-
-			if _, ok := skinOverride.Overrides[id]; !ok {
-				continue
-			}
-
-			skinMatIdx, err := AddMaterialVariant(ctx, mat, doc, imgOpts, id, skinOverride, metadata)
-			if err != nil {
-				// Some materials don't get overriden, that's fine
-				continue
-			}
-
-			if _, ok := namesToVariantIdx[skinName]; !ok {
-				namesToVariantIdx[skinName] = uint32(len(materialVariants))
-				materialVariants = append(materialVariants, geometry.MaterialVariantMap{
-					Name:                skinName,
-					MaterialHashToIndex: make(map[stingray.ThinHash]uint32),
-				})
-			}
-			materialVariants[namesToVariantIdx[skinName]].MaterialHashToIndex[id] = *skinMatIdx
-		}
-
-		// Handle weapon variants
-		if weaponErr != nil {
-			continue
-		}
-
-		foundPaintScheme := false
-		for _, slot := range weaponCustCmp.CustomizationSlots {
-			if slot == enum.WeaponCustomizationSlot_PaintScheme {
-				foundPaintScheme = true
-				break
-			}
-		}
-		if !foundPaintScheme {
-			continue
-		}
-
-		// This is memoized so we don't actually parse entity deltas every time this is called
-		entityDeltas, err := datalib.ParseEntityDeltas()
-		if err != nil {
-			ctx.Warnf("AddMaterials: couldn't parse entity deltas: %v", err)
-			continue
-		}
-		for _, paintScheme := range ctx.WeaponPaintSchemes() {
-			if paintScheme.NameUpper == "DEFAULT" {
-				continue
-			}
-			delta, ok := entityDeltas[paintScheme.AddPath]
-			if !ok {
-				ctx.Warnf("AddMaterials: no delta for add path %v", ctx.LookupHash(paintScheme.AddPath))
-				continue
-			}
-
-			modifiedComponentData, err := datalib.PatchComponent(datalib.Sum("WeaponCustomizationComponentData"), weaponCustCmpData, delta)
-			if err != nil {
-				ctx.Warnf("AddMaterials: couldn't patch component: %v", err)
-				continue
-			}
-
-			var component datalib.WeaponCustomizationComponent
-			if _, err := binary.Decode(modifiedComponentData, binary.LittleEndian, &component); err != nil {
-				ctx.Warnf("AddMaterials: couldn't parse component: %v", err)
-				continue
-			}
-
-			var tempSkinOverride datalib.UnitSkinOverride
-			tempSkinOverride.Name = cases.Title(language.English).String(paintScheme.NameUpper)
-			tempSkinOverride.ID = paintScheme.ID
-			tempSkinOverride.Overrides = make(map[stingray.ThinHash][]datalib.UnitCustomizationMaterialOverrides)
-			for _, matOverride := range component.MaterialOverride.DefaultWeaponSlotMaterial {
-				if matOverride.MaterialID.Value == 0 {
+		{
+			// Handle vehicle variants
+			var skinOverrides []datalib.UnitSkinOverride = make([]datalib.UnitSkinOverride, 0)
+			for _, skinOverrideGroup := range ctx.SkinOverrideGroups() {
+				if !skinOverrideGroup.HasMaterial(id) || isHelldiverWeapon {
 					continue
 				}
-				if _, ok := tempSkinOverride.Overrides[matOverride.MaterialID]; !ok {
-					tempSkinOverride.Overrides[matOverride.MaterialID] = make([]datalib.UnitCustomizationMaterialOverrides, 0)
-				}
-				tempSkinOverride.Overrides[matOverride.MaterialID] = append(tempSkinOverride.Overrides[matOverride.MaterialID], matOverride)
-			}
-
-			for _, slotCustomization := range component.MaterialOverride.WeaponSlotMaterialCustomization {
-				if isAttachment && attachmentSlot != slotCustomization.Slot {
+				skinOverrides = skinOverrideGroup.Skins
+				unit, err := skinOverrideGroup.CollectionType.Unit()
+				if err != nil {
 					continue
 				}
-				for _, matOverride := range slotCustomization.Overrides {
+				if ctx.FileID().Name == unit {
+					break
+				}
+			}
+			for _, skinOverride := range skinOverrides {
+				skinName := cases.Title(language.English).String(skinOverride.Name)
+
+				if _, ok := skinOverride.Overrides[id]; !ok {
+					continue
+				}
+
+				skinMatIdx, err := AddMaterialVariant(ctx, mat, doc, imgOpts, id, skinOverride, metadata)
+				if err != nil {
+					// Some materials don't get overriden, that's fine
+					continue
+				}
+
+				if _, ok := namesToVariantIdx[skinName]; !ok {
+					namesToVariantIdx[skinName] = uint32(len(materialVariants))
+					materialVariants = append(materialVariants, geometry.MaterialVariantMap{
+						Name:                skinName,
+						MaterialHashToIndex: make(map[stingray.ThinHash]uint32),
+					})
+				}
+				materialVariants[namesToVariantIdx[skinName]].MaterialHashToIndex[id] = *skinMatIdx
+			}
+		}
+
+		func() {
+			// Handle entity material swaps
+			entityHash := ctx.FileID().Name
+			if cfg.Unit.EntityName != "" {
+				newHash, err := stingray.ParseOrSum(cfg.Unit.EntityName)
+				if err == nil {
+					entityHash = newHash
+				}
+			}
+
+			materialSwapData, err := datalib.GetMaterialSwapComponentDataForHash(entityHash)
+			if err != nil {
+				return
+			}
+
+			var materialSwap datalib.MaterialSwapComponent
+			if _, err := binary.Decode(materialSwapData, binary.LittleEndian, &materialSwap); err != nil {
+				return
+			}
+
+			for _, slot := range materialSwap.MaterialSlots {
+				for i, swap := range slot.SwapSettings {
+					if swap.Name.Value == 0x0 {
+						continue
+					}
+
+					if i == 0 && cfg.Unit.EntityOverrideDefault {
+						// The default material has this material, so don't make a variant out of it
+						continue
+					}
+
+					swapId := stingray.NewFileID(swap.Material, stingray.Sum("material"))
+
+					matR, err := ctx.Open(swapId, stingray.DataMain)
+					if err != nil {
+						continue
+					}
+					swapMat, err := material.LoadMain(matR)
+					if err != nil {
+						continue
+					}
+
+					resPath := ctx.LookupHash(swapId.Name)
+					if strings.Contains(resPath, "/") {
+						split := strings.Split(resPath, "/")
+						resPath = strings.Join(split[len(split)-2:], "/")
+					}
+
+					skinName := ctx.LookupThinHash(swap.Name) + " " + ctx.LookupThinHash(slot.MaterialSlotName) + " " + resPath
+					skinMatIdx, err := extr_material.AddMaterial(ctx, swapMat, doc, imgOpts, skinName, metadata)
+					if err != nil {
+						continue
+					}
+
+					if _, ok := namesToVariantIdx[ctx.LookupThinHash(swap.Name)]; !ok {
+						namesToVariantIdx[ctx.LookupThinHash(swap.Name)] = uint32(len(materialVariants))
+						materialVariants = append(materialVariants, geometry.MaterialVariantMap{
+							Name:                ctx.LookupThinHash(swap.Name),
+							MaterialHashToIndex: make(map[stingray.ThinHash]uint32),
+						})
+					}
+
+					materialVariants[namesToVariantIdx[ctx.LookupThinHash(swap.Name)]].MaterialHashToIndex[slot.MaterialSlotName] = skinMatIdx
+				}
+			}
+		}()
+
+		{
+			// Handle weapon variants
+			if weaponErr != nil {
+				continue
+			}
+
+			foundPaintScheme := false
+			for _, slot := range weaponCustCmp.CustomizationSlots {
+				if slot == enum.WeaponCustomizationSlot_PaintScheme {
+					foundPaintScheme = true
+					break
+				}
+			}
+			if !foundPaintScheme {
+				continue
+			}
+
+			// This is memoized so we don't actually parse entity deltas every time this is called
+			entityDeltas, err := datalib.ParseEntityDeltas()
+			if err != nil {
+				ctx.Warnf("AddMaterials: couldn't parse entity deltas: %v", err)
+				continue
+			}
+			for _, paintScheme := range ctx.WeaponPaintSchemes() {
+				if paintScheme.NameUpper == "DEFAULT" {
+					continue
+				}
+				delta, ok := entityDeltas[paintScheme.AddPath]
+				if !ok {
+					ctx.Warnf("AddMaterials: no delta for add path %v", ctx.LookupHash(paintScheme.AddPath))
+					continue
+				}
+
+				modifiedComponentData, err := datalib.PatchComponent(datalib.Sum("WeaponCustomizationComponentData"), weaponCustCmpData, delta)
+				if err != nil {
+					ctx.Warnf("AddMaterials: couldn't patch component: %v", err)
+					continue
+				}
+
+				var component datalib.WeaponCustomizationComponent
+				if _, err := binary.Decode(modifiedComponentData, binary.LittleEndian, &component); err != nil {
+					ctx.Warnf("AddMaterials: couldn't parse component: %v", err)
+					continue
+				}
+
+				var tempSkinOverride datalib.UnitSkinOverride
+				tempSkinOverride.Name = cases.Title(language.English).String(paintScheme.NameUpper)
+				tempSkinOverride.ID = paintScheme.ID
+				tempSkinOverride.Overrides = make(map[stingray.ThinHash][]datalib.UnitCustomizationMaterialOverrides)
+				for _, matOverride := range component.MaterialOverride.DefaultWeaponSlotMaterial {
 					if matOverride.MaterialID.Value == 0 {
 						continue
 					}
@@ -439,22 +496,37 @@ func AddMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_mate
 					}
 					tempSkinOverride.Overrides[matOverride.MaterialID] = append(tempSkinOverride.Overrides[matOverride.MaterialID], matOverride)
 				}
-			}
 
-			skinMatIdx, err := AddMaterialVariant(ctx, mat, doc, imgOpts, id, tempSkinOverride, metadata)
-			if err != nil {
-				// Some materials don't get overriden, that's fine
-				continue
-			}
+				for _, slotCustomization := range component.MaterialOverride.WeaponSlotMaterialCustomization {
+					if isAttachment && attachmentSlot != slotCustomization.Slot {
+						continue
+					}
+					for _, matOverride := range slotCustomization.Overrides {
+						if matOverride.MaterialID.Value == 0 {
+							continue
+						}
+						if _, ok := tempSkinOverride.Overrides[matOverride.MaterialID]; !ok {
+							tempSkinOverride.Overrides[matOverride.MaterialID] = make([]datalib.UnitCustomizationMaterialOverrides, 0)
+						}
+						tempSkinOverride.Overrides[matOverride.MaterialID] = append(tempSkinOverride.Overrides[matOverride.MaterialID], matOverride)
+					}
+				}
 
-			if _, ok := namesToVariantIdx[tempSkinOverride.Name]; !ok {
-				namesToVariantIdx[tempSkinOverride.Name] = uint32(len(materialVariants))
-				materialVariants = append(materialVariants, geometry.MaterialVariantMap{
-					Name:                tempSkinOverride.Name,
-					MaterialHashToIndex: make(map[stingray.ThinHash]uint32),
-				})
+				skinMatIdx, err := AddMaterialVariant(ctx, mat, doc, imgOpts, id, tempSkinOverride, metadata)
+				if err != nil {
+					// Some materials don't get overriden, that's fine
+					continue
+				}
+
+				if _, ok := namesToVariantIdx[tempSkinOverride.Name]; !ok {
+					namesToVariantIdx[tempSkinOverride.Name] = uint32(len(materialVariants))
+					materialVariants = append(materialVariants, geometry.MaterialVariantMap{
+						Name:                tempSkinOverride.Name,
+						MaterialHashToIndex: make(map[stingray.ThinHash]uint32),
+					})
+				}
+				materialVariants[namesToVariantIdx[tempSkinOverride.Name]].MaterialHashToIndex[id] = *skinMatIdx
 			}
-			materialVariants[namesToVariantIdx[tempSkinOverride.Name]].MaterialHashToIndex[id] = *skinMatIdx
 		}
 	}
 	return materialVariants, nil

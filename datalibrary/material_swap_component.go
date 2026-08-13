@@ -28,9 +28,9 @@ type MaterialSwapSlot struct {
 }
 
 type MaterialSwapComponent struct {
-	MaterialSlots [8]MaterialSwapSlot  // Material slots that can be set
-	EnemyNames    [8]stingray.ThinHash // name is guessed - name length 11
-	EnemyTagSwaps [8]EnemyTagSwap
+	MaterialSlots    [8]MaterialSwapSlot  // Material slots that can be set
+	SwappedMaterials [8]stingray.ThinHash // name is guessed - name length 17
+	EnemyTagSwaps    [8]EnemyTagSwap
 }
 
 type SimpleMaterialSwap struct {
@@ -49,9 +49,9 @@ type SimpleMaterialSwapSlot struct {
 }
 
 type SimpleMaterialSwapComponent struct {
-	MaterialSlots []SimpleMaterialSwapSlot `json:"material_slots"`
-	EnemyNames    []string                 `json:"enemy_names"`
-	EnemyTagSwaps []SimpleEnemyTagSwap     `json:"enemy_tag_swaps"`
+	MaterialSlots    []SimpleMaterialSwapSlot `json:"material_slots"`
+	SwappedMaterials []string                 `json:"swapped_materials"`
+	EnemyTagSwaps    []SimpleEnemyTagSwap     `json:"enemy_tag_swaps"`
 }
 
 func (w MaterialSwapComponent) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookupStrings StringsLookup) any {
@@ -76,12 +76,12 @@ func (w MaterialSwapComponent) ToSimple(lookupHash HashLookup, lookupThinHash Th
 		})
 	}
 
-	enemyNames := make([]string, 0)
-	for _, name := range w.EnemyNames {
+	swappedMaterials := make([]string, 0)
+	for _, name := range w.SwappedMaterials {
 		if name.Value == 0 {
 			break
 		}
-		enemyNames = append(enemyNames, lookupThinHash(name))
+		swappedMaterials = append(swappedMaterials, lookupThinHash(name))
 	}
 
 	enemyTagSwaps := make([]SimpleEnemyTagSwap, 0)
@@ -96,9 +96,9 @@ func (w MaterialSwapComponent) ToSimple(lookupHash HashLookup, lookupThinHash Th
 	}
 
 	return SimpleMaterialSwapComponent{
-		MaterialSlots: materialSlots,
-		EnemyNames:    enemyNames,
-		EnemyTagSwaps: enemyTagSwaps,
+		MaterialSlots:    materialSlots,
+		SwappedMaterials: swappedMaterials,
+		EnemyTagSwaps:    enemyTagSwaps,
 	}
 }
 
@@ -119,7 +119,7 @@ func getMaterialSwapComponentData() ([]byte, error) {
 	return data, err
 }
 
-func getMaterialSwapComponentDataForHash(hash stingray.Hash) ([]byte, error) {
+func GetMaterialSwapComponentDataForHash(hash stingray.Hash) ([]byte, error) {
 	UnitCmpDataHash := Sum("MaterialSwapComponentData")
 	typelib, err := ParseTypeLib(nil)
 	if err != nil {

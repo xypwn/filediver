@@ -31968,3 +31968,8 @@ c_wheel
 c_wheel1
 helmetguy_club
 helmetguy_cleaver
+m_seaf_radio
+leader_command
+arctic
+jungle
+desert

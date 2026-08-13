@@ -132,7 +132,7 @@ func getComponentDataForHash(componentType DLHash, resource stingray.Hash) ([]by
 	case Sum("LocalUnitComponentData"):
 		return getLocalUnitComponentDataForHash(resource)
 	case Sum("MaterialSwapComponentData"):
-		return getMaterialSwapComponentDataForHash(resource)
+		return GetMaterialSwapComponentDataForHash(resource)
 	case Sum("MaterialVariablesComponentData"):
 		return getMaterialVariablesComponentDataForHash(resource)
 	case Sum("MeleeAttackComponentData"):
