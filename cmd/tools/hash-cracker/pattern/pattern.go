@@ -273,6 +273,9 @@ loop:
 			rs.Seg = segParts[len(segParts)-1]
 			segParts[len(segParts)-1] = rs
 		default:
+			if seg != nil {
+				flushSegPart()
+			}
 			segStr.WriteByte(c)
 		}
 	}
