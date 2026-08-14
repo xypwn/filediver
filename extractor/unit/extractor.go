@@ -231,7 +231,7 @@ func AddMaterialVariant(ctx *extractor.Context, mat *material.Material, doc *glt
 		skinMat.Textures[stingray.Sum("pattern_masks_array").Thin()] = override[idx].PatternMasksArray
 	}
 
-	skinMatIdx, err := extr_material.AddMaterial(ctx, &skinMat, doc, imgOpts, ctx.LookupThinHash(skinOverride.ID)+" "+ctx.LookupThinHash(materialId), metadata)
+	skinMatIdx, err := extr_material.AddMaterial(ctx, &skinMat, doc, imgOpts, materialId, ctx.LookupThinHash(skinOverride.ID)+" "+ctx.LookupThinHash(materialId), metadata)
 	if err != nil {
 		return nil, err
 	}
@@ -308,7 +308,7 @@ func AddMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_mate
 			split := strings.Split(resPath, "/")
 			resPath = strings.Join(split[len(split)-2:], "/")
 		}
-		matIdx, err := extr_material.AddMaterial(ctx, mat, doc, imgOpts, ctx.LookupThinHash(id)+" "+resPath, metadata)
+		matIdx, err := extr_material.AddMaterial(ctx, mat, doc, imgOpts, id, ctx.LookupThinHash(id)+" "+resPath, metadata)
 		if err != nil {
 			return nil, err
 		}
@@ -420,7 +420,7 @@ func AddMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_mate
 					}
 
 					skinName := ctx.LookupThinHash(swap.Name) + " " + ctx.LookupThinHash(slot.MaterialSlotName) + " " + resPath
-					skinMatIdx, err := extr_material.AddMaterial(ctx, swapMat, doc, imgOpts, skinName, metadata)
+					skinMatIdx, err := extr_material.AddMaterial(ctx, swapMat, doc, imgOpts, slot.MaterialSlotName, skinName, metadata)
 					if err != nil {
 						continue
 					}

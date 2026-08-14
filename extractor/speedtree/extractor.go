@@ -296,7 +296,7 @@ func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gl
 
 		matInfo.Textures[stingray.Sum("asset_color_grading_lut").Thin()] = colorGradingName
 
-		matIdx, err := extr_material.AddMaterial(ctx, matInfo, doc, imgOpts, treeInfo.SDKMaterials[mat.Index].Name+fmt.Sprintf(" %v", matPath), nil)
+		matIdx, err := extr_material.AddMaterial(ctx, matInfo, doc, imgOpts, stingray.Sum("speedtree").Thin(), treeInfo.SDKMaterials[mat.Index].Name+fmt.Sprintf(" %v", matPath), nil)
 		if err != nil {
 			return err
 		}
