@@ -278,6 +278,8 @@ loop:
 	}
 	if len(segChoices) == 1 {
 		return segChoices[0]
+	} else if len(segChoices) == 0 {
+		return nil
 	} else {
 		return irSegmentChoice(segChoices)
 	}
@@ -329,19 +331,21 @@ type segment struct {
 }
 
 type segIdx struct {
-	segs [][]segIdx
-	idxs []int
+	segs     [][]segIdx
+	idxs     []int
+	totalIdx int // total index in [0,comp-1]
 }
 
 // TODO: Maybe find a way so we don't
 // have to zero as much. #SPEED
-func (idx segIdx) Reset() {
+func (idx *segIdx) Reset() {
 	for i := range idx.idxs {
 		idx.idxs[i] = 0
 		for j := range idx.segs[i] {
 			idx.segs[i][j].Reset()
 		}
 	}
+	idx.totalIdx = 0
 }
 
 func (idx segIdx) String() string {
@@ -400,21 +404,35 @@ func (idx segIdx) Add(s segment, n int) (carry int) {
 		carry = n / s.comps[i]
 		n %= s.comps[i]
 		j := idx.idxs[i]
-		for {
-			if n == 0 {
-				break
-			}
-			n = s.segs[i][j].comp * idx.segs[i][j].Add(s.segs[i][j], n)
-			if n == 0 {
-				break
-			}
+		if idx.segs[i][j].totalIdx >= s.segs[i][j].comp-n {
+			// Fill first union operand fully if it would overflow
+			n -= s.segs[i][j].comp - idx.segs[i][j].totalIdx
+			idx.segs[i][j].Reset() // zero the fully filled operand
 			j++
-			n--
 			if j >= len(s.segs[i]) {
 				carry++
 				j = 0
 			}
-			idx.segs[i][j].Reset()
+			for n >= s.segs[i][j].comp {
+				// Fill remaining union operands that would overflow
+				// (we don't have to do anything to the index since
+				// it's already zeroed and would remain that way)
+				n -= s.segs[i][j].comp
+				j++
+				if j >= len(s.segs[i]) {
+					carry++
+					j = 0
+				}
+			}
+		}
+		if n != 0 {
+			// Fill the rest into the union operand that can't be
+			// filled fully
+			c := idx.segs[i][j].Add(s.segs[i][j], n)
+			if c != 0 {
+				panic("expected carry to be zero")
+			}
+			n = 0
 		}
 		idx.idxs[i] = j
 		return
@@ -426,6 +444,7 @@ func (idx segIdx) Add(s segment, n int) (carry int) {
 		}
 		carry = addToUnion(i, carry)
 	}
+	idx.totalIdx = (idx.totalIdx + n) % s.comp
 	return
 }
 
@@ -569,6 +588,69 @@ func (s segment) CompBig(max *big.Int) *big.Int {
 	return prod
 }
 
+func (s *segment) optimize() {
+	for i := range s.segs {
+		for j := range s.segs[i] {
+			s.segs[i][j].optimize()
+		}
+	}
+
+	// Empty cartesian products or union elements can
+	// be removed.
+	if slices.IndexFunc(s.segs, func(segs []segment) bool {
+		return len(segs) == 0
+	}) != -1 {
+		var newSegs [][]segment
+		var newComps []int
+		for i := range s.segs {
+			if len(s.segs[i]) != 0 {
+				newSegs = append(newSegs, s.segs[i])
+				newComps = append(newComps, s.comps[i])
+			}
+		}
+		s.segs = newSegs
+		s.comps = newComps
+	}
+	for i := range s.segs {
+		s.segs[i] = slices.DeleteFunc(s.segs[i], func(s segment) bool {
+			return s.str == "" && len(s.segs) == 0
+		})
+	}
+
+	// Cartesian product of single-parameter unions
+	// can be flattened.
+	//
+	// Example:
+	// x(A, u(x(B, C)), u(x(D))) -> x(A, B, C, D)
+	if slices.IndexFunc(s.segs, func(segs []segment) bool {
+		return len(segs) == 1
+	}) != -1 {
+		var newSegs [][]segment
+		var newComps []int
+		for i := range s.segs {
+			if len(s.segs[i]) == 1 {
+				newSegs = append(newSegs, s.segs[i][0].segs...)
+				newComps = append(newComps, s.segs[i][0].comps...)
+			} else {
+				newSegs = append(newSegs, s.segs[i])
+				newComps = append(newComps, s.comps[i])
+			}
+		}
+		s.segs = newSegs
+		s.comps = newComps
+	}
+
+	// Cartesian product with single parameter
+	// of union with single parameter can be
+	// flattened.
+	//
+	// Example:
+	// x(u(A)) -> A
+	if len(s.segs) == 1 && len(s.segs[0]) == 1 {
+		*s = s.segs[0][0]
+	}
+}
+
 func compile(irSeg irSegment) segment {
 	var res segment
 	switch irSeg := irSeg.(type) {
@@ -608,6 +690,7 @@ func compile(irSeg irSegment) segment {
 	}
 
 	res.calculateComps()
+	res.optimize()
 	return res
 }
 
