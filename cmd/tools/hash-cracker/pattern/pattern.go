@@ -592,6 +592,7 @@ func (s segment) CompBig(max *big.Int) *big.Int {
 }
 
 func (s *segment) optimize() {
+	// Optimize inner segments first.
 	for i := range s.segs {
 		for j := range s.segs[i] {
 			s.segs[i][j].optimize()
@@ -600,12 +601,12 @@ func (s *segment) optimize() {
 
 	// Empty cartesian products or union elements can
 	// be removed.
-	if slices.IndexFunc(s.segs, func(segs []segment) bool {
+	if i := slices.IndexFunc(s.segs, func(segs []segment) bool {
 		return len(segs) == 0
-	}) != -1 {
+	}); i != -1 {
 		var newSegs [][]segment
 		var newComps []int
-		for i := range s.segs {
+		for ; i < len(s.segs); i++ {
 			if len(s.segs[i]) != 0 {
 				newSegs = append(newSegs, s.segs[i])
 				newComps = append(newComps, s.comps[i])
@@ -625,12 +626,12 @@ func (s *segment) optimize() {
 	//
 	// Example:
 	// x(A, u(x(B, C)), u(x(D))) -> x(A, B, C, D)
-	if slices.IndexFunc(s.segs, func(segs []segment) bool {
+	if i := slices.IndexFunc(s.segs, func(segs []segment) bool {
 		return len(segs) == 1
-	}) != -1 {
+	}); i != -1 {
 		var newSegs [][]segment
 		var newComps []int
-		for i := range s.segs {
+		for ; i < len(s.segs); i++ {
 			if len(s.segs[i]) == 1 {
 				newSegs = append(newSegs, s.segs[i][0].segs...)
 				newComps = append(newComps, s.segs[i][0].comps...)
