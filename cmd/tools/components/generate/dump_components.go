@@ -20,6 +20,7 @@ import (
 	passive "github.com/xypwn/filediver/cmd/tools/components/passive-bonus-json-dumper/dumper"
 	planet "github.com/xypwn/filediver/cmd/tools/components/planet-data-json-dumper/dumper"
 	planet_overrides "github.com/xypwn/filediver/cmd/tools/components/planet-override-settings-json-dumper/dumper"
+	planet_types "github.com/xypwn/filediver/cmd/tools/components/planet-types-settings-json-dumper/dumper"
 	proj "github.com/xypwn/filediver/cmd/tools/components/projectile-setting-json-dumper/dumper"
 	sky "github.com/xypwn/filediver/cmd/tools/components/sky-settings-json-dumper/dumper"
 	unit "github.com/xypwn/filediver/cmd/tools/components/unit-customization-json-dumper/dumper"
@@ -84,6 +85,7 @@ func main() {
 	dumpPassive(a, outputFormat, prt, currStdout)
 	dumpPlanet(a, outputFormat, prt, currStdout)
 	dumpPlanetOverrides(a, outputFormat, prt, currStdout)
+	dumpPlanetTypes(a, outputFormat, prt, currStdout)
 	dumpProj(a, outputFormat, prt, currStdout)
 	dumpSky(a, outputFormat, prt, currStdout)
 	dumpUnit(a, outputFormat, prt, currStdout)
@@ -263,6 +265,22 @@ func dumpPlanetOverrides(a *app.App, outputFormat string, prt app.Printer, currS
 		}()
 		os.Stdout = newStdout
 		planet_overrides.Dump(a)
+		os.Stdout = currStdout
+	}
+}
+func dumpPlanetTypes(a *app.App, outputFormat string, prt app.Printer, currStdout *os.File) {
+	filename := "planet_types_settings"
+	newStdout, err := CreateFile(fmt.Sprintf(outputFormat, filename), ".json")
+	if err == nil {
+		defer func() {
+			os.Stdout = currStdout
+			newStdout.Close()
+			if r := recover(); r != nil {
+				prt.Errorf("Failed to generate %v: %v", filename, r)
+			}
+		}()
+		os.Stdout = newStdout
+		planet_types.Dump(a)
 		os.Stdout = currStdout
 	}
 }
