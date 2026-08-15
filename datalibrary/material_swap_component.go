@@ -29,7 +29,7 @@ type MaterialSwapSlot struct {
 
 type MaterialSwapComponent struct {
 	MaterialSlots    [8]MaterialSwapSlot  // Material slots that can be set
-	SwappedMaterials [8]stingray.ThinHash // name is guessed - name length 17
+	DefaultOverrides [8]stingray.ThinHash // name is guessed - name length 17
 	EnemyTagSwaps    [8]EnemyTagSwap
 }
 
@@ -50,7 +50,7 @@ type SimpleMaterialSwapSlot struct {
 
 type SimpleMaterialSwapComponent struct {
 	MaterialSlots    []SimpleMaterialSwapSlot `json:"material_slots"`
-	SwappedMaterials []string                 `json:"swapped_materials"`
+	DefaultOverrides []string                 `json:"default_overrides"`
 	EnemyTagSwaps    []SimpleEnemyTagSwap     `json:"enemy_tag_swaps"`
 }
 
@@ -77,7 +77,7 @@ func (w MaterialSwapComponent) ToSimple(lookupHash HashLookup, lookupThinHash Th
 	}
 
 	swappedMaterials := make([]string, 0)
-	for _, name := range w.SwappedMaterials {
+	for _, name := range w.DefaultOverrides {
 		if name.Value == 0 {
 			break
 		}
@@ -97,7 +97,7 @@ func (w MaterialSwapComponent) ToSimple(lookupHash HashLookup, lookupThinHash Th
 
 	return SimpleMaterialSwapComponent{
 		MaterialSlots:    materialSlots,
-		SwappedMaterials: swappedMaterials,
+		DefaultOverrides: swappedMaterials,
 		EnemyTagSwaps:    enemyTagSwaps,
 	}
 }
