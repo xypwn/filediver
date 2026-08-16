@@ -24,25 +24,31 @@ func _() {
 	_ = x[LevelGenerationRegion_region_primordial_blue-13]
 	_ = x[LevelGenerationRegion_region_primordial_bug-14]
 	_ = x[LevelGenerationRegion_region_magma_base-15]
-	_ = x[LevelGenerationRegion_region_arctic_glacier_base-16]
-	_ = x[LevelGenerationRegion_region_arctic_glacier_coldrocky-17]
-	_ = x[LevelGenerationRegion_region_cyberstan-18]
-	_ = x[LevelGenerationRegion_region_moor_baseplanet-19]
-	_ = x[LevelGenerationRegion_region_moor_tundra-20]
-	_ = x[LevelGenerationRegion_region_moor_arid-21]
-	_ = x[LevelGenerationRegion_region_moor_red-22]
-	_ = x[LevelGenerationRegion_region_superearth-23]
-	_ = x[LevelGenerationRegion_region_swamp_base-24]
-	_ = x[LevelGenerationRegion_region_swamp_haunted-25]
-	_ = x[LevelGenerationRegion_Value_26_Len_45-26]
-	_ = x[LevelGenerationRegion_region_bug_hiveworld-27]
-	_ = x[LevelGenerationRegion_region_bug_home-28]
-	_ = x[LevelGenerationRegion_count-29]
+	_ = x[LevelGenerationRegion_region_rift_active-16]
+	_ = x[LevelGenerationRegion_region_coniferous_base-17]
+	_ = x[LevelGenerationRegion_region_arctic_glacier_base-18]
+	_ = x[LevelGenerationRegion_region_arctic_glacier_coldrocky-19]
+	_ = x[LevelGenerationRegion_region_cyberstan-20]
+	_ = x[LevelGenerationRegion_region_moor_baseplanet-21]
+	_ = x[LevelGenerationRegion_region_moor_tundra-22]
+	_ = x[LevelGenerationRegion_region_moor_arid-23]
+	_ = x[LevelGenerationRegion_region_moor_red-24]
+	_ = x[LevelGenerationRegion_region_superearth-25]
+	_ = x[LevelGenerationRegion_region_deciduous_base-26]
+	_ = x[LevelGenerationRegion_region_deciduous_autumn-27]
+	_ = x[LevelGenerationRegion_region_deciduous_crimson-28]
+	_ = x[LevelGenerationRegion_region_swamp_base-29]
+	_ = x[LevelGenerationRegion_region_swamp_haunted-30]
+	_ = x[LevelGenerationRegionType_Value_31_Len_45-31]
+	_ = x[LevelGenerationRegion_region_oasis_base-32]
+	_ = x[LevelGenerationRegion_region_oasis_bleak-33]
+	_ = x[LevelGenerationRegion_region_bug_hiveworld-34]
+	_ = x[LevelGenerationRegion_count-35]
 }
 
-const _LevelGenerationRegionType_name = "LevelGenerationRegion_noneLevelGenerationRegion_region_generation_testingLevelGenerationRegion_region_sandy_tutorialLevelGenerationRegion_region_sandy_baseLevelGenerationRegion_region_sandy_acidLevelGenerationRegion_region_sandy_moonLevelGenerationRegion_region_sandy_mineralLevelGenerationRegion_region_sandy_spikyLevelGenerationRegion_region_sandy_cyborg_factoryLevelGenerationRegion_region_primordial_tutorialLevelGenerationRegion_region_primordial_baseLevelGenerationRegion_region_primordial_deadLevelGenerationRegion_region_primordial_purpleLevelGenerationRegion_region_primordial_blueLevelGenerationRegion_region_primordial_bugLevelGenerationRegion_region_magma_baseLevelGenerationRegion_region_arctic_glacier_baseLevelGenerationRegion_region_arctic_glacier_coldrockyLevelGenerationRegion_region_cyberstanLevelGenerationRegion_region_moor_baseplanetLevelGenerationRegion_region_moor_tundraLevelGenerationRegion_region_moor_aridLevelGenerationRegion_region_moor_redLevelGenerationRegion_region_superearthLevelGenerationRegion_region_swamp_baseLevelGenerationRegion_region_swamp_hauntedLevelGenerationRegion_Value_26_Len_45LevelGenerationRegion_region_bug_hiveworldLevelGenerationRegion_region_bug_homeLevelGenerationRegion_count"
+const _LevelGenerationRegionType_name = "LevelGenerationRegion_noneLevelGenerationRegion_region_generation_testingLevelGenerationRegion_region_sandy_tutorialLevelGenerationRegion_region_sandy_baseLevelGenerationRegion_region_sandy_acidLevelGenerationRegion_region_sandy_moonLevelGenerationRegion_region_sandy_mineralLevelGenerationRegion_region_sandy_spikyLevelGenerationRegion_region_sandy_cyborg_factoryLevelGenerationRegion_region_primordial_tutorialLevelGenerationRegion_region_primordial_baseLevelGenerationRegion_region_primordial_deadLevelGenerationRegion_region_primordial_purpleLevelGenerationRegion_region_primordial_blueLevelGenerationRegion_region_primordial_bugLevelGenerationRegion_region_magma_baseLevelGenerationRegion_region_rift_activeLevelGenerationRegion_region_coniferous_baseLevelGenerationRegion_region_arctic_glacier_baseLevelGenerationRegion_region_arctic_glacier_coldrockyLevelGenerationRegion_region_cyberstanLevelGenerationRegion_region_moor_baseplanetLevelGenerationRegion_region_moor_tundraLevelGenerationRegion_region_moor_aridLevelGenerationRegion_region_moor_redLevelGenerationRegion_region_superearthLevelGenerationRegion_region_deciduous_baseLevelGenerationRegion_region_deciduous_autumnLevelGenerationRegion_region_deciduous_crimsonLevelGenerationRegion_region_swamp_baseLevelGenerationRegion_region_swamp_hauntedLevelGenerationRegionType_Value_31_Len_45LevelGenerationRegion_region_oasis_baseLevelGenerationRegion_region_oasis_bleakLevelGenerationRegion_region_bug_hiveworldLevelGenerationRegion_count"
 
-var _LevelGenerationRegionType_index = [...]uint16{0, 26, 73, 116, 155, 194, 233, 275, 315, 364, 412, 456, 500, 546, 590, 633, 672, 720, 773, 811, 855, 895, 933, 970, 1009, 1048, 1090, 1127, 1169, 1206, 1233}
+var _LevelGenerationRegionType_index = [...]uint16{0, 26, 73, 116, 155, 194, 233, 275, 315, 364, 412, 456, 500, 546, 590, 633, 672, 712, 756, 804, 857, 895, 939, 979, 1017, 1054, 1093, 1136, 1181, 1227, 1266, 1308, 1349, 1388, 1428, 1470, 1497}
 
 func (i LevelGenerationRegionType) String() string {
 	idx := int(i) - 0

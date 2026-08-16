@@ -41,6 +41,10 @@ var planetData []byte
 var planetOverrideSettingsCompressed []byte
 var planetOverrideSettings []byte
 
+//go:embed generated_planet_region_settings.dl_bin.gz
+var planetRegionSettingsCompressed []byte
+var planetRegionSettings []byte
+
 //go:embed generated_planet_types_settings.dl_bin.gz
 var planetTypesSettingsCompressed []byte
 var planetTypesSettings []byte
@@ -140,6 +144,7 @@ func init() {
 	goDecompress(&explosionSettings, explosionSettingsCompressed)
 	goDecompress(&planetData, planetDataCompressed)
 	goDecompress(&planetOverrideSettings, planetOverrideSettingsCompressed)
+	goDecompress(&planetRegionSettings, planetRegionSettingsCompressed)
 	goDecompress(&planetTypesSettings, planetTypesSettingsCompressed)
 	goDecompress(&projectileSettings, projectileSettingsCompressed)
 	goDecompress(&skySettings, skySettingsCompressed)
