@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"io"
 	"math"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -656,38 +657,49 @@ func ParseTypeLib(data []byte) (*DLTypeLib, error) {
 		}
 	}
 
+	sortedStringOffsets := slices.Sorted(func(yield func(uint32) bool) {
+		for _, val := range stringOffsets {
+			if !yield(val) {
+				return
+			}
+		}
+	})
+	sortedStringOffsetsMap := make(map[uint32]int)
+	for idx, offset := range sortedStringOffsets {
+		sortedStringOffsetsMap[offset] = idx
+	}
 	for hash := range Types {
-		offsetIndex := stringOffsetsMap[Types[hash].NameOffset]
-		nameOffset := stringOffsets[offsetIndex]
+		offsetIndex := sortedStringOffsetsMap[Types[hash].NameOffset]
+		nameOffset := sortedStringOffsets[offsetIndex]
 		var nameLength uint32 = 0
-		if offsetIndex+1 < len(stringOffsets) {
-			nameLength = stringOffsets[offsetIndex+1] - nameOffset - 1 // account for null terminator
+		if offsetIndex+1 < len(sortedStringOffsets) {
+			nameLength = sortedStringOffsets[offsetIndex+1] - nameOffset - 1 // account for null terminator
 		}
 
 		var commentLength uint32 = 0
 		if Types[hash].CommentOffset != 0 {
-			offsetIndex = stringOffsetsMap[Types[hash].CommentOffset]
-			commentOffset := stringOffsets[offsetIndex]
-			if offsetIndex+1 < len(stringOffsets) {
-				commentLength = stringOffsets[offsetIndex+1] - commentOffset - 1 // account for null terminator
+			offsetIndex = sortedStringOffsetsMap[Types[hash].CommentOffset]
+			commentOffset := sortedStringOffsets[offsetIndex]
+			if offsetIndex+1 < len(sortedStringOffsets) {
+				commentLength = sortedStringOffsets[offsetIndex+1] - commentOffset - 1 // account for null terminator
 			}
 		}
 
 		for i, member := range Types[hash].Members {
-			offsetIndex = stringOffsetsMap[member.NameOffset]
-			memberNameOffset := stringOffsets[offsetIndex]
+			offsetIndex = sortedStringOffsetsMap[member.NameOffset]
+			memberNameOffset := sortedStringOffsets[offsetIndex]
 			var memberNameLength uint32 = 0
-			if offsetIndex+1 < len(stringOffsets) {
-				memberNameLength = stringOffsets[offsetIndex+1] - memberNameOffset - 1 // account for null terminator
+			if offsetIndex+1 < len(sortedStringOffsets) {
+				memberNameLength = sortedStringOffsets[offsetIndex+1] - memberNameOffset - 1 // account for null terminator
 			}
 			Types[hash].Members[i].NameLength = memberNameLength
 
 			if member.CommentOffset != 0 {
-				offsetIndex = stringOffsetsMap[member.CommentOffset]
-				memberCommentOffset := stringOffsets[offsetIndex]
+				offsetIndex = sortedStringOffsetsMap[member.CommentOffset]
+				memberCommentOffset := sortedStringOffsets[offsetIndex]
 				var memberCommentLength uint32 = 0
-				if offsetIndex+1 < len(stringOffsets) {
-					memberCommentLength = stringOffsets[offsetIndex+1] - memberCommentOffset - 1 // account for null terminator
+				if offsetIndex+1 < len(sortedStringOffsets) {
+					memberCommentLength = sortedStringOffsets[offsetIndex+1] - memberCommentOffset - 1 // account for null terminator
 				}
 				Types[hash].Members[i].CommentLength = memberCommentLength
 			}
@@ -700,31 +712,31 @@ func ParseTypeLib(data []byte) (*DLTypeLib, error) {
 	}
 
 	for hash := range Enums {
-		offsetIndex := stringOffsetsMap[Enums[hash].NameOffset]
-		nameOffset := stringOffsets[offsetIndex]
+		offsetIndex := sortedStringOffsetsMap[Enums[hash].NameOffset]
+		nameOffset := sortedStringOffsets[offsetIndex]
 		var nameLength uint32 = 0
-		if offsetIndex+1 < len(stringOffsets) {
-			nameLength = stringOffsets[offsetIndex+1] - nameOffset - 1 // account for null terminator
+		if offsetIndex+1 < len(sortedStringOffsets) {
+			nameLength = sortedStringOffsets[offsetIndex+1] - nameOffset - 1 // account for null terminator
 		}
 		enumDesc := Enums[hash]
 		enumDesc.NameLength = nameLength
 		Enums[hash] = enumDesc
 
 		for i, value := range Enums[hash].Values {
-			offsetIndex = stringOffsetsMap[value.NameOffset]
-			valueNameOffset := stringOffsets[offsetIndex]
+			offsetIndex = sortedStringOffsetsMap[value.NameOffset]
+			valueNameOffset := sortedStringOffsets[offsetIndex]
 			var valueNameLength uint32 = 0
-			if offsetIndex+1 < len(stringOffsets) {
-				valueNameLength = stringOffsets[offsetIndex+1] - valueNameOffset - 1 // account for null terminator
+			if offsetIndex+1 < len(sortedStringOffsets) {
+				valueNameLength = sortedStringOffsets[offsetIndex+1] - valueNameOffset - 1 // account for null terminator
 			}
 			Enums[hash].Values[i].NameLength = valueNameLength
 
 			if value.CommentOffset != 0 {
-				offsetIndex = stringOffsetsMap[value.CommentOffset]
-				valueCommentOffset := stringOffsets[offsetIndex]
+				offsetIndex = sortedStringOffsetsMap[value.CommentOffset]
+				valueCommentOffset := sortedStringOffsets[offsetIndex]
 				var valueCommentLength uint32 = 0
-				if offsetIndex+1 < len(stringOffsets) {
-					valueCommentLength = stringOffsets[offsetIndex+1] - valueCommentOffset - 1 // account for null terminator
+				if offsetIndex+1 < len(sortedStringOffsets) {
+					valueCommentLength = sortedStringOffsets[offsetIndex+1] - valueCommentOffset - 1 // account for null terminator
 				}
 				Enums[hash].Values[i].CommentLength = valueCommentLength
 			}

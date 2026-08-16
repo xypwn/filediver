@@ -1148,6 +1148,13 @@ AiCoverComponentData
 DynamicLightComponentData
 DynamicLightComponent
 ObjectiveUniqueTag
+Modifier
+Easing
+B3
+ClearingPoint
+FormationSettings
+RoadJunction
+PassengerSquad
 
 // ======== Enums and Values ========
 HelldiverCustomizationPassiveBonus
