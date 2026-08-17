@@ -906,9 +906,58 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, me
 		}
 	}
 
-	processedLODBones := false
-	hasLOD0 := true
-	hasBaseModel := true
+	gameMeshIdx := -1
+	shadowMeshIdx := -1
+	rubbleMeshIdx := -1
+	rubbleCollisionMeshIdx := -1
+	for idx, bone := range unitInfo.Bones {
+		if ctx.LookupThinHash(bone.NameHash) == "game_mesh" {
+			gameMeshIdx = idx
+		}
+		if ctx.LookupThinHash(bone.NameHash) == "shadow_mesh" {
+			shadowMeshIdx = idx
+		}
+		if ctx.LookupThinHash(bone.NameHash) == "rubble" {
+			rubbleMeshIdx = idx
+		}
+		if ctx.LookupThinHash(bone.NameHash) == "rubble_collision" {
+			rubbleCollisionMeshIdx = idx
+		}
+	}
+
+	children := make([]uint32, 0)
+	if gameMeshIdx != -1 {
+		children = append(children, unitInfo.Bones[gameMeshIdx].Children...)
+	}
+	if shadowMeshIdx != -1 {
+		children = append(children, unitInfo.Bones[shadowMeshIdx].Children...)
+	}
+	if rubbleMeshIdx != -1 {
+		children = append(children, unitInfo.Bones[rubbleMeshIdx].Children...)
+	}
+	if rubbleCollisionMeshIdx != -1 {
+		children = append(children, unitInfo.Bones[rubbleCollisionMeshIdx].Children...)
+	}
+
+	gameMeshes := make(map[string][]string)
+	for _, child := range children {
+		boneName := ctx.LookupThinHash(unitInfo.Bones[child].NameHash)
+		if strings.Contains(boneName, "0x") {
+			continue
+		}
+		meshName := boneName
+		if strings.Contains(boneName, "_LOD") {
+			meshName = boneName[:len(boneName)-5]
+		}
+		if _, ok := gameMeshes[meshName]; !ok {
+			gameMeshes[meshName] = make([]string, 0)
+		}
+		gameMeshes[meshName] = append(gameMeshes[meshName], boneName)
+	}
+	for key := range gameMeshes {
+		slices.Sort(gameMeshes[key])
+	}
+
 	for i, header := range meshInfos {
 		if header.MeshLayoutIndex >= uint32(len(meshLayouts)) {
 			return fmt.Errorf("MeshLayoutIndex out of bounds")
@@ -922,47 +971,16 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, me
 			}
 		}
 
-		var groupName string
-		if _, contains := ctx.ThinHashes()[bones[i]]; contains {
-			groupName = ctx.ThinHashes()[bones[i]]
-		} else {
-			groupName = bones[i].String()
+		groupName := ctx.LookupThinHash(bones[i])
+		meshName := strings.TrimSuffix(groupName, "_LOD0")
+		var lodValue int = -1
+		for i := range 8 {
+			meshName = strings.TrimSuffix(meshName, fmt.Sprintf("_LOD%v", i+1))
 		}
-
-		isLOD := func(name string, onlyModelAndShadow bool, haveBaseModel bool) bool {
-			if strings.Contains(name, "shadow") || strings.Contains(name, "debris") {
-				return true
-			}
-			if strings.Contains(name, "_LOD") && (!strings.Contains(name, "_LOD0") || haveBaseModel) {
-				return true
-			}
-			if strings.Contains(name, "cull") || strings.Contains(name, "collision") || strings.Contains(name, "_proxy") {
-				return true && onlyModelAndShadow
-			}
-			return false
-		}
-
-		if isLOD(groupName, false, true) {
-			if !processedLODBones && (strings.Contains(groupName, "_LOD1") || strings.Contains(groupName, "_LOD0")) && !strings.Contains(groupName, "shadow") {
-				hasLOD0 = false
-				hasBaseModel = false
-				lod0Name := strings.TrimSuffix(groupName, "_LOD1")
-				lod0Name = strings.TrimSuffix(lod0Name, "_LOD0")
-				lod0Hash1 := stingray.Sum(lod0Name).Thin()
-				lod0Hash2 := stingray.Sum(lod0Name + "_LOD0").Thin()
-				for _, bone := range unitInfo.GroupBones {
-					if lod0Hash1 == bone {
-						hasBaseModel = true
-						break
-					} else if lod0Hash2 == bone {
-						hasLOD0 = true
-					}
-				}
-				processedLODBones = true
-			}
-			if !cfg.Model.IncludeLODS && ((hasLOD0 && strings.Contains(groupName, "_LOD") && !strings.Contains(groupName, "_LOD0")) || (hasBaseModel && strings.Contains(groupName, "_LOD0")) || strings.Contains(groupName, "shadow")) {
-				continue
-			}
+		if lodNames, ok := gameMeshes[meshName]; ok && !cfg.Model.IncludeLODS && lodNames[0] != groupName {
+			continue
+		} else if ok {
+			lodValue = slices.Index(lodNames, groupName)
 		}
 
 		var fbxConvertIdx, transformBoneIdxGeo int = -1, -1
@@ -1213,7 +1231,7 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, me
 			if !cfg.Model.JoinComponents && visiblityMaskLength > 0 {
 				texcoordIndex, ok := groupAttr[gltf.TEXCOORD_0]
 				// Don't separate udims of LODs or shadow meshes, unless this is LOD1 and we don't have an LOD0
-				if ok && (!isLOD(groupName, true, hasBaseModel) || ((!hasLOD0 && !hasBaseModel) && strings.Contains(groupName, "LOD1") && !strings.Contains(groupName, "shadow"))) {
+				if ok && lodValue == 0 {
 					texcoordAccessor := doc.Accessors[texcoordIndex]
 					groupIndexAccessor := doc.Accessors[*groupIndices]
 					var UDIMs map[uint32][]uint32
@@ -1233,8 +1251,8 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, me
 					}
 				}
 			}
-			includeLOD := (cfg.Model.IncludeLODS && (isLOD(groupName, true, hasBaseModel)))
-			if (cfg.Model.JoinComponents || visiblityMaskLength == 0) && !isLOD(groupName, true, hasBaseModel) || includeLOD {
+			includeLOD := (cfg.Model.IncludeLODS && lodValue != 0 || strings.Contains(groupName, "0x") || gameMeshIdx == -1)
+			if (cfg.Model.JoinComponents || visiblityMaskLength == 0) && lodValue == 0 || includeLOD {
 				udimIndexAccessors[0] = *groupIndices
 			}
 
