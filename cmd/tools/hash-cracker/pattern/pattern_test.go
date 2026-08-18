@@ -79,4 +79,5 @@ func TestHello(t *testing.T) {
 	fmt.Println("carry =", idx.Add(prog, 100))
 	fmt.Println(prog.StringAt(idx))
 	fmt.Println(idx)
+	fmt.Println(prog.MaxLen())
 }

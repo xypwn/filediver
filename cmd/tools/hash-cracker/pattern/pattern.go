@@ -339,8 +339,7 @@ type segIdx struct {
 	totalIdx int // total index in [0,comp-1]
 }
 
-// TODO: Maybe find a way so we don't
-// have to zero as much. #SPEED
+// Reset zeroes out the index.
 func (idx *segIdx) Reset() {
 	for i := range idx.idxs {
 		idx.idxs[i] = 0
@@ -589,6 +588,23 @@ func (s segment) CompBig(max *big.Int) *big.Int {
 		}
 	}
 	return prod
+}
+
+// MaxLen returns the maximum possible string length
+// generated from the pattern.
+func (s segment) MaxLen() int {
+	if s.str != "" {
+		return len(s.str)
+	}
+	concatLen := 0
+	for _, segs := range s.segs {
+		unionLen := 0
+		for _, seg := range segs {
+			unionLen = max(unionLen, seg.MaxLen())
+		}
+		concatLen += unionLen
+	}
+	return concatLen
 }
 
 func (s *segment) optimize() {
