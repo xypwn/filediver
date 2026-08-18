@@ -1154,7 +1154,26 @@ B3
 ClearingPoint
 FormationSettings
 RoadJunction
+RoadJunctionConnection
 PassengerSquad
+BoundaryWallEntryPoint
+BoundaryWallPieceType
+ObjectiveDisplayType
+ActiveAimConstraint
+GenerationVariationType
+GroupSoundType
+RegionLightingSettings
+RainSoundInfo
+HeatInjuryInfo
+HeatEffectSet
+HeatMaterialSetting
+AttackPatternSettings
+RefKsInfo
+BodySectionSettings
+DynamicLightComponent
+DynamicLightComponentData
+BeamFireMode
+StampOverlapSettings
 
 // ======== Enums and Values ========
 HelldiverCustomizationPassiveBonus
