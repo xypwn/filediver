@@ -48,14 +48,16 @@ type Config struct {
 		Format string `cfg:"options=png,dds,raw"`
 	} `cfg:"tags=t:texture"`
 	Unit struct {
-		SingleFile          bool   `cfg:"help='combine all units into a single blend/glb file'"`
-		ImageFormat         string `cfg:"tags=advanced options=png,jpeg"`
-		PngCompression      string `cfg:"tags=advanced depends=Unit.ImageFormat=png options=default,none,fast,best"`
-		JpegQuality         int    `cfg:"tags=advanced depends=Unit.ImageFormat=jpeg range=1...100 default=90"`
-		AllTextures         bool   `cfg:"tags=advanced help='include all referenced textures, including wounds, marks etc. and unknown ones'"`
-		AccurateOnly        bool   `cfg:"tags=advanced"`
-		SampleAnimations    bool   `cfg:"help='more accurate for now, as spline interpolation conversion isn\\'t implemented yet'"`
-		AnimationSampleRate int    `cfg:"depends=Unit.SampleAnimations range=12...144 default=30"`
+		SingleFile            bool   `cfg:"help='combine all units into a single blend/glb file'"`
+		ImageFormat           string `cfg:"tags=advanced options=png,jpeg"`
+		PngCompression        string `cfg:"tags=advanced depends=Unit.ImageFormat=png options=default,none,fast,best"`
+		JpegQuality           int    `cfg:"tags=advanced depends=Unit.ImageFormat=jpeg range=1...100 default=90"`
+		AllTextures           bool   `cfg:"tags=advanced help='include all referenced textures, including wounds, marks etc. and unknown ones'"`
+		AccurateOnly          bool   `cfg:"tags=advanced"`
+		SampleAnimations      bool   `cfg:"help='more accurate for now, as spline interpolation conversion isn\\'t implemented yet'"`
+		AnimationSampleRate   int    `cfg:"depends=Unit.SampleAnimations range=12...144 default=30"`
+		EntityName            string `cfg:"tags=advanced help='Defaults to unit name when not provided, can be used to override what entity is used to source skins'"`
+		EntityOverrideDefault bool   `cfg:"tags=advanced help='Use the first material swap material slot value as the default material, otherwise use it as a variant'"`
 	} `cfg:"help='general unit settings, affects materials, models and animations'"`
 	Material struct {
 		Format         string `cfg:"options=blend,glb,folder,raw help='material export format; folder dumps all referenced textures and shaders (if enabled in advanced settings) into a folder'"`

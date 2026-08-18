@@ -130,7 +130,7 @@ func getMaterialVariablesComponentData() ([]byte, error) {
 	return data, err
 }
 
-func getMaterialVariablesComponentDataForHash(hash stingray.Hash) ([]byte, error) {
+func GetMaterialVariablesComponentDataForHash(hash stingray.Hash) ([]byte, error) {
 	UnitCmpDataHash := Sum("MaterialVariablesComponentData")
 	typelib, err := ParseTypeLib(nil)
 	if err != nil {

@@ -6,7 +6,7 @@
 # Shader bundled with filediver with permission from @thejudsub
 
 import bpy
-from bpy.types import NodeTree, Material, Object, ShaderNodeGroup, ShaderNodeMix
+from bpy.types import NodeTree, Material, Object, ShaderNodeGroup, ShaderNodeMix, ShaderNodeMath, NodeGroupInput, ShaderNodeCombineXYZ
 from typing import Optional
 import os
 import math
@@ -97,9 +97,21 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     normal_map_alpha_socket = HD2_Shader.interface.new_socket(name = "Normal Map_Alpha", in_out='INPUT', socket_type = 'NodeSocketFloat')
     normal_map_alpha_socket.default_value = 0.0
     normal_map_alpha_socket.hide_value = True
+    #Socket Camo Array
+    camo_array_socket = HD2_Shader.interface.new_socket(name = "Camo Array", in_out='INPUT', socket_type = 'NodeSocketColor')
+    camo_array_socket.default_value = (0.0, 0.0, 0.0, 0.0)
+    camo_array_socket.hide_value = True
+    #Socket Normal Map_Alpha
+    camo_array_alpha_socket = HD2_Shader.interface.new_socket(name = "Camo Array Alpha", in_out='INPUT', socket_type = 'NodeSocketFloat')
+    camo_array_alpha_socket.default_value = 0.0
+    camo_array_alpha_socket.hide_value = True
     #Socket detail_tile_factor_mult
     detail_tile_factor_mult_socket = HD2_Shader.interface.new_socket(name = "detail_tile_factor_mult", in_out='INPUT', socket_type = 'NodeSocketFloat')
     detail_tile_factor_mult_socket.default_value = 1.000
+
+    dynamic_decal_settings_panel = HD2_Shader.interface.new_panel("Dynamic Decal Settings")
+    dynamic_decal_settings_panel.default_closed = True
+
     #Panel Bake_Outputs
     bake_outputs_panel = HD2_Shader.interface.new_panel("Bake_Outputs")
     #Socket Color
@@ -114,9 +126,33 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     normal_socket = HD2_Shader.interface.new_socket(name = "Bake_Normal", in_out='OUTPUT', socket_type = 'NodeSocketVector', parent = bake_outputs_panel)
     #Socket Clearcoat Normal
     clearcoat_normal_socket = HD2_Shader.interface.new_socket(name = "Bake_Clearcoat Normal", in_out='OUTPUT', socket_type = 'NodeSocketVector', parent = bake_outputs_panel)
+
+    use_dynamic_decals_socket = HD2_Shader.interface.new_socket(name = "use_dynamic_decals", in_out='INPUT', socket_type = 'NodeSocketFloat', parent = dynamic_decal_settings_panel)
+    use_dynamic_decals_socket.default_value = 0.000
+    decal_id_socket = HD2_Shader.interface.new_socket(name = "decal_id", in_out='INPUT', socket_type = 'NodeSocketInt', parent = dynamic_decal_settings_panel)
+    decal_id_socket.default_value = 0
+    decal_size_x_socket = HD2_Shader.interface.new_socket(name = "decal_size_x", in_out='INPUT', socket_type = 'NodeSocketFloat', parent = dynamic_decal_settings_panel)
+    decal_size_x_socket.default_value = 0.0
+    decal_size_y_socket = HD2_Shader.interface.new_socket(name = "decal_size_y", in_out='INPUT', socket_type = 'NodeSocketFloat', parent = dynamic_decal_settings_panel)
+    decal_size_y_socket.default_value = 0.0
+    decal_id_offset_x_socket = HD2_Shader.interface.new_socket(name = "decal_id_offset_x", in_out='INPUT', socket_type = 'NodeSocketFloat', parent = dynamic_decal_settings_panel)
+    decal_id_offset_x_socket.default_value = 0.0
+    decal_id_offset_y_socket = HD2_Shader.interface.new_socket(name = "decal_id_offset_y", in_out='INPUT', socket_type = 'NodeSocketFloat', parent = dynamic_decal_settings_panel)
+    decal_id_offset_y_socket.default_value = 0.0
+    use_decal_rgb_channels_socket = HD2_Shader.interface.new_socket(name = "use_decal_rgb_channels", in_out='INPUT', socket_type = 'NodeSocketFloat', parent = dynamic_decal_settings_panel)
+    use_decal_rgb_channels_socket.default_value = 0.0
+    decal_channel_selection_socket = HD2_Shader.interface.new_socket(name = "decal_channel_selection", in_out='INPUT', socket_type = 'NodeSocketFloat', parent = dynamic_decal_settings_panel)
+    decal_channel_selection_socket.default_value = 0.0
+    decal_lut_size_x_socket = HD2_Shader.interface.new_socket(name = "decal_lut_size_x", in_out='INPUT', socket_type = 'NodeSocketFloat', parent = dynamic_decal_settings_panel)
+    decal_lut_size_x_socket.default_value = 0.0
+    decal_lut_size_y_socket = HD2_Shader.interface.new_socket(name = "decal_lut_size_y", in_out='INPUT', socket_type = 'NodeSocketFloat', parent = dynamic_decal_settings_panel)
+    decal_lut_size_y_socket.default_value = 0.0
+    decal_lut_id_socket = HD2_Shader.interface.new_socket(name = "decal_lut_id", in_out='INPUT', socket_type = 'NodeSocketFloat', parent = dynamic_decal_settings_panel)
+    decal_lut_id_socket.default_value = 0.0
+
     
-#sets the detail texture tile size to 1.000 by default
-    hd2_shader_group_node.inputs[12].default_value = (1.000)
+    #sets the detail texture tile size to 1.000 by default
+    hd2_shader_group_node.inputs['detail_tile_factor_mult'].default_value = (1.000)
 
     print("################################"+current_material_name+ScriptVersion+"################################")
     
@@ -303,6 +339,9 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
                 material.node_tree.links.new(ReconnectToMaterialOutput.outputs[0], material.node_tree.nodes['Material Output'].inputs[0])
     except:
         pass
+
+    material.node_tree.links.new(material.node_tree.nodes['Reroute.036'].outputs[0], hd2_shader_group_node.inputs['Camo Array'])
+    material.node_tree.links.new(material.node_tree.nodes['Reroute.037'].outputs[0], hd2_shader_group_node.inputs['Camo Array Alpha'])
 
 #create warnings for user
     #get filetype of node
@@ -4940,6 +4979,16 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     math_1.inputs[1].default_value = 0.5
     #Value_002
     math_1.inputs[2].default_value = 0.5
+
+    math_280: ShaderNodeMath = HD2_Shader.nodes.new("ShaderNodeMath")
+    math_280.name = "Math.280"
+    math_280.operation = 'ABSOLUTE'
+    math_280.use_clamp = False
+
+    math_281: ShaderNodeMath = HD2_Shader.nodes.new("ShaderNodeMath")
+    math_281.name = "Math.281"
+    math_281.operation = 'ABSOLUTE'
+    math_281.use_clamp = False
     
     #node Math.001
     math_001 = HD2_Shader.nodes.new("ShaderNodeMath")
@@ -4950,6 +4999,54 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     math_001.inputs[1].default_value = 0.5
     #Value_002
     math_001.inputs[2].default_value = 0.5
+
+    math_282: ShaderNodeMath = HD2_Shader.nodes.new("ShaderNodeMath")
+    math_282.name = "Math.282"
+    math_282.operation = 'MULTIPLY'
+    math_282.use_clamp = False
+
+    math_283: ShaderNodeMath = HD2_Shader.nodes.new("ShaderNodeMath")
+    math_283.name = "Math.283"
+    math_283.operation = 'MULTIPLY'
+    math_283.use_clamp = False
+
+    math_279: ShaderNodeMath = HD2_Shader.nodes.new("ShaderNodeMath")
+    math_279.name = "Math.279"
+    math_279.operation = 'SNAP'
+    math_279.use_clamp = False
+
+    math_279.inputs[1].default_value = 1.0
+
+    mix_077: ShaderNodeMix = HD2_Shader.nodes.new("ShaderNodeMix")
+    mix_077.name = "Mix.077"
+    mix_077.blend_type = 'MIX'
+    mix_077.clamp_factor = True
+    mix_077.clamp_result = False
+    mix_077.data_type = 'VECTOR'
+    mix_077.factor_mode = 'UNIFORM'
+
+    mix_020: ShaderNodeMix = HD2_Shader.nodes.new("ShaderNodeMix")
+    mix_020.name = "Mix.020"
+    mix_020.blend_type = 'MIX'
+    mix_020.clamp_factor = True
+    mix_020.clamp_result = False
+    mix_020.data_type = 'FLOAT'
+    mix_020.factor_mode = 'UNIFORM'
+
+    mix_022: ShaderNodeMix = HD2_Shader.nodes.new("ShaderNodeMix")
+    mix_022.name = "Mix.022"
+    mix_022.blend_type = 'MIX'
+    mix_022.clamp_factor = True
+    mix_022.clamp_result = False
+    mix_022.data_type = 'FLOAT'
+    mix_022.factor_mode = 'UNIFORM'
+
+    group_input_001: NodeGroupInput = HD2_Shader.nodes.new("NodeGroupInput")
+    group_input_001.name = "Group Input.001"
+
+    dynamic_decals: ShaderNodeGroup = HD2_Shader.nodes.new("ShaderNodeGroup")
+    dynamic_decals.name = "Decal Offsetting"
+    dynamic_decals.node_tree = bpy.data.node_groups['Decal Offsetting'].copy()
     
     #node Mix.014
     mix_014 = HD2_Shader.nodes.new("ShaderNodeMix")
@@ -9624,7 +9721,6 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     math_123.parent = frame_012
     math_128.parent = frame_012
     math_129.parent = frame_012
-    mix_006.parent = frame_049
     mix_078.parent = frame_015
     math_145.parent = frame_011
     math_146.parent = frame_011
@@ -10042,6 +10138,9 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     vector_math_073.location = (44220.0, 3720.0)
     uv_map_002.location = (44060.0, 3720.0)
     math_1.location = (44540.0, 3720.0)
+    math_280.location = (44540.0, 4080.0)
+    math_281.location = (44540.0, 3900.0)
+    math_282.location = (44700.0, 3900.0)
     math_001.location = (44540.0, 3540.0)
     mix_014.location = (44020.0, 2260.0)
     mix_016.location = (44020.0, 2460.0)
@@ -10066,6 +10165,14 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     math_022.location = (-320.0, 146.0)
     mix_1.location = (46220.0, 3080.0)
     mix_017.location = (46220.0, 2880.0)
+    mix_006.location = (44220.0, 1700.0)
+    math_279.location = (46040.0, 2560.0)
+    math_283.location = (46040.0, 2380.0)
+    dynamic_decals.location = (46027.0, 2200.0)
+    group_input_001.location = (45837.0, 2100.0)
+    mix_077.location = (46420.0, 2380.0)
+    mix_020.location = (46420.0, 2170.0)
+    mix_022.location = (46420.0, 1990.0)
     math_211.location = (-120.0, 180.0)
     separate_xyz_019.location = (-280.0, 0.0)
     clamp_016.location = (-120.0, 0.0)
@@ -10427,7 +10534,6 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     mix_008.location = (36180.0, 2560.0)
     math_129.location = (1510.0, 33.0)
     math_177.location = (41720.0, 4100.0)
-    mix_006.location = (-60.0, -180.0)
     separate_xyz_060.location = (-2800.0, -620.0)
     mix_078.location = (-20.0, 60.0)
     math_145.location = (3300.0, 53.0)
@@ -11127,7 +11233,6 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     HD2_Shader.links.new(separate_xyz_059.outputs[0], math_119.inputs[0])
     #math_119.Value -> math_120.Value
     HD2_Shader.links.new(math_119.outputs[0], math_120.inputs[0])
-    #mix_077.Result -> separate_xyz_059.Vector
 
     #math_120.Value -> math_115.Value
     HD2_Shader.links.new(math_120.outputs[0], math_115.inputs[1])
@@ -11518,10 +11623,72 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     HD2_Shader.links.new(math_1.outputs[0], combine_xyz.inputs[0])
     #math_001.Value -> combine_xyz.Y
     HD2_Shader.links.new(math_001.outputs[0], combine_xyz.inputs[1])
-    #separate_xyz.X -> math_1.Value
-    HD2_Shader.links.new(separate_xyz.outputs[0], math_1.inputs[0])
-    #separate_xyz.Y -> math_001.Value
-    HD2_Shader.links.new(separate_xyz.outputs[1], math_001.inputs[0])
+
+    HD2_Shader.links.new(math_1.outputs[0], math_282.inputs[0])
+
+    HD2_Shader.links.new(math_001.outputs[0], math_282.inputs[1])
+
+    HD2_Shader.links.new(math_282.outputs[0], math_283.inputs[0])
+
+    HD2_Shader.links.new(math_279.outputs[0], math_283.inputs[1])
+
+    HD2_Shader.links.new(math_283.outputs[0], mix_077.inputs['Factor'])
+
+    HD2_Shader.links.new(math_283.outputs[0], mix_020.inputs['Factor'])
+
+    HD2_Shader.links.new(math_283.outputs[0], mix_022.inputs['Factor'])
+
+    HD2_Shader.links.new(mix_1.outputs['Result'], mix_077.inputs['A'])
+
+    HD2_Shader.links.new(mix_017.outputs['Result'], mix_020.inputs['A'])
+
+    HD2_Shader.links.new(mix_006.outputs['Result'], mix_022.inputs['A'])
+
+    HD2_Shader.links.new(group_input_001.outputs['use_dynamic_decals'], math_279.inputs[0])
+
+    HD2_Shader.links.new(group_input_001.outputs['decal_id'], dynamic_decals.inputs['decal_id'])
+    HD2_Shader.links.new(group_input_001.outputs['decal_size_x'], dynamic_decals.inputs['decal_size_x'])
+    HD2_Shader.links.new(group_input_001.outputs['decal_size_y'], dynamic_decals.inputs['decal_size_y'])
+    HD2_Shader.links.new(group_input_001.outputs['decal_id_offset_x'], dynamic_decals.inputs['decal_id_offset_x'])
+    HD2_Shader.links.new(group_input_001.outputs['decal_id_offset_y'], dynamic_decals.inputs['decal_id_offset_y'])
+    HD2_Shader.links.new(group_input_001.outputs['decal_lut_id'], dynamic_decals.inputs['decal_lut_id'])
+    HD2_Shader.links.new(group_input_001.outputs['decal_lut_size_x'], dynamic_decals.inputs['decal_lut_size_x'])
+    HD2_Shader.links.new(group_input_001.outputs['decal_lut_size_y'], dynamic_decals.inputs['decal_lut_size_y'])
+    HD2_Shader.links.new(group_input_001.outputs['decal_channel_selection'], dynamic_decals.inputs['decal_channel_selection'])
+    HD2_Shader.links.new(group_input_001.outputs['use_decal_rgb_channels'], dynamic_decals.inputs['use_decal_rgb_channels'])
+
+    for output in group_input_001.outputs.keys():
+        if group_input_001.outputs[output].is_linked:
+            continue
+        group_input_001.outputs[output].hide = True
+
+    HD2_Shader.links.new(mix_016.outputs['Result'], dynamic_decals.inputs['r9.xyz'])
+    HD2_Shader.links.new(clamp_005.outputs['Result'], dynamic_decals.inputs['r12.x'])
+    HD2_Shader.links.new(mix_006.outputs['Result'], dynamic_decals.inputs['r12.y'])
+    HD2_Shader.links.new(clamp_007.outputs['Result'], dynamic_decals.inputs['r12.z'])
+    HD2_Shader.links.new(mix_014.outputs['Result'], dynamic_decals.inputs['r13.x'])
+
+    HD2_Shader.links.new(dynamic_decals.outputs['r9.xyz'], mix_077.inputs['B'])
+    HD2_Shader.links.new(dynamic_decals.outputs['r12.y'], mix_022.inputs['B'])
+    HD2_Shader.links.new(dynamic_decals.outputs['r13.x'], mix_020.inputs['B'])
+
+    HD2_Shader.links.new(mix_077.outputs['Result'], separate_xyz_026.inputs[0])
+    HD2_Shader.links.new(mix_077.outputs['Result'], vector_math_082.inputs[0])
+    HD2_Shader.links.new(mix_077.outputs['Result'], vector_math_077.inputs[0])
+    HD2_Shader.links.new(mix_077.outputs['Result'], vector_math_065.inputs[2])
+
+    HD2_Shader.links.new(mix_020.outputs['Result'], math_181.inputs[2])
+    HD2_Shader.links.new(mix_020.outputs['Result'], math_209.inputs[0])
+
+    HD2_Shader.links.new(mix_022.outputs['Result'], clamp_018.inputs[0])
+
+    HD2_Shader.links.new(math_280.outputs[0], math_1.inputs[0])
+
+    HD2_Shader.links.new(math_281.outputs[0], math_001.inputs[0])
+
+    HD2_Shader.links.new(separate_xyz.outputs[0], math_280.inputs[0])
+
+    HD2_Shader.links.new(separate_xyz.outputs[1], math_281.inputs[0])
     #combine_xyz.Vector -> separate_xyz_003.Vector
     HD2_Shader.links.new(combine_xyz.outputs[0], separate_xyz_003.inputs[0])
     #separate_xyz_003.X -> math_022.Value
@@ -11598,10 +11765,6 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     HD2_Shader.links.new(math_192.outputs[0], mix_1.inputs[0])
     #mix_016.Result -> mix_1.A
     HD2_Shader.links.new(mix_016.outputs[1], mix_1.inputs[4])
-    #mix_1.Result -> vector_math_077.Vector
-    HD2_Shader.links.new(mix_1.outputs[1], vector_math_077.inputs[0])
-    #mix_1.Result -> vector_math_065.Vector
-    HD2_Shader.links.new(mix_1.outputs[1], vector_math_065.inputs[2])
     #vector_math_065.Vector -> vector_math_064.Vector
     HD2_Shader.links.new(vector_math_065.outputs[0], vector_math_064.inputs[0])
     #separate_xyz_057.Z -> math_099.Value
@@ -11622,10 +11785,6 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     HD2_Shader.links.new(math_192.outputs[0], mix_017.inputs[0])
     #mix_014.Result -> mix_017.A
     HD2_Shader.links.new(mix_014.outputs[0], mix_017.inputs[2])
-    #mix_017.Result -> math_209.Value
-    HD2_Shader.links.new(mix_017.outputs[0], math_209.inputs[0])
-    #mix_017.Result -> math_181.Value
-    HD2_Shader.links.new(mix_017.outputs[0], math_181.inputs[2])
     #math_043.Value -> vector_math_019.Vector
     HD2_Shader.links.new(math_043.outputs[0], vector_math_019.inputs[1])
     #mix_005.Result -> separate_xyz_069.Vector
@@ -11658,8 +11817,6 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     HD2_Shader.links.new(separate_xyz_021.outputs[0], math_214.inputs[0])
     #math_213.Value -> math_214.Value
     HD2_Shader.links.new(math_213.outputs[0], math_214.inputs[1])
-    #mix_1.Result -> separate_xyz_026.Vector
-    HD2_Shader.links.new(mix_1.outputs[1], separate_xyz_026.inputs[0])
     #separate_xyz_026.X -> math_215.Value
     HD2_Shader.links.new(separate_xyz_026.outputs[0], math_215.inputs[0])
     #separate_xyz_026.Y -> math_216.Value
@@ -11690,8 +11847,6 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     HD2_Shader.links.new(math_218.outputs[0], math_219.inputs[0])
     #mix_014.Result -> math_219.Value
     HD2_Shader.links.new(mix_014.outputs[0], math_219.inputs[1])
-    #mix_1.Result -> vector_math_082.Vector
-    HD2_Shader.links.new(mix_1.outputs[1], vector_math_082.inputs[0])
     #math_219.Value -> math_221.Value
     HD2_Shader.links.new(math_219.outputs[0], math_221.inputs[0])
     #math_221.Value -> math_220.Value
@@ -11714,8 +11869,6 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     HD2_Shader.links.new(mix_008.outputs[0], mix_006.inputs[2])
     #math_223.Value -> math_224.Value
     HD2_Shader.links.new(math_223.outputs[0], math_224.inputs[0])
-    #mix_006.Result -> clamp_018.Value
-    HD2_Shader.links.new(mix_006.outputs[0], clamp_018.inputs[0])
     #clamp_018.Result -> math_223.Value
     HD2_Shader.links.new(clamp_018.outputs[0], math_223.inputs[1])
     #clamp_018.Result -> principled_bsdf_001.Metallic
@@ -12746,6 +12899,7 @@ def update_images(HD2_Shader: NodeTree, material: Material):
     primary_material_luts = [HD2_Shader.nodes[f"Primary Material LUT_{i:02d}"] for i in range(23)]
     secondary_material_luts = [HD2_Shader.nodes[f"Secondary Material LUT_{i:02d}"] for i in range(23)]
     camo_array = HD2_Shader.nodes["customization_camo_tiler_array"]
+    decal_sheets = [HD2_Shader.nodes["Decal Offsetting"].node_tree.nodes[f"Image Texture{('.00'+str(i)) if i > 0 else ''}"] for i in range(5)]
 
     #Get Pattern LUT from external texture node for shader repetition
     pattern_lut_image = node_tree.nodes["Pattern LUT Texture"].image
@@ -12755,6 +12909,8 @@ def update_images(HD2_Shader: NodeTree, material: Material):
 
     #Get Secondary Material LUT from external texture node for shader repetition
     secondary_lut_image = node_tree.nodes["Secondary Material LUT Texture"].image
+
+    decal_texture_image = node_tree.nodes["Decal Texture"].image
 
     #Get Pattern Mask from external texture node
     pattern_mask_array_02.image = node_tree.nodes["Pattern Mask Array"].image
@@ -12781,6 +12937,37 @@ def update_images(HD2_Shader: NodeTree, material: Material):
 
     for node in secondary_material_luts:
         node.image = secondary_lut_image
+
+    for node in decal_sheets:
+        node.image = decal_texture_image
+
+    decal_pixels: ShaderNodeCombineXYZ = HD2_Shader.nodes["Decal Offsetting"].node_tree.nodes["Decal Texture Size"]
+
+    drv_x = decal_pixels.inputs['X'].driver_add("default_value")
+    if "var" in drv_x.driver.variables:
+        var_x = drv_x.driver.variables["var"]
+    else:
+        var_x = drv_x.driver.variables.new()
+    var_x.name = "var"
+    var_x.type = 'SINGLE_PROP'
+    target_x = var_x.targets[0]
+    target_x.id_type = 'IMAGE'
+    target_x.id = decal_texture_image
+    target_x.data_path = "size[0]"
+    drv_x.driver.expression = "var"
+
+    drv_y = decal_pixels.inputs['Y'].driver_add("default_value")
+    if "var" in drv_y.driver.variables:
+        var_y = drv_y.driver.variables["var"]
+    else:
+        var_y = drv_y.driver.variables.new()
+    var_y.name = "var"
+    var_y.type = 'SINGLE_PROP'
+    target_y = var_y.targets[0]
+    target_y.id_type = 'IMAGE'
+    target_y.id = decal_texture_image
+    target_y.data_path = "size[1]"
+    drv_y.driver.expression = "var"
 
 def add_bake_uvs(obj: Object):
     if "UVs for Baking" in obj.data.uv_layers:

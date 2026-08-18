@@ -1211,7 +1211,14 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, me
 				flipNormals(buffer, indexAccessor.ComponentType, group.NumIndices, bufferOffset)
 			}
 
-			mask, contains := visibilityMaskData[ctx.FileID().Name]
+			entityHash := ctx.FileID().Name
+			if cfg.Unit.EntityName != "" {
+				newHash, err := stingray.ParseOrSum(cfg.Unit.EntityName)
+				if err == nil {
+					entityHash = newHash
+				}
+			}
+			mask, contains := visibilityMaskData[entityHash]
 			if !contains {
 				// Some model names do not match any of the names of the entities that include them
 				// so they need to be patched up to get the correct visibility masks

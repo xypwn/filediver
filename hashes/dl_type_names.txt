@@ -1139,6 +1139,14 @@ WeaponLinkedAmmoComponent
 WeaponLinkedAmmoComponentData
 LevelGenerationTag
 WeaponLinkedAmmoMode
+ExtractionZoneComponentData
+LootDropComponentData
+LootDropComponent
+OrbitalShipComponentData
+OrbitalShipComponent
+AiCoverComponentData
+DynamicLightComponentData
+DynamicLightComponent
 
 // ======== Enums and Values ========
 HelldiverCustomizationPassiveBonus

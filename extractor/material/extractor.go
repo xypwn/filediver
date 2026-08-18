@@ -2,6 +2,7 @@ package material
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"image"
@@ -799,7 +800,7 @@ func checkBuildingShaderDecalUV(ctx *extractor.Context, mat *material.Material) 
 	return 0, nil
 }
 
-func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Document, imgOpts *ImageOptions, matName string, unitData *datalib.UnitData) (uint32, error) {
+func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Document, imgOpts *ImageOptions, matSlot stingray.ThinHash, matName string, unitData *datalib.UnitData) (uint32, error) {
 	cfg := ctx.Config()
 
 	// Avoid duplicating material if it already is added to document
@@ -1463,6 +1464,32 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 		materialSettingsAndTextures[ctx.LookupThinHash(setting)] = value
 	}
 
+	entityHash := ctx.FileID().Name
+	if cfg.Unit.EntityName != "" {
+		newHash, err := stingray.ParseOrSum(cfg.Unit.EntityName)
+		if err == nil {
+			entityHash = newHash
+		}
+	}
+	{
+		materialVariablesComponentData, err := datalib.GetMaterialVariablesComponentDataForHash(entityHash)
+		if err == nil {
+			var materialVariablesComponent datalib.MaterialVariablesComponent
+			if _, err := binary.Decode(materialVariablesComponentData, binary.LittleEndian, &materialVariablesComponent); err != nil {
+				return 0, err
+			}
+			for _, variable := range materialVariablesComponent.Variables {
+				if variable.VariableName.Value == 0x0 {
+					continue
+				}
+				if variable.MaterialSlotName.Value != 0x0 && variable.MaterialSlotName != matSlot {
+					continue
+				}
+				materialSettingsAndTextures[ctx.LookupThinHash(variable.VariableName)] = variable.Value
+			}
+		}
+	}
+
 	_, hasTextureLut := mat.Textures[stingray.Sum("texture_lut").Thin()]
 	_, hasSurfaceDataArray := mat.Textures[stingray.Sum("surface_data_array").Thin()]
 	_, hasDetailData := mat.Textures[stingray.Sum("Detail_Data").Thin()]
@@ -1698,7 +1725,7 @@ func convertOpts(ctx *extractor.Context, imgOpts *ImageOptions, gltfDoc *gltf.Do
 		return nil
 	}
 
-	matIdx, err := AddMaterial(ctx, mat, doc, imgOpts, ctx.FileID().Name.String(), nil)
+	matIdx, err := AddMaterial(ctx, mat, doc, imgOpts, stingray.Sum("default").Thin(), ctx.FileID().Name.String(), nil)
 	if err != nil {
 		return err
 	}

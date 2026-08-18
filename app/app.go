@@ -915,6 +915,39 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 		extrCtx = extrCtx.WithAssetOverrides(*a.AssetOverrides).WithColorGrading(planet.PaletteGroupLowland.AssetGrading)
 	}
 
+	extrCtx = (func() *extractor.Context {
+		if !extrCfg.Unit.EntityOverrideDefault {
+			return extrCtx
+		}
+		if extrCfg.Unit.EntityName == "" {
+			return extrCtx
+		}
+		entityHash, err := stingray.ParseOrSum(extrCfg.Unit.EntityName)
+		if err != nil {
+			return extrCtx
+		}
+
+		materialSwapData, err := datalib.GetMaterialSwapComponentDataForHash(entityHash)
+		if err != nil {
+			return extrCtx
+		}
+
+		var materialSwap datalib.MaterialSwapComponent
+		if _, err := binary.Decode(materialSwapData, binary.LittleEndian, &materialSwap); err != nil {
+			return extrCtx
+		}
+
+		materialOverrides := make(map[stingray.ThinHash]stingray.Hash)
+		for _, materialSlot := range materialSwap.MaterialSlots {
+			if materialSlot.MaterialSlotName.Value == 0x0 {
+				continue
+			}
+			materialOverrides[materialSlot.MaterialSlotName] = materialSlot.SwapSettings[0].Material
+		}
+
+		return extrCtx.WithMaterialOverrides(materialOverrides)
+	})()
+
 	err := extr(extrCtx)
 	outFiles := getOutFiles()
 	if err != nil {

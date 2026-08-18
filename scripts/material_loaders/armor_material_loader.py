@@ -82,10 +82,13 @@ class ArmorMaterialLoader(FilediverMaterialLoaderInterface):
                 case "customization_camo_tiler_array":
                     config_nodes["Camo Array"].image = image
                     image.colorspace_settings.name = "Non-Color"
-        
-        detail_tile_factor_mult = config.get("extras", {}).get("detail_tile_factor_mult")
-        if detail_tile_factor_mult is not None:
-            config_nodes["HD2 Shader Template"].inputs['detail_tile_factor_mult'].default_value = detail_tile_factor_mult[0]
+
+        for setting, value in config.get("extras", {}).items():
+            if setting not in config_nodes["HD2 Shader Template"].inputs:
+                continue
+            if setting in ["decal_size_x", "decal_id_offset_x", "decal_lut_size_x"]:
+                config_nodes["HD2 Shader Template"].inputs['use_dynamic_decals'].default_value = 1.0
+            config_nodes["HD2 Shader Template"].inputs[setting].default_value = value[0]
 
         print("    Finalizing material")
         self.shader_module.update_images(HD2_Shader, object_mat)
