@@ -207,6 +207,7 @@ struct StampInfo {
     float flattening_intensity;
     float unk_float1;
     StampBitfield stamp_bits;
+    padding[6];
 };
 
 struct StampOverlapSettings {
