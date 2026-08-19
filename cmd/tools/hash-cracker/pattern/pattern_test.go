@@ -1,7 +1,6 @@
 package pattern
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -57,27 +56,81 @@ func TestParse(t *testing.T) {
 	}
 }
 
-func TestHello(t *testing.T) {
-	require := require.New(t)
-	//irSeg, err := parse([]byte("<$hello|hi{1,2}>{1,2}"))
-	irSeg, err := parse([]byte("<<0|1|2|3|4|5|6|7|8|9>{3}><0|1|2|3|4|5|6|7|8|9>{2}"))
-	//irSeg, err := parse([]byte("<0|1|2|3|4|5|6|7|8|9>{6}"))
-	//irSeg, err := parse([]byte("<0|1|2|3|4|5|6|7>{10}"))
-	require.NoError(err)
-	fmt.Println("ir", irSeg)
+func TestCompile(t *testing.T) {
+	cases := []struct {
+		name    string
+		expr    string
+		opts    CompileOptions
+		want    Segment
+		wantErr string
+	}{
+		{"basic", "a|b",
+			CompileOptions{},
+			Segment{
+				Segs: [][]Segment{
+					{
+						{Str: "a", Comp: 1},
+						{Str: "b", Comp: 1},
+					},
+				},
+				Comp:  2,
+				Comps: []int{2},
+			}, "",
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			require := require.New(t)
+			prog, err := Compile([]byte(c.expr), c.opts)
+			if c.wantErr == "" {
+				require.NoError(err)
+			} else {
+				require.EqualError(err, c.wantErr)
+			}
+			require.Equal(c.want, prog)
+		})
+	}
+}
 
-	prog := compile(irSeg)
-	fmt.Println("prog", prog)
-	//fmt.Println(prog.Comp())
-	fmt.Println(prog.comp)
-	idx := prog.makeIndex()
-	//fmt.Println(idx)
-	fmt.Println(prog.StringAt(idx))
-	//fmt.Println("carry =", idx.Add(prog, 12345))
-	fmt.Println("carry =", idx.Add(prog, 100))
-	fmt.Println(prog.StringAt(idx))
-	fmt.Println("carry =", idx.Add(prog, 100))
-	fmt.Println(prog.StringAt(idx))
-	fmt.Println(idx)
-	fmt.Println(prog.MaxLen())
+func TestAdd(t *testing.T) {
+	cases := []struct {
+		name  string
+		expr  string
+		nwant []any
+	}{
+		{"basic", "<0|1|2|3|4|5|6|7|8|9>{10}",
+			[]any{
+				69420, "0000069420",
+				12345678, "0012415098",
+			},
+		},
+		{"nested_or", "<0|1|2|3|4|5|6|7|8|9>{3}|one_thousand",
+			[]any{
+				999, "999",
+				1, "one_thousand",
+			},
+		},
+	}
+	for _, c := range cases {
+		for _, optimize := range []bool{false, true} {
+			name := c.name
+			if optimize {
+				name += "_opt"
+			} else {
+				name += "_no_opt"
+			}
+			t.Run(name, func(t *testing.T) {
+				require := require.New(t)
+				prog, err := Compile([]byte(c.expr), CompileOptions{NoOptimize: !optimize})
+				require.NoError(err)
+				idx := prog.MakeIndex()
+				for i := 0; i < len(c.nwant); i += 2 {
+					n := c.nwant[i].(int)
+					want := c.nwant[i+1].(string)
+					idx.Add(prog, n)
+					require.Equal(want, prog.StringAt(idx))
+				}
+			})
+		}
+	}
 }

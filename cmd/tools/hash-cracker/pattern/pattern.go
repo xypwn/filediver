@@ -10,6 +10,10 @@ import (
 	"strings"
 )
 
+type CompileOptions struct {
+	NoOptimize bool
+}
+
 var (
 	ErrNotAscii                       = errors.New("pattern must be ASCII-only")
 	ErrNullCharacter                  = errors.New("pattern must not contain the null ('\\0') character")
@@ -17,6 +21,7 @@ var (
 	ErrNumberTooLarge                 = errors.New("number too large")
 	ErrExpectedNonnegativeInteger     = errors.New("expected nonnegative whole number")
 	ErrExpectedExpressionBeforeRepeat = errors.New("expected expression before repeat expression")
+	ErrComplexityTooLarge             = errors.New("complexity (number of possibilities) must be less than the 64-bit signed integer limit (9223372036854775807)")
 )
 
 type Error struct {
@@ -32,292 +37,9 @@ func (e *Error) Unwrap() error {
 	return e.Err
 }
 
-type (
-	ir struct {
-		names map[string]irSegment
-		body  irSegment
-	}
-	irSegment       interface{ String() string }
-	irSegmentChoice []irSegment // <a|b|c>
-	irSegmentConcat []irSegment // <a><b><c>
-	irSegmentStr    string      // <someString>
-	irSegmentName   string      // <$name>
-	irSegmentRepeat struct {
-		Seg      irSegment
-		Min, Max int
-	} // <something{1,2}>
-)
-
-func (s irSegmentChoice) String() string {
-	var b strings.Builder
-	b.WriteString("<")
-	for i, seg := range s {
-		if i != 0 {
-			b.WriteString("|")
-		}
-		b.WriteString(seg.String())
-	}
-	b.WriteString(">")
-	return b.String()
-}
-func (s irSegmentConcat) String() string {
-	var b strings.Builder
-	for _, seg := range s {
-		b.WriteString(seg.String())
-	}
-	return b.String()
-}
-func (s irSegmentStr) String() string {
-	return strconv.Quote(string(s))
-}
-func (s irSegmentName) String() string {
-	return "$" + strconv.Quote(string(s))
-}
-func (s irSegmentRepeat) String() string {
-	return fmt.Sprintf("%s{%d,%d}", s.Seg, s.Min, s.Max)
-}
-
-type parser struct {
-	src []byte
-	i   int
-
-	ir ir
-}
-
-// Makes the parser error at the last position.
-//
-// BREAKS CONTROL FLOW VIA PANIC!
-func (p *parser) err(e error) {
-	panic(&Error{Position: p.i - 1, Err: e})
-}
-
-// If charset is empty, errors unconditionally with
-// message "unexpected '<last char>'".
-//
-// If charset is nonempty and the last char is not in charset,
-// errors with message "expected 'a', 'b' or 'c', but got '<last char>'".
-//
-// MAY BREAK CONTROL FLOW VIA PANIC!
-func (p *parser) expectLast(charset string) {
-	charStr := func(c byte) string {
-		if c == 0 {
-			return "end of file"
-		} else {
-			return strconv.QuoteRune(rune(c))
-		}
-	}
-	c := p.last()
-	if charset == "" {
-		p.err(fmt.Errorf("unexpected %s", charStr(c)))
-	} else {
-		if !strings.ContainsRune(charset, rune(c)) {
-			var msg strings.Builder
-			msg.WriteString("expected ")
-			for i := range charset {
-				msg.WriteString(charStr(charset[i]))
-				if i < len(charset)-2 {
-					msg.WriteString(", ")
-				} else if i == len(charset)-2 {
-					msg.WriteString(" or ")
-				}
-			}
-			msg.WriteString(", but got ")
-			msg.WriteString(charStr(c))
-			p.err(errors.New(msg.String()))
-		}
-	}
-}
-
-// 0 if EOF or BOF
-func (p *parser) last() byte {
-	if p.i == 0 || p.i >= len(p.src)+1 {
-		return 0
-	}
-	return p.src[p.i-1]
-}
-
-// 0 if EOF
-func (p *parser) next() byte {
-	if p.i >= len(p.src) {
-		p.i++
-		return 0
-	}
-	b := p.src[p.i]
-	p.i++
-	return b
-}
-
-// -1 for empty int
-func (p *parser) parseNonegativeInt() (number int, delim byte) {
-	n := -1
-	for {
-		c := p.next()
-		if c < '0' || c > '9' {
-			return n, c
-		}
-		if n == -1 {
-			n = 0
-		} else {
-			if n > math.MaxInt/10 {
-				p.err(ErrNumberTooLarge)
-			}
-			n *= 10
-		}
-		n += int(c - '0')
-	}
-}
-
-func (p *parser) parseSegmentRepeatMinMax() irSegmentRepeat {
-	min, delim := p.parseNonegativeInt()
-	if min == -1 {
-		p.err(ErrExpectedNonnegativeInteger)
-	}
-	p.expectLast(",}")
-	switch delim {
-	case '}':
-		return irSegmentRepeat{Min: min, Max: min}
-	case ',':
-	}
-	max, delim := p.parseNonegativeInt()
-	if max == -1 {
-		p.err(ErrExpectedNonnegativeInteger)
-	}
-	p.expectLast("}")
-	if max < min {
-		p.err(fmt.Errorf("expected minimum repetitions (%d) to be less than maximum (%d) repetitions", min, max))
-	}
-	return irSegmentRepeat{Min: min, Max: max}
-}
-
-func (p *parser) parseExpr(toplevel bool) irSegment {
-	var segIsName bool
-	var segStr strings.Builder
-
-	// General hierarchy constructed here is:
-	// segment = choice of parts of segment
-	// example: <a>b{2}|c
-	//   (choice between (a concatenated with bb) and c)
-	// where:
-	//   choice is an ordered set
-	//   parts is a concatenation
-	var seg irSegment
-	var segParts []irSegment
-	var segChoices []irSegment
-	flushSegStr := func() {
-		if segStr.Len() == 0 {
-			return
-		}
-		str := strings.Clone(segStr.String())
-		if segIsName {
-			seg = irSegmentName(str)
-		} else {
-			seg = irSegmentStr(str)
-		}
-		segIsName = false
-		segStr.Reset()
-	}
-	flushSegPart := func() {
-		flushSegStr()
-		if seg != nil {
-			segParts = append(segParts, seg)
-		}
-		seg = nil
-	}
-	flushSegChoice := func() {
-		flushSegPart()
-		if len(segParts) > 0 {
-			if len(segParts) == 1 {
-				segChoices = append(segChoices, segParts[0])
-			} else {
-				segChoices = append(segChoices, irSegmentConcat(segParts))
-			}
-		}
-		segParts = nil
-	}
-
-loop:
-	for {
-		c := p.next()
-		switch c {
-		case '>', 0:
-			if toplevel {
-				p.expectLast("\x00")
-			} else {
-				p.expectLast(">")
-			}
-			flushSegChoice()
-			break loop
-		case '\\':
-			c1 := p.next()
-			if c1 == 0 {
-				p.err(ErrUnexpectedEOF)
-			}
-			segStr.WriteByte(c1)
-		case '|':
-			flushSegChoice()
-		case '<':
-			flushSegPart()
-			seg = p.parseExpr(false)
-		case '$':
-			if segStr.Len() == 0 {
-				segIsName = true
-			} else {
-				p.expectLast("")
-			}
-		case '{':
-			flushSegPart()
-			if len(segParts) == 0 {
-				p.err(ErrExpectedExpressionBeforeRepeat)
-			}
-			rs := p.parseSegmentRepeatMinMax()
-			rs.Seg = segParts[len(segParts)-1]
-			segParts[len(segParts)-1] = rs
-		default:
-			if seg != nil {
-				flushSegPart()
-			}
-			segStr.WriteByte(c)
-		}
-	}
-	if len(segChoices) == 1 {
-		return segChoices[0]
-	} else if len(segChoices) == 0 {
-		return nil
-	} else {
-		return irSegmentChoice(segChoices)
-	}
-}
-
-func parse(src []byte) (irSeg irSegment, err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			if e, ok := r.(*Error); ok {
-				err = e
-			} else {
-				panic(r)
-			}
-		}
-	}()
-
-	for _, c := range src {
-		if c > 0x7f {
-			return nil, ErrNotAscii
-		}
-		if c == 0 {
-			return nil, ErrNullCharacter
-		}
-	}
-
-	p := parser{
-		src: src,
-	}
-	irSeg = p.parseExpr(true)
-	return
-}
-
-type segment struct {
-	// text (if str != "")
-	str string
+type Segment struct {
+	// text (if Str != "")
+	Str string
 	// cartesian product of ordered sets (if str == "")
 	//
 	// (note that this is in a way the opposite of how
@@ -325,45 +47,45 @@ type segment struct {
 	// of cartesian products; the reason we're using
 	// this model is for the compiled segments is better
 	// data locality)
-	segs [][]segment
+	Segs [][]Segment
 	// Number of elements (in this segment and in
 	// each cartesian product operand).
 	// math.MaxInt if >= math.MaxInt
-	comp  int
-	comps []int
+	Comp  int
+	Comps []int
 }
 
-type segIdx struct {
-	segs     [][]segIdx
-	idxs     []int
-	totalIdx int // total index in [0,comp-1]
+type SegIdx struct {
+	Segs     [][]SegIdx
+	Idxs     []int
+	TotalIdx int // total index in [0,comp-1]
 }
 
 // Reset zeroes out the index.
-func (idx *segIdx) Reset() {
-	for i := range idx.idxs {
-		idx.idxs[i] = 0
-		for j := range idx.segs[i] {
-			idx.segs[i][j].Reset()
+func (idx *SegIdx) Reset() {
+	for i := range idx.Idxs {
+		idx.Idxs[i] = 0
+		for j := range idx.Segs[i] {
+			idx.Segs[i][j].Reset()
 		}
 	}
-	idx.totalIdx = 0
+	idx.TotalIdx = 0
 }
 
-func (idx segIdx) String() string {
-	if idx.segs == nil && idx.idxs == nil {
+func (idx SegIdx) String() string {
+	if idx.Segs == nil && idx.Idxs == nil {
 		return "nil"
 	}
 	var res strings.Builder
-	fmt.Fprintf(&res, "segs=%v,", idx.segs)
-	fmt.Fprintf(&res, "idxs=%v", idx.idxs)
+	fmt.Fprintf(&res, "segs=%v,", idx.Segs)
+	fmt.Fprintf(&res, "idxs=%v", idx.Idxs)
 	return res.String()
 }
 
-// Adds n to the [segIdx] for the [segment]. The
-// index MUST have been generated from the given
-// segment via [segment.makeIndex].
-func (idx segIdx) Add(s segment, n int) (carry int) {
+// Add efficiently advances the index by n for the segment.
+//
+// n must be positive.
+func (idx *SegIdx) Add(s Segment, n int) (carry int) {
 	// The recursive algorithm is a bit like adding
 	// n to the last digit of a number in decimal
 	// addition.
@@ -395,33 +117,33 @@ func (idx segIdx) Add(s segment, n int) (carry int) {
 		//defer func() { fmt.Println("<addToUnion", i, n, carry) }()
 
 		// Fast path: All union operands are single strings
-		if s.comps[i] == len(s.segs[i]) {
-			v := idx.idxs[i] + n
-			carry = v / s.comps[i]
-			idx.idxs[i] = v % s.comps[i]
+		if s.Comps[i] == len(s.Segs[i]) {
+			v := idx.Idxs[i] + n
+			carry = v / s.Comps[i]
+			idx.Idxs[i] = v % s.Comps[i]
 			return
 		}
 
 		// Slow path: Some union operands are cartesian products
-		carry = n / s.comps[i]
-		n %= s.comps[i]
-		j := idx.idxs[i]
-		if idx.segs[i][j].totalIdx >= s.segs[i][j].comp-n {
+		carry = n / s.Comps[i]
+		n %= s.Comps[i]
+		j := idx.Idxs[i]
+		if idx.Segs[i][j].TotalIdx >= s.Segs[i][j].Comp-n {
 			// Fill first union operand fully if it would overflow
-			n -= s.segs[i][j].comp - idx.segs[i][j].totalIdx
-			idx.segs[i][j].Reset() // zero the fully filled operand
+			n -= s.Segs[i][j].Comp - idx.Segs[i][j].TotalIdx
+			idx.Segs[i][j].Reset() // zero the fully filled operand
 			j++
-			if j >= len(s.segs[i]) {
+			if j >= len(s.Segs[i]) {
 				carry++
 				j = 0
 			}
-			for n >= s.segs[i][j].comp {
+			for n >= s.Segs[i][j].Comp {
 				// Fill remaining union operands that would overflow
 				// (we don't have to do anything to the index since
 				// it's already zeroed and would remain that way)
-				n -= s.segs[i][j].comp
+				n -= s.Segs[i][j].Comp
 				j++
-				if j >= len(s.segs[i]) {
+				if j >= len(s.Segs[i]) {
 					carry++
 					j = 0
 				}
@@ -430,51 +152,50 @@ func (idx segIdx) Add(s segment, n int) (carry int) {
 		if n != 0 {
 			// Fill the rest into the union operand that can't be
 			// filled fully
-			c := idx.segs[i][j].Add(s.segs[i][j], n)
+			c := idx.Segs[i][j].Add(s.Segs[i][j], n)
 			if c != 0 {
-				panic("expected carry to be zero")
+				panic(fmt.Sprintf("expected carry to be zero, but got %d", c))
 			}
 			n = 0
 		}
-		idx.idxs[i] = j
+		idx.Idxs[i] = j
 		return
 	}
 	carry = n
-	for i := range slices.Backward(s.segs) { // cart. prod. terms
+	for i := range slices.Backward(s.Segs) { // cart. prod. terms
 		if carry == 0 {
 			break
 		}
 		carry = addToUnion(i, carry)
 	}
-	idx.totalIdx = (idx.totalIdx + n) % s.comp
+	idx.TotalIdx = (idx.TotalIdx + n) % s.Comp
 	return
 }
 
-func (s segment) AppendAt(buf []byte, idx segIdx) []byte {
-	if s.str != "" {
-		buf = append(buf, s.str...)
+// AppendAt appends the string at the given pattern index to
+// the buffer.
+func (s Segment) AppendAt(buf []byte, idx SegIdx) []byte {
+	if s.Str != "" {
+		buf = append(buf, s.Str...)
 	}
-	for i := range s.segs {
-		j := idx.idxs[i]
-		buf = s.segs[i][j].AppendAt(buf, idx.segs[i][j])
+	for i := range s.Segs {
+		j := idx.Idxs[i]
+		buf = s.Segs[i][j].AppendAt(buf, idx.Segs[i][j])
 	}
 	return buf
 }
 
-func (s segment) StringAt(idx segIdx) string {
+// StringAt returns the string at the given pattern index.
+func (s Segment) StringAt(idx SegIdx) string {
 	return string(s.AppendAt(nil, idx))
 }
 
-type Program struct {
-	segment
-}
-
-func (s segment) String() string {
-	if s.str != "" {
-		return strconv.Quote(s.str)
+func (s Segment) String() string {
+	if s.Str != "" {
+		return strconv.Quote(s.Str)
 	} else {
 		var b strings.Builder
-		for _, segs := range s.segs {
+		for _, segs := range s.Segs {
 			b.WriteString("<")
 			for i, seg := range segs {
 				if i != 0 {
@@ -488,28 +209,28 @@ func (s segment) String() string {
 	}
 }
 
-func (s *segment) calculateComps() {
-	if s.str != "" {
-		s.comp = 1
+func (s *Segment) calculateComps() {
+	if s.Str != "" {
+		s.Comp = 1
 		return
 	}
-	if s.comps != nil {
+	if s.Comps != nil {
 		return
 	}
-	s.comps = make([]int, len(s.segs))
+	s.Comps = make([]int, len(s.Segs))
 	prod := 1
-	for i := range s.segs {
+	for i := range s.Segs {
 		sum := 0
-		for j := range s.segs[i] {
-			s.segs[i][j].calculateComps()
-			seg := s.segs[i][j]
-			if seg.comp == 0 {
+		for j := range s.Segs[i] {
+			s.Segs[i][j].calculateComps()
+			seg := s.Segs[i][j]
+			if seg.Comp == 0 {
 				panic("segment complexity should be nonzero after updateComps()")
 			}
-			if sum > math.MaxInt-seg.comp {
+			if sum > math.MaxInt-seg.Comp {
 				sum = math.MaxInt // addition would overflow
 			} else {
-				sum += seg.comp
+				sum += seg.Comp
 			}
 		}
 		if prod > math.MaxInt/sum {
@@ -517,70 +238,48 @@ func (s *segment) calculateComps() {
 		} else {
 			prod *= sum
 		}
-		s.comps[i] = sum
+		s.Comps[i] = sum
 	}
-	s.comp = prod
+	s.Comp = prod
 }
 
-func (s segment) makeIndex() (idx segIdx) {
-	if s.str != "" {
+// MakeIndex creates an index for the given segment.
+func (s Segment) MakeIndex() (idx SegIdx) {
+	if s.Str != "" {
 		return
 	}
-	idx.idxs = make([]int, len(s.segs))
-	idx.segs = make([][]segIdx, len(s.segs))
-	for i, segs := range s.segs {
-		idx.segs[i] = make([]segIdx, len(segs))
+	idx.Idxs = make([]int, len(s.Segs))
+	idx.Segs = make([][]SegIdx, len(s.Segs))
+	for i, segs := range s.Segs {
+		idx.Segs[i] = make([]SegIdx, len(segs))
 		for j, seg := range segs {
-			idx.segs[i][j] = seg.makeIndex()
+			idx.Segs[i][j] = seg.MakeIndex()
 		}
 	}
 	return
-}
-
-// Comp calculates the complexity (number of elements),
-// or math.MaxInt if it is >= math.MaxInt.
-func (s segment) Comp() int {
-	if s.str != "" {
-		return 1
-	}
-	prod := 1
-	for _, segs := range s.segs {
-		sum := 0
-		for _, seg := range segs {
-			c := seg.Comp()
-			if c == math.MaxInt {
-				return math.MaxInt
-			}
-			// TODO: Fix possible overflow from addition
-			sum += c
-		}
-		if prod > math.MaxInt/sum {
-			return math.MaxInt // would overflow
-		}
-		prod *= sum
-	}
-	return prod
 }
 
 // CompBig calculates the complexity (number of elements)
 // as a big int, or max if the number is bigger than max.
 //
 // Pass nil as max to ignore maximum.
-func (s segment) CompBig(max *big.Int) *big.Int {
-	if s.str != "" {
+func (s Segment) CompBig(max *big.Int) *big.Int {
+	if s.Str != "" {
 		return big.NewInt(1)
 	}
 	prod := big.NewInt(1)
 	sum := &big.Int{}
-	for _, segs := range s.segs {
+	for _, segs := range s.Segs {
 		sum.SetInt64(0)
 		for _, seg := range segs {
 			c := seg.CompBig(max)
 			if max != nil && c.Cmp(max) >= 0 {
 				return max
 			}
-			// TODO: Fix possible overflow from addition
 			sum.Add(sum, c)
+			if max != nil && sum.Cmp(max) >= 0 {
+				return max
+			}
 		}
 		prod.Mul(prod, sum)
 		if max != nil && prod.Cmp(max) >= 0 {
@@ -592,12 +291,12 @@ func (s segment) CompBig(max *big.Int) *big.Int {
 
 // MaxLen returns the maximum possible string length
 // generated from the pattern.
-func (s segment) MaxLen() int {
-	if s.str != "" {
-		return len(s.str)
+func (s Segment) MaxLen() int {
+	if s.Str != "" {
+		return len(s.Str)
 	}
 	concatLen := 0
-	for _, segs := range s.segs {
+	for _, segs := range s.Segs {
 		unionLen := 0
 		for _, seg := range segs {
 			unionLen = max(unionLen, seg.MaxLen())
@@ -607,33 +306,33 @@ func (s segment) MaxLen() int {
 	return concatLen
 }
 
-func (s *segment) optimize() {
+func (s *Segment) optimize() {
 	// Optimize inner segments first.
-	for i := range s.segs {
-		for j := range s.segs[i] {
-			s.segs[i][j].optimize()
+	for i := range s.Segs {
+		for j := range s.Segs[i] {
+			s.Segs[i][j].optimize()
 		}
 	}
 
 	// Empty cartesian products or union elements can
 	// be removed.
-	if i := slices.IndexFunc(s.segs, func(segs []segment) bool {
+	if i := slices.IndexFunc(s.Segs, func(segs []Segment) bool {
 		return len(segs) == 0
 	}); i != -1 {
-		var newSegs [][]segment
+		var newSegs [][]Segment
 		var newComps []int
-		for ; i < len(s.segs); i++ {
-			if len(s.segs[i]) != 0 {
-				newSegs = append(newSegs, s.segs[i])
-				newComps = append(newComps, s.comps[i])
+		for ; i < len(s.Segs); i++ {
+			if len(s.Segs[i]) != 0 {
+				newSegs = append(newSegs, s.Segs[i])
+				newComps = append(newComps, s.Comps[i])
 			}
 		}
-		s.segs = newSegs
-		s.comps = newComps
+		s.Segs = newSegs
+		s.Comps = newComps
 	}
-	for i := range s.segs {
-		s.segs[i] = slices.DeleteFunc(s.segs[i], func(s segment) bool {
-			return s.str == "" && len(s.segs) == 0
+	for i := range s.Segs {
+		s.Segs[i] = slices.DeleteFunc(s.Segs[i], func(s Segment) bool {
+			return s.Str == "" && len(s.Segs) == 0
 		})
 	}
 
@@ -642,22 +341,22 @@ func (s *segment) optimize() {
 	//
 	// Example:
 	// x(A, u(x(B, C)), u(x(D))) -> x(A, B, C, D)
-	if i := slices.IndexFunc(s.segs, func(segs []segment) bool {
+	if i := slices.IndexFunc(s.Segs, func(segs []Segment) bool {
 		return len(segs) == 1
 	}); i != -1 {
-		var newSegs [][]segment
+		var newSegs [][]Segment
 		var newComps []int
-		for ; i < len(s.segs); i++ {
-			if len(s.segs[i]) == 1 {
-				newSegs = append(newSegs, s.segs[i][0].segs...)
-				newComps = append(newComps, s.segs[i][0].comps...)
+		for ; i < len(s.Segs); i++ {
+			if len(s.Segs[i]) == 1 {
+				newSegs = append(newSegs, s.Segs[i][0].Segs...)
+				newComps = append(newComps, s.Segs[i][0].Comps...)
 			} else {
-				newSegs = append(newSegs, s.segs[i])
-				newComps = append(newComps, s.comps[i])
+				newSegs = append(newSegs, s.Segs[i])
+				newComps = append(newComps, s.Comps[i])
 			}
 		}
-		s.segs = newSegs
-		s.comps = newComps
+		s.Segs = newSegs
+		s.Comps = newComps
 	}
 
 	// Cartesian product with single parameter
@@ -666,59 +365,77 @@ func (s *segment) optimize() {
 	//
 	// Example:
 	// x(u(A)) -> A
-	if len(s.segs) == 1 && len(s.segs[0]) == 1 {
-		*s = s.segs[0][0]
+	if len(s.Segs) == 1 && len(s.Segs[0]) == 1 {
+		*s = s.Segs[0][0]
 	}
 }
 
-func compile(irSeg irSegment) segment {
-	var res segment
+func compile(irSeg irSegment, opts CompileOptions) Segment {
+	var res Segment
 	switch irSeg := irSeg.(type) {
 	case irSegmentChoice:
-		res.segs = make([][]segment, 1)
-		res.segs[0] = make([]segment, len(irSeg))
+		res.Segs = make([][]Segment, 1)
+		res.Segs[0] = make([]Segment, len(irSeg))
 		for i := range irSeg {
-			res.segs[0][i] = compile(irSeg[i])
+			res.Segs[0][i] = compile(irSeg[i], opts)
 		}
 	case irSegmentConcat:
-		res.segs = make([][]segment, len(irSeg))
+		res.Segs = make([][]Segment, len(irSeg))
 		for i := range irSeg {
-			res.segs[i] = []segment{compile(irSeg[i])}
+			res.Segs[i] = []Segment{compile(irSeg[i], opts)}
 		}
 	case irSegmentStr:
-		res.str = string(irSeg)
+		res.Str = string(irSeg)
 	case irSegmentRepeat:
 		// Expand repeat (e.g. a{1,2} -> a|aa)
-		body := compile(irSeg.Seg)
+		body := compile(irSeg.Seg, opts)
 		if irSeg.Min == 1 && irSeg.Max == 1 {
 			return body
 		}
-		res.segs = make([][]segment, 1)
-		res.segs[0] = make([]segment, irSeg.Max-irSeg.Min+1)
-		for i := range res.segs[0] {
+		res.Segs = make([][]Segment, 1)
+		res.Segs[0] = make([]Segment, irSeg.Max-irSeg.Min+1)
+		for i := range res.Segs[0] {
 			reps := irSeg.Min + i
-			repeated := segment{segs: make([][]segment, reps)}
-			for j := range repeated.segs {
-				repeated.segs[j] = []segment{body}
+			repeated := Segment{Segs: make([][]Segment, reps)}
+			for j := range repeated.Segs {
+				repeated.Segs[j] = []Segment{body}
 			}
-			res.segs[0][i] = repeated
+			res.Segs[0][i] = repeated
 		}
 	case irSegmentName:
 		panic("TODO")
 	default:
 		panic("unhandled case")
 	}
-
-	res.calculateComps()
-	res.optimize()
 	return res
 }
 
-func Compile(src []byte) (err error) {
+// Compile compiles the given expression.
+//
+// Pass opts as CompileOptions{} for default values.
+//
+// If err is of type [Error], it also has positional information.
+func Compile(src []byte, opts CompileOptions) (prog Segment, err error) {
+	defer func() {
+		if err != nil {
+			err = fmt.Errorf("compiling pattern: %w", err)
+		}
+	}()
 	irSeg, err := parse(src)
-
-	var ir ir
-	ir.body = irSeg
-	//TODO
-	return nil
+	if err != nil {
+		return Segment{}, err
+	}
+	seg := compile(irSeg, opts)
+	seg.calculateComps()
+	if !opts.NoOptimize {
+		seg.optimize()
+	}
+	if seg.Comp == math.MaxInt {
+		comp, _ := seg.CompBig(nil).Float64()
+		return Segment{}, fmt.Errorf("%w: complexity is %.0f, ~%.2e times too large",
+			ErrComplexityTooLarge,
+			comp,
+			comp/float64(seg.Comp))
+	}
+	return seg, nil
 }

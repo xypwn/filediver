@@ -1,7 +1,6 @@
-package pattern
+package cl
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
 	"slices"
@@ -9,69 +8,16 @@ import (
 	"unicode/utf8"
 
 	cl "github.com/CyberChainXyz/go-opencl"
+	"github.com/xypwn/filediver/cmd/tools/hash-cracker/pattern"
 	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/util"
 )
 
-type codeBuilder struct {
-	buf       bytes.Buffer
-	B         bytes.Buffer
-	IndentStr string
-	Ind       int
-}
-
-func (cb *codeBuilder) line(format string, text []byte) {
-	extraUnind := 0
-	if strings.HasPrefix(format, "case ") || strings.HasSuffix(format, ":") {
-		extraUnind++
-	}
-	if format != "" {
-		for range cb.Ind - extraUnind {
-			cb.B.WriteString(cb.IndentStr)
-		}
-	}
-	cb.B.Write(text)
-	cb.B.WriteByte('\n')
-}
-
-// L writes one or multiple formatted lines of code.
-//
-// Automatically indents for every "{" and unindents for
-// every "}".
-//
-// "case" expressions and labels are indented 1 less without changing current
-// indentation.
-func (cb *codeBuilder) L(format string, args ...any) {
-	ind := strings.Count(format, "{") - strings.Count(format, "}")
-	if ind < 0 {
-		cb.Ind += ind
-	}
-	argi := 0
-	for ln := range strings.SplitSeq(format, "\n") {
-		ln = strings.TrimSuffix(ln, "\r")
-		argn := 0
-		for i := 0; i < len(ln)-1; i++ {
-			// NOTE: Non-ASCII not handled.
-			if ln[i] == '%' && ln[i+1] != '%' {
-				argn++
-				i++
-			}
-		}
-		fmt.Fprintf(&cb.buf, ln, args[argi:argi+argn]...)
-		cb.line(ln, cb.buf.Bytes())
-		cb.buf.Reset()
-		argi += argn
-	}
-	if ind > 0 {
-		cb.Ind += ind
-	}
-}
-
 // Returns the number of elements needed in the index
 // for the given program.
-func getSegmentIdxLen(s segment) int {
-	n := len(s.segs)
-	for _, segs := range s.segs {
+func getSegmentIdxLen(s pattern.Segment) int {
+	n := len(s.Segs)
+	for _, segs := range s.Segs {
 		for _, seg := range segs {
 			n += getSegmentIdxLen(seg)
 		}
@@ -79,15 +25,16 @@ func getSegmentIdxLen(s segment) int {
 	return n
 }
 
-func readIdx(dest []int64, s segment, idx segIdx) int {
+// Reads the SegIdx into a flat array.
+func readIdx(dest []int64, s pattern.Segment, idx pattern.SegIdx) int {
 	p := 0
-	for i := range len(idx.idxs) {
-		dest[p] = int64(idx.idxs[i])
+	for i := range len(idx.Idxs) {
+		dest[p] = int64(idx.Idxs[i])
 		p++
 	}
-	for i, segs := range s.segs {
+	for i, segs := range s.Segs {
 		for j, seg := range segs {
-			p += readIdx(dest[p:], seg, idx.segs[i][j])
+			p += readIdx(dest[p:], seg, idx.Segs[i][j])
 		}
 	}
 	return p
@@ -98,7 +45,7 @@ type clBuffers struct {
 	strArrsFirstIdxs []int
 	numWorkers       int
 	idxLen           int
-	maxMatchBufLen   int
+	matchBufLen      int
 	maxCandidateLen  int
 	data             struct {
 		tries        []uint32
@@ -124,16 +71,16 @@ type clBuffers struct {
 	}
 }
 
-func makeClBuffers(runner *cl.OpenCLRunner, s segment, targetHashes []stingray.Hash, numWorkers, maxMatchBufLen int) (*clBuffers, error) {
+func makeClBuffers(runner *cl.OpenCLRunner, s pattern.Segment, targetHashes []stingray.Hash, numWorkers, matchBufLen int) (*clBuffers, error) {
 	b := &clBuffers{
 		numWorkers:      numWorkers,
 		idxLen:          getSegmentIdxLen(s),
-		maxMatchBufLen:  maxMatchBufLen,
+		matchBufLen:     matchBufLen,
 		maxCandidateLen: s.MaxLen(),
 	}
 
-	if b.maxMatchBufLen < b.maxCandidateLen+1 {
-		return nil, fmt.Errorf("maxMatchBufLen (%d) must be at least 1 more than the maximum candidate string length (%d)", b.maxMatchBufLen, b.maxCandidateLen)
+	if b.matchBufLen < b.maxCandidateLen+1 {
+		return nil, fmt.Errorf("matchBufLen (%d) must be at least 1 more than the maximum candidate string length (%d)", b.matchBufLen, b.maxCandidateLen)
 	}
 
 	// Create tries buffer.
@@ -145,16 +92,16 @@ func makeClBuffers(runner *cl.OpenCLRunner, s segment, targetHashes []stingray.H
 	// Collect string arrays for all cases
 	// of unions of single string operands.
 	{
-		var addStrArrs func(s segment)
-		addStrArrs = func(s segment) {
-			if s.str != "" {
+		var addStrArrs func(s pattern.Segment)
+		addStrArrs = func(s pattern.Segment) {
+			if s.Str != "" {
 				return
 			}
-			for i, segs := range s.segs {
-				if len(segs) == s.comps[i] {
+			for i, segs := range s.Segs {
+				if len(segs) == s.Comps[i] {
 					strs := make([]string, len(segs))
 					for j, seg := range segs {
-						strs[j] = seg.str
+						strs[j] = seg.Str
 					}
 					b.strArrs = append(b.strArrs, strs)
 				} else {
@@ -213,7 +160,7 @@ func makeClBuffers(runner *cl.OpenCLRunner, s segment, targetHashes []stingray.H
 	}
 
 	// Match buffers
-	b.data.matches = make([]byte, b.maxMatchBufLen*numWorkers)
+	b.data.matches = make([]byte, b.matchBufLen*numWorkers)
 	b.data.matchesLens = make([]uint32, numWorkers)
 
 	// Create according OpenCL Buffers
@@ -221,53 +168,53 @@ func makeClBuffers(runner *cl.OpenCLRunner, s segment, targetHashes []stingray.H
 		var err error
 		b.cl.tries, err = runner.CreateEmptyBuffer(cl.READ_WRITE, binary.Size(b.data.tries))
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("creating tries buffer: %w", err)
 		}
 		b.cl.idxs, err = runner.CreateEmptyBuffer(cl.READ_WRITE, binary.Size(b.data.idxs))
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("creating indices buffer: %w", err)
 		}
 		b.cl.strs, err = cl.CreateBuffer(runner, cl.READ_ONLY|cl.COPY_HOST_PTR, b.data.strs)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("creating strings buffer: %w", err)
 		}
 		b.cl.strsOffsets, err = cl.CreateBuffer(runner, cl.READ_ONLY|cl.COPY_HOST_PTR, b.data.strsOffsets)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("creating strings offsets buffer: %w", err)
 		}
 		b.cl.strLens, err = cl.CreateBuffer(runner, cl.READ_ONLY|cl.COPY_HOST_PTR, b.data.strLens)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("creating string lengths buffer: %w", err)
 		}
 		b.cl.hashBitmap, err = cl.CreateBuffer(runner, cl.READ_ONLY|cl.COPY_HOST_PTR, b.data.hashBitmap)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("creating hash bitmap buffer: %w", err)
 		}
 		b.cl.targetHashes, err = cl.CreateBuffer(runner, cl.READ_ONLY|cl.COPY_HOST_PTR, b.data.targetHashes)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("creating target hash buffer: %w", err)
 		}
 		b.cl.matches, err = runner.CreateEmptyBuffer(cl.WRITE_ONLY, binary.Size(b.data.matches))
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("creating match buffer: %w", err)
 		}
 		b.cl.matchesLens, err = runner.CreateEmptyBuffer(cl.READ_WRITE, binary.Size(b.data.matchesLens))
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("creating matches length buffer: %w", err)
 		}
 	}
 
 	return b, nil
 }
 
-func (b *clBuffers) strArrOffset(s segment, unionIdx int) int {
+func (b *clBuffers) strArrOffset(s pattern.Segment, unionIdx int) int {
 	i := unionIdx
-	if s.comps[i] != len(s.segs[i]) {
+	if s.Comps[i] != len(s.Segs[i]) {
 		panic("expected strArrOffset to be called on union of only strings")
 	}
-	arr := make([]string, len(s.segs[i]))
-	for j := range s.segs[i] {
-		arr[j] = s.segs[i][j].str
+	arr := make([]string, len(s.Segs[i]))
+	for j := range s.Segs[i] {
+		arr[j] = s.Segs[i][j].Str
 	}
 	strArrIdx, found := slices.BinarySearchFunc(b.strArrs, arr, slices.Compare)
 	if !found {
@@ -311,7 +258,7 @@ func (b *clBuffers) write(runner *cl.OpenCLRunner) error {
 func (b *clBuffers) drainMatches() (matches []string) {
 	var s strings.Builder
 	for i := range b.numWorkers {
-		offs := i * b.maxMatchBufLen
+		offs := i * b.matchBufLen
 		for j := range int(b.data.matchesLens[i]) {
 			c := b.data.matches[offs+j]
 			if c != 0 {
@@ -328,7 +275,7 @@ func (b *clBuffers) drainMatches() (matches []string) {
 	return
 }
 
-func generateClCode(s segment, bufs *clBuffers) (code []byte) {
+func generateClCode(s pattern.Segment, bufs *clBuffers) (code []byte) {
 	// Quotes an OpenCL string (doesn't cover
 	// all escape sequences).
 	quote := func(s string) string {
@@ -362,7 +309,7 @@ func generateClCode(s segment, bufs *clBuffers) (code []byte) {
 	var cb codeBuilder
 	cb.IndentStr = "  "
 	cb.L("#define MAX_CANDIDATE_LEN %d", bufs.maxCandidateLen)
-	cb.L("#define MAX_MATCH_BUF_LEN %d", bufs.maxMatchBufLen)
+	cb.L("#define MAX_MATCH_BUF_LEN %d", bufs.matchBufLen)
 	cb.L("#define NUM_TARGET_HASHES %d", len(bufs.data.targetHashes))
 	cb.L("#define IDX_LEN %d", bufs.idxLen)
 	cb.L(`
@@ -483,16 +430,16 @@ bool try(const char *s, size_t n, const size_t id, __global const uint *hash_bit
 	cb.L("long i[IDX_LEN];")
 	cb.L("memcpy_lg(i, idxs + id*IDX_LEN, sizeof(i));")
 	totalIdxNum := 0
-	var genCode func(s segment, canTry bool)
-	genCode = func(s segment, canTry bool) {
+	var genCode func(s pattern.Segment, canTry bool)
+	genCode = func(s pattern.Segment, canTry bool) {
 		writeExprPushStr := func(memcpyFn, str string) {
 			cb.L("%s(candidate+candidate_len, %s, str_len);", memcpyFn, str)
 			cb.L("candidate_len += str_len;")
 		}
 		const exprTry = "if (!n || !try(candidate, candidate_len, id, hash_bitmap, target_hashes, matches, matches_lens)) goto ret; n--;"
-		if s.str != "" { // fallback; this case shouldn't happen
-			cb.L("int str_len = %d;", len(s.str))
-			writeExprPushStr("memcpy_lc", quote(s.str))
+		if s.Str != "" { // fallback; this case shouldn't happen
+			cb.L("int str_len = %d;", len(s.Str))
+			writeExprPushStr("memcpy_lc", quote(s.Str))
 			if canTry {
 				cb.L(exprTry)
 			}
@@ -500,12 +447,12 @@ bool try(const char *s, size_t n, const size_t id, __global const uint *hash_bit
 			return
 		}
 		idxNumOffs := totalIdxNum
-		totalIdxNum += len(s.segs)
-		for i, segs := range s.segs {
+		totalIdxNum += len(s.Segs)
+		for i, segs := range s.Segs {
 			idxNum := idxNumOffs + i
 			cb.L("for (; i[%d] < %d; i[%d]++) {", idxNum, len(segs), idxNum)
-			shouldTry := canTry && i == len(s.segs)-1
-			if len(segs) == s.comps[i] {
+			shouldTry := canTry && i == len(s.Segs)-1
+			if len(segs) == s.Comps[i] {
 				offs := bufs.strArrOffset(s, i)
 				cb.L("const uint str_idx = %d+i[%d];", offs, idxNum)
 				cb.L("const uint str_len = str_lens[str_idx];", offs, idxNum)
@@ -518,9 +465,9 @@ bool try(const char *s, size_t n, const size_t id, __global const uint *hash_bit
 				cb.L("switch (i[%d]) {", idxNum)
 				for j, seg := range segs {
 					cb.L("case %d:", j)
-					if seg.str != "" {
-						cb.L("str_len = %d;", len(s.str))
-						writeExprPushStr("memcpy_lc", quote(s.str))
+					if seg.Str != "" {
+						cb.L("str_len = %d;", len(s.Str))
+						writeExprPushStr("memcpy_lc", quote(s.Str))
 						if shouldTry {
 							cb.L(exprTry)
 						}
@@ -532,7 +479,7 @@ bool try(const char *s, size_t n, const size_t id, __global const uint *hash_bit
 				cb.L("}")
 			}
 		}
-		for i := range slices.Backward(s.segs) {
+		for i := range slices.Backward(s.Segs) {
 			idxNum := idxNumOffs + i
 			cb.L("candidate_len -= str_len;")
 			cb.L("}")

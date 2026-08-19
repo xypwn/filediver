@@ -11,7 +11,6 @@ import (
 	"slices"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"text/tabwriter"
 	"time"
 
@@ -24,126 +23,182 @@ import (
 
 var reAudioPath = regexp.MustCompile(`^content/audio(/[a-z]{2})?/[0-9]+$`)
 
-type hashInfo struct {
-	hashes      map[stingray.Hash]struct{}
-	knownHashes map[string]struct{}
+type HashInfo struct {
+	// All hashes present in the game
+	// (the ones we're trying to crack and the
+	// ones aready known).
+	AllHashes map[stingray.Hash]struct{}
+	// Hashes not yet known.
+	UnknownHashes map[stingray.Hash]struct{}
+	// Known hashes.
+	KnownHashes map[string]struct{}
 }
 
-// generator is a hash string generator.
-type generator struct {
-	// Generator name (lowercase, no spaces, "-" as word separator)
-	Name string
-	// Generator description
-	Desc string
-	// progressStore (TODO) can be used to store arbitrary data (GOB) before shutdown and retrieve
-	// it again on the next startup.
-	//
-	// try should be called to try a hash string. If cont is returned as false, the generator must
-	// return within a reasonable time frame.
-	Fn func(info hashInfo, progressStore *any, try func([]byte) (cont bool)) error
+type Context struct {
+	workerId      int
+	args          []string
+	a             *application
+	progressStore *any
+}
+
+func (c Context) Try(text []byte) (cont bool) {
+	return c.a.try(c.workerId, text)
+}
+
+func (c Context) ReportTries(newTries int, found []string, nextStr []byte) (cont bool) {
+	return c.a.reportTries(c.workerId, newTries, found, nextStr)
+}
+
+func (c Context) Args() []string {
+	return c.args
+}
+
+func (c Context) Info() HashInfo {
+	return c.a.hashInfo
+}
+
+func (c Context) ProgressStore() (any, bool) {
+	if c.progressStore == nil {
+		return nil, false
+	}
+	return *c.progressStore, true
+}
+
+func (c Context) SetProgressStore(v any) {
+	*c.progressStore = v
+}
+
+func (c Context) Msg(format string, args ...any) {
+	c.a.msgFromWorker(c.workerId, format, args...)
+}
+
+// Cracker is a program that cracks hashes.
+type Cracker struct {
+	Name     string
+	Desc     string
+	ArgNames []string
+	Fn       func(c Context) error
 }
 
 type worker struct {
 	name     string
-	active   atomic.Bool
 	ctxErr   error
 	err      error
 	triesCnt int
+	mu       sync.Mutex
+	prot     struct { // protected by mu
+		active              bool
+		numTriesSinceUpdate int
+		hashesPerSecond     float64
+		messageBuf          []string
+		nextStr             []byte
+	}
 	_padding [128]byte // prevent false sharing (yes this much is a bit wasteful, but we don't have many workers so who cares)
 }
 
-type cracker struct {
-	ctx context.Context
-	prt app.Printer
-	// All hashes present in the game
-	// (the ones we're trying to crack and the
-	// ones aready known).
-	hashes map[stingray.Hash]struct{}
-	// Currently known hashes
-	knownHashes map[string]struct{}
+type application struct {
+	ctx      context.Context
+	prt      app.Printer
+	hashInfo HashInfo
 
 	workers []worker
 
 	mu sync.Mutex
 	// Guarded by mu //
-	newHashes         []string // newly cracked hashes
-	workerMessagesBuf []string
+	newHashes []string // newly cracked hashes
 	// End           //
 
-	lastUpdateTime      time.Time
-	numTriesSinceUpdate int
-	hashesPerSecond     float64
+	lastUpdateTime time.Time
 }
 
-func crack(ctx context.Context, generators []generator, prt app.Printer, a *app.App) (newHashes []string, err error) {
-	hashes := make(map[stingray.Hash]struct{})
-	for k := range a.DataDir.Files {
-		hashes[k.Name] = struct{}{}
-		hashes[k.Type] = struct{}{}
+func crack(ctx context.Context, crackers []Cracker, crackerArgs [][]string, prt app.Printer, app *app.App) (newHashes []string, err error) {
+	allHashes := make(map[stingray.Hash]struct{})
+	for k := range app.DataDir.Files {
+		allHashes[k.Name] = struct{}{}
+		allHashes[k.Type] = struct{}{}
 	}
 	knownHashes := make(map[string]struct{})
-	for h, s := range a.Hashes {
-		if _, exists := hashes[h]; exists {
+	unknownHashes := make(map[stingray.Hash]struct{})
+	for h := range allHashes {
+		if s, exists := app.Hashes[h]; exists {
 			knownHashes[s] = struct{}{}
+		} else {
+			unknownHashes[h] = struct{}{}
 		}
 	}
-	c := cracker{
-		ctx:         ctx,
-		prt:         prt,
-		hashes:      hashes,
-		knownHashes: knownHashes,
+	a := application{
+		ctx: ctx,
+		prt: prt,
+		hashInfo: HashInfo{
+			AllHashes:     allHashes,
+			UnknownHashes: unknownHashes,
+			KnownHashes:   knownHashes,
+		},
 	}
-	c.updateCliStatus()
+	a.updateCliStatus()
 
 	var wg sync.WaitGroup
-	c.workers = make([]worker, len(generators))
-	for i := range c.workers {
-		c.workers[i].name = generators[i].Name
+	a.workers = make([]worker, len(crackers))
+	for i := range a.workers {
+		a.workers[i].name = crackers[i].Name
 		var ps any // TODO: Implement progress store!!!
 		wg.Go(func() {
-			c.msgFromWorker(i, "Starting")
-			c.workers[i].active.Store(true)
-			c.workers[i].err = generators[i].Fn(
-				hashInfo{
-					hashes:      c.hashes,
-					knownHashes: c.knownHashes,
-				},
-				&ps,
-				func(s []byte) bool { return c.try(s, i) },
-			)
-			c.workers[i].active.Store(false)
-			c.msgFromWorker(i, "Finished")
+			a.msgFromWorker(i, "Starting")
+			a.workers[i].mu.Lock()
+			a.workers[i].prot.active = true
+			a.workers[i].mu.Unlock()
+			a.workers[i].err = crackers[i].Fn(Context{
+				workerId:      i,
+				args:          crackerArgs[i],
+				a:             &a,
+				progressStore: &ps,
+			})
+			a.workers[i].mu.Lock()
+			a.workers[i].prot.active = false
+			a.workers[i].mu.Unlock()
+			a.msgFromWorker(i, "Finished")
 		})
 	}
 	for range time.Tick(500 * time.Millisecond) {
-		if c.getNumActiveWorkers() == 0 {
-			c.prt.Infof("All workers done")
+		if a.getNumActiveWorkers() == 0 {
+			a.prt.Infof("All workers done")
 			break
 		}
 		if ctx.Err() != nil {
-			c.prt.Infof("Shutting down workers...")
+			a.prt.Infof("Shutting down workers...")
 			break
 		}
-		c.updateCliStatus()
-		c.mu.Lock()
-		now := time.Now()
-		dt := now.Sub(c.lastUpdateTime).Seconds()
-		c.hashesPerSecond = float64(c.numTriesSinceUpdate) / dt
-		c.lastUpdateTime = now
-		c.numTriesSinceUpdate = 0
-		if len(c.workerMessagesBuf) > 0 {
-			for _, s := range c.workerMessagesBuf {
-				c.prt.Infof("%s", s)
+		a.updateCliStatus()
+		if dt := time.Since(a.lastUpdateTime).Seconds(); dt >= 5 {
+			now := time.Now()
+			for i := range a.workers {
+				w := &a.workers[i]
+				w.mu.Lock()
+				w.prot.hashesPerSecond = float64(w.prot.numTriesSinceUpdate) / dt
+				w.prot.numTriesSinceUpdate = 0
+				for _, s := range w.prot.messageBuf {
+					a.prt.Infof("%s", s)
+				}
+				w.prot.messageBuf = w.prot.messageBuf[:0]
+				w.mu.Unlock()
+				a.lastUpdateTime = now
 			}
-			c.workerMessagesBuf = c.workerMessagesBuf[:0]
 		}
-		c.mu.Unlock()
+		for i := range a.workers {
+			w := &a.workers[i]
+			w.mu.Lock()
+			for _, s := range w.prot.messageBuf {
+				a.prt.Infof("%s", s)
+			}
+			w.prot.messageBuf = w.prot.messageBuf[:0]
+			w.mu.Unlock()
+		}
 	}
 	wg.Wait()
 	var firstErr error
 	var numErrs int
-	for i := range c.workers {
-		w := &c.workers[i]
+	for i := range a.workers {
+		w := &a.workers[i]
 		if w.ctxErr != nil && !errors.Is(w.ctxErr, context.Canceled) {
 			if firstErr == nil {
 				firstErr = fmt.Errorf("worker %d (%s): context: %w", i, w.name, w.ctxErr)
@@ -164,77 +219,105 @@ func crack(ctx context.Context, generators []generator, prt app.Printer, a *app.
 	}
 }
 
-func (c *cracker) getNumActiveWorkers() int {
+func (a *application) getNumActiveWorkers() int {
 	numActiveWorkers := 0
-	for i := range c.workers {
-		if c.workers[i].active.Load() {
+	for i := range a.workers {
+		a.workers[i].mu.Lock()
+		if a.workers[i].prot.active {
 			numActiveWorkers++
 		}
+		a.workers[i].mu.Unlock()
 	}
 	return numActiveWorkers
 }
 
-func (c *cracker) updateCliStatus() {
-	c.mu.Lock()
-	c.prt.Statusf("Cracked %d/%d new hashes (%v/%v workers, %.2fMH/s)", len(c.newHashes), len(c.hashes)-len(c.knownHashes), c.getNumActiveWorkers(), len(c.workers), c.hashesPerSecond/1e6)
-	c.mu.Unlock()
+func (a *application) updateCliStatus() {
+	var msg strings.Builder
+	a.mu.Lock()
+	fmt.Fprintf(&msg, "Total: %d/%d hashes, %d/%d workers",
+		len(a.newHashes), len(a.hashInfo.UnknownHashes),
+		a.getNumActiveWorkers(), len(a.workers))
+	a.mu.Unlock()
+	for i := range a.workers {
+		w := &a.workers[i]
+		w.mu.Lock()
+		fmt.Fprintf(&msg, "; %s/%d: %.2fMH/s (%q)", w.name, i, w.prot.hashesPerSecond/1e6, w.prot.nextStr)
+		w.mu.Unlock()
+	}
+	a.prt.Statusf("%s", msg.String())
 }
 
 // Must be called from the thread of the worker with the given ID.
-func (c *cracker) msgFromWorker(workerId int, format string, args ...any) {
-	c.mu.Lock()
+func (a *application) msgFromWorker(workerId int, format string, args ...any) {
+	w := &a.workers[workerId]
 	msg := fmt.Sprintf(format, args...)
-	msg = fmt.Sprintf("<worker %d (%s)> %s", workerId, c.workers[workerId].name, msg)
-	c.workerMessagesBuf = append(c.workerMessagesBuf, msg)
-	c.mu.Unlock()
+	msg = fmt.Sprintf("<%s/%d> %s", w.name, workerId, msg)
+	w.mu.Lock()
+	w.prot.messageBuf = append(w.prot.messageBuf, msg)
+	w.mu.Unlock()
 }
 
 // Must be called from the thread of the worker with the given ID.
 //
 // If cont is returned false, the worker must do its cleanup and return
 // within a reasonable time.
-func (c *cracker) try(s []byte, workerId int) (cont bool) {
-	w := &c.workers[workerId]
-	w.triesCnt++
+func (a *application) reportTries(workerId int, newTries int, found []string, nextStr []byte) (cont bool) {
+	w := &a.workers[workerId]
+	w.triesCnt += newTries
 	if w.triesCnt >= 65536 {
-		c.mu.Lock()
-		c.numTriesSinceUpdate += w.triesCnt
-		c.mu.Unlock()
+		w.mu.Lock()
+		w.prot.numTriesSinceUpdate += w.triesCnt
+		w.mu.Unlock()
 		w.triesCnt = 0
-		if err := c.ctx.Err(); err != nil {
+		if err := a.ctx.Err(); err != nil {
 			w.ctxErr = err
 			return false
 		}
 	}
 
-	if _, exists := c.hashes[stingray.Sum(s)]; !exists {
-		return true
+	a.mu.Lock()
+	a.newHashes = append(a.newHashes, found...)
+	a.mu.Unlock()
+	w.mu.Lock()
+	w.prot.nextStr = bytes.Clone(nextStr)
+	w.mu.Unlock()
+	for _, s := range found {
+		a.msgFromWorker(workerId, "%s=%s", stingray.Sum(s), s)
 	}
-	if _, exists := c.knownHashes[string(s)]; exists {
-		return true
-	}
-	c.mu.Lock()
-	c.newHashes = append(c.newHashes, string(s))
-	c.mu.Unlock()
-	c.msgFromWorker(workerId, "%s=%s", stingray.Sum(s), s)
 	return true
 }
 
-func main() {
-	genByName := make(map[string]generator)
-	var genNames []string
-	for _, g := range generators {
-		genByName[g.Name] = g
-		genNames = append(genNames, g.Name)
+// Must be called from the thread of the worker with the given ID.
+//
+// If cont is returned false, the worker must do its cleanup and return
+// within a reasonable time.
+func (a *application) try(workerId int, s []byte) (cont bool) {
+	var found []string
+	if _, exists := a.hashInfo.UnknownHashes[stingray.Sum(s)]; exists {
+		found = append(found, string(s))
 	}
-	slices.Sort(genNames)
+	return a.reportTries(workerId, 1, found, s)
+}
+
+func main() {
+	crackerByName := make(map[string]Cracker)
+	var crackerNames []string
+	for _, c := range crackers {
+		crackerByName[c.Name] = c
+		crackerNames = append(crackerNames, c.Name)
+	}
+	slices.Sort(crackerNames)
 
 	var epilog strings.Builder
 	{
-		epilog.WriteString("generators:\n")
+		epilog.WriteString("crackers:\n")
 		tw := tabwriter.NewWriter(&epilog, 0, 1, 2, ' ', 0)
-		for _, g := range generators {
-			fmt.Fprintf(tw, "  %s\t%s\n", g.Name, g.Desc)
+		for _, c := range crackers {
+			fmt.Fprintf(tw, "  %s", c.Name)
+			for _, argName := range c.ArgNames {
+				fmt.Fprintf(tw, " <%s>", argName)
+			}
+			fmt.Fprintf(tw, "\t%s\n", c.Desc)
 		}
 		tw.Flush()
 	}
@@ -242,27 +325,50 @@ func main() {
 	argp := argparse.NewParser("hd2-hash-cracker", "HD2 hash cracking tool", &argparse.ParserConfig{
 		EpiLog: epilog.String(),
 	})
-	optGenerators := argp.String("G", "generators", &argparse.Option{
-		Help: "crack using comma-separated generators (options: see 'generators' section below)",
-	})
 	optWrite := argp.Flag("w", "write", &argparse.Option{
-		Help: "write newly cracked hashes to hashes/cracked.txt (program must be run from project root)",
+		Help: "write newly cracked hashes to hashes/cracked.txt (app must be run from project root)",
+	})
+	optArgs := argp.Strings("", "crackers-and-args", &argparse.Option{
+		Help:       "cracker name followed by args; separate multiple crackers by \"AND\"",
+		Positional: true,
 	})
 	prt, a := fdtools.Init(argp)
-	var selectedGens []generator
-	for name := range strings.SplitSeq(*optGenerators, ",") {
-		name = strings.TrimSpace(name)
-		gen, ok := genByName[name]
-		if !ok {
-			prt.Fatalf("Unknown generator %q (options: %s [see --help for descriptions])", name, strings.Join(genNames, ", "))
+	var selCrackers []Cracker
+	var selCrackerArgs [][]string
+	{
+		nextIsCracker := true
+		for _, arg := range *optArgs {
+			if arg == "AND" {
+				if nextIsCracker {
+					prt.Fatalf("unexpected AND")
+				}
+				nextIsCracker = true
+			} else if nextIsCracker {
+				c, ok := crackerByName[arg]
+				if !ok {
+					prt.Fatalf("Unknown cracker %q (options: %s [see --help for list of crackers])", arg, strings.Join(crackerNames, ", "))
+				}
+				selCrackers = append(selCrackers, c)
+				selCrackerArgs = append(selCrackerArgs, nil)
+				nextIsCracker = false
+			} else {
+				selCrackerArgs[len(selCrackerArgs)-1] = append(selCrackerArgs[len(selCrackerArgs)-1],
+					arg)
+			}
 		}
-		selectedGens = append(selectedGens, gen)
+		for i := range selCrackers {
+			if len(selCrackerArgs[i]) != len(selCrackers[i].ArgNames) {
+				prt.Fatalf("Cracker %q expects %d args, but got %d",
+					selCrackers[i].Name, len(selCrackers[i].ArgNames),
+					len(selCrackerArgs[i]))
+			}
+		}
 	}
 	prt.Infof("Ctrl+C to quit")
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 	if err := func() error {
-		newHashes, err := crack(ctx, selectedGens, prt, a)
+		newHashes, err := crack(ctx, selCrackers, selCrackerArgs, prt, a)
 		if err != nil {
 			return err
 		}
@@ -284,7 +390,6 @@ func main() {
 		}
 		return nil
 	}(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		prt.Fatalf("%v\n", err)
 	}
 }
