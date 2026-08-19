@@ -340,39 +340,47 @@ typedef unsigned int u32;
 typedef long i64;
 typedef unsigned long u64;
 
-u64 murmur64a_sum(const char *d, u32 n) {
-#define SEED 0
+// Calculates the murmurhash 64a of the given
+// string (as u64 array). n is the number of bytes.
+//
+// We're using u64s so we are guaranteed to have the correct
+// alignment when casting to u64 in the main loop. For unaligned
+// data, the only alternative would be bitwise-oring the bytes
+// together, which is quite a lot slower (~30%% in my testing).
+u64 murmur64a_sum(const u64 *d, u32 n) {
+#define SEED 0ul
 #define MIX 0xc6a4a7935bd1e995ul
-#define SHIFTS 47
+#define SHIFTS 47ul
 
-  u64 hash = SEED ^ (n * MIX);
+  u64 hash = SEED ^ ((u64)n * MIX);
   
   while (n >= 8) {
-    u64 key = *((u64*)d);
-	d += 8;
-	n -= 8;
+    u64 key = *d;
+    d += 1;
+    n -= 8;
 
-	key *= MIX;
-	key ^= key >> SHIFTS;
-	key *= MIX;
+    key *= MIX;
+    key ^= key >> SHIFTS;
+    key *= MIX;
 
-	hash ^= key;
-	hash *= MIX;
-  }
-
-  switch (n&7) {
-  case 7: hash ^= (u64)d[6] << (8*6);
-  case 6: hash ^= (u64)d[5] << (8*5);
-  case 5: hash ^= (u64)d[4] << (8*4);
-  case 4: hash ^= (u64)d[3] << (8*3);
-  case 3: hash ^= (u64)d[2] << (8*2);
-  case 2: hash ^= (u64)d[1] << (8*1);
-  case 1: hash ^= (u64)d[0] << (8*0);
+    hash ^= key;
     hash *= MIX;
   }
 
-  hash ^= hash >> SHIFTS;
+  if (n&7) {
+    switch (n&7) {
+    case 7: hash ^= *d & 0x00fffffffffffffful; break;
+    case 6: hash ^= *d & 0x0000fffffffffffful; break;
+    case 5: hash ^= *d & 0x000000fffffffffful; break;
+    case 4: hash ^= *d & 0x00000000fffffffful; break;
+    case 3: hash ^= *d & 0x0000000000fffffful; break;
+    case 2: hash ^= *d & 0x000000000000fffful; break;
+    case 1: hash ^= *d & 0x00000000000000fful; break;
+    }
+	hash *= MIX;
+  }
 
+  hash ^= hash >> SHIFTS;
   hash *= MIX;
   hash ^= hash >> SHIFTS;
 
@@ -424,10 +432,10 @@ bool binary_search(u64 hash, __global const u64 *target_hashes) {
   u32 hi = NUM_TARGET_HASHES;
   while (lo < hi) {
     u32 mid = (lo + hi) >> 1;
-	if (target_hashes[mid] < hash)
-	  lo = mid + 1;
-	else
-	  hi = mid;
+    if (target_hashes[mid] < hash)
+      lo = mid + 1;
+    else
+      hi = mid;
   }
   return lo < NUM_TARGET_HASHES && target_hashes[lo] == hash;
 }
@@ -437,7 +445,7 @@ bool binary_search(u64 hash, __global const u64 *target_hashes) {
 //
 // Returns false if the try filled up the match buffer
 // fully and the kernel function should exit.
-bool try(const char *s, size_t n, const size_t id, __global const u32 *hash_bitmap, __global const u64 *target_hashes, __global char *matches, __global u32 *matches_lens) {
+bool try(const u64 *s, u32 n, const size_t id, __global const u32 *hash_bitmap, __global const u64 *target_hashes, __global char *matches, __global u32 *matches_lens) {
   u64 h = murmur64a_sum(s, n);
   if (!bitmap_test(h, hash_bitmap)) return true;
   if (!binary_search(h, target_hashes)) return true;
@@ -452,7 +460,7 @@ bool try(const char *s, size_t n, const size_t id, __global const u32 *hash_bitm
 	cb.L(`__kernel void kmain(__global u32* tries, __global u32* idxs, __global const char *strs, __global const u32 *strs_offsets, __global const u32 *str_lens, __global const u32 *hash_bitmap, __global const u64 *target_hashes, __global char *matches, __global u32 *matches_lens) {`)
 	cb.L("size_t id = get_global_id(0);")
 	cb.L("u32 n = tries[id]; // number of tries left")
-	cb.L("char candidate[MAX_CANDIDATE_LEN];")
+	cb.L("u64 candidate[(MAX_CANDIDATE_LEN+7)/8]; // using u64 to force correct alignment to be able to speed up murmurhash algorithm")
 	cb.L("i32 candidate_len = 0;")
 	cb.L("u32 i[IDX_LEN];")
 	cb.L("memcpy_lg(i, idxs + id*IDX_LEN, sizeof(i));")
@@ -460,7 +468,7 @@ bool try(const char *s, size_t n, const size_t id, __global const u32 *hash_bitm
 	var genCode func(s pattern.Segment, canTry bool)
 	genCode = func(s pattern.Segment, canTry bool) {
 		writeExprPushStr := func(memcpyFn, str string) {
-			cb.L("%s(candidate+candidate_len, %s, str_len);", memcpyFn, str)
+			cb.L("%s((char*)candidate + candidate_len, %s, str_len);", memcpyFn, str)
 			cb.L("candidate_len += str_len;")
 		}
 		const exprTry = "if (!n || !try(candidate, candidate_len, id, hash_bitmap, target_hashes, matches, matches_lens)) goto ret; n--;"

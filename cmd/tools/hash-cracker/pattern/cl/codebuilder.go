@@ -45,8 +45,10 @@ func (cb *codeBuilder) L(format string, args ...any) {
 		argn := 0
 		for i := 0; i < len(ln)-1; i++ {
 			// NOTE: Non-ASCII not handled.
-			if ln[i] == '%' && ln[i+1] != '%' {
-				argn++
+			if ln[i] == '%' {
+				if ln[i+1] != '%' && ln[i+1] != ' ' {
+					argn++
+				}
 				i++
 			}
 		}

@@ -160,14 +160,6 @@ func crack(ctx context.Context, crackers []Cracker, crackerArgs [][]string, prt 
 		})
 	}
 	for range time.Tick(500 * time.Millisecond) {
-		if a.getNumActiveWorkers() == 0 {
-			a.prt.Infof("All workers done")
-			break
-		}
-		if ctx.Err() != nil {
-			a.prt.Infof("Shutting down workers...")
-			break
-		}
 		a.updateCliStatus()
 		if dt := time.Since(a.lastUpdateTime).Seconds(); dt >= 5 {
 			now := time.Now()
@@ -192,6 +184,14 @@ func crack(ctx context.Context, crackers []Cracker, crackerArgs [][]string, prt 
 			}
 			w.prot.messageBuf = w.prot.messageBuf[:0]
 			w.mu.Unlock()
+		}
+		if a.getNumActiveWorkers() == 0 {
+			a.prt.Infof("All workers done")
+			break
+		}
+		if ctx.Err() != nil {
+			a.prt.Infof("Shutting down workers")
+			break
 		}
 	}
 	wg.Wait()
@@ -263,6 +263,17 @@ func (a *application) msgFromWorker(workerId int, format string, args ...any) {
 // within a reasonable time.
 func (a *application) reportTries(workerId int, newTries int, found []string, nextStr []byte) (cont bool) {
 	w := &a.workers[workerId]
+
+	a.mu.Lock()
+	a.newHashes = append(a.newHashes, found...)
+	a.mu.Unlock()
+	w.mu.Lock()
+	w.prot.nextStr = bytes.Clone(nextStr)
+	w.mu.Unlock()
+	for _, s := range found {
+		a.msgFromWorker(workerId, "%s=%s", stingray.Sum(s), s)
+	}
+
 	w.triesCnt += newTries
 	if w.triesCnt >= 65536 {
 		w.mu.Lock()
@@ -273,16 +284,6 @@ func (a *application) reportTries(workerId int, newTries int, found []string, ne
 			w.ctxErr = err
 			return false
 		}
-	}
-
-	a.mu.Lock()
-	a.newHashes = append(a.newHashes, found...)
-	a.mu.Unlock()
-	w.mu.Lock()
-	w.prot.nextStr = bytes.Clone(nextStr)
-	w.mu.Unlock()
-	for _, s := range found {
-		a.msgFromWorker(workerId, "%s=%s", stingray.Sum(s), s)
 	}
 	return true
 }

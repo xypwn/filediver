@@ -35,11 +35,6 @@ type Cracker struct {
 }
 
 func NewCracker(runner *cl.OpenCLRunner, prog pattern.Segment, targetHashes []stingray.Hash, opts Options) (*Cracker, error) {
-	c := &Cracker{
-		Runner: runner,
-		prog:   prog,
-		idx:    prog.MakeIndex(),
-	}
 	if opts.NumWorkers == 0 {
 		opts.NumWorkers = 4096
 	}
@@ -49,7 +44,12 @@ func NewCracker(runner *cl.OpenCLRunner, prog pattern.Segment, targetHashes []st
 	if opts.TriesPerWorkerPerDispatch == 0 {
 		opts.TriesPerWorkerPerDispatch = 65536
 	}
-	c.opts = opts
+	c := &Cracker{
+		Runner: runner,
+		prog:   prog,
+		idx:    prog.MakeIndex(),
+		opts:   opts,
+	}
 	matchBufLen := opts.MinMatchBufLen
 	matchBufLen = max(matchBufLen, 2*(prog.MaxLen()+1))
 	var err error
@@ -104,6 +104,8 @@ func (c *Cracker) Dispatch() (matches []string, err error) {
 	if done {
 		return nil, Done
 	}
+	//fmt.Println("tries:", c.bufs.data.tries)
+	//fmt.Println("matches:", c.bufs.data.matchesLens)
 	if err := c.bufs.write(c.Runner); err != nil {
 		return nil, fmt.Errorf("writing OpenCL buffers: %w", err)
 	}

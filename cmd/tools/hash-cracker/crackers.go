@@ -211,7 +211,7 @@ var crackers = []Cracker{
 			for {
 				matches, err := cr.Dispatch()
 				if err == pcl.Done {
-					return nil
+					break
 				} else if err != nil {
 					return err
 				}
