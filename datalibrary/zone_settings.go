@@ -393,7 +393,7 @@ type rawStampGroup struct {
 	UnkFloat1                   float32
 	MaxRandomOffsetInCell       float32
 	FillRate                    float32
-	MaxPossibleCellsPerMap      float32
+	MaxPossibleCellsPerMap      int32
 	Flags                       StampGroupFlags
 	_                           [2]uint8
 	StampMaxOverlap             float32
@@ -638,7 +638,7 @@ type StampGroup struct {
 	UnkFloat1                   float32
 	MaxRandomOffsetInCell       float32
 	FillRate                    float32
-	MaxPossibleCellsPerMap      float32
+	MaxPossibleCellsPerMap      int32
 	Flags                       StampGroupFlags
 	StampMaxOverlap             float32
 	StampMinOverlap             float32
@@ -704,6 +704,57 @@ type ShaderSetting struct {
 	Vector ShaderValue
 }
 
+type SimpleShaderValue struct {
+	X *float32 `json:"x,omitempty"`
+	Y *float32 `json:"y,omitempty"`
+	Z *float32 `json:"z,omitempty"`
+	W *float32 `json:"w,omitempty"`
+}
+
+func (v ShaderValue) ToSimple() *SimpleShaderValue {
+	var vector *SimpleShaderValue
+	if v.Count > 0 {
+		vector = &SimpleShaderValue{}
+		if v.Count >= 1 {
+			x := v.X()
+			vector.X = &x
+		}
+		if v.Count >= 2 {
+			y := v.Y()
+			vector.Y = &y
+		}
+		if v.Count >= 3 {
+			z := v.Z()
+			vector.Z = &z
+		}
+		if v.Count >= 4 {
+			w := v.W()
+			vector.W = &w
+		}
+	}
+	return vector
+}
+
+type SimpleShaderSetting struct {
+	Name   string             `json:"name"`
+	Value  *float32           `json:"value,omitempty"`
+	Vector *SimpleShaderValue `json:"vector,omitempty"`
+}
+
+func (setting ShaderSetting) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookupStrings StringsLookup) SimpleShaderSetting {
+	vector := setting.Vector.ToSimple()
+	var val *float32
+	if vector == nil {
+		val = &setting.Value
+	}
+
+	return SimpleShaderSetting{
+		Name:   lookupThinHash(setting.Name),
+		Value:  val,
+		Vector: vector,
+	}
+}
+
 type rawShaderProperties struct {
 	Shader   stingray.Hash
 	Settings DLArray
@@ -712,6 +763,23 @@ type rawShaderProperties struct {
 type ShaderProperties struct {
 	Shader   stingray.Hash
 	Settings []ShaderSetting
+}
+
+type SimpleShaderProperties struct {
+	Shader   string                `json:"shader"`
+	Settings []SimpleShaderSetting `json:"settings,omitempty"`
+}
+
+func (p ShaderProperties) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookupStrings StringsLookup) SimpleShaderProperties {
+	settings := make([]SimpleShaderSetting, 0)
+	for _, setting := range p.Settings {
+		settings = append(settings, setting.ToSimple(lookupHash, lookupThinHash, lookupStrings))
+	}
+
+	return SimpleShaderProperties{
+		Shader:   lookupHash(p.Shader),
+		Settings: settings,
+	}
 }
 
 func (g rawShaderProperties) Deserialize(r io.ReadSeeker, base int64) (*ShaderProperties, error) {
@@ -733,6 +801,28 @@ type FogVolumeShaderSetting struct {
 	_          [3]uint8
 }
 
+type SimpleFogVolumeShaderSetting struct {
+	Name       string                  `json:"name"`
+	Value      *float32                `json:"value,omitempty"`
+	Vector     *SimpleShaderValue      `json:"vector,omitempty"`
+	ColorGroup enum.ZoneFogColorGroups `json:"color_group"`
+}
+
+func (setting FogVolumeShaderSetting) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookupStrings StringsLookup) SimpleFogVolumeShaderSetting {
+	vector := setting.Vector.ToSimple()
+	var val *float32
+	if vector == nil {
+		val = &setting.Value
+	}
+
+	return SimpleFogVolumeShaderSetting{
+		Name:       lookupThinHash(setting.Name),
+		Value:      val,
+		Vector:     vector,
+		ColorGroup: setting.ColorGroup,
+	}
+}
+
 type rawFogVolumeShaderProperties struct {
 	Shader   stingray.Hash
 	Settings DLArray
@@ -741,6 +831,23 @@ type rawFogVolumeShaderProperties struct {
 type FogVolumeShaderProperties struct {
 	Shader   stingray.Hash
 	Settings []FogVolumeShaderSetting
+}
+
+type SimpleFogVolumeShaderProperties struct {
+	Shader   string                         `json:"shader"`
+	Settings []SimpleFogVolumeShaderSetting `json:"settings,omitempty"`
+}
+
+func (p FogVolumeShaderProperties) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookupStrings StringsLookup) SimpleFogVolumeShaderProperties {
+	settings := make([]SimpleFogVolumeShaderSetting, 0)
+	for _, setting := range p.Settings {
+		settings = append(settings, setting.ToSimple(lookupHash, lookupThinHash, lookupStrings))
+	}
+
+	return SimpleFogVolumeShaderProperties{
+		Shader:   lookupHash(p.Shader),
+		Settings: settings,
+	}
 }
 
 func (g rawFogVolumeShaderProperties) Deserialize(r io.ReadSeeker, base int64) (*FogVolumeShaderProperties, error) {
@@ -902,6 +1009,232 @@ type ZoneSettings struct {
 	RoadEmbankmentUnits            []stingray.Hash
 	UnkInt5                        uint32
 	UnkBitfield3                   uint8
+}
+
+type SimpleZoneSettings struct {
+	StampGroups                    []StampGroup                      `json:"stamp_groups"`
+	MaterialLookupUnit             string                            `json:"material_lookup_unit"`
+	ColorVariationGenerators       []SimpleShaderProperties          `json:"color_variation_generators"`
+	ShaderProperties1              []SimpleShaderProperties          `json:"shader_properties1"`
+	FogVolumeGenerators            []SimpleFogVolumeShaderProperties `json:"fog_volume_generators"`
+	MinimapVisualizationGenerators []SimpleShaderProperties          `json:"minimap_visualization_generators"`
+	MaterialGenerators             []SimpleShaderProperties          `json:"material_generators"`
+	ShaderProperties2              []SimpleShaderProperties          `json:"shader_properties2"`
+	HeightGenerators               []SimpleShaderProperties          `json:"height_generators"`
+	DefaultMaterial                int32                             `json:"default_material"`
+	MinimapColor                   mgl32.Vec3                        `json:"minimap_color"`
+	MinimapTerrainType             enum.MinimapTerrainType           `json:"minimap_terrain_type"`
+	ScatterSetting                 *string                           `json:"scatter_setting"`
+	CameraEnvironmentEffects       []CameraEffect                    `json:"camera_environment_effects"`
+	WindNoiseIds                   WindNoiseSettings                 `json:"wind_noise_ids"`
+	WaterMaterial                  string                            `json:"water_material"`
+	WaterLevelOffset               float32                           `json:"water_level_offset"`
+	WaterHeight                    float32                           `json:"water_height"`
+	WaterZoneOpacityCutoff         float32                           `json:"water_zone_opacity_cutoff"`
+	MaxWaterDepth                  float32                           `json:"max_water_depth"`
+	HeightModificationCurve        []float32                         `json:"height_modification_curve"`
+	ReverbZone                     *string                           `json:"reverb_zone"`
+	AmbienceSoundId                string                            `json:"ambience_sound_id"`
+	QuakeEffect                    QuakeEffectSettings               `json:"quake_effect"`
+	ZoneMusicType                  enum.ZoneMusicType                `json:"zone_music_type"`
+	BanterEventType                enum.BanterEventType              `json:"banter_event_type"`
+	PlayerKillHeight               float32                           `json:"player_kill_height"`
+	MinimapScatter                 MinimapScatterSet                 `json:"minimap_scatter"`
+	LocationHeightOffset           float32                           `json:"location_height_offset"`
+	UnkString                      *string                           `json:"unk_string"`
+	UnkThinHash1                   string                            `json:"unk_thin_hash1"`
+	UnkThinHash2                   string                            `json:"unk_thin_hash2"`
+	UnkBitfield1                   uint8                             `json:"unk_bitfield1"`
+	PatrolSetting                  enum.PatrolSetting                `json:"patrol_setting"`
+	PatrolFloat1                   float32                           `json:"patrol_float1"`
+	PatrolFloat2                   float32                           `json:"patrol_float2"`
+	PatrolFloat3                   float32                           `json:"patrol_float3"`
+	PatrolFloat4                   float32                           `json:"patrol_float4"`
+	PatrolFloat5                   float32                           `json:"patrol_float5"`
+	PatrolFloat6                   float32                           `json:"patrol_float6"`
+	PatrolFloat7                   float32                           `json:"patrol_float7"`
+	PatrolFloat8                   float32                           `json:"patrol_float8"`
+	PatrolFloat9                   float32                           `json:"patrol_float9"`
+	PatrolFloat10                  float32                           `json:"patrol_float10"`
+	PatrolFloat11                  float32                           `json:"patrol_float11"`
+	UnkBool1                       bool                              `json:"unk_bool1"`
+	UnkBitfield2                   uint8                             `json:"unk_bitfield2"`
+	CityPlacementHeuristic         enum.CityPlacementHeuristic       `json:"city_placement_heuristic"`
+	UnknownEnum                    uint32                            `json:"unknown_enum"`
+	UnkInt1                        int32                             `json:"unk_int1"`
+	UnkInt2                        uint32                            `json:"unk_int2"`
+	Vectors1                       [3]mgl32.Vec2                     `json:"vectors1"`
+	Vectors2                       [3]mgl32.Vec2                     `json:"vectors2"`
+	Vectors3                       [3]mgl32.Vec2                     `json:"vectors3"`
+	UnkFloat1                      float32                           `json:"unk_float1"`
+	UnkFloat2                      float32                           `json:"unk_float2"`
+	UnkFloat3                      float32                           `json:"unk_float3"`
+	UnkFloat4                      float32                           `json:"unk_float4"`
+	LocationFlags                  []enum.LocationFlag               `json:"location_flags"`
+	ColoniesCurbPath               string                            `json:"colonies_curb_path"`
+	CurvedCurbPath                 string                            `json:"curved_curb_path"`
+	UnkFLoat5                      float32                           `json:"unk_f_loat5"`
+	UnkFLoat6                      float32                           `json:"unk_f_loat6"`
+	UnkInt3                        uint32                            `json:"unk_int3"`
+	DetailUnit1                    string                            `json:"detail_unit1"`
+	DetailUnit2                    string                            `json:"detail_unit2"`
+	DetailUnit3                    string                            `json:"detail_unit3"`
+	TrafficlightPrefab             string                            `json:"trafficlight_prefab"`
+	UnkFloat7                      float32                           `json:"unk_float7"`
+	UnkFloat8                      float32                           `json:"unk_float8"`
+	UnkFloat9                      float32                           `json:"unk_float9"`
+	UnkFloat10                     float32                           `json:"unk_float10"`
+	UnkFloat11                     float32                           `json:"unk_float11"`
+	CityStreetlights               string                            `json:"city_streetlights"`
+	UnkFloat12                     float32                           `json:"unk_float12"`
+	UnkFloat13                     float32                           `json:"unk_float13"`
+	UnkFloat14                     float32                           `json:"unk_float14"`
+	DetailUnit4                    string                            `json:"detail_unit4"`
+	UnkFloat15                     float32                           `json:"unk_float15"`
+	UnkFloat16                     float32                           `json:"unk_float16"`
+	UnkFloat17                     float32                           `json:"unk_float17"`
+	UnkFloat18                     float32                           `json:"unk_float18"`
+	UnkFloat19                     float32                           `json:"unk_float19"`
+	UnkFloat20                     float32                           `json:"unk_float20"`
+	UnkInt4                        uint64                            `json:"unk_int4"`
+	UnkString2                     *string                           `json:"unk_string2"`
+	UnkFloat21                     float32                           `json:"unk_float21"`
+	UnkFloat22                     float32                           `json:"unk_float22"`
+	BoundaryWallSettings           BoundaryWallSettings              `json:"boundary_wall_settings"`
+	RoadEmbankmentUnits            []string                          `json:"road_embankment_units"`
+	UnkInt5                        uint32                            `json:"unk_int5"`
+	UnkBitfield3                   uint8                             `json:"unk_bitfield3"`
+}
+
+func (z ZoneSettings) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookupStrings StringsLookup) SimpleZoneSettings {
+	colorVariationGenerators := make([]SimpleShaderProperties, 0)
+	for _, prop := range z.ColorVariationGenerators {
+		colorVariationGenerators = append(colorVariationGenerators, prop.ToSimple(lookupHash, lookupThinHash, lookupStrings))
+	}
+	shaderProperties1 := make([]SimpleShaderProperties, 0)
+	for _, prop := range z.ShaderProperties1 {
+		shaderProperties1 = append(shaderProperties1, prop.ToSimple(lookupHash, lookupThinHash, lookupStrings))
+	}
+	fogVolumeGenerators := make([]SimpleFogVolumeShaderProperties, 0)
+	for _, prop := range z.FogVolumeGenerators {
+		fogVolumeGenerators = append(fogVolumeGenerators, prop.ToSimple(lookupHash, lookupThinHash, lookupStrings))
+	}
+	minimapVisualizationGenerators := make([]SimpleShaderProperties, 0)
+	for _, prop := range z.MinimapVisualizationGenerators {
+		minimapVisualizationGenerators = append(minimapVisualizationGenerators, prop.ToSimple(lookupHash, lookupThinHash, lookupStrings))
+	}
+	materialGenerators := make([]SimpleShaderProperties, 0)
+	for _, prop := range z.MaterialGenerators {
+		materialGenerators = append(materialGenerators, prop.ToSimple(lookupHash, lookupThinHash, lookupStrings))
+	}
+	shaderProperties2 := make([]SimpleShaderProperties, 0)
+	for _, prop := range z.ShaderProperties2 {
+		shaderProperties2 = append(shaderProperties2, prop.ToSimple(lookupHash, lookupThinHash, lookupStrings))
+	}
+	heightGenerators := make([]SimpleShaderProperties, 0)
+	for _, prop := range z.HeightGenerators {
+		heightGenerators = append(heightGenerators, prop.ToSimple(lookupHash, lookupThinHash, lookupStrings))
+	}
+
+	roadEmbankmentUnits := make([]string, 0)
+	for _, unit := range z.RoadEmbankmentUnits {
+		roadEmbankmentUnits = append(roadEmbankmentUnits, lookupHash(unit))
+	}
+
+	return SimpleZoneSettings{
+		StampGroups:                    z.StampGroups,
+		MaterialLookupUnit:             lookupHash(z.MaterialLookupUnit),
+		ColorVariationGenerators:       colorVariationGenerators,
+		ShaderProperties1:              shaderProperties1,
+		FogVolumeGenerators:            fogVolumeGenerators,
+		MinimapVisualizationGenerators: minimapVisualizationGenerators,
+		MaterialGenerators:             materialGenerators,
+		ShaderProperties2:              shaderProperties2,
+		HeightGenerators:               heightGenerators,
+		DefaultMaterial:                z.DefaultMaterial,
+		MinimapColor:                   z.MinimapColor,
+		MinimapTerrainType:             z.MinimapTerrainType,
+		ScatterSetting:                 z.ScatterSetting,
+		CameraEnvironmentEffects:       z.CameraEnvironmentEffects,
+		WindNoiseIds:                   z.WindNoiseIds,
+		WaterMaterial:                  lookupHash(z.WaterMaterial),
+		WaterLevelOffset:               z.WaterLevelOffset,
+		WaterHeight:                    z.WaterHeight,
+		WaterZoneOpacityCutoff:         z.WaterZoneOpacityCutoff,
+		MaxWaterDepth:                  z.MaxWaterDepth,
+		HeightModificationCurve:        z.HeightModificationCurve,
+		ReverbZone:                     z.ReverbZone,
+		AmbienceSoundId:                lookupThinHash(z.AmbienceSoundId),
+		QuakeEffect:                    z.QuakeEffect,
+		ZoneMusicType:                  z.ZoneMusicType,
+		BanterEventType:                z.BanterEventType,
+		PlayerKillHeight:               z.PlayerKillHeight,
+		MinimapScatter:                 z.MinimapScatter,
+		LocationHeightOffset:           z.LocationHeightOffset,
+		UnkString:                      z.UnkString,
+		UnkThinHash1:                   lookupThinHash(z.UnkThinHash1),
+		UnkThinHash2:                   lookupThinHash(z.UnkThinHash2),
+		UnkBitfield1:                   z.UnkBitfield1,
+		PatrolSetting:                  z.PatrolSetting,
+		PatrolFloat1:                   z.PatrolFloat1,
+		PatrolFloat2:                   z.PatrolFloat2,
+		PatrolFloat3:                   z.PatrolFloat3,
+		PatrolFloat4:                   z.PatrolFloat4,
+		PatrolFloat5:                   z.PatrolFloat5,
+		PatrolFloat6:                   z.PatrolFloat6,
+		PatrolFloat7:                   z.PatrolFloat7,
+		PatrolFloat8:                   z.PatrolFloat8,
+		PatrolFloat9:                   z.PatrolFloat9,
+		PatrolFloat10:                  z.PatrolFloat10,
+		PatrolFloat11:                  z.PatrolFloat11,
+		UnkBool1:                       z.UnkBool1,
+		UnkBitfield2:                   z.UnkBitfield2,
+		CityPlacementHeuristic:         z.CityPlacementHeuristic,
+		UnknownEnum:                    z.UnknownEnum,
+		UnkInt1:                        z.UnkInt1,
+		UnkInt2:                        z.UnkInt2,
+		Vectors1:                       z.Vectors1,
+		Vectors2:                       z.Vectors2,
+		Vectors3:                       z.Vectors3,
+		UnkFloat1:                      z.UnkFloat1,
+		UnkFloat2:                      z.UnkFloat2,
+		UnkFloat3:                      z.UnkFloat3,
+		UnkFloat4:                      z.UnkFloat4,
+		LocationFlags:                  z.LocationFlags,
+		ColoniesCurbPath:               lookupHash(z.ColoniesCurbPath),
+		CurvedCurbPath:                 lookupHash(z.CurvedCurbPath),
+		UnkFLoat5:                      z.UnkFLoat5,
+		UnkFLoat6:                      z.UnkFLoat6,
+		UnkInt3:                        z.UnkInt3,
+		DetailUnit1:                    lookupHash(z.DetailUnit1),
+		DetailUnit2:                    lookupHash(z.DetailUnit2),
+		DetailUnit3:                    lookupHash(z.DetailUnit3),
+		TrafficlightPrefab:             lookupHash(z.TrafficlightPrefab),
+		UnkFloat7:                      z.UnkFloat7,
+		UnkFloat8:                      z.UnkFloat8,
+		UnkFloat9:                      z.UnkFloat9,
+		UnkFloat10:                     z.UnkFloat10,
+		UnkFloat11:                     z.UnkFloat11,
+		CityStreetlights:               lookupHash(z.CityStreetlights),
+		UnkFloat12:                     z.UnkFloat12,
+		UnkFloat13:                     z.UnkFloat13,
+		UnkFloat14:                     z.UnkFloat14,
+		DetailUnit4:                    lookupHash(z.DetailUnit4),
+		UnkFloat15:                     z.UnkFloat15,
+		UnkFloat16:                     z.UnkFloat16,
+		UnkFloat17:                     z.UnkFloat17,
+		UnkFloat18:                     z.UnkFloat18,
+		UnkFloat19:                     z.UnkFloat19,
+		UnkFloat20:                     z.UnkFloat20,
+		UnkInt4:                        z.UnkInt4,
+		UnkString2:                     z.UnkString2,
+		UnkFloat21:                     z.UnkFloat21,
+		UnkFloat22:                     z.UnkFloat22,
+		BoundaryWallSettings:           z.BoundaryWallSettings,
+		RoadEmbankmentUnits:            roadEmbankmentUnits,
+		UnkInt5:                        z.UnkInt5,
+		UnkBitfield3:                   z.UnkBitfield3,
+	}
 }
 
 func (z rawZoneSettings) Deserialize(r io.ReadSeeker, base int64) (*ZoneSettings, error) {

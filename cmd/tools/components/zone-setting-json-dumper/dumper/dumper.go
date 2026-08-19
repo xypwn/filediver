@@ -14,7 +14,12 @@ func Dump(a components.HashLookup) {
 		panic(err)
 	}
 
-	output, err := json.MarshalIndent(zoneSettings, "", "    ")
+	simple := make([]datalib.SimpleZoneSettings, 0)
+	for _, zone := range zoneSettings {
+		simple = append(simple, zone.ToSimple(a.LookupHash, a.LookupThinHash, a.LookupString))
+	}
+
+	output, err := json.MarshalIndent(simple, "", "    ")
 	if err != nil {
 		panic(err)
 	}
