@@ -3,6 +3,7 @@ package cl
 import (
 	"encoding/binary"
 	"fmt"
+	"math"
 	"slices"
 	"strings"
 	"unicode/utf8"
@@ -26,10 +27,10 @@ func getSegmentIdxLen(s pattern.Segment) int {
 }
 
 // Reads the SegIdx into a flat array.
-func readIdx(dest []int64, s pattern.Segment, idx pattern.SegIdx) int {
+func readIdx(dest []uint32, s pattern.Segment, idx pattern.SegIdx) int {
 	p := 0
 	for i := range len(idx.Idxs) {
-		dest[p] = int64(idx.Idxs[i])
+		dest[p] = uint32(idx.Idxs[i])
 		p++
 	}
 	for i, segs := range s.Segs {
@@ -49,7 +50,7 @@ type clBuffers struct {
 	maxCandidateLen  int
 	data             struct {
 		tries        []uint32
-		idxs         []int64
+		idxs         []uint32
 		strs         []byte
 		strsOffsets  []uint32
 		strLens      []uint32
@@ -83,11 +84,32 @@ func makeClBuffers(runner *cl.OpenCLRunner, s pattern.Segment, targetHashes []st
 		return nil, fmt.Errorf("matchBufLen (%d) must be at least 1 more than the maximum candidate string length (%d)", b.matchBufLen, b.maxCandidateLen)
 	}
 
+	var check func(s pattern.Segment) error
+	check = func(s pattern.Segment) error {
+		if s.Comp == math.MaxInt {
+			return fmt.Errorf("pattern: complexity must be less than 64-bit signed integer limit")
+		}
+		for _, segs := range s.Segs {
+			if len(segs) > math.MaxUint32 {
+				return fmt.Errorf("pattern: operands of union must be no more than the 32-bit unsigned integer limit (4294967295)")
+			}
+			for _, seg := range segs {
+				if err := check(seg); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}
+	if err := check(s); err != nil {
+		return nil, err
+	}
+
 	// Create tries buffer.
 	b.data.tries = make([]uint32, numWorkers)
 
 	// Create index buffer.
-	b.data.idxs = make([]int64, b.idxLen*numWorkers)
+	b.data.idxs = make([]uint32, b.idxLen*numWorkers)
 
 	// Collect string arrays for all cases
 	// of unions of single string operands.
@@ -313,15 +335,20 @@ func generateClCode(s pattern.Segment, bufs *clBuffers) (code []byte) {
 	cb.L("#define NUM_TARGET_HASHES %d", len(bufs.data.targetHashes))
 	cb.L("#define IDX_LEN %d", bufs.idxLen)
 	cb.L(`
-ulong murmur64a_sum(const char *d, size_t n) {
+typedef int i32;
+typedef unsigned int u32;
+typedef long i64;
+typedef unsigned long u64;
+
+u64 murmur64a_sum(const char *d, u32 n) {
 #define SEED 0
 #define MIX 0xc6a4a7935bd1e995ul
 #define SHIFTS 47
 
-  ulong hash = SEED ^ (n * MIX);
+  u64 hash = SEED ^ (n * MIX);
   
   while (n >= 8) {
-    ulong key = *((ulong*)d);
+    u64 key = *((u64*)d);
 	d += 8;
 	n -= 8;
 
@@ -334,13 +361,13 @@ ulong murmur64a_sum(const char *d, size_t n) {
   }
 
   switch (n&7) {
-  case 7: hash ^= (ulong)d[6] << (8*6);
-  case 6: hash ^= (ulong)d[5] << (8*5);
-  case 5: hash ^= (ulong)d[4] << (8*4);
-  case 4: hash ^= (ulong)d[3] << (8*3);
-  case 3: hash ^= (ulong)d[2] << (8*2);
-  case 2: hash ^= (ulong)d[1] << (8*1);
-  case 1: hash ^= (ulong)d[0] << (8*0);
+  case 7: hash ^= (u64)d[6] << (8*6);
+  case 6: hash ^= (u64)d[5] << (8*5);
+  case 5: hash ^= (u64)d[4] << (8*4);
+  case 4: hash ^= (u64)d[3] << (8*3);
+  case 3: hash ^= (u64)d[2] << (8*2);
+  case 2: hash ^= (u64)d[1] << (8*1);
+  case 1: hash ^= (u64)d[0] << (8*0);
     hash *= MIX;
   }
 
@@ -376,15 +403,15 @@ __global void* memcpy_gl(__global void* dest, const void* src, size_t n) {
 }
 
 // Bloom filter to rule out most candidates.
-bool bitmap_test(ulong hash, __global const uint *hash_bitmap) {
+bool bitmap_test(u64 hash, __global const u32 *hash_bitmap) {
 #define BITS 24
-  uint hl = (uint)hash;
-  uint hh = (uint)(hash >> 32);
-  uint idxl = hl >> (32-(BITS-4));
-  uint bitl = 1 << (hl & 31);
+  u32 hl = (u32)hash;
+  u32 hh = (u32)(hash >> 32);
+  u32 idxl = hl >> (32-(BITS-4));
+  u32 bitl = 1 << (hl & 31);
   if (!(hash_bitmap[idxl] & bitl)) return false;
-  uint idxh = hh >> (32-(BITS-4));
-  uint bith = 1 << (hh & 31);
+  u32 idxh = hh >> (32-(BITS-4));
+  u32 bith = 1 << (hh & 31);
   if (!(hash_bitmap[idxh] & bith)) return false;
   return true;
 #undef BITS
@@ -392,11 +419,11 @@ bool bitmap_test(ulong hash, __global const uint *hash_bitmap) {
 
 // More expensive check if a candidate actually matches
 // a target hash.
-bool binary_search(ulong hash, __global const ulong *target_hashes) {
-  uint lo = 0;
-  uint hi = NUM_TARGET_HASHES;
+bool binary_search(u64 hash, __global const u64 *target_hashes) {
+  u32 lo = 0;
+  u32 hi = NUM_TARGET_HASHES;
   while (lo < hi) {
-    uint mid = (lo + hi) >> 1;
+    u32 mid = (lo + hi) >> 1;
 	if (target_hashes[mid] < hash)
 	  lo = mid + 1;
 	else
@@ -410,8 +437,8 @@ bool binary_search(ulong hash, __global const ulong *target_hashes) {
 //
 // Returns false if the try filled up the match buffer
 // fully and the kernel function should exit.
-bool try(const char *s, size_t n, const size_t id, __global const uint *hash_bitmap, __global const ulong *target_hashes, __global char *matches, __global uint *matches_lens) {
-  ulong h = murmur64a_sum(s, n);
+bool try(const char *s, size_t n, const size_t id, __global const u32 *hash_bitmap, __global const u64 *target_hashes, __global char *matches, __global u32 *matches_lens) {
+  u64 h = murmur64a_sum(s, n);
   if (!bitmap_test(h, hash_bitmap)) return true;
   if (!binary_search(h, target_hashes)) return true;
   if (matches_lens[id]+n+1 > MAX_MATCH_BUF_LEN)
@@ -422,12 +449,12 @@ bool try(const char *s, size_t n, const size_t id, __global const uint *hash_bit
   return true;
 }
 `)
-	cb.L(`__kernel void kmain(__global uint* tries, __global long* idxs, __global const char *strs, __global const uint *strs_offsets, __global const uint *str_lens, __global const uint *hash_bitmap, __global const ulong *target_hashes, __global char *matches, __global uint *matches_lens) {`)
+	cb.L(`__kernel void kmain(__global u32* tries, __global u32* idxs, __global const char *strs, __global const u32 *strs_offsets, __global const u32 *str_lens, __global const u32 *hash_bitmap, __global const u64 *target_hashes, __global char *matches, __global u32 *matches_lens) {`)
 	cb.L("size_t id = get_global_id(0);")
-	cb.L("uint n = tries[id]; // number of tries left")
+	cb.L("u32 n = tries[id]; // number of tries left")
 	cb.L("char candidate[MAX_CANDIDATE_LEN];")
-	cb.L("int candidate_len = 0;")
-	cb.L("long i[IDX_LEN];")
+	cb.L("i32 candidate_len = 0;")
+	cb.L("u32 i[IDX_LEN];")
 	cb.L("memcpy_lg(i, idxs + id*IDX_LEN, sizeof(i));")
 	totalIdxNum := 0
 	var genCode func(s pattern.Segment, canTry bool)
@@ -438,7 +465,7 @@ bool try(const char *s, size_t n, const size_t id, __global const uint *hash_bit
 		}
 		const exprTry = "if (!n || !try(candidate, candidate_len, id, hash_bitmap, target_hashes, matches, matches_lens)) goto ret; n--;"
 		if s.Str != "" { // fallback; this case shouldn't happen
-			cb.L("int str_len = %d;", len(s.Str))
+			cb.L("const u32 str_len = %d;", len(s.Str))
 			writeExprPushStr("memcpy_lc", quote(s.Str))
 			if canTry {
 				cb.L(exprTry)
@@ -454,14 +481,14 @@ bool try(const char *s, size_t n, const size_t id, __global const uint *hash_bit
 			shouldTry := canTry && i == len(s.Segs)-1
 			if len(segs) == s.Comps[i] {
 				offs := bufs.strArrOffset(s, i)
-				cb.L("const uint str_idx = %d+i[%d];", offs, idxNum)
-				cb.L("const uint str_len = str_lens[str_idx];", offs, idxNum)
+				cb.L("const u32 str_idx = %d+i[%d];", offs, idxNum)
+				cb.L("const u32 str_len = str_lens[str_idx];", offs, idxNum)
 				writeExprPushStr("memcpy_lg", "strs + strs_offsets[str_idx]")
 				if shouldTry {
 					cb.L(exprTry)
 				}
 			} else {
-				cb.L("uint str_len = 0;")
+				cb.L("u32 str_len = 0;")
 				cb.L("switch (i[%d]) {", idxNum)
 				for j, seg := range segs {
 					cb.L("case %d:", j)
