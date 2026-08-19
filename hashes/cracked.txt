@@ -3097,6 +3097,9 @@ content/env_illuminate/prefabs/il_cables_merged_05
 content/env_illuminate/prefabs/il_cables_merged_06
 content/env_illuminate/props/il_battery_machine_01
 content/env_illuminate/props/il_battery_machine_base
+content/env_illuminate/props/il_battery_machine_single_01
+content/env_illuminate/props/il_cable_attach_object_01
+content/env_illuminate/props/il_cable_attach_object_02
 content/env_illuminate/props/il_canister
 content/env_illuminate/props/il_circular_platform_01
 content/env_illuminate/props/il_container_01
@@ -3112,6 +3115,9 @@ content/env_illuminate/props/il_cover_wall_end_01
 content/env_illuminate/props/il_cover_wall_end_02
 content/env_illuminate/props/il_cover_wall_end_03
 content/env_illuminate/props/il_cover_wall_end_04
+content/env_illuminate/props/il_misc_machine_01
+content/env_illuminate/props/il_misc_machine_02
+content/env_illuminate/props/il_misc_machine_connector
 content/env_illuminate/props/il_mobile_cover
 content/env_illuminate/props/il_satellite_01
 content/env_illuminate/props/il_signpost

@@ -553,7 +553,7 @@ func LoadGPU(r io.ReadSeeker) (*MaterialGPU, error) {
 					return nil, err
 				}
 			}
-			if block.Headers[i].StageMask&ShaderStage_InstancedVertex != 0 && block.Headers[i].Stages[0].DXBCSize > 0 {
+			if block.Headers[i].StageMask&ShaderStage_InstancedVertex != 0 && block.Headers[i].StageMask&ShaderStage_Vertex == 0 && block.Headers[i].Stages[0].DXBCSize > 0 {
 				stage := block.Headers[i].Stages[ShaderStage_InstancedVertex.StageIdx()]
 				if shader, ok := loadedShaders[stage.DXBCName]; ok {
 					block.Programs[i].InstancedVertexShader = shader
