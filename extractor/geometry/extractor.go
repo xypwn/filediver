@@ -906,37 +906,32 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, me
 		}
 	}
 
+	boneList := make([]int, 0)
 	gameMeshIdx := -1
-	shadowMeshIdx := -1
-	rubbleMeshIdx := -1
-	rubbleCollisionMeshIdx := -1
 	for idx, bone := range unitInfo.Bones {
-		if ctx.LookupThinHash(bone.NameHash) == "game_mesh" {
+		name := ctx.LookupThinHash(bone.NameHash)
+		switch name {
+		case "game_mesh":
 			gameMeshIdx = idx
-		}
-		if ctx.LookupThinHash(bone.NameHash) == "shadow_mesh" {
-			shadowMeshIdx = idx
-		}
-		if ctx.LookupThinHash(bone.NameHash) == "rubble" {
-			rubbleMeshIdx = idx
-		}
-		if ctx.LookupThinHash(bone.NameHash) == "rubble_collision" {
-			rubbleCollisionMeshIdx = idx
+			fallthrough
+		case "shadow_mesh", "rubble", "rubble_collision":
+			boneList = append(boneList, idx)
 		}
 	}
 
 	children := make([]uint32, 0)
-	if gameMeshIdx != -1 {
-		children = append(children, unitInfo.Bones[gameMeshIdx].Children...)
-	}
-	if shadowMeshIdx != -1 {
-		children = append(children, unitInfo.Bones[shadowMeshIdx].Children...)
-	}
-	if rubbleMeshIdx != -1 {
-		children = append(children, unitInfo.Bones[rubbleMeshIdx].Children...)
-	}
-	if rubbleCollisionMeshIdx != -1 {
-		children = append(children, unitInfo.Bones[rubbleCollisionMeshIdx].Children...)
+	for {
+		if len(boneList) == 0 {
+			break
+		}
+		boneIdx := boneList[0]
+		boneList = boneList[1:]
+		if boneIdx != -1 {
+			children = append(children, unitInfo.Bones[boneIdx].Children...)
+			for _, child := range unitInfo.Bones[boneIdx].Children {
+				boneList = append(boneList, int(child))
+			}
+		}
 	}
 
 	gameMeshes := make(map[string][]string)
@@ -949,6 +944,7 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, me
 		if strings.Contains(boneName, "_LOD") {
 			meshName = boneName[:len(boneName)-5]
 		}
+		meshName = strings.TrimSuffix(meshName, "_shadow")
 		if _, ok := gameMeshes[meshName]; !ok {
 			gameMeshes[meshName] = make([]string, 0)
 		}
