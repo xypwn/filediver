@@ -90,6 +90,10 @@ var entities []byte
 var entityDeltasCompressed []byte
 var entityDeltas []byte
 
+//go:embed generated_zone_data.dl_bin.gz
+var zoneSettingsCompressed []byte
+var zoneSettings []byte
+
 //go:embed dl_library.dl_typelib.gz
 var typelibCompressed []byte
 var typelib []byte
@@ -151,6 +155,7 @@ func init() {
 	goDecompress(&skySettings, skySettingsCompressed)
 	goDecompress(&unitCustomizationSettings, unitCustomizationSettingsCompressed)
 	goDecompress(&weaponCustomizationSettings, weaponCustomizationSettingsCompressed)
+	goDecompress(&zoneSettings, zoneSettingsCompressed)
 	goDecompress(&typelib, typelibCompressed)
 	goParseHashes()
 	wg.Wait()
@@ -435,6 +440,47 @@ type DLTypeLib struct {
 type DLArray struct {
 	Offset int64
 	Count  uint64
+}
+
+func ResolveDLArray[T any](d DLArray, r io.ReadSeeker, base int64) (result []T, err error) {
+	if d.Offset < 0 {
+		return make([]T, 0), nil
+	}
+	var originalOffset int64
+	if originalOffset, err = r.Seek(base+d.Offset, io.SeekStart); err != nil {
+		return
+	}
+	result = make([]T, d.Count)
+	if err = binary.Read(r, binary.LittleEndian, result); err != nil {
+		return
+	}
+	_, err = r.Seek(originalOffset, io.SeekStart)
+	return
+}
+
+type DLString struct {
+	Offset int64
+}
+
+type DLPtr struct {
+	Offset int64
+}
+
+func ResolveDLPtr[T any](d DLPtr, r io.ReadSeeker, base int64) (*T, error) {
+	if d.Offset < 0 {
+		return nil, nil
+	}
+	var originalOffset int64
+	var err error
+	if originalOffset, err = r.Seek(base+d.Offset, io.SeekStart); err != nil {
+		return nil, err
+	}
+	var result T
+	if err = binary.Read(r, binary.LittleEndian, &result); err != nil {
+		return nil, err
+	}
+	_, err = r.Seek(originalOffset, io.SeekStart)
+	return &result, err
 }
 
 var parsedTypelib *DLTypeLib = nil

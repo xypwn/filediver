@@ -49,6 +49,7 @@ func main() {
 		"generated_sky_settings.dl_bin",
 		"generated_unit_customization_settings.dl_bin",
 		"generated_weapon_customization_settings.dl_bin",
+		"generated_zone_data.dl_bin",
 		"generated_entities.dl_bin",
 		"generated_entity_deltas.dl_bin",
 	}
