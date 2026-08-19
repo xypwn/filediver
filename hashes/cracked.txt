@@ -2962,6 +2962,7 @@ content/env_illuminate/architecture/il_ruin_pillar_big_01
 content/env_illuminate/architecture/il_ruin_pillar_broken_base
 content/env_illuminate/architecture/il_ruin_pillar_broken_top
 content/env_illuminate/architecture/il_ruin_pillar_small_01
+content/env_illuminate/architecture/il_ruin_pillar_small_broken_base
 content/env_illuminate/architecture/il_ruin_pillar_top
 content/env_illuminate/architecture/il_ruin_roof_arch_01
 content/env_illuminate/architecture/il_ruin_roof_arch_01_broken
@@ -3948,6 +3949,7 @@ content/env_super_earth/colonies/props/colony_antenna_big_03
 content/env_super_earth/colonies/props/colony_billboard_01
 content/env_super_earth/colonies/props/colony_bollard_01
 content/env_super_earth/colonies/props/colony_bollard_01_3x
+content/env_super_earth/colonies/props/colony_bunker_entrance
 content/env_super_earth/colonies/props/colony_cable_10m_a
 content/env_super_earth/colonies/props/colony_cable_10m_b
 content/env_super_earth/colonies/props/colony_cable_20m_a
@@ -5532,6 +5534,7 @@ content/fac_helldivers/equipment/melee_weapons/survival_shovel/animation/folded
 content/fac_helldivers/equipment/melee_weapons/survival_shovel/animation/holster
 content/fac_helldivers/equipment/melee_weapons/survival_shovel/animation/idle
 content/fac_helldivers/equipment/melee_weapons/survival_shovel/survival_shovel
+content/fac_helldivers/equipment/melee_weapons/survival_shovel/survival_shovel_trench
 content/fac_helldivers/equipment/primary_weapons/arc_shotgun/animation/pump
 content/fac_helldivers/equipment/primary_weapons/arc_shotgun/arc_shotgun
 content/fac_helldivers/equipment/primary_weapons/arc_shotgun/textures/arc_shotgun_nac
