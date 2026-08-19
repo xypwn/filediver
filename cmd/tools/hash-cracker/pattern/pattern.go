@@ -337,7 +337,7 @@ func (s *Segment) optimize() {
 	}
 
 	// Cartesian product of single-parameter unions
-	// can be flattened.
+	// of cartesian product can be flattened.
 	//
 	// Example:
 	// x(A, u(x(B, C)), u(x(D))) -> x(A, B, C, D)
@@ -347,7 +347,7 @@ func (s *Segment) optimize() {
 		var newSegs [][]Segment
 		var newComps []int
 		for ; i < len(s.Segs); i++ {
-			if len(s.Segs[i]) == 1 {
+			if len(s.Segs[i]) == 1 && s.Segs[i][0].Str == "" {
 				newSegs = append(newSegs, s.Segs[i][0].Segs...)
 				newComps = append(newComps, s.Segs[i][0].Comps...)
 			} else {

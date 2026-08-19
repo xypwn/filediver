@@ -77,6 +77,25 @@ func TestCompile(t *testing.T) {
 				Comps: []int{2},
 			}, "",
 		},
+		{"concat", "c<a|b>d",
+			CompileOptions{},
+			Segment{
+				Segs: [][]Segment{
+					{
+						{Str: "c", Comp: 1},
+					},
+					{
+						{Str: "a", Comp: 1},
+						{Str: "b", Comp: 1},
+					},
+					{
+						{Str: "d", Comp: 1},
+					},
+				},
+				Comp:  2,
+				Comps: []int{1, 2, 1},
+			}, "",
+		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
