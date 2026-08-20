@@ -167,6 +167,44 @@ class DDSPixelFormat:
         size, flags, fourcc, bitcount, redmask, grnmask, blumask, alpmask = struct.unpack("<II4sIIIII", data.read(32))
         return cls(size, flags, fourcc, bitcount, redmask, grnmask, blumask, alpmask)
 
+
+"""
+bitfield Caps2Flags {
+  padding        : 9;
+  cubemap        : 1;
+  cubemap_plusX  : 1;
+  cubemap_minusX : 1;
+  cubemap_plusY  : 1;
+  cubemap_minusY : 1;
+  cubemap_plusZ  : 1;
+  cubemap_minusZ : 1;
+  padding        : 5;
+  volume         : 1; // 0x200000
+  padding        : 10;
+};
+"""
+
+class DDSCaps2:
+    def __init__(self, value: int):
+        self.value = value
+
+    def cubemap(self) -> bool:
+        return self.value & (1 << 9) != 0
+    def cubemap_plusX(self) -> bool:
+        return self.value & (1 << 10) != 0
+    def cubemap_minusX(self) -> bool:
+        return self.value & (1 << 11) != 0
+    def cubemap_plusY(self) -> bool:
+        return self.value & (1 << 12) != 0
+    def cubemap_minusY(self) -> bool:
+        return self.value & (1 << 13) != 0
+    def cubemap_plusZ(self) -> bool:
+        return self.value & (1 << 14) != 0
+    def cubemap_minusZ(self) -> bool:
+        return self.value & (1 << 15) != 0
+    def volume(self) -> bool:
+        return self.value & (1 << 21) != 0
+
 class DDSHeader:
     def __init__(self, magic: bytes, size: int, flags: int, height: int, width: int, pitch: int, depth: int, mipmaps: int, dds_pix_fmt: DDSPixelFormat, caps: int, caps2: int, caps3: int, caps4: int, dx10header: DX10Header):
         self.magic = magic
@@ -179,7 +217,7 @@ class DDSHeader:
         self.mipmaps = mipmaps
         self.dds_pix_fmt = dds_pix_fmt
         self.caps = caps
-        self.caps2 = caps2
+        self.caps2 = DDSCaps2(caps2)
         self.caps3 = caps3
         self.caps4 = caps4
         self.dx10header = dx10header
@@ -210,6 +248,13 @@ class DDS:
     def parse(cls, data: BytesIO) -> 'DDS':
         return cls(DDSHeader.parse(data), data.read())
 
+    def read_face(self, width, height, offset, stride, fmt, conv):
+        face = []
+        for _ in range(height):
+            face.append([conv(pixel) for pixel in struct.iter_unpack(fmt, self.data[offset:offset + stride * width])])
+            offset += stride * width
+        return face, offset
+
     # Returns the largest mipmap's pixels
     def pixels(self) -> np.ndarray:
         assert self.header.dds_pix_fmt.fourcc == b"DX10", f"Pixel format not DX10: got '{self.header.dds_pix_fmt.fourcc}'"
@@ -225,8 +270,23 @@ class DDS:
                 conv = lambda x: tuple(float(val) / 255 for val in x)
         offset = 0
         pixels = []
-        for _ in range(self.header.height):
-            pixels.append([conv(pixel) for pixel in struct.iter_unpack(fmt, self.data[offset:offset + stride * self.header.width])])
-            offset += stride * self.header.width
+        faces = []
+        layers = self.header.dx10header.arraysize
+        if self.header.caps2.cubemap():
+            layers = 6
+        for _ in range(layers):
+            mip_width, mip_height = self.header.width, self.header.height
+            for _ in range(self.header.mipmaps):
+                face, offset = self.read_face(mip_width, mip_height, offset, stride, fmt, conv)
+                faces.append(face)
+                mip_width >>= 1
+                mip_height >>= 1
+            if layers == 1:
+                pixels = faces[0]
+            else:
+                pixels.append(faces[0])
+            faces = []
+
+        
         return np.array(pixels, dtype=np.float16)
 
