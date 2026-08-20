@@ -452,7 +452,7 @@ class OpenEXR:
         splits = [i+16 for i in range(0, height-16, 16)]
         if len(splits) == 0:
             splits = [16]
-        scanline_pixels = np.vsplit(faces[f], splits)
+        scanline_pixels = np.vsplit(pixels, splits)
         scanlines: List[Scanline] = []
         y_coord = 0
         for line in scanline_pixels:
