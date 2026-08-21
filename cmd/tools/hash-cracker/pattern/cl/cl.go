@@ -34,8 +34,10 @@ func readIdx(dest []uint32, s pattern.Segment, idx pattern.SegIdx) int {
 		p++
 	}
 	for i, segs := range s.Segs {
-		for j, seg := range segs {
-			p += readIdx(dest[p:], seg, idx.Segs[i][j])
+		if s.Comps[i] != len(s.Segs[i]) {
+			for j, seg := range segs {
+				p += readIdx(dest[p:], seg, idx.Segs[i][j])
+			}
 		}
 	}
 	return p
@@ -116,7 +118,7 @@ func makeClBuffers(runner *cl.OpenCLRunner, s pattern.Segment, targetHashes []st
 	{
 		var addStrArrs func(s pattern.Segment)
 		addStrArrs = func(s pattern.Segment) {
-			if s.Str != "" {
+			if s.Type == pattern.SegmentText {
 				return
 			}
 			for i, segs := range s.Segs {
@@ -184,6 +186,19 @@ func makeClBuffers(runner *cl.OpenCLRunner, s pattern.Segment, targetHashes []st
 	// Match buffers
 	b.data.matches = make([]byte, b.matchBufLen*numWorkers)
 	b.data.matchesLens = make([]uint32, numWorkers)
+
+	// Prevent errors from empty buffer
+	if len(b.data.idxs) == 0 {
+		b.data.idxs = []uint32{0}
+	}
+	if len(b.data.strs) == 0 {
+		b.data.strsOffsets = []uint32{0}
+		b.data.strLens = []uint32{0}
+		b.data.strs = []byte{0}
+	}
+	if len(b.data.targetHashes) == 0 {
+		b.data.targetHashes = []uint64{0}
+	}
 
 	// Create according OpenCL Buffers
 	{
@@ -469,7 +484,7 @@ bool try(const u64 *s, u32 n, const size_t id, __global const u32 *hash_bitmap, 
 			cb.L("candidate_len += str_len;")
 		}
 		const exprTry = "if (!n || !try(candidate, candidate_len, id, hash_bitmap, target_hashes, matches, matches_lens)) goto ret; n--;"
-		if s.Str != "" { // fallback; this case shouldn't happen
+		if s.Type == pattern.SegmentText { // fallback; this case shouldn't happen
 			cb.L("const u32 str_len = %d;", len(s.Str))
 			writeExprPushStr("memcpy_pc", quote(s.Str))
 			if canTry {
@@ -497,9 +512,9 @@ bool try(const u64 *s, u32 n, const size_t id, __global const u32 *hash_bitmap, 
 				cb.L("switch (i[%d]) {", idxNum)
 				for j, seg := range segs {
 					cb.L("case %d:", j)
-					if seg.Str != "" {
-						cb.L("str_len = %d;", len(s.Str))
-						writeExprPushStr("memcpy_pc", quote(s.Str))
+					if seg.Type == pattern.SegmentText {
+						cb.L("str_len = %d;", len(seg.Str))
+						writeExprPushStr("memcpy_pc", quote(seg.Str))
 						if shouldTry {
 							cb.L(exprTry)
 						}

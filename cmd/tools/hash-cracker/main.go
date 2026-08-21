@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"regexp"
+	"runtime/pprof"
 	"slices"
 	"strings"
 	"sync"
@@ -212,9 +213,12 @@ func crack(ctx context.Context, crackers []Cracker, crackerArgs [][]string, prt 
 			numErrs++
 		}
 	}
-	if numErrs <= 1 {
+	switch numErrs {
+	case 0:
+		return a.newHashes, nil
+	case 1:
 		return nil, firstErr
-	} else {
+	default:
 		return nil, fmt.Errorf("%w (and %v more errors)", firstErr, numErrs-1)
 	}
 }
@@ -333,7 +337,26 @@ func main() {
 		Help:       "cracker name followed by args; separate multiple crackers by \"AND\"",
 		Positional: true,
 	})
+	optCpuProfile := argp.Flag("", "cpuprofile", &argparse.Option{
+		Help:      "write CPU profile",
+		HideEntry: true,
+	})
 	prt, a := fdtools.Init(argp)
+	if *optCpuProfile {
+		const filename = "cpu.prof"
+		f, err := os.Create(filename)
+		if err != nil {
+			prt.Fatalf("creating CPU profile file: %w", err)
+		}
+		prt.Infof("Starting CPU profile")
+		if err := pprof.StartCPUProfile(f); err != nil {
+			prt.Fatalf("starting CPU profile: %w", err)
+		}
+		defer func() {
+			pprof.StopCPUProfile()
+			prt.Infof("CPU profile written to " + filename)
+		}()
+	}
 	var selCrackers []Cracker
 	var selCrackerArgs [][]string
 	{
@@ -374,7 +397,14 @@ func main() {
 			return err
 		}
 		if *optWrite {
-			const crackedFile = "hashes/cracked.txt"
+			crackedFile := "hashes/cracked.txt"
+			if _, err := os.Stat(crackedFile); errors.Is(err, os.ErrNotExist) {
+				crackedFile = "../../../" + crackedFile
+			}
+			if _, err := os.Stat(crackedFile); errors.Is(err, os.ErrNotExist) {
+				prt.Errorf("Unable to write to cracked.txt because it could not be found")
+				return nil
+			}
 			prt.Infof("Adding %d hashes to %s...", len(newHashes), crackedFile)
 			fb, err := os.ReadFile(crackedFile)
 			if err != nil {

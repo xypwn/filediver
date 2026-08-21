@@ -3,6 +3,7 @@ package pattern
 import (
 	"errors"
 	"fmt"
+	"iter"
 	"math"
 	"math/big"
 	"slices"
@@ -11,16 +12,35 @@ import (
 )
 
 type CompileOptions struct {
+	// Additional functions.
+	//
+	// Parameters must be of type string or any [IrSegment] type.
+	//
+	// Return value must be an IrSegment and optionally an error.
+	Funcs map[string]any
+	//
+	Vars map[string]IrSegment
+	// Don't apply optimizations (mostly meant for debugging,
+	// you usually want to leave this set to false).
 	NoOptimize bool
 }
 
 var (
 	ErrNotAscii                       = errors.New("pattern must be ASCII-only")
 	ErrNullCharacter                  = errors.New("pattern must not contain the null ('\\0') character")
-	ErrUnexpectedEOF                  = errors.New("unexpected end of file")
 	ErrNumberTooLarge                 = errors.New("number too large")
 	ErrExpectedNonnegativeInteger     = errors.New("expected nonnegative whole number")
 	ErrExpectedExpressionBeforeRepeat = errors.New("expected expression before repeat expression")
+	ErrInvalidCharClassRange          = errors.New("invalid character class range")
+	ErrInvalidVarOrFuncNameChar       = errors.New("invalid variable or function name char (expected [A-Za-z0-9_-])")
+	ErrEmptyVarOrFuncName             = errors.New("empty variable or function name")
+	ErrTooManyArgsInAssignment        = errors.New("assignment needs exactly one parameter after \"=\"")
+	ErrVarOrFuncAlreadyExists         = errors.New("variable or function already exists")
+	ErrUnknownVarOrFunc               = errors.New("unknown variable or function")
+	ErrInvalidVarType                 = errors.New("invalid variable type")
+	ErrInvalidFuncType                = errors.New("invalid function type")
+	ErrInvalidFuncCall                = errors.New("invalid function call")
+	ErrCallingFunc                    = errors.New("calling function")
 	ErrComplexityTooLarge             = errors.New("complexity (number of possibilities) must be less than the 64-bit signed integer limit (9223372036854775807)")
 )
 
@@ -37,10 +57,19 @@ func (e *Error) Unwrap() error {
 	return e.Err
 }
 
+type SegmentType uint8
+
+const (
+	SegmentText SegmentType = iota
+	SegmentProdOfSets
+)
+
 type Segment struct {
-	// text (if Str != "")
+	// Text or cartesian product of sets
+	Type SegmentType
+	// Text (if Type == SegmentText)
 	Str string
-	// cartesian product of ordered sets (if str == "")
+	// cartesian product of ordered sets (if Type == SegmentProdOfSets)
 	//
 	// (note that this is in a way the opposite of how
 	// parse models things, as parse has an ordered set
@@ -62,7 +91,13 @@ type SegIdx struct {
 }
 
 // Reset zeroes out the index.
+//
+// Assumes [SegIdx.TotalIdx] is consistent
+// with any inner indices for performance.
 func (idx *SegIdx) Reset() {
+	if idx.TotalIdx == 0 {
+		return
+	}
 	for i := range idx.Idxs {
 		idx.Idxs[i] = 0
 		for j := range idx.Segs[i] {
@@ -175,7 +210,7 @@ func (idx *SegIdx) Add(s Segment, n int) (carry int) {
 // AppendAt appends the string at the given pattern index to
 // the buffer.
 func (s Segment) AppendAt(buf []byte, idx SegIdx) []byte {
-	if s.Str != "" {
+	if s.Type == SegmentText {
 		buf = append(buf, s.Str...)
 	}
 	for i := range s.Segs {
@@ -191,7 +226,7 @@ func (s Segment) StringAt(idx SegIdx) string {
 }
 
 func (s Segment) String() string {
-	if s.Str != "" {
+	if s.Type == SegmentText {
 		return strconv.Quote(s.Str)
 	} else {
 		var b strings.Builder
@@ -210,7 +245,7 @@ func (s Segment) String() string {
 }
 
 func (s *Segment) calculateComps() {
-	if s.Str != "" {
+	if s.Type == SegmentText {
 		s.Comp = 1
 		return
 	}
@@ -245,7 +280,7 @@ func (s *Segment) calculateComps() {
 
 // MakeIndex creates an index for the given segment.
 func (s Segment) MakeIndex() (idx SegIdx) {
-	if s.Str != "" {
+	if s.Type == SegmentText {
 		return
 	}
 	idx.Idxs = make([]int, len(s.Segs))
@@ -264,7 +299,7 @@ func (s Segment) MakeIndex() (idx SegIdx) {
 //
 // Pass nil as max to ignore maximum.
 func (s Segment) CompBig(max *big.Int) *big.Int {
-	if s.Str != "" {
+	if s.Type == SegmentText {
 		return big.NewInt(1)
 	}
 	prod := big.NewInt(1)
@@ -292,7 +327,7 @@ func (s Segment) CompBig(max *big.Int) *big.Int {
 // MaxLen returns the maximum possible string length
 // generated from the pattern.
 func (s Segment) MaxLen() int {
-	if s.Str != "" {
+	if s.Type == SegmentText {
 		return len(s.Str)
 	}
 	concatLen := 0
@@ -332,7 +367,7 @@ func (s *Segment) optimize() {
 	}
 	for i := range s.Segs {
 		s.Segs[i] = slices.DeleteFunc(s.Segs[i], func(s Segment) bool {
-			return s.Str == "" && len(s.Segs) == 0
+			return s.Type == SegmentProdOfSets && len(s.Segs) == 0
 		})
 	}
 
@@ -347,7 +382,7 @@ func (s *Segment) optimize() {
 		var newSegs [][]Segment
 		var newComps []int
 		for ; i < len(s.Segs); i++ {
-			if len(s.Segs[i]) == 1 && s.Segs[i][0].Str == "" {
+			if len(s.Segs[i]) == 1 && s.Segs[i][0].Type == SegmentProdOfSets {
 				newSegs = append(newSegs, s.Segs[i][0].Segs...)
 				newComps = append(newComps, s.Segs[i][0].Comps...)
 			} else {
@@ -370,40 +405,56 @@ func (s *Segment) optimize() {
 	}
 }
 
-func compile(irSeg irSegment, opts CompileOptions) Segment {
+func compile(irSeg IrSegment, opts CompileOptions) Segment {
+	if irSeg == nil {
+		return Segment{}
+	}
 	var res Segment
 	switch irSeg := irSeg.(type) {
-	case irSegmentChoice:
+	case IrSegmentChoice:
+		if len(irSeg) == 0 {
+			// Empty choice doesn't really make
+			// sense mathematically, but it should
+			// probably always be an empty string.
+			res.Type = SegmentText
+			res.Str = ""
+			return res
+		}
+		res.Type = SegmentProdOfSets
 		res.Segs = make([][]Segment, 1)
 		res.Segs[0] = make([]Segment, len(irSeg))
 		for i := range irSeg {
 			res.Segs[0][i] = compile(irSeg[i], opts)
 		}
-	case irSegmentConcat:
+	case IrSegmentConcat:
+		res.Type = SegmentProdOfSets
 		res.Segs = make([][]Segment, len(irSeg))
 		for i := range irSeg {
 			res.Segs[i] = []Segment{compile(irSeg[i], opts)}
 		}
-	case irSegmentStr:
+	case IrSegmentStr:
+		res.Type = SegmentText
 		res.Str = string(irSeg)
-	case irSegmentRepeat:
+	case IrSegmentRepeat:
 		// Expand repeat (e.g. a{1,2} -> a|aa)
 		body := compile(irSeg.Seg, opts)
 		if irSeg.Min == 1 && irSeg.Max == 1 {
 			return body
 		}
+		res.Type = SegmentProdOfSets
 		res.Segs = make([][]Segment, 1)
 		res.Segs[0] = make([]Segment, irSeg.Max-irSeg.Min+1)
 		for i := range res.Segs[0] {
 			reps := irSeg.Min + i
-			repeated := Segment{Segs: make([][]Segment, reps)}
+			repeated := Segment{
+				Type: SegmentProdOfSets,
+				Segs: make([][]Segment, reps),
+			}
 			for j := range repeated.Segs {
 				repeated.Segs[j] = []Segment{body}
 			}
 			res.Segs[0][i] = repeated
 		}
-	case irSegmentName:
-		panic("TODO")
 	default:
 		panic("unhandled case")
 	}
@@ -421,7 +472,7 @@ func Compile(src []byte, opts CompileOptions) (prog Segment, err error) {
 			err = fmt.Errorf("compiling pattern: %w", err)
 		}
 	}()
-	irSeg, err := parse(src)
+	_, irSeg, err := parse(src, opts.Vars, opts.Funcs)
 	if err != nil {
 		return Segment{}, err
 	}
@@ -438,4 +489,12 @@ func Compile(src []byte, opts CompileOptions) (prog Segment, err error) {
 			comp/float64(seg.Comp))
 	}
 	return seg, nil
+}
+
+func ChoiceFromStrings(strs iter.Seq[string]) IrSegmentChoice {
+	var res IrSegmentChoice
+	for s := range strs {
+		res = append(res, IrSegmentStr(s))
+	}
+	return res
 }

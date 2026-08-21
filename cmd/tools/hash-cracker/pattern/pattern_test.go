@@ -10,31 +10,31 @@ func TestParse(t *testing.T) {
 	cases := []struct {
 		name    string
 		expr    string
-		want    irSegment
+		want    IrSegment
 		wantErr string
 	}{
 		{"basic", "<a|b>cd",
-			irSegmentConcat{
-				irSegmentChoice{
-					irSegmentStr("a"),
-					irSegmentStr("b"),
+			IrSegmentConcat{
+				IrSegmentChoice{
+					IrSegmentStr("a"),
+					IrSegmentStr("b"),
 				},
-				irSegmentStr("cd"),
+				IrSegmentStr("cd"),
 			}, ""},
 		{"repeat", "<a|b>{5,10}",
-			irSegmentRepeat{
-				Seg: irSegmentChoice{
-					irSegmentStr("a"),
-					irSegmentStr("b"),
+			IrSegmentRepeat{
+				Seg: IrSegmentChoice{
+					IrSegmentStr("a"),
+					IrSegmentStr("b"),
 				},
 				Min: 5,
 				Max: 10,
 			}, ""},
 		{"repeat 1", "<a|b>{10}",
-			irSegmentRepeat{
-				Seg: irSegmentChoice{
-					irSegmentStr("a"),
-					irSegmentStr("b"),
+			IrSegmentRepeat{
+				Seg: IrSegmentChoice{
+					IrSegmentStr("a"),
+					IrSegmentStr("b"),
 				},
 				Min: 10,
 				Max: 10,
@@ -45,7 +45,7 @@ func TestParse(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			require := require.New(t)
-			irSeg, err := parse([]byte(c.expr))
+			_, irSeg, err := parse([]byte(c.expr), nil, nil)
 			if c.wantErr == "" {
 				require.NoError(err)
 			} else {
@@ -67,10 +67,11 @@ func TestCompile(t *testing.T) {
 		{"basic", "a|b",
 			CompileOptions{},
 			Segment{
+				Type: SegmentProdOfSets,
 				Segs: [][]Segment{
 					{
-						{Str: "a", Comp: 1},
-						{Str: "b", Comp: 1},
+						{Type: SegmentText, Str: "a", Comp: 1},
+						{Type: SegmentText, Str: "b", Comp: 1},
 					},
 				},
 				Comp:  2,
@@ -80,16 +81,17 @@ func TestCompile(t *testing.T) {
 		{"concat", "c<a|b>d",
 			CompileOptions{},
 			Segment{
+				Type: SegmentProdOfSets,
 				Segs: [][]Segment{
 					{
-						{Str: "c", Comp: 1},
+						{Type: SegmentText, Str: "c", Comp: 1},
 					},
 					{
-						{Str: "a", Comp: 1},
-						{Str: "b", Comp: 1},
+						{Type: SegmentText, Str: "a", Comp: 1},
+						{Type: SegmentText, Str: "b", Comp: 1},
 					},
 					{
-						{Str: "d", Comp: 1},
+						{Type: SegmentText, Str: "d", Comp: 1},
 					},
 				},
 				Comp:  2,

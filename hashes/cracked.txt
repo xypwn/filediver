@@ -1299,6 +1299,7 @@ antenna_
 antenna_01
 antenna_1
 antenna_2
+apply_cave_alpha
 arc_thrower_marker
 arc_thrower_marker1
 arctic_rock_generic_large_01
@@ -1387,6 +1388,8 @@ backup/fly_4_turn_left
 backup/fly_4_turn_right
 backwall
 backwall_details
+bake_material_lookup
+bake_scatter_map
 bang
 bang_add
 banner_
@@ -1537,6 +1540,7 @@ blue_corp_tool_rack_5
 blue_corp_tool_rack_6
 blue_corp_tool_rack_8
 blue_corp_weather_vane_01
+blur_fog_particles
 body_bag_01
 body_bag_02
 body_bag_03
@@ -2038,6 +2042,8 @@ cable_2
 cable_3
 cable_4
 cache_loot_marker
+calculate_cloud_shadows
+calculate_heightmap_properties
 camera_avatar_inspect
 camera_default
 camera_editor
@@ -2113,9 +2119,11 @@ city_car_08
 civilian_spawn_door
 civilian_spawn_door1
 clear_compute
+clear_cubemap
 clear_dof
 clear_palette
 clear_rt
+clear_vista_heightmap
 clear_wind
 clear_wounds
 cliff_
@@ -2377,6 +2385,7 @@ content/art_shared/textures/screen_roughness
 content/art_shared/textures/snow_mask
 content/art_shared/textures/white_all_channels_dummy
 content/audio/project_bp
+content/audio/project_cn
 content/audio/project_de
 content/audio/project_es
 content/audio/project_fr
@@ -6746,6 +6755,10 @@ content/fac_super_earth/vehicles/forklift/forklift
 content/fallback_resources/missing_speedtree_albo
 content/fallback_resources/missing_speedtree_nrao
 content/game_mode
+content/gui/debug_huge
+content/gui/debug_large
+content/gui/debug_medium
+content/gui/debug_small
 content/gui/gui
 content/input
 content/level_generation_settings/env_shared/weather_settings/high_altitude_clouds/cirrculuokuus_01
@@ -6767,6 +6780,7 @@ content/levels/ship_hub-cubemaps/reflection_probe_diffuse_bake
 content/levels/ship_hub-cubemaps/reflection_probe_radiance_bake
 content/levels/ship_hub-cubemaps/reflection_probe_specular_bake
 content/markers/ammo_box_marker
+content/markers/camera_marker
 content/markers/customization_marker
 content/markers/exploration_markers/narrative/poi_text_battlefield_medium_01
 content/markers/exploration_markers/narrative/poi_text_botremains_01_01
@@ -6783,6 +6797,7 @@ content/markers/exploration_markers/narrative_node_lvl2_destruction
 content/markers/exploration_markers/narrative_node_lvl3_destruction
 content/markers/exploration_markers/narrative_node_lvl4_destruction
 content/markers/exploration_markers/narrative_node_no_destruction
+content/markers/generic_marker
 content/markers/grenade_box_marker
 content/markers/health_pack_marker
 content/markers/impact_event_marker
@@ -7939,6 +7954,7 @@ copy:frac
 copy:keep_aspect
 copy:tone_map
 copy_alpha
+copy_cubemap
 copy_depth_compute
 copy_depth_quadrant
 copy_wind
@@ -8339,6 +8355,7 @@ data_hub_lvl_3
 deactivate
 deactivate_1
 dead
+dearimgui
 death
 death_generic/default
 death_generic/ragdoll
@@ -8407,6 +8424,7 @@ default/Ragdoll_Static
 deploy
 deploy_drill
 deployed
+desaturate
 desert_terrain
 detached
 detail_light_
@@ -8423,6 +8441,7 @@ drop_backpack
 dropoff_01
 dropoff_collect
 dumpster_01
+dynamic_dof_bake
 eagle bay
 eagle_air_to_air_missile
 eagle_air_to_air_missile_single
@@ -8593,6 +8612,10 @@ fighting_worker_male_corpse_6
 fighting_worker_male_corpse_7
 fighting_worker_male_corpse_8
 fighting_worker_male_corpse_9
+fill_ground_color
+filter_scatter_lookup
+finalize_fog_volumes
+finalize_glow_up
 fire
 fire_add
 fire_hydrant_01
@@ -8678,6 +8701,7 @@ gate_to_reinforce
 gate_to_sprint
 gate_to_stim
 gate_to_stratagem
+gather_high_pass
 gen_delivery_location_marker
 gen_skeleton_pile
 gen_skeleton_pile1
@@ -9196,6 +9220,7 @@ health_pack_marker2
 heat_distortion_medium
 heat_distortion_medium1
 height_blend
+height_max_blend
 height_modify
 hellbomb_defunct
 hellbomb_defunct1
@@ -9283,6 +9308,7 @@ hive_world_spore_lung_tentacle7
 hive_world_spore_lung_tentacle8
 hive_world_spore_lung_tentacle9
 hologram_filtering
+hologram_filtering_bloom
 holster
 hose_attach
 hose_connect
@@ -9575,8 +9601,10 @@ il_weather_device_battery1
 illuminate_attack_ship_crashed
 illuminate_attack_ship_damaged
 imp_bake
+imp_bake_minimap
 imp_clear
 imp_debug
+imp_downsample_mip
 imp_material_count
 imp_merge_transparency
 imp_override_transparency
@@ -9637,6 +9665,7 @@ light_01_lit
 light_02_lit
 light_02_lit1
 light_02_lit2
+light_count_visualization
 light_pole_
 light_pole_01
 light_pole_1
@@ -9665,6 +9694,7 @@ loadin
 locator_beacon
 loco
 loco_backwards
+log_heat_map
 log_large_
 log_large_01
 log_large_02
@@ -9701,6 +9731,7 @@ mb_neighbour_max_compute
 mechanical_bughole
 menu_idle
 mid_height
+mind_scramble_apply
 mine_launcher_prop
 minimap_projector
 mip_spd
@@ -9919,6 +9950,10 @@ packages/fallback_resources
 packages/foundation
 packages/generated/exploration_rewards
 packages/localization/jp
+packages/localization/ko
+packages/localization/ru
+packages/localization/sc
+packages/localization/tc
 packages/pre_boot
 packages/splash
 packages/terrain
@@ -10423,6 +10458,7 @@ sample_oil_marker1
 sample_oil_marker2
 sample_oil_marker3
 sample_oil_marker4
+sample_screen_data
 sample_spice_marker
 sample_spice_marker1
 sample_spice_marker2
@@ -10474,6 +10510,7 @@ scaffolding_support_01
 scaffolding_support_02
 scaffolding_walkway_
 scaffolding_walkway_01
+scatter_lookup_bake
 science bay
 science_lab_bench_02
 screw_01
@@ -10749,6 +10786,8 @@ soldier_corpse_
 soldier_corpse_01
 soldier_corpse_1
 soldier_corpse_2
+space_backdrop_cubemap
+space_backdrop_nebula
 sparks_medium
 sparks_medium1
 sparks_medium2
@@ -10798,6 +10837,7 @@ ssr_hiz_pass_compute
 stairs
 stairs_platform_01
 standard_pistol
+star_lut_apply
 start
 statue_01
 statue_02
@@ -10858,6 +10898,7 @@ terrain1
 terrain_projector
 texture_overlay
 thumbnail_finalize
+thumbnail_image_copy
 thump
 tile_test
 timer
@@ -10997,6 +11038,8 @@ underfloor
 unfold_antenna
 unload
 unwind
+update_far_particles
+update_vista_particles
 update_wounds
 utilities_speakers_01
 vending_machine_democracy_
@@ -11015,6 +11058,7 @@ visualize_material_customization
 visualize_material_customization_preview
 visualize_pattern_customization
 visualize_pattern_customization_preview
+volumetric_fog_calculate
 vvv
 w
 wait
@@ -11060,6 +11104,7 @@ water_container_1
 water_container_2
 water_container_3
 water_container_4
+water_height_finalize
 water_plane
 water_plane1
 water_remove_cube

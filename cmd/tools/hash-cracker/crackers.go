@@ -13,6 +13,7 @@ import (
 	cl "github.com/CyberChainXyz/go-opencl"
 	"github.com/xypwn/filediver/cmd/tools/hash-cracker/pattern"
 	pcl "github.com/xypwn/filediver/cmd/tools/hash-cracker/pattern/cl"
+	"github.com/xypwn/filediver/util"
 )
 
 var crackers = []Cracker{
@@ -164,8 +165,26 @@ var crackers = []Cracker{
 		Desc:     "OpenCL-based cracker using pattern syntax. Use file:<filename> to load pattern from file path.",
 		ArgNames: []string{"pattern"},
 		Fn: func(c Context) error {
-			runtime.LockOSThread()
-			defer runtime.UnlockOSThread()
+			extraVars := map[string]pattern.IrSegment{}
+			{
+				known := slices.Sorted(maps.Keys(c.Info().KnownHashes))
+				known = slices.DeleteFunc(known, func(s string) bool {
+					return reAudioPath.MatchString(s)
+				})
+				extraVars["known"] = pattern.ChoiceFromStrings(slices.Values(known))
+				var knownWords []string
+				for _, s := range known {
+					for word := range util.SplitStringAnySeq(s, "/_:") {
+						if word == "" {
+							continue
+						}
+						knownWords = append(knownWords, word)
+					}
+				}
+				slices.Sort(knownWords)
+				knownWords = util.Uniq(knownWords)
+				extraVars["known-words"] = pattern.ChoiceFromStrings(slices.Values(knownWords))
+			}
 
 			argPat := c.Args()[0]
 			var patSrc []byte
@@ -178,10 +197,17 @@ var crackers = []Cracker{
 			} else {
 				patSrc = []byte(argPat)
 			}
-			prog, err := pattern.Compile(patSrc, pattern.CompileOptions{})
+			prog, err := pattern.Compile(patSrc, pattern.CompileOptions{
+				Vars: extraVars,
+			})
 			if err != nil {
 				return err
 			}
+
+			c.Msg("Pattern compiled successfully (total complexity: %s, max length: %d)", prog.CompBig(nil), prog.MaxLen())
+
+			runtime.LockOSThread()
+			defer runtime.UnlockOSThread()
 
 			info, err := cl.Info()
 			if err != nil {
