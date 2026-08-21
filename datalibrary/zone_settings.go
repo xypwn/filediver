@@ -577,11 +577,11 @@ type rawStampGroup struct {
 }
 
 type StampWeights struct {
-	SlopeWeight          mgl32.Vec4
-	HeightWeight         mgl32.Vec4
-	OutsideLevelInterval mgl32.Vec4
-	RegionWeight         mgl32.Vec4
-	Flags                uint8
+	SlopeWeight          mgl32.Vec4 `json:"slope_weight,omitzero"`
+	HeightWeight         mgl32.Vec4 `json:"height_weight,omitzero"`
+	OutsideLevelInterval mgl32.Vec4 `json:"outside_level_interval,omitzero"`
+	RegionWeight         mgl32.Vec4 `json:"region_weight,omitzero"`
+	Flags                uint8      `json:"flags,omitzero"`
 	_                    [3]uint8
 }
 
@@ -839,9 +839,9 @@ type StampInfo struct {
 }
 
 type SimpleStampInfo struct {
-	Stamp               *SimpleStamp `json:"stamp"`
+	Stamp               *SimpleStamp `json:"stamp,omitempty"`
 	Path                string       `json:"path"`
-	Weights             StampWeights `json:"weights"`
+	Weights             StampWeights `json:"weights,omitzero"`
 	Weight              float32      `json:"weight"`
 	FlatteningIntensity float32      `json:"flattening_intensity"`
 	UnkFloat1           float32      `json:"unk_float"`
