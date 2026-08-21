@@ -268,9 +268,6 @@ func (b *clBuffers) write(runner *cl.OpenCLRunner) error {
 	if err := cl.WriteBuffer(runner, 0, b.cl.idxs, b.data.idxs, true); err != nil {
 		return err
 	}
-	if err := cl.WriteBuffer(runner, 0, b.cl.matches, b.data.matches, true); err != nil {
-		return err
-	}
 	if err := cl.WriteBuffer(runner, 0, b.cl.matchesLens, b.data.matchesLens, true); err != nil {
 		return err
 	}
@@ -391,19 +388,19 @@ u64 murmur64a_sum(const u64 *d, u32 n) {
 #undef SHIFTS
 }
 
-void* memcpy_lc(void* dest, __constant void* src, size_t n) {
+void* memcpy_pc(void* dest, __constant void* src, size_t n) {
   char *d = dest;
   __constant char *s = src;
   while (n--) *d++ = *s++;
   return dest;
 }
-void* memcpy_lg(void* dest, __global const void* src, size_t n) {
+void* memcpy_pg(void* dest, __global const void* src, size_t n) {
   char *d = dest;
   __global const char *s = src;
   while (n--) *d++ = *s++;
   return dest;
 }
-__global void* memcpy_gl(__global void* dest, const void* src, size_t n) {
+__global void* memcpy_gp(__global void* dest, const void* src, size_t n) {
   __global char *d = dest;
   const char *s = src;
   while (n--) *d++ = *s++;
@@ -451,7 +448,7 @@ bool try(const u64 *s, u32 n, const size_t id, __global const u32 *hash_bitmap, 
   if (!binary_search(h, target_hashes)) return true;
   if (matches_lens[id]+n+1 > MAX_MATCH_BUF_LEN)
     return false;
-  memcpy_gl(matches + id*MAX_MATCH_BUF_LEN + matches_lens[id], s, n);
+  memcpy_gp(matches + id*MAX_MATCH_BUF_LEN + matches_lens[id], s, n);
   matches_lens[id] += n;
   matches[matches_lens[id]++] = 0;
   return true;
@@ -463,7 +460,7 @@ bool try(const u64 *s, u32 n, const size_t id, __global const u32 *hash_bitmap, 
 	cb.L("u64 candidate[(MAX_CANDIDATE_LEN+7)/8]; // using u64 to force correct alignment to be able to speed up murmurhash algorithm")
 	cb.L("i32 candidate_len = 0;")
 	cb.L("u32 i[IDX_LEN];")
-	cb.L("memcpy_lg(i, idxs + id*IDX_LEN, sizeof(i));")
+	cb.L("memcpy_pg(i, idxs + id*IDX_LEN, sizeof(i));")
 	totalIdxNum := 0
 	var genCode func(s pattern.Segment, canTry bool)
 	genCode = func(s pattern.Segment, canTry bool) {
@@ -474,7 +471,7 @@ bool try(const u64 *s, u32 n, const size_t id, __global const u32 *hash_bitmap, 
 		const exprTry = "if (!n || !try(candidate, candidate_len, id, hash_bitmap, target_hashes, matches, matches_lens)) goto ret; n--;"
 		if s.Str != "" { // fallback; this case shouldn't happen
 			cb.L("const u32 str_len = %d;", len(s.Str))
-			writeExprPushStr("memcpy_lc", quote(s.Str))
+			writeExprPushStr("memcpy_pc", quote(s.Str))
 			if canTry {
 				cb.L(exprTry)
 			}
@@ -491,7 +488,7 @@ bool try(const u64 *s, u32 n, const size_t id, __global const u32 *hash_bitmap, 
 				offs := bufs.strArrOffset(s, i)
 				cb.L("const u32 str_idx = %d+i[%d];", offs, idxNum)
 				cb.L("const u32 str_len = str_lens[str_idx];", offs, idxNum)
-				writeExprPushStr("memcpy_lg", "strs + strs_offsets[str_idx]")
+				writeExprPushStr("memcpy_pg", "strs + strs_offsets[str_idx]")
 				if shouldTry {
 					cb.L(exprTry)
 				}
@@ -502,7 +499,7 @@ bool try(const u64 *s, u32 n, const size_t id, __global const u32 *hash_bitmap, 
 					cb.L("case %d:", j)
 					if seg.Str != "" {
 						cb.L("str_len = %d;", len(s.Str))
-						writeExprPushStr("memcpy_lc", quote(s.Str))
+						writeExprPushStr("memcpy_pc", quote(s.Str))
 						if shouldTry {
 							cb.L(exprTry)
 						}
@@ -523,7 +520,7 @@ bool try(const u64 *s, u32 n, const size_t id, __global const u32 *hash_bitmap, 
 	}
 	genCode(s, true)
 	cb.L("ret:")
-	cb.L("memcpy_gl(idxs + id*IDX_LEN, i, sizeof(i));")
+	cb.L("memcpy_gp(idxs + id*IDX_LEN, i, sizeof(i));")
 	cb.L("tries[id] = n;")
 	cb.L("return;")
 	cb.L("}")
