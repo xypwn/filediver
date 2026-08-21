@@ -48,17 +48,28 @@ class SpeedtreeMaterialLoader(FilediverMaterialLoaderInterface):
                     asset_color_grading_lut_group["Image Texture"].image = image
                     image.colorspace_settings.name = "Non-Color"
                     asset_color_grading_lut_group["Image Texture"].interpolation = "Closest"
+                case "emissive_texture":
+                    config_nodes["Image Texture.003"].image = image
+                    image.alpha_mode = "CHANNEL_PACKED"
         print("    Finalizing material")
 
         grading_group_id = 0.0
         has_secondworld = "grading_group_id_secondworld" in config["extras"]
         for name, setting in config["extras"].items():
             object_mat[name] = setting
-            if name not in config_nodes["Speedtree Color Grading"].inputs:
-                continue
-            if name == "grading_group_id":
-                grading_group_id = setting[0]
-            config_nodes["Speedtree Color Grading"].inputs[name].default_value = setting[0]
+            if name in config_nodes["Speedtree Color Grading"].inputs:
+                if name == "grading_group_id":
+                    grading_group_id = setting[0]
+                config_nodes["Speedtree Color Grading"].inputs[name].default_value = setting[0]
+            elif name in config_nodes["Speedtree Emissive"].inputs:
+                if name == "emissive_texture":
+                    continue
+                if name == "emissive_color":
+                    config_nodes["Speedtree Emissive"].inputs[name].default_value = setting[:3]
+                elif name == "emissive_roughness_range":
+                    config_nodes["Speedtree Emissive"].inputs[name].default_value = setting[:2]
+                else:
+                    config_nodes["Speedtree Emissive"].inputs[name].default_value = setting[0]
 
         if not has_secondworld:
             config_nodes["Speedtree Color Grading"].inputs["grading_group_id_secondworld"].default_value = grading_group_id
