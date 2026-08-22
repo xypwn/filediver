@@ -13,6 +13,7 @@ from .lut_skin_material_loader import LutSkinMaterialLoader
 from .portal_material_loader import PortalMaterialLoader
 from .skin_material_loader import SkinMaterialLoader
 from .speedtree_material_loader import SpeedtreeMaterialLoader
+from .terrain_material_loader import TerrainMaterialLoader
 
 __all__ = [
     "FilediverMaterialLoaderInterface",
@@ -29,4 +30,5 @@ __all__ = [
     "PortalMaterialLoader",
     "SkinMaterialLoader",
     "SpeedtreeMaterialLoader",
+    "TerrainMaterialLoader",
 ]

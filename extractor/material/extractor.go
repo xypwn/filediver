@@ -800,6 +800,21 @@ func checkBuildingShaderDecalUV(ctx *extractor.Context, mat *material.Material) 
 	return 0, nil
 }
 
+func AddColorGradingLUT(ctx *extractor.Context, doc *gltf.Document, colorGradingDDS bytes.Buffer, matInfo *material.Material) {
+	colorGradingName := ctx.ColorGrading()
+	if ctx.ColorGrading().Value == 0x0 {
+		colorGradingName = stingray.Sum("identity")
+	}
+	colorGradingId := stingray.NewFileID(colorGradingName, stingray.Sum("texture"))
+	colorGradingOpts := &ImageOptions{PngCompression: png.DefaultCompression, Jpeg: false, Raw: true}
+	_, err := WriteDDS(ctx.WithFileID(colorGradingId), doc, bytes.NewReader(colorGradingDDS.Bytes()), nil, colorGradingOpts, "")
+	if err != nil {
+		ctx.Warnf("Speedtree: writing asset grading lut to document: %v", err)
+	}
+
+	matInfo.Textures[stingray.Sum("asset_color_grading_lut").Thin()] = colorGradingName
+}
+
 func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Document, imgOpts *ImageOptions, matSlot stingray.ThinHash, matName string, unitData *datalib.UnitData) (uint32, error) {
 	cfg := ctx.Config()
 

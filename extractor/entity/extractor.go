@@ -1,6 +1,7 @@
 package entity
 
 import (
+	"bytes"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
@@ -471,6 +472,28 @@ func WriteDDSColorGradingLut(w io.Writer, entityInfo *entity.Entity) error {
 	return writeDDS(w, colorGradingLut)
 }
 
-func WriteDDSIdentityColorGradingLut(w io.Writer) error {
+func writeDDSIdentityColorGradingLut(w io.Writer) error {
 	return writeDDS(w, CreateIdentityColorGradingLut())
+}
+
+func WriteColorGradingLut(ctx *extractor.Context, colorGradingDDS *bytes.Buffer) error {
+	entityID := stingray.NewFileID(ctx.ColorGrading(), stingray.Sum("entity"))
+	if !ctx.Exists(entityID, stingray.DataMain) {
+		writeDDSIdentityColorGradingLut(colorGradingDDS)
+		if entityID.Name.Value == 0x0 {
+			return nil
+		}
+		return fmt.Errorf("entity %v does not exist", entityID.Name.String())
+	}
+	entityData, err := ctx.Open(entityID, stingray.DataMain)
+	if err != nil {
+		writeDDSIdentityColorGradingLut(colorGradingDDS)
+		return err
+	}
+	entityInfo, err := entity.LoadEntity(entityData, ctx.EntityVarMapping())
+	if err != nil {
+		writeDDSIdentityColorGradingLut(colorGradingDDS)
+		return err
+	}
+	return WriteDDSColorGradingLut(colorGradingDDS, entityInfo)
 }

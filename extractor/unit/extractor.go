@@ -1,6 +1,7 @@
 package unit
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -20,6 +21,7 @@ import (
 	datalib "github.com/xypwn/filediver/datalibrary"
 	"github.com/xypwn/filediver/datalibrary/enum"
 	"github.com/xypwn/filediver/extractor"
+	extr_entity "github.com/xypwn/filediver/extractor/entity"
 	"github.com/xypwn/filediver/extractor/geometry"
 	extr_material "github.com/xypwn/filediver/extractor/material"
 	"github.com/xypwn/filediver/extractor/state_machine"
@@ -291,6 +293,11 @@ func AddMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_mate
 	equipmentData, _ := datalib.GetEquipmentComponentDataForHash(weaponHash)
 	isHelldiverWeapon := len(equipmentData) > 0
 
+	var colorGradingDDS bytes.Buffer
+	if err := extr_entity.WriteColorGradingLut(ctx, &colorGradingDDS); err != nil {
+		ctx.Warnf("Writing color grading lut: %v", err)
+	}
+
 	for id, resID := range unitInfo.Materials {
 		resID = ctx.OverrideMaterial(id, resID)
 		materialId := ctx.OverrideAsset(stingray.NewFileID(resID, stingray.Sum("material")))
@@ -301,6 +308,11 @@ func AddMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_mate
 		mat, err := material.LoadMain(matR)
 		if err != nil {
 			return nil, err
+		}
+
+		materialSlot := ctx.LookupThinHash(id)
+		if strings.HasPrefix(materialSlot, "projector") {
+			extr_material.AddColorGradingLUT(ctx, doc, colorGradingDDS, mat)
 		}
 
 		resPath := ctx.LookupHash(materialId.Name)
