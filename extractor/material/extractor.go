@@ -1389,6 +1389,8 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 			fallthrough
 		case "cape_gradient":
 			fallthrough
+		case "emissive_texture":
+			fallthrough
 		case "pattern_masks_array":
 			hash := mat.Textures[texUsage]
 			if unitData != nil && texUsageStr == "decal_sheet" && unitData.DecalSheet.Value != 0 {
