@@ -34,7 +34,7 @@ class TerrainMaterialLoader(FilediverMaterialLoaderInterface):
             match usage:
                 case "albedo_blend_tex" | "albedo_tex":
                     config_nodes["Image Texture"].image = image
-                    image.colorspace_settings.name = "Non-Color"
+                    image.colorspace_settings.name = "sRGB"
                     image.alpha_mode = "CHANNEL_PACKED"
                 case "displacement_tex":
                     config_nodes["Image Texture.001"].image = image
@@ -50,9 +50,15 @@ class TerrainMaterialLoader(FilediverMaterialLoaderInterface):
 
         for name, setting in config["extras"].items():
             object_mat[name] = setting
-            if name not in config_nodes["Terrain Color Grading"].inputs:
-                continue
-            config_nodes["Terrain Color Grading"].inputs[name].default_value = setting[0]
+            if name in config_nodes["Terrain Color Grading"].inputs:
+                config_nodes["Terrain Color Grading"].inputs[name].default_value = setting[0]
+            if name in config_nodes["Terrain Emissive"].inputs:
+                if name in ["emissive_base_color_tint", "emissive_color_ao"]:
+                    config_nodes["Terrain Emissive"].inputs[name].default_value = setting[:3]
+                elif name in ["emissive_base_color_luminance_range", "emissive_ao_range"]:
+                    config_nodes["Terrain Emissive"].inputs[name].default_value = setting[:2]
+                else:
+                    config_nodes["Terrain Emissive"].inputs[name].default_value = setting[0]
 
         object_mat["needsBakeUVs"] = False
         return object_mat
