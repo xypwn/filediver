@@ -65,7 +65,7 @@ type SimplePlanetData struct {
 	ResourceRegionOverrides          []SimpleResourceRegionOverride    `json:"resource_region_overrides"`
 	ShadingEnvironmentEntity         string                            `json:"shading_environment_entity"`
 	WaterEntity                      string                            `json:"water_entity"`
-	UnknownHash                      string                            `json:"unknown_hash"`
+	HeathazeEntity                   string                            `json:"heathaze_entity"`
 	PackagePath                      string                            `json:"package_path"`
 	UnknownFloat                     float32                           `json:"unknown_float"`
 }
@@ -155,7 +155,7 @@ func Dump(a components.HashLookup) {
 			ResourceRegionOverrides:          resourceRegionOverrides,
 			ShadingEnvironmentEntity:         a.LookupHash(planetData.ShadingEnvironmentEntity),
 			WaterEntity:                      a.LookupHash(planetData.WaterEntity),
-			UnknownHash:                      a.LookupHash(planetData.UnknownHash),
+			HeathazeEntity:                   a.LookupHash(planetData.HeathazeEntity),
 			PackagePath:                      a.LookupHash(planetData.PackagePath),
 			UnknownFloat:                     planetData.UnknownFloat,
 		}

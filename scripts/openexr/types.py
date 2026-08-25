@@ -449,7 +449,10 @@ class OpenEXR:
         attributes["screenWindowCenter"] = (0.0, 0.0)
         attributes["screenWindowWidth"] = 1.0
 
-        scanline_pixels = np.vsplit(pixels, [16])
+        splits = [i+16 for i in range(0, height-16, 16)]
+        if len(splits) == 0:
+            splits = [16]
+        scanline_pixels = np.vsplit(pixels, splits)
         scanlines: List[Scanline] = []
         y_coord = 0
         for line in scanline_pixels:
@@ -463,7 +466,7 @@ class OpenEXR:
         else:
             compression = scanlines[0].best_compression()
             attributes["compression"] = compression
-        
+
         for scanline in scanlines:
             scanline.compress(attributes)
 

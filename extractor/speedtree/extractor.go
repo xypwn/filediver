@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"image/png"
 	"io"
 	"strings"
 
@@ -14,7 +13,6 @@ import (
 	"github.com/xypwn/filediver/extractor/geometry"
 	extr_material "github.com/xypwn/filediver/extractor/material"
 	"github.com/xypwn/filediver/stingray"
-	"github.com/xypwn/filediver/stingray/entity"
 	"github.com/xypwn/filediver/stingray/speedtree"
 	"github.com/xypwn/filediver/stingray/unit"
 	"github.com/xypwn/filediver/stingray/unit/material"
@@ -207,25 +205,6 @@ func AddPrefabMetadata(ctx *extractor.Context, doc *gltf.Document, root *uint32,
 	doc.Extras = extras
 }
 
-func WriteColorGradingLut(ctx *extractor.Context, colorGradingDDS *bytes.Buffer) error {
-	entityID := stingray.NewFileID(ctx.ColorGrading(), stingray.Sum("entity"))
-	if !ctx.Exists(entityID, stingray.DataMain) {
-		extr_entity.WriteDDSIdentityColorGradingLut(colorGradingDDS)
-		return fmt.Errorf("entity %v does not exist", entityID.Name.String())
-	}
-	entityData, err := ctx.Open(entityID, stingray.DataMain)
-	if err != nil {
-		extr_entity.WriteDDSIdentityColorGradingLut(colorGradingDDS)
-		return err
-	}
-	entityInfo, err := entity.LoadEntity(entityData, ctx.EntityVarMapping())
-	if err != nil {
-		extr_entity.WriteDDSIdentityColorGradingLut(colorGradingDDS)
-		return err
-	}
-	return extr_entity.WriteDDSColorGradingLut(colorGradingDDS, entityInfo)
-}
-
 func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gltfDoc *gltf.Document) error {
 	cfg := ctx.Config()
 	if cfg.SpeedTree.Format == "json" {
@@ -255,12 +234,7 @@ func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gl
 	}
 
 	var colorGradingDDS bytes.Buffer
-	if ctx.ColorGrading().Value == 0x0 {
-		err = extr_entity.WriteDDSIdentityColorGradingLut(&colorGradingDDS)
-	} else {
-		err = WriteColorGradingLut(ctx, &colorGradingDDS)
-	}
-	if err != nil {
+	if err = extr_entity.WriteColorGradingLut(ctx, &colorGradingDDS); err != nil {
 		ctx.Warnf("Writing color grading lut: %v", err)
 	}
 
@@ -283,18 +257,7 @@ func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gl
 			split := strings.Split(matPath, "/")
 			matPath = strings.Join(split[len(split)-2:], "/")
 		}
-		colorGradingName := ctx.ColorGrading()
-		if ctx.ColorGrading().Value == 0x0 {
-			colorGradingName = stingray.Sum("identity")
-		}
-		colorGradingId := stingray.NewFileID(colorGradingName, stingray.Sum("texture"))
-		colorGradingOpts := &extr_material.ImageOptions{PngCompression: png.DefaultCompression, Jpeg: false, Raw: true}
-		_, err = extr_material.WriteDDS(ctx.WithFileID(colorGradingId), doc, bytes.NewReader(colorGradingDDS.Bytes()), nil, colorGradingOpts, "")
-		if err != nil {
-			ctx.Warnf("Speedtree: writing asset grading lut to document: %v", err)
-		}
-
-		matInfo.Textures[stingray.Sum("asset_color_grading_lut").Thin()] = colorGradingName
+		extr_material.AddColorGradingLUT(ctx, doc, colorGradingDDS, matInfo)
 
 		matIdx, err := extr_material.AddMaterial(ctx, matInfo, doc, imgOpts, stingray.Sum("speedtree").Thin(), treeInfo.SDKMaterials[mat.Index].Name+fmt.Sprintf(" %v", matPath), nil)
 		if err != nil {

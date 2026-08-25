@@ -110,7 +110,7 @@ type rawPlanetData struct {
 	ResourceRegionOverridesCount     uint64
 	ShadingEnvironmentEntity         stingray.Hash
 	WaterEntity                      stingray.Hash
-	UnknownHash                      stingray.Hash
+	HeathazeEntity                   stingray.Hash
 	PackagePath                      stingray.Hash
 	UnknownFloat                     float32
 	_                                [4]uint8
@@ -162,7 +162,7 @@ type PlanetData struct {
 	ResourceRegionOverrides          []ResourceRegionOverride
 	ShadingEnvironmentEntity         stingray.Hash
 	WaterEntity                      stingray.Hash
-	UnknownHash                      stingray.Hash
+	HeathazeEntity                   stingray.Hash
 	PackagePath                      stingray.Hash
 	UnknownFloat                     float32
 }
@@ -192,7 +192,7 @@ func (a rawPlanetData) Resolve(lookupHash HashLookup, lookupThinHash ThinHashLoo
 		PlanetPreviewImage:               a.PlanetPreviewImage,
 		ShadingEnvironmentEntity:         a.ShadingEnvironmentEntity,
 		WaterEntity:                      a.WaterEntity,
-		UnknownHash:                      a.UnknownHash,
+		HeathazeEntity:                   a.HeathazeEntity,
 		PackagePath:                      a.PackagePath,
 		UnknownFloat:                     a.UnknownFloat,
 	}

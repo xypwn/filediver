@@ -38,7 +38,8 @@ def main():
                 with file.open("rb") as f:
                     dds = DDS.parse(f)
                 pixels = dds.pixels().astype(np.float32)
-            except (AssertionError, OSError):
+            except (AssertionError, OSError) as e:
+                print(f"error: {e}")
                 pass
         elif file.suffix == ".csv" and nsight:
             print("csv")
@@ -57,10 +58,17 @@ def main():
                 print(pixels.shape)
         else:
             continue
-        exr = OpenEXR.from_pixels(pixels).serialize()
-        exr_path = file.with_suffix(".exr")
-        with exr_path.open("wb") as f:
-            f.write(exr)
+        if len(pixels.shape) == 4:
+            for i in range(pixels.shape[0]):
+                exr = OpenEXR.from_pixels(pixels[i]).serialize()
+                exr_path = file.with_suffix(f".{i:03d}.exr")
+                with exr_path.open("wb") as f:
+                    f.write(exr)
+        else:
+            exr = OpenEXR.from_pixels(pixels).serialize()
+            exr_path = file.with_suffix(".exr")
+            with exr_path.open("wb") as f:
+                f.write(exr)
 
 def decode_nsight_data(data: List[List[int]], width: int, height: int):
     pixels = [struct.unpack("<eeee", struct.pack("<HHHH", *line)) for line in data]

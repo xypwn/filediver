@@ -800,6 +800,21 @@ func checkBuildingShaderDecalUV(ctx *extractor.Context, mat *material.Material) 
 	return 0, nil
 }
 
+func AddColorGradingLUT(ctx *extractor.Context, doc *gltf.Document, colorGradingDDS bytes.Buffer, matInfo *material.Material) {
+	colorGradingName := ctx.ColorGrading()
+	if ctx.ColorGrading().Value == 0x0 {
+		colorGradingName = stingray.Sum("identity")
+	}
+	colorGradingId := stingray.NewFileID(colorGradingName, stingray.Sum("texture"))
+	colorGradingOpts := &ImageOptions{PngCompression: png.DefaultCompression, Jpeg: false, Raw: true}
+	_, err := WriteDDS(ctx.WithFileID(colorGradingId), doc, bytes.NewReader(colorGradingDDS.Bytes()), nil, colorGradingOpts, "")
+	if err != nil {
+		ctx.Warnf("Speedtree: writing asset grading lut to document: %v", err)
+	}
+
+	matInfo.Textures[stingray.Sum("asset_color_grading_lut").Thin()] = colorGradingName
+}
+
 func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Document, imgOpts *ImageOptions, matSlot stingray.ThinHash, matName string, unitData *datalib.UnitData) (uint32, error) {
 	cfg := ctx.Config()
 
@@ -839,13 +854,7 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 			continue
 		}
 		switch texUsageStr {
-		case "tex0":
-			fallthrough
-		case "color_roughness":
-			fallthrough
-		case "color_specular_b":
-			fallthrough
-		case "albedo_iridescence":
+		case "albedo_iridescence", "tex0", "color_roughness", "color_specular_b", "albedo_blend_tex", "albedo_tex":
 			albedoPostProcess = nil
 			fallthrough
 		case "covering_albedo":
@@ -1054,9 +1063,7 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 				usedTextures[texUsageStr] = index
 			}
 			albedoPostProcess = postProcessToOpaque
-		case "base_data":
-			fallthrough
-		case "normal_specular_ao":
+		case "normal_specular_ao", "base_data", "nar_tex":
 			// GLTF normals will look wonky, but our own material will be able to use the specular+ao in this map
 			// in blender
 			normalPostProcess = nil
@@ -1307,91 +1314,7 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 			}
 			usedTextures[texUsageStr] = index
 			imgOpts = origImgOpts
-		case "composite_array":
-			fallthrough
-		case "customization_camo_tiler_array":
-			fallthrough
-		case "customization_material_detail_tiler_array":
-			fallthrough
-		case "decal_sheet":
-			fallthrough
-		case "id_masks_array":
-			fallthrough
-		case "Detail_Data":
-			fallthrough
-		case "surface_data_array":
-			fallthrough
-		case "pattern_data":
-			fallthrough
-		case "texture_map_319d3bb5":
-			fallthrough
-		case "metal_surface_data":
-			fallthrough
-		case "concrete_surface_data":
-			fallthrough
-		case "bcm_tex_a":
-			fallthrough
-		case "bcm_tex_b":
-			fallthrough
-		case "nar_tex_a":
-			fallthrough
-		case "nar_tex_b":
-			fallthrough
-		case "blend_tex_mask":
-			fallthrough
-		case "mask":
-			fallthrough
-		case "albedo_array":
-			fallthrough
-		case "normal_array":
-			fallthrough
-		case "emissive":
-			fallthrough
-		case "noise_map_01":
-			fallthrough
-		case "noise_map_02":
-			fallthrough
-		case "edge_noise_map":
-			fallthrough
-		case "grayscale_skin":
-			fallthrough
-		case "noise_tiler_mask":
-			fallthrough
-		case "base_tiler_nar":
-			fallthrough
-		case "base_tiler_nan":
-			fallthrough
-		case "detail_trimsheet_metallic_ceramic_masking":
-			fallthrough
-		case "ceramic_detail_tiler_basecolor":
-			fallthrough
-		case "ceramic_detail_tiler_nar":
-			fallthrough
-		case "rock_detail_tiler_basecolor":
-			fallthrough
-		case "rock_detail_tiler_nar":
-			fallthrough
-		case "detail_trimsheet_nar":
-			fallthrough
-		case "metallic_lut":
-			fallthrough
-		case "blood_splatter_tiler":
-			fallthrough
-		case "bug_splatter_tiler":
-			fallthrough
-		case "weathering_dirt":
-			fallthrough
-		case "weathering_special":
-			fallthrough
-		case "cape_tear":
-			fallthrough
-		case "cape_scalar_fields":
-			fallthrough
-		case "cape_gradient":
-			fallthrough
-		case "emissive_texture":
-			fallthrough
-		case "pattern_masks_array":
+		case "emissive_texture", "displacement_tex", "snow_mask_texture", "glint_sample", "pattern_masks_array", "composite_array", "customization_camo_tiler_array", "customization_material_detail_tiler_array", "decal_sheet", "id_masks_array", "Detail_Data", "surface_data_array", "pattern_data", "texture_map_319d3bb5", "metal_surface_data", "concrete_surface_data", "bcm_tex_a", "bcm_tex_b", "nar_tex_a", "nar_tex_b", "blend_tex_mask", "mask", "albedo_array", "normal_array", "emissive", "noise_map_01", "noise_map_02", "edge_noise_map", "grayscale_skin", "noise_tiler_mask", "base_tiler_nar", "base_tiler_nan", "detail_trimsheet_metallic_ceramic_masking", "ceramic_detail_tiler_basecolor", "ceramic_detail_tiler_nar", "rock_detail_tiler_basecolor", "rock_detail_tiler_nar", "detail_trimsheet_nar", "metallic_lut", "blood_splatter_tiler", "bug_splatter_tiler", "weathering_dirt", "weathering_special", "cape_tear", "cape_scalar_fields", "cape_gradient":
 			hash := mat.Textures[texUsage]
 			if unitData != nil && texUsageStr == "decal_sheet" && unitData.DecalSheet.Value != 0 {
 				hash = unitData.DecalSheet
@@ -1907,7 +1830,7 @@ func ConvertToFolder(ctx *extractor.Context) error {
 			}
 			for j := range shaderProgram.Headers[i].Stages {
 				stageMask := material.ShaderStageMask(1 << j)
-				if stageMask&shaderProgram.Headers[i].StageMask == material.ShaderStage_None {
+				if stageMask&shaderProgram.Headers[i].StageMask == material.ShaderStage_None && shaders[j] == nil {
 					continue
 				}
 				suffixArray, err := stageMask.Suffix()

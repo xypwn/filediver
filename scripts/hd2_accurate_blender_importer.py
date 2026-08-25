@@ -49,6 +49,7 @@ material_loaders: List[FilediverMaterialLoaderInterface] = [
     PortalMaterialLoader(),
     SkinMaterialLoader(),
     SpeedtreeMaterialLoader(),
+    TerrainMaterialLoader(),
 ]
 
 class IDPropertyUIManager:
