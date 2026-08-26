@@ -32277,3 +32277,8 @@ region_primordial
 region_rift
 region_sandy
 region_swamp
+standard
+joints
+dragonfly
+twigs
+liberator
