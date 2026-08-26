@@ -6,6 +6,7 @@ import (
 
 	"github.com/xypwn/filediver/cmd/tools/components"
 	datalib "github.com/xypwn/filediver/datalibrary"
+	"github.com/xypwn/filediver/datalibrary/enum"
 )
 
 func Dump(a components.HashLookup) {
@@ -14,9 +15,9 @@ func Dump(a components.HashLookup) {
 		panic(err)
 	}
 
-	simple := make([]datalib.SimpleZoneSettings, 0)
-	for _, zone := range zoneSettings {
-		simple = append(simple, zone.ToSimple(a.LookupHash, a.LookupThinHash, a.LookupString))
+	simple := make(map[enum.ZoneId]datalib.SimpleZoneSettings, 0)
+	for i, zone := range zoneSettings {
+		simple[enum.ZoneId(i+1)] = zone.ToSimple(a.LookupHash, a.LookupThinHash, a.LookupString)
 	}
 
 	output, err := json.MarshalIndent(simple, "", "    ")
