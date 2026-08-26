@@ -1,35 +1,36 @@
 package cl
 
 import (
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"github.com/xypwn/filediver/cmd/tools/hash-cracker/pattern"
 	"github.com/xypwn/filediver/stingray"
 
-	cl "github.com/CyberChainXyz/go-opencl"
+	cl "github.com/xypwn/gocl/cl-3.1"
 )
 
 func TestCl(t *testing.T) {
 	require := require.New(t)
 	prog, err := pattern.Compile([]byte("<a|b|c|d|e|f|g|h|i|j>{1,6}"), pattern.CompileOptions{})
 	require.NoError(err)
-	//fmt.Println(prog)
 
-	info, err := cl.Info()
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	platforms, err := cl.GetPlatformIDs()
 	require.NoError(err)
-
-	if len(info.Platforms) < 1 {
-		require.Fail("No OpenCL Devices")
+	if len(platforms) == 0 {
+		require.Fail("no OpenCL platforms")
 	}
-	if len(info.Platforms[0].Devices) < 1 {
-		require.Fail("No OpenCL Devices")
-	}
-
-	device := info.Platforms[0].Devices[0]
-	runner, err := device.InitRunner()
+	platform := platforms[0]
+	devices, err := cl.GetDeviceIDs(platform, cl.DEVICE_TYPE_GPU)
 	require.NoError(err)
-	defer runner.Free()
+	if len(devices) == 0 {
+		require.Fail("no OpenCL devices")
+	}
+	device := devices[0]
 
 	targetHashes := []stingray.Hash{
 		stingray.Sum("aba"),
@@ -40,8 +41,9 @@ func TestCl(t *testing.T) {
 	}
 
 	var allMatches []string
-	cr, err := NewCracker(runner, prog, targetHashes, Options{})
+	cr, err := NewCracker(device, prog, targetHashes, Options{})
 	require.NoError(err)
+	defer cr.Delete()
 	for {
 		//fmt.Println(cr.TotalIdx(), "/", prog.Comp)
 		matches, err := cr.Dispatch()

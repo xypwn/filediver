@@ -10,10 +10,10 @@ import (
 	"slices"
 	"strings"
 
-	cl "github.com/CyberChainXyz/go-opencl"
 	"github.com/xypwn/filediver/cmd/tools/hash-cracker/pattern"
 	pcl "github.com/xypwn/filediver/cmd/tools/hash-cracker/pattern/cl"
 	"github.com/xypwn/filediver/util"
+	cl "github.com/xypwn/gocl/cl-3.1"
 )
 
 var crackers = []Cracker{
@@ -209,27 +209,40 @@ var crackers = []Cracker{
 			runtime.LockOSThread()
 			defer runtime.UnlockOSThread()
 
-			info, err := cl.Info()
+			platforms, err := cl.GetPlatformIDs()
 			if err != nil {
 				return err
 			}
-
-			if len(info.Platforms) == 0 {
+			if len(platforms) == 0 {
 				return fmt.Errorf("no OpenCL platforms")
 			}
-			if len(info.Platforms[0].Devices) == 0 {
+			platform := platforms[0]
+			var platformName string
+			if err := cl.GetPlatformInfo(platform, cl.PLATFORM_NAME, &platformName); err != nil {
+				return err
+			}
+			devices, err := cl.GetDeviceIDs(platform, cl.DEVICE_TYPE_GPU)
+			if err != nil {
+				return err
+			}
+			if len(devices) == 0 {
 				return fmt.Errorf("no OpenCL devices")
 			}
+			device := devices[0]
+			var deviceName string
+			if err := cl.GetDeviceInfo(device, cl.DEVICE_NAME, &deviceName); err != nil {
+				return err
+			}
+			c.Msg("Using OpenCL platform %q with device %q", platformName, deviceName)
 
-			device := info.Platforms[0].Devices[0]
-			runner, err := device.InitRunner()
 			c.Msg("Initializing buffers and compiling OpenCL kernel")
-			cr, err := pcl.NewCracker(runner, prog,
+			cr, err := pcl.NewCracker(device, prog,
 				slices.Collect(maps.Keys(c.Info().UnknownHashes)),
 				pcl.Options{})
 			if err != nil {
 				return err
 			}
+			defer cr.Delete()
 
 			c.Msg("Making guesses")
 			prevTotalIdx := 0

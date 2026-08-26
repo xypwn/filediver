@@ -4,7 +4,6 @@ go 1.25.0
 
 require (
 	github.com/AllenDang/cimgui-go v1.6.0
-	github.com/CyberChainXyz/go-opencl v0.0.0-20241229131621-216260c11a44
 	github.com/adrg/xdg v0.5.3
 	github.com/andygrunwald/vdf v1.1.0
 	github.com/ebitengine/oto/v3 v3.4.0
@@ -30,6 +29,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/walles/moor/v2 v2.16.2
 	github.com/x448/float16 v0.8.4
+	github.com/xypwn/gocl v0.0.0-20260826190936-acd49c7fe4ff
 	golang.design/x/clipboard v0.7.1
 	golang.org/x/exp v0.0.0-20260218203240-3dfff04db8fa
 	golang.org/x/image v0.40.0
@@ -58,6 +58,7 @@ require (
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/josephspurrier/goversioninfo v1.5.0 // indirect
 	github.com/klauspost/pgzip v1.2.6 // indirect
+	github.com/kr/pretty v0.3.1 // indirect
 	github.com/mikelolasagasti/xz v1.0.1 // indirect
 	github.com/minio/minlz v1.0.1 // indirect
 	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646 // indirect

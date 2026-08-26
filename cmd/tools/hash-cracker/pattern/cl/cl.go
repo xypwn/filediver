@@ -1,17 +1,16 @@
 package cl
 
 import (
-	"encoding/binary"
 	"fmt"
 	"math"
 	"slices"
 	"strings"
 	"unicode/utf8"
 
-	cl "github.com/CyberChainXyz/go-opencl"
 	"github.com/xypwn/filediver/cmd/tools/hash-cracker/pattern"
 	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/util"
+	cl "github.com/xypwn/gocl/cl-3.1"
 )
 
 // Returns the number of elements needed in the index
@@ -62,19 +61,19 @@ type clBuffers struct {
 		matchesLens  []uint32
 	}
 	cl struct {
-		tries        *cl.Buffer
-		idxs         *cl.Buffer
-		strs         *cl.Buffer
-		strsOffsets  *cl.Buffer
-		strLens      *cl.Buffer
-		hashBitmap   *cl.Buffer
-		targetHashes *cl.Buffer
-		matches      *cl.Buffer
-		matchesLens  *cl.Buffer
+		tries        cl.Mem
+		idxs         cl.Mem
+		strs         cl.Mem
+		strsOffsets  cl.Mem
+		strLens      cl.Mem
+		hashBitmap   cl.Mem
+		targetHashes cl.Mem
+		matches      cl.Mem
+		matchesLens  cl.Mem
 	}
 }
 
-func makeClBuffers(runner *cl.OpenCLRunner, s pattern.Segment, targetHashes []stingray.Hash, numWorkers, matchBufLen int) (*clBuffers, error) {
+func makeClBuffers(context cl.Context, s pattern.Segment, targetHashes []stingray.Hash, numWorkers, matchBufLen int) (*clBuffers, error) {
 	b := &clBuffers{
 		numWorkers:      numWorkers,
 		idxLen:          getSegmentIdxLen(s),
@@ -203,45 +202,57 @@ func makeClBuffers(runner *cl.OpenCLRunner, s pattern.Segment, targetHashes []st
 	// Create according OpenCL Buffers
 	{
 		var err error
-		b.cl.tries, err = runner.CreateEmptyBuffer(cl.READ_WRITE, binary.Size(b.data.tries))
+		b.cl.tries, err = cl.CreateBufferSlice(context, cl.MEM_READ_WRITE, b.data.tries)
 		if err != nil {
 			return nil, fmt.Errorf("creating tries buffer: %w", err)
 		}
-		b.cl.idxs, err = runner.CreateEmptyBuffer(cl.READ_WRITE, binary.Size(b.data.idxs))
+		b.cl.idxs, err = cl.CreateBufferSlice(context, cl.MEM_READ_WRITE, b.data.idxs)
 		if err != nil {
 			return nil, fmt.Errorf("creating indices buffer: %w", err)
 		}
-		b.cl.strs, err = cl.CreateBuffer(runner, cl.READ_ONLY|cl.COPY_HOST_PTR, b.data.strs)
+		b.cl.strs, err = cl.CreateBufferSlice(context, cl.MEM_READ_ONLY|cl.MEM_COPY_HOST_PTR, b.data.strs)
 		if err != nil {
 			return nil, fmt.Errorf("creating strings buffer: %w", err)
 		}
-		b.cl.strsOffsets, err = cl.CreateBuffer(runner, cl.READ_ONLY|cl.COPY_HOST_PTR, b.data.strsOffsets)
+		b.cl.strsOffsets, err = cl.CreateBufferSlice(context, cl.MEM_READ_ONLY|cl.MEM_COPY_HOST_PTR, b.data.strsOffsets)
 		if err != nil {
 			return nil, fmt.Errorf("creating strings offsets buffer: %w", err)
 		}
-		b.cl.strLens, err = cl.CreateBuffer(runner, cl.READ_ONLY|cl.COPY_HOST_PTR, b.data.strLens)
+		b.cl.strLens, err = cl.CreateBufferSlice(context, cl.MEM_READ_ONLY|cl.MEM_COPY_HOST_PTR, b.data.strLens)
 		if err != nil {
 			return nil, fmt.Errorf("creating string lengths buffer: %w", err)
 		}
-		b.cl.hashBitmap, err = cl.CreateBuffer(runner, cl.READ_ONLY|cl.COPY_HOST_PTR, b.data.hashBitmap)
+		b.cl.hashBitmap, err = cl.CreateBufferSlice(context, cl.MEM_READ_ONLY|cl.MEM_COPY_HOST_PTR, b.data.hashBitmap)
 		if err != nil {
 			return nil, fmt.Errorf("creating hash bitmap buffer: %w", err)
 		}
-		b.cl.targetHashes, err = cl.CreateBuffer(runner, cl.READ_ONLY|cl.COPY_HOST_PTR, b.data.targetHashes)
+		b.cl.targetHashes, err = cl.CreateBufferSlice(context, cl.MEM_READ_ONLY|cl.MEM_COPY_HOST_PTR, b.data.targetHashes)
 		if err != nil {
 			return nil, fmt.Errorf("creating target hash buffer: %w", err)
 		}
-		b.cl.matches, err = runner.CreateEmptyBuffer(cl.WRITE_ONLY, binary.Size(b.data.matches))
+		b.cl.matches, err = cl.CreateBufferSlice(context, cl.MEM_WRITE_ONLY, b.data.matches)
 		if err != nil {
 			return nil, fmt.Errorf("creating match buffer: %w", err)
 		}
-		b.cl.matchesLens, err = runner.CreateEmptyBuffer(cl.READ_WRITE, binary.Size(b.data.matchesLens))
+		b.cl.matchesLens, err = cl.CreateBufferSlice(context, cl.MEM_READ_WRITE, b.data.matchesLens)
 		if err != nil {
 			return nil, fmt.Errorf("creating matches length buffer: %w", err)
 		}
 	}
 
 	return b, nil
+}
+
+func (b *clBuffers) Delete() {
+	cl.ReleaseMemObject(b.cl.tries)
+	cl.ReleaseMemObject(b.cl.idxs)
+	cl.ReleaseMemObject(b.cl.strs)
+	cl.ReleaseMemObject(b.cl.strsOffsets)
+	cl.ReleaseMemObject(b.cl.strLens)
+	cl.ReleaseMemObject(b.cl.hashBitmap)
+	cl.ReleaseMemObject(b.cl.targetHashes)
+	cl.ReleaseMemObject(b.cl.matches)
+	cl.ReleaseMemObject(b.cl.matchesLens)
 }
 
 func (b *clBuffers) strArrOffset(s pattern.Segment, unionIdx int) int {
@@ -260,30 +271,30 @@ func (b *clBuffers) strArrOffset(s pattern.Segment, unionIdx int) int {
 	return b.strArrsFirstIdxs[strArrIdx]
 }
 
-func (b *clBuffers) read(runner *cl.OpenCLRunner) error {
-	if err := cl.ReadBuffer(runner, 0, b.cl.tries, b.data.tries); err != nil {
+func (b *clBuffers) read(queue cl.CommandQueue) error {
+	if err := cl.EnqueueReadBufferSlice(queue, b.cl.tries, true, 0, b.data.tries, nil, nil); err != nil {
 		return err
 	}
-	if err := cl.ReadBuffer(runner, 0, b.cl.idxs, b.data.idxs); err != nil {
+	if err := cl.EnqueueReadBufferSlice(queue, b.cl.idxs, true, 0, b.data.idxs, nil, nil); err != nil {
 		return err
 	}
-	if err := cl.ReadBuffer(runner, 0, b.cl.matches, b.data.matches); err != nil {
+	if err := cl.EnqueueReadBufferSlice(queue, b.cl.matches, true, 0, b.data.matches, nil, nil); err != nil {
 		return err
 	}
-	if err := cl.ReadBuffer(runner, 0, b.cl.matchesLens, b.data.matchesLens); err != nil {
+	if err := cl.EnqueueReadBufferSlice(queue, b.cl.matchesLens, true, 0, b.data.matchesLens, nil, nil); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (b *clBuffers) write(runner *cl.OpenCLRunner) error {
-	if err := cl.WriteBuffer(runner, 0, b.cl.tries, b.data.tries, true); err != nil {
+func (b *clBuffers) write(queue cl.CommandQueue) error {
+	if err := cl.EnqueueWriteBufferSlice(queue, b.cl.tries, true, 0, b.data.tries, nil, nil); err != nil {
 		return err
 	}
-	if err := cl.WriteBuffer(runner, 0, b.cl.idxs, b.data.idxs, true); err != nil {
+	if err := cl.EnqueueWriteBufferSlice(queue, b.cl.idxs, true, 0, b.data.idxs, nil, nil); err != nil {
 		return err
 	}
-	if err := cl.WriteBuffer(runner, 0, b.cl.matchesLens, b.data.matchesLens, true); err != nil {
+	if err := cl.EnqueueReadBufferSlice(queue, b.cl.matchesLens, true, 0, b.data.matchesLens, nil, nil); err != nil {
 		return err
 	}
 	return nil

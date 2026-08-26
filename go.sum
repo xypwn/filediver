@@ -1,7 +1,5 @@
 github.com/AllenDang/cimgui-go v1.6.0 h1:fv1M00FcNz3OMK1q0nOt208DxItmRGipSKcKitED4js=
 github.com/AllenDang/cimgui-go v1.6.0/go.mod h1:gz4dVFwmfoyUkBgVzBhiCJj1JXXWISQa8SQ190MlouY=
-github.com/CyberChainXyz/go-opencl v0.0.0-20241229131621-216260c11a44 h1:M6pl2+obPz3x+8o8Ks4j75+5Dcv+iLnyKw7tQtKwZNA=
-github.com/CyberChainXyz/go-opencl v0.0.0-20241229131621-216260c11a44/go.mod h1:BJYH3zDxxh9eJk3mSAT/XUB9tnhfOBsLDxLYSK7T6Jk=
 github.com/STARRY-S/zip v0.2.3 h1:luE4dMvRPDOWQdeDdUxUoZkzUIpTccdKdhHHsQJ1fm4=
 github.com/STARRY-S/zip v0.2.3/go.mod h1:lqJ9JdeRipyOQJrYSOtpNAiaesFO6zVDsE8GIGFaoSk=
 github.com/adrg/xdg v0.5.3 h1:xRnxJXne7+oWDatRhR1JLnvuccuIeCoBu2rtuLqQB78=
@@ -28,6 +26,7 @@ github.com/charlievieth/strcase v0.0.6 h1:bOjyq1IDIa677BYv8Maqs5/hFMgvO8aM5HX/lH
 github.com/charlievieth/strcase v0.0.6/go.mod h1:BfLERwCrfmGJfELajGNncQWv5MCR0CCjgB8hXKhCtns=
 github.com/cpuguy83/go-md2man/v2 v2.0.2 h1:p1EgwI/C7NhT0JmVkwCD2ZBK8j4aeHQX2pMHHBfMQ6w=
 github.com/cpuguy83/go-md2man/v2 v2.0.2/go.mod h1:tgQtvFlXSQOSOSIRvRPT7W67SCa46tRHOmNcaadrF8o=
+github.com/creack/pty v1.1.9/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ33E=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
@@ -110,6 +109,7 @@ github.com/oov/audio v0.0.0-20171004131523-88a2be6dbe38 h1:4Upfs5rLQdx7KwBct3bmP
 github.com/oov/audio v0.0.0-20171004131523-88a2be6dbe38/go.mod h1:Xj06yMta9R1RSKiHmxL0Bo2TB8wiKVnMgA0KVopHHkk=
 github.com/pierrec/lz4/v4 v4.1.25 h1:kocOqRffaIbU5djlIBr7Wh+cx82C0vtFb0fOurZHqD0=
 github.com/pierrec/lz4/v4 v4.1.25/go.mod h1:EoQMVJgeeEOMsCqCzqFm2O0cJvljX2nGZjcRIPL34O4=
+github.com/pkg/diff v0.0.0-20210226163009-20ebb0f2a09e/go.mod h1:pJLUxLENpZxwdsKMEsNbx1VGcRFpLqf3715MtcvvzbA=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/qmuntal/gltf v0.24.3 h1:iWEz+ytMaRrPe9m6OCgYd5rkLP440lh2M4TDMKsSG2c=
@@ -118,6 +118,7 @@ github.com/randall77/makefat v0.0.0-20210315173500-7ddd0e42c844 h1:GranzK4hv1/pq
 github.com/randall77/makefat v0.0.0-20210315173500-7ddd0e42c844/go.mod h1:T1TLSfyWVBRXVGzWd0o9BI4kfoO9InEgfQe4NV3mLz8=
 github.com/rivo/uniseg v0.4.7 h1:WUdvkW8uEhrYfLC4ZzdpI2ztxP1I582+49Oc5Mq64VQ=
 github.com/rivo/uniseg v0.4.7/go.mod h1:FN3SvrM+Zdj16jyLfmOkMNblXMcoc8DfTHruCPUcx88=
+github.com/rogpeppe/go-internal v1.9.0/go.mod h1:WtVeX8xhTBvf0smdhujwtBcq4Qrzq/fJaraNFVN+nFs=
 github.com/rogpeppe/go-internal v1.14.1 h1:UQB4HGPB6osV0SQTLymcB4TgvyWu6ZyliaW0tI/otEQ=
 github.com/rogpeppe/go-internal v1.14.1/go.mod h1:MaRKkUm5W0goXpeCfT7UZI6fk/L7L7so1lCWt35ZSgc=
 github.com/russross/blackfriday/v2 v2.1.0 h1:JIOH55/0cWyOuilr9/qlrm0BSXldqnqwMsf35Ld67mk=
@@ -159,6 +160,12 @@ github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 h1:bAn7/zixMGCfxrRT
 github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673/go.mod h1:N3UwUGtsrSj3ccvlPHLoLsHnpR27oXr4ZE984MbSER8=
 github.com/xyproto/randomstring v1.0.5 h1:YtlWPoRdgMu3NZtP45drfy1GKoojuR7hmRcnhZqKjWU=
 github.com/xyproto/randomstring v1.0.5/go.mod h1:rgmS5DeNXLivK7YprL0pY+lTuhNQW3iGxZ18UQApw/E=
+github.com/xypwn/gocl v0.0.0-20260826174313-2f143d1a2449 h1:HialdcrFCQh6tz6JsWTLOXHfYuL5ANP0sLORjnydRAI=
+github.com/xypwn/gocl v0.0.0-20260826174313-2f143d1a2449/go.mod h1:En52Jnq3ldN+SrBJBDytwYmn+piRz/ROQbebAbi7TVM=
+github.com/xypwn/gocl v0.0.0-20260826180613-ffe218e350b7 h1:bi9p8PxwYo0mUJo9wFyOpOeJQcpvRnBIHezf3Ejdh68=
+github.com/xypwn/gocl v0.0.0-20260826180613-ffe218e350b7/go.mod h1:En52Jnq3ldN+SrBJBDytwYmn+piRz/ROQbebAbi7TVM=
+github.com/xypwn/gocl v0.0.0-20260826190936-acd49c7fe4ff h1:YY62DjH4Lz1vE3AG0rVLunGMoTglA3DOkyYQrJKWXyY=
+github.com/xypwn/gocl v0.0.0-20260826190936-acd49c7fe4ff/go.mod h1:En52Jnq3ldN+SrBJBDytwYmn+piRz/ROQbebAbi7TVM=
 go.uber.org/goleak v1.3.0 h1:2K3zAYmnTNqV73imy9J1T3WC+gmCePx2hEGkimedGto=
 go.uber.org/goleak v1.3.0/go.mod h1:CoHD4mav9JJNrW/WLlf7HGZPjdw8EucARQHekz1X6bE=
 go4.org v0.0.0-20260112195520-a5071408f32f h1:ziUVAjmTPwQMBmYR1tbdRFJPtTcQUI12fH9QQjfb0Sw=
