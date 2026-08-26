@@ -152,6 +152,8 @@ def handle_input(old_guess: str, index: int):
         return old_guess, index, rehash
     if c == '\x03':
         raise KeyboardInterrupt
+    if c == '\x04':
+        return old_guess, index, True
     if c == '\n':
         guess = ""
     elif c == '\x7f':

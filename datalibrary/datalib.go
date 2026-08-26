@@ -16,6 +16,7 @@ import (
 
 	"github.com/klauspost/compress/gzip"
 	"github.com/xypwn/filediver/hashes"
+	"github.com/xypwn/filediver/util"
 )
 
 //go:embed generated_arc_settings.dl_bin.gz
@@ -49,6 +50,10 @@ var planetRegionSettings []byte
 //go:embed generated_planet_types_settings.dl_bin.gz
 var planetTypesSettingsCompressed []byte
 var planetTypesSettings []byte
+
+//go:embed generated_region_settings.dl_bin.gz
+var regionSettingsCompressed []byte
+var regionSettings []byte
 
 //go:embed generated_sky_settings.dl_bin.gz
 var skySettingsCompressed []byte
@@ -152,6 +157,7 @@ func init() {
 	goDecompress(&planetRegionSettings, planetRegionSettingsCompressed)
 	goDecompress(&planetTypesSettings, planetTypesSettingsCompressed)
 	goDecompress(&projectileSettings, projectileSettingsCompressed)
+	goDecompress(&regionSettings, regionSettingsCompressed)
 	goDecompress(&skySettings, skySettingsCompressed)
 	goDecompress(&unitCustomizationSettings, unitCustomizationSettingsCompressed)
 	goDecompress(&weaponCustomizationSettings, weaponCustomizationSettingsCompressed)
@@ -460,6 +466,20 @@ func ResolveDLArray[T any](d DLArray, r io.ReadSeeker, base int64) (result []T, 
 
 type DLString struct {
 	Offset int64
+}
+
+func (d DLString) Resolve(r io.ReadSeeker, base int64) (*string, error) {
+	if d.Offset < 0 {
+		return nil, nil
+	}
+	if _, err := r.Seek(base+d.Offset, io.SeekStart); err != nil {
+		return nil, err
+	}
+	result, err := util.ReadCString(r)
+	if err != nil {
+		return nil, err
+	}
+	return &result, nil
 }
 
 type DLPtr struct {
