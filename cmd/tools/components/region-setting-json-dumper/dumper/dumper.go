@@ -6,6 +6,7 @@ import (
 
 	"github.com/xypwn/filediver/cmd/tools/components"
 	datalib "github.com/xypwn/filediver/datalibrary"
+	"github.com/xypwn/filediver/datalibrary/enum"
 )
 
 func Dump(a components.HashLookup) {
@@ -19,9 +20,9 @@ func Dump(a components.HashLookup) {
 		panic(err)
 	}
 
-	simpleSettings := make([]datalib.SimpleGenerationRegionSettings, 0)
-	for _, setting := range regionSettings {
-		simpleSettings = append(simpleSettings, setting.ToSimple(a.LookupHash, a.LookupThinHash, a.LookupString))
+	simpleSettings := make(map[enum.LevelGenerationRegionVariantType]datalib.SimpleGenerationRegionSettings, 0)
+	for i, setting := range regionSettings {
+		simpleSettings[enum.LevelGenerationRegionVariantType(i+1)] = setting.ToSimple(a.LookupHash, a.LookupThinHash, a.LookupString)
 	}
 
 	simpleGroups := make([]datalib.SimpleGenerationRegionGroup, 0)

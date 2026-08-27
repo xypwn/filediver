@@ -3,6 +3,7 @@ package datalib
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"io"
 
@@ -68,29 +69,93 @@ func (s rawSubRegionSettings) Deserialize() SubRegionSettings {
 	}
 }
 
+type StampRaceAffiliation struct {
+	Bits uint8
+}
+
+func (s StampRaceAffiliation) Bugs() bool {
+	return (s.Bits & (1 << 0)) != 0
+}
+func (s StampRaceAffiliation) Cyborg() bool {
+	return (s.Bits & (1 << 1)) != 0
+}
+func (s StampRaceAffiliation) Illuminate() bool {
+	return (s.Bits & (1 << 2)) != 0
+}
+func (s StampRaceAffiliation) SuperEarth() bool {
+	return (s.Bits & (1 << 3)) != 0
+}
+
+func (s StampRaceAffiliation) MarshalJSON() ([]byte, error) {
+	result := make([]string, 0)
+	if s.Bugs() {
+		result = append(result, "bugs")
+	}
+	if s.Cyborg() {
+		result = append(result, "cyborg")
+	}
+	if s.Illuminate() {
+		result = append(result, "illuminate")
+	}
+	if s.SuperEarth() {
+		result = append(result, "super_earth")
+	}
+	return json.Marshal(result)
+}
+
+type SubRegionSettingsOverride struct {
+	Type            enum.SubRegionType   `json:"type"`
+	Weight          float32              `json:"weight"`
+	RegionType      enum.SubRegionType   `json:"region_type"`
+	OverrideZoneId  enum.ZoneId          `json:"override_zone_id"`
+	RaceAffiliation StampRaceAffiliation `json:"race_affiliation"`
+	_               [3]uint8
+	OperationType   enum.OperationType `json:"operation_type"`
+	UnkInt          uint32             `json:"unk_int"`
+}
+
 type rawGenerationRegionSettings struct {
 	// These are rather large and mostly pertain to level generation logic
 	// currently we only care about these as a means to map planets -> zones
-	UnkRegionHash     stingray.Hash
-	_                 [560]uint8
-	SubregionSettings [16]rawSubRegionSettings
-	_                 [1640]uint8
+	UnkRegionHash              stingray.Hash
+	_                          [560]uint8
+	SubregionSettings          [16]rawSubRegionSettings
+	_                          [1156]uint8
+	SubregionSettingsOverrides [16]SubRegionSettingsOverride
+	_                          [36]uint8
 }
 
 type GenerationRegionSettings struct {
-	UnkRegionHash     stingray.Hash
-	SubregionSettings []SubRegionSettings
+	UnkRegionHash              stingray.Hash
+	SubregionSettings          []SubRegionSettings
+	SubregionSettingsOverrides []SubRegionSettingsOverride
 }
 
 type SimpleGenerationRegionSettings struct {
-	UnkRegionHash     string              `json:"unk_region_hash"`
-	SubregionSettings []SubRegionSettings `json:"subregion_settings"`
+	UnkRegionHash              string                      `json:"unk_region_hash"`
+	SubregionSettings          []SubRegionSettings         `json:"subregion_settings,omitempty"`
+	SubregionSettingsOverrides []SubRegionSettingsOverride `json:"subregion_settings_overrides,omitempty"`
 }
 
 func (s GenerationRegionSettings) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookupStrings StringsLookup) SimpleGenerationRegionSettings {
+	subregionSettings := make([]SubRegionSettings, 0)
+	for _, subregion := range s.SubregionSettings {
+		if subregion.Weight == 0 {
+			continue
+		}
+		subregionSettings = append(subregionSettings, subregion)
+	}
+	subregionSettingsOverrides := make([]SubRegionSettingsOverride, 0)
+	for _, subregion := range s.SubregionSettingsOverrides {
+		if subregion.Type == enum.SubRegionType_None || subregion.RegionType == enum.SubRegionType_Value_24_Len_20 {
+			continue
+		}
+		subregionSettingsOverrides = append(subregionSettingsOverrides, subregion)
+	}
 	return SimpleGenerationRegionSettings{
-		UnkRegionHash:     lookupHash(s.UnkRegionHash),
-		SubregionSettings: s.SubregionSettings,
+		UnkRegionHash:              lookupHash(s.UnkRegionHash),
+		SubregionSettings:          subregionSettings,
+		SubregionSettingsOverrides: subregionSettingsOverrides,
 	}
 }
 
@@ -102,10 +167,18 @@ func (s rawGenerationRegionSettings) Deserialize(r io.ReadSeeker, base int64) (*
 		}
 		subregionSettings = append(subregionSettings, subregion.Deserialize())
 	}
+	subregionSettingsOverrides := make([]SubRegionSettingsOverride, 0)
+	for _, subregion := range s.SubregionSettingsOverrides {
+		if subregion.Type == enum.SubRegionType_None {
+			continue
+		}
+		subregionSettingsOverrides = append(subregionSettingsOverrides, subregion)
+	}
 
 	return &GenerationRegionSettings{
-		UnkRegionHash:     s.UnkRegionHash,
-		SubregionSettings: subregionSettings,
+		UnkRegionHash:              s.UnkRegionHash,
+		SubregionSettings:          subregionSettings,
+		SubregionSettingsOverrides: subregionSettingsOverrides,
 	}, nil
 }
 
@@ -234,6 +307,9 @@ func (s GenerationRegionVariantList) ToSimple(lookupHash HashLookup, lookupThinH
 
 	variants := make([]SimpleGenerationRegionVariantSettings, 0)
 	for _, variant := range s.Variants {
+		if variant.Weight == 0 {
+			continue
+		}
 		variants = append(variants, variant.ToSimple(lookupHash, lookupThinHash, lookupStrings))
 	}
 

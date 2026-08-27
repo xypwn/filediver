@@ -347,6 +347,24 @@ enum AllowLocationMode : u8 {
     AllowLocationMode_None,
 };
 
+enum OperationType : u32 {
+    OperationType_Unknown,
+    OperationType_Value_1_Len_31,
+    OperationType_Value_2_Len_34,
+    OperationType_Value_3_Len_24,
+    OperationType_Value_4_Len_25,
+    OperationType_Value_5_Len_24,
+    OperationType_Value_6_Len_24,
+    OperationType_Value_7_Len_27,
+    OperationType_Value_8_Len_25,
+    OperationType_Value_9_Len_26,
+    OperationType_Value_10_Len_34,
+    OperationType_Value_11_Len_34,
+    OperationType_Value_12_Len_31,
+    OperationType_Value_13_Len_33,
+    OperationType_Count,
+};
+
 bitfield SubRegionFlags {
     unk_flag: 1;
     is_override_location_subregion: 1;
@@ -369,12 +387,35 @@ struct SubRegionSettings {
     u8 data[68 - sizeof(this)];
 };
 
+bitfield StampRaceAffiliation {
+    bugs: 1;
+    cyborg: 1;
+    illuminate: 1;
+    super_earth: 1;
+};
+
+struct SubRegionSettingsOverride {
+    SubRegionType type;
+    float weight;
+    SubRegionType region_type;
+    ZoneId override_zone_id;
+    StampRaceAffiliation race_affiliation;
+    padding[3];
+    OperationType operation_type;
+    ThinMurmurHash unkHash;
+    u8 data[28 - sizeof(this)];
+};
+
 struct GenerationRegionSettings {
     MurmurHash region_hash;
     padding[560];
     SubRegionSettings subregion_settings[16];
+    padding[2812-sizeof(this)];
+    SubRegionSettingsOverride subregion_settings_overrides[16];
     padding[3296-sizeof(this)];
 };
+
+using GenerationRegionGroup;
 
 struct GenerationRegionVariantSettings {
     DLString name;
