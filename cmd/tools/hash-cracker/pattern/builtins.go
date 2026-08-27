@@ -9,35 +9,6 @@ import (
 var builtinVars = map[string]IrSegment{}
 
 var builtinFuncs = map[string]any{
-	// sep separates each part in the given repeat segment by the given
-	// separator. Doesn't change the repeat segment's complexity if the
-	// separator has a complexity of 1.
-	//
-	// Example: ${sep [ab]{0,2} _} -> "", "a", "b", "a_a", "a_b", "b_a", "b_b"
-	"sep": func(s IrSegmentRepeat, sep IrSegment) IrSegment {
-		ch := IrSegmentChoice{}
-		for i := s.Min; i <= s.Max; i++ {
-			switch i {
-			case 0:
-				ch = append(ch, IrSegmentStr(""))
-			case 1:
-				ch = append(ch, s.Seg)
-			default:
-				ch = append(ch,
-					IrSegmentConcat{
-						s.Seg,
-						IrSegmentRepeat{
-							Min: i - 1, Max: i - 1,
-							Seg: IrSegmentConcat{
-								sep,
-								s.Seg,
-							},
-						},
-					})
-			}
-		}
-		return ch
-	},
 	// limit limits the number of choices to at most n, where
 	// n must be a non-negative number.
 	"limit": func(s IrSegmentChoice, n string) (IrSegmentChoice, error) {

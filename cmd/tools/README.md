@@ -30,17 +30,17 @@ Fast GPU-based hash cracking.
 - `a|b|c`: a or b or c
 - `[a-z0-9~_-]`, `[^a-z]`: character classes mostly like in regex
 - `...{m,n}`, `...{m}`: repeat expression m-n times (`,n` can be omitted if `m == n`)
+- `...{m,n,s}`, `...{m,s}`: repeat expression m-n times, separated by s (`,n` can be omitted if `m == n` and if `s` doesn't start with a digit)
 - `#{var = ...}`: assign value of to variable `var`
 - `#{var}`: expand value of variable `var`
-- `#{func arg1 arg2 ...}`: call function with arguments
+- `#{func arg1 arg2 ...}`: call function with arguments `arg1`, `arg2` etc.
 ##### Builtin variable and functions
 - `#{load filename}`: loads pattern from file `filename` and returns it
 - `#{import filename}`: import variables from file `filename` (never returns anything)
-- `#{sep expr{m,n} [_-]}`: separate `expr` repeated m-n times with `[_-]` (e.g. `#{sep [ab]{0,2} _}` -> `"", "a", "b", "a_a", "a_b", "b_a", "b_b"`)
 - `#{known}`: list of all known file and type names
 - `#{known-words}`: list of words in all known filenames (separated by `[/_:]`)
 ##### Examples
-- `content/#{sep #{known-words}{1,3} [_:]}`: `content/` followed by 1-3 known words, separated by `_` or `:`
+- `content/#{known-words}{1,3,[_:]}`: `content/` followed by 1-3 known words, separated by `_` or `:`
 
 ### Crossref-checker
 Check if selected game files reference any other game files by hash.

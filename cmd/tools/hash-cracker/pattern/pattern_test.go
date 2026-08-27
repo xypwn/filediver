@@ -39,6 +39,19 @@ func TestParse(t *testing.T) {
 				Min: 10,
 				Max: 10,
 			}, ""},
+		{"repeat sep", "<a|b>{5,10,<c|d>}",
+			IrSegmentRepeat{
+				Seg: IrSegmentChoice{
+					IrSegmentStr("a"),
+					IrSegmentStr("b"),
+				},
+				Min: 5,
+				Max: 10,
+				Sep: IrSegmentChoice{
+					IrSegmentStr("c"),
+					IrSegmentStr("d"),
+				},
+			}, ""},
 		{"repeat invalid range", "<a|b>{10,5}", nil,
 			"pattern error at position 11: expected minimum repetitions (10) to be less than maximum (5) repetitions"},
 	}

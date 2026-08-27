@@ -441,17 +441,28 @@ func compile(irSeg IrSegment, opts CompileOptions) Segment {
 		if irSeg.Min == 1 && irSeg.Max == 1 {
 			return body
 		}
+		var sep Segment
+		if irSeg.Sep != nil {
+			sep = compile(irSeg.Sep, opts)
+		}
 		res.Type = SegmentProdOfSets
 		res.Segs = make([][]Segment, 1)
 		res.Segs[0] = make([]Segment, irSeg.Max-irSeg.Min+1)
 		for i := range res.Segs[0] {
 			reps := irSeg.Min + i
+			interspersed := 0
+			if reps >= 2 && irSeg.Sep != nil {
+				interspersed = reps - 1
+			}
 			repeated := Segment{
 				Type: SegmentProdOfSets,
-				Segs: make([][]Segment, reps),
+				Segs: make([][]Segment, 0, reps+interspersed),
 			}
-			for j := range repeated.Segs {
-				repeated.Segs[j] = []Segment{body}
+			for j := range reps {
+				if irSeg.Sep != nil && j != 0 {
+					repeated.Segs = append(repeated.Segs, []Segment{sep})
+				}
+				repeated.Segs = append(repeated.Segs, []Segment{body})
 			}
 			res.Segs[0][i] = repeated
 		}

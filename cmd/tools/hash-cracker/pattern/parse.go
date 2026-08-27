@@ -36,6 +36,7 @@ type (
 	IrSegmentStr    string      // <someString>
 	IrSegmentRepeat struct {
 		Seg      IrSegment
+		Sep      IrSegment // optional separator
 		Min, Max int
 	} // <something{1,2}>
 )
@@ -88,7 +89,11 @@ func (s IrSegmentStr) Clone() IrSegment {
 }
 
 func (s IrSegmentRepeat) String() string {
-	return fmt.Sprintf("%s{%d,%d}", s.Seg, s.Min, s.Max)
+	if s.Sep != nil {
+		return fmt.Sprintf("%s{%d,%d,%s}", s.Seg, s.Min, s.Max, s.Sep)
+	} else {
+		return fmt.Sprintf("%s{%d,%d}", s.Seg, s.Min, s.Max)
+	}
 }
 func (s IrSegmentRepeat) Clone() IrSegment {
 	sNew := s
@@ -210,26 +215,37 @@ func (p *parser) parseNonegativeInt() (number int, delim byte) {
 	}
 }
 
-func (p *parser) parseSegmentRepeatMinMax() IrSegmentRepeat {
-	min, delim := p.parseNonegativeInt()
+func (p *parser) parseSegmentRepeatMinMaxSep() IrSegmentRepeat {
+	var min, max int
+	var delim byte
+	isNextInt := func() bool {
+		c := p.next()
+		p.unread()
+		return c >= '0' && c <= '9'
+	}
+	min, delim = p.parseNonegativeInt()
 	if min == -1 {
 		p.err(ErrExpectedNonnegativeInteger)
 	}
 	p.expectLast(",}")
-	switch delim {
-	case '}':
+	if delim == '}' {
 		return IrSegmentRepeat{Min: min, Max: min}
-	case ',':
 	}
-	max, delim := p.parseNonegativeInt()
-	if max == -1 {
-		p.err(ErrExpectedNonnegativeInteger)
+	if isNextInt() {
+		max, delim = p.parseNonegativeInt()
+		if max == -1 {
+			p.err(ErrExpectedNonnegativeInteger)
+		}
+		p.expectLast(",}")
+		if max < min {
+			p.err(fmt.Errorf("expected minimum repetitions (%d) to be less than maximum (%d) repetitions", min, max))
+		}
+		if delim == '}' {
+			return IrSegmentRepeat{Min: min, Max: max}
+		}
 	}
-	p.expectLast("}")
-	if max < min {
-		p.err(fmt.Errorf("expected minimum repetitions (%d) to be less than maximum (%d) repetitions", min, max))
-	}
-	return IrSegmentRepeat{Min: min, Max: max}
+	sep := p.parseExpr("}")
+	return IrSegmentRepeat{Min: min, Max: max, Sep: sep}
 }
 
 func (p *parser) parseCharClass() IrSegmentChoice {
@@ -614,7 +630,7 @@ func (p *parser) parseExpr(endingDelims string) IrSegment {
 			if len(segParts) == 0 {
 				p.err(ErrExpectedExpressionBeforeRepeat)
 			}
-			rs := p.parseSegmentRepeatMinMax()
+			rs := p.parseSegmentRepeatMinMaxSep()
 			rs.Seg = segParts[len(segParts)-1]
 			segParts[len(segParts)-1] = rs
 		default:
