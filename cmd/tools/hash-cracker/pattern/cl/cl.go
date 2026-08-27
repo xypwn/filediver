@@ -1,6 +1,7 @@
 package cl
 
 import (
+	_ "embed"
 	"fmt"
 	"math"
 	"slices"
@@ -12,6 +13,9 @@ import (
 	"github.com/xypwn/filediver/util"
 	cl "github.com/xypwn/gocl/cl-3.1"
 )
+
+//go:embed prelude.cl
+var preludeClCode string
 
 // Returns the number of elements needed in the index
 // for the given program.
@@ -351,135 +355,121 @@ func generateClCode(s pattern.Segment, bufs *clBuffers) (code []byte) {
 		return b.String()
 	}
 
-	var cb codeBuilder
-	cb.IndentStr = "  "
+	cb := &codeBuilder{IndentStr: "  "}
 	cb.L("#define MAX_CANDIDATE_LEN %d", bufs.maxCandidateLen)
 	cb.L("#define MAX_MATCH_BUF_LEN %d", bufs.matchBufLen)
 	cb.L("#define NUM_TARGET_HASHES %d", len(bufs.data.targetHashes))
 	cb.L("#define IDX_LEN %d", bufs.idxLen)
-	cb.L(`
-typedef int i32;
-typedef unsigned int u32;
-typedef long i64;
-typedef unsigned long u64;
+	cb.L("%s", preludeClCode)
 
-// Calculates the murmurhash 64a of the given
-// string (as u64 array). n is the number of bytes.
-//
-// We're using u64s so we are guaranteed to have the correct
-// alignment when casting to u64 in the main loop. For unaligned
-// data, the only alternative would be bitwise-oring the bytes
-// together, which is quite a lot slower (~30%% in my testing).
-u64 murmur64a_sum(const u64 *d, u32 n) {
-#define SEED 0ul
-#define MIX 0xc6a4a7935bd1e995ul
-#define SHIFTS 47ul
+	writeExprPushStr := func(cb *codeBuilder, memcpyFn, str string) {
+		cb.L("%s((char*)candidate + candidate_len, %s, str_len);", memcpyFn, str)
+		cb.L("candidate_len += str_len;")
+	}
+	writeExprPopStr := func(cb *codeBuilder) {
+		cb.L("candidate_len -= str_len;")
+	}
+	var guessFns []*codeBuilder
+	pushGuessFn := func() (cb *codeBuilder, name string) {
+		fnIdx := len(guessFns)
+		name = fmt.Sprintf("guess_%d", fnIdx)
+		cb = &codeBuilder{IndentStr: "  "}
+		cb.L("bool %s(size_t id, u32 *n, u32 *i, u64 *candidate, i32 candidate_len, __global const char *strs, __global const u32 *strs_offsets, __global const u32 *str_lens, __global const u32 *hash_bitmap, __global const u64 *target_hashes, __global char *matches, __global u32 *matches_lens) {", name)
+		guessFns = append(guessFns, cb)
+		return
+	}
+	popGuessFn := func(cb *codeBuilder) {
+		cb.L("return true;")
+		cb.L("}")
+	}
+	writeExprCallGuessFn := func(cb *codeBuilder, name string) {
+		if name == "try" {
+			cb.L("if (!(*n) || !try(candidate, candidate_len, id, hash_bitmap, target_hashes, matches, matches_lens)) return false;")
+			cb.L("(*n)--;")
+		} else {
+			cb.L("if (!%s(id, n, i, candidate, candidate_len, strs, strs_offsets, str_lens, hash_bitmap, target_hashes, matches, matches_lens)) return false;", name)
+		}
+	}
 
-  u64 hash = SEED ^ ((u64)n * MIX);
-  
-  while (n >= 8) {
-    u64 key = *d;
-    d += 1;
-    n -= 8;
+	//fmt.Println("strs:", bufs.strArrs)
 
-    key *= MIX;
-    key ^= key >> SHIFTS;
-    key *= MIX;
+	cIdxCounter := 0
+	// guessFn is the function to call after the current segment has reached
+	// its last cartesian product term. For the root node, it's "try", since we
+	// always want to try the string produced on after the rightmost cartesian
+	// product.
+	//
+	// For any union, each union operand should have the same guessFn. To avoid
+	// repetition, we generate the next cartesian product term outside the union
+	// as a new guessing function and then make the union guess via that.
+	var genCode func(cb *codeBuilder, s pattern.Segment, idx int, guessFn string)
+	genCode = func(cb *codeBuilder, s pattern.Segment, idx int, guessFn string) {
+		if s.Type == pattern.SegmentText {
+			cb.L("const u32 str_len = %d;", len(s.Str))
+			writeExprPushStr(cb, "memcpy_pg", quote(s.Str))
+			writeExprCallGuessFn(cb, guessFn)
+			writeExprPopStr(cb)
+			return
+		}
 
-    hash ^= key;
-    hash *= MIX;
-  }
+		segs := s.Segs[idx]
 
-  if (n&7) {
-    switch (n&7) {
-    case 7: hash ^= *d & 0x00fffffffffffffful; break;
-    case 6: hash ^= *d & 0x0000fffffffffffful; break;
-    case 5: hash ^= *d & 0x000000fffffffffful; break;
-    case 4: hash ^= *d & 0x00000000fffffffful; break;
-    case 3: hash ^= *d & 0x0000000000fffffful; break;
-    case 2: hash ^= *d & 0x000000000000fffful; break;
-    case 1: hash ^= *d & 0x00000000000000fful; break;
-    }
-	hash *= MIX;
-  }
+		cIdx := cIdxCounter
+		cIdxCounter++
 
-  hash ^= hash >> SHIFTS;
-  hash *= MIX;
-  hash ^= hash >> SHIFTS;
+		if len(segs) == s.Comps[idx] { // List of single strings
+			if len(segs) != 1 {
+				cb.L("for (; i[%d] < %d; i[%d]++) {", cIdx, len(segs), cIdx)
+			} else {
+				cb.L("{")
+			}
+			offs := bufs.strArrOffset(s, idx)
+			cb.L("const u32 str_idx = %d+i[%d];", offs, cIdx)
+			cb.L("const u32 str_len = str_lens[str_idx];", offs, cIdx)
+			writeExprPushStr(cb, "memcpy_pg", "strs + strs_offsets[str_idx]")
+			if idx == len(s.Segs)-1 {
+				writeExprCallGuessFn(cb, guessFn)
+			} else {
+				genCode(cb, s, idx+1, guessFn)
+			}
+			writeExprPopStr(cb)
+			cb.L("}")
+		} else { // Some union operand with more nesting exists
+			var fname string
+			if idx == len(s.Segs)-1 {
+				fname = guessFn
+			} else {
+				fcb, name := pushGuessFn()
+				genCode(fcb, s, idx+1, guessFn)
+				popGuessFn(fcb)
+				fname = name
+			}
+			cb.L("switch (i[%d]) {", cIdx)
+			for j, seg := range segs {
+				cb.L("case %d:", j)
+				genCode(cb, seg, 0, fname)
+				cb.L("i[%d]++;", cIdx)
+				cb.L("//fallthrough")
+			}
+			cb.L("}")
+		}
+		if len(segs) != 1 {
+			cb.L("i[%d] = 0;", cIdx)
+		}
+	}
 
-  return hash;
+	var guessEntryFnName string
+	{
+		var fcb *codeBuilder
+		fcb, guessEntryFnName = pushGuessFn()
+		genCode(fcb, s, 0, "try")
+		popGuessFn(fcb)
+	}
 
-#undef SEED
-#undef MIX
-#undef SHIFTS
-}
+	for _, fcb := range slices.Backward(guessFns) {
+		cb.L("%s", fcb.B.String())
+	}
 
-void* memcpy_pc(void* dest, __constant void* src, size_t n) {
-  char *d = dest;
-  __constant char *s = src;
-  while (n--) *d++ = *s++;
-  return dest;
-}
-void* memcpy_pg(void* dest, __global const void* src, size_t n) {
-  char *d = dest;
-  __global const char *s = src;
-  while (n--) *d++ = *s++;
-  return dest;
-}
-__global void* memcpy_gp(__global void* dest, const void* src, size_t n) {
-  __global char *d = dest;
-  const char *s = src;
-  while (n--) *d++ = *s++;
-  return dest;
-}
-
-// Bloom filter to rule out most candidates.
-bool bitmap_test(u64 hash, __global const u32 *hash_bitmap) {
-#define BITS 24
-  u32 hl = (u32)hash;
-  u32 hh = (u32)(hash >> 32);
-  u32 idxl = hl >> (32-(BITS-4));
-  u32 bitl = 1 << (hl & 31);
-  if (!(hash_bitmap[idxl] & bitl)) return false;
-  u32 idxh = hh >> (32-(BITS-4));
-  u32 bith = 1 << (hh & 31);
-  if (!(hash_bitmap[idxh] & bith)) return false;
-  return true;
-#undef BITS
-}
-
-// More expensive check if a candidate actually matches
-// a target hash.
-bool binary_search(u64 hash, __global const u64 *target_hashes) {
-  u32 lo = 0;
-  u32 hi = NUM_TARGET_HASHES;
-  while (lo < hi) {
-    u32 mid = (lo + hi) >> 1;
-    if (target_hashes[mid] < hash)
-      lo = mid + 1;
-    else
-      hi = mid;
-  }
-  return lo < NUM_TARGET_HASHES && target_hashes[lo] == hash;
-}
-
-// Tries the string as a match for a target hash.
-// If it is a match, it is written to the match buffer.
-//
-// Returns false if the try filled up the match buffer
-// fully and the kernel function should exit.
-bool try(const u64 *s, u32 n, const size_t id, __global const u32 *hash_bitmap, __global const u64 *target_hashes, __global char *matches, __global u32 *matches_lens) {
-  u64 h = murmur64a_sum(s, n);
-  if (!bitmap_test(h, hash_bitmap)) return true;
-  if (!binary_search(h, target_hashes)) return true;
-  if (matches_lens[id]+n+1 > MAX_MATCH_BUF_LEN)
-    return false;
-  memcpy_gp(matches + id*MAX_MATCH_BUF_LEN + matches_lens[id], s, n);
-  matches_lens[id] += n;
-  matches[matches_lens[id]++] = 0;
-  return true;
-}
-`)
 	cb.L(`__kernel void kmain(__global u32* tries, __global u32* idxs, __global const char *strs, __global const u32 *strs_offsets, __global const u32 *str_lens, __global const u32 *hash_bitmap, __global const u64 *target_hashes, __global char *matches, __global u32 *matches_lens) {`)
 	cb.L("size_t id = get_global_id(0);")
 	cb.L("u32 n = tries[id]; // number of tries left")
@@ -487,68 +477,9 @@ bool try(const u64 *s, u32 n, const size_t id, __global const u32 *hash_bitmap, 
 	cb.L("i32 candidate_len = 0;")
 	cb.L("u32 i[IDX_LEN];")
 	cb.L("memcpy_pg(i, idxs + id*IDX_LEN, sizeof(i));")
-	totalIdxNum := 0
-	var genCode func(s pattern.Segment, canTry bool)
-	genCode = func(s pattern.Segment, canTry bool) {
-		writeExprPushStr := func(memcpyFn, str string) {
-			cb.L("%s((char*)candidate + candidate_len, %s, str_len);", memcpyFn, str)
-			cb.L("candidate_len += str_len;")
-		}
-		const exprTry = "if (!n || !try(candidate, candidate_len, id, hash_bitmap, target_hashes, matches, matches_lens)) goto ret; n--;"
-		if s.Type == pattern.SegmentText { // fallback; this case shouldn't happen
-			cb.L("const u32 str_len = %d;", len(s.Str))
-			writeExprPushStr("memcpy_pc", quote(s.Str))
-			if canTry {
-				cb.L(exprTry)
-			}
-			cb.L("candidate_len -= str_len;")
-			return
-		}
-		idxNumOffs := totalIdxNum
-		totalIdxNum += len(s.Segs)
-		for i, segs := range s.Segs {
-			idxNum := idxNumOffs + i
-			cb.L("for (; i[%d] < %d; i[%d]++) {", idxNum, len(segs), idxNum)
-			shouldTry := canTry && i == len(s.Segs)-1
-			if len(segs) == s.Comps[i] {
-				offs := bufs.strArrOffset(s, i)
-				cb.L("const u32 str_idx = %d+i[%d];", offs, idxNum)
-				cb.L("const u32 str_len = str_lens[str_idx];", offs, idxNum)
-				writeExprPushStr("memcpy_pg", "strs + strs_offsets[str_idx]")
-				if shouldTry {
-					cb.L(exprTry)
-				}
-			} else {
-				cb.L("u32 str_len = 0;")
-				cb.L("switch (i[%d]) {", idxNum)
-				for j, seg := range segs {
-					cb.L("case %d:", j)
-					if seg.Type == pattern.SegmentText {
-						cb.L("str_len = %d;", len(seg.Str))
-						writeExprPushStr("memcpy_pc", quote(seg.Str))
-						if shouldTry {
-							cb.L(exprTry)
-						}
-					} else {
-						genCode(seg, shouldTry)
-					}
-					cb.L("break;")
-				}
-				cb.L("}")
-			}
-		}
-		for i := range slices.Backward(s.Segs) {
-			idxNum := idxNumOffs + i
-			cb.L("candidate_len -= str_len;")
-			cb.L("}")
-			cb.L("i[%d] = 0;", idxNum)
-		}
-	}
-	genCode(s, true)
-	cb.L("ret:")
+	cb.L("%s(id, &n, i, candidate, candidate_len, strs, strs_offsets, str_lens, hash_bitmap, target_hashes, matches, matches_lens);", guessEntryFnName)
 	cb.L("memcpy_gp(idxs + id*IDX_LEN, i, sizeof(i));")
 	cb.L("tries[id] = n;")
-	cb.L("return;")
 	cb.L("}")
 	return cb.B.Bytes()
 }
