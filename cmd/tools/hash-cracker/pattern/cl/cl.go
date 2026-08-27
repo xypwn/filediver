@@ -448,8 +448,10 @@ func generateClCode(s pattern.Segment, bufs *clBuffers) (code []byte) {
 			for j, seg := range segs {
 				cb.L("case %d:", j)
 				genCode(cb, seg, 0, fname)
-				cb.L("i[%d]++;", cIdx)
-				cb.L("//fallthrough")
+				if j != len(segs)-1 {
+ 					cb.L("i[%d]++;", cIdx)
+					cb.L("//fallthrough")
+				}
 			}
 			cb.L("}")
 		}
