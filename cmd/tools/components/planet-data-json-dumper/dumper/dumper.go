@@ -32,42 +32,42 @@ type SimpleLevelGenerationPaletteGroup struct {
 }
 
 type SimplePlanetData struct {
-	Inherits                         string                            `json:"inherits"`
-	PlanetNameLoc                    string                            `json:"planet_name_loc"`
-	PlanetDescriptionLoc             string                            `json:"planet_description_loc"`
-	PlanetDescriptionShortLoc        string                            `json:"planet_description_short_loc"`
-	PlanetSystemNameLoc              string                            `json:"planet_system_name_loc"`
-	PlanetLayoutId                   uint32                            `json:"planet_layout_id"`
-	ResourceOverrides                []SimpleResourceOverride          `json:"resource_overrides"`
-	DebugName                        string                            `json:"debug_name"`
-	RegionLowland                    datalib.LevelGenerationRegion     `json:"region_lowland"`
-	RegionHighland                   datalib.LevelGenerationRegion     `json:"region_highland"`
-	PaletteGroupLowland              SimpleLevelGenerationPaletteGroup `json:"palette_group_lowland"`
-	PaletteGroupHighland             SimpleLevelGenerationPaletteGroup `json:"palette_group_highland"`
-	ScenarioSettingsLowland          string                            `json:"scenario_settings_lowland"`
-	ScenarioSettingsHighland         string                            `json:"scenario_settings_highland"`
-	GameplayModifiers                []string                          `json:"gameplay_modifiers"`
-	PlanetType                       enum.PlanetType                   `json:"planet_type"`
-	Unknown                          uint32                            `json:"unknown"`
-	NatureLocationTags               []enum.NatureLocationTag          `json:"nature_location_tags"`
-	ScatterSettings                  string                            `json:"scatter_settings"`
-	MissionPlanetUnit                string                            `json:"mission_planet_unit"`
-	MissionPlanetHologramUnit        string                            `json:"mission_planet_hologram_unit"`
-	MissionPlanetUnitPackage         string                            `json:"mission_planet_unit_package"`
-	MissionPlanetHologramUnitPackage string                            `json:"mission_planet_hologram_unit_package"`
-	SolarSystemSettings              string                            `json:"solar_system_settings"`
-	SolarSystemIdSelections          []string                          `json:"solar_system_id_selections"`
-	SampleTypes                      []enum.SampleType                 `json:"sample_types"`
-	AmbienceSoundIdStart             uint32                            `json:"ambience_sound_id_start"`
-	AmbienceSoundIdStop              uint32                            `json:"ambience_sound_id_stop"`
-	HologramPlanetMaterial           string                            `json:"hologram_planet_material"`
-	PlanetPreviewImage               string                            `json:"planet_preview_image"`
-	ResourceRegionOverrides          []SimpleResourceRegionOverride    `json:"resource_region_overrides"`
-	ShadingEnvironmentEntity         string                            `json:"shading_environment_entity"`
-	WaterEntity                      string                            `json:"water_entity"`
-	HeathazeEntity                   string                            `json:"heathaze_entity"`
-	PackagePath                      string                            `json:"package_path"`
-	UnknownFloat                     float32                           `json:"unknown_float"`
+	Inherits                         string                              `json:"inherits"`
+	PlanetNameLoc                    string                              `json:"planet_name_loc"`
+	PlanetDescriptionLoc             string                              `json:"planet_description_loc"`
+	PlanetDescriptionShortLoc        string                              `json:"planet_description_short_loc"`
+	PlanetSystemNameLoc              string                              `json:"planet_system_name_loc"`
+	PlanetLayoutId                   string                              `json:"planet_layout_id"`
+	ResourceOverrides                []SimpleResourceOverride            `json:"resource_overrides"`
+	DebugName                        string                              `json:"debug_name"`
+	RegionLowland                    datalib.SimpleLevelGenerationRegion `json:"region_lowland"`
+	RegionHighland                   datalib.SimpleLevelGenerationRegion `json:"region_highland"`
+	PaletteGroupLowland              SimpleLevelGenerationPaletteGroup   `json:"palette_group_lowland"`
+	PaletteGroupHighland             SimpleLevelGenerationPaletteGroup   `json:"palette_group_highland"`
+	ScenarioSettingsLowland          string                              `json:"scenario_settings_lowland"`
+	ScenarioSettingsHighland         string                              `json:"scenario_settings_highland"`
+	GameplayModifiers                []string                            `json:"gameplay_modifiers"`
+	PlanetType                       enum.PlanetType                     `json:"planet_type"`
+	Unknown                          uint32                              `json:"unknown"`
+	NatureLocationTags               []enum.NatureLocationTag            `json:"nature_location_tags"`
+	ScatterSettings                  string                              `json:"scatter_settings"`
+	MissionPlanetUnit                string                              `json:"mission_planet_unit"`
+	MissionPlanetHologramUnit        string                              `json:"mission_planet_hologram_unit"`
+	MissionPlanetUnitPackage         string                              `json:"mission_planet_unit_package"`
+	MissionPlanetHologramUnitPackage string                              `json:"mission_planet_hologram_unit_package"`
+	SolarSystemSettings              string                              `json:"solar_system_settings"`
+	SolarSystemIdSelections          []string                            `json:"solar_system_id_selections"`
+	SampleTypes                      []enum.SampleType                   `json:"sample_types"`
+	AmbienceSoundIdStart             uint32                              `json:"ambience_sound_id_start"`
+	AmbienceSoundIdStop              uint32                              `json:"ambience_sound_id_stop"`
+	HologramPlanetMaterial           string                              `json:"hologram_planet_material"`
+	PlanetPreviewImage               string                              `json:"planet_preview_image"`
+	ResourceRegionOverrides          []SimpleResourceRegionOverride      `json:"resource_region_overrides"`
+	ShadingEnvironmentEntity         string                              `json:"shading_environment_entity"`
+	WaterEntity                      string                              `json:"water_entity"`
+	HeathazeEntity                   string                              `json:"heathaze_entity"`
+	PackagePath                      string                              `json:"package_path"`
+	UnknownFloat                     float32                             `json:"unknown_float"`
 }
 
 func Dump(a components.HashLookup) {
@@ -108,11 +108,11 @@ func Dump(a components.HashLookup) {
 			PlanetDescriptionLoc:      planetData.PlanetDescriptionLoc,
 			PlanetDescriptionShortLoc: planetData.PlanetDescriptionShortLoc,
 			PlanetSystemNameLoc:       planetData.PlanetSystemNameLoc,
-			PlanetLayoutId:            planetData.PlanetLayoutId,
+			PlanetLayoutId:            a.LookupThinHash(planetData.PlanetLayoutId),
 			ResourceOverrides:         resourceOverrides,
 			DebugName:                 planetData.DebugName,
-			RegionLowland:             planetData.RegionLowland,
-			RegionHighland:            planetData.RegionHighland,
+			RegionLowland:             planetData.RegionLowland.ToSimple(a.LookupHash, a.LookupThinHash, a.LookupString),
+			RegionHighland:            planetData.RegionHighland.ToSimple(a.LookupHash, a.LookupThinHash, a.LookupString),
 
 			PaletteGroupLowland: SimpleLevelGenerationPaletteGroup{
 				//Palette:                 a.LookupHash(planetData.PaletteGroupLowland.Palette),
