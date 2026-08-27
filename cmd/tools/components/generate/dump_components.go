@@ -20,10 +20,14 @@ import (
 	passive "github.com/xypwn/filediver/cmd/tools/components/passive-bonus-json-dumper/dumper"
 	planet "github.com/xypwn/filediver/cmd/tools/components/planet-data-json-dumper/dumper"
 	planet_overrides "github.com/xypwn/filediver/cmd/tools/components/planet-override-settings-json-dumper/dumper"
+	planet_regions "github.com/xypwn/filediver/cmd/tools/components/planet-region-settings-json-dumper/dumper"
+	planet_types "github.com/xypwn/filediver/cmd/tools/components/planet-types-settings-json-dumper/dumper"
 	proj "github.com/xypwn/filediver/cmd/tools/components/projectile-setting-json-dumper/dumper"
+	region "github.com/xypwn/filediver/cmd/tools/components/region-setting-json-dumper/dumper"
 	sky "github.com/xypwn/filediver/cmd/tools/components/sky-settings-json-dumper/dumper"
 	unit "github.com/xypwn/filediver/cmd/tools/components/unit-customization-json-dumper/dumper"
 	weapon "github.com/xypwn/filediver/cmd/tools/components/weapon-customization-json-dumper/dumper"
+	zone "github.com/xypwn/filediver/cmd/tools/components/zone-setting-json-dumper/dumper"
 	datalib "github.com/xypwn/filediver/datalibrary"
 	"github.com/xypwn/filediver/hashes"
 	stingray_strings "github.com/xypwn/filediver/stingray/strings"
@@ -84,10 +88,14 @@ func main() {
 	dumpPassive(a, outputFormat, prt, currStdout)
 	dumpPlanet(a, outputFormat, prt, currStdout)
 	dumpPlanetOverrides(a, outputFormat, prt, currStdout)
+	dumpPlanetRegions(a, outputFormat, prt, currStdout)
+	dumpPlanetTypes(a, outputFormat, prt, currStdout)
 	dumpProj(a, outputFormat, prt, currStdout)
+	//dumpRegion(a, outputFormat, prt, currStdout)
 	dumpSky(a, outputFormat, prt, currStdout)
 	dumpUnit(a, outputFormat, prt, currStdout)
 	dumpWeapon(a, outputFormat, prt, currStdout)
+	dumpZone(a, outputFormat, prt, currStdout)
 }
 
 func dumpAET(a *app.App, outputFormat string, prt app.Printer, currStdout *os.File) {
@@ -266,6 +274,38 @@ func dumpPlanetOverrides(a *app.App, outputFormat string, prt app.Printer, currS
 		os.Stdout = currStdout
 	}
 }
+func dumpPlanetRegions(a *app.App, outputFormat string, prt app.Printer, currStdout *os.File) {
+	filename := "planet_region_settings"
+	newStdout, err := CreateFile(fmt.Sprintf(outputFormat, filename), ".json")
+	if err == nil {
+		defer func() {
+			os.Stdout = currStdout
+			newStdout.Close()
+			if r := recover(); r != nil {
+				prt.Errorf("Failed to generate %v: %v", filename, r)
+			}
+		}()
+		os.Stdout = newStdout
+		planet_regions.Dump(a)
+		os.Stdout = currStdout
+	}
+}
+func dumpPlanetTypes(a *app.App, outputFormat string, prt app.Printer, currStdout *os.File) {
+	filename := "planet_types_settings"
+	newStdout, err := CreateFile(fmt.Sprintf(outputFormat, filename), ".json")
+	if err == nil {
+		defer func() {
+			os.Stdout = currStdout
+			newStdout.Close()
+			if r := recover(); r != nil {
+				prt.Errorf("Failed to generate %v: %v", filename, r)
+			}
+		}()
+		os.Stdout = newStdout
+		planet_types.Dump(a)
+		os.Stdout = currStdout
+	}
+}
 func dumpProj(a *app.App, outputFormat string, prt app.Printer, currStdout *os.File) {
 	filename := "projectile_settings"
 	newStdout, err := CreateFile(fmt.Sprintf(outputFormat, filename), ".json")
@@ -279,6 +319,22 @@ func dumpProj(a *app.App, outputFormat string, prt app.Printer, currStdout *os.F
 		}()
 		os.Stdout = newStdout
 		proj.Dump(a)
+		os.Stdout = currStdout
+	}
+}
+func dumpRegion(a *app.App, outputFormat string, prt app.Printer, currStdout *os.File) {
+	filename := "region_settings"
+	newStdout, err := CreateFile(fmt.Sprintf(outputFormat, filename), ".json")
+	if err == nil {
+		defer func() {
+			os.Stdout = currStdout
+			newStdout.Close()
+			if r := recover(); r != nil {
+				prt.Errorf("Failed to generate %v: %v", filename, r)
+			}
+		}()
+		os.Stdout = newStdout
+		region.Dump(a)
 		os.Stdout = currStdout
 	}
 }
@@ -327,6 +383,22 @@ func dumpWeapon(a *app.App, outputFormat string, prt app.Printer, currStdout *os
 		}()
 		os.Stdout = newStdout
 		weapon.Dump(a)
+		os.Stdout = currStdout
+	}
+}
+func dumpZone(a *app.App, outputFormat string, prt app.Printer, currStdout *os.File) {
+	filename := "zone_settings"
+	newStdout, err := CreateFile(fmt.Sprintf(outputFormat, filename), ".json")
+	if err == nil {
+		defer func() {
+			os.Stdout = currStdout
+			newStdout.Close()
+			if r := recover(); r != nil {
+				prt.Errorf("Failed to generate %v: %v", filename, r)
+			}
+		}()
+		os.Stdout = newStdout
+		zone.Dump(a)
 		os.Stdout = currStdout
 	}
 }
