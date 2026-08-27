@@ -34,7 +34,7 @@ const (
 	LevelGenerationRegion_region_deciduous_crimson
 	LevelGenerationRegion_region_swamp_base
 	LevelGenerationRegion_region_swamp_haunted
-	LevelGenerationRegionType_Value_31_Len_45
+	LevelGenerationRegion_region_swamp_variant_02
 	LevelGenerationRegion_region_oasis_base
 	LevelGenerationRegion_region_oasis_bleak
 	LevelGenerationRegion_region_bug_hiveworld
