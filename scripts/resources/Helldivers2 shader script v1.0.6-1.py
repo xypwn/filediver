@@ -2,11 +2,15 @@
 # Shader post can be found here: https://discord.com/channels/1210541115829260328/1222290154409033889
 
 # Modified slightly for use with filediver
+# Enhanced by filediver devs with support for:
+#   * Camo patterns
+#   * Dynamic Decals
+#   * Emissive
 
 # Shader bundled with filediver with permission from @thejudsub
 
 import bpy
-from bpy.types import NodeTree, Material, Object, ShaderNodeGroup, ShaderNodeMix, ShaderNodeMath, NodeGroupInput, ShaderNodeCombineXYZ
+from bpy.types import NodeTree, Material, Object, ShaderNodeGroup, ShaderNodeMix, ShaderNodeMath, ShaderNodeVectorMath, NodeGroupInput, ShaderNodeCombineXYZ
 from typing import Optional
 import os
 import math
@@ -126,6 +130,10 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     normal_socket = HD2_Shader.interface.new_socket(name = "Bake_Normal", in_out='OUTPUT', socket_type = 'NodeSocketVector', parent = bake_outputs_panel)
     #Socket Clearcoat Normal
     clearcoat_normal_socket = HD2_Shader.interface.new_socket(name = "Bake_Clearcoat Normal", in_out='OUTPUT', socket_type = 'NodeSocketVector', parent = bake_outputs_panel)
+    #Socket Emissive Color
+    emissive_color_socket = HD2_Shader.interface.new_socket(name = "Bake_Emissive Color", in_out='OUTPUT', socket_type = 'NodeSocketColor', parent = bake_outputs_panel)
+    #Socket Emissive Strength
+    emissive_strength_socket = HD2_Shader.interface.new_socket(name = "Bake_Emissive Strength", in_out='OUTPUT', socket_type = 'NodeSocketFloat', parent = bake_outputs_panel)
 
     use_dynamic_decals_socket = HD2_Shader.interface.new_socket(name = "use_dynamic_decals", in_out='INPUT', socket_type = 'NodeSocketFloat', parent = dynamic_decal_settings_panel)
     use_dynamic_decals_socket.default_value = 0.000
@@ -5696,46 +5704,49 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     math_184.use_clamp = False
     #Value_002
     math_184.inputs[2].default_value = 0.5
-    
-    #node Separate XYZ.068
-    separate_xyz_068 = HD2_Shader.nodes.new("ShaderNodeSeparateXYZ")
-    separate_xyz_068.name = "Separate XYZ.068"
-    
-    #node Math.188
-    math_188 = HD2_Shader.nodes.new("ShaderNodeMath")
+
+    gamma_007 = HD2_Shader.nodes.new("ShaderNodeGamma")
+    gamma_007.name = "Gamma.007"
+    gamma_007.inputs["Gamma"].default_value = 2.4
+
+    vector_math_119: ShaderNodeVectorMath = HD2_Shader.nodes.new("ShaderNodeVectorMath")
+    vector_math_119.name = "Vector Math.119"
+    vector_math_119.operation = 'SCALE'
+    vector_math_119.inputs['Scale'].default_value = 0.077399
+
+    mix_079: ShaderNodeMix = HD2_Shader.nodes.new("ShaderNodeMix")
+    mix_079.name = "Mix.079"
+    mix_079.data_type = 'VECTOR'
+    mix_079.factor_mode = 'NON_UNIFORM'
+
+    mix_080: ShaderNodeMix = HD2_Shader.nodes.new("ShaderNodeMix")
+    mix_080.name = "Mix.080"
+    mix_080.data_type = 'VECTOR'
+    mix_080.factor_mode = 'UNIFORM'
+
+    math_188: ShaderNodeMath = HD2_Shader.nodes.new("ShaderNodeMath")
     math_188.name = "Math.188"
-    math_188.operation = 'LOGARITHM'
-    math_188.use_clamp = False
-    #Value_001
-    math_188.inputs[1].default_value = 2.0
-    #Value_002
-    math_188.inputs[2].default_value = 0.5
-    
-    #node Math.189
-    math_189 = HD2_Shader.nodes.new("ShaderNodeMath")
-    math_189.name = "Math.189"
-    math_189.operation = 'LOGARITHM'
-    math_189.use_clamp = False
-    #Value_001
-    math_189.inputs[1].default_value = 2.0
-    #Value_002
-    math_189.inputs[2].default_value = 0.5
-    
-    #node Math.190
-    math_190 = HD2_Shader.nodes.new("ShaderNodeMath")
-    math_190.name = "Math.190"
-    math_190.operation = 'LOGARITHM'
-    math_190.use_clamp = False
-    #Value_001
-    math_190.inputs[1].default_value = 2.0
-    #Value_002
-    math_190.inputs[2].default_value = 0.5
-    
-    #node Combine XYZ.048
-    combine_xyz_048 = HD2_Shader.nodes.new("ShaderNodeCombineXYZ")
-    combine_xyz_048.label = "r13.xyz (#584)"
-    combine_xyz_048.name = "Combine XYZ.048"
-    
+    math_188.operation = 'SUBTRACT'
+    math_188.inputs[0].default_value = 1.0
+    math_188.use_clamp = True
+
+    vector_math_120: ShaderNodeVectorMath = HD2_Shader.nodes.new("ShaderNodeVectorMath")
+    vector_math_120.name = "Vector Math.120"
+    vector_math_120.operation = 'SCALE'
+
+    vector_math_121: ShaderNodeVectorMath = HD2_Shader.nodes.new("ShaderNodeVectorMath")
+    vector_math_121.name = "Vector Math.121"
+    vector_math_121.operation = 'SCALE'
+
+    vector_math_122: ShaderNodeVectorMath = HD2_Shader.nodes.new("ShaderNodeVectorMath")
+    vector_math_122.name = "Vector Math.122"
+    vector_math_122.operation = 'SCALE'
+    vector_math_122.inputs['Scale'].default_value = 1000.0
+
+    vector_math_123: ShaderNodeVectorMath = HD2_Shader.nodes.new("ShaderNodeVectorMath")
+    vector_math_123.name = "Vector Math.123"
+    vector_math_123.operation = 'LENGTH'
+
     #node Math.185
     math_185 = HD2_Shader.nodes.new("ShaderNodeMath")
     math_185.name = "Math.185"
@@ -10215,11 +10226,15 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     vector_math_069.location = (49180.0, 2500.0)
     math_183.location = (48700.0, 2500.0)
     math_184.location = (48860.0, 2500.0)
-    separate_xyz_068.location = (49820.0, 2020.0)
-    math_188.location = (49980.0, 2020.0)
-    math_189.location = (49980.0, 1860.0)
-    math_190.location = (49980.0, 1700.0)
-    combine_xyz_048.location = (50140.0, 2020.0)
+    gamma_007.location = (50020.0, 2020.0)
+    vector_math_119.location = (49860.0, 1734.0)
+    mix_079.location = (50180.0, 2020.0)
+    math_188.location = (50180.0, 1808.0)
+    vector_math_120.location = (50340.0, 2020.0)
+    vector_math_121.location = (50500.0, 2020.0)
+    vector_math_122.location = (50660.0, 2020.0)
+    mix_080.location = (50820.0, 2020.0)
+    vector_math_123.location = (50980.0, 2020.0)
     math_185.location = (49660.0, 2500.0)
     math_186.location = (49660.0, 2340.0)
     math_187.location = (49660.0, 2180.0)
@@ -11575,20 +11590,34 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     HD2_Shader.links.new(math_187.outputs[0], combine_xyz_042.inputs[2])
     #vector_math_071.Vector -> vector_math_072.Vector
     HD2_Shader.links.new(vector_math_071.outputs[0], vector_math_072.inputs[0])
-    #vector_math_072.Vector -> separate_xyz_068.Vector
-    HD2_Shader.links.new(vector_math_072.outputs[0], separate_xyz_068.inputs[0])
-    #separate_xyz_068.X -> math_188.Value
-    HD2_Shader.links.new(separate_xyz_068.outputs[0], math_188.inputs[0])
-    #math_188.Value -> combine_xyz_048.X
-    HD2_Shader.links.new(math_188.outputs[0], combine_xyz_048.inputs[0])
-    #separate_xyz_068.Y -> math_189.Value
-    HD2_Shader.links.new(separate_xyz_068.outputs[1], math_189.inputs[0])
-    #separate_xyz_068.Z -> math_190.Value
-    HD2_Shader.links.new(separate_xyz_068.outputs[2], math_190.inputs[0])
-    #math_189.Value -> combine_xyz_048.Y
-    HD2_Shader.links.new(math_189.outputs[0], combine_xyz_048.inputs[1])
-    #math_190.Value -> combine_xyz_048.Z
-    HD2_Shader.links.new(math_190.outputs[0], combine_xyz_048.inputs[2])
+    #vector_math_071.Vector -> vector_math_119.Vector
+    HD2_Shader.links.new(vector_math_071.outputs[0], vector_math_119.inputs[0])
+    #vector_math_072.Vector -> gamma_007.Color
+    HD2_Shader.links.new(vector_math_072.outputs[0], gamma_007.inputs[0])
+    #gamma_007.color -> mix_079.A
+    HD2_Shader.links.new(combine_xyz_042.outputs[0], mix_079.inputs[1])
+    #gamma_007.color -> mix_079.A
+    HD2_Shader.links.new(gamma_007.outputs[0], mix_079.inputs[4])
+    #vector_math_119.Vector -> mix_079.B
+    HD2_Shader.links.new(vector_math_119.outputs[0], mix_079.inputs[5])
+    #math_181.Value -> math_188.Value
+    HD2_Shader.links.new(math_181.outputs[0], math_188.inputs[1])
+    #math_188.Value -> vector_math_120.Scale
+    HD2_Shader.links.new(math_188.outputs[0], vector_math_120.inputs['Scale'])
+    #mix_079.Result -> vector_math_120.Vector
+    HD2_Shader.links.new(mix_079.outputs[1], vector_math_120.inputs[0])
+    #vector_math_120.Vector -> vector_math_121.Vector
+    HD2_Shader.links.new(vector_math_120.outputs[0], vector_math_121.inputs[0])
+    #separate_xyz_019.X -> vector_math_121.Scale
+    HD2_Shader.links.new(separate_xyz_019.outputs[0], vector_math_121.inputs['Scale'])
+    #vector_math_121.Vector -> vector_math_122.Vector
+    HD2_Shader.links.new(vector_math_121.outputs[0], vector_math_122.inputs[0])
+    #math_122.Value -> mix_080.Factor
+    HD2_Shader.links.new(math_122.outputs[0], mix_080.inputs[0])
+    #vector_math_122.Vector -> mix_080.B
+    HD2_Shader.links.new(vector_math_122.outputs[0], mix_080.inputs[5])
+    #mix_080.Result -> vector_math_123.Vector
+    HD2_Shader.links.new(mix_080.outputs[1], vector_math_123.inputs[0])
     #math_003.Value -> math_191.Value
     HD2_Shader.links.new(math_003.outputs[0], math_191.inputs[0])
     #math_054.Value -> math_055.Value
@@ -11885,6 +11914,18 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     HD2_Shader.links.new(math_181.outputs[0], principled_bsdf_001.inputs['Roughness'])
     #math_224.Value -> principled_bsdf_001.Coat Weight
     HD2_Shader.links.new(math_224.outputs[0], principled_bsdf_001.inputs['Coat Weight'])
+    #mix_080.Result -> principled_bsdf_001.Emission Color
+    HD2_Shader.links.new(mix_080.outputs[1], principled_bsdf_001.inputs['Emission Color'])
+    #vector_math_123.Value -> principled_bsdf_001.Emission Strength
+    HD2_Shader.links.new(vector_math_123.outputs[1], principled_bsdf_001.inputs['Emission Strength'])
+    #mix_080.Result -> principled_bsdf_001.Emission Color
+    HD2_Shader.links.new(mix_080.outputs[1], principled_bsdf_001.inputs['Emission Color'])
+    #vector_math_123.Value -> principled_bsdf_001.Emission Strength
+    HD2_Shader.links.new(vector_math_123.outputs[1], principled_bsdf_001.inputs['Emission Strength'])
+    #mix_080.Result -> principled_bsdf_001.Emission Color
+    HD2_Shader.links.new(mix_080.outputs[1], group_output_1.inputs['Bake_Emissive Color'])
+    #vector_math_123.Value -> principled_bsdf_001.Emission Strength
+    HD2_Shader.links.new(vector_math_123.outputs[1], group_output_1.inputs['Bake_Emissive Strength'])
     #math_223.Value -> math_225.Value
     HD2_Shader.links.new(math_223.outputs[0], math_225.inputs[0])
     #math_225.Value -> principled_bsdf_001.Specular IOR Level
