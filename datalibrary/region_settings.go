@@ -414,6 +414,14 @@ func (s GenerationRegionGroup) ToSimple(lookupHash HashLookup, lookupThinHash Th
 	}
 }
 
+func (s GenerationRegionGroup) RegionsMap() map[stingray.ThinHash]GenerationRegionVariantList {
+	result := make(map[stingray.ThinHash]GenerationRegionVariantList)
+	for _, region := range s.Regions {
+		result[region.Id] = region
+	}
+	return result
+}
+
 func (s rawGenerationRegionGroup) Deserialize(r io.ReadSeeker, base int64) (*GenerationRegionGroup, error) {
 	name, err := s.Name.Resolve(r, base)
 	if err != nil {
