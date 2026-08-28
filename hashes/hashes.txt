@@ -93546,6 +93546,7 @@ content/fac_bugs/cha_warrior_tier_2/cha_warrior_tier_2
 content/fac_cyborgs/cha_berserker/cha_berserker
 content/fac_cyborgs/cha_berserker/cha_berserker_iron_fleet
 content/fac_cyborgs/cha_berserker/cha_berserker_ivory_legion
+content/fac_cyborgs/cha_berserker/cha_berserker_jumppack
 content/fac_cyborgs/cha_conscript/animation/actions/flamethrower_enter
 content/fac_cyborgs/cha_conscript/animation/actions/flamethrower_exit
 content/fac_cyborgs/cha_conscript/animation/actions/flamethrower_idle
