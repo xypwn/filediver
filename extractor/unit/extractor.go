@@ -802,15 +802,16 @@ type materialGeneratorSettings struct {
 	Settings      map[string]any `json:"settings"`
 }
 
-func addTerrainProjectors(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_material.ImageOptions, zone datalib.ZoneSettings, colorGradingDDS bytes.Buffer) ([]materialGeneratorSettings, error) {
+func addTerrainProjectors(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_material.ImageOptions, zone datalib.ZoneSettings, colorGradingDDS bytes.Buffer) (stingray.Hash, []materialGeneratorSettings, error) {
+	noiseMap := stingray.Sum("")
 	ctx.Warnf("Using zone material lookup unit %v", ctx.LookupHash(zone.MaterialLookupUnit))
 	fMain, err := ctx.Open(stingray.NewFileID(zone.MaterialLookupUnit, stingray.Sum("unit")), stingray.DataMain)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to open terrain lookup unit %v: %v", ctx.LookupHash(zone.MaterialLookupUnit), err)
+		return noiseMap, nil, fmt.Errorf("Failed to open terrain lookup unit %v: %v", ctx.LookupHash(zone.MaterialLookupUnit), err)
 	}
 	materialLookup, err := unit.LoadInfo(fMain)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to load terrain lookup unit %v: %v", ctx.LookupHash(zone.MaterialLookupUnit), err)
+		return noiseMap, nil, fmt.Errorf("Failed to load terrain lookup unit %v: %v", ctx.LookupHash(zone.MaterialLookupUnit), err)
 	}
 	orderedMeshes := slices.SortedFunc(slices.Values(materialLookup.MeshInfos), func(a, b unit.MeshInfo) int {
 		nameA := ctx.LookupThinHash(a.Header.GroupBoneHash)
@@ -822,23 +823,37 @@ func addTerrainProjectors(ctx *extractor.Context, doc *gltf.Document, imgOpts *e
 		generatorMap := materialGenerator.Map()
 		materialIndexSetting, contains := generatorMap[stingray.Sum("material").Thin()]
 		if !contains {
-			return nil, fmt.Errorf("Material generator did not reference a material?")
+			return noiseMap, nil, fmt.Errorf("Material generator did not reference a material?")
 		}
+
+		genMatR, err := ctx.Open(stingray.NewFileID(materialGenerator.Shader, stingray.Sum("material")), stingray.DataMain)
+		if err != nil {
+			return noiseMap, nil, fmt.Errorf("could not open material noise generator %v: %v", ctx.LookupHash(materialGenerator.Shader), err)
+		}
+		genMat, err := material.LoadMain(genMatR)
+		if err != nil {
+			return noiseMap, nil, fmt.Errorf("could not load material noise generator %v: %v", ctx.LookupHash(materialGenerator.Shader), err)
+		}
+		if tex, contains := genMat.Textures[stingray.Sum("texture_map_0b1b5dad").Thin()]; contains && noiseMap != tex {
+			ctx.Warnf("Switching noise map from '%v' to '%v'", ctx.LookupHash(noiseMap), ctx.LookupHash(tex))
+			noiseMap = tex
+		}
+
 		materialIndex := int(materialIndexSetting.Value)
 		materialSlot := orderedMeshes[materialIndex].Materials[0]
 		materialPath := materialLookup.Materials[materialSlot]
 		matR, err := ctx.Open(stingray.NewFileID(materialPath, stingray.Sum("material")), stingray.DataMain)
 		if err != nil {
-			return nil, fmt.Errorf("could not open terrain material %v: %v", ctx.LookupHash(materialPath), err)
+			return noiseMap, nil, fmt.Errorf("could not open terrain material %v: %v", ctx.LookupHash(materialPath), err)
 		}
 		mat, err := material.LoadMain(matR)
 		if err != nil {
-			return nil, fmt.Errorf("could not load terrain material %v: %v", ctx.LookupHash(materialPath), err)
+			return noiseMap, nil, fmt.Errorf("could not load terrain material %v: %v", ctx.LookupHash(materialPath), err)
 		}
 		extr_material.AddColorGradingLUT(ctx, doc, colorGradingDDS, mat)
 		matIdx, err := extr_material.AddMaterial(ctx, mat, doc, imgOpts, stingray.Sum("terrain").Thin(), "terrain "+ctx.LookupHash(materialPath), nil)
 		if err != nil {
-			return nil, fmt.Errorf("could not add terrain material %v: %v", ctx.LookupHash(materialPath), err)
+			return noiseMap, nil, fmt.Errorf("could not add terrain material %v: %v", ctx.LookupHash(materialPath), err)
 		}
 
 		var generator materialGeneratorSettings
@@ -854,7 +869,7 @@ func addTerrainProjectors(ctx *extractor.Context, doc *gltf.Document, imgOpts *e
 
 		result = append(result, generator)
 	}
-	return result, nil
+	return noiseMap, result, nil
 }
 
 func AddTerrainMaterial(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_material.ImageOptions, terrainMaterialID stingray.FileID) *uint32 {
@@ -868,12 +883,13 @@ func AddTerrainMaterial(ctx *extractor.Context, doc *gltf.Document, imgOpts *ext
 	}
 
 	var materials []materialGeneratorSettings
+	var noiseMap stingray.Hash
 	if zone != nil {
 		var colorGradingDDS bytes.Buffer
 		if err := extr_entity.WriteColorGradingLut(ctx, &colorGradingDDS); err != nil {
 			ctx.Warnf("Writing terrain color grading lut: %v", err)
 		}
-		materials, err = addTerrainProjectors(ctx, doc, imgOpts, *zone, colorGradingDDS)
+		noiseMap, materials, err = addTerrainProjectors(ctx, doc, imgOpts, *zone, colorGradingDDS)
 		if err != nil {
 			ctx.Warnf("Failed to add terrain projectors: %v", err)
 		}
@@ -893,6 +909,7 @@ func AddTerrainMaterial(ctx *extractor.Context, doc *gltf.Document, imgOpts *ext
 		split := strings.Split(resPath, "/")
 		resPath = strings.Join(split[len(split)-2:], "/")
 	}
+	mat.Textures[stingray.Sum("texture_map_0b1b5dad").Thin()] = noiseMap
 
 	matIdx, err := extr_material.AddMaterial(ctx, mat, doc, imgOpts, stingray.Sum("terrain").Thin(), "terrain "+resPath, nil)
 	if err != nil {
