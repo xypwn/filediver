@@ -456,7 +456,13 @@ func (s rawGenerationRegionGroup) Deserialize(r io.ReadSeeker, base int64) (*Gen
 	}, nil
 }
 
+var regions []GenerationRegionSettings
+
 func LoadRegionSettings(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookupStrings StringsLookup) ([]GenerationRegionSettings, error) {
+	if regions != nil {
+		return regions, nil
+	}
+
 	r := bytes.NewReader(regionSettings)
 
 	infos := make([]GenerationRegionSettings, 0)
@@ -497,10 +503,18 @@ func LoadRegionSettings(lookupHash HashLookup, lookupThinHash ThinHashLookup, lo
 		infos = append(infos, *setting)
 	}
 
+	regions = infos
+
 	return infos, nil
 }
 
+var groups []GenerationRegionGroup
+
 func LoadRegionGroups(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookupStrings StringsLookup) ([]GenerationRegionGroup, error) {
+	if groups != nil {
+		return groups, nil
+	}
+
 	r := bytes.NewReader(regionSettings)
 
 	infos := make([]GenerationRegionGroup, 0)
@@ -556,6 +570,8 @@ func LoadRegionGroups(lookupHash HashLookup, lookupThinHash ThinHashLookup, look
 
 		infos = append(infos, *group)
 	}
+
+	groups = infos
 
 	return infos, nil
 }

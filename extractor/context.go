@@ -351,6 +351,10 @@ func (c *Context) EntityVarMapping() shading_environment.ShadingEnvironmentEntit
 	return c.entityVarMapping
 }
 
+func (c *Context) Planets() map[string]datalib.PlanetData {
+	return c.planets
+}
+
 func (c *Context) PlanetRegionsMap() map[stingray.ThinHash]datalib.GenerationRegionVariantList {
 	return c.planetRegionsMap
 }

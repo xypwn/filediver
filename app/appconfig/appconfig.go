@@ -33,7 +33,21 @@ func init() {
 		ConfigFields.ByName["Planet.Name"].Options = append(ConfigFields.ByName["Planet.Name"].Options, planetsScanner.Text())
 	}
 
-	ConfigFields.ByName["Planet.Region"].Options = slices.Sorted(maps.Keys(enum.LevelGenerationRegionTypeFriendlyMap))
+	ConfigFields.ByName["Planet.Region"].Options = slices.Sorted(maps.Keys(enum.LevelGenerationRegionVariantFriendlyMap))
+	ConfigFields.ByName["Planet.SubRegion"].Options = slices.SortedFunc(maps.Keys(enum.SubRegionFriendlyMap), func(a, b string) int {
+		if a == "<random>" {
+			return -1
+		}
+		if b == "<random>" {
+			return 1
+		}
+		if len(a) == 1 && len(b) > 1 {
+			return -1
+		} else if len(b) == 1 && len(a) > 1 {
+			return 1
+		}
+		return strings.Compare(a, b)
+	})
 }
 
 // This is the central config structure used in the GUI
@@ -104,9 +118,10 @@ type Config struct {
 		Format string `cfg:"options=separate,combined,main,stream,gpu help='how to handle the different file sub-types (each file may have a main, stream and GPU file)'"`
 	} `cfg:"help='applies to any file without an available extractor or \"raw\" as the selected format'"`
 	Planet struct {
-		Name   string `cfg:"help='Name of planet to use for asset customization' truncate"`
-		City   bool   `cfg:"help='Use city-specific overrides'"`
-		Region string `cfg:"help='Planet region to use for asset customization' truncate"`
+		Name      string `cfg:"help='Name of planet to use for asset customization' truncate"`
+		City      bool   `cfg:"help='Use city-specific overrides'"`
+		Region    string `cfg:"help='Planet region to use for asset customization' truncate"`
+		SubRegion string `cfg:"help='Subregion to use for asset customization' truncate"`
 	} `cfg:"help='Apply overrides from a specific planet to the exported assets'"`
 }
 

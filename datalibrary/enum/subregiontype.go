@@ -1,5 +1,13 @@
 package enum
 
+import (
+	"fmt"
+	"strings"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
+)
+
 type SubRegionType uint32
 
 const (
@@ -30,24 +38,54 @@ const (
 	SubRegionType_Value_24_Len_20
 	SubRegionType_Value_25_Len_25
 	SubRegionType_Value_26_Len_27
-	SubRegionType_Value_27_Len_27
-	SubRegionType_Value_28_Len_27
-	SubRegionType_Value_29_Len_27
-	SubRegionType_Value_30_Len_27
-	SubRegionType_Value_31_Len_27
-	SubRegionType_Value_32_Len_27
-	SubRegionType_Value_33_Len_27
-	SubRegionType_Value_34_Len_27
-	SubRegionType_Value_35_Len_18
-	SubRegionType_Value_36_Len_35
-	SubRegionType_Value_37_Len_35
-	SubRegionType_Value_38_Len_35
-	SubRegionType_Value_39_Len_35
-	SubRegionType_Value_40_Len_19
+	SubRegionType_Bugs_Colony_A
+	SubRegionType_Bugs_Colony_B
+	SubRegionType_Bugs_Colony_C
+	SubRegionType_Bugs_Colony_D
+	SubRegionType_Bots_Colony_A
+	SubRegionType_Bots_Colony_B
+	SubRegionType_Bots_Colony_C
+	SubRegionType_Bots_Colony_D
+	SubRegionType_Hive
+	SubRegionType_Illuminate_Colonies_A
+	SubRegionType_Illuminate_Colonies_B
+	SubRegionType_Illuminate_Colonies_C
+	SubRegionType_Illuminate_Colonies_D
+	SubRegionType_Count
 )
 
 func (p SubRegionType) MarshalText() ([]byte, error) {
 	return []byte(p.String()), nil
+}
+
+var SubRegionFriendlyMap map[string]SubRegionType
+var SubRegionFriendlyMapLower map[string]SubRegionType
+
+func init() {
+	SubRegionFriendlyMap = make(map[string]SubRegionType)
+	SubRegionFriendlyMapLower = make(map[string]SubRegionType)
+	caser := cases.Lower(language.English)
+	for i := range SubRegionType_Count {
+		SubRegionFriendlyMap[i.FriendlyString()] = i
+		SubRegionFriendlyMapLower[caser.String(i.FriendlyString())] = i
+	}
+}
+
+func (p SubRegionType) FriendlyString() string {
+	if p == SubRegionType_None {
+		return "<random>"
+	}
+
+	if p >= SubRegionType_Count {
+		return p.String()
+	}
+	result := strings.TrimPrefix(p.String(), "SubRegionType_")
+	if strings.Contains(result, "Value") {
+		// These region variants were not used by any planet last time I touched this file
+		return fmt.Sprintf("unusedSubRegion(%v)", int(p))
+	}
+	caser := cases.Title(language.English)
+	return caser.String(strings.ReplaceAll(result, "_", " "))
 }
 
 //go:generate go run golang.org/x/tools/cmd/stringer -type=SubRegionType

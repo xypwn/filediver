@@ -1093,6 +1093,14 @@ func (p ShaderProperties) ToSimple(lookupHash HashLookup, lookupThinHash ThinHas
 	}
 }
 
+func (p ShaderProperties) Map() map[stingray.ThinHash]ShaderSetting {
+	result := make(map[stingray.ThinHash]ShaderSetting)
+	for _, setting := range p.Settings {
+		result[setting.Name] = setting
+	}
+	return result
+}
+
 func (g rawShaderProperties) Deserialize(r io.ReadSeeker, base int64) (*ShaderProperties, error) {
 	settings, err := ResolveDLArray[ShaderSetting](g.Settings, r, base)
 	if err != nil {
@@ -1866,7 +1874,13 @@ func (z rawZoneSettings) Deserialize(r io.ReadSeeker, base int64) (*ZoneSettings
 	}, nil
 }
 
+var zones []ZoneSettings
+
 func LoadZoneSettings(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookupStrings StringsLookup) ([]ZoneSettings, error) {
+	if zones != nil {
+		// memoize this since we might look this up many times when exporting terrain
+		return zones, nil
+	}
 	r := bytes.NewReader(zoneSettings)
 
 	infos := make([]ZoneSettings, 0)
@@ -1910,6 +1924,7 @@ func LoadZoneSettings(lookupHash HashLookup, lookupThinHash ThinHashLookup, look
 
 		infos = append(infos, *setting)
 	}
+	zones = infos
 
 	return infos, nil
 }
