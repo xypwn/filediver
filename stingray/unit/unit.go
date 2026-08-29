@@ -567,7 +567,7 @@ type Mesh struct {
 	Positions   [][3]float32
 	UVCoords    [][][2]float32
 	Normals     [][3]float32
-	Tangents    [][3]float32
+	Tangents    [][4]float32
 	Bitangents  [][3]float32
 	BoneIndices [][][4]uint8
 	BoneWeights [][4]float32
@@ -637,7 +637,7 @@ func loadMesh(gpuR io.ReadSeeker, info MeshInfo, layout MeshLayout) (Mesh, error
 				mesh.Positions = append(mesh.Positions, v)
 			case ItemNormal:
 				var normal mgl32.Vec3
-				var tangent mgl32.Vec3
+				var tangent mgl32.Vec4
 				var bitangent mgl32.Vec3
 				switch item.Format {
 				case FormatVec4R10G10B10A2_UNORM:
@@ -813,7 +813,7 @@ func LoadTerrain(terrainInfo TerrainInfo) (Mesh, error) {
 	indices := make([]uint32, 0)
 	uvs := make([][2]float32, 0)
 	normals := make([][3]float32, 0)
-	tangents := make([][3]float32, 0)
+	tangents := make([][4]float32, 0)
 	bitangents := make([][3]float32, 0)
 	up := mgl32.Vec3{0, 1, 0}
 	for y := range terrainInfo.Textures[0].Resolution {
@@ -842,7 +842,7 @@ func LoadTerrain(terrainInfo TerrainInfo) (Mesh, error) {
 			if y < terrainInfo.Textures[0].Resolution-1 {
 				bottom = decompressHeight(terrainValues[(y+1)*terrainInfo.Textures[0].Resolution+x], terrainInfo.Min[2], terrainInfo.Max[2])
 			}
-			normal := mgl32.Vec3{-2 * (right - left), 4, -2 * (bottom - top)}.Normalize()
+			normal := mgl32.Vec3{-2 * (right - left), 4, -2 * (top - bottom)}.Normalize()
 			normals = append(normals, normal)
 			tangent := normal.Cross(up)
 			if tangent.Len() > 0.0001 {
@@ -851,7 +851,7 @@ func LoadTerrain(terrainInfo TerrainInfo) (Mesh, error) {
 				tangent = mgl32.Vec3{1, 0, 0}
 			}
 			bitangent := normal.Cross(tangent).Normalize()
-			tangents = append(tangents, tangent)
+			tangents = append(tangents, tangent.Vec4(1.0))
 			bitangents = append(bitangents, bitangent)
 		}
 	}

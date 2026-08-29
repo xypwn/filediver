@@ -162,17 +162,13 @@ func ConvertVertices(gpuR io.ReadSeeker, layout unit.MeshLayout) ([]byte, [][]Ac
 				if err = binary.Read(gpuR, binary.LittleEndian, &tmp); err != nil {
 					return nil, nil, fmt.Errorf("reading gpu data: %v", err)
 				}
-				bitangentDirection := float32(1)
-				if tmp>>30 == 3 {
-					bitangentDirection = -1
-				}
 				normal, tangent, _ := unit.DecodePackedNormal(tmp)
 				data, err = binary.Append(data, binary.LittleEndian, struct {
 					N mgl32.Vec3
 					T mgl32.Vec4
 				}{
 					N: normal,
-					T: tangent.Vec4(bitangentDirection),
+					T: tangent,
 				})
 				if err != nil {
 					return nil, nil, fmt.Errorf("adding packed vec4 unorm to data: %v", err)

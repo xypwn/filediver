@@ -684,8 +684,40 @@ func AddLights(ctx *extractor.Context, doc *gltf.Document, unitInfo *unit.Info, 
 	}
 }
 
+func AddTerrainMaterial(ctx *extractor.Context, doc *gltf.Document, terrainMaterialID stingray.FileID) *uint32 {
+	//cfg := ctx.Config()
+	matR, err := ctx.Open(terrainMaterialID, stingray.DataMain)
+	if err != nil {
+		ctx.Warnf("Failed to load terrain material for %v", ctx.LookupHash(terrainMaterialID.Name))
+		return nil
+	}
+	mat, err := material.LoadMain(matR)
+	if err != nil {
+		return nil
+	}
+	resPath := ctx.LookupHash(terrainMaterialID.Name)
+	if strings.Contains(resPath, "/") {
+		split := strings.Split(resPath, "/")
+		resPath = strings.Join(split[len(split)-2:], "/")
+	}
+	imgOpts, err := extr_material.GetImageOpts(ctx)
+	if err != nil {
+		return nil
+	}
+	matIdx, err := extr_material.AddMaterial(ctx, mat, doc, imgOpts, stingray.Sum("terrain").Thin(), "terrain "+resPath, nil)
+	if err != nil {
+		return nil
+	}
+	return &matIdx
+}
+
 func AddTerrain(ctx *extractor.Context, doc *gltf.Document, unitInfo *unit.Info, meshNodes *[]uint32) []uint32 {
 	terrainNodes := make([]uint32, 0)
+	var matIdx *uint32
+	terrainMaterialID := stingray.NewFileID(ctx.FileID().Name, stingray.Sum("material"))
+	if ctx.Exists(terrainMaterialID, stingray.DataMain) {
+		matIdx = AddTerrainMaterial(ctx, doc, terrainMaterialID)
+	}
 	for _, terrainInfo := range unitInfo.TerrainInfos {
 		mesh, err := unit.LoadTerrain(terrainInfo)
 		if err != nil {
@@ -697,8 +729,12 @@ func AddTerrain(ctx *extractor.Context, doc *gltf.Document, unitInfo *unit.Info,
 			Primitives: []*gltf.Primitive{{
 				Indices: gltf.Index(modeler.WriteIndices(doc, mesh.Indices[0])),
 				Attributes: gltf.Attribute{
-					gltf.POSITION: modeler.WritePosition(doc, mesh.Positions),
+					gltf.POSITION:   modeler.WritePosition(doc, mesh.Positions),
+					gltf.NORMAL:     modeler.WriteNormal(doc, mesh.Normals),
+					gltf.TANGENT:    modeler.WriteTangent(doc, mesh.Tangents),
+					gltf.TEXCOORD_0: modeler.WriteTextureCoord(doc, mesh.UVCoords[0]),
 				},
+				Material: matIdx,
 			}},
 		})
 		terrainNode := uint32(len(doc.Nodes))
