@@ -763,7 +763,7 @@ func getZone(ctx *extractor.Context, variantType enum.LevelGenerationRegionVaria
 	if err != nil {
 		return nil, err
 	}
-	ctx.Warnf("Using zone %v", zoneId.String())
+	ctx.Warnf("Using %v subregion %v: %v", variantType.FriendlyString(), subregion.Type.FriendlyString(), zoneId.String())
 	return &zones[zoneId-1], nil
 }
 
@@ -797,7 +797,12 @@ func getZoneFromPlanet(ctx *extractor.Context) (*datalib.ZoneSettings, error) {
 	return getZone(ctx, variant.Type)
 }
 
-func addTerrainProjectors(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_material.ImageOptions, zone datalib.ZoneSettings, colorGradingDDS bytes.Buffer) ([]uint32, error) {
+type materialGeneratorSettings struct {
+	MaterialIndex uint32         `json:"index"`
+	Settings      map[string]any `json:"settings"`
+}
+
+func addTerrainProjectors(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_material.ImageOptions, zone datalib.ZoneSettings, colorGradingDDS bytes.Buffer) ([]materialGeneratorSettings, error) {
 	ctx.Warnf("Using zone material lookup unit %v", ctx.LookupHash(zone.MaterialLookupUnit))
 	fMain, err := ctx.Open(stingray.NewFileID(zone.MaterialLookupUnit, stingray.Sum("unit")), stingray.DataMain)
 	if err != nil {
@@ -812,7 +817,7 @@ func addTerrainProjectors(ctx *extractor.Context, doc *gltf.Document, imgOpts *e
 		nameB := ctx.LookupThinHash(b.Header.GroupBoneHash)
 		return strings.Compare(nameA, nameB)
 	})
-	result := make([]uint32, 0)
+	result := make([]materialGeneratorSettings, 0)
 	for _, materialGenerator := range zone.MaterialGenerators {
 		generatorMap := materialGenerator.Map()
 		materialIndexSetting, contains := generatorMap[stingray.Sum("material").Thin()]
@@ -830,19 +835,24 @@ func addTerrainProjectors(ctx *extractor.Context, doc *gltf.Document, imgOpts *e
 		if err != nil {
 			return nil, fmt.Errorf("could not load terrain material %v: %v", ctx.LookupHash(materialPath), err)
 		}
-		for name, setting := range generatorMap {
-			if setting.Vector.Count > 0 {
-				mat.Settings[name] = setting.Vector.Vec4[:setting.Vector.Count]
-			} else {
-				mat.Settings[name] = []float32{setting.Value}
-			}
-		}
 		extr_material.AddColorGradingLUT(ctx, doc, colorGradingDDS, mat)
 		matIdx, err := extr_material.AddMaterial(ctx, mat, doc, imgOpts, stingray.Sum("terrain").Thin(), "terrain "+ctx.LookupHash(materialPath), nil)
 		if err != nil {
 			return nil, fmt.Errorf("could not add terrain material %v: %v", ctx.LookupHash(materialPath), err)
 		}
-		result = append(result, matIdx)
+
+		var generator materialGeneratorSettings
+		generator.Settings = make(map[string]any)
+		for name, setting := range generatorMap {
+			if setting.Vector.Count > 0 {
+				generator.Settings[ctx.LookupThinHash(name)] = setting.Vector.Vec4[:setting.Vector.Count]
+			} else {
+				generator.Settings[ctx.LookupThinHash(name)] = []float32{setting.Value}
+			}
+		}
+		generator.MaterialIndex = matIdx
+
+		result = append(result, generator)
 	}
 	return result, nil
 }
@@ -857,7 +867,7 @@ func AddTerrainMaterial(ctx *extractor.Context, doc *gltf.Document, imgOpts *ext
 		}
 	}
 
-	var materials []uint32
+	var materials []materialGeneratorSettings
 	if zone != nil {
 		var colorGradingDDS bytes.Buffer
 		if err := extr_entity.WriteColorGradingLut(ctx, &colorGradingDDS); err != nil {
