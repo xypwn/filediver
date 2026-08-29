@@ -7,12 +7,15 @@ import (
 	"encoding/json"
 	"errors"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 
 	"github.com/xypwn/filediver/config"
+	"github.com/xypwn/filediver/datalibrary/enum"
 )
 
 //go:embed planets.txt
@@ -29,6 +32,8 @@ func init() {
 	for planetsScanner.Scan() {
 		ConfigFields.ByName["Planet.Name"].Options = append(ConfigFields.ByName["Planet.Name"].Options, planetsScanner.Text())
 	}
+
+	ConfigFields.ByName["Planet.Region"].Options = slices.Sorted(maps.Keys(enum.LevelGenerationRegionTypeFriendlyMap))
 }
 
 // This is the central config structure used in the GUI
@@ -99,8 +104,9 @@ type Config struct {
 		Format string `cfg:"options=separate,combined,main,stream,gpu help='how to handle the different file sub-types (each file may have a main, stream and GPU file)'"`
 	} `cfg:"help='applies to any file without an available extractor or \"raw\" as the selected format'"`
 	Planet struct {
-		Name string `cfg:"help='Name of planet to use for asset customization' truncate"`
-		City bool   `cfg:"help='Use city-specific overrides'"`
+		Name   string `cfg:"help='Name of planet to use for asset customization' truncate"`
+		City   bool   `cfg:"help='Use city-specific overrides'"`
+		Region string `cfg:"help='Planet region to use for asset customization' truncate"`
 	} `cfg:"help='Apply overrides from a specific planet to the exported assets'"`
 }
 

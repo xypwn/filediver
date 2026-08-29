@@ -1,5 +1,12 @@
 package enum
 
+import (
+	"strings"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
+)
+
 type LevelGenerationRegionType uint32
 
 const (
@@ -43,6 +50,28 @@ const (
 
 func (p LevelGenerationRegionType) MarshalText() ([]byte, error) {
 	return []byte(p.String()), nil
+}
+
+var LevelGenerationRegionTypeFriendlyMap map[string]LevelGenerationRegionType
+
+func init() {
+	LevelGenerationRegionTypeFriendlyMap = make(map[string]LevelGenerationRegionType)
+	for i := range LevelGenerationRegion_count {
+		LevelGenerationRegionTypeFriendlyMap[i.FriendlyString()] = i
+	}
+}
+
+func (p LevelGenerationRegionType) FriendlyString() string {
+	if p == LevelGenerationRegion_none {
+		return "<none>"
+	}
+
+	if p >= LevelGenerationRegion_count {
+		return p.String()
+	}
+	result := strings.TrimPrefix(p.String(), "LevelGenerationRegion_region_")
+	caser := cases.Title(language.English)
+	return caser.String(strings.ReplaceAll(result, "_", " "))
 }
 
 //go:generate go run golang.org/x/tools/cmd/stringer -type=LevelGenerationRegionType

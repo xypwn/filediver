@@ -106,7 +106,7 @@ func dumpStateMachineStates(ctx *extractor.Context) error {
 		if err != nil {
 			return err
 		}
-		_, err = f.Write([]byte(fmt.Sprintf("    \"%v\": %v", layerName, string(result))))
+		_, err = f.Write(fmt.Appendf(nil, "    \"%v\": %v", layerName, string(result)))
 		if err != nil {
 			return err
 		}
@@ -196,6 +196,8 @@ func main() {
 			a.SkinOverrideGroups,
 			a.WeaponPaintSchemes,
 			a.AttachmentSlots,
+			nil,
+			nil,
 			nil,
 			a.GameBuildInfo,
 			a.LanguageMap,

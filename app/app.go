@@ -905,6 +905,8 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 		a.WeaponPaintSchemes,
 		a.AttachmentSlots,
 		a.EntityVarMapping,
+		a.Planets,
+		a.PlanetRegionsMap,
 		a.GameBuildInfo,
 		a.LanguageMap,
 		a.DataDir,

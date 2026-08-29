@@ -175,6 +175,8 @@ func main() {
 			a.WeaponPaintSchemes,
 			a.AttachmentSlots,
 			nil,
+			nil,
+			nil,
 			a.GameBuildInfo,
 			a.LanguageMap,
 			a.DataDir,
