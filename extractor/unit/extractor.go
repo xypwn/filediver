@@ -8,6 +8,7 @@ import (
 	"io"
 	"maps"
 	"math"
+	"math/rand"
 	"slices"
 	"strings"
 
@@ -684,8 +685,190 @@ func AddLights(ctx *extractor.Context, doc *gltf.Document, unitInfo *unit.Info, 
 	}
 }
 
-func AddTerrainMaterial(ctx *extractor.Context, doc *gltf.Document, terrainMaterialID stingray.FileID) *uint32 {
-	//cfg := ctx.Config()
+func chooseRandomSubregion(subregions []datalib.SubRegionSettings) datalib.SubRegionSettings {
+	var totalWeight float32 = 0.0
+	buckets := make([]struct {
+		min float32
+		max float32
+	}, len(subregions))
+	for i, subregion := range subregions {
+		buckets[i].min = totalWeight
+		totalWeight += subregion.Weight
+		buckets[i].max = totalWeight
+	}
+
+	selection := rand.Float32() * totalWeight
+	for i, bucket := range buckets {
+		if bucket.min == bucket.max {
+			continue
+		}
+		if bucket.min <= selection && selection < bucket.max {
+			return subregions[i]
+		}
+	}
+	return subregions[len(subregions)-1]
+}
+
+func chooseRandomRegionVariant(variants []datalib.GenerationRegionVariantSettings) datalib.GenerationRegionVariantSettings {
+	var totalWeight float32 = 0.0
+	buckets := make([]struct {
+		min float32
+		max float32
+	}, len(variants))
+	for i, variant := range variants {
+		buckets[i].min = totalWeight
+		totalWeight += variant.Weight
+		buckets[i].max = totalWeight
+	}
+
+	selection := rand.Float32() * totalWeight
+	for i, bucket := range buckets {
+		if bucket.min == bucket.max {
+			continue
+		}
+		if bucket.min <= selection && selection < bucket.max {
+			return variants[i]
+		}
+	}
+	return variants[len(variants)-1]
+}
+
+func getZone(ctx *extractor.Context, variantType enum.LevelGenerationRegionVariantType) (*datalib.ZoneSettings, error) {
+	variants, err := datalib.LoadRegionSettings(ctx.LookupHash, ctx.LookupThinHash, ctx.LookupString)
+	if err != nil {
+		return nil, err
+	}
+
+	subregions := variants[variantType-1].SubregionSettings
+
+	var subregionType *enum.SubRegionType
+	subRegionName := cases.Lower(language.English).String(ctx.Config().Planet.SubRegion)
+	if sub, contains := enum.SubRegionFriendlyMapLower[subRegionName]; contains && sub != enum.SubRegionType_None {
+		subregionType = &sub
+	}
+	idx := slices.IndexFunc(subregions, func(sub datalib.SubRegionSettings) bool { return subregionType != nil && sub.Type == *subregionType })
+
+	var subregion datalib.SubRegionSettings
+	if idx == -1 {
+		subregion = chooseRandomSubregion(subregions)
+		if subregionType != nil {
+			ctx.Warnf("subregion '%v' does not exist in region '%v', using random subregion '%v' instead.", ctx.Config().Planet.SubRegion, ctx.Config().Planet.Region, subregion.Type.FriendlyString())
+		}
+	} else {
+		subregion = subregions[idx]
+	}
+
+	zoneId := subregion.Zone
+	zones, err := datalib.LoadZoneSettings(ctx.LookupHash, ctx.LookupThinHash, ctx.LookupString)
+	if err != nil {
+		return nil, err
+	}
+	ctx.Warnf("Using zone %v", zoneId.String())
+	return &zones[zoneId-1], nil
+}
+
+func getZoneFromRegion(ctx *extractor.Context) (*datalib.ZoneSettings, error) {
+	regionName := cases.Lower(language.English).String(ctx.Config().Planet.Region)
+	region, contains := enum.LevelGenerationRegionVariantFriendlyMapLower[regionName]
+	if !contains || region == enum.LevelGenerationRegionVariant_none {
+		return nil, fmt.Errorf("no valid region selected")
+	}
+
+	return getZone(ctx, region)
+}
+
+func getZoneFromPlanet(ctx *extractor.Context) (*datalib.ZoneSettings, error) {
+	cfg := ctx.Config()
+	caser := cases.Lower(language.English)
+	planet, contains := ctx.Planets()[caser.String(cfg.Planet.Name)]
+	if !contains {
+		return nil, fmt.Errorf("no valid planet selected")
+	}
+
+	region, contains := ctx.PlanetRegionsMap()[planet.RegionHighland.Id]
+	if !contains {
+		// planet region highland and region lowland have the same id for every planet in the game
+		// so theres no point in checking the other one here
+		return nil, fmt.Errorf("planet %v doesn't have a valid region (this shouldn't happen)", cfg.Planet.Name)
+	}
+
+	variant := chooseRandomRegionVariant(region.Variants)
+
+	return getZone(ctx, variant.Type)
+}
+
+func addTerrainProjectors(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_material.ImageOptions, zone datalib.ZoneSettings, colorGradingDDS bytes.Buffer) ([]uint32, error) {
+	ctx.Warnf("Using zone material lookup unit %v", ctx.LookupHash(zone.MaterialLookupUnit))
+	fMain, err := ctx.Open(stingray.NewFileID(zone.MaterialLookupUnit, stingray.Sum("unit")), stingray.DataMain)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to open terrain lookup unit %v: %v", ctx.LookupHash(zone.MaterialLookupUnit), err)
+	}
+	materialLookup, err := unit.LoadInfo(fMain)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to load terrain lookup unit %v: %v", ctx.LookupHash(zone.MaterialLookupUnit), err)
+	}
+	orderedMeshes := slices.SortedFunc(slices.Values(materialLookup.MeshInfos), func(a, b unit.MeshInfo) int {
+		nameA := ctx.LookupThinHash(a.Header.GroupBoneHash)
+		nameB := ctx.LookupThinHash(b.Header.GroupBoneHash)
+		return strings.Compare(nameA, nameB)
+	})
+	result := make([]uint32, 0)
+	for _, materialGenerator := range zone.MaterialGenerators {
+		generatorMap := materialGenerator.Map()
+		materialIndexSetting, contains := generatorMap[stingray.Sum("material").Thin()]
+		if !contains {
+			return nil, fmt.Errorf("Material generator did not reference a material?")
+		}
+		materialIndex := int(materialIndexSetting.Value)
+		materialSlot := orderedMeshes[materialIndex].Materials[0]
+		materialPath := materialLookup.Materials[materialSlot]
+		matR, err := ctx.Open(stingray.NewFileID(materialPath, stingray.Sum("material")), stingray.DataMain)
+		if err != nil {
+			return nil, fmt.Errorf("could not open terrain material %v: %v", ctx.LookupHash(materialPath), err)
+		}
+		mat, err := material.LoadMain(matR)
+		if err != nil {
+			return nil, fmt.Errorf("could not load terrain material %v: %v", ctx.LookupHash(materialPath), err)
+		}
+		for name, setting := range generatorMap {
+			if setting.Vector.Count > 0 {
+				mat.Settings[name] = setting.Vector.Vec4[:setting.Vector.Count]
+			} else {
+				mat.Settings[name] = []float32{setting.Value}
+			}
+		}
+		extr_material.AddColorGradingLUT(ctx, doc, colorGradingDDS, mat)
+		matIdx, err := extr_material.AddMaterial(ctx, mat, doc, imgOpts, stingray.Sum("terrain").Thin(), "terrain "+ctx.LookupHash(materialPath), nil)
+		if err != nil {
+			return nil, fmt.Errorf("could not add terrain material %v: %v", ctx.LookupHash(materialPath), err)
+		}
+		result = append(result, matIdx)
+	}
+	return result, nil
+}
+
+func AddTerrainMaterial(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_material.ImageOptions, terrainMaterialID stingray.FileID) *uint32 {
+	zone, err := getZoneFromRegion(ctx)
+	if err != nil {
+		var err2 error
+		zone, err2 = getZoneFromPlanet(ctx)
+		if err2 != nil {
+			ctx.Warnf("Failed to get zone for terrain material: %v and %v", err, err2)
+		}
+	}
+
+	var materials []uint32
+	if zone != nil {
+		var colorGradingDDS bytes.Buffer
+		if err := extr_entity.WriteColorGradingLut(ctx, &colorGradingDDS); err != nil {
+			ctx.Warnf("Writing terrain color grading lut: %v", err)
+		}
+		materials, err = addTerrainProjectors(ctx, doc, imgOpts, *zone, colorGradingDDS)
+		if err != nil {
+			ctx.Warnf("Failed to add terrain projectors: %v", err)
+		}
+	}
+
 	matR, err := ctx.Open(terrainMaterialID, stingray.DataMain)
 	if err != nil {
 		ctx.Warnf("Failed to load terrain material for %v", ctx.LookupHash(terrainMaterialID.Name))
@@ -700,14 +883,21 @@ func AddTerrainMaterial(ctx *extractor.Context, doc *gltf.Document, terrainMater
 		split := strings.Split(resPath, "/")
 		resPath = strings.Join(split[len(split)-2:], "/")
 	}
-	imgOpts, err := extr_material.GetImageOpts(ctx)
-	if err != nil {
-		return nil
-	}
+
 	matIdx, err := extr_material.AddMaterial(ctx, mat, doc, imgOpts, stingray.Sum("terrain").Thin(), "terrain "+resPath, nil)
 	if err != nil {
 		return nil
 	}
+
+	if materials != nil {
+		extras, ok := doc.Materials[matIdx].Extras.(map[string]any)
+		if !ok {
+			extras = make(map[string]any)
+		}
+		extras["fd_terrain_materials"] = materials
+		doc.Materials[matIdx].Extras = extras
+	}
+
 	return &matIdx
 }
 
@@ -716,7 +906,11 @@ func AddTerrain(ctx *extractor.Context, doc *gltf.Document, unitInfo *unit.Info,
 	var matIdx *uint32
 	terrainMaterialID := stingray.NewFileID(ctx.FileID().Name, stingray.Sum("material"))
 	if ctx.Exists(terrainMaterialID, stingray.DataMain) {
-		matIdx = AddTerrainMaterial(ctx, doc, terrainMaterialID)
+		opts, err := extr_material.GetImageOpts(ctx)
+		if err != nil {
+			return terrainNodes
+		}
+		matIdx = AddTerrainMaterial(ctx, doc, opts, terrainMaterialID)
 	}
 	for _, terrainInfo := range unitInfo.TerrainInfos {
 		mesh, err := unit.LoadTerrain(terrainInfo)
