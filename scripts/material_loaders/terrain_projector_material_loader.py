@@ -22,14 +22,7 @@ class TerrainProjectorMaterialLoader(FilediverMaterialLoaderInterface):
         self.material = bpy.data.materials[f"HD2 {self.key()}"]
         self.material.use_fake_user = True
 
-    def add_material(self, config: dict, textures: Dict[str, bpy.types.Image]) -> bpy.types.Material:
-        object_mat = self.material.copy()
-        object_mat.name = f"HD2 {self.key()} " + config["name"]
-
-        print("    Applying textures")
-        config_nodes: Dict[str, ShaderNodeTexImage|ShaderNodeGroup] = object_mat.node_tree.nodes
-        asset_color_grading_lut_group: Dict[str, ShaderNodeTexImage] = bpy.data.node_groups["asset_color_grading_lut"].nodes
-
+    def configure_terrain_group(self, config: dict, textures: Dict[str, bpy.types.Image], config_nodes: Dict[str, ShaderNodeTexImage|ShaderNodeGroup], asset_color_grading_lut_group: Dict[str, ShaderNodeTexImage]):
         for usage, image in textures.items():
             match usage:
                 case "albedo_blend_tex" | "albedo_tex":
@@ -46,10 +39,8 @@ class TerrainProjectorMaterialLoader(FilediverMaterialLoaderInterface):
                     asset_color_grading_lut_group["Image Texture"].image = image
                     image.colorspace_settings.name = "Non-Color"
                     asset_color_grading_lut_group["Image Texture"].interpolation = "Closest"
-        print("    Finalizing material")
 
         for name, setting in config["extras"].items():
-            object_mat[name] = setting
             if name in config_nodes["Terrain Color Grading"].inputs:
                 config_nodes["Terrain Color Grading"].inputs[name].default_value = setting[0]
             if name in config_nodes["Terrain Emissive"].inputs:
@@ -59,6 +50,20 @@ class TerrainProjectorMaterialLoader(FilediverMaterialLoaderInterface):
                     config_nodes["Terrain Emissive"].inputs[name].default_value = setting[:2]
                 else:
                     config_nodes["Terrain Emissive"].inputs[name].default_value = setting[0]
+
+    def add_material(self, config: dict, textures: Dict[str, bpy.types.Image]) -> bpy.types.Material:
+        object_mat = self.material.copy()
+        object_mat.name = f"HD2 {self.key()} " + config["name"]
+
+        print("    Applying textures")
+        config_nodes: Dict[str, ShaderNodeTexImage|ShaderNodeGroup] = object_mat.node_tree.nodes
+        asset_color_grading_lut_group: Dict[str, ShaderNodeTexImage] = bpy.data.node_groups["asset_color_grading_lut"].nodes
+
+        self.configure_terrain_group(config, textures, config_nodes, asset_color_grading_lut_group)
+
+        print("    Finalizing material")
+        for name, setting in config["extras"].items():
+            object_mat[name] = setting
 
         object_mat["needsBakeUVs"] = False
         return object_mat
