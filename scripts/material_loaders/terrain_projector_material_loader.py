@@ -63,6 +63,12 @@ class TerrainProjectorMaterialLoader(FilediverMaterialLoaderInterface):
         object_mat["needsBakeUVs"] = False
         return object_mat
 
+    def preprocess_config(self, data, gltf, materialTextures, config):
+        _ = data
+        _ = gltf
+        _ = materialTextures
+        return config
+
     @classmethod
     def can_configure(cls, config: dict) -> bool:
         return ("albedo_blend_tex" in config["extras"] or "albedo_tex") and "nar_tex" in config["extras"] and "asset_color_grading_lut" in config["extras"]

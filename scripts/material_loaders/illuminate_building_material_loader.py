@@ -95,6 +95,12 @@ class IlluminateBuildingMaterialLoader(FilediverMaterialLoaderInterface):
         object_mat["needsBakeUVs"] = True
         return object_mat
 
+    def preprocess_config(self, data, gltf, materialTextures, config):
+        _ = data
+        _ = gltf
+        _ = materialTextures
+        return config
+
     @classmethod
     def can_configure(cls, config: dict) -> bool:
         return "albedo_array" in config["extras"] and "surface_tiling" in config["extras"] and "bcm_tex_a" in config["extras"] and "noise_power" in config["extras"]

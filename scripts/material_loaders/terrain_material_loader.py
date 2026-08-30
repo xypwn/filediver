@@ -109,6 +109,11 @@ class TerrainMaterialLoader(FilediverMaterialLoaderInterface):
         # object_mat["needsBakeUVs"] = False
         return object_mat
 
+    def preprocess_config(self, data: BlendData, gltf: dict, materialTextures: Dict[int, Dict[str, Image]], config: dict):
+        print("    Preprocessing terrain materials")
+
+        return config
+
     @classmethod
     def can_configure(cls, config: dict) -> bool:
         return "texture_map_0b1b5dad" in config["extras"] and "fd_terrain_materials" in config["extras"]

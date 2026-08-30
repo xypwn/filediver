@@ -175,6 +175,8 @@ def convert_materials(gltf: Dict, node: Dict, variants: List[Dict], hasVariants:
             if loader is None:
                 continue
 
+            material = loader.preprocess_config(bpy.data, gltf, materialTextures, material)
+
             object_mat: Material = loader.get_material(material, materialIndex)
             if object_mat is None:
                 print("    Copying template material")
@@ -873,6 +875,8 @@ def main():
 
                         if loader is None:
                             continue
+
+                        material = loader.preprocess_config(bpy.data, gltf, materialTextures, material)
 
                         object_mat: Material = loader.get_material(material, materialIdx)
                         if object_mat is None:

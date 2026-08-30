@@ -88,6 +88,12 @@ class IlluminateRuinsMaterialLoader(FilediverMaterialLoaderInterface):
         object_mat["needsBakeUVs"] = False
         return object_mat
 
+    def preprocess_config(self, data, gltf, materialTextures, config):
+        _ = data
+        _ = gltf
+        _ = materialTextures
+        return config
+
     @classmethod
     def can_configure(cls, config: dict) -> bool:
         return "noise_tiler_mask" in config["extras"] and "noise_mask_tiling" in config["extras"] and "detail_trimsheet_metallic_ceramic_masking" in config["extras"] and "ceramic_detail_tiler_basecolor" in config["extras"]

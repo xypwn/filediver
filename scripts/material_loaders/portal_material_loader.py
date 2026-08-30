@@ -59,6 +59,12 @@ class PortalMaterialLoader(FilediverMaterialLoaderInterface):
         object_mat["needsBakeUVs"] = True
         return object_mat
 
+    def preprocess_config(self, data, gltf, materialTextures, config):
+        _ = data
+        _ = gltf
+        _ = materialTextures
+        return config
+
     @classmethod
     def can_configure(cls, config: dict) -> bool:
         return "noise_map_01" in config["extras"] and "noise_map_02" in config["extras"] and "edge_noise_map" in config["extras"]

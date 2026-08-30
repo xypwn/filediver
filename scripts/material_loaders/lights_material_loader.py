@@ -50,6 +50,12 @@ class LightsMaterialLoader(FilediverMaterialLoaderInterface):
         object_mat["needsBakeUVs"] = False
         return object_mat
 
+    def preprocess_config(self, data, gltf, materialTextures, config):
+        _ = data
+        _ = gltf
+        _ = materialTextures
+        return config
+
     @classmethod
     def can_configure(cls, config: dict) -> bool:
         return "albedo_color" in config["extras"] and "albedo_color_curavture" in config["extras"] and "use_uv_for_coloring" in config["extras"] and "emissive_intensity" in config["extras"]
