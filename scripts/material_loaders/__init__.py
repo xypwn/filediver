@@ -16,6 +16,8 @@ from .speedtree_material_loader import SpeedtreeMaterialLoader
 from .terrain_projector_material_loader import TerrainProjectorMaterialLoader
 from .terrain_material_loader import TerrainMaterialLoader
 
+from .image_utils import get_textures
+
 __all__ = [
     "FilediverMaterialLoaderInterface",
     "ArmorMaterialLoader",
@@ -33,4 +35,5 @@ __all__ = [
     "SpeedtreeMaterialLoader",
     "TerrainProjectorMaterialLoader",
     "TerrainMaterialLoader",
+    "get_textures",
 ]
