@@ -1265,8 +1265,9 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, me
 
 			var material *uint32
 			// There are a couple of models where there are fewer materials than meshes, so this is here
-			// to prevent us from panicking if we're exporting one of those
-			if int(group.MaterialIdx) < len(header.Materials) {
+			// to prevent us from panicking if we're exporting one of those (and some units, e.g.
+			// content/fac_illuminate/vehicles/illuminate_attack_ship, carry no material indices at all)
+			if len(materialIndices) > 0 && int(group.MaterialIdx) < len(header.Materials) {
 				materialVal, ok := materialIndices[0].MaterialHashToIndex[header.Materials[group.MaterialIdx]]
 				if ok {
 					material = &materialVal
