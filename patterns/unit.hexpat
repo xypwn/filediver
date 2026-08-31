@@ -896,6 +896,17 @@ enum LightType : u32 {
     directional
 };
 
+bitfield LightFlags {
+    unk1: 1;
+    illumination: 1;
+    unk2: 1;
+    volumetrics: 1;
+    unk3: 1;
+    indirect: 1;
+    disabled: 1;
+    shadow: 1;
+};
+
 struct Light {
     ThinMurmurHash lightName;
     u32 boneIdx;
@@ -909,7 +920,7 @@ struct Light {
     float unknown0;
     float shadow_bias;
     float unknown1[5];
-    u8 flags;
+    LightFlags flags;
     padding[3];
     LightType type;
     u8 unkData[32];
