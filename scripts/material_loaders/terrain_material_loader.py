@@ -2,23 +2,34 @@ from .filediver_material_loader_interface import FilediverMaterialLoaderInterfac
 from .terrain_projector_material_loader import TerrainProjectorMaterialLoader
 from .image_utils import get_textures
 
-from typing import Dict, Optional, TypedDict, Tuple
+from typing import Dict, Optional, TypedDict, Tuple, List
 
 from bpy.types import (
     BlendData,
     Image,
     Material,
     ShaderNodeGroup,
+    ShaderNodeMath,
+    ShaderNodeMixShader,
     ShaderNodeOutputMaterial,
     ShaderNodeTexImage,
     ShaderNodeTree,
+    ShaderNodeValue,
     NodeGroupOutput,
+    NodeSocketFloat,
+    NodeSocketShader,
 )
 import bpy
+
+import math
 
 class Vector2(TypedDict):
     x: float
     y: float
+
+class CompareInput(TypedDict):
+    noise: NodeSocketFloat
+    shader: NodeSocketShader
 
 class TerrainMaterialLoader(FilediverMaterialLoaderInterface):
     noise_compare: ShaderNodeTree = None
@@ -113,6 +124,76 @@ class TerrainMaterialLoader(FilediverMaterialLoaderInterface):
 
         return (uvs, noise_map, noise_generator)
 
+    def __add_bracket(self, tree: ShaderNodeTree, sockets: List[CompareInput], location: Vector2, offset: float) -> Tuple[CompareInput, List[CompareInput]]:
+        losers: List[CompareInput] = []
+        layer = len(sockets)
+        columns = math.ceil(math.log2(layer))
+        origin = Vector2(x=location["x"], y=location["y"])
+        column = 0
+        while len(sockets) > 1:
+            socket_a, socket_b = sockets[:2]
+            sockets = sockets[2:]
+            compare_group: ShaderNodeGroup = tree.nodes.new("ShaderNodeGroup")
+            compare_group.node_tree = self.noise_compare
+            compare_group.location = (location["x"], location["y"])
+            tree.links.new(socket_a["noise"], compare_group.inputs["noise a"])
+            tree.links.new(socket_b["noise"], compare_group.inputs["noise b"])
+            tree.links.new(socket_a["shader"], compare_group.inputs["shader a"])
+            tree.links.new(socket_b["shader"], compare_group.inputs["shader b"])
+            location["y"] = location["y"] + (columns - column) * offset * 2 / columns
+            loser_sockets = CompareInput(noise=compare_group.outputs["min_noise"], shader=compare_group.outputs["min_shader"])
+            losers.append(loser_sockets)
+            winner_sockets = CompareInput(noise=compare_group.outputs["max_noise"], shader=compare_group.outputs["max_shader"])
+            sockets.append(winner_sockets)
+
+            layer -= 2
+            if layer <= 1:
+                layer = len(sockets)
+                column += 1
+                location["x"] = location["x"] + offset
+                location["y"] = origin["y"] + offset * column
+
+        return sockets[0], losers
+
+    def __add_blending_nodes(self, tree: ShaderNodeTree, origin: Vector2, vertical_offset: float, winner: CompareInput, second_place: CompareInput, third_place: CompareInput):
+        add_second_third: ShaderNodeMath = tree.nodes.new("ShaderNodeMath")
+        add_second_third.operation = 'ADD'
+        add_second_third.location = (origin["x"] + vertical_offset * 3, origin["y"])
+
+        sub_second_third: ShaderNodeMath = tree.nodes.new("ShaderNodeMath")
+        sub_second_third.operation = 'SUBTRACT'
+        sub_second_third.location = (origin["x"] + vertical_offset * 3, origin["y"] - add_second_third.height - 60)
+
+        sub_first_second_third: ShaderNodeMath = tree.nodes.new("ShaderNodeMath")
+        sub_first_second_third.operation = 'SUBTRACT'
+        sub_first_second_third.location = (origin["x"] + vertical_offset * 3 + add_second_third.width + 20, origin["y"])
+        sub_first_second_third.inputs[0].default_value = 1.0
+
+        mix_second_third: ShaderNodeMixShader = tree.nodes.new("ShaderNodeMixShader")
+        mix_second_third.location = (origin["x"] + vertical_offset * 3 + add_second_third.width + 20, origin["y"] - add_second_third.height - 60)
+
+        mix_first_second_third: ShaderNodeMixShader = tree.nodes.new("ShaderNodeMixShader")
+        mix_first_second_third.location = (origin["x"] + vertical_offset * 3 + add_second_third.width + mix_second_third.width + 40, origin["y"] - add_second_third.height - 60)
+
+        tree.nodes["Material Output"].location = (mix_first_second_third.location[0] + mix_first_second_third.width + 20, mix_first_second_third.location[1])
+
+        tree.links.new(second_place["noise"], add_second_third.inputs[0])
+        tree.links.new(third_place["noise"], add_second_third.inputs[1])
+        tree.links.new(add_second_third.outputs[0], sub_first_second_third.inputs[1])
+
+        tree.links.new(second_place["noise"], sub_second_third.inputs[0])
+        tree.links.new(third_place["noise"], sub_second_third.inputs[1])
+
+        tree.links.new(sub_second_third.outputs[0], mix_second_third.inputs["Fac"])
+        tree.links.new(second_place["shader"], mix_second_third.inputs["Shader"])
+        tree.links.new(third_place["shader"], mix_second_third.inputs["Shader_001"])
+
+        tree.links.new(sub_first_second_third.outputs[0], mix_first_second_third.inputs["Fac"])
+        tree.links.new(mix_second_third.outputs[0], mix_first_second_third.inputs["Shader"])
+        tree.links.new(winner["shader"], mix_first_second_third.inputs["Shader_001"])
+
+        tree.links.new(mix_first_second_third.outputs["Shader"], tree.nodes["Material Output"].inputs["Surface"])
+
     def add_material(self, config: dict, textures: Dict[str, bpy.types.Image]) -> bpy.types.Material:
         object_mat: Material = bpy.data.materials.new(f"HD2 {self.key()} " + config["name"])
         object_mat.use_nodes = True
@@ -121,7 +202,12 @@ class TerrainMaterialLoader(FilediverMaterialLoaderInterface):
         print("    Creating terrain noise")
         tree: ShaderNodeTree = object_mat.node_tree
         origin: Vector2 = Vector2(x = 0.0, y = 0.0)
-        vertical_offset = 640.0
+        vertical_offset = 400.0
+        noise_magnitude: ShaderNodeValue = tree.nodes.new("ShaderNodeValue")
+        noise_magnitude.label = "Noise Magnitude"
+        noise_magnitude.location = (origin["x"], origin["y"] + noise_magnitude.height)
+        noise_magnitude.outputs[0].default_value = 1.0
+        bracket_sockets: List[CompareInput] = []
         for i, terrain_settings in enumerate(config["extras"]["fd_terrain_materials"]):
             terrain_settings: dict
             settings: dict = terrain_settings["settings"]
@@ -133,46 +219,27 @@ class TerrainMaterialLoader(FilediverMaterialLoaderInterface):
 
             shader_location = Vector2(x = location["x"], y = location["y"] + noise_generator.height)
             terrain_shader = self.__add_terrain_shader(tree, terrain_settings, shader_location)
+            bracket_sockets.append(CompareInput(noise = noise_generator.outputs["Value"], shader = terrain_shader.outputs["Output"]))
 
             tree.links.new(uvs.outputs[0], noise_map.inputs[0])
             tree.links.new(noise_map.outputs["Color"], noise_generator.inputs["noise xyz"])
             tree.links.new(noise_map.outputs["Alpha"], noise_generator.inputs["noise w"])
+            tree.links.new(noise_magnitude.outputs[0], noise_generator.inputs["itexcoord0.w"])
 
-        # print("    Applying textures")
-        # config_nodes: Dict[str, ShaderNodeTexImage|ShaderNodeGroup] = object_mat.node_tree.nodes
-        # asset_color_grading_lut_group: Dict[str, ShaderNodeTexImage] = bpy.data.node_groups["asset_color_grading_lut"].nodes
+        print("    Adding comparison nodes...")
+        bracket_origin: Vector2 = Vector2(x = origin["x"] + location["x"] + noise_generator.width + vertical_offset / 6, y = origin["y"] + vertical_offset / 2)
+        winner, losers = self.__add_bracket(tree, bracket_sockets, bracket_origin, vertical_offset)
 
-        # for usage, image in textures.items():
-        #     match usage:
-        #         case "albedo_blend_tex" | "albedo_tex":
-        #             config_nodes["Image Texture"].image = image
-        #             image.colorspace_settings.name = "sRGB"
-        #             image.alpha_mode = "CHANNEL_PACKED"
-        #         case "displacement_tex":
-        #             config_nodes["Image Texture.001"].image = image
-        #             image.colorspace_settings.name = "Non-Color"
-        #         case "nar_tex":
-        #             config_nodes["Image Texture.002"].image = image
-        #             image.colorspace_settings.name = "Non-Color"
-        #         case "asset_color_grading_lut":
-        #             asset_color_grading_lut_group["Image Texture"].image = image
-        #             image.colorspace_settings.name = "Non-Color"
-        #             asset_color_grading_lut_group["Image Texture"].interpolation = "Closest"
-        # print("    Finalizing material")
+        columns = math.ceil(math.log2(len(losers)))
+        bracket_origin_2: Vector2 = Vector2(x = origin["x"] + location["x"] + noise_generator.width + vertical_offset * 2 / 6, y = origin["y"] - vertical_offset / 2 - vertical_offset * columns)
+        second_place, losers = self.__add_bracket(tree, losers, bracket_origin_2, vertical_offset)
 
-        # for name, setting in config["extras"].items():
-        #     object_mat[name] = setting
-        #     if name in config_nodes["Terrain Color Grading"].inputs:
-        #         config_nodes["Terrain Color Grading"].inputs[name].default_value = setting[0]
-        #     if name in config_nodes["Terrain Emissive"].inputs:
-        #         if name in ["emissive_base_color_tint", "emissive_color_ao"]:
-        #             config_nodes["Terrain Emissive"].inputs[name].default_value = setting[:3]
-        #         elif name in ["emissive_base_color_luminance_range", "emissive_ao_range"]:
-        #             config_nodes["Terrain Emissive"].inputs[name].default_value = setting[:2]
-        #         else:
-        #             config_nodes["Terrain Emissive"].inputs[name].default_value = setting[0]
+        third_columns = math.ceil(math.log2(len(losers)))
+        bracket_origin_3: Vector2 = Vector2(x = origin["x"] + location["x"] + noise_generator.width + vertical_offset * 3 / 6, y = origin["y"] - vertical_offset - vertical_offset * columns - vertical_offset * third_columns)
+        third_place, _ = self.__add_bracket(tree, losers, bracket_origin_3, vertical_offset)
 
-        # object_mat["needsBakeUVs"] = False
+        self.__add_blending_nodes(tree, bracket_origin, vertical_offset, winner, second_place, third_place)
+
         return object_mat
 
     def preprocess_config(self, data: BlendData, gltf: dict, materialTextures: Dict[int, Dict[str, Image]], config: dict):

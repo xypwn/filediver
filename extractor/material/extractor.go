@@ -77,6 +77,22 @@ func postProcessReconstructNormalZFlipY(img image.Image) (image.Image, error) {
 	}
 }
 
+// Flips Y component of normal map.
+func postProcessNormalFlipY(img image.Image) (image.Image, error) {
+	switch img := img.(type) {
+	case *image.NRGBA:
+		for iY := img.Rect.Min.Y; iY < img.Rect.Max.Y; iY++ {
+			for iX := img.Rect.Min.X; iX < img.Rect.Max.X; iX++ {
+				idx := img.PixOffset(iX, iY)
+				img.Pix[idx+1] = 255 - img.Pix[idx+1]
+			}
+		}
+		return img, nil
+	default:
+		return nil, errors.New("postProcessReconstructNormalZ: unsupported image type")
+	}
+}
+
 // Attempts to completely remove the influence of the alpha channel,
 // giving the whole image an opacity of 1.
 func postProcessToOpaque(img image.Image) (image.Image, error) {
@@ -1063,7 +1079,7 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 				usedTextures[texUsageStr] = index
 			}
 			albedoPostProcess = postProcessToOpaque
-		case "normal_specular_ao", "base_data", "nar_tex":
+		case "normal_specular_ao", "base_data":
 			// GLTF normals will look wonky, but our own material will be able to use the specular+ao in this map
 			// in blender
 			normalPostProcess = nil
@@ -1099,6 +1115,17 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 		case "tex1":
 			hash := mat.Textures[texUsage]
 			index, err := writeTexture(ctx, doc, hash, postProcessReconstructNormalZFlipY, imgOpts, "")
+			if err != nil {
+				ctx.Warnf("writeTexture: %v: %v", ctx.LookupThinHash(texUsage), err)
+				continue
+			}
+			normalTexture = &gltf.NormalTexture{
+				Index: gltf.Index(index),
+			}
+			usedTextures[texUsageStr] = index
+		case "nar_tex":
+			hash := mat.Textures[texUsage]
+			index, err := writeTexture(ctx, doc, hash, postProcessNormalFlipY, imgOpts, "")
 			if err != nil {
 				ctx.Warnf("writeTexture: %v: %v", ctx.LookupThinHash(texUsage), err)
 				continue
