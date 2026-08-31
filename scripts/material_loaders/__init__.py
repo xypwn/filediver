@@ -13,6 +13,7 @@ from .lut_skin_material_loader import LutSkinMaterialLoader
 from .portal_material_loader import PortalMaterialLoader
 from .skin_material_loader import SkinMaterialLoader
 from .speedtree_material_loader import SpeedtreeMaterialLoader
+from .tank_glass_material_loader import TankGlassMaterialLoader
 from .terrain_projector_material_loader import TerrainProjectorMaterialLoader
 from .terrain_material_loader import TerrainMaterialLoader
 
@@ -33,6 +34,7 @@ __all__ = [
     "PortalMaterialLoader",
     "SkinMaterialLoader",
     "SpeedtreeMaterialLoader",
+    "TankGlassMaterialLoader",
     "TerrainProjectorMaterialLoader",
     "TerrainMaterialLoader",
     "get_textures",

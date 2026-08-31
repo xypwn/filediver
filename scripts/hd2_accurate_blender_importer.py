@@ -46,6 +46,7 @@ material_loaders: List[FilediverMaterialLoaderInterface] = [
     PortalMaterialLoader(),
     SkinMaterialLoader(),
     SpeedtreeMaterialLoader(),
+    TankGlassMaterialLoader(),
     TerrainProjectorMaterialLoader(),
     TerrainMaterialLoader(),
 ]
