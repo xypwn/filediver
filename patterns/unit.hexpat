@@ -272,7 +272,7 @@ struct MeshInfo {
     AABB bounding_box;
     float unkFloat;
     u32 unkInt0;
-    ThinMurmurHash unkHash;
+    ThinMurmurHash name;
     u32 AABBTransformIndex;
     u32 TransformIndex;
     u32 unkInt2;
