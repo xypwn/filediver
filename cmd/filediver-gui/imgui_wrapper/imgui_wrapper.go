@@ -147,6 +147,8 @@ type Options struct {
 	Icons []image.Image
 	// Make the OpenGL context a debug context.
 	GLDebugContext bool
+	// ImGui .ini file path.
+	IniFilename string
 }
 
 func Main(title string, options Options) error {
@@ -196,7 +198,7 @@ func Main(title string, options Options) error {
 	flags := io.ConfigFlags()
 	flags |= imgui.ConfigFlagsDockingEnable | imgui.ConfigFlagsViewportsEnable
 	io.SetConfigFlags(flags)
-	io.SetIniFilename("")
+	io.SetIniFilename(options.IniFilename)
 	addDefaultFonts()
 
 	{

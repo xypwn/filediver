@@ -189,6 +189,8 @@ type guiApp struct {
 
 	iconImage image.Image
 	icon      *imutils.Image
+
+	resetDockLayout bool
 }
 
 // Call Delete() when done.
@@ -423,7 +425,7 @@ func (a *guiApp) onDraw(state *imgui_wrapper.State) {
 		imgui.PopStyleVar()
 		a.drawMenuBar()
 		id := imgui.IDStr("MainWindow")
-		if imgui.InternalDockBuilderGetNode(id).CData == nil {
+		if imgui.InternalDockBuilderGetNode(id).CData == nil || a.resetDockLayout {
 			imgui.InternalDockBuilderAddNodeV(id, imgui.DockNodeFlags(imgui.DockNodeFlagsDockSpace))
 			imgui.InternalDockBuilderSetNodeSize(id, dockSpaceSize)
 			var leftID, topLeftID, bottomLeftID, rightID, topRightID, bottomRightID imgui.ID
@@ -437,6 +439,7 @@ func (a *guiApp) onDraw(state *imgui_wrapper.State) {
 			imgui.InternalDockBuilderDockWindow(fnt.I.Tag+" Metadata", topRightID)
 			imgui.InternalDockBuilderDockWindow(fnt.I.DisplaySettings+" Material Settings", bottomRightID)
 			imgui.InternalDockBuilderFinish(id)
+			a.resetDockLayout = false
 		}
 		winClass := imgui.NewWindowClass() // passing nil as window class causes a nil pointer dereference (probably an error in the binding generation)
 		imgui.DockSpaceV(id, imgui.NewVec2(0, 0), 0, winClass)
@@ -1454,7 +1457,7 @@ resolutions may cause low frame rates and poor responsiveness.`)
 		}
 
 		imgui.BeginDisabledV(a.preferences == a.defaultPreferences)
-		if imgui.ButtonV(fnt.I.Undo+" Reset all", imgui.NewVec2(imgui.ContentRegionAvail().X, 0)) {
+		if imgui.ButtonV(fnt.I.Undo+" Reset all preferences", imgui.NewVec2(imgui.ContentRegionAvail().X, 0)) {
 			a.preferences = a.defaultPreferences
 		}
 		imgui.EndDisabled()
@@ -1474,6 +1477,9 @@ resolutions may cause low frame rates and poor responsiveness.`)
 			if err := open.Start(dir); err != nil {
 				a.showErrorPopup(err)
 			}
+		}
+		if imgui.ButtonV(fnt.I.ReopenWindow+" Reset dock layout", imgui.NewVec2(imgui.ContentRegionAvail().X, 0)) {
+			a.resetDockLayout = true
 		}
 		imgui.Separator()
 		if imgui.ButtonV("Close", imgui.NewVec2(imgui.ContentRegionAvail().X, 0)) {
@@ -1655,6 +1661,7 @@ To use blender importer, EITHER:
 			appicons.Icon24Img(),
 			appicons.Icon16Img(),
 		},
+		IniFilename: filepath.Join(xdg.DataHome, "filediver", "dearimgui.ini"),
 	}); err != nil {
 		onError(err)
 		return
