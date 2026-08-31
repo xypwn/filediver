@@ -9,6 +9,7 @@ from bpy.types import (
     Image,
     Material,
     ShaderNodeGroup,
+    ShaderNodeMapping,
     ShaderNodeMath,
     ShaderNodeMixShader,
     ShaderNodeOutputMaterial,
@@ -56,6 +57,8 @@ class TerrainMaterialLoader(FilediverMaterialLoaderInterface):
                 node: ShaderNodeGroup
                 copied_node: ShaderNodeGroup
                 copied_node.node_tree = node.node_tree
+            elif node.bl_idname == "ShaderNodeMapping":
+                copied_node.inputs["Scale"].default_value = (0.25, 0.25, 1.0)
             copied_node.name = node.name
             copied_node.label = node.label
             copied_node.hide = node.hide
@@ -76,9 +79,12 @@ class TerrainMaterialLoader(FilediverMaterialLoaderInterface):
             with bpy.data.libraries.load(str(resource_path / "Helldivers2 Shader v1.0.5.blend")) as (shader_blend, our_blend):
                 our_blend: BlendData # not actually but they share member names 
                 shader_blend: BlendData
-                our_blend.node_groups = shader_blend.node_groups
+                
+                our_blend.node_groups.append(shader_blend.node_groups[shader_blend.node_groups.index("Material Noise Generator")])
+                our_blend.node_groups.append(shader_blend.node_groups[shader_blend.node_groups.index("Noise Compare")])
+                our_blend.node_groups.append(shader_blend.node_groups[shader_blend.node_groups.index("Noise UVs")])
                 if f"HD2 {self.key()}" not in bpy.data.materials:
-                    our_blend.materials = shader_blend.materials
+                    our_blend.materials.append(f"HD2 {self.key()}")
         self.noise_compare = bpy.data.node_groups["Noise Compare"]
         self.noise_generator = bpy.data.node_groups["Material Noise Generator"]
         self.noise_uvs = bpy.data.node_groups["Noise UVs"]
