@@ -920,7 +920,7 @@ struct Light {
     float unknown0;
     float shadow_bias;
     float unknown1[5];
-    LightFlags flags;
+    be LightFlags flags;
     padding[3];
     LightType type;
     u8 unkData[32];
