@@ -91111,6 +91111,7 @@ content/env_illuminate/debris/il_generic_debris_01
 content/env_illuminate/debris/il_generic_debris_03
 content/env_illuminate/debris/il_generic_debris_04
 content/env_illuminate/debris/il_generic_debris_05
+content/env_illuminate/debris/illuminate_attack_ship_crashed
 content/env_illuminate/gameplay/il_laser_tower
 content/env_illuminate/gameplay/il_portal
 content/env_illuminate/gameplay/il_spawner
