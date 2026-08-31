@@ -77,6 +77,22 @@ func postProcessReconstructNormalZFlipY(img image.Image) (image.Image, error) {
 	}
 }
 
+// Flips Y component of normal map.
+func postProcessNormalFlipY(img image.Image) (image.Image, error) {
+	switch img := img.(type) {
+	case *image.NRGBA:
+		for iY := img.Rect.Min.Y; iY < img.Rect.Max.Y; iY++ {
+			for iX := img.Rect.Min.X; iX < img.Rect.Max.X; iX++ {
+				idx := img.PixOffset(iX, iY)
+				img.Pix[idx+1] = 255 - img.Pix[idx+1]
+			}
+		}
+		return img, nil
+	default:
+		return nil, errors.New("postProcessReconstructNormalZ: unsupported image type")
+	}
+}
+
 // Attempts to completely remove the influence of the alpha channel,
 // giving the whole image an opacity of 1.
 func postProcessToOpaque(img image.Image) (image.Image, error) {
@@ -1063,7 +1079,7 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 				usedTextures[texUsageStr] = index
 			}
 			albedoPostProcess = postProcessToOpaque
-		case "normal_specular_ao", "base_data", "nar_tex":
+		case "normal_specular_ao", "base_data":
 			// GLTF normals will look wonky, but our own material will be able to use the specular+ao in this map
 			// in blender
 			normalPostProcess = nil
@@ -1099,6 +1115,17 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 		case "tex1":
 			hash := mat.Textures[texUsage]
 			index, err := writeTexture(ctx, doc, hash, postProcessReconstructNormalZFlipY, imgOpts, "")
+			if err != nil {
+				ctx.Warnf("writeTexture: %v: %v", ctx.LookupThinHash(texUsage), err)
+				continue
+			}
+			normalTexture = &gltf.NormalTexture{
+				Index: gltf.Index(index),
+			}
+			usedTextures[texUsageStr] = index
+		case "nar_tex":
+			hash := mat.Textures[texUsage]
+			index, err := writeTexture(ctx, doc, hash, postProcessNormalFlipY, imgOpts, "")
 			if err != nil {
 				ctx.Warnf("writeTexture: %v: %v", ctx.LookupThinHash(texUsage), err)
 				continue
@@ -1314,7 +1341,7 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 			}
 			usedTextures[texUsageStr] = index
 			imgOpts = origImgOpts
-		case "emissive_texture", "displacement_tex", "snow_mask_texture", "glint_sample", "pattern_masks_array", "composite_array", "customization_camo_tiler_array", "customization_material_detail_tiler_array", "decal_sheet", "id_masks_array", "Detail_Data", "surface_data_array", "pattern_data", "texture_map_319d3bb5", "metal_surface_data", "concrete_surface_data", "bcm_tex_a", "bcm_tex_b", "nar_tex_a", "nar_tex_b", "blend_tex_mask", "mask", "albedo_array", "normal_array", "emissive", "noise_map_01", "noise_map_02", "edge_noise_map", "grayscale_skin", "noise_tiler_mask", "base_tiler_nar", "base_tiler_nan", "detail_trimsheet_metallic_ceramic_masking", "ceramic_detail_tiler_basecolor", "ceramic_detail_tiler_nar", "rock_detail_tiler_basecolor", "rock_detail_tiler_nar", "detail_trimsheet_nar", "metallic_lut", "blood_splatter_tiler", "bug_splatter_tiler", "weathering_dirt", "weathering_special", "cape_tear", "cape_scalar_fields", "cape_gradient":
+		case "texture_map_0b1b5dad", "emissive_texture", "displacement_tex", "displacement_map", "snow_mask_texture", "glint_sample", "pattern_masks_array", "composite_array", "customization_camo_tiler_array", "customization_material_detail_tiler_array", "decal_sheet", "id_masks_array", "Detail_Data", "surface_data_array", "pattern_data", "texture_map_319d3bb5", "metal_surface_data", "concrete_surface_data", "bcm_tex_a", "bcm_tex_b", "nar_tex_a", "nar_tex_b", "blend_tex_mask", "mask", "albedo_array", "normal_array", "emissive", "noise_map_01", "noise_map_02", "edge_noise_map", "grayscale_skin", "noise_tiler_mask", "base_tiler_nar", "base_tiler_nan", "detail_trimsheet_metallic_ceramic_masking", "ceramic_detail_tiler_basecolor", "ceramic_detail_tiler_nar", "rock_detail_tiler_basecolor", "rock_detail_tiler_nar", "detail_trimsheet_nar", "metallic_lut", "blood_splatter_tiler", "bug_splatter_tiler", "weathering_dirt", "weathering_special", "cape_tear", "cape_scalar_fields", "cape_gradient":
 			hash := mat.Textures[texUsage]
 			if unitData != nil && texUsageStr == "decal_sheet" && unitData.DecalSheet.Value != 0 {
 				hash = unitData.DecalSheet

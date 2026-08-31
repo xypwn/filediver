@@ -46,24 +46,52 @@ type LevelGenerationPaletteGroup struct {
 }
 
 type rawLevelGenerationRegion struct {
-	NameOffset    int64
-	ID            uint32
-	Region        enum.LevelGenerationRegionType
-	VarListPtr    int64 // Seems to be unused
-	UnknownFloat1 float32
-	UnknownFloat2 float32
-	UnknownInt    uint32
-	_             [4]uint8
+	Name         DLString
+	Id           stingray.ThinHash
+	Type         enum.LevelGenerationRegionType
+	Variants     DLPtr // Seems to be unused
+	Weight       float32
+	UnknownFloat float32
+	UnknownInt   uint32
+	_            [4]uint8
 }
 
 type LevelGenerationRegion struct {
-	Name          string                         `json:"name"`
-	ID            uint32                         `json:"id"`
-	Region        enum.LevelGenerationRegionType `json:"region"`
-	VarListPtr    int64                          `json:"var_list_ptr"` // Seems to be unused
-	UnknownFloat1 float32                        `json:"unknown_float1"`
-	UnknownFloat2 float32                        `json:"unknown_float2"`
-	UnknownInt    uint32                         `json:"unknown_int"`
+	Name         *string
+	Id           stingray.ThinHash
+	Type         enum.LevelGenerationRegionType
+	Variants     *GenerationRegionVariantList
+	Weight       float32
+	UnknownFloat float32
+	UnknownInt   uint32
+}
+
+type SimpleLevelGenerationRegion struct {
+	Name         *string                            `json:"name"`
+	Id           string                             `json:"id"`
+	Type         enum.LevelGenerationRegionType     `json:"region"`
+	Variants     *SimpleGenerationRegionVariantList `json:"variants"` // Seems to be unused
+	Weight       float32                            `json:"weight"`
+	UnknownFloat float32                            `json:"unknown_float"`
+	UnknownInt   uint32                             `json:"unknown_int"`
+}
+
+func (r LevelGenerationRegion) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookupStrings StringsLookup) SimpleLevelGenerationRegion {
+	var variants *SimpleGenerationRegionVariantList
+	if r.Variants != nil {
+		result := r.Variants.ToSimple(lookupHash, lookupThinHash, lookupStrings)
+		variants = &result
+	}
+
+	return SimpleLevelGenerationRegion{
+		Name:         r.Name,
+		Id:           lookupThinHash(r.Id),
+		Type:         r.Type,
+		Variants:     variants,
+		Weight:       r.Weight,
+		UnknownFloat: r.UnknownFloat,
+		UnknownInt:   r.UnknownInt,
+	}
 }
 
 type rawPlanetData struct {
@@ -72,7 +100,7 @@ type rawPlanetData struct {
 	PlanetDescriptionLoc             uint32
 	PlanetDescriptionShortLoc        uint32
 	PlanetSystemNameLoc              uint32
-	PlanetLayoutId                   uint32
+	PlanetLayoutId                   stingray.ThinHash
 	_                                [4]uint8
 	UnknownEnumOffset                int64
 	UnknownEnumCount                 int64
@@ -133,7 +161,7 @@ type PlanetData struct {
 	PlanetDescriptionLoc             string
 	PlanetDescriptionShortLoc        string
 	PlanetSystemNameLoc              string
-	PlanetLayoutId                   uint32
+	PlanetLayoutId                   stingray.ThinHash
 	UnknownEnumArray                 []uint32
 	ResourceOverrides                []ResourceOverride
 	DebugName                        string
@@ -256,37 +284,57 @@ func LoadPlanetData(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookup
 		}
 		setting.DebugName = debugName
 
-		if _, err := r.Seek(int64(base+rawSetting.RegionLowland.NameOffset), io.SeekStart); err != nil {
-			return nil, err
-		}
-		name, err := util.ReadCString(r)
+		name, err := rawSetting.RegionLowland.Name.Resolve(r, base)
 		if err != nil {
 			return nil, err
 		}
+
+		rawVariants, err := ResolveDLPtr[rawGenerationRegionVariantList](rawSetting.RegionLowland.Variants, r, base)
+		if err != nil {
+			return nil, err
+		}
+		var variants *GenerationRegionVariantList
+		if rawVariants != nil {
+			variants, err = rawVariants.Deserialize(r, base)
+			if err != nil {
+				return nil, err
+			}
+		}
+
 		setting.RegionLowland = LevelGenerationRegion{
-			Name:          name,
-			ID:            rawSetting.RegionLowland.ID,
-			Region:        rawSetting.RegionLowland.Region,
-			VarListPtr:    rawSetting.RegionLowland.VarListPtr,
-			UnknownFloat1: rawSetting.RegionLowland.UnknownFloat1,
-			UnknownFloat2: rawSetting.RegionLowland.UnknownFloat2,
-			UnknownInt:    rawSetting.RegionLowland.UnknownInt,
+			Name:         name,
+			Id:           rawSetting.RegionLowland.Id,
+			Type:         rawSetting.RegionLowland.Type,
+			Variants:     variants,
+			Weight:       rawSetting.RegionLowland.Weight,
+			UnknownFloat: rawSetting.RegionLowland.UnknownFloat,
+			UnknownInt:   rawSetting.RegionLowland.UnknownInt,
 		}
-		if _, err := r.Seek(int64(base+rawSetting.RegionHighland.NameOffset), io.SeekStart); err != nil {
-			return nil, err
-		}
-		name, err = util.ReadCString(r)
+
+		name, err = rawSetting.RegionHighland.Name.Resolve(r, base)
 		if err != nil {
 			return nil, err
+		}
+
+		rawVariants, err = ResolveDLPtr[rawGenerationRegionVariantList](rawSetting.RegionHighland.Variants, r, base)
+		if err != nil {
+			return nil, err
+		}
+		variants = nil
+		if rawVariants != nil {
+			variants, err = rawVariants.Deserialize(r, base)
+			if err != nil {
+				return nil, err
+			}
 		}
 		setting.RegionHighland = LevelGenerationRegion{
-			Name:          name,
-			ID:            rawSetting.RegionHighland.ID,
-			Region:        rawSetting.RegionHighland.Region,
-			VarListPtr:    rawSetting.RegionHighland.VarListPtr,
-			UnknownFloat1: rawSetting.RegionHighland.UnknownFloat1,
-			UnknownFloat2: rawSetting.RegionHighland.UnknownFloat2,
-			UnknownInt:    rawSetting.RegionHighland.UnknownInt,
+			Name:         name,
+			Id:           rawSetting.RegionHighland.Id,
+			Type:         rawSetting.RegionHighland.Type,
+			Variants:     variants,
+			Weight:       rawSetting.RegionHighland.Weight,
+			UnknownFloat: rawSetting.RegionHighland.UnknownFloat,
+			UnknownInt:   rawSetting.RegionHighland.UnknownInt,
 		}
 
 		if _, err := r.Seek(int64(base+rawSetting.GameplayModifiersOffset), io.SeekStart); err != nil {

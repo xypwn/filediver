@@ -65,6 +65,12 @@ class BuildingMaterialLoader(FilediverMaterialLoaderInterface):
         object_mat["needsBakeUVs"] = False
         return object_mat
 
+    def preprocess_config(self, data, gltf, materialTextures, config):
+        _ = data
+        _ = gltf
+        _ = materialTextures
+        return config
+
     @classmethod
     def can_configure(cls, config: dict) -> bool:
         return "texture_lut" in config["extras"] and "material_1_surface" in config["extras"]

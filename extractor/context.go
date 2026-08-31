@@ -32,6 +32,8 @@ type Context struct {
 	weaponPaintSchemes []datalib.WeaponCustomizableItem
 	attachmentSlots    map[stingray.Hash]enum.WeaponCustomizationSlot
 	entityVarMapping   shading_environment.ShadingEnvironmentEntityToShaderMapping
+	planets            map[string]datalib.PlanetData
+	planetRegionsMap   map[stingray.ThinHash]datalib.GenerationRegionVariantList
 	gameBuildInfo      *ah_bin.BuildInfo
 	languageMap        map[uint32]string
 	dataDir            *stingray.DataDir
@@ -70,6 +72,8 @@ func NewContext(
 	weaponPaintSchemes []datalib.WeaponCustomizableItem,
 	attachmentSlots map[stingray.Hash]enum.WeaponCustomizationSlot,
 	entityVarMapping shading_environment.ShadingEnvironmentEntityToShaderMapping,
+	planets map[string]datalib.PlanetData,
+	planetRegionsMap map[stingray.ThinHash]datalib.GenerationRegionVariantList,
 	gameBuildInfo *ah_bin.BuildInfo,
 	languageMap map[uint32]string,
 	dataDir *stingray.DataDir,
@@ -89,6 +93,8 @@ func NewContext(
 		weaponPaintSchemes: weaponPaintSchemes,
 		attachmentSlots:    attachmentSlots,
 		entityVarMapping:   entityVarMapping,
+		planets:            planets,
+		planetRegionsMap:   planetRegionsMap,
 		gameBuildInfo:      gameBuildInfo,
 		languageMap:        languageMap,
 		dataDir:            dataDir,
@@ -112,8 +118,8 @@ func (c *Context) Ctx() context.Context {
 	return c.ctx
 }
 
-// Returns a copy of the context with the fileID changed
-func (c *Context) WithFileID(newFileID stingray.FileID) *Context {
+// Returns a copy of the context, to modify later
+func copyContext(c *Context) *Context {
 	return &Context{
 		ctx:                c.ctx,
 		hashes:             c.hashes,
@@ -123,6 +129,8 @@ func (c *Context) WithFileID(newFileID stingray.FileID) *Context {
 		weaponPaintSchemes: c.weaponPaintSchemes,
 		attachmentSlots:    c.attachmentSlots,
 		entityVarMapping:   c.entityVarMapping,
+		planets:            c.planets,
+		planetRegionsMap:   c.planetRegionsMap,
 		gameBuildInfo:      c.gameBuildInfo,
 		languageMap:        c.languageMap,
 		dataDir:            c.dataDir,
@@ -137,107 +145,39 @@ func (c *Context) WithFileID(newFileID stingray.FileID) *Context {
 		assetOverrides:    c.assetOverrides,
 		colorGrading:      c.colorGrading,
 
-		fileID:     newFileID,
+		fileID:     c.fileID,
 		rootFileID: c.rootFileID,
 
 		files: c.files,
 	}
+}
+
+// Returns a copy of the context with the fileID changed
+func (c *Context) WithFileID(newFileID stingray.FileID) *Context {
+	newCtx := copyContext(c)
+	newCtx.fileID = newFileID
+	return newCtx
 }
 
 // Returns a copy of the context with different material overrides
 func (c *Context) WithMaterialOverrides(newOverrides map[stingray.ThinHash]stingray.Hash) *Context {
-	return &Context{
-		ctx:                c.ctx,
-		hashes:             c.hashes,
-		thinHashes:         c.thinHashes,
-		armorSets:          c.armorSets,
-		skinOverrideGroups: c.skinOverrideGroups,
-		weaponPaintSchemes: c.weaponPaintSchemes,
-		attachmentSlots:    c.attachmentSlots,
-		entityVarMapping:   c.entityVarMapping,
-		gameBuildInfo:      c.gameBuildInfo,
-		languageMap:        c.languageMap,
-		dataDir:            c.dataDir,
-		runner:             c.runner,
-		config:             c.config,
-		outPath:            c.outPath,
-		selectedArchives:   c.selectedArchives,
-		warnf:              c.warnf,
-		statusf:            c.statusf,
-
-		materialOverrides: newOverrides,
-		assetOverrides:    c.assetOverrides,
-		colorGrading:      c.colorGrading,
-
-		fileID:     c.fileID,
-		rootFileID: c.rootFileID,
-
-		files: c.files,
-	}
+	newCtx := copyContext(c)
+	newCtx.materialOverrides = newOverrides
+	return newCtx
 }
 
 // Returns a copy of the context with different asset overrides
 func (c *Context) WithAssetOverrides(newOverrides map[stingray.FileID]stingray.FileID) *Context {
-	return &Context{
-		ctx:                c.ctx,
-		hashes:             c.hashes,
-		thinHashes:         c.thinHashes,
-		armorSets:          c.armorSets,
-		skinOverrideGroups: c.skinOverrideGroups,
-		weaponPaintSchemes: c.weaponPaintSchemes,
-		attachmentSlots:    c.attachmentSlots,
-		entityVarMapping:   c.entityVarMapping,
-		gameBuildInfo:      c.gameBuildInfo,
-		languageMap:        c.languageMap,
-		dataDir:            c.dataDir,
-		runner:             c.runner,
-		config:             c.config,
-		outPath:            c.outPath,
-		selectedArchives:   c.selectedArchives,
-		warnf:              c.warnf,
-		statusf:            c.statusf,
-
-		materialOverrides: c.materialOverrides,
-		assetOverrides:    newOverrides,
-		colorGrading:      c.colorGrading,
-
-		fileID:     c.fileID,
-		rootFileID: c.rootFileID,
-
-		files: c.files,
-	}
+	newCtx := copyContext(c)
+	newCtx.assetOverrides = newOverrides
+	return newCtx
 }
 
 // Returns a copy of the context with different asset overrides
 func (c *Context) WithColorGrading(colorGrading stingray.Hash) *Context {
-	return &Context{
-		ctx:                c.ctx,
-		hashes:             c.hashes,
-		thinHashes:         c.thinHashes,
-		armorSets:          c.armorSets,
-		skinOverrideGroups: c.skinOverrideGroups,
-		weaponPaintSchemes: c.weaponPaintSchemes,
-		attachmentSlots:    c.attachmentSlots,
-		entityVarMapping:   c.entityVarMapping,
-		gameBuildInfo:      c.gameBuildInfo,
-		languageMap:        c.languageMap,
-		dataDir:            c.dataDir,
-		runner:             c.runner,
-		config:             c.config,
-		outPath:            c.outPath,
-		selectedArchives:   c.selectedArchives,
-		warnf:              c.warnf,
-		statusf:            c.statusf,
-
-		materialOverrides: c.materialOverrides,
-		assetOverrides:    c.assetOverrides,
-		colorGrading:      colorGrading,
-
-		fileID:     c.fileID,
-		rootFileID: c.rootFileID,
-
-		files: c.files,
-	}
+	newCtx := copyContext(c)
+	newCtx.colorGrading = colorGrading
+	return newCtx
 }
 
 // Transparently return the override for a slot if it exists, otherwise return the original
@@ -409,6 +349,14 @@ func (c *Context) AttachmentSlots() map[stingray.Hash]enum.WeaponCustomizationSl
 
 func (c *Context) EntityVarMapping() shading_environment.ShadingEnvironmentEntityToShaderMapping {
 	return c.entityVarMapping
+}
+
+func (c *Context) Planets() map[string]datalib.PlanetData {
+	return c.planets
+}
+
+func (c *Context) PlanetRegionsMap() map[stingray.ThinHash]datalib.GenerationRegionVariantList {
+	return c.planetRegionsMap
 }
 
 // Warnf logs a user-visible warning message.

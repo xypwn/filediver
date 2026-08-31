@@ -414,6 +414,14 @@ func (s GenerationRegionGroup) ToSimple(lookupHash HashLookup, lookupThinHash Th
 	}
 }
 
+func (s GenerationRegionGroup) RegionsMap() map[stingray.ThinHash]GenerationRegionVariantList {
+	result := make(map[stingray.ThinHash]GenerationRegionVariantList)
+	for _, region := range s.Regions {
+		result[region.Id] = region
+	}
+	return result
+}
+
 func (s rawGenerationRegionGroup) Deserialize(r io.ReadSeeker, base int64) (*GenerationRegionGroup, error) {
 	name, err := s.Name.Resolve(r, base)
 	if err != nil {
@@ -448,7 +456,13 @@ func (s rawGenerationRegionGroup) Deserialize(r io.ReadSeeker, base int64) (*Gen
 	}, nil
 }
 
+var regions []GenerationRegionSettings
+
 func LoadRegionSettings(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookupStrings StringsLookup) ([]GenerationRegionSettings, error) {
+	if regions != nil {
+		return regions, nil
+	}
+
 	r := bytes.NewReader(regionSettings)
 
 	infos := make([]GenerationRegionSettings, 0)
@@ -489,10 +503,18 @@ func LoadRegionSettings(lookupHash HashLookup, lookupThinHash ThinHashLookup, lo
 		infos = append(infos, *setting)
 	}
 
+	regions = infos
+
 	return infos, nil
 }
 
+var groups []GenerationRegionGroup
+
 func LoadRegionGroups(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookupStrings StringsLookup) ([]GenerationRegionGroup, error) {
+	if groups != nil {
+		return groups, nil
+	}
+
 	r := bytes.NewReader(regionSettings)
 
 	infos := make([]GenerationRegionGroup, 0)
@@ -548,6 +570,8 @@ func LoadRegionGroups(lookupHash HashLookup, lookupThinHash ThinHashLookup, look
 
 		infos = append(infos, *group)
 	}
+
+	groups = infos
 
 	return infos, nil
 }

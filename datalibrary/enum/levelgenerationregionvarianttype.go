@@ -1,5 +1,13 @@
 package enum
 
+import (
+	"fmt"
+	"strings"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
+)
+
 type LevelGenerationRegionVariantType uint32
 
 const (
@@ -84,6 +92,36 @@ const (
 
 func (p LevelGenerationRegionVariantType) MarshalText() ([]byte, error) {
 	return []byte(p.String()), nil
+}
+
+var LevelGenerationRegionVariantFriendlyMap map[string]LevelGenerationRegionVariantType
+var LevelGenerationRegionVariantFriendlyMapLower map[string]LevelGenerationRegionVariantType
+
+func init() {
+	LevelGenerationRegionVariantFriendlyMap = make(map[string]LevelGenerationRegionVariantType)
+	LevelGenerationRegionVariantFriendlyMapLower = make(map[string]LevelGenerationRegionVariantType)
+	caser := cases.Lower(language.English)
+	for i := range LevelGenerationRegionVariant_count {
+		LevelGenerationRegionVariantFriendlyMap[i.FriendlyString()] = i
+		LevelGenerationRegionVariantFriendlyMapLower[caser.String(i.FriendlyString())] = i
+	}
+}
+
+func (p LevelGenerationRegionVariantType) FriendlyString() string {
+	if p == LevelGenerationRegionVariant_none {
+		return "<none>"
+	}
+
+	if p >= LevelGenerationRegionVariant_count {
+		return p.String()
+	}
+	result := strings.TrimPrefix(p.String(), "LevelGenerationRegionVariant_region_")
+	if strings.Contains(result, "Value") {
+		// These region variants were not used by any planet last time I touched this file
+		return fmt.Sprintf("unusedRegionVariant(%v)", int(p))
+	}
+	caser := cases.Title(language.English)
+	return caser.String(strings.ReplaceAll(result, "_", " "))
 }
 
 //go:generate go run golang.org/x/tools/cmd/stringer -type=LevelGenerationRegionVariantType

@@ -35,25 +35,25 @@ func _() {
 	_ = x[SubRegionType_Value_24_Len_20-24]
 	_ = x[SubRegionType_Value_25_Len_25-25]
 	_ = x[SubRegionType_Value_26_Len_27-26]
-	_ = x[SubRegionType_Value_27_Len_27-27]
-	_ = x[SubRegionType_Value_28_Len_27-28]
-	_ = x[SubRegionType_Value_29_Len_27-29]
-	_ = x[SubRegionType_Value_30_Len_27-30]
-	_ = x[SubRegionType_Value_31_Len_27-31]
-	_ = x[SubRegionType_Value_32_Len_27-32]
-	_ = x[SubRegionType_Value_33_Len_27-33]
-	_ = x[SubRegionType_Value_34_Len_27-34]
-	_ = x[SubRegionType_Value_35_Len_18-35]
-	_ = x[SubRegionType_Value_36_Len_35-36]
-	_ = x[SubRegionType_Value_37_Len_35-37]
-	_ = x[SubRegionType_Value_38_Len_35-38]
-	_ = x[SubRegionType_Value_39_Len_35-39]
-	_ = x[SubRegionType_Value_40_Len_19-40]
+	_ = x[SubRegionType_Bugs_Colony_A-27]
+	_ = x[SubRegionType_Bugs_Colony_B-28]
+	_ = x[SubRegionType_Bugs_Colony_C-29]
+	_ = x[SubRegionType_Bugs_Colony_D-30]
+	_ = x[SubRegionType_Bots_Colony_A-31]
+	_ = x[SubRegionType_Bots_Colony_B-32]
+	_ = x[SubRegionType_Bots_Colony_C-33]
+	_ = x[SubRegionType_Bots_Colony_D-34]
+	_ = x[SubRegionType_Hive-35]
+	_ = x[SubRegionType_Illuminate_Colonies_A-36]
+	_ = x[SubRegionType_Illuminate_Colonies_B-37]
+	_ = x[SubRegionType_Illuminate_Colonies_C-38]
+	_ = x[SubRegionType_Illuminate_Colonies_D-39]
+	_ = x[SubRegionType_Count-40]
 }
 
-const _SubRegionType_name = "SubRegionType_NoneSubRegionType_Blocker_BottomSubRegionType_Blocker_Bottom_BSubRegionType_Blocker_Bottom_CSubRegionType_Blocker_GeneralSubRegionType_Blocker_General_BSubRegionType_Blocker_General_CSubRegionType_ASubRegionType_BSubRegionType_CSubRegionType_DSubRegionType_ESubRegionType_FSubRegionType_GSubRegionType_HSubRegionType_ISubRegionType_JSubRegionType_ExtraResourcesSubRegionType_BugsSubRegionType_Value_19_Len_26SubRegionType_Value_20_Len_25SubRegionType_CyborgsSubRegionType_Value_22_Len_24SubRegionType_IlluminateSubRegionType_Value_24_Len_20SubRegionType_Value_25_Len_25SubRegionType_Value_26_Len_27SubRegionType_Value_27_Len_27SubRegionType_Value_28_Len_27SubRegionType_Value_29_Len_27SubRegionType_Value_30_Len_27SubRegionType_Value_31_Len_27SubRegionType_Value_32_Len_27SubRegionType_Value_33_Len_27SubRegionType_Value_34_Len_27SubRegionType_Value_35_Len_18SubRegionType_Value_36_Len_35SubRegionType_Value_37_Len_35SubRegionType_Value_38_Len_35SubRegionType_Value_39_Len_35SubRegionType_Value_40_Len_19"
+const _SubRegionType_name = "SubRegionType_NoneSubRegionType_Blocker_BottomSubRegionType_Blocker_Bottom_BSubRegionType_Blocker_Bottom_CSubRegionType_Blocker_GeneralSubRegionType_Blocker_General_BSubRegionType_Blocker_General_CSubRegionType_ASubRegionType_BSubRegionType_CSubRegionType_DSubRegionType_ESubRegionType_FSubRegionType_GSubRegionType_HSubRegionType_ISubRegionType_JSubRegionType_ExtraResourcesSubRegionType_BugsSubRegionType_Value_19_Len_26SubRegionType_Value_20_Len_25SubRegionType_CyborgsSubRegionType_Value_22_Len_24SubRegionType_IlluminateSubRegionType_Value_24_Len_20SubRegionType_Value_25_Len_25SubRegionType_Value_26_Len_27SubRegionType_Bugs_Colony_ASubRegionType_Bugs_Colony_BSubRegionType_Bugs_Colony_CSubRegionType_Bugs_Colony_DSubRegionType_Bots_Colony_ASubRegionType_Bots_Colony_BSubRegionType_Bots_Colony_CSubRegionType_Bots_Colony_DSubRegionType_HiveSubRegionType_Illuminate_Colonies_ASubRegionType_Illuminate_Colonies_BSubRegionType_Illuminate_Colonies_CSubRegionType_Illuminate_Colonies_DSubRegionType_Count"
 
-var _SubRegionType_index = [...]uint16{0, 18, 46, 76, 106, 135, 166, 197, 212, 227, 242, 257, 272, 287, 302, 317, 332, 347, 375, 393, 422, 451, 472, 501, 525, 554, 583, 612, 641, 670, 699, 728, 757, 786, 815, 844, 873, 902, 931, 960, 989, 1018}
+var _SubRegionType_index = [...]uint16{0, 18, 46, 76, 106, 135, 166, 197, 212, 227, 242, 257, 272, 287, 302, 317, 332, 347, 375, 393, 422, 451, 472, 501, 525, 554, 583, 612, 639, 666, 693, 720, 747, 774, 801, 828, 846, 881, 916, 951, 986, 1005}
 
 func (i SubRegionType) String() string {
 	idx := int(i) - 0

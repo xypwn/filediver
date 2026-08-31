@@ -88,6 +88,12 @@ class CapeMaterialLoader(FilediverMaterialLoaderInterface):
         object_mat["needsBakeUVs"] = True
         return object_mat
 
+    def preprocess_config(self, data, gltf, materialTextures, config):
+        _ = data
+        _ = gltf
+        _ = materialTextures
+        return config
+
     @classmethod
     def can_configure(cls, config: dict) -> bool:
         return "material_lut" in config["extras"] and "cape_lut" in config["extras"]

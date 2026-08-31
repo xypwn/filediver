@@ -17,6 +17,10 @@ class FilediverMaterialLoaderInterface(ABC):
     def get_material(self, config: dict, index: int) -> Optional[bpy.types.Material]:
         """Search for an existing copy of this configuration and return it if found"""
 
+    @abstractmethod
+    def preprocess_config(self, data: bpy.types.BlendData, gltf: dict, materialTextures: Dict[int, Dict[str, bpy.types.Image]], config: dict) -> dict:
+        """Apply any required preprocessing to the config using bpy.data and the gltf file"""
+
     @classmethod
     @abstractmethod
     def can_configure(cls, config: dict) -> bool:

@@ -43,6 +43,12 @@ class SkinMaterialLoader(FilediverMaterialLoaderInterface):
         object_mat["needsBakeUVs"] = True
         return object_mat
 
+    def preprocess_config(self, data, gltf, materialTextures, config):
+        _ = data
+        _ = gltf
+        _ = materialTextures
+        return config
+
     @classmethod
     def can_configure(cls, config: dict) -> bool:
         return "color_roughness" in config["extras"] and "normal_specular_ao" in config["extras"] and len(config["extras"]) == 2

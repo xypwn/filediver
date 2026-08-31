@@ -994,6 +994,11 @@ struct TerrainMeshInfoPtrList {
     TerrainMeshInfo *terrainMeshInfo : u32 [[pointer_base("relative_to_parent")]];
 };
 
+struct String {
+    u32 count;
+    char data[count];
+};
+
 struct Header {
     u8 unk00[8];
     MurmurHash bones;
@@ -1018,6 +1023,7 @@ struct Header {
     std::ptr::NullablePtr<TerrainMeshInfoPtrList, u32> TerrainMeshInfoOffset;
     padding[4];
     std::ptr::NullablePtr<MaterialList, u32> MaterialListOffset;
+    std::ptr::NullablePtr<String, u32> Lua;
     // $ = meshDataListAddress;
     // calculateMeshDataOffset(std::mem::read_unsigned(meshDataListAddress, 4));
     // std::ptr::NullablePtr<MeshDataList, u32> MeshDataOffset;

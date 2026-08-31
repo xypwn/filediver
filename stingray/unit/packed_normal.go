@@ -52,7 +52,7 @@ func encodeOctahedral(v mgl32.Vec3) mgl32.Vec2 {
 	return mgl32.Vec2{x, y}
 }
 
-func DecodePackedNormal(v uint32) (normal, tangent, bitangent mgl32.Vec3) {
+func DecodePackedNormal(v uint32) (normal mgl32.Vec3, tangent mgl32.Vec4, bitangent mgl32.Vec3) {
 	// See https://www.jeremyong.com/graphics/2023/01/09/tangent-spaces-and-diamond-encoding/
 
 	r10 := v & 0x3ff         // packed normal X
@@ -91,19 +91,22 @@ func DecodePackedNormal(v uint32) (normal, tangent, bitangent mgl32.Vec3) {
 	}
 
 	var tangentBase mgl32.Vec3 // tangentBase is orthogonal to normal
+	var tangentBasis float32
 	if tangentBaseChoice {
 		tangentBase = (mgl32.Vec3{normal.Y(), -normal.X(), 0}).Normalize()
+		tangentBasis = 1.0
 	} else {
 		tangentBase = (mgl32.Vec3{normal.Z(), 0, -normal.X()}).Normalize()
+		tangentBasis = -1.0
 	}
 
 	// Rotate tangentBase around normal.
 	// See https://en.wikipedia.org/wiki/Rodrigues%27_rotation_formula
 	// (last term omitted, since tangentBase is orthogonal to normal).
 	tangent = tangentBase.Mul(catheti.X()).
-		Add(tangentBase.Cross(normal).Mul(catheti.Y()))
+		Add(tangentBase.Cross(normal).Mul(catheti.Y())).Vec4(tangentBasis)
 
-	bitangent = normal.Cross(tangent)
+	bitangent = normal.Cross(tangent.Vec3())
 
 	if a2 == 3 {
 		bitangent = (mgl32.Vec3{}).Sub(bitangent)

@@ -119,6 +119,7 @@ type App struct {
 	EntityVarMapping   shading_environment.ShadingEnvironmentEntityToShaderMapping
 	Planets            map[string]datalib.PlanetData
 	PlanetOverrides    datalib.PlanetOverridesMap
+	PlanetRegionsMap   map[stingray.ThinHash]datalib.GenerationRegionVariantList
 	AssetOverrides     *map[stingray.FileID]stingray.FileID
 	DataDir            *stingray.DataDir
 	Language           stingray.ThinHash
@@ -532,6 +533,15 @@ func OpenGameDir(ctx context.Context, gameDir string, hashStrings []string, thin
 	for _, override := range planetOverrides {
 		maps.Copy(planetOverridesMap, override.ToMap())
 	}
+
+	planetRegionMappings := make(map[stingray.ThinHash]datalib.GenerationRegionVariantList)
+	regionGroups, err := datalib.LoadRegionGroups(lookupHash, lookupThinHash, lookupString)
+	if err == nil {
+		for _, group := range regionGroups {
+			maps.Copy(planetRegionMappings, group.RegionsMap())
+		}
+	}
+
 	var assetOverrides map[stingray.FileID]stingray.FileID
 
 	return &App{
@@ -544,6 +554,7 @@ func OpenGameDir(ctx context.Context, gameDir string, hashStrings []string, thin
 		EntityVarMapping:   entityVarMapping,
 		Planets:            planetMap,
 		PlanetOverrides:    planetOverridesMap,
+		PlanetRegionsMap:   planetRegionMappings,
 		AssetOverrides:     &assetOverrides,
 		DataDir:            dataDir,
 		Language:           language,
@@ -894,6 +905,8 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 		a.WeaponPaintSchemes,
 		a.AttachmentSlots,
 		a.EntityVarMapping,
+		a.Planets,
+		a.PlanetRegionsMap,
 		a.GameBuildInfo,
 		a.LanguageMap,
 		a.DataDir,
