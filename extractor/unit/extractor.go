@@ -763,7 +763,7 @@ func getZone(ctx *extractor.Context, variantType enum.LevelGenerationRegionVaria
 	if err != nil {
 		return nil, err
 	}
-	ctx.Warnf("Using %v subregion %v: %v", variantType.FriendlyString(), subregion.Type.FriendlyString(), zoneId.String())
+	ctx.Statusf("Using %v subregion %v: %v", variantType.FriendlyString(), subregion.Type.FriendlyString(), zoneId.String())
 	return &zones[zoneId-1], nil
 }
 
@@ -804,7 +804,7 @@ type materialGeneratorSettings struct {
 
 func addTerrainProjectors(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_material.ImageOptions, zone datalib.ZoneSettings, colorGradingDDS bytes.Buffer) (stingray.Hash, []materialGeneratorSettings, error) {
 	noiseMap := stingray.Sum("")
-	ctx.Warnf("Using zone material lookup unit %v", ctx.LookupHash(zone.MaterialLookupUnit))
+	ctx.Statusf("Using zone material lookup unit %v", ctx.LookupHash(zone.MaterialLookupUnit))
 	fMain, err := ctx.Open(stingray.NewFileID(zone.MaterialLookupUnit, stingray.Sum("unit")), stingray.DataMain)
 	if err != nil {
 		return noiseMap, nil, fmt.Errorf("Failed to open terrain lookup unit %v: %v", ctx.LookupHash(zone.MaterialLookupUnit), err)
@@ -835,7 +835,6 @@ func addTerrainProjectors(ctx *extractor.Context, doc *gltf.Document, imgOpts *e
 			return noiseMap, nil, fmt.Errorf("could not load material noise generator %v: %v", ctx.LookupHash(materialGenerator.Shader), err)
 		}
 		if tex, contains := genMat.Textures[stingray.Sum("texture_map_0b1b5dad").Thin()]; contains && noiseMap != tex {
-			ctx.Warnf("Switching noise map from '%v' to '%v'", ctx.LookupHash(noiseMap), ctx.LookupHash(tex))
 			noiseMap = tex
 		}
 
@@ -879,6 +878,32 @@ func AddTerrainMaterial(ctx *extractor.Context, doc *gltf.Document, imgOpts *ext
 		zone, err2 = getZoneFromPlanet(ctx)
 		if err2 != nil {
 			ctx.Warnf("Failed to get zone for terrain material: %v and %v", err, err2)
+		}
+	}
+
+	if zone == nil {
+		ctx.Warnf("Defaulting to Super Earth since no planet was specified")
+		planetName := "super earth"
+		planet, contains := ctx.Planets()[planetName]
+		if !contains {
+			ctx.Warnf("Super Earth doesn't have settings associated with it? (This shouldn't happen)")
+			return nil
+		}
+
+		region, contains := ctx.PlanetRegionsMap()[planet.RegionHighland.Id]
+		if !contains {
+			// planet region highland and region lowland have the same id for every planet in the game
+			// so theres no point in checking the other one here
+			ctx.Warnf("Super Earth doesn't have a valid region (this shouldn't happen)")
+			return nil
+		}
+
+		variant := chooseRandomRegionVariant(region.Variants)
+
+		zone, err = getZone(ctx, variant.Type)
+		if err != nil {
+			ctx.Warnf("Super Earth doesn't have a valid zone (this shouldn't happen)")
+			return nil
 		}
 	}
 
