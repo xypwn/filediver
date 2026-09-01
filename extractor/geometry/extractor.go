@@ -906,12 +906,16 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, me
 	boneList := make([]int, 0)
 	gameMeshIdx := -1
 	for idx, bone := range unitInfo.Bones {
+		if len(bone.Children) == 0 {
+			continue
+		}
 		name := ctx.LookupThinHash(bone.NameHash)
-		switch name {
-		case "game_mesh":
+		if strings.Contains(name, "game") {
 			gameMeshIdx = idx
-			fallthrough
-		case "shadow_mesh", "rubble", "rubble_collision":
+		}
+		if strings.Contains(name, "game") ||
+			strings.Contains(name, "shadow") ||
+			strings.Contains(name, "rubble") {
 			boneList = append(boneList, idx)
 		}
 	}
