@@ -763,6 +763,7 @@ def main():
     parser.add_argument("output", type=Path, help="Location to save .blend file")
     parser.add_argument("--debug", action="store_true", help="Export debug data")
     parser.add_argument("--packall", action="store_true", help="Pack all images")
+    parser.add_argument("--keep-fake-users", action="store_true", help="Keep fake user setting (increases filesize but allows usage of other materials/node groups when building new shaders)")
 
     script_path = Path(os.path.realpath(__file__)).parent
     resource_path = script_path / "resources"
@@ -982,34 +983,36 @@ def main():
                 if i.variants[0].variant.variant_idx == 0:
                     obj.material_slots[i.material_slot_index].material = i.material
 
-    for i in range(len(bpy.data.materials)):
-        bpy.data.materials[i].use_fake_user = False
+    delete_fake_users = not args.keep_fake_users
+    if delete_fake_users:
+        for i in range(len(bpy.data.materials)):
+            bpy.data.materials[i].use_fake_user = False
+    
+        for i in range(len(bpy.data.node_groups)):
+            bpy.data.node_groups[i].use_fake_user = False
+    
+        for i in range(len(bpy.data.images)):
+            bpy.data.images[i].use_fake_user = False
 
-    for i in range(len(bpy.data.node_groups)):
-        bpy.data.node_groups[i].use_fake_user = False
-
-    for i in range(len(bpy.data.images)):
-        bpy.data.images[i].use_fake_user = False
-
-    while True:
-        removed = 0
-        for material in bpy.data.materials:
-            if material.users != 0:
-                continue
-            removed += 1
-            bpy.data.materials.remove(material)
-        for node_group in bpy.data.node_groups:
-            if node_group.users != 0:
-                continue
-            removed += 1
-            bpy.data.node_groups.remove(node_group)
-        for image in bpy.data.images:
-            if image.users != 0:
-                continue
-            removed += 1
-            bpy.data.images.remove(image)
-        if removed == 0:
-            break
+        while True:
+            removed = 0
+            for material in bpy.data.materials:
+                if material.users != 0:
+                    continue
+                removed += 1
+                bpy.data.materials.remove(material)
+            for node_group in bpy.data.node_groups:
+                if node_group.users != 0:
+                    continue
+                removed += 1
+                bpy.data.node_groups.remove(node_group)
+            for image in bpy.data.images:
+                if image.users != 0:
+                    continue
+                removed += 1
+                bpy.data.images.remove(image)
+            if removed == 0:
+                break
 
     bpy.ops.wm.save_mainfile(filepath=str(output))
 
