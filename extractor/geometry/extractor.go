@@ -910,10 +910,12 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, me
 			continue
 		}
 		name := ctx.LookupThinHash(bone.NameHash)
-		if strings.Contains(name, "game") {
+		if strings.Contains(name, "game") ||
+			strings.Contains(name, "cha_seaf_soldier_male") {
 			gameMeshIdx = idx
 		}
 		if strings.Contains(name, "game") ||
+			strings.Contains(name, "cha_seaf_soldier_male") ||
 			strings.Contains(name, "shadow") ||
 			strings.Contains(name, "rubble") {
 			boneList = append(boneList, idx)

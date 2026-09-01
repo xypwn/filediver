@@ -32588,3 +32588,13 @@ male_civilian_corpse_01_game_mesh
 male_civilian_corpse_01_collision
 male_civilian_corpse_01_navigation
 male_civilian_corpse_01_shadow
+emote_equip
+action_wave_01
+aim_done
+exit_transition
+idle_aim
+cover_low_left
+cover_low_right
+cover_done
+crouch_done
+downed_done
