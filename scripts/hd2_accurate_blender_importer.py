@@ -982,6 +982,35 @@ def main():
                 if i.variants[0].variant.variant_idx == 0:
                     obj.material_slots[i.material_slot_index].material = i.material
 
+    for i in range(len(bpy.data.materials)):
+        bpy.data.materials[i].use_fake_user = False
+
+    for i in range(len(bpy.data.node_groups)):
+        bpy.data.node_groups[i].use_fake_user = False
+
+    for i in range(len(bpy.data.images)):
+        bpy.data.images[i].use_fake_user = False
+
+    while True:
+        removed = 0
+        for material in bpy.data.materials:
+            if material.users != 0:
+                continue
+            removed += 1
+            bpy.data.materials.remove(material)
+        for node_group in bpy.data.node_groups:
+            if node_group.users != 0:
+                continue
+            removed += 1
+            bpy.data.node_groups.remove(node_group)
+        for image in bpy.data.images:
+            if image.users != 0:
+                continue
+            removed += 1
+            bpy.data.images.remove(image)
+        if removed == 0:
+            break
+
     bpy.ops.wm.save_mainfile(filepath=str(output))
 
 
