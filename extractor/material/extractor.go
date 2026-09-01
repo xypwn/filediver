@@ -816,6 +816,26 @@ func checkBuildingShaderDecalUV(ctx *extractor.Context, mat *material.Material) 
 	return 0, nil
 }
 
+func AddDummyMaterial(doc *gltf.Document, name string) *uint32 {
+	for i, mat := range doc.Materials {
+		if mat.Name == name {
+			return gltf.Index(uint32(i))
+		}
+	}
+	material := gltf.Index(uint32(len(doc.Materials)))
+	doc.Materials = append(doc.Materials, &gltf.Material{
+		Name: name,
+		PBRMetallicRoughness: &gltf.PBRMetallicRoughness{
+			BaseColorFactor: &[4]float32{1.0, 1.0, 1.0, 1.0},
+		},
+		Extras: map[string]any{
+			"keep": true,
+		},
+	})
+	doc.Images = append(doc.Images, &gltf.Image{Name: "dummy", URI: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAANmVYSWZNTQAqAAAAGAAAAEgAAAABAAAASAAAAAEAAgEaAAUAAAABAAAACAEbAAUAAAABAAAAEAAAAACQeO+8AAAACW9GRnMAAAAAAAAAAADaKrbOAAAACXBIWXMAAAsSAAALEgHS3X78AAAADUlEQVQIHWNgYGD4DwABBAEAHnOcQAAAAABJRU5ErkJggg=="})
+	return material
+}
+
 func AddColorGradingLUT(ctx *extractor.Context, doc *gltf.Document, colorGradingDDS bytes.Buffer, matInfo *material.Material) {
 	colorGradingName := ctx.ColorGrading()
 	if ctx.ColorGrading().Value == 0x0 {

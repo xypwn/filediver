@@ -17,6 +17,7 @@ import (
 
 	datalib "github.com/xypwn/filediver/datalibrary"
 	"github.com/xypwn/filediver/extractor"
+	extr_material "github.com/xypwn/filediver/extractor/material"
 	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/stingray/unit"
 )
@@ -1262,7 +1263,11 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, me
 			var material *uint32
 			// There are a couple of models where there are fewer materials than meshes, so this is here
 			// to prevent us from panicking if we're exporting one of those
-			if int(group.MaterialIdx) < len(header.Materials) {
+			if len(materialIndices) == 0 {
+				name := ctx.LookupThinHash(header.Materials[group.MaterialIdx])
+				material = extr_material.AddDummyMaterial(doc, name)
+				ctx.Warnf("Unit does not contain any materials")
+			} else if int(group.MaterialIdx) < len(header.Materials) {
 				materialVal, ok := materialIndices[0].MaterialHashToIndex[header.Materials[group.MaterialIdx]]
 				if ok {
 					material = &materialVal
