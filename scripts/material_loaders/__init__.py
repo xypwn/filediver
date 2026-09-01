@@ -11,6 +11,7 @@ from .illuminate_ruins_material_loader import IlluminateRuinsMaterialLoader
 from .lights_material_loader import LightsMaterialLoader
 from .lut_skin_material_loader import LutSkinMaterialLoader
 from .portal_material_loader import PortalMaterialLoader
+from .rift_plant_material_loader import RiftPlantMaterialLoader
 from .skin_material_loader import SkinMaterialLoader
 from .speedtree_material_loader import SpeedtreeMaterialLoader
 from .tank_glass_material_loader import TankGlassMaterialLoader
@@ -32,6 +33,7 @@ __all__ = [
     "LightsMaterialLoader",
     "LutSkinMaterialLoader",
     "PortalMaterialLoader",
+    "RiftPlantMaterialLoader",
     "SkinMaterialLoader",
     "SpeedtreeMaterialLoader",
     "TankGlassMaterialLoader",
