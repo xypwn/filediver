@@ -44,6 +44,7 @@ material_loaders: List[FilediverMaterialLoaderInterface] = [
     LightsMaterialLoader(),
     LutSkinMaterialLoader(),
     PortalMaterialLoader(),
+    RockMaterialLoader(),
     RiftPlantMaterialLoader(),
     SkinMaterialLoader(),
     SpeedtreeMaterialLoader(),

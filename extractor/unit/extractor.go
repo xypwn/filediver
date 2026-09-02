@@ -311,8 +311,11 @@ func AddMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_mate
 			return nil, err
 		}
 
-		materialSlot := ctx.LookupThinHash(id)
-		if strings.HasPrefix(materialSlot, "projector") {
+		has_grading := slices.ContainsFunc(slices.Collect(maps.Keys(mat.Settings)), func(name stingray.ThinHash) bool {
+			return strings.Contains(ctx.LookupThinHash(name), "grading_group_id")
+		})
+
+		if has_grading {
 			extr_material.AddColorGradingLUT(ctx, doc, colorGradingDDS, mat)
 		}
 
