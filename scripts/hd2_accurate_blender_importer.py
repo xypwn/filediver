@@ -50,6 +50,12 @@ material_loaders: List[FilediverMaterialLoaderInterface] = [
     TerrainMaterialLoader(),
 ]
 
+# 1x1 (0, 0, 0, 1) png
+DUMMY_IMAGE = {
+    "name": "dummy",
+    "uri": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAANmVYSWZNTQAqAAAAGAAAAEgAAAABAAAASAAAAAEAAgEaAAUAAAABAAAACAEbAAUAAAABAAAAEAAAAACQeO+8AAAACW9GRnMAAAAAAAAAAADaKrbOAAAACXBIWXMAAAsSAAALEgHS3X78AAAADUlEQVQIHWNgYGD4DwABBAEAHnOcQAAAAABJRU5ErkJggg=="
+}
+
 class IDPropertyUIManager:
     def update(subtype=None, min=None, max=None, soft_min=None, soft_max=None, precision=None, step=None, default=None, id_type=None, items=None, description=None):
         """
@@ -767,6 +773,11 @@ def main():
 
     gltf = load_glb(input_model, args.debug)
     assert gltf["asset"]["generator"] == "https://github.com/xypwn/filediver", f"GLB file was not created by Filediver! (Generator: {gltf['asset']['generator']})"
+    modified = "materials" not in gltf or gltf["materials"] is None or "images" not in gltf or gltf["images"] is None
+    if "materials" not in gltf or gltf["materials"] is None:
+        gltf["materials"] = []
+    if "images" not in gltf or gltf["images"] is None:
+        gltf["images"] = [DUMMY_IMAGE]
 
     print("Deleting Default Cube o7")
     bpy.data.objects["Cube"].select_set(True)
@@ -776,7 +787,7 @@ def main():
     tmp_file = None
     try:
         path = input_model
-        if str(path) == "-":
+        if str(path) == "-" or modified:
             tmp_file = tempfile.NamedTemporaryFile(prefix="filediver-", delete=False)
             print(f"Writing glb to temporary file {tmp_file.name}")
             write_glb(tmp_file, gltf)
