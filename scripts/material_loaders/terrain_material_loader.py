@@ -202,6 +202,7 @@ class TerrainMaterialLoader(FilediverMaterialLoaderInterface):
 
     def add_material(self, config: dict, textures: Dict[str, bpy.types.Image]) -> bpy.types.Material:
         object_mat: Material = bpy.data.materials.new(f"HD2 {self.key()} " + config["name"])
+        object_mat.diffuse_color = (0.2, 0.05, 0.0, 1.0)
         object_mat.use_nodes = True
         object_mat.node_tree.nodes.remove(object_mat.node_tree.nodes["Principled BSDF"])
 
@@ -236,13 +237,19 @@ class TerrainMaterialLoader(FilediverMaterialLoaderInterface):
         bracket_origin: Vector2 = Vector2(x = origin["x"] + location["x"] + noise_generator.width + vertical_offset / 6, y = origin["y"] + vertical_offset / 2)
         winner, losers = self.__add_bracket(tree, bracket_sockets, bracket_origin, vertical_offset)
 
-        columns = math.ceil(math.log2(len(losers)))
-        bracket_origin_2: Vector2 = Vector2(x = origin["x"] + location["x"] + noise_generator.width + vertical_offset * 2 / 6, y = origin["y"] - vertical_offset / 2 - vertical_offset * columns)
-        second_place, losers = self.__add_bracket(tree, losers, bracket_origin_2, vertical_offset)
+        if len(losers) == 0:
+            second_place = winner
+        else:
+            columns = math.ceil(math.log2(len(losers)))
+            bracket_origin_2: Vector2 = Vector2(x = origin["x"] + location["x"] + noise_generator.width + vertical_offset * 2 / 6, y = origin["y"] - vertical_offset / 2 - vertical_offset * columns)
+            second_place, losers = self.__add_bracket(tree, losers, bracket_origin_2, vertical_offset)
 
-        third_columns = math.ceil(math.log2(len(losers)))
-        bracket_origin_3: Vector2 = Vector2(x = origin["x"] + location["x"] + noise_generator.width + vertical_offset * 3 / 6, y = origin["y"] - vertical_offset - vertical_offset * columns - vertical_offset * third_columns)
-        third_place, _ = self.__add_bracket(tree, losers, bracket_origin_3, vertical_offset)
+        if len(losers) == 0:
+            third_place = winner
+        else:
+            third_columns = math.ceil(math.log2(len(losers)))
+            bracket_origin_3: Vector2 = Vector2(x = origin["x"] + location["x"] + noise_generator.width + vertical_offset * 3 / 6, y = origin["y"] - vertical_offset - vertical_offset * columns - vertical_offset * third_columns)
+            third_place, _ = self.__add_bracket(tree, losers, bracket_origin_3, vertical_offset)
 
         self.__add_blending_nodes(tree, bracket_origin, vertical_offset, winner, second_place, third_place)
 
