@@ -32598,3 +32598,4 @@ cover_low_right
 cover_done
 crouch_done
 downed_done
+visor
