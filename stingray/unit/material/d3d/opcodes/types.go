@@ -335,6 +335,9 @@ func (v Variable) ToGLSL() string {
 	if len(v.DefaultData) > 0 {
 		toReturn += fmt.Sprintf(", default data: %v", v.DefaultData)
 	}
+	if (v.Flags & ShaderVariableFlags_Used) == 0 {
+		toReturn += ", unused"
+	}
 	switch v.Class {
 	case SVC_MATRIX_ROWS, SVC_V10_MATRIX_ROWS:
 		toReturn += ", row major"
