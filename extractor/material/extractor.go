@@ -23,6 +23,7 @@ import (
 	extr_texture "github.com/xypwn/filediver/extractor/texture"
 	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/stingray/unit/material"
+	d3dops "github.com/xypwn/filediver/stingray/unit/material/d3d/opcodes"
 )
 
 type ImageOptions struct {
@@ -851,6 +852,50 @@ func AddColorGradingLUT(ctx *extractor.Context, doc *gltf.Document, colorGrading
 	matInfo.Textures[stingray.Sum("asset_color_grading_lut").Thin()] = colorGradingName
 }
 
+func getShaderSettings(ctx *extractor.Context, fileId stingray.FileID, name stingray.ThinHash) (toReturn []d3dops.Variable) {
+	gpuR, err := ctx.Open(fileId, stingray.DataGPU)
+	if err != nil {
+		return nil
+	}
+	matGpu, err := material.LoadGPU(gpuR)
+	if err != nil {
+		return nil
+	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			ctx.Warnf("shader %v.%v failed to parse shader settings: %v", ctx.LookupHash(fileId.Name), ctx.LookupHash(fileId.Type), r)
+		}
+	}()
+
+	toReturn = make([]d3dops.Variable, 0)
+	for _, shaderProgram := range matGpu.ShaderPrograms.ProgramBlocks {
+		for _, program := range shaderProgram.Programs {
+			shaders := []*material.Shader{
+				program.VertexShader,
+				program.PixelShader,
+				program.DomainShader,
+				program.HullShader,
+				program.InstancedVertexShader,
+			}
+
+			for _, shader := range shaders {
+				if shader == nil {
+					continue
+				}
+				for _, cbuf := range shader.ResourceDefinitions.ConstantBuffers {
+					for _, variable := range cbuf.Variables {
+						if stingray.Sum(variable.Name).Thin() == name {
+							toReturn = append(toReturn, variable)
+						}
+					}
+				}
+			}
+		}
+	}
+	return
+}
+
 func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Document, imgOpts *ImageOptions, matSlot stingray.ThinHash, matName string, unitData *datalib.UnitData) (uint32, error) {
 	cfg := ctx.Config()
 
@@ -1446,6 +1491,22 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 
 	for setting, value := range mat.Settings {
 		materialSettingsAndTextures[ctx.LookupThinHash(setting)] = value
+	}
+
+	if _, contains := materialSettingsAndTextures["decal_id"]; contains {
+		fileId := ctx.FileID()
+		if mat.BaseMaterial.Value != 0x0 {
+			fileId.Name = mat.BaseMaterial
+		}
+		decalIdUsages := getShaderSettings(ctx, fileId, stingray.Sum("decal_id").Thin())
+		if len(decalIdUsages) > 0 {
+			used := slices.ContainsFunc(decalIdUsages, func(variable d3dops.Variable) bool {
+				return (variable.Flags & d3dops.ShaderVariableFlags_Used) != 0
+			})
+			if !used {
+				materialSettingsAndTextures["decal_id"] = "unused"
+			}
+		}
 	}
 
 	entityHash := ctx.FileID().Name

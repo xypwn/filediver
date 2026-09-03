@@ -259,7 +259,7 @@ func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gl
 		}
 		extr_material.AddColorGradingLUT(ctx, doc, colorGradingDDS, matInfo)
 
-		matIdx, err := extr_material.AddMaterial(ctx, matInfo, doc, imgOpts, stingray.Sum("speedtree").Thin(), treeInfo.SDKMaterials[mat.Index].Name+fmt.Sprintf(" %v", matPath), nil)
+		matIdx, err := extr_material.AddMaterial(ctx.WithFileID(materialId), matInfo, doc, imgOpts, stingray.Sum("speedtree").Thin(), treeInfo.SDKMaterials[mat.Index].Name+fmt.Sprintf(" %v", matPath), nil)
 		if err != nil {
 			return err
 		}

@@ -12940,7 +12940,10 @@ def update_images(HD2_Shader: NodeTree, material: Material):
     primary_material_luts = [HD2_Shader.nodes[f"Primary Material LUT_{i:02d}"] for i in range(23)]
     secondary_material_luts = [HD2_Shader.nodes[f"Secondary Material LUT_{i:02d}"] for i in range(23)]
     camo_array = HD2_Shader.nodes["customization_camo_tiler_array"]
-    decal_sheets = [HD2_Shader.nodes["Decal Offsetting"].node_tree.nodes[f"Image Texture{('.00'+str(i)) if i > 0 else ''}"] for i in range(5)]
+    decal_offsetting: ShaderNodeGroup = HD2_Shader.nodes["Decal Offsetting"]
+    if decal_offsetting.node_tree.users > 1:
+        decal_offsetting.node_tree = decal_offsetting.node_tree.copy()
+    decal_sheets = [decal_offsetting.node_tree.nodes[f"Image Texture{('.00'+str(i)) if i > 0 else ''}"] for i in range(5)]
 
     #Get Pattern LUT from external texture node for shader repetition
     pattern_lut_image = node_tree.nodes["Pattern LUT Texture"].image
