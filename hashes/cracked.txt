@@ -2377,6 +2377,7 @@ content/art_shared/textures/screen_roughness
 content/art_shared/textures/snow_mask
 content/art_shared/textures/white_all_channels_dummy
 content/audio/project_bp
+content/audio/project_cn
 content/audio/project_de
 content/audio/project_es
 content/audio/project_fr
@@ -6767,7 +6768,12 @@ content/fac_super_earth/vehicles/colony_rover/m_colony_rover
 content/fac_super_earth/vehicles/forklift/forklift
 content/fallback_resources/missing_speedtree_albo
 content/fallback_resources/missing_speedtree_nrao
+content/fonts/samples
 content/game_mode
+content/gui/debug_huge
+content/gui/debug_large
+content/gui/debug_medium
+content/gui/debug_small
 content/gui/gui
 content/input
 content/level_generation_settings/env_shared/weather_settings/high_altitude_clouds/cirrculuokuus_01
@@ -6789,6 +6795,7 @@ content/levels/ship_hub-cubemaps/reflection_probe_diffuse_bake
 content/levels/ship_hub-cubemaps/reflection_probe_radiance_bake
 content/levels/ship_hub-cubemaps/reflection_probe_specular_bake
 content/markers/ammo_box_marker
+content/markers/camera_marker
 content/markers/customization_marker
 content/markers/exploration_markers/narrative/poi_text_battlefield_medium_01
 content/markers/exploration_markers/narrative/poi_text_botremains_01_01
@@ -6805,6 +6812,7 @@ content/markers/exploration_markers/narrative_node_lvl2_destruction
 content/markers/exploration_markers/narrative_node_lvl3_destruction
 content/markers/exploration_markers/narrative_node_lvl4_destruction
 content/markers/exploration_markers/narrative_node_no_destruction
+content/markers/generic_marker
 content/markers/grenade_box_marker
 content/markers/health_pack_marker
 content/markers/impact_event_marker
@@ -7569,6 +7577,7 @@ content/planet_forest_swamp/assets/speedtrees/swamp_wet_tree_set_04
 content/planet_forest_swamp/assets/speedtrees/swamp_wet_tree_set_04_gibs
 content/planet_forest_swamp/assets/speedtrees/swamp_wet_tree_set_04_stump
 content/planet_forest_swamp/assets/speedtrees/swamp_wet_tree_set_stump_01
+content/test_assets/lambert1
 content/ui/mission/hud/misc/arrows
 content/ui/mission/hud/misc/credits_icon
 content/ui/mission/hud/misc/decor_bracket
@@ -7952,6 +7961,7 @@ content/ui/ship/menu/info_terminal/ui_elements/super_earth_logo
 content/ui/ship/menu/menbackgrounds/loaderbg
 content/ui/ship/menu/menbackgrounds/loaderbgp/menu/info_terminal/ui_elements/super_earth_logo
 content/ui/ship/menu/menbackgrounds/menugrid
+content/videos/stratagems/tank
 control_tower_01
 cooling_server_
 cooling_server_01

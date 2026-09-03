@@ -82219,6 +82219,7 @@ content/audio/p8_senator
 content/audio/plas_3_plasma_pistol
 content/audio/project
 content/audio/project_bp
+content/audio/project_cn
 content/audio/project_de
 content/audio/project_es
 content/audio/project_fr
@@ -95510,7 +95511,12 @@ content/fallback_resources/missing_speedtree
 content/fallback_resources/missing_speedtree_albo
 content/fallback_resources/missing_speedtree_nrao
 content/fallback_resources/missing_unit
+content/fonts/samples
 content/game_mode
+content/gui/debug_huge
+content/gui/debug_large
+content/gui/debug_medium
+content/gui/debug_small
 content/gui/gui
 content/ies_profiles/ies_lookup
 content/input
@@ -95656,6 +95662,7 @@ content/levels/ship_hub-cubemaps/reflection_probe_diffuse_bake
 content/levels/ship_hub-cubemaps/reflection_probe_radiance_bake
 content/levels/ship_hub-cubemaps/reflection_probe_specular_bake
 content/markers/ammo_box_marker
+content/markers/camera_marker
 content/markers/customization_marker
 content/markers/exploration_markers/cache_loot_marker
 content/markers/exploration_markers/narrative/poi_text_battlefield_medium_00
@@ -95777,6 +95784,7 @@ content/markers/exploration_markers/narrative_node_lvl2_destruction
 content/markers/exploration_markers/narrative_node_lvl3_destruction
 content/markers/exploration_markers/narrative_node_lvl4_destruction
 content/markers/exploration_markers/narrative_node_no_destruction
+content/markers/generic_marker
 content/markers/grenade_box_marker
 content/markers/health_pack_marker
 content/markers/impact_event_marker
@@ -97193,6 +97201,7 @@ content/planet_forest_swamp/assets/terrain_materials/textures_packed/swamp_wet_m
 content/planet_forest_swamp/assets/terrain_materials/textures_packed/swamp_wet_mud_mask
 content/planet_forest_swamp/assets/terrain_materials/textures_packed/swamp_wet_mud_nms
 content/planet_forest_swamp/assets/terrain_materials/textures_packed/swamp_wet_mud_normal
+content/test_assets/lambert1
 content/ui/basic_mobile_hud
 content/ui/mission/hud/misc/arrows
 content/ui/mission/hud/misc/credits_icon
@@ -97579,6 +97588,7 @@ content/ui/ship/menu/menbackgrounds/loaderbgp/menu/info_terminal/ui_elements/sup
 content/ui/ship/menu/menbackgrounds/menugrid
 content/ui/simple_menu
 content/ui/template_hud
+content/videos/stratagems/tank
 contributes
 control_tower_01
 cooling_server_
