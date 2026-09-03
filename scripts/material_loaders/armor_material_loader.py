@@ -86,7 +86,7 @@ class ArmorMaterialLoader(FilediverMaterialLoaderInterface):
         for setting, value in config.get("extras", {}).items():
             if setting not in config_nodes["HD2 Shader Template"].inputs:
                 continue
-            if setting in ["decal_size_x", "decal_id_offset_x", "decal_lut_size_x"]:
+            if setting == "decal_id":
                 config_nodes["HD2 Shader Template"].inputs['use_dynamic_decals'].default_value = 1.0
             config_nodes["HD2 Shader Template"].inputs[setting].default_value = value[0]
 
