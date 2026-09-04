@@ -15,6 +15,7 @@ import (
 	"github.com/xypwn/filediver/cmd/tools/fdtools-common"
 	datalib "github.com/xypwn/filediver/datalibrary"
 	"github.com/xypwn/filediver/stingray"
+	"github.com/xypwn/filediver/stingray/physics"
 	stingray_strings "github.com/xypwn/filediver/stingray/strings"
 	"github.com/xypwn/filediver/util"
 )
@@ -52,6 +53,7 @@ func main() {
 		&argparse.ParserConfig{DisableDefaultShowHelp: true})
 	prt, a := fdtools.Init(argp)
 
+	// Datalib hashes
 	{
 		typeLib, err := datalib.ParseTypeLib(nil)
 		if err != nil {
@@ -76,6 +78,7 @@ func main() {
 		writeItems(prt, "target_datalib.txt", maps.Keys(unknown))
 	}
 
+	// Thin hashes
 	{
 		known := make(map[string]bool)
 		unknown := make(map[uint32]bool)
@@ -98,38 +101,62 @@ func main() {
 		writeItems(prt, "target_murmur64a_thin.txt", maps.Keys(unknown))
 	}
 
+	// .strings file words
 	{
 		reStrWord := regexp.MustCompile(`\w+`)
 		strs := make(map[string]struct{})
 		for id := range a.DataDir.Files {
-			if id.Type == stingray.Sum("strings") {
-				b, err := a.DataDir.ReadAtMost(id, stingray.DataMain, 0x10)
-				if err != nil {
-					prt.Fatalf("%v", err)
-				}
-				strsh, err := stingray_strings.LoadHeader(bytes.NewReader(b))
-				if err != nil {
-					prt.Fatalf("%v", err)
-				}
-				if strsh.Language != stingray.Sum("us").Thin() {
-					continue
-				}
-				b, err = a.DataDir.Read(id, stingray.DataMain)
-				if err != nil {
-					prt.Fatalf("%v", err)
-				}
-				strsf, err := stingray_strings.Load(bytes.NewReader(b))
-				for _, str := range strsf.Strings {
-					for _, s := range reStrWord.FindAllString(str, -1) {
-						s = strings.ToLower(s)
-						strs[s] = struct{}{}
-					}
+			if id.Type != stingray.Sum("strings") {
+				continue
+			}
+			b, err := a.DataDir.ReadAtMost(id, stingray.DataMain, 0x10)
+			if err != nil {
+				prt.Fatalf("%v", err)
+			}
+			strsh, err := stingray_strings.LoadHeader(bytes.NewReader(b))
+			if err != nil {
+				prt.Fatalf("%v", err)
+			}
+			if strsh.Language != stingray.Sum("us").Thin() {
+				continue
+			}
+			b, err = a.DataDir.Read(id, stingray.DataMain)
+			if err != nil {
+				prt.Fatalf("%v", err)
+			}
+			strsf, err := stingray_strings.Load(bytes.NewReader(b))
+			for _, str := range strsf.Strings {
+				for _, s := range reStrWord.FindAllString(str, -1) {
+					s = strings.ToLower(s)
+					strs[s] = struct{}{}
 				}
 			}
 		}
 		writeItems(prt, "strings_words.txt", maps.Keys(strs))
 	}
 
+	// Physics name endings
+	{
+		strs := make(map[string]struct{})
+		for id := range a.DataDir.Files {
+			if id.Type != stingray.Sum("physics") {
+				continue
+			}
+			b, err := a.DataDir.Read(id, stingray.DataMain)
+			if err != nil {
+				prt.Fatalf("%v", err)
+			}
+			physf, err := physics.LoadPhysics(bytes.NewReader(b))
+			if err != nil {
+				prt.Fatalf("%v", err)
+			}
+			s := string(physf.NameEnd[:bytes.Index(physf.NameEnd[:], []byte{0})])
+			strs[s] = struct{}{}
+		}
+		writeItems(prt, "physics_name_endings.txt", maps.Keys(strs))
+	}
+
+	// File and type name hashes
 	{
 		allHashes := make(map[uint64]struct{})
 		for id := range a.DataDir.Files {
