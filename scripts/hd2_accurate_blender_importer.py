@@ -36,6 +36,7 @@ material_loaders: List[FilediverMaterialLoaderInterface] = [
     ArmorMaterialLoader(),
     BuildingMaterialLoader(),
     CapeMaterialLoader(),
+    ConcreteAltMaterialLoader(),
     ConcreteMaterialLoader(),
     FenceMaterialLoader(),
     IlluminateBuildingMaterialLoader(),
@@ -87,7 +88,7 @@ class GLTFChunk:
         self.length = length
         self.type = type
         self.data = data
-    
+
     @classmethod
     def parse(cls, data: BytesIO) -> 'GLTFChunk':
         type: bytes
@@ -268,7 +269,7 @@ class GLTFState:
     ragdoll_name: str = None
     state_transitions: Dict[str, GLTFStateTransition] = None
     emit_end_event: str = None
-    
+
     @classmethod
     def from_json(cls, data: dict) -> 'GLTFState':
         animations = None
@@ -301,13 +302,13 @@ class GLTFState:
 class GLTFLayer:
     default_state: int
     states: List[GLTFState]
-    
+
     @classmethod
     def from_json(cls, data: dict) -> 'GLTFLayer':
         states = [GLTFState.from_json(state) for state in data["states"]]
         del data["states"]
         return cls(states=states, **data)
-    
+
     def to_dict(self) -> dict:
         return {
             "default_state": self.default_state,
@@ -327,7 +328,7 @@ class GLTFStateMachine:
     animation_variables: List[GLTFVariable]
     blend_masks: List[Dict[str, float]] = field(default_factory=list)
     all_bones: List[str] = field(default_factory=list)
-    
+
     @classmethod
     def from_json(cls, data: dict) -> 'GLTFStateMachine':
         # don't be destructive for no reason
@@ -341,7 +342,7 @@ class GLTFStateMachine:
             animation_variables = [GLTFVariable(**variable) for variable in data["animation_variables"]]
             del data["animation_variables"]
         return cls(layers=layers, animation_variables=animation_variables, **data)
-    
+
     def to_dict(self) -> dict:
         return {
             "name": self.name,
@@ -385,12 +386,12 @@ def add_state_machine(gltf: Dict, node: Dict):
         drivers.use_module = True
         drivers.use_fake_user = True
         register_drivers()
-    
+
     if "filediver_animation_controller_ui.py" not in bpy.data.texts:
         path = Path(os.path.realpath(__file__)).parent / "resources" / "filediver_animation_controller_ui.py"
         animation_controller_ui = bpy.data.texts.load(filepath=str(path), internal=True)
         animation_controller_ui.name = "filediver_animation_controller_ui.py"
-        
+
         animation_controller_ui.use_module = True
         animation_controller_ui.use_fake_user = True
 
@@ -438,7 +439,7 @@ def add_state_machine(gltf: Dict, node: Dict):
         obj.animation_data.action = layer_action
         for stateIdx, state in enumerate(layer.states):
             print(f"            Adding state {stateIdx+1}/{len(layer.states)}", end="\r")
-            
+
             filediver_state: filediver_animation_state = layer_empty.filediver_layer_states.add()
             filediver_state.name = state.name
             filediver_state.type = state.type
@@ -455,7 +456,7 @@ def add_state_machine(gltf: Dict, node: Dict):
                     filediver_transition.blend_time = transition.blend_time
                     filediver_transition.link_type = transition.type
                     filediver_transition.beat = transition.beat
-            
+
             objects_to_constrain: List[Tuple[PoseBone, float]] = []
             if state.blend_mask != -1:
                 for key, value in controller.blend_masks[state.blend_mask].items():
@@ -988,10 +989,10 @@ def main():
     if delete_fake_users:
         for i in range(len(bpy.data.materials)):
             bpy.data.materials[i].use_fake_user = False
-    
+
         for i in range(len(bpy.data.node_groups)):
             bpy.data.node_groups[i].use_fake_user = False
-    
+
         for i in range(len(bpy.data.images)):
             bpy.data.images[i].use_fake_user = False
 

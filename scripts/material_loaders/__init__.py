@@ -3,6 +3,7 @@ from .filediver_material_loader_interface import FilediverMaterialLoaderInterfac
 from .armor_material_loader import ArmorMaterialLoader
 from .building_material_loader import BuildingMaterialLoader
 from .cape_material_loader import CapeMaterialLoader
+from .concrete_alt_material_loader import ConcreteAltMaterialLoader
 from .concrete_material_loader import ConcreteMaterialLoader
 from .fence_material_loader import FenceMaterialLoader
 from .illuminate_building_material_loader import IlluminateBuildingMaterialLoader
@@ -26,6 +27,7 @@ __all__ = [
     "ArmorMaterialLoader",
     "BuildingMaterialLoader",
     "CapeMaterialLoader",
+    "ConcreteAltMaterialLoader",
     "ConcreteMaterialLoader",
     "FenceMaterialLoader",
     "IlluminateBuildingMaterialLoader",

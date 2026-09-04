@@ -461,14 +461,7 @@ func WriteDDS(ctx *extractor.Context, doc *gltf.Document, ddsR io.ReadSeeker, po
 		msftTextureDDS := make(map[string]uint32)
 		msftTextureDDS["source"] = imgIdx
 		doc.Textures[texIdx].Extensions["MSFT_texture_dds"] = msftTextureDDS
-		contained := false
-		for _, ext := range doc.ExtensionsUsed {
-			if ext == "MSFT_texture_dds" {
-				contained = true
-				break
-			}
-		}
-		if !contained {
+		if !slices.Contains(doc.ExtensionsUsed, "MSFT_texture_dds") {
 			doc.ExtensionsUsed = append(doc.ExtensionsUsed, "MSFT_texture_dds")
 		}
 	}
@@ -715,7 +708,7 @@ func compareMaterials(ctx *extractor.Context, doc *gltf.Document, mat *material.
 		return false
 	}
 	for texUsage := range mat.Textures {
-		extras := doc.Materials[matIdx].Extras.(map[string]interface{})
+		extras := doc.Materials[matIdx].Extras.(map[string]any)
 		texIdxInterface, contains := extras[ctx.LookupThinHash(texUsage)]
 		if !contains {
 			continue
@@ -1418,7 +1411,7 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 			}
 			usedTextures[texUsageStr] = index
 			imgOpts = origImgOpts
-		case "base_normal_ao_dirt", "triplanar_detail_albedo", "triplanar_detail_data", "detail_mask_", "emissive_f_stop_10_intensity_map", "water_disruption_mask", "texture_map_0b1b5dad", "emissive_texture", "displacement_tex", "displacement_map", "snow_mask_texture", "glint_sample", "pattern_masks_array", "composite_array", "customization_camo_tiler_array", "customization_material_detail_tiler_array", "decal_sheet", "id_masks_array", "Detail_Data", "surface_data_array", "pattern_data", "texture_map_319d3bb5", "metal_surface_data", "concrete_surface_data", "bcm_tex_a", "bcm_tex_b", "nar_tex_a", "nar_tex_b", "blend_tex_mask", "mask", "albedo_array", "normal_array", "emissive", "noise_map_01", "noise_map_02", "edge_noise_map", "grayscale_skin", "noise_tiler_mask", "base_tiler_nar", "base_tiler_nan", "detail_trimsheet_metallic_ceramic_masking", "ceramic_detail_tiler_basecolor", "ceramic_detail_tiler_nar", "rock_detail_tiler_basecolor", "rock_detail_tiler_nar", "detail_trimsheet_nar", "metallic_lut", "blood_splatter_tiler", "bug_splatter_tiler", "weathering_dirt", "weathering_special", "cape_tear", "cape_scalar_fields", "cape_gradient":
+		case "concrete_sampler", "base_normal_ao_dirt", "triplanar_detail_albedo", "triplanar_detail_data", "detail_mask_", "emissive_f_stop_10_intensity_map", "water_disruption_mask", "texture_map_0b1b5dad", "emissive_texture", "displacement_tex", "displacement_map", "snow_mask_texture", "glint_sample", "pattern_masks_array", "composite_array", "customization_camo_tiler_array", "customization_material_detail_tiler_array", "decal_sheet", "id_masks_array", "Detail_Data", "surface_data_array", "pattern_data", "texture_map_319d3bb5", "metal_surface_data", "concrete_surface_data", "bcm_tex_a", "bcm_tex_b", "nar_tex_a", "nar_tex_b", "blend_tex_mask", "mask", "albedo_array", "normal_array", "emissive", "noise_map_01", "noise_map_02", "edge_noise_map", "grayscale_skin", "noise_tiler_mask", "base_tiler_nar", "base_tiler_nan", "detail_trimsheet_metallic_ceramic_masking", "ceramic_detail_tiler_basecolor", "ceramic_detail_tiler_nar", "rock_detail_tiler_basecolor", "rock_detail_tiler_nar", "detail_trimsheet_nar", "metallic_lut", "blood_splatter_tiler", "bug_splatter_tiler", "weathering_dirt", "weathering_special", "cape_tear", "cape_scalar_fields", "cape_gradient":
 			hash := mat.Textures[texUsage]
 			if unitData != nil && texUsageStr == "decal_sheet" && unitData.DecalSheet.Value != 0 {
 				hash = unitData.DecalSheet
