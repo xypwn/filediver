@@ -8,54 +8,47 @@ import (
 	"os"
 	"regexp"
 	"slices"
+	"strings"
 
 	"github.com/hellflame/argparse"
 	"github.com/xypwn/filediver/app"
 	"github.com/xypwn/filediver/cmd/tools/fdtools-common"
 	datalib "github.com/xypwn/filediver/datalibrary"
 	"github.com/xypwn/filediver/stingray"
+	stingray_strings "github.com/xypwn/filediver/stingray/strings"
 	"github.com/xypwn/filediver/util"
 )
 
 var reAudioPath = regexp.MustCompile(`^content/audio(/[a-z]{2})?/[0-9]+$`)
 
-func writeHashes[T ~uint32 | uint64](prt app.Printer, filenameKnown, filenameUnknown string, knownSeq iter.Seq[string], unknownSeq iter.Seq[T]) {
-	known := slices.Collect(knownSeq)
-	slices.Sort(known)
-	util.Uniq(known)
-	unknown := slices.Collect(unknownSeq)
-	slices.Sort(unknown)
-	util.Uniq(unknown)
+func writeItems[T ~string | uint32 | uint64](prt app.Printer, filename string, itemsSeq iter.Seq[T]) {
+	items := slices.Collect(itemsSeq)
+	slices.Sort(items)
+	items = util.Uniq(items)
+
+	var typ T
+	var itemFmt string
+	switch any(typ).(type) {
+	case string:
+		itemFmt = "%s"
+	case uint32:
+		itemFmt = "0x%08x"
+	case uint64:
+		itemFmt = "0x%016x"
+	}
 
 	var b bytes.Buffer
-	if filenameKnown != "" {
-		for _, s := range known {
-			fmt.Fprintf(&b, "%s\n", s)
-		}
-		if err := os.WriteFile(filenameKnown, b.Bytes(), 0666); err != nil {
-			prt.Fatalf("%v", err)
-		}
-		prt.Infof("Wrote known hashes to %s", filenameKnown)
-		b.Reset()
+	for _, item := range items {
+		fmt.Fprintf(&b, itemFmt+"\n", item)
 	}
-
-	if _, isU64 := any(T(0)).(uint64); isU64 {
-		for _, h := range unknown {
-			fmt.Fprintf(&b, "0x%016x\n", h)
-		}
-	} else {
-		for _, h := range unknown {
-			fmt.Fprintf(&b, "0x%08x\n", h)
-		}
-	}
-	if err := os.WriteFile(filenameUnknown, b.Bytes(), 0666); err != nil {
+	if err := os.WriteFile(filename, b.Bytes(), 0666); err != nil {
 		prt.Fatalf("%v", err)
 	}
-	prt.Infof("Wrote unknown hashes to %s", filenameUnknown)
+	prt.Infof("Wrote %d items of type %T to %s", len(items), typ, filename)
 }
 
 func main() {
-	argp := argparse.NewParser("hd2-dump-hashes-for-hash-cracker", "Dumps known and unknown hashes for use with hd2-hash-cracker",
+	argp := argparse.NewParser("hd2-dump-hashes-for-hash-cracker", "Dumps known and unknown hashes and word lists for use with hd2-hash-cracker",
 		&argparse.ParserConfig{DisableDefaultShowHelp: true})
 	prt, a := fdtools.Init(argp)
 
@@ -80,7 +73,7 @@ func main() {
 				unknown[uint32(h)] = true
 			}
 		}
-		writeHashes(prt, "", "target_datalib.txt", maps.Keys(known), maps.Keys(unknown))
+		writeItems(prt, "target_datalib.txt", maps.Keys(unknown))
 	}
 
 	{
@@ -102,7 +95,39 @@ func main() {
 				handleLevelThinHashes(prt, a, id, known, unknown)
 			}
 		}
-		writeHashes(prt, "", "target_murmur64a_thin.txt", maps.Keys(known), maps.Keys(unknown))
+		writeItems(prt, "target_murmur64a_thin.txt", maps.Keys(unknown))
+	}
+
+	{
+		reStrWord := regexp.MustCompile(`\w+`)
+		strs := make(map[string]struct{})
+		for id := range a.DataDir.Files {
+			if id.Type == stingray.Sum("strings") {
+				b, err := a.DataDir.ReadAtMost(id, stingray.DataMain, 0x10)
+				if err != nil {
+					prt.Fatalf("%v", err)
+				}
+				strsh, err := stingray_strings.LoadHeader(bytes.NewReader(b))
+				if err != nil {
+					prt.Fatalf("%v", err)
+				}
+				if strsh.Language != stingray.Sum("us").Thin() {
+					continue
+				}
+				b, err = a.DataDir.Read(id, stingray.DataMain)
+				if err != nil {
+					prt.Fatalf("%v", err)
+				}
+				strsf, err := stingray_strings.Load(bytes.NewReader(b))
+				for _, str := range strsf.Strings {
+					for _, s := range reStrWord.FindAllString(str, -1) {
+						s = strings.ToLower(s)
+						strs[s] = struct{}{}
+					}
+				}
+			}
+		}
+		writeItems(prt, "strings_words.txt", maps.Keys(strs))
 	}
 
 	{
@@ -112,17 +137,18 @@ func main() {
 			allHashes[id.Type.Value] = struct{}{}
 		}
 
-		knownHashes := make(map[string]struct{})
-		unknownHashes := make(map[uint64]struct{})
+		known := make(map[string]struct{})
+		unknown := make(map[uint64]struct{})
 		for h := range allHashes {
 			if s, exists := a.Hashes[stingray.Hash{Value: h}]; exists {
 				if !reAudioPath.MatchString(s) {
-					knownHashes[s] = struct{}{}
+					known[s] = struct{}{}
 				}
 			} else {
-				unknownHashes[h] = struct{}{}
+				unknown[h] = struct{}{}
 			}
 		}
-		writeHashes(prt, "known_hashes.txt", "target_murmur64a.txt", maps.Keys(knownHashes), maps.Keys(unknownHashes))
+		writeItems(prt, "known_hashes.txt", maps.Keys(known))
+		writeItems(prt, "target_murmur64a.txt", maps.Keys(unknown))
 	}
 }
