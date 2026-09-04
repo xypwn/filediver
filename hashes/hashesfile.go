@@ -42,7 +42,7 @@ func TidyHashes(b []byte) []byte {
 
 	hashes, comments := parseHashes(b)
 	slices.Sort(hashes)
-	util.Uniq(hashes)
+	hashes = util.Uniq(hashes)
 
 	var buf bytes.Buffer
 	buf.Grow(len(b))
