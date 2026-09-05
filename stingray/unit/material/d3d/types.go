@@ -26,7 +26,7 @@ type RawVariable struct {
 	NameOffset    uint32
 	BufferOffset  uint32
 	Size          uint32
-	Flags         uint32 // D3D_SHADER_VARIABLE_FLAGS
+	Flags         d3dops.ShaderVariableFlags // D3D_SHADER_VARIABLE_FLAGS
 	TypeOffset    uint32
 	DefaultOffset uint32
 	_             [16]byte

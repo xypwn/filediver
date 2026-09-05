@@ -311,8 +311,11 @@ func AddMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_mate
 			return nil, err
 		}
 
-		materialSlot := ctx.LookupThinHash(id)
-		if strings.HasPrefix(materialSlot, "projector") {
+		has_grading := slices.ContainsFunc(slices.Collect(maps.Keys(mat.Settings)), func(name stingray.ThinHash) bool {
+			return strings.Contains(ctx.LookupThinHash(name), "grading_group_id")
+		})
+
+		if has_grading {
 			extr_material.AddColorGradingLUT(ctx, doc, colorGradingDDS, mat)
 		}
 
@@ -321,7 +324,7 @@ func AddMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_mate
 			split := strings.Split(resPath, "/")
 			resPath = strings.Join(split[len(split)-2:], "/")
 		}
-		matIdx, err := extr_material.AddMaterial(ctx, mat, doc, imgOpts, id, ctx.LookupThinHash(id)+" "+resPath, metadata)
+		matIdx, err := extr_material.AddMaterial(ctx.WithFileID(materialId), mat, doc, imgOpts, id, ctx.LookupThinHash(id)+" "+resPath, metadata)
 		if err != nil {
 			return nil, err
 		}
@@ -375,7 +378,7 @@ func AddMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_mate
 					continue
 				}
 
-				skinMatIdx, err := AddMaterialVariant(ctx, mat, doc, imgOpts, id, skinOverride, metadata)
+				skinMatIdx, err := AddMaterialVariant(ctx.WithFileID(materialId), mat, doc, imgOpts, id, skinOverride, metadata)
 				if err != nil {
 					// Some materials don't get overriden, that's fine
 					continue
@@ -433,7 +436,7 @@ func AddMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_mate
 					}
 
 					skinName := ctx.LookupThinHash(swap.Name) + " " + ctx.LookupThinHash(slot.MaterialSlotName) + " " + resPath
-					skinMatIdx, err := extr_material.AddMaterial(ctx, swapMat, doc, imgOpts, slot.MaterialSlotName, skinName, metadata)
+					skinMatIdx, err := extr_material.AddMaterial(ctx.WithFileID(swapId), swapMat, doc, imgOpts, slot.MaterialSlotName, skinName, metadata)
 					if err != nil {
 						continue
 					}
@@ -525,7 +528,7 @@ func AddMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_mate
 					}
 				}
 
-				skinMatIdx, err := AddMaterialVariant(ctx, mat, doc, imgOpts, id, tempSkinOverride, metadata)
+				skinMatIdx, err := AddMaterialVariant(ctx.WithFileID(materialId), mat, doc, imgOpts, id, tempSkinOverride, metadata)
 				if err != nil {
 					// Some materials don't get overriden, that's fine
 					continue
@@ -850,7 +853,7 @@ func addTerrainProjectors(ctx *extractor.Context, doc *gltf.Document, imgOpts *e
 			return noiseMap, nil, fmt.Errorf("could not load terrain material %v: %v", ctx.LookupHash(materialPath), err)
 		}
 		extr_material.AddColorGradingLUT(ctx, doc, colorGradingDDS, mat)
-		matIdx, err := extr_material.AddMaterial(ctx, mat, doc, imgOpts, stingray.Sum("terrain").Thin(), "terrain "+ctx.LookupHash(materialPath), nil)
+		matIdx, err := extr_material.AddMaterial(ctx.WithFileID(stingray.NewFileID(materialPath, stingray.Sum("material"))), mat, doc, imgOpts, stingray.Sum("terrain").Thin(), "terrain "+ctx.LookupHash(materialPath), nil)
 		if err != nil {
 			return noiseMap, nil, fmt.Errorf("could not add terrain material %v: %v", ctx.LookupHash(materialPath), err)
 		}
@@ -936,7 +939,7 @@ func AddTerrainMaterial(ctx *extractor.Context, doc *gltf.Document, imgOpts *ext
 	}
 	mat.Textures[stingray.Sum("texture_map_0b1b5dad").Thin()] = noiseMap
 
-	matIdx, err := extr_material.AddMaterial(ctx, mat, doc, imgOpts, stingray.Sum("terrain").Thin(), "terrain "+resPath, nil)
+	matIdx, err := extr_material.AddMaterial(ctx.WithFileID(terrainMaterialID), mat, doc, imgOpts, stingray.Sum("terrain").Thin(), "terrain "+resPath, nil)
 	if err != nil {
 		return nil
 	}

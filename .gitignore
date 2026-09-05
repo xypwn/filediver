@@ -7,7 +7,9 @@ __pycache__
 cpu.prof
 filediver-gui-windows.exe
 filediver-gui.exe
+filediver-gui
 filediver-cli.exe
+filediver-cli
 /rsrc_windows_*.syso
 /bundles.dsaa
 /xamls-dumps

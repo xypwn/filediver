@@ -4,7 +4,6 @@ import os
 import sys
 import struct
 import tempfile
-import numpy as np
 from argparse import ArgumentParser
 from bpy.types import (
     Action,
@@ -14,7 +13,6 @@ from bpy.types import (
     Object,
     Material,
     Collection,
-    Armature,
     ActionKeyframeStrip,
     PoseBone,
     ActionConstraint,
@@ -36,6 +34,7 @@ material_loaders: List[FilediverMaterialLoaderInterface] = [
     ArmorMaterialLoader(),
     BuildingMaterialLoader(),
     CapeMaterialLoader(),
+    ConcreteAltMaterialLoader(),
     ConcreteMaterialLoader(),
     FenceMaterialLoader(),
     IlluminateBuildingMaterialLoader(),
@@ -44,10 +43,14 @@ material_loaders: List[FilediverMaterialLoaderInterface] = [
     LightsMaterialLoader(),
     LutSkinMaterialLoader(),
     PortalMaterialLoader(),
+    RockMaterialLoader(),
+    RiftPlantMaterialLoader(),
     SkinMaterialLoader(),
     SpeedtreeMaterialLoader(),
+    TankGlassMaterialLoader(),
     TerrainProjectorMaterialLoader(),
     TerrainMaterialLoader(),
+    WaterfallMaterialLoader(),
 ]
 
 # 1x1 (0, 0, 0, 1) png
@@ -84,7 +87,7 @@ class GLTFChunk:
         self.length = length
         self.type = type
         self.data = data
-    
+
     @classmethod
     def parse(cls, data: BytesIO) -> 'GLTFChunk':
         type: bytes
@@ -265,9 +268,9 @@ class GLTFState:
     ragdoll_name: str = None
     state_transitions: Dict[str, GLTFStateTransition] = None
     emit_end_event: str = None
-    
+
     @classmethod
-    def from_json(cls, data: dict) -> 'GLTFState':
+    def from_json(cls, data: dict) -> "GLTFState":
         animations = None
         custom_blend_functions = None
         state_transitions = None
@@ -298,17 +301,17 @@ class GLTFState:
 class GLTFLayer:
     default_state: int
     states: List[GLTFState]
-    
+
     @classmethod
-    def from_json(cls, data: dict) -> 'GLTFLayer':
+    def from_json(cls, data: dict) -> "GLTFLayer":
         states = [GLTFState.from_json(state) for state in data["states"]]
         del data["states"]
         return cls(states=states, **data)
-    
+
     def to_dict(self) -> dict:
         return {
             "default_state": self.default_state,
-            "states": [state.to_dict() for state in self.states]
+            "states": [state.to_dict() for state in self.states],
         }
 
 @dataclass
@@ -324,9 +327,9 @@ class GLTFStateMachine:
     animation_variables: List[GLTFVariable]
     blend_masks: List[Dict[str, float]] = field(default_factory=list)
     all_bones: List[str] = field(default_factory=list)
-    
+
     @classmethod
-    def from_json(cls, data: dict) -> 'GLTFStateMachine':
+    def from_json(cls, data: dict) -> "GLTFStateMachine":
         # don't be destructive for no reason
         data = deepcopy(data)
         layers = []
@@ -338,7 +341,7 @@ class GLTFStateMachine:
             animation_variables = [GLTFVariable(**variable) for variable in data["animation_variables"]]
             del data["animation_variables"]
         return cls(layers=layers, animation_variables=animation_variables, **data)
-    
+
     def to_dict(self) -> dict:
         return {
             "name": self.name,
@@ -346,7 +349,7 @@ class GLTFStateMachine:
             "animation_events": self.animation_events,
             "animation_variables": [asdict(variable) for variable in self.animation_variables],
             "blend_masks": self.blend_masks,
-            "all_bones": self.all_bones
+            "all_bones": self.all_bones,
         }
 
 def no_set(self, val):
@@ -364,9 +367,9 @@ def add_state_machine(gltf: Dict, node: Dict):
         obj[variable.name] = float(variable.default)
         obj.id_properties_ui(variable.name).update(min=variable.default, max=variable.default, default=variable.default)
 
-    state_machine_empty = bpy.data.objects.new(obj.name+".state_machine", None)
+    state_machine_empty = bpy.data.objects.new(obj.name + ".state_machine", None)
     state_machine_empty.parent = obj
-    state_machine_empty.empty_display_type = 'SINGLE_ARROW'
+    state_machine_empty.empty_display_type = "SINGLE_ARROW"
     state_machine_empty.hide_select = True
     state_machine_empty.hide_viewport = True
     for collection in obj.users_collection:
@@ -382,12 +385,12 @@ def add_state_machine(gltf: Dict, node: Dict):
         drivers.use_module = True
         drivers.use_fake_user = True
         register_drivers()
-    
+
     if "filediver_animation_controller_ui.py" not in bpy.data.texts:
         path = Path(os.path.realpath(__file__)).parent / "resources" / "filediver_animation_controller_ui.py"
         animation_controller_ui = bpy.data.texts.load(filepath=str(path), internal=True)
         animation_controller_ui.name = "filediver_animation_controller_ui.py"
-        
+
         animation_controller_ui.use_module = True
         animation_controller_ui.use_fake_user = True
 
@@ -396,7 +399,7 @@ def add_state_machine(gltf: Dict, node: Dict):
         layer_empty = bpy.data.objects.new(f"{obj.name} layer {layerIdx}", None)
         layer_empty.parent = state_machine_empty
         layer_empty.empty_display_size = 0.1
-        layer_empty.empty_display_type = 'CUBE'
+        layer_empty.empty_display_type = "CUBE"
         layer_empty.state = layer.default_state
         for collection in obj.users_collection:
             collection.objects.link(layer_empty)
@@ -417,16 +420,16 @@ def add_state_machine(gltf: Dict, node: Dict):
         layer_fcurves = layer_channelbag.fcurves
         state_curve = layer_fcurves.new("state")
         keyframe = state_curve.keyframe_points.insert(1, layer.default_state)
-        keyframe.interpolation = 'CONSTANT'
+        keyframe.interpolation = "CONSTANT"
         for action_layer in layer_action.layers:
             for strip in action_layer.strips:
-                if strip.type != 'KEYFRAME':
+                if strip.type != "KEYFRAME":
                     continue
                 strip: ActionKeyframeStrip
                 bag = strip.channelbag(slot)
                 for curve in bag.fcurves:
                     for frame in curve.keyframe_points:
-                        frame.interpolation = 'CONSTANT'
+                        frame.interpolation = "CONSTANT"
 
         track = obj.animation_data.nla_tracks.new()
         track.name = layer_action.name
@@ -435,7 +438,7 @@ def add_state_machine(gltf: Dict, node: Dict):
         obj.animation_data.action = layer_action
         for stateIdx, state in enumerate(layer.states):
             print(f"            Adding state {stateIdx+1}/{len(layer.states)}", end="\r")
-            
+
             filediver_state: filediver_animation_state = layer_empty.filediver_layer_states.add()
             filediver_state.name = state.name
             filediver_state.type = state.type
@@ -452,7 +455,7 @@ def add_state_machine(gltf: Dict, node: Dict):
                     filediver_transition.blend_time = transition.blend_time
                     filediver_transition.link_type = transition.type
                     filediver_transition.beat = transition.beat
-            
+
             objects_to_constrain: List[Tuple[PoseBone, float]] = []
             if state.blend_mask != -1:
                 for key, value in controller.blend_masks[state.blend_mask].items():
@@ -481,15 +484,15 @@ def add_state_machine(gltf: Dict, node: Dict):
                 for cObj, mask_influence in objects_to_constrain:
                     if cObj is None:
                         continue
-                    constraint: ActionConstraint = cObj.constraints.new('ACTION')
+                    constraint: ActionConstraint = cObj.constraints.new("ACTION")
                     constraint.name = f"{cObj.name} layer {layerIdx} state {stateIdx} animation {animIdx}"
                     constraint.action = animation_action
                     constraint.use_eval_time = True
                     constraint.show_expanded = False
                     if mask_influence != 1 or state.additive:
-                        constraint.mix_mode = 'AFTER_SPLIT'
+                        constraint.mix_mode = "AFTER_SPLIT"
                     else:
-                        constraint.mix_mode = 'REPLACE'
+                        constraint.mix_mode = "REPLACE"
 
                     influence_driver_expression = f"infl({stateIdx},{mask_influence},s,n,t)"
                     variables = [(layer_empty, "state", "s"), (layer_empty, "next_state", "n"), (layer_empty, "state_transition", "t")]
@@ -553,7 +556,7 @@ def add_state_machine(gltf: Dict, node: Dict):
                         if start_curve is None:
                             start_curve = layer_fcurves.new("start_frame")
                         keyframe = start_curve.keyframe_points.insert(1, 1)
-                        keyframe.interpolation = 'CONSTANT'
+                        keyframe.interpolation = "CONSTANT"
 
                         variable = time.driver.variables.new()
                         variable.targets[0].id = layer_empty
@@ -620,7 +623,7 @@ def add_state_machine(gltf: Dict, node: Dict):
                             if manager.as_dict()["max"] < playback_speed_function.limits[playbackVarIdx][1]:
                                 manager.update(max=math.inf, soft_max=math.inf)
                         variableFps = time.driver.variables.new()
-                        variableFps.targets[0].id_type = 'SCENE'
+                        variableFps.targets[0].id_type = "SCENE"
                         variableFps.targets[0].id = bpy.data.scenes[0]
                         variableFps.targets[0].data_path = "render.fps"
                         variableFps.name = "fps"
@@ -635,13 +638,13 @@ def add_state_machine(gltf: Dict, node: Dict):
                         if phase_curve is None:
                             phase_curve = layer_fcurves.new("phase_frame")
                         keyframe = phase_curve.keyframe_points.insert(1, 1)
-                        keyframe.interpolation = 'CONSTANT'
+                        keyframe.interpolation = "CONSTANT"
 
                         next_phase_curve = layer_fcurves.find("next_phase_frame")
                         if next_phase_curve is None:
                             next_phase_curve = layer_fcurves.new("next_phase_frame")
                         keyframe = next_phase_curve.keyframe_points.insert(1, 1)
-                        keyframe.interpolation = 'CONSTANT'
+                        keyframe.interpolation = "CONSTANT"
 
                         variableStart = time.driver.variables.new()
                         variableStart.targets[0].id = layer_empty
@@ -680,7 +683,7 @@ def add_state_machine(gltf: Dict, node: Dict):
                             filediver_state.frequency_expr = playback_speed_function.expression
                     else:
                         variableFps = time.driver.variables.new()
-                        variableFps.targets[0].id_type = 'SCENE'
+                        variableFps.targets[0].id_type = "SCENE"
                         variableFps.targets[0].id = bpy.data.scenes[0]
                         variableFps.targets[0].data_path = "render.fps"
                         variableFps.name = "fps"
@@ -695,12 +698,12 @@ def add_state_machine(gltf: Dict, node: Dict):
                         if start_curve is None:
                             start_curve = layer_fcurves.new("start_frame")
                         keyframe = start_curve.keyframe_points.insert(1, 1)
-                        keyframe.interpolation = 'CONSTANT'
+                        keyframe.interpolation = "CONSTANT"
                         next_start_curve = layer_fcurves.find("next_start_frame")
                         if next_start_curve is None:
                             next_start_curve = layer_fcurves.new("next_start_frame")
                         keyframe = next_start_curve.keyframe_points.insert(1, 1)
-                        keyframe.interpolation = 'CONSTANT'
+                        keyframe.interpolation = "CONSTANT"
 
                         variableStart = time.driver.variables.new()
                         variableStart.targets[0].id = layer_empty
@@ -737,7 +740,7 @@ def add_state_machine(gltf: Dict, node: Dict):
                         time.driver.expression = f"((frame-start({stateIdx},s,n,sf,nsf))/(fps*{animation_strip.frame_end - animation_strip.frame_start}))-floor((frame-start({stateIdx},s,n,sf,nsf))/(fps*{animation_strip.frame_end - animation_strip.frame_start}))"
                         if filediver_state.frequency_expr == "":
                             filediver_state.frequency_expr = f"(1/{animation_strip.frame_end - animation_strip.frame_start})"
-                    constraint.frame_start = int(animation_strip.frame_start)-1
+                    constraint.frame_start = int(animation_strip.frame_start) - 1
                     constraint.frame_end = int(animation_strip.frame_end)
         if len(layer.states) > 0:
             print()
@@ -761,6 +764,7 @@ def main():
     parser.add_argument("output", type=Path, help="Location to save .blend file")
     parser.add_argument("--debug", action="store_true", help="Export debug data")
     parser.add_argument("--packall", action="store_true", help="Pack all images")
+    parser.add_argument("--keep-fake-users", action="store_true", help="Keep fake user setting (increases filesize but allows usage of other materials/node groups when building new shaders)")
 
     script_path = Path(os.path.realpath(__file__)).parent
     resource_path = script_path / "resources"
@@ -794,7 +798,7 @@ def main():
             tmp_file.close()
             path = tmp_file.name
         if "extras" in gltf and "frameRate" in gltf["extras"]:
-            print(f'Setting FPS to {gltf["extras"]["frameRate"]}')
+            print(f"Setting FPS to {gltf['extras']['frameRate']}")
             bpy.context.scene.render.fps = gltf["extras"]["frameRate"]
         bpy.ops.import_scene.gltf(filepath=str(path), bone_heuristic="TEMPERANCE", import_unused_materials=True)
     finally:
@@ -944,9 +948,9 @@ def main():
                 base_collection.children.link(level_collection)
                 upgrade_collections[collection_name].append(level_collection)
         for level in range(minimum, maximum):
-            upgrade_collections[collection_name][level-1].objects.link(object)
+            upgrade_collections[collection_name][level - 1].objects.link(object)
             for child in object.children:
-                upgrade_collections[collection_name][level-1].objects.link(child)
+                upgrade_collections[collection_name][level - 1].objects.link(child)
         unlink_collection = None
         for collection in object.users_collection:
             if collection.name == "Collection":
@@ -980,8 +984,38 @@ def main():
                 if i.variants[0].variant.variant_idx == 0:
                     obj.material_slots[i.material_slot_index].material = i.material
 
-    bpy.ops.wm.save_mainfile(filepath=str(output))
+    delete_fake_users = not args.keep_fake_users
+    if delete_fake_users:
+        for i in range(len(bpy.data.materials)):
+            bpy.data.materials[i].use_fake_user = False
 
+        for i in range(len(bpy.data.node_groups)):
+            bpy.data.node_groups[i].use_fake_user = False
+
+        for i in range(len(bpy.data.images)):
+            bpy.data.images[i].use_fake_user = False
+
+        while True:
+            removed = 0
+            for material in bpy.data.materials:
+                if material.users != 0:
+                    continue
+                removed += 1
+                bpy.data.materials.remove(material)
+            for node_group in bpy.data.node_groups:
+                if node_group.users != 0:
+                    continue
+                removed += 1
+                bpy.data.node_groups.remove(node_group)
+            for image in bpy.data.images:
+                if image.users != 0:
+                    continue
+                removed += 1
+                bpy.data.images.remove(image)
+            if removed == 0:
+                break
+
+    bpy.ops.wm.save_mainfile(filepath=str(output))
 
 
 if __name__ == "__main__":

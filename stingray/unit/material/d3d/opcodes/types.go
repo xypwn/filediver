@@ -284,11 +284,27 @@ type VariableType struct {
 	Name         string
 }
 
+type ShaderVariableFlags uint32
+
+const (
+	ShaderVariableFlags_None               ShaderVariableFlags = 0x0
+	ShaderVariableFlags_UserPacked         ShaderVariableFlags = 0x1
+	ShaderVariableFlags_Used               ShaderVariableFlags = 0x2
+	ShaderVariableFlags_InterfacePointer   ShaderVariableFlags = 0x4
+	ShaderVariableFlags_InterfaceParameter ShaderVariableFlags = 0x8
+)
+
+func (p ShaderVariableFlags) MarshalText() ([]byte, error) {
+	return []byte(p.String()), nil
+}
+
+//go:generate go run golang.org/x/tools/cmd/stringer -type=ShaderVariableFlags
+
 type Variable struct {
 	Name         string
 	BufferOffset uint32
 	Size         uint32
-	Flags        uint32 // D3D_SHADER_VARIABLE_FLAGS
+	Flags        ShaderVariableFlags // D3D_SHADER_VARIABLE_FLAGS
 	DefaultData  []byte
 	VariableType
 }
@@ -318,6 +334,9 @@ func (v Variable) ToGLSL() string {
 	toReturn += fmt.Sprintf("; // size: %v, offset: %v", v.Size, v.BufferOffset)
 	if len(v.DefaultData) > 0 {
 		toReturn += fmt.Sprintf(", default data: %v", v.DefaultData)
+	}
+	if (v.Flags & ShaderVariableFlags_Used) == 0 {
+		toReturn += ", unused"
 	}
 	switch v.Class {
 	case SVC_MATRIX_ROWS, SVC_V10_MATRIX_ROWS:

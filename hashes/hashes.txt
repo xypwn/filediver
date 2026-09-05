@@ -91328,6 +91328,14 @@ content/env_illuminate/lab/il_corrupted_goo_06
 content/env_illuminate/lab/il_incubation_tank_01
 content/env_illuminate/lab/il_incubation_tank_02
 content/env_illuminate/lab/il_incubation_tank_03
+content/env_illuminate/lab/il_ivy_01
+content/env_illuminate/lab/il_ivy_02
+content/env_illuminate/lab/il_ivy_03
+content/env_illuminate/lab/il_ivy_04
+content/env_illuminate/lab/il_ivy_05
+content/env_illuminate/lab/il_ivy_06
+content/env_illuminate/lab/il_ivy_07
+content/env_illuminate/lab/il_ivy_08
 content/env_illuminate/lab/il_lab_surgery_arm
 content/env_illuminate/lights/il_lamp_01
 content/env_illuminate/lights/il_spotlight_01
@@ -98018,6 +98026,9 @@ content/planet_forest_primordial/assets/rocks/forest_mountain_01
 content/planet_forest_primordial/assets/rocks/forest_mountain_02
 content/planet_forest_primordial/assets/rocks/forest_rock_formation_01
 content/planet_forest_primordial/assets/rocks/forest_rock_medium_01
+content/planet_forest_primordial/assets/rocks/primordial_rock_coral_large_01
+content/planet_forest_primordial/assets/rocks/primordial_rock_coral_medium_01
+content/planet_forest_primordial/assets/rocks/primordial_rock_coral_small_01
 content/planet_forest_primordial/assets/speedtrees/grassland_alien_plant_01
 content/planet_forest_primordial/assets/speedtrees/grassland_alien_plant_02
 content/planet_forest_primordial/assets/speedtrees/grassland_alien_plant_03
