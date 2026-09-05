@@ -28,7 +28,7 @@ import math
 from resources.filediver_animation_controller_ui import filediver_animation_state, filediver_state_transition, filediver_animation_variable, register as register_ui
 from resources.filediver_drivers import register as register_drivers
 
-from .material_loaders import *
+from material_loaders import *
 
 material_loaders: List[FilediverMaterialLoaderInterface] = [
     ArmorMaterialLoader(),
