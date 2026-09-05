@@ -19,6 +19,7 @@ from .speedtree_material_loader import SpeedtreeMaterialLoader
 from .tank_glass_material_loader import TankGlassMaterialLoader
 from .terrain_projector_material_loader import TerrainProjectorMaterialLoader
 from .terrain_material_loader import TerrainMaterialLoader
+from .waterfall_material_loader import WaterfallMaterialLoader
 
 from .image_utils import get_textures
 
@@ -43,5 +44,6 @@ __all__ = [
     "TankGlassMaterialLoader",
     "TerrainProjectorMaterialLoader",
     "TerrainMaterialLoader",
+    "WaterfallMaterialLoader",
     "get_textures",
 ]
