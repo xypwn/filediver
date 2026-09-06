@@ -99,7 +99,7 @@ type rawEnvironmentSettings struct {
 	_                          [4]uint8
 }
 
-type itmEnvironmentSettings struct {
+type EnvironmentSettings struct {
 	PlanetType              enum.PlanetType
 	DebugName               string
 	NameLoc                 uint32
@@ -136,7 +136,7 @@ type itmEnvironmentSettings struct {
 	UnkFloat                float32 // Name length 29
 }
 
-type EnvironmentSettings struct {
+type SimpleEnvironmentSettings struct {
 	PlanetType              enum.PlanetType               `json:"planet_type"`
 	DebugName               string                        `json:"debug_name"`
 	NameLoc                 string                        `json:"name_loc"`
@@ -173,7 +173,7 @@ type EnvironmentSettings struct {
 	UnkFloat                float32                       `json:"unk_float"`  // Name length 29
 }
 
-func (a itmEnvironmentSettings) Resolve(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookupStrings StringsLookup) EnvironmentSettings {
+func (a EnvironmentSettings) Resolve(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookupStrings StringsLookup) SimpleEnvironmentSettings {
 	pathSettings := make([]LevelGenerationPathSettings, 0)
 	for _, path := range a.PathSettings {
 		pathSettings = append(pathSettings, path.Resolve(lookupHash, lookupThinHash, lookupStrings))
@@ -183,7 +183,7 @@ func (a itmEnvironmentSettings) Resolve(lookupHash HashLookup, lookupThinHash Th
 	for _, resourcePackage := range a.ResourcePackages {
 		resourcePackages = append(resourcePackages, lookupHash(resourcePackage))
 	}
-	return EnvironmentSettings{
+	return SimpleEnvironmentSettings{
 		PlanetType:              a.PlanetType,
 		DebugName:               a.DebugName,
 		NameLoc:                 lookupStrings(a.NameLoc),
@@ -221,7 +221,7 @@ func (a itmEnvironmentSettings) Resolve(lookupHash HashLookup, lookupThinHash Th
 	}
 }
 
-func LoadEnvironmentSettings(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookupStrings StringsLookup) ([]EnvironmentSettings, error) {
+func LoadEnvironmentSettings() ([]EnvironmentSettings, error) {
 	r := bytes.NewReader(environmentSettings)
 
 	infos := make([]EnvironmentSettings, 0)
@@ -246,7 +246,7 @@ func LoadEnvironmentSettings(lookupHash HashLookup, lookupThinHash ThinHashLooku
 			return nil, fmt.Errorf("reading environment settings: %v", err)
 		}
 
-		intermediate := itmEnvironmentSettings{
+		setting := EnvironmentSettings{
 			PlanetType:              rawSettings.PlanetType,
 			NameLoc:                 rawSettings.NameLoc,
 			LoadoutIntelligenceLoc:  rawSettings.LoadoutIntelligenceLoc,
@@ -277,9 +277,9 @@ func LoadEnvironmentSettings(lookupHash HashLookup, lookupThinHash ThinHashLooku
 			UnkFloat:                rawSettings.UnkFloat,
 		}
 
-		intermediate.ResourcePackages = make([]stingray.Hash, rawSettings.ResourcePackages.Count)
+		setting.ResourcePackages = make([]stingray.Hash, rawSettings.ResourcePackages.Count)
 		r.Seek(base+rawSettings.ResourcePackages.Offset, io.SeekStart)
-		if err := binary.Read(r, binary.LittleEndian, &intermediate.ResourcePackages); err != nil {
+		if err := binary.Read(r, binary.LittleEndian, &setting.ResourcePackages); err != nil {
 			return nil, fmt.Errorf("reading resource packages array: %v", err)
 		}
 
@@ -289,7 +289,7 @@ func LoadEnvironmentSettings(lookupHash HashLookup, lookupThinHash ThinHashLooku
 			if err != nil {
 				return nil, err
 			}
-			intermediate.DebugName = debugName
+			setting.DebugName = debugName
 		}
 
 		if rawSettings.NameLocStr > 0 {
@@ -298,7 +298,7 @@ func LoadEnvironmentSettings(lookupHash HashLookup, lookupThinHash ThinHashLooku
 			if err != nil {
 				return nil, err
 			}
-			intermediate.NameLocStr = nameLocStr
+			setting.NameLocStr = nameLocStr
 		}
 
 		if rawSettings.WwiseStateStrOffset > 0 {
@@ -307,7 +307,7 @@ func LoadEnvironmentSettings(lookupHash HashLookup, lookupThinHash ThinHashLooku
 			if err != nil {
 				return nil, err
 			}
-			intermediate.WwiseStateStr = wwiseStateStr
+			setting.WwiseStateStr = wwiseStateStr
 		}
 
 		if rawSettings.DefaultReverbZoneStrOffset > 0 {
@@ -316,7 +316,7 @@ func LoadEnvironmentSettings(lookupHash HashLookup, lookupThinHash ThinHashLooku
 			if err != nil {
 				return nil, err
 			}
-			intermediate.DefaultReverbZoneStr = defaultReverbZoneStr
+			setting.DefaultReverbZoneStr = defaultReverbZoneStr
 		}
 
 		if rawSettings.UnkStr > 0 {
@@ -325,10 +325,10 @@ func LoadEnvironmentSettings(lookupHash HashLookup, lookupThinHash ThinHashLooku
 			if err != nil {
 				return nil, err
 			}
-			intermediate.UnkStr = unkStr
+			setting.UnkStr = unkStr
 		}
 
-		infos = append(infos, intermediate.Resolve(lookupHash, lookupThinHash, lookupStrings))
+		infos = append(infos, setting)
 		r.Seek(base+int64(header.Size), io.SeekStart)
 	}
 	return infos, nil

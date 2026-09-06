@@ -525,41 +525,13 @@ func LoadGPU(r io.ReadSeeker) (*MaterialGPU, error) {
 				SamplerAttrs: samplerAttrs,
 			})
 
-			if (block.Headers[i].StageMask&ShaderStage_Vertex != 0 || block.Headers[i].StageMask&ShaderStage_Tessellation != 0 || (block.Headers[i].StageMask&ShaderStage_Vertex == 0 && block.Headers[i].StageMask&ShaderStage_InstancedVertex == 0)) && block.Headers[i].Stages[0].DXBCSize > 0 {
+			if block.Headers[i].Stages[0].DXBCSize > 0 {
 				stage := block.Headers[i].Stages[ShaderStage_Vertex.StageIdx()]
 				if shader, ok := loadedShaders[stage.DXBCName]; ok {
 					block.Programs[i].VertexShader = shader
 					err = skipShader(r, stage, shader)
 				} else {
 					block.Programs[i].VertexShader, err = loadShader(r)
-				}
-				if err == io.EOF {
-					break
-				} else if err != nil {
-					return nil, err
-				}
-			}
-			if block.Headers[i].StageMask&ShaderStage_Unknown1 != 0 {
-				stage := block.Headers[i].Stages[ShaderStage_Unknown1.StageIdx()]
-				if shader, ok := loadedShaders[stage.DXBCName]; ok {
-					block.Programs[i].UnknownShader1 = shader
-					err = skipShader(r, stage, shader)
-				} else {
-					block.Programs[i].UnknownShader1, err = loadShader(r)
-				}
-				if err == io.EOF {
-					break
-				} else if err != nil {
-					return nil, err
-				}
-			}
-			if block.Headers[i].StageMask&ShaderStage_InstancedVertex != 0 && block.Headers[i].StageMask&ShaderStage_Vertex == 0 && block.Headers[i].Stages[0].DXBCSize > 0 {
-				stage := block.Headers[i].Stages[ShaderStage_InstancedVertex.StageIdx()]
-				if shader, ok := loadedShaders[stage.DXBCName]; ok {
-					block.Programs[i].InstancedVertexShader = shader
-					err = skipShader(r, stage, shader)
-				} else {
-					block.Programs[i].InstancedVertexShader, err = loadShader(r)
 				}
 				if err == io.EOF {
 					break
@@ -583,16 +555,24 @@ func LoadGPU(r io.ReadSeeker) (*MaterialGPU, error) {
 					return nil, err
 				}
 			}
-			if block.Headers[i].StageMask&ShaderStage_Unknown2 != 0 {
-				block.Programs[i].UnknownShader2, err = loadShader(r)
+			if block.Headers[i].Stages[3].DXBCSize > 0 {
+				block.Programs[i].UnknownShader1, err = loadShader(r)
 				if err == io.EOF {
 					break
 				} else if err != nil {
 					return nil, err
 				}
 			}
-			if block.Headers[i].StageMask&ShaderStage_Pixel != 0 && block.Headers[i].Stages[4].DXBCSize > 0 {
+			if block.Headers[i].Stages[4].DXBCSize > 0 {
 				block.Programs[i].PixelShader, err = loadShader(r)
+				if err == io.EOF {
+					break
+				} else if err != nil {
+					return nil, err
+				}
+			}
+			if block.Headers[i].Stages[5].DXBCSize > 0 {
+				block.Programs[i].UnknownShader2, err = loadShader(r)
 				if err == io.EOF {
 					break
 				} else if err != nil {

@@ -24,22 +24,24 @@ func _() {
 	_ = x[PlanetType_oasis-13]
 	_ = x[PlanetType_deciduous-14]
 	_ = x[PlanetType_coniferous-15]
-	_ = x[PlanetType_count-16]
+	_ = x[PlanetType_rift-16]
+	_ = x[PlanetType_none-17]
+	_ = x[PlanetType_count-17]
 	_ = x[PlanetType_All-4294967295]
 }
 
 const (
-	_PlanetType_name_0 = "PlanetType_forestPlanetType_desertPlanetType_arcticPlanetType_sandyPlanetType_savannaPlanetType_rockyPlanetType_swampPlanetType_snowy_forestPlanetType_primordialPlanetType_moorPlanetType_superearthPlanetType_bug_hiveworldPlanetType_magmaPlanetType_oasisPlanetType_deciduousPlanetType_coniferousPlanetType_count"
+	_PlanetType_name_0 = "PlanetType_forestPlanetType_desertPlanetType_arcticPlanetType_sandyPlanetType_savannaPlanetType_rockyPlanetType_swampPlanetType_snowy_forestPlanetType_primordialPlanetType_moorPlanetType_superearthPlanetType_bug_hiveworldPlanetType_magmaPlanetType_oasisPlanetType_deciduousPlanetType_coniferousPlanetType_riftPlanetType_none"
 	_PlanetType_name_1 = "PlanetType_All"
 )
 
 var (
-	_PlanetType_index_0 = [...]uint16{0, 17, 34, 51, 67, 85, 101, 117, 140, 161, 176, 197, 221, 237, 253, 273, 294, 310}
+	_PlanetType_index_0 = [...]uint16{0, 17, 34, 51, 67, 85, 101, 117, 140, 161, 176, 197, 221, 237, 253, 273, 294, 309, 324}
 )
 
 func (i PlanetType) String() string {
 	switch {
-	case i <= 16:
+	case i <= 17:
 		return _PlanetType_name_0[_PlanetType_index_0[i]:_PlanetType_index_0[i+1]]
 	case i == 4294967295:
 		return _PlanetType_name_1

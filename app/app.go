@@ -120,6 +120,7 @@ type App struct {
 	Planets            map[string]datalib.PlanetData
 	PlanetOverrides    datalib.PlanetOverridesMap
 	PlanetRegionsMap   map[stingray.ThinHash]datalib.GenerationRegionVariantList
+	EnvironmentMap     map[enum.PlanetType]datalib.EnvironmentSettings
 	AssetOverrides     *map[stingray.FileID]stingray.FileID
 	DataDir            *stingray.DataDir
 	Language           stingray.ThinHash
@@ -534,6 +535,15 @@ func OpenGameDir(ctx context.Context, gameDir string, hashStrings []string, thin
 		maps.Copy(planetOverridesMap, override.ToMap())
 	}
 
+	environmentSettings, err := datalib.LoadEnvironmentSettings()
+	if err != nil {
+		return nil, fmt.Errorf("error loading planet overrides data: %v", err)
+	}
+	environmentMap := make(map[enum.PlanetType]datalib.EnvironmentSettings)
+	for _, setting := range environmentSettings {
+		environmentMap[setting.PlanetType] = setting
+	}
+
 	planetRegionMappings := make(map[stingray.ThinHash]datalib.GenerationRegionVariantList)
 	regionGroups, err := datalib.LoadRegionGroups(lookupHash, lookupThinHash, lookupString)
 	if err == nil {
@@ -555,6 +565,7 @@ func OpenGameDir(ctx context.Context, gameDir string, hashStrings []string, thin
 		Planets:            planetMap,
 		PlanetOverrides:    planetOverridesMap,
 		PlanetRegionsMap:   planetRegionMappings,
+		EnvironmentMap:     environmentMap,
 		AssetOverrides:     &assetOverrides,
 		DataDir:            dataDir,
 		Language:           language,
@@ -907,6 +918,7 @@ func (a *App) ExtractFile(ctx context.Context, id stingray.FileID, outDir string
 		a.EntityVarMapping,
 		a.Planets,
 		a.PlanetRegionsMap,
+		a.EnvironmentMap,
 		a.GameBuildInfo,
 		a.LanguageMap,
 		a.DataDir,

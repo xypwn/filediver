@@ -48,7 +48,7 @@ type SimplePlanetData struct {
 	ScenarioSettingsHighland         string                              `json:"scenario_settings_highland"`
 	GameplayModifiers                []string                            `json:"gameplay_modifiers"`
 	PlanetType                       enum.PlanetType                     `json:"planet_type"`
-	Unknown                          uint32                              `json:"unknown"`
+	Unknown                          string                              `json:"unknown"`
 	NatureLocationTags               []enum.NatureLocationTag            `json:"nature_location_tags"`
 	ScatterSettings                  string                              `json:"scatter_settings"`
 	MissionPlanetUnit                string                              `json:"mission_planet_unit"`
@@ -138,7 +138,7 @@ func Dump(a components.HashLookup) {
 			ScenarioSettingsHighland:         a.LookupHash(planetData.ScenarioSettingsHighland),
 			GameplayModifiers:                gameplayModifiers,
 			PlanetType:                       planetData.PlanetType,
-			Unknown:                          planetData.Unknown,
+			Unknown:                          a.LookupThinHash(planetData.Unknown),
 			NatureLocationTags:               planetData.NatureLocationTags,
 			ScatterSettings:                  a.LookupThinHash(planetData.ScatterSettings),
 			MissionPlanetUnit:                a.LookupHash(planetData.MissionPlanetUnit),

@@ -19,8 +19,10 @@ const (
 	PlanetType_oasis
 	PlanetType_deciduous
 	PlanetType_coniferous
-	PlanetType_count
-	PlanetType_All PlanetType = 4294967295
+	PlanetType_rift
+	PlanetType_none
+	PlanetType_count PlanetType = PlanetType_none
+	PlanetType_All   PlanetType = 4294967295
 )
 
 func (p PlanetType) MarshalText() ([]byte, error) {

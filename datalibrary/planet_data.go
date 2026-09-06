@@ -116,7 +116,7 @@ type rawPlanetData struct {
 	GameplayModifiersOffset          int64
 	GameplayModifiersCount           uint64
 	PlanetType                       enum.PlanetType
-	Unknown                          uint32
+	Unknown                          stingray.ThinHash
 	NatureLocationTagOffset          uint64
 	NatureLocationTagCount           uint64
 	ScatterSettings                  stingray.ThinHash
@@ -173,7 +173,7 @@ type PlanetData struct {
 	ScenarioSettingsHighland         stingray.Hash
 	GameplayModifiers                []stingray.Hash
 	PlanetType                       enum.PlanetType
-	Unknown                          uint32
+	Unknown                          stingray.ThinHash
 	NatureLocationTags               []enum.NatureLocationTag
 	ScatterSettings                  stingray.ThinHash
 	MissionPlanetUnit                stingray.Hash

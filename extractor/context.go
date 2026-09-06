@@ -9,6 +9,9 @@ import (
 	"slices"
 	"strconv"
 
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
+
 	"github.com/xypwn/filediver/app/appconfig"
 	datalib "github.com/xypwn/filediver/datalibrary"
 	"github.com/xypwn/filediver/datalibrary/enum"
@@ -34,6 +37,7 @@ type Context struct {
 	entityVarMapping   shading_environment.ShadingEnvironmentEntityToShaderMapping
 	planets            map[string]datalib.PlanetData
 	planetRegionsMap   map[stingray.ThinHash]datalib.GenerationRegionVariantList
+	environmentMap     map[enum.PlanetType]datalib.EnvironmentSettings
 	gameBuildInfo      *ah_bin.BuildInfo
 	languageMap        map[uint32]string
 	dataDir            *stingray.DataDir
@@ -74,6 +78,7 @@ func NewContext(
 	entityVarMapping shading_environment.ShadingEnvironmentEntityToShaderMapping,
 	planets map[string]datalib.PlanetData,
 	planetRegionsMap map[stingray.ThinHash]datalib.GenerationRegionVariantList,
+	environmentMap map[enum.PlanetType]datalib.EnvironmentSettings,
 	gameBuildInfo *ah_bin.BuildInfo,
 	languageMap map[uint32]string,
 	dataDir *stingray.DataDir,
@@ -95,6 +100,7 @@ func NewContext(
 		entityVarMapping:   entityVarMapping,
 		planets:            planets,
 		planetRegionsMap:   planetRegionsMap,
+		environmentMap:     environmentMap,
 		gameBuildInfo:      gameBuildInfo,
 		languageMap:        languageMap,
 		dataDir:            dataDir,
@@ -131,6 +137,7 @@ func copyContext(c *Context) *Context {
 		entityVarMapping:   c.entityVarMapping,
 		planets:            c.planets,
 		planetRegionsMap:   c.planetRegionsMap,
+		environmentMap:     c.environmentMap,
 		gameBuildInfo:      c.gameBuildInfo,
 		languageMap:        c.languageMap,
 		dataDir:            c.dataDir,
@@ -355,8 +362,22 @@ func (c *Context) Planets() map[string]datalib.PlanetData {
 	return c.planets
 }
 
+func (c *Context) GetPlanet() datalib.PlanetData {
+	caser := cases.Lower(language.English)
+	planetName := caser.String(c.config.Planet.Name)
+	planet, contains := c.planets[planetName]
+	if !contains {
+		return c.planets["super earth"]
+	}
+	return planet
+}
+
 func (c *Context) PlanetRegionsMap() map[stingray.ThinHash]datalib.GenerationRegionVariantList {
 	return c.planetRegionsMap
+}
+
+func (c *Context) EnvironmentMap() map[enum.PlanetType]datalib.EnvironmentSettings {
+	return c.environmentMap
 }
 
 // Warnf logs a user-visible warning message.

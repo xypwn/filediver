@@ -177,6 +177,7 @@ func main() {
 			nil,
 			nil,
 			nil,
+			nil,
 			a.GameBuildInfo,
 			a.LanguageMap,
 			a.DataDir,

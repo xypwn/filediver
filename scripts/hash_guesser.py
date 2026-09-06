@@ -149,11 +149,11 @@ def handle_input(old_guess: str, index: int):
     rehash = False
     if c == '\x1b':         # x1b is ESC
         index = handle_control(old_guess, index)
-        return old_guess, index, rehash
+        return old_guess, index, rehash, False
     if c == '\x03':
         raise KeyboardInterrupt
     if c == '\x04':
-        return old_guess, index, True
+        return old_guess, index, True, True
     if c == '\n':
         guess = ""
     elif c == '\x7f':
@@ -168,7 +168,7 @@ def handle_input(old_guess: str, index: int):
         guess = old_guess[:index] + c + old_guess[index:]
         rehash = True
         index += 1
-    return guess, index, rehash
+    return guess, index, rehash, False
 
 def main():
     parser = ArgumentParser()
@@ -235,18 +235,21 @@ def main():
         rehash = False
         guess = ""
         index = 0
+        insert = False
         while 1:
             if rehash:
                 for suffix in suffixes:
-                    murmurhash64 = h64a(guess + suffix, 0)
+                    to_guess = (guess[:index] + suffix + guess[index:]) if insert else (guess + suffix)
+                    murmurhash64 = h64a(to_guess, 0)
                     found = (murmurhash64 in hashes) if long else ((murmurhash64 >> 32) in hashes)
                     if found:
-                        found_hashes.add(guess + suffix)
-                    print_result(guess + suffix, murmurhash64, found, show_not_found, long)
+                        found_hashes.add(to_guess)
+                    print_result(to_guess, murmurhash64, found, show_not_found, long)
                 print_guess(guess, index)
                 rehash = False
+                insert = False
             if isData():
-                guess, index, rehash = handle_input(guess, index)
+                guess, index, rehash, insert = handle_input(guess, index)
     except KeyboardInterrupt:
         print()
     finally:
