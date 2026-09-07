@@ -1,3 +1,4 @@
+# pyright: basic
 from .filediver_material_loader_interface import FilediverMaterialLoaderInterface
 
 from typing import Dict, Optional
@@ -16,7 +17,7 @@ class RockMaterialLoader(FilediverMaterialLoaderInterface):
     def load_material(self, resource_path: str) -> None:
         if f"HD2 {self.key()}" not in bpy.data.materials:
             with bpy.data.libraries.load(str(resource_path / "Helldivers2 Shader v1.0.5.blend")) as (shader_blend, our_blend):
-                our_blend: BlendData # not actually but they share member names 
+                our_blend: BlendData # not actually but they share member names
                 shader_blend: BlendData
                 our_blend.materials = shader_blend.materials
         self.material = bpy.data.materials[f"HD2 {self.key()}"]
@@ -66,6 +67,11 @@ class RockMaterialLoader(FilediverMaterialLoaderInterface):
                     config_nodes["Rock Group"].inputs[name].default_value = setting[0]
                 elif config_nodes["Rock Group"].inputs[name].bl_idname == "NodeSocketVector":
                     config_nodes["Rock Group"].inputs[name].default_value = setting[:3]
+            elif name in config_nodes["Rock Emissive"].inputs:
+                if len(setting) == 1:
+                    config_nodes["Rock Emissive"].inputs[name].default_value = setting[0]
+                    continue
+                config_nodes["Rock Emissive"].inputs[name].default_value = setting
             elif name == "base_normal_intensity":
                 config_nodes["Normal Map"].inputs["Strength"].default_value = setting[0]
 
