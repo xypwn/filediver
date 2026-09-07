@@ -1,4 +1,3 @@
-# pyright: basic
 from .filediver_material_loader_interface import FilediverMaterialLoaderInterface
 
 from typing import Dict, Optional
