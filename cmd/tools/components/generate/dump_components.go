@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/jwalton/go-supportscolor"
@@ -72,8 +73,22 @@ func main() {
 	ctx := context.Background()
 
 	a, err := app.OpenGameDir(ctx, gameDir, knownHashes, knownThinHashes, stingray_strings.LanguageFriendlyNameToHash["English (US)"], func(_ int, _ int) {})
+	if err != nil {
+		prt.Fatalf("Failed to open game dir: %v", err)
+	}
 	version := strings.Split(a.GameBuildInfo.Version, "/")[1]
-	outputFormat := fmt.Sprintf("game-settings-%v/%%v", version)
+	workdir, err := os.Getwd()
+	if err != nil {
+		prt.Fatalf("Failed to find current directory: %v", err)
+	}
+	absoluteworkdir, err := filepath.Abs(workdir)
+	if err != nil {
+		prt.Fatalf("Failed to make working director absolute")
+	}
+	pathlist := strings.Split(absoluteworkdir, string(filepath.Separator))
+	path := strings.Join(pathlist[:slices.Index(pathlist, "cmd")], string(filepath.Separator))
+
+	outputFormat := fmt.Sprintf("%v/game-settings-%v/%%v", path, version)
 
 	currStdout := os.Stdout
 
@@ -91,7 +106,7 @@ func main() {
 	dumpPlanetRegions(a, outputFormat, prt, currStdout)
 	dumpPlanetTypes(a, outputFormat, prt, currStdout)
 	dumpProj(a, outputFormat, prt, currStdout)
-	//dumpRegion(a, outputFormat, prt, currStdout)
+	dumpRegion(a, outputFormat, prt, currStdout)
 	dumpSky(a, outputFormat, prt, currStdout)
 	dumpUnit(a, outputFormat, prt, currStdout)
 	dumpWeapon(a, outputFormat, prt, currStdout)
