@@ -38,7 +38,7 @@ class ArmorMaterialLoader(FilediverMaterialLoaderInterface):
         self.shader_module = shader_script.as_module()
         if "HD2 Shader" not in bpy.data.materials:
             with bpy.data.libraries.load(str(resource_path / "Helldivers2 Shader v1.0.5.blend")) as (shader_blend, our_blend):
-                our_blend: BlendData # not actually but they share member names 
+                our_blend: BlendData # not actually but they share member names
                 shader_blend: BlendData
                 our_blend.materials = shader_blend.materials
         self.material = bpy.data.materials["HD2 Shader"]
@@ -84,6 +84,10 @@ class ArmorMaterialLoader(FilediverMaterialLoaderInterface):
                     image.colorspace_settings.name = "Non-Color"
 
         for setting, value in config.get("extras", {}).items():
+            if type(value) == list and len(value) == 1:
+                object_mat[setting] = value[0]
+            else:
+                object_mat[setting] = value
             if setting not in config_nodes["HD2 Shader Template"].inputs:
                 continue
             if setting == "decal_id" and value == "unused":

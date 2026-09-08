@@ -13046,7 +13046,7 @@ def update_array_uvs(material: Material):
     try:
         IDMaskArraySizeX = material.node_tree.nodes['ID Mask Array Texture'].inputs[0].node.image.size[0]
         IDMaskArraySizeY = material.node_tree.nodes['ID Mask Array Texture'].inputs[0].node.image.size[1]
-        if (IDMaskArraySizeY/IDMaskArraySizeX) >= 2.0:
+        if (IDMaskArraySizeY/IDMaskArraySizeX) >= 2.0 or (material.get("fd_id_mask_layers") is not None and material.get("fd_id_mask_layers") > 1):
             material.node_tree.nodes['ID Mask UV'].inputs[0].default_value = (1.000)
     except:
         pass
@@ -13054,7 +13054,7 @@ def update_array_uvs(material: Material):
     try:
         PatternMaskArraySizeX = material.node_tree.nodes['Pattern Mask Array'].inputs[0].node.image.size[0]
         PatternMaskArraySizeY = material.node_tree.nodes['Pattern Mask Array'].inputs[0].node.image.size[1]
-        if (PatternMaskArraySizeY/PatternMaskArraySizeX) >= 2.0:
+        if (PatternMaskArraySizeY/PatternMaskArraySizeX) >= 2.0 or (material.get("fd_pattern_mask_layers") is not None and material.get("fd_pattern_mask_layers") > 1):
             material.node_tree.nodes['Pattern Mask UV'].inputs[0].default_value = (1.000)
     except:
         pass

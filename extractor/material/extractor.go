@@ -402,7 +402,8 @@ func WriteDDS(ctx *extractor.Context, doc *gltf.Document, ddsR io.ReadSeeker, po
 		return 0, err
 	}
 
-	if len(tex.Images) > 1 {
+	layers := len(tex.Images)
+	if layers > 1 {
 		tex = dds.StackLayers(tex)
 	}
 
@@ -446,6 +447,9 @@ func WriteDDS(ctx *extractor.Context, doc *gltf.Document, ddsR io.ReadSeeker, po
 		Source:  gltf.Index(imgIdx),
 	})
 	texIdx := uint32(len(doc.Textures) - 1)
+	if layers > 1 {
+		doc.Textures[texIdx].Extras = map[string]any{"layers": []float32{float32(layers)}}
+	}
 	if imgOpts != nil && imgOpts.Raw {
 		if _, err := ddsR.Seek(0, io.SeekStart); err != nil {
 			ctx.Warnf("WriteTexture: dds reader failed to seek start")
@@ -1428,6 +1432,25 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 				continue
 			}
 			usedTextures[texUsageStr] = index
+			if (texUsageStr == "id_masks_array" || texUsageStr == "pattern_masks_array") && doc.Textures[index].Extras != nil {
+				extras, ok := doc.Textures[index].Extras.(map[string]any)
+				if !ok {
+					continue
+				}
+				layersAny, ok := extras["layers"]
+				if !ok {
+					continue
+				}
+				layers, ok := layersAny.([]float32)
+				if !ok {
+					continue
+				}
+				settingName := "fd_id_mask_layers"
+				if texUsageStr == "pattern_masks_array" {
+					settingName = "fd_pattern_mask_layers"
+				}
+				mat.Settings[stingray.Sum(settingName).Thin()] = layers
+			}
 		case "lens_cutout_texture":
 			fallthrough
 		case "scorch_marks":
