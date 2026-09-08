@@ -212,12 +212,13 @@ func getFileMetadata(dataDir *stingray.DataDir) map[stingray.FileID]FileMetadata
 	for fileID := range dataDir.Files {
 		meta := FileMetadata{
 			AvailableFields: make(map[string]bool),
+			Name:            fileID.Name,
 			Type:            fileID.Type,
 		}
 		for _, info := range dataDir.Files[fileID] {
 			meta.Archives = append(meta.Archives, info.ArchiveID)
 		}
-		meta.addAvailableFields("Type", "Archives")
+		meta.addAvailableFields("Name", "Type", "Archives")
 		switch fileID.Type {
 		case stingray.Sum("texture"):
 			const stingrayHeaderSize = 0xc0

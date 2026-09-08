@@ -136,6 +136,7 @@ type guiApp struct {
 	gameFileSearchQuery     string
 	filesSelectedForExport  map[stingray.FileID]struct{}
 	allSelectedForExport    bool
+	hashBulkImporter        HashBulkImporter
 	gameFileTypeSearchQuery string
 	gameFileTypes           []widgets.FilterListSection[stingray.Hash]
 	selectedGameFileTypes   map[stingray.Hash]struct{}
@@ -713,9 +714,9 @@ func (a *guiApp) drawBrowserWindow() {
 			{
 				style := imgui.CurrentStyle()
 				imgui.CalcItemWidth()
-				searchBarWidth -= imgui.CalcTextSize(fnt.I.Help).X +
-					style.ItemSpacing().X +
-					2*style.FramePadding().X
+				searchBarWidth -= imgui.CalcTextSize(fnt.I.Help).X + imgui.CalcTextSize(fnt.I.ConvertToText).X +
+					2*style.ItemSpacing().X +
+					2*2*style.FramePadding().X
 			}
 			imgui.SetNextItemWidth(searchBarWidth)
 			if imgui.Shortcut(imgui.KeyChord(imgui.ModCtrl | imgui.KeyF)) {
@@ -728,6 +729,36 @@ func (a *guiApp) drawBrowserWindow() {
 			}
 			searchInputTextData := imgui.CurrentContext().LastItemData()
 			imgui.SetItemTooltip("Filter by file name (Ctrl+F)")
+			imgui.SameLine()
+			var hashBulkImporterOpened bool
+			imgui.SetNextItemShortcut(imgui.KeyChord(imgui.ModCtrl | imgui.KeyI))
+			if imgui.Button(fnt.I.ConvertToText) {
+				hashBulkImporterOpened = true
+				imgui.OpenPopupStr("##BulkImportHashes")
+			}
+			imgui.SetItemTooltip("Bulk import hashes (Ctrl+I) [auto-fills with clipboard]")
+			if imgui.BeginPopup("##BulkImportHashes") {
+				if a.hashBulkImporter.Draw(hashBulkImporterOpened) {
+					var expr strings.Builder
+					expr.WriteString("? name in [")
+					for _, h := range a.hashBulkImporter.Hashes {
+						expr.WriteString("\"")
+						expr.WriteString(h.String())
+						expr.WriteString("\",")
+					}
+					expr.WriteString("]")
+					a.gameFileSearchQuery = expr.String()
+
+					clear(a.selectedGameFileTypes)
+					clear(a.selectedArchives)
+					a.gameData.UpdateSearchQuery(a.gameFileSearchQuery, a.selectedGameFileTypes, a.selectedArchives)
+					a.allSelectedForExport = a.calcAllSelectedForExport()
+					a.scrollToSelectedFile = true
+
+					imgui.CloseCurrentPopup()
+				}
+				imgui.EndPopup()
+			}
 			imgui.SameLine()
 			if imgui.Button(fnt.I.Help) {
 				imgui.OpenPopupStr("##MetadataSearchHelp")

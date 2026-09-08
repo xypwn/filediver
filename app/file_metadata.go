@@ -18,6 +18,7 @@ type FileMetadata struct {
 	// as having an assigned value.
 	AvailableFields map[string]bool `meta:"true"`
 
+	Name         stingray.Hash     `help:"File name" example:"\"content/fac_helldivers/...\""`
 	Type         stingray.Hash     `help:"File type" example:"\"unit\""`
 	Archives     []stingray.Hash   `help:"Archives the file is contained in"`
 	Width        int               `help:"Texture width"`
