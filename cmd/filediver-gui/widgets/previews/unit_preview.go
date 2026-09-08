@@ -496,7 +496,7 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 		positionsSize := len(mesh.Positions) * 3 * 4
 		normalsSize := len(mesh.Normals) * 3 * 4
 		uvsSize := len(mesh.UVCoords[0]) * 2 * 4
-		tangentsSize := len(mesh.Tangents) * 3 * 4
+		tangentsSize := len(mesh.Tangents) * 4 * 4
 		bitangentsSize := len(mesh.Bitangents) * 3 * 4
 
 		gl.BindBuffer(gl.ARRAY_BUFFER, pv.object.vbo)
@@ -519,7 +519,7 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 		offset += uvsSize
 		//
 		gl.BufferSubData(gl.ARRAY_BUFFER, offset, tangentsSize, gl.Ptr(mesh.Tangents))
-		gl.VertexAttribPointerWithOffset(3, 3, gl.FLOAT, true, 3*4, uintptr(offset))
+		gl.VertexAttribPointerWithOffset(3, 3, gl.FLOAT, true, 4*4, uintptr(offset))
 		gl.EnableVertexAttribArray(3)
 		offset += tangentsSize
 		//
