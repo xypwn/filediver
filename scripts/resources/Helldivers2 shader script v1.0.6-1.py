@@ -5054,8 +5054,15 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
 
     dynamic_decals: ShaderNodeGroup = HD2_Shader.nodes.new("ShaderNodeGroup")
     dynamic_decals.name = "Decal Offsetting"
-    dynamic_decals.node_tree = bpy.data.node_groups['Decal Offsetting'].copy()
-    
+    if "Decal Offsetting" not in bpy.data.node_groups:
+        for i in range(len(bpy.data.node_groups)):
+            name = f"Decal Offsetting.{i:03d}"
+            if name in bpy.data.node_groups:
+                node_tree = bpy.data.node_groups[name].copy()
+                node_tree.name = "Decal Offsetting"
+                break
+    dynamic_decals.node_tree = bpy.data.node_groups['Decal Offsetting']
+
     #node Mix.014
     mix_014 = HD2_Shader.nodes.new("ShaderNodeMix")
     mix_014.label = "r6.z"
