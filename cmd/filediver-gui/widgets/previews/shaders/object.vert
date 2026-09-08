@@ -3,7 +3,7 @@
 layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec3 inNormal;
 layout(location = 2) in vec2 inUV;
-layout(location = 3) in vec3 inTangent;
+layout(location = 3) in vec4 inTangent;
 layout(location = 4) in vec3 inBitangent;
 
 out vec3 fragPosition;
@@ -32,7 +32,7 @@ void main() {
     fragUV = inUV;
 
     {
-        vec3 t = normalize(normalMat * inTangent);
+        vec3 t = normalize(normalMat * inTangent.xyz);
         vec3 n = normalize(normalMat * inNormal);
         vec3 b = normalize(normalMat * inBitangent);
         //t = normalize(t - dot(t, n) * n);
