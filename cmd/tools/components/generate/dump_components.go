@@ -1,14 +1,12 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 
-	"github.com/jwalton/go-supportscolor"
+	"github.com/hellflame/argparse"
 	"github.com/xypwn/filediver/app"
 	animation_events "github.com/xypwn/filediver/cmd/tools/components/animation-event-trigger-settings-json-dumper/dumper"
 	arcs "github.com/xypwn/filediver/cmd/tools/components/arc-setting-json-dumper/dumper"
@@ -29,9 +27,9 @@ import (
 	unit "github.com/xypwn/filediver/cmd/tools/components/unit-customization-json-dumper/dumper"
 	weapon "github.com/xypwn/filediver/cmd/tools/components/weapon-customization-json-dumper/dumper"
 	zone "github.com/xypwn/filediver/cmd/tools/components/zone-setting-json-dumper/dumper"
+	"github.com/xypwn/filediver/cmd/tools/fdtools-common"
 	datalib "github.com/xypwn/filediver/datalibrary"
 	"github.com/xypwn/filediver/hashes"
-	stingray_strings "github.com/xypwn/filediver/stingray/strings"
 )
 
 // CreateFile creates an output file.
@@ -45,18 +43,19 @@ func CreateFile(outPath, suffix string) (*os.File, error) {
 }
 
 func main() {
-	prt := app.NewConsolePrinter(
-		supportscolor.Stderr().SupportsColor,
-		os.Stderr,
-		os.Stderr,
-	)
-	gameDir, err := app.DetectGameDir()
-	if err != nil {
-		prt.Fatalf("Unable to detect game install directory.")
-	}
 
-	knownHashes := hashes.ParseHashes(hashes.Hashes)
-	knownThinHashes := hashes.ParseHashes(hashes.ThinHashes)
+	argp := argparse.NewParser("", "", &argparse.ParserConfig{
+		DisableDefaultShowHelp: true,
+	})
+	outPath := argp.String("o", "output", &argparse.Option{
+		Required:   false,
+		Default:    ".",
+		Positional: false,
+		Help:       "Path to game settings output location",
+	})
+
+	prt, a := fdtools.Init(argp)
+
 	knownDLHashes := hashes.ParseHashes(hashes.DLTypeNames)
 
 	dlHashesMap := make(map[datalib.DLHash]string)
@@ -70,23 +69,8 @@ func main() {
 		return hash.String()
 	}
 
-	ctx := context.Background()
-
-	a, err := app.OpenGameDir(ctx, gameDir, knownHashes, knownThinHashes, stingray_strings.LanguageFriendlyNameToHash["English (US)"], func(_ int, _ int) {})
-	if err != nil {
-		prt.Fatalf("Failed to open game dir: %v", err)
-	}
 	version := strings.Split(a.GameBuildInfo.Version, "/")[1]
-	workdir, err := os.Getwd()
-	if err != nil {
-		prt.Fatalf("Failed to find current directory: %v", err)
-	}
-	absoluteworkdir, err := filepath.Abs(workdir)
-	if err != nil {
-		prt.Fatalf("Failed to make working director absolute")
-	}
-	pathlist := strings.Split(absoluteworkdir, string(filepath.Separator))
-	path := strings.Join(pathlist[:slices.Index(pathlist, "cmd")], string(filepath.Separator))
+	path := strings.TrimSuffix(*outPath, string(filepath.Separator))
 
 	outputFormat := fmt.Sprintf("%v/game-settings-%v/%%v", path, version)
 
