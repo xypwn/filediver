@@ -259,7 +259,7 @@ func ConvertVertices(gpuR io.ReadSeeker, layout unit.MeshLayout) ([]byte, [][]Ac
 				fallthrough
 			case unit.FormatVec4F:
 				fallthrough
-			case unit.FormatS32:
+			case unit.FormatRGBA8:
 				fallthrough
 			case unit.FormatS8:
 				fallthrough
@@ -488,6 +488,8 @@ func CreateAttributes(doc *gltf.Document, layout unit.MeshLayout, accessorInfo [
 			attributes[gltf.TANGENT] = accessors[0]
 		case unit.ItemUVCoords, unit.ItemSpeedTreeU:
 			attributes[fmt.Sprintf("TEXCOORD_%v", layout.Items[itemIdx].Layer)] = accessors[0]
+		case unit.ItemColor:
+			attributes[fmt.Sprintf("COLOR_%v", layout.Items[itemIdx].Layer)] = accessors[0]
 		case unit.ItemBoneIdx:
 			attributes[fmt.Sprintf("JOINTS_%v", layout.Items[itemIdx].Layer)] = accessors[0]
 		case unit.ItemBoneWeight:

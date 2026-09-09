@@ -51,6 +51,7 @@ import (
 	stingray_package "github.com/xypwn/filediver/stingray/package"
 	"github.com/xypwn/filediver/stingray/shading_environment"
 	stingray_strings "github.com/xypwn/filediver/stingray/strings"
+	"github.com/xypwn/filediver/stingray/unit"
 	stingray_material "github.com/xypwn/filediver/stingray/unit/material"
 	stingray_wwise "github.com/xypwn/filediver/stingray/wwise"
 	"github.com/xypwn/filediver/util"
@@ -269,6 +270,23 @@ func getFileMetadata(dataDir *stingray.DataDir) map[stingray.FileID]FileMetadata
 			}
 			meta.BaseMaterial = hdr.BaseMaterial
 			meta.addAvailableFields("BaseMaterial")
+		case stingray.Sum("unit"):
+			b, err := dataDir.Read(fileID, stingray.DataMain)
+			if err != nil {
+				// ignore for now
+				continue
+			}
+			unitInfo, err := unit.LoadInfo(bytes.NewReader(b))
+			if err != nil {
+				continue
+			}
+			meta.MeshMaterials = make([]stingray.Hash, 0)
+			meta.MaterialSlots = make([]stingray.ThinHash, 0)
+			for key, value := range unitInfo.Materials {
+				meta.MaterialSlots = append(meta.MaterialSlots, key)
+				meta.MeshMaterials = append(meta.MeshMaterials, value)
+			}
+			meta.addAvailableFields("MeshMaterials", "MaterialSlots")
 		}
 		metadata[fileID] = meta
 	}

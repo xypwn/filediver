@@ -20,6 +20,7 @@ import (
 	datalib "github.com/xypwn/filediver/datalibrary"
 	"github.com/xypwn/filediver/dds"
 	"github.com/xypwn/filediver/extractor"
+	"github.com/xypwn/filediver/extractor/entity"
 	extr_texture "github.com/xypwn/filediver/extractor/texture"
 	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/stingray/unit/material"
@@ -1528,6 +1529,29 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 	if _, contains := materialSettingsAndTextures["dirt_color"]; contains {
 		planet := ctx.GetPlanet()
 		materialSettingsAndTextures["dirt_color"] = ctx.EnvironmentMap()[planet.PlanetType].DirtColor
+	}
+
+	snowRockBase := stingray.Sum("content/art_shared/base_shaders/rock_snow")
+	if mat.BaseMaterial == snowRockBase || ctx.FileID().Name == snowRockBase {
+		settings := entity.GetSnowSettings(ctx)
+		for key, value := range settings {
+			materialSettingsAndTextures[ctx.LookupThinHash(key)] = value
+		}
+		snowGlintTiler := stingray.Sum("content/art_shared/textures/glitter_tiler")
+		index, err := writeTexture(ctx, doc, snowGlintTiler, postProcess, imgOpts, "")
+		if err != nil {
+			ctx.Warnf("writeTexture: snow_glint_tiler: %v", err)
+		} else {
+			materialSettingsAndTextures["snow_glint_tiler"] = index
+		}
+
+		snowPNRBArray := stingray.Sum("content/env_shared_arctic/assets/textures/snow_pnrb_array")
+		index, err = writeTexture(ctx, doc, snowPNRBArray, postProcess, imgOpts, "")
+		if err != nil {
+			ctx.Warnf("writeTexture: snow_pnrb_array: %v", err)
+		} else {
+			materialSettingsAndTextures["snow_pnrb_array"] = index
+		}
 	}
 
 	entityHash := ctx.FileID().Name
