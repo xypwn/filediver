@@ -1542,7 +1542,7 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 		if err != nil {
 			ctx.Warnf("writeTexture: snow_glint_tiler: %v", err)
 		} else {
-			usedTextures["snow_glint_tiler"] = index
+			materialSettingsAndTextures["snow_glint_tiler"] = index
 		}
 
 		snowPNRBArray := stingray.Sum("content/env_shared_arctic/assets/textures/snow_pnrb_array")
@@ -1550,7 +1550,7 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 		if err != nil {
 			ctx.Warnf("writeTexture: snow_pnrb_array: %v", err)
 		} else {
-			usedTextures["snow_pnrb_array"] = index
+			materialSettingsAndTextures["snow_pnrb_array"] = index
 		}
 	}
 
