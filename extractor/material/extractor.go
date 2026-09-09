@@ -20,6 +20,7 @@ import (
 	datalib "github.com/xypwn/filediver/datalibrary"
 	"github.com/xypwn/filediver/dds"
 	"github.com/xypwn/filediver/extractor"
+	"github.com/xypwn/filediver/extractor/entity"
 	extr_texture "github.com/xypwn/filediver/extractor/texture"
 	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/stingray/unit/material"
@@ -1528,6 +1529,14 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 	if _, contains := materialSettingsAndTextures["dirt_color"]; contains {
 		planet := ctx.GetPlanet()
 		materialSettingsAndTextures["dirt_color"] = ctx.EnvironmentMap()[planet.PlanetType].DirtColor
+	}
+
+	snowRockBase := stingray.Sum("content/art_shared/base_shaders/rock_snow")
+	if mat.BaseMaterial == snowRockBase || ctx.FileID().Name == snowRockBase {
+		settings := entity.GetSnowSettings(ctx)
+		for key, value := range settings {
+			materialSettingsAndTextures[ctx.LookupThinHash(key)] = value
+		}
 	}
 
 	entityHash := ctx.FileID().Name

@@ -497,3 +497,100 @@ func WriteColorGradingLut(ctx *extractor.Context, colorGradingDDS *bytes.Buffer)
 	}
 	return WriteDDSColorGradingLut(colorGradingDDS, entityInfo)
 }
+
+var snowSettings map[stingray.Hash]map[stingray.ThinHash][]float32
+
+func GetSnowSettings(ctx *extractor.Context) map[stingray.ThinHash][]float32 {
+	if snowSettings != nil {
+		if result, ok := snowSettings[ctx.ColorGrading()]; ok {
+			return result
+		}
+	}
+
+	// Start with some defaults from 0x0acfd82f35d4fb3.entity
+	toReturn := map[stingray.ThinHash][]float32{
+		stingray.Sum("snow_specular").Thin():             {0.233},
+		stingray.Sum("snow_fuzz_color").Thin():           {0.75, 0.78, 0.8, 0.7},
+		stingray.Sum("snow_subsurface_intensity").Thin(): {0.75},
+		stingray.Sum("snow_roughness").Thin():            {0.8},
+		stingray.Sum("snow_glint_roughness").Thin():      {0.25},
+		stingray.Sum("snow_subsurface_wrap").Thin():      {0.75},
+		stingray.Sum("snow_base_color").Thin():           {0.4669422, 0.5879246, 0.7099357, 0.5},
+		stingray.Sum("snow_subsurface_color").Thin():     {0.3873605, 0.5387121, 0.7084765, 0.5},
+		stingray.Sum("snow_glint_size").Thin():           {0.25},
+		stingray.Sum("snow_subsurface_diffusion").Thin(): {0.75},
+		stingray.Sum("snow_glint_intensity").Thin():      {0.3},
+		stingray.Sum("snow_ss_thickness").Thin():         {0.66},
+		stingray.Sum("snow_glint_amount").Thin():         {0.35},
+	}
+
+	defer func() {
+		// Memoize the settings for this entity so we don't have to look it up a
+		if snowSettings == nil {
+			snowSettings = make(map[stingray.Hash]map[stingray.ThinHash][]float32)
+		}
+		snowSettings[ctx.ColorGrading()] = toReturn
+	}()
+
+	entityID := stingray.NewFileID(ctx.ColorGrading(), stingray.Sum("entity"))
+	if !ctx.Exists(entityID, stingray.DataMain) {
+		return toReturn
+	}
+
+	entityData, err := ctx.Open(entityID, stingray.DataMain)
+	if err != nil {
+		ctx.Warnf("snow control entity %v not found: %v", ctx.LookupHash(entityID.Name), err)
+		return toReturn
+	}
+
+	entityInfo, err := entity.LoadEntity(entityData, ctx.EntityVarMapping())
+	if err != nil {
+		ctx.Warnf("failed to parse snow control entity %v: %v", ctx.LookupHash(entityID.Name), err)
+		return toReturn
+	}
+
+	for _, info := range entityInfo.Infos {
+		if info.InfoType != entity.InfoTypeMap1 {
+			continue
+		}
+		for _, component := range info.Components {
+			if component.ComponentHeader == nil {
+				continue
+			}
+			if !slices.Contains(component.CategoryNames, stingray.Sum("snow_control").Thin()) {
+				continue
+			}
+			if component.ComponentData == nil {
+				continue
+			}
+			for i := range component.SettingNames {
+				mappedName, contains := ctx.EntityVarMapping()[component.SettingNames[i]]
+				if !contains {
+					continue
+				}
+				var setting []float32
+				if value, ok := component.Settings[i].Data.(float32); ok {
+					setting = []float32{value}
+				} else if value, ok := component.Settings[i].Data.([]float32); ok {
+					setting = value
+				} else {
+					ctx.Warnf("Unknown setting %v, skipping", ctx.LookupThinHash(mappedName.ShaderName))
+					continue
+				}
+				settingName := mappedName.ShaderName
+				if mappedName.ShaderName == stingray.Sum("snow_subsurface_thickness").Thin() {
+					settingName = stingray.Sum("snow_ss_thickness").Thin()
+				}
+				if mappedName.ShaderIndex == 0 && len(setting) == 3 && len(toReturn[mappedName.ShaderName]) == 1 {
+					toReturn[settingName] = append(setting, toReturn[mappedName.ShaderName]...)
+					continue
+				} else if mappedName.ShaderIndex == 3 && len(toReturn[mappedName.ShaderName]) == 3 {
+					toReturn[settingName] = append(toReturn[mappedName.ShaderName], setting...)
+					continue
+				}
+				toReturn[settingName] = setting
+			}
+		}
+	}
+	return toReturn
+}

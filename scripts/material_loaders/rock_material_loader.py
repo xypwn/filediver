@@ -85,7 +85,7 @@ class RockMaterialLoader(FilediverMaterialLoaderInterface):
 
     @classmethod
     def can_configure(cls, config: dict) -> bool:
-        return "base_normal_ao_dirt" in config["extras"] and "triplanar_detail_albedo" in config["extras"] and "triplanar_detail_data" in config["extras"] and "detail_mask_" in config["extras"] and "grading_group_id" in config["extras"] and "asset_color_grading_lut" in config["extras"]
+        return "snow_base_color" not in config["extras"] and "base_normal_ao_dirt" in config["extras"] and "triplanar_detail_albedo" in config["extras"] and "triplanar_detail_data" in config["extras"] and "detail_mask_" in config["extras"] and "grading_group_id" in config["extras"] and "asset_color_grading_lut" in config["extras"]
 
     @classmethod
     def key(cls) -> str:
