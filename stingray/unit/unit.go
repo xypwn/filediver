@@ -180,6 +180,7 @@ const (
 	ItemNormal            MeshLayoutItemType = 1
 	ItemTangent           MeshLayoutItemType = 2
 	ItemUVCoords          MeshLayoutItemType = 4
+	ItemColor             MeshLayoutItemType = 5
 	ItemBoneIdx           MeshLayoutItemType = 6
 	ItemBoneWeight        MeshLayoutItemType = 7
 	ItemSpeedTreeU        MeshLayoutItemType = 8
@@ -197,6 +198,8 @@ func (v MeshLayoutItemType) String() string {
 		return "normal"
 	case ItemUVCoords:
 		return "UV coords"
+	case ItemColor:
+		return "color"
 	case ItemBoneWeight:
 		return "bone weight"
 	case ItemBoneIdx:
@@ -213,7 +216,7 @@ const (
 	FormatVec2F                    MeshLayoutItemFormat = 1
 	FormatVec3F                    MeshLayoutItemFormat = 2
 	FormatVec4F                    MeshLayoutItemFormat = 3
-	FormatS32                      MeshLayoutItemFormat = 4
+	FormatRGBA8                    MeshLayoutItemFormat = 4
 	FormatU32                      MeshLayoutItemFormat = 21
 	FormatVec2U32                  MeshLayoutItemFormat = 22
 	FormatVec3U32                  MeshLayoutItemFormat = 23
@@ -240,8 +243,8 @@ func (v MeshLayoutItemFormat) String() string {
 		return "[3]float32"
 	case FormatVec4F:
 		return "[4]float32"
-	case FormatS32:
-		return "int32"
+	case FormatRGBA8:
+		return "[4]uint8"
 	case FormatU32:
 		return "uint32"
 	case FormatVec2U32:
@@ -285,7 +288,7 @@ func (v MeshLayoutItemFormat) Size() int {
 		return 12
 	case FormatVec4F:
 		return 16
-	case FormatS32:
+	case FormatRGBA8:
 		return 4
 	case FormatU32:
 		return 4
@@ -330,8 +333,8 @@ func (v MeshLayoutItemFormat) ComponentType() gltf.ComponentType {
 		return gltf.ComponentFloat
 	case FormatVec4F:
 		return gltf.ComponentFloat
-	case FormatS32:
-		return gltf.ComponentUint
+	case FormatRGBA8:
+		return gltf.ComponentUbyte
 	case FormatU32:
 		return gltf.ComponentUint
 	case FormatVec2U32:
@@ -375,8 +378,8 @@ func (v MeshLayoutItemFormat) Type() gltf.AccessorType {
 		return gltf.AccessorVec3
 	case FormatVec4F:
 		return gltf.AccessorVec4
-	case FormatS32:
-		return gltf.AccessorScalar
+	case FormatRGBA8:
+		return gltf.AccessorVec4
 	case FormatU32:
 		return gltf.AccessorScalar
 	case FormatVec2U32:
@@ -566,6 +569,7 @@ type Mesh struct {
 	Info        MeshInfo
 	Positions   [][3]float32
 	UVCoords    [][][2]float32
+	Colors      [][][4]uint8
 	Normals     [][3]float32
 	Tangents    [][4]float32
 	Bitangents  [][3]float32
@@ -595,6 +599,7 @@ func loadMesh(gpuR io.ReadSeeker, info MeshInfo, layout MeshLayout) (Mesh, error
 	var mesh Mesh
 	var uvCoordLayers uint32 = 1
 	var boneIdxLayers uint32 = 1
+	var colorLayers uint32 = 1
 	for i := 0; i < int(layout.NumItems); i += 1 {
 		switch layout.Items[i].Type {
 		case ItemBoneIdx:
@@ -605,6 +610,10 @@ func loadMesh(gpuR io.ReadSeeker, info MeshInfo, layout MeshLayout) (Mesh, error
 			if layout.Items[i].Layer >= uvCoordLayers {
 				uvCoordLayers = layout.Items[i].Layer + 1
 			}
+		case ItemColor:
+			if layout.Items[i].Layer >= colorLayers {
+				colorLayers = layout.Items[i].Layer + 1
+			}
 		}
 	}
 	mesh.Info = info
@@ -612,6 +621,10 @@ func loadMesh(gpuR io.ReadSeeker, info MeshInfo, layout MeshLayout) (Mesh, error
 	mesh.UVCoords = make([][][2]float32, uvCoordLayers)
 	for layer := 0; layer < int(uvCoordLayers); layer++ {
 		mesh.UVCoords[layer] = make([][2]float32, 0, layout.NumVertices)
+	}
+	mesh.Colors = make([][][4]uint8, colorLayers)
+	for layer := 0; layer < int(colorLayers); layer++ {
+		mesh.Colors[layer] = make([][4]uint8, 0, layout.NumVertices)
 	}
 	mesh.Normals = make([][3]float32, 0, layout.NumVertices)
 	mesh.BoneIndices = make([][][4]uint8, boneIdxLayers)
@@ -691,17 +704,15 @@ func loadMesh(gpuR io.ReadSeeker, info MeshInfo, layout MeshLayout) (Mesh, error
 					return Mesh{}, fmt.Errorf("expected UV coords item to have format [2]float16 or [2]float32, but got: %v", item.Format)
 				}
 				mesh.UVCoords[item.Layer] = append(mesh.UVCoords[item.Layer], val)
-			case 5:
-				if item.Format != 4 {
-					return Mesh{}, fmt.Errorf("expected type 5 item to have format [4]uint8, but got: %v", item.Format)
+			case ItemColor:
+				if item.Format != FormatRGBA8 {
+					return Mesh{}, fmt.Errorf("expected color to have format [4]uint8, but got: %v", item.Format)
 				}
 				var v [4]uint8
 				if err := binary.Read(gpuR, binary.LittleEndian, &v); err != nil {
 					return Mesh{}, err
 				}
-				//fmt.Println(v)
-				_ = v
-				// TODO
+				mesh.Colors[item.Layer] = append(mesh.Colors[item.Layer], v)
 			case ItemBoneWeight:
 				var val [4]float32
 				switch item.Format {
