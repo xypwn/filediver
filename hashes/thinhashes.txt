@@ -28562,7 +28562,6 @@ tower_98
 tower_99
 tower_100
 trash_door
-trash_sweep
 trench_walls
 trigger_ctr
 trigger_existence
