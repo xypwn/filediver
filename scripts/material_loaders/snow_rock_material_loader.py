@@ -42,6 +42,12 @@ class SnowRockMaterialLoader(FilediverMaterialLoaderInterface):
                 case "base_normal_ao_dirt":
                     config_nodes["Image Texture"].image = image
                     image.colorspace_settings.name = "Non-Color"
+                case "snow_pnrb_array":
+                    config_nodes["Image Texture.009"].image = image
+                    image.colorspace_settings.name = "Non-Color"
+                case "snow_glint_tiler":
+                    config_nodes["Image Texture.008"].image = image
+                    image.colorspace_settings.name = "Non-Color"
                 case "triplanar_detail_albedo":
                     config_nodes["Image Texture.002"].image = image
                     config_nodes["Image Texture.003"].image = image
