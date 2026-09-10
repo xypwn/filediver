@@ -1537,16 +1537,16 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 		for key, value := range settings {
 			materialSettingsAndTextures[ctx.LookupThinHash(key)] = value
 		}
-		snowGlintTiler := stingray.Sum("content/art_shared/textures/glitter_tiler")
-		index, err := writeTexture(ctx, doc, snowGlintTiler, postProcess, imgOpts, "")
+		snowGlintTiler := ctx.OverrideAsset(stingray.NewFileID(stingray.Sum("content/art_shared/textures/glitter_tiler"), stingray.Sum("texture")))
+		index, err := writeTexture(ctx, doc, snowGlintTiler.Name, postProcess, imgOpts, "")
 		if err != nil {
 			ctx.Warnf("writeTexture: snow_glint_tiler: %v", err)
 		} else {
 			materialSettingsAndTextures["snow_glint_tiler"] = index
 		}
 
-		snowPNRBArray := stingray.Sum("content/env_shared_arctic/assets/textures/snow_pnrb_array")
-		index, err = writeTexture(ctx, doc, snowPNRBArray, postProcess, imgOpts, "")
+		snowPNRBArray := ctx.OverrideAsset(stingray.NewFileID(stingray.Sum("content/env_shared_arctic/assets/textures/snow_pnrb_array"), stingray.Sum("texture")))
+		index, err = writeTexture(ctx, doc, snowPNRBArray.Name, postProcess, imgOpts, "")
 		if err != nil {
 			ctx.Warnf("writeTexture: snow_pnrb_array: %v", err)
 		} else {
