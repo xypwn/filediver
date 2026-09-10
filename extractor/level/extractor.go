@@ -275,9 +275,9 @@ func ExtractLevelJSON(ctx *extractor.Context) error {
 		}
 	}
 
-	if levelData.UnkHashIndexRange4 != nil {
+	if levelData.EmbeddedPrefabHashIndexRange != nil {
 		outData.EmbeddedPrefabHashIndexRange = make([]SimpleHashIndexRange, 0)
-		for _, hashIndexRange := range levelData.UnkHashIndexRange4 {
+		for _, hashIndexRange := range levelData.EmbeddedPrefabHashIndexRange {
 			outData.EmbeddedPrefabHashIndexRange = append(outData.EmbeddedPrefabHashIndexRange, SimpleHashIndexRange{
 				Hash:  ctx.LookupThinHash(hashIndexRange.Hash),
 				Start: hashIndexRange.Start,

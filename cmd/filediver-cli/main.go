@@ -1253,7 +1253,7 @@ func handleLevelThinHashes(prt app.Printer, a *app.App, id stingray.FileID, optT
 			unknownHash[hashIndexRange.Hash.String()] = true
 		}
 	}
-	for _, hashIndexRange := range info.UnkHashIndexRange4 {
+	for _, hashIndexRange := range info.EmbeddedPrefabHashIndexRange {
 		if *optThinToFind != "" && stingray.Sum(*optThinToFind).Thin() == hashIndexRange.Hash {
 			shadingEnvironmentName, exists := a.Hashes[id.Name]
 			if !exists {

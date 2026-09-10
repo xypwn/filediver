@@ -259,21 +259,21 @@ type RawLevel struct {
 }
 
 type Level struct {
-	Name                 stingray.Hash
-	Metadata             map[int][]MetadataEntry
-	Prefabs              []Prefab
-	MaterialOverrides    map[int]map[stingray.ThinHash]stingray.Hash
-	Units                []Unit
-	Speedtrees           []Speedtree
-	Entity               *entity.Entity
-	EmbeddedPrefabs      []EmbeddedPrefab
-	UnitHashIndexRange   []HashIndexRange
-	UnkHashIndexRange1   []HashIndexRange
-	UnkHashIndexRange2   []HashIndexRange
-	UnkHashIndexRange3   []HashIndexRange
-	PrefabHashIndexRange []HashIndexRange
-	UnkHashIndexRange4   []HashIndexRange
-	UnkHashIndexRange5   []HashIndexRange
+	Name                         stingray.Hash
+	Metadata                     map[int][]MetadataEntry
+	Prefabs                      []Prefab
+	MaterialOverrides            map[int]map[stingray.ThinHash]stingray.Hash
+	Units                        []Unit
+	Speedtrees                   []Speedtree
+	Entity                       *entity.Entity
+	EmbeddedPrefabs              []EmbeddedPrefab
+	UnitHashIndexRange           []HashIndexRange
+	UnkHashIndexRange1           []HashIndexRange
+	UnkHashIndexRange2           []HashIndexRange
+	UnkHashIndexRange3           []HashIndexRange
+	PrefabHashIndexRange         []HashIndexRange
+	EmbeddedPrefabHashIndexRange []HashIndexRange
+	UnkHashIndexRange5           []HashIndexRange
 }
 
 func LoadLevel(r io.ReadSeeker, entityVarMapping shading_environment.ShadingEnvironmentEntityToShaderMapping) (*Level, error) {
@@ -527,20 +527,20 @@ func LoadLevel(r io.ReadSeeker, entityVarMapping shading_environment.ShadingEnvi
 	}
 
 	return &Level{
-		Name:                 raw.Name,
-		Metadata:             metadata,
-		Prefabs:              prefabs,
-		MaterialOverrides:    materialOverrides,
-		Units:                units,
-		Speedtrees:           speedtrees,
-		Entity:               embeddedEntity,
-		EmbeddedPrefabs:      embeddedPrefabList,
-		UnitHashIndexRange:   unitHashIndexRangeList,
-		UnkHashIndexRange1:   unkHashIndexRangeList0,
-		UnkHashIndexRange2:   unkHashIndexRangeList1,
-		UnkHashIndexRange3:   unkHashIndexRangeList2,
-		PrefabHashIndexRange: prefabHashIndexRangeList,
-		UnkHashIndexRange4:   unkHashIndexRangeList3,
-		UnkHashIndexRange5:   unkHashIndexRangeList4,
+		Name:                         raw.Name,
+		Metadata:                     metadata,
+		Prefabs:                      prefabs,
+		MaterialOverrides:            materialOverrides,
+		Units:                        units,
+		Speedtrees:                   speedtrees,
+		Entity:                       embeddedEntity,
+		EmbeddedPrefabs:              embeddedPrefabList,
+		UnitHashIndexRange:           unitHashIndexRangeList,
+		UnkHashIndexRange1:           unkHashIndexRangeList0,
+		UnkHashIndexRange2:           unkHashIndexRangeList1,
+		UnkHashIndexRange3:           unkHashIndexRangeList2,
+		PrefabHashIndexRange:         prefabHashIndexRangeList,
+		EmbeddedPrefabHashIndexRange: unkHashIndexRangeList3,
+		UnkHashIndexRange5:           unkHashIndexRangeList4,
 	}, nil
 }
