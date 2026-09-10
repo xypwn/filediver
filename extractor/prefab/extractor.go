@@ -304,6 +304,10 @@ func AddPrefab(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_materia
 		return 0, err
 	}
 
+	return AddPrefabData(ctx, doc, imgOpts, prefabData)
+}
+
+func AddPrefabData(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_material.ImageOptions, prefabData *prefab.Prefab) (uint32, error) {
 	extras, ok := doc.Extras.(map[string]any)
 	if !ok {
 		extras = make(map[string]any)

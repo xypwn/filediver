@@ -85,12 +85,12 @@ type SimpleEmbeddedPrefab struct {
 type SimpleLevel struct {
 	Name                         string                   `json:"name"`
 	Metadata                     map[int][]SimpleMetadata `json:"metadata"`
-	Prefabs                      []SimplePrefab           `json:"prefabs"`
 	MaterialOverrides            []SimpleMaterialOverride `json:"material_overrides"`
 	Units                        []SimpleUnit             `json:"units"`
+	Prefabs                      []SimplePrefab           `json:"prefabs"`
+	EmbeddedPrefabs              []SimpleEmbeddedPrefab   `json:"embedded_prefabs"`
 	Speedtrees                   []SimpleSpeedtree        `json:"speedtrees"`
 	Entity                       *entity.SimpleEntity     `json:"entity"`
-	EmbeddedPrefabs              []SimpleEmbeddedPrefab   `json:"embedded_prefabs"`
 	UnitHashIndexRange           []SimpleHashIndexRange   `json:"unit_hash_index_range"`
 	UnkHashIndexRange1           []SimpleHashIndexRange   `json:"unk_hash_index_range_1"`
 	UnkHashIndexRange2           []SimpleHashIndexRange   `json:"unk_hash_index_range_2"`
@@ -358,7 +358,7 @@ func ConvertOpts(ctx *extractor.Context, gltfDoc *gltf.Document) error {
 	}
 	doc.Extras = extras
 
-	totalObjectCount := float32(len(levelData.Units) + len(levelData.Prefabs) + len(levelData.Speedtrees))
+	totalObjectCount := float32(len(levelData.Units) + len(levelData.EmbeddedPrefabs) + len(levelData.Prefabs) + len(levelData.Speedtrees))
 	for idx, prefab := range levelData.Prefabs {
 		if ctxErr := ctx.Ctx().Err(); errors.Is(ctxErr, context.Canceled) {
 			return ctxErr
@@ -396,6 +396,50 @@ func ConvertOpts(ctx *extractor.Context, gltfDoc *gltf.Document) error {
 		}
 
 		position, rotation, scale := prefab.ToGLTF()
+		doc.Nodes[node].Translation = position
+		doc.Nodes[node].Rotation = rotation
+		doc.Nodes[node].Scale = scale
+
+		doc.Nodes[levelIdx].Children = append(doc.Nodes[levelIdx].Children, node)
+	}
+
+	for idx, embedded := range levelData.EmbeddedPrefabs {
+		if ctxErr := ctx.Ctx().Err(); errors.Is(ctxErr, context.Canceled) {
+			return ctxErr
+		}
+		if ctx.FileID() == ctx.RootFileID() {
+			percentComplete := 100 * float32(idx+1) / totalObjectCount
+			ctx.Statusf("%.2f%% - %v.prefab (embedded)", percentComplete, ctx.LookupHash(embedded.EmbeddedPrefabTransform.Hash))
+		}
+		prefabId := ctx.OverrideAsset(stingray.NewFileID(embedded.EmbeddedPrefabTransform.Hash, stingray.Sum("prefab")))
+		node, err := extr_prefab.AddPrefabData(ctx.WithFileID(prefabId), doc, imgOpts, &embedded.Prefab)
+		if err != nil {
+			return err
+		}
+		extras, ok := doc.Extras.(map[string]any)
+		if !ok {
+			return fmt.Errorf("prefab export did not add extras? (should not happen)")
+		}
+		prefabMetadataIface, contains := extras[extr_prefab.GetPrefabExtrasID(prefabId)]
+		if !contains {
+			return fmt.Errorf("prefab export did not add metadata? (should not happen)")
+		}
+		prefabMetadata, ok := prefabMetadataIface.(map[string]any)
+		if !ok {
+			return fmt.Errorf("prefab metadata could not be converted? (should not happen)")
+		}
+		parentIface, contains := prefabMetadata["parent"]
+		if !contains {
+			return fmt.Errorf("prefab parent was not added? (should not happen)")
+		}
+		if _, ok := parentIface.(uint32); !ok {
+			// parent was nil
+			prefabMetadata["parent"] = levelIdx
+			extras[extr_prefab.GetPrefabExtrasID(prefabId)] = prefabMetadata
+			doc.Extras = extras
+		}
+
+		position, rotation, scale := embedded.ToGLTF()
 		doc.Nodes[node].Translation = position
 		doc.Nodes[node].Rotation = rotation
 		doc.Nodes[node].Scale = scale
