@@ -8,6 +8,7 @@ import (
 	"github.com/go-gl/mathgl/mgl32"
 	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/stingray/entity"
+	"github.com/xypwn/filediver/stingray/prefab"
 	"github.com/xypwn/filediver/stingray/shading_environment"
 )
 
@@ -192,10 +193,15 @@ type HashIndexRange struct {
 	End   uint32 // Exclusive
 }
 
-type UnknownTransformedItem struct {
+type EmbeddedPrefabTransform struct {
 	Hash stingray.Hash
 	stingray.Transform
 	UnkFloats [6]float32
+}
+
+type EmbeddedPrefab struct {
+	EmbeddedPrefabTransform
+	prefab.Prefab
 }
 
 type ExtraUnit struct {
@@ -217,44 +223,6 @@ type ExtraPrefab struct {
 	UnkInt    uint32
 }
 
-type FloatTwoInts struct {
-	UnkFloat float32 `json:"unk_float"`
-	UnkInt1  uint32  `json:"unk_int_1"`
-	UnkInt2  uint32  `json:"unk_int_2"`
-}
-
-type IntsAndFloat struct {
-	UnkInts  [14]uint32 `json:"unk_ints"`
-	UnkFloat float32    `json:"unk_float"`
-}
-
-type rawExtraUnitHeader struct {
-	UnkInt                    uint32
-	UnkInt2                   uint32
-	LevelName                 stingray.Hash
-	ExtraUnitsPtrListOffset   uint32 // Relative to this container
-	UnkOffset1                uint32
-	ExtraPrefabsPtrListOffset uint32
-	UnkOffset3                uint32
-	UnkIntListOffset          uint32
-	UnkFloatTwoIntsListOffset uint32
-	UnkIntsAndFloatListOffset uint32
-	UnkOffset4                uint32
-	UnkOffset5                uint32
-	UnkOffset6                uint32
-}
-
-type ExtraUnitsContainer struct {
-	UnkInt              uint32
-	UnkInt2             uint32
-	LevelName           stingray.Hash
-	ExtraUnits          []ExtraUnit
-	ExtraPrefabs        []ExtraPrefab
-	UnkIntList          []uint32
-	UnkFloatTwoIntsList []FloatTwoInts
-	UnkIntsAndFloatList []IntsAndFloat
-}
-
 type RawLevel struct {
 	Magic                          uint32
 	UnitCount                      uint32
@@ -266,10 +234,10 @@ type RawLevel struct {
 	UnkOffsets02                   [8]uint32
 	PrefabCount                    uint32
 	PrefabOffset                   uint32
-	UnkHashCount                   uint32
-	UnkHashesOffset                uint32
-	UnkTransformedItemOffsetOffset uint32 // Double pointers for several items here
-	ExtraUnitsInfoOffset           uint32
+	EmbeddedPrefabsCount           uint32
+	EmbeddedPrefabHashesOffset     uint32
+	EmbeddedPrefabTransformsOffset uint32 // Double pointers for several items here
+	EmbeddedPrefabsOffset          uint32
 	UnitHashIndexRangeOffset       uint32
 	UnkHashIndexRangeOffset0       uint32
 	UnkHashIndexRangeOffset1       uint32
@@ -291,141 +259,21 @@ type RawLevel struct {
 }
 
 type Level struct {
-	Name                   stingray.Hash
-	Metadata               map[int][]MetadataEntry
-	Prefabs                []Prefab
-	MaterialOverrides      map[int]map[stingray.ThinHash]stingray.Hash
-	Units                  []Unit
-	Speedtrees             []Speedtree
-	Entity                 *entity.Entity
-	UnkTransformedItems    []UnknownTransformedItem
-	UnkExtraUnitContainers []ExtraUnitsContainer
-	UnitHashIndexRange     []HashIndexRange
-	UnkHashIndexRange1     []HashIndexRange
-	UnkHashIndexRange2     []HashIndexRange
-	UnkHashIndexRange3     []HashIndexRange
-	PrefabHashIndexRange   []HashIndexRange
-	UnkHashIndexRange4     []HashIndexRange
-	UnkHashIndexRange5     []HashIndexRange
-}
-
-func readExtraUnitsContainer(r io.ReadSeeker, extraUnitsHeaderOffset uint32) (*ExtraUnitsContainer, error) {
-	extraUnitsContainer := &ExtraUnitsContainer{}
-	var extraUnitsHeader rawExtraUnitHeader
-	if err := binary.Read(r, binary.LittleEndian, &extraUnitsHeader); err != nil {
-		return nil, err
-	}
-	extraUnitsContainer.UnkInt = extraUnitsHeader.UnkInt
-	extraUnitsContainer.UnkInt2 = extraUnitsHeader.UnkInt2
-	extraUnitsContainer.LevelName = extraUnitsHeader.LevelName
-	if extraUnitsHeader.ExtraUnitsPtrListOffset != 0 {
-		extraUnitsContainer.ExtraUnits = make([]ExtraUnit, 0)
-		if _, err := r.Seek(int64(extraUnitsHeaderOffset+extraUnitsHeader.ExtraUnitsPtrListOffset), io.SeekStart); err != nil {
-			return nil, err
-		}
-		var extraUnitsOffsetsCount uint32
-		if err := binary.Read(r, binary.LittleEndian, &extraUnitsOffsetsCount); err != nil {
-			return nil, err
-		}
-		if extraUnitsOffsetsCount > 512 {
-			return nil, fmt.Errorf("extraUnitsOffsetsCount too big: %v", extraUnitsOffsetsCount)
-		}
-		extraUnitsOffsets := make([]uint32, extraUnitsOffsetsCount)
-		if err := binary.Read(r, binary.LittleEndian, extraUnitsOffsets); err != nil {
-			return nil, err
-		}
-		for _, offset := range extraUnitsOffsets {
-			if _, err := r.Seek(int64(extraUnitsHeaderOffset+extraUnitsHeader.ExtraUnitsPtrListOffset+offset), io.SeekStart); err != nil {
-				return nil, err
-			}
-			var unit ExtraUnit
-			if err := binary.Read(r, binary.LittleEndian, &unit); err != nil {
-				return nil, err
-			}
-			extraUnitsContainer.ExtraUnits = append(extraUnitsContainer.ExtraUnits, unit)
-		}
-	}
-
-	if extraUnitsHeader.ExtraPrefabsPtrListOffset != 0 {
-		if _, err := r.Seek(int64(extraUnitsHeaderOffset+extraUnitsHeader.ExtraPrefabsPtrListOffset), io.SeekStart); err != nil {
-			return nil, err
-		}
-		var extraPrefabsCount uint32
-		if err := binary.Read(r, binary.LittleEndian, &extraPrefabsCount); err != nil {
-			return nil, err
-		}
-		var extraPrefabsOffset uint32
-		if err := binary.Read(r, binary.LittleEndian, &extraPrefabsOffset); err != nil {
-			return nil, fmt.Errorf("reading extraPrefabsOffsets: %v", err)
-		}
-		if _, err := r.Seek(int64(extraUnitsHeaderOffset+extraUnitsHeader.ExtraPrefabsPtrListOffset+extraPrefabsOffset), io.SeekStart); err != nil {
-			return nil, fmt.Errorf("seeking extra prefab: %v", err)
-		}
-		extraUnitsContainer.ExtraPrefabs = make([]ExtraPrefab, 0)
-		if err := binary.Read(r, binary.LittleEndian, extraUnitsContainer.ExtraPrefabs); err != nil {
-			return nil, fmt.Errorf("reading extra prefab: %v", err)
-		}
-	}
-
-	if extraUnitsHeader.UnkIntListOffset != 0 {
-		if _, err := r.Seek(int64(extraUnitsHeaderOffset+extraUnitsHeader.UnkIntListOffset), io.SeekStart); err != nil {
-			return nil, err
-		}
-		var unkIntListCount uint32
-		if err := binary.Read(r, binary.LittleEndian, &unkIntListCount); err != nil {
-			return nil, err
-		}
-		extraUnitsContainer.UnkIntList = make([]uint32, unkIntListCount)
-		if err := binary.Read(r, binary.LittleEndian, extraUnitsContainer.UnkIntList); err != nil {
-			return nil, err
-		}
-	}
-
-	if extraUnitsHeader.UnkFloatTwoIntsListOffset != 0 {
-		if _, err := r.Seek(int64(extraUnitsHeaderOffset+extraUnitsHeader.UnkFloatTwoIntsListOffset), io.SeekStart); err != nil {
-			return nil, err
-		}
-		var unkFloatTwoIntsListCount, unkFloatTwoIntsListOffset uint32
-		if err := binary.Read(r, binary.LittleEndian, &unkFloatTwoIntsListCount); err != nil {
-			return nil, err
-		}
-		if err := binary.Read(r, binary.LittleEndian, &unkFloatTwoIntsListOffset); err != nil {
-			return nil, err
-		}
-
-		if _, err := r.Seek(int64(extraUnitsHeaderOffset+extraUnitsHeader.UnkFloatTwoIntsListOffset+unkFloatTwoIntsListOffset), io.SeekStart); err != nil {
-			return nil, err
-		}
-		extraUnitsContainer.UnkFloatTwoIntsList = make([]FloatTwoInts, unkFloatTwoIntsListCount)
-		if err := binary.Read(r, binary.LittleEndian, extraUnitsContainer.UnkFloatTwoIntsList); err != nil {
-			return nil, err
-		}
-	}
-
-	if extraUnitsHeader.UnkIntsAndFloatListOffset != 0 {
-		if _, err := r.Seek(int64(extraUnitsHeaderOffset+extraUnitsHeader.UnkIntsAndFloatListOffset), io.SeekStart); err != nil {
-			return nil, err
-		}
-		var unkIntsAndFloatListCount, unkIntsAndFloatListOffset uint32
-		if err := binary.Read(r, binary.LittleEndian, &unkIntsAndFloatListCount); err != nil {
-			return nil, err
-		}
-		if err := binary.Read(r, binary.LittleEndian, &unkIntsAndFloatListOffset); err != nil {
-			return nil, err
-		}
-		if _, err := r.Seek(int64(extraUnitsHeaderOffset+extraUnitsHeader.UnkIntsAndFloatListOffset+unkIntsAndFloatListOffset), io.SeekStart); err != nil {
-			return nil, err
-		}
-		if unkIntsAndFloatListCount > 512 {
-			return nil, fmt.Errorf("unkIntsAndFloatListCount too big: %v", unkIntsAndFloatListCount)
-		}
-		extraUnitsContainer.UnkIntsAndFloatList = make([]IntsAndFloat, unkIntsAndFloatListCount)
-		if err := binary.Read(r, binary.LittleEndian, extraUnitsContainer.UnkIntsAndFloatList); err != nil {
-			return nil, err
-		}
-	}
-
-	return extraUnitsContainer, nil
+	Name                 stingray.Hash
+	Metadata             map[int][]MetadataEntry
+	Prefabs              []Prefab
+	MaterialOverrides    map[int]map[stingray.ThinHash]stingray.Hash
+	Units                []Unit
+	Speedtrees           []Speedtree
+	Entity               *entity.Entity
+	EmbeddedPrefabs      []EmbeddedPrefab
+	UnitHashIndexRange   []HashIndexRange
+	UnkHashIndexRange1   []HashIndexRange
+	UnkHashIndexRange2   []HashIndexRange
+	UnkHashIndexRange3   []HashIndexRange
+	PrefabHashIndexRange []HashIndexRange
+	UnkHashIndexRange4   []HashIndexRange
+	UnkHashIndexRange5   []HashIndexRange
 }
 
 func LoadLevel(r io.ReadSeeker, entityVarMapping shading_environment.ShadingEnvironmentEntityToShaderMapping) (*Level, error) {
@@ -559,57 +407,57 @@ func LoadLevel(r io.ReadSeeker, entityVarMapping shading_environment.ShadingEnvi
 		}
 	}
 
-	unkTransformedItems := make([]UnknownTransformedItem, 0)
-	if raw.UnkTransformedItemOffsetOffset != 0 {
-		if _, err := r.Seek(int64(raw.UnkTransformedItemOffsetOffset), io.SeekStart); err != nil {
+	embeddedPrefabTransforms := make([]EmbeddedPrefabTransform, 0)
+	if raw.EmbeddedPrefabTransformsOffset != 0 {
+		if _, err := r.Seek(int64(raw.EmbeddedPrefabTransformsOffset), io.SeekStart); err != nil {
 			return nil, err
 		}
-		unkTransformedItemOffsets := make([]uint32, raw.UnkHashCount)
-		if err := binary.Read(r, binary.LittleEndian, unkTransformedItemOffsets); err != nil {
+		embeddedPrefabOffsets := make([]uint32, raw.EmbeddedPrefabsCount)
+		if err := binary.Read(r, binary.LittleEndian, embeddedPrefabOffsets); err != nil {
 			return nil, err
 		}
-		for _, offset := range unkTransformedItemOffsets {
+		for _, offset := range embeddedPrefabOffsets {
 			if offset == 0 {
 				continue
 			}
 			if _, err := r.Seek(int64(offset), io.SeekStart); err != nil {
 				return nil, err
 			}
-			unkTransformedItem := UnknownTransformedItem{}
-			if err := binary.Read(r, binary.LittleEndian, &unkTransformedItem); err != nil {
+			prefabTransform := EmbeddedPrefabTransform{}
+			if err := binary.Read(r, binary.LittleEndian, &prefabTransform); err != nil {
 				return nil, err
 			}
-			unkTransformedItems = append(unkTransformedItems, unkTransformedItem)
+			embeddedPrefabTransforms = append(embeddedPrefabTransforms, prefabTransform)
 		}
 	}
 
-	extraUnitsContainers := make([]ExtraUnitsContainer, 0)
-	if raw.ExtraUnitsInfoOffset != 0 {
-		if _, err := r.Seek(int64(raw.ExtraUnitsInfoOffset), io.SeekStart); err != nil {
+	embeddedPrefabs := make([]prefab.Prefab, 0)
+	if raw.EmbeddedPrefabsOffset != 0 {
+		if _, err := r.Seek(int64(raw.EmbeddedPrefabsOffset), io.SeekStart); err != nil {
 			return nil, err
 		}
-		containerInfos := make([]struct {
+		pairs := make([]struct {
 			Offset uint32
 			Size   uint32
-		}, raw.UnkHashCount)
+		}, raw.EmbeddedPrefabsCount)
 
-		if err := binary.Read(r, binary.LittleEndian, containerInfos); err != nil {
+		if err := binary.Read(r, binary.LittleEndian, pairs); err != nil {
 			return nil, err
 		}
 
-		for _, containerInfo := range containerInfos {
+		for _, containerInfo := range pairs {
 			if containerInfo.Offset == 0 || containerInfo.Size == 0 {
 				continue
 			}
 			if _, err := r.Seek(int64(containerInfo.Offset), io.SeekStart); err != nil {
 				return nil, err
 			}
-			extraUnitContainer, err := readExtraUnitsContainer(r, containerInfo.Offset)
+			embeddedPrefab, err := prefab.Load(r)
 			if err != nil {
 				return nil, err
 			}
-			if extraUnitContainer != nil {
-				extraUnitsContainers = append(extraUnitsContainers, *extraUnitContainer)
+			if embeddedPrefab != nil {
+				embeddedPrefabs = append(embeddedPrefabs, *embeddedPrefab)
 			}
 		}
 	}
@@ -670,22 +518,29 @@ func LoadLevel(r io.ReadSeeker, entityVarMapping shading_environment.ShadingEnvi
 		return nil, err
 	}
 
+	embeddedPrefabList := make([]EmbeddedPrefab, 0)
+	for i := range raw.EmbeddedPrefabsCount {
+		embeddedPrefabList = append(embeddedPrefabList, EmbeddedPrefab{
+			EmbeddedPrefabTransform: embeddedPrefabTransforms[i],
+			Prefab:                  embeddedPrefabs[i],
+		})
+	}
+
 	return &Level{
-		Name:                   raw.Name,
-		Metadata:               metadata,
-		Prefabs:                prefabs,
-		MaterialOverrides:      materialOverrides,
-		Units:                  units,
-		Speedtrees:             speedtrees,
-		Entity:                 embeddedEntity,
-		UnkTransformedItems:    unkTransformedItems,
-		UnkExtraUnitContainers: extraUnitsContainers,
-		UnitHashIndexRange:     unitHashIndexRangeList,
-		UnkHashIndexRange1:     unkHashIndexRangeList0,
-		UnkHashIndexRange2:     unkHashIndexRangeList1,
-		UnkHashIndexRange3:     unkHashIndexRangeList2,
-		PrefabHashIndexRange:   prefabHashIndexRangeList,
-		UnkHashIndexRange4:     unkHashIndexRangeList3,
-		UnkHashIndexRange5:     unkHashIndexRangeList4,
+		Name:                 raw.Name,
+		Metadata:             metadata,
+		Prefabs:              prefabs,
+		MaterialOverrides:    materialOverrides,
+		Units:                units,
+		Speedtrees:           speedtrees,
+		Entity:               embeddedEntity,
+		EmbeddedPrefabs:      embeddedPrefabList,
+		UnitHashIndexRange:   unitHashIndexRangeList,
+		UnkHashIndexRange1:   unkHashIndexRangeList0,
+		UnkHashIndexRange2:   unkHashIndexRangeList1,
+		UnkHashIndexRange3:   unkHashIndexRangeList2,
+		PrefabHashIndexRange: prefabHashIndexRangeList,
+		UnkHashIndexRange4:   unkHashIndexRangeList3,
+		UnkHashIndexRange5:   unkHashIndexRangeList4,
 	}, nil
 }

@@ -50,7 +50,7 @@ func dumpLevelObjectNames(a *app.App, fileID stingray.FileID) error {
 			fmt.Println(unit.Name.String())
 		}
 	}
-	for _, extra := range levelData.UnkExtraUnitContainers {
+	for _, extra := range levelData.EmbeddedPrefabs {
 		// for _, prefab := range extra.ExtraPrefabs {
 		// 	knownName, ok := a.Hashes[prefab.UnkHash1]
 		// 	if ok {
@@ -59,7 +59,7 @@ func dumpLevelObjectNames(a *app.App, fileID stingray.FileID) error {
 		// 		fmt.Println(prefab.UnkHash1.String())
 		// 	}
 		// }
-		for _, unit := range extra.ExtraUnits {
+		for _, unit := range extra.Units {
 			// knownName, ok := a.Hashes[unit.UUIDHash]
 			// if ok {
 			// 	fmt.Println(knownName)
@@ -71,6 +71,15 @@ func dumpLevelObjectNames(a *app.App, fileID stingray.FileID) error {
 				fmt.Println(knownName)
 			} else {
 				fmt.Println(unit.Name.String())
+			}
+		}
+
+		for _, prefab := range extra.NestedPrefabs {
+			knownName, ok := a.Hashes[prefab.Name]
+			if ok {
+				fmt.Println(knownName)
+			} else {
+				fmt.Println(prefab.Name.String())
 			}
 		}
 	}

@@ -23,19 +23,20 @@ type SimpleHeader struct {
 }
 
 type SimpleUnit struct {
-	UnkHash0 string `json:"unk_hash_0"`
+	UUID     string `json:"uuid"`
 	Path     string `json:"path"`
-	UnkHash1 string `json:"unk_hash_1"`
+	Name     string `json:"name"`
 	UnkHash2 string `json:"unk_hash_2"`
 	stingray.Transform
-	UnkRotation mgl32.Vec4 `json:"unk_rotation"`
-	Index       uint32     `json:"index"`
+	UnkVec mgl32.Vec3 `json:"unk_vec"`
+	UnkInt uint32     `json:"unk_int"`
+	Index  uint32     `json:"index"`
 }
 
 type SimpleNestedPrefab struct {
-	UnkInt  uint32 `json:"unk_int"`
-	UnkHash string `json:"unk_hash"`
-	Path    string `json:"path"`
+	UnkInt uint32 `json:"unk_int"`
+	Name   string `json:"name"`
+	Path   string `json:"path"`
 	stingray.Transform
 	UnkFloats mgl32.Vec3 `json:"unk_floats"`
 }
@@ -44,6 +45,38 @@ type SimplePrefab struct {
 	Name    string               `json:"name"`
 	Units   []SimpleUnit         `json:"units"`
 	Prefabs []SimpleNestedPrefab `json:"prefabs"`
+}
+
+func ToSimple(ctx *extractor.Context, prefabData prefab.Prefab) SimplePrefab {
+	units := make([]SimpleUnit, 0)
+	for _, unit := range prefabData.Units {
+		units = append(units, SimpleUnit{
+			UUID:      ctx.LookupHash(unit.UUID),
+			Path:      ctx.LookupHash(unit.Path()),
+			Name:      ctx.LookupHash(unit.Name),
+			UnkHash2:  ctx.LookupHash(stingray.Hash{Value: unit.Unk02}),
+			Transform: unit.Transform,
+			UnkVec:    unit.UnkVec,
+			UnkInt:    unit.UnkInt,
+			Index:     unit.Index,
+		})
+	}
+	prefabs := make([]SimpleNestedPrefab, 0)
+	for _, prefab := range prefabData.NestedPrefabs {
+		prefabs = append(prefabs, SimpleNestedPrefab{
+			UnkInt:    prefab.UnkInt,
+			Name:      ctx.LookupHash(prefab.Name),
+			Path:      ctx.LookupHash(prefab.Path),
+			Transform: prefab.Transform,
+			UnkFloats: prefab.UnkFloats,
+		})
+	}
+	result := SimplePrefab{
+		Name:    ctx.LookupHash(prefabData.NameHash),
+		Prefabs: prefabs,
+		Units:   units,
+	}
+	return result
 }
 
 func ExtractPrefabJSON(ctx *extractor.Context) error {
@@ -55,33 +88,8 @@ func ExtractPrefabJSON(ctx *extractor.Context) error {
 	if err != nil {
 		return err
 	}
-	units := make([]SimpleUnit, 0)
-	for _, unit := range prefabData.Units {
-		units = append(units, SimpleUnit{
-			UnkHash0:    ctx.LookupHash(stingray.Hash{Value: unit.Unk00}),
-			Path:        ctx.LookupHash(unit.Path()),
-			UnkHash1:    ctx.LookupHash(stingray.Hash{Value: unit.Unk01}),
-			UnkHash2:    ctx.LookupHash(stingray.Hash{Value: unit.Unk02}),
-			Transform:   unit.Transform,
-			UnkRotation: unit.UnkFloats,
-			Index:       unit.Index,
-		})
-	}
-	prefabs := make([]SimpleNestedPrefab, 0)
-	for _, prefab := range prefabData.NestedPrefabs {
-		prefabs = append(prefabs, SimpleNestedPrefab{
-			UnkInt:    prefab.UnkInt,
-			UnkHash:   ctx.LookupHash(prefab.UnkHash),
-			Path:      ctx.LookupHash(prefab.Path),
-			Transform: prefab.Transform,
-			UnkFloats: prefab.UnkFloats,
-		})
-	}
-	outData := SimplePrefab{
-		Name:    ctx.LookupHash(prefabData.NameHash),
-		Prefabs: prefabs,
-		Units:   units,
-	}
+
+	outData := ToSimple(ctx, *prefabData)
 
 	out, err := ctx.CreateFile(".prefab.json")
 	if err != nil {
