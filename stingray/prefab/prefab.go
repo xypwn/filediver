@@ -21,24 +21,25 @@ type Header struct {
 }
 
 type Unit struct {
-	Unk00 uint64
+	UUID stingray.Hash
 	stingray.Hash
-	Unk01 uint64
+	Name  stingray.Hash
 	Unk02 uint64
 	stingray.Transform
-	UnkFloats mgl32.Vec4
-	Index     uint32
-	UnkData   [20]uint8
+	UnkVec  mgl32.Vec3
+	UnkInt  uint32
+	Index   uint32
+	UnkData [20]uint8
 }
 
-func (o *Unit) Path() stingray.Hash {
-	return o.Hash
+func (u *Unit) Path() stingray.Hash {
+	return u.Hash
 }
 
 type NestedPrefab struct {
-	UnkInt  uint32
-	UnkHash stingray.Hash
-	Path    stingray.Hash
+	UnkInt uint32
+	Name   stingray.Hash
+	Path   stingray.Hash
 	stingray.Transform
 	UnkFloats mgl32.Vec3
 }
@@ -50,13 +51,17 @@ type Prefab struct {
 }
 
 func Load(r io.ReadSeeker) (*Prefab, error) {
+	base, err := r.Seek(0, io.SeekCurrent)
+	if err != nil {
+		return nil, err
+	}
 	var hdr Header
 	if err := binary.Read(r, binary.LittleEndian, &hdr); err != nil {
 		return nil, err
 	}
 	var length uint32
 	if hdr.UnitListOffset != 0 {
-		if _, err := r.Seek(int64(hdr.UnitListOffset), io.SeekStart); err != nil {
+		if _, err := r.Seek(base+int64(hdr.UnitListOffset), io.SeekStart); err != nil {
 			return nil, err
 		}
 		if err := binary.Read(r, binary.LittleEndian, &length); err != nil {
@@ -69,7 +74,7 @@ func Load(r io.ReadSeeker) (*Prefab, error) {
 	}
 	units := make([]Unit, 0, length)
 	for _, offset := range offsets {
-		if _, err := r.Seek(int64(hdr.UnitListOffset+offset), io.SeekStart); err != nil {
+		if _, err := r.Seek(base+int64(hdr.UnitListOffset+offset), io.SeekStart); err != nil {
 			return nil, err
 		}
 		var object Unit
@@ -81,7 +86,7 @@ func Load(r io.ReadSeeker) (*Prefab, error) {
 
 	var prefabsLength uint32
 	if hdr.PrefabListOffset != 0 {
-		if _, err := r.Seek(int64(hdr.PrefabListOffset), io.SeekStart); err != nil {
+		if _, err := r.Seek(base+int64(hdr.PrefabListOffset), io.SeekStart); err != nil {
 			return nil, err
 		}
 		if err := binary.Read(r, binary.LittleEndian, &prefabsLength); err != nil {

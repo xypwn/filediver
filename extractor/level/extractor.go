@@ -65,39 +65,10 @@ type SimpleSpeedtree struct {
 	SpeedtreeTransforms []SimpleSpeedtreeTransform `json:"transforms"`
 }
 
-type SimpleUnknownTransformedItem struct {
+type SimpleEmbeddedPrefabTransform struct {
 	Hash string `json:"hash"`
 	stingray.Transform
 	UnkFloats [6]float32 `json:"unk_floats"`
-}
-
-type SimpleExtraUnit struct {
-	UUID string `json:"uuid"`
-	Path string `json:"path"`
-	Name string `json:"name"`
-	stingray.Transform
-	UnkFloats [3]float32 `json:"unk_floats"`
-	UnkInt    uint32     `json:"unk_int"`
-	UnkInt2   uint32     `json:"unk_int_2"`
-}
-
-type SimpleExtraPrefab struct {
-	UUID string `json:"uuid"`
-	Path string `json:"path"`
-	stingray.Transform
-	UnkFloats [3]float32 `json:"unk_floats"`
-	UnkInt    uint32     `json:"unk_int"`
-}
-
-type SimpleExtraUnitsContainer struct {
-	UnkInt              uint32               `json:"unk_int"`
-	UnkInt2             uint32               `json:"unk_int_2"`
-	LevelName           string               `json:"level_name"`
-	ExtraUnits          []SimpleExtraUnit    `json:"extra_units"`
-	ExtraPrefabs        []SimpleExtraPrefab  `json:"extra_prefabs"`
-	UnkIntList          []uint32             `json:"unk_int_list"`
-	UnkFloatTwoIntsList []level.FloatTwoInts `json:"unk_float_two_ints_list"`
-	UnkIntsAndFloatList []level.IntsAndFloat `json:"unk_ints_and_float"`
 }
 
 type SimpleHashIndexRange struct {
@@ -106,23 +77,27 @@ type SimpleHashIndexRange struct {
 	End   uint32 `json:"end"`
 }
 
+type SimpleEmbeddedPrefab struct {
+	Transform SimpleEmbeddedPrefabTransform `json:"header"`
+	Prefab    extr_prefab.SimplePrefab      `json:"prefab"`
+}
+
 type SimpleLevel struct {
-	Name                 string                         `json:"name"`
-	Metadata             map[int][]SimpleMetadata       `json:"metadata"`
-	Prefabs              []SimplePrefab                 `json:"prefabs"`
-	MaterialOverrides    []SimpleMaterialOverride       `json:"material_overrides"`
-	Units                []SimpleUnit                   `json:"units"`
-	Speedtrees           []SimpleSpeedtree              `json:"speedtrees"`
-	Entity               *entity.SimpleEntity           `json:"entity"`
-	UnkTransformedItems  []SimpleUnknownTransformedItem `json:"unk_transformed_item"`
-	UnkExtraUnits        []SimpleExtraUnitsContainer    `json:"unk_extra_units"`
-	UnitHashIndexRange   []SimpleHashIndexRange         `json:"unit_hash_index_range"`
-	UnkHashIndexRange1   []SimpleHashIndexRange         `json:"unk_hash_index_range_1"`
-	UnkHashIndexRange2   []SimpleHashIndexRange         `json:"unk_hash_index_range_2"`
-	UnkHashIndexRange3   []SimpleHashIndexRange         `json:"unk_hash_index_range_3"`
-	PrefabHashIndexRange []SimpleHashIndexRange         `json:"prefab_hash_index_range"`
-	UnkHashIndexRange4   []SimpleHashIndexRange         `json:"unk_hash_index_range_4"`
-	UnkHashIndexRange5   []SimpleHashIndexRange         `json:"unk_hash_index_range_5"`
+	Name                         string                   `json:"name"`
+	Metadata                     map[int][]SimpleMetadata `json:"metadata"`
+	MaterialOverrides            []SimpleMaterialOverride `json:"material_overrides"`
+	Units                        []SimpleUnit             `json:"units"`
+	Prefabs                      []SimplePrefab           `json:"prefabs"`
+	EmbeddedPrefabs              []SimpleEmbeddedPrefab   `json:"embedded_prefabs"`
+	Speedtrees                   []SimpleSpeedtree        `json:"speedtrees"`
+	Entity                       *entity.SimpleEntity     `json:"entity"`
+	UnitHashIndexRange           []SimpleHashIndexRange   `json:"unit_hash_index_range"`
+	UnkHashIndexRange1           []SimpleHashIndexRange   `json:"unk_hash_index_range_1"`
+	UnkHashIndexRange2           []SimpleHashIndexRange   `json:"unk_hash_index_range_2"`
+	UnkHashIndexRange3           []SimpleHashIndexRange   `json:"unk_hash_index_range_3"`
+	PrefabHashIndexRange         []SimpleHashIndexRange   `json:"prefab_hash_index_range"`
+	EmbeddedPrefabHashIndexRange []SimpleHashIndexRange   `json:"embedded_prefab_hash_index_range"`
+	UnkHashIndexRange5           []SimpleHashIndexRange   `json:"unk_hash_index_range_5"`
 }
 
 func ExtractLevelJSON(ctx *extractor.Context) error {
@@ -222,6 +197,18 @@ func ExtractLevelJSON(ctx *extractor.Context) error {
 		simpleEntity.FromEntity(ctx, levelData.Entity)
 	}
 
+	embeddedPrefabs := make([]SimpleEmbeddedPrefab, 0)
+	for _, item := range levelData.EmbeddedPrefabs {
+		embeddedPrefabs = append(embeddedPrefabs, SimpleEmbeddedPrefab{
+			Transform: SimpleEmbeddedPrefabTransform{
+				Hash:      ctx.LookupHash(item.Hash),
+				Transform: item.Transform,
+				UnkFloats: item.UnkFloats,
+			},
+			Prefab: extr_prefab.ToSimple(ctx, item.Prefab),
+		})
+	}
+
 	outData := SimpleLevel{
 		Name:              ctx.LookupHash(levelData.Name),
 		Metadata:          metadata,
@@ -230,51 +217,7 @@ func ExtractLevelJSON(ctx *extractor.Context) error {
 		Units:             units,
 		Speedtrees:        speedtrees,
 		Entity:            simpleEntity,
-	}
-
-	outData.UnkTransformedItems = make([]SimpleUnknownTransformedItem, 0)
-	for _, item := range levelData.UnkTransformedItems {
-		outData.UnkTransformedItems = append(outData.UnkTransformedItems, SimpleUnknownTransformedItem{
-			Hash:      ctx.LookupHash(item.Hash),
-			Transform: item.Transform,
-			UnkFloats: item.UnkFloats,
-		})
-	}
-
-	outData.UnkExtraUnits = make([]SimpleExtraUnitsContainer, 0)
-	for _, container := range levelData.UnkExtraUnitContainers {
-		extraUnits := make([]SimpleExtraUnit, 0)
-		for _, unit := range container.ExtraUnits {
-			extraUnits = append(extraUnits, SimpleExtraUnit{
-				UUID:      ctx.LookupHash(unit.UUIDHash),
-				Path:      ctx.LookupHash(unit.Path),
-				Name:      ctx.LookupHash(unit.Name),
-				Transform: unit.Transform,
-				UnkFloats: unit.UnkFloats,
-				UnkInt:    unit.UnkInt,
-				UnkInt2:   unit.UnkInt2,
-			})
-		}
-		extraPrefabs := make([]SimpleExtraPrefab, 0)
-		for _, prefab := range container.ExtraPrefabs {
-			extraPrefabs = append(extraPrefabs, SimpleExtraPrefab{
-				UUID:      ctx.LookupHash(prefab.UUIDHash),
-				Path:      ctx.LookupHash(prefab.Path),
-				Transform: prefab.Transform,
-				UnkFloats: prefab.UnkFloats,
-				UnkInt:    prefab.UnkInt,
-			})
-		}
-		outData.UnkExtraUnits = append(outData.UnkExtraUnits, SimpleExtraUnitsContainer{
-			UnkInt:              container.UnkInt,
-			UnkInt2:             container.UnkInt2,
-			LevelName:           ctx.LookupHash(container.LevelName),
-			ExtraUnits:          extraUnits,
-			ExtraPrefabs:        extraPrefabs,
-			UnkIntList:          container.UnkIntList,
-			UnkFloatTwoIntsList: container.UnkFloatTwoIntsList,
-			UnkIntsAndFloatList: container.UnkIntsAndFloatList,
-		})
+		EmbeddedPrefabs:   embeddedPrefabs,
 	}
 
 	if levelData.UnitHashIndexRange != nil {
@@ -332,10 +275,10 @@ func ExtractLevelJSON(ctx *extractor.Context) error {
 		}
 	}
 
-	if levelData.UnkHashIndexRange4 != nil {
-		outData.UnkHashIndexRange4 = make([]SimpleHashIndexRange, 0)
-		for _, hashIndexRange := range levelData.UnkHashIndexRange4 {
-			outData.UnkHashIndexRange4 = append(outData.UnkHashIndexRange4, SimpleHashIndexRange{
+	if levelData.EmbeddedPrefabHashIndexRange != nil {
+		outData.EmbeddedPrefabHashIndexRange = make([]SimpleHashIndexRange, 0)
+		for _, hashIndexRange := range levelData.EmbeddedPrefabHashIndexRange {
+			outData.EmbeddedPrefabHashIndexRange = append(outData.EmbeddedPrefabHashIndexRange, SimpleHashIndexRange{
 				Hash:  ctx.LookupThinHash(hashIndexRange.Hash),
 				Start: hashIndexRange.Start,
 				End:   hashIndexRange.End,
@@ -415,7 +358,7 @@ func ConvertOpts(ctx *extractor.Context, gltfDoc *gltf.Document) error {
 	}
 	doc.Extras = extras
 
-	totalObjectCount := float32(len(levelData.Units) + len(levelData.Prefabs) + len(levelData.Speedtrees))
+	totalObjectCount := float32(len(levelData.Units) + len(levelData.EmbeddedPrefabs) + len(levelData.Prefabs) + len(levelData.Speedtrees))
 	for idx, prefab := range levelData.Prefabs {
 		if ctxErr := ctx.Ctx().Err(); errors.Is(ctxErr, context.Canceled) {
 			return ctxErr
@@ -453,6 +396,50 @@ func ConvertOpts(ctx *extractor.Context, gltfDoc *gltf.Document) error {
 		}
 
 		position, rotation, scale := prefab.ToGLTF()
+		doc.Nodes[node].Translation = position
+		doc.Nodes[node].Rotation = rotation
+		doc.Nodes[node].Scale = scale
+
+		doc.Nodes[levelIdx].Children = append(doc.Nodes[levelIdx].Children, node)
+	}
+
+	for idx, embedded := range levelData.EmbeddedPrefabs {
+		if ctxErr := ctx.Ctx().Err(); errors.Is(ctxErr, context.Canceled) {
+			return ctxErr
+		}
+		if ctx.FileID() == ctx.RootFileID() {
+			percentComplete := 100 * float32(idx+1) / totalObjectCount
+			ctx.Statusf("%.2f%% - %v.prefab (embedded)", percentComplete, ctx.LookupHash(embedded.EmbeddedPrefabTransform.Hash))
+		}
+		prefabId := ctx.OverrideAsset(stingray.NewFileID(embedded.EmbeddedPrefabTransform.Hash, stingray.Sum("prefab")))
+		node, err := extr_prefab.AddPrefabData(ctx.WithFileID(prefabId), doc, imgOpts, &embedded.Prefab)
+		if err != nil {
+			return err
+		}
+		extras, ok := doc.Extras.(map[string]any)
+		if !ok {
+			return fmt.Errorf("prefab export did not add extras? (should not happen)")
+		}
+		prefabMetadataIface, contains := extras[extr_prefab.GetPrefabExtrasID(prefabId)]
+		if !contains {
+			return fmt.Errorf("prefab export did not add metadata? (should not happen)")
+		}
+		prefabMetadata, ok := prefabMetadataIface.(map[string]any)
+		if !ok {
+			return fmt.Errorf("prefab metadata could not be converted? (should not happen)")
+		}
+		parentIface, contains := prefabMetadata["parent"]
+		if !contains {
+			return fmt.Errorf("prefab parent was not added? (should not happen)")
+		}
+		if _, ok := parentIface.(uint32); !ok {
+			// parent was nil
+			prefabMetadata["parent"] = levelIdx
+			extras[extr_prefab.GetPrefabExtrasID(prefabId)] = prefabMetadata
+			doc.Extras = extras
+		}
+
+		position, rotation, scale := embedded.ToGLTF()
 		doc.Nodes[node].Translation = position
 		doc.Nodes[node].Rotation = rotation
 		doc.Nodes[node].Scale = scale
