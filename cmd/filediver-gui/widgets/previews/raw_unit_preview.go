@@ -124,6 +124,7 @@ type RawUnitPreviewState struct {
 
 	vfov         float32
 	model        mgl32.Mat4
+	modelPos     mgl32.Vec4
 	viewDistance float32
 	viewRotation mgl32.Vec2 // {yaw, pitch}
 
@@ -192,6 +193,7 @@ func NewRawUnitPreview() (*RawUnitPreviewState, error) {
 	pv.aabbColor = [4]float32{0.3, 0.3, 0.8, 0.2}
 	pv.objects = make(map[uint64]rawUnitPreviewObject)
 	pv.model = stingrayToGLCoords
+	pv.modelPos = mgl32.Vec4{0.0, 0.0, 0.0, 1.0}
 
 	return pv, nil
 }
@@ -485,10 +487,22 @@ func RawUnitPreview(name string, pv *RawUnitPreviewState, lookupHash func(stingr
 		func() {
 			io := imgui.CurrentIO()
 
+			_, viewPos, view, projection := pv.computeMVP(viewSize.X / viewSize.Y)
+			invProj := projection.Inv()
+			invModelView := pv.model.Inv().Mul4(view.Inv())
+			cameraPos := pv.model.Inv().Mul4x1(viewPos.Vec4(1.0))
+
 			if imgui.IsItemActive() {
 				md := io.MouseDelta()
-				pv.viewRotation = pv.viewRotation.Add(mgl32.Vec2{md.X, md.Y}.Mul(-0.01))
-				pv.viewRotation[1] = mgl32.Clamp(pv.viewRotation[1], -1.55, 1.55)
+				md4 := mgl32.Vec4{md.X, -md.Y, 0.0, 1.0}
+				if io.KeyShift() && md4.Vec2().LenSqr() > 0 {
+					invMouseDelta := invProj.Mul4x1(md4)
+					positionDelta := invModelView.Mul4x1(invMouseDelta.Vec2().Vec4(0.0, 1.0)).Sub(cameraPos)
+					pv.modelPos = pv.modelPos.Add(positionDelta.Mul(io.DeltaTime()))
+				} else {
+					pv.viewRotation = pv.viewRotation.Add(mgl32.Vec2{md.X, md.Y}.Mul(-0.01))
+					pv.viewRotation[1] = mgl32.Clamp(pv.viewRotation[1], -1.55, 1.55)
+				}
 			}
 			if imgui.IsItemHovered() {
 				scroll := io.MouseWheel()
@@ -517,7 +531,9 @@ func RawUnitPreview(name string, pv *RawUnitPreviewState, lookupHash func(stingr
 				if !lod.Enabled {
 					continue
 				}
-				model := stingrayToGLCoords.Mul4(pv.objects[pv.fileName].Matrix).Mul4(lod.Matrix)
+				position := pv.modelPos.Vec3()
+				translation := mgl32.Translate3D(position.X(), position.Y(), position.Z())
+				model := stingrayToGLCoords.Mul4(pv.objects[pv.fileName].Matrix).Mul4(lod.Matrix).Mul4(translation)
 				gl.UniformMatrix4fv(pv.uniforms["model"], 1, false, &model[0])
 				gl.BindVertexArray(pv.objects[pv.fileName].Buffers[lod.MeshLayoutIndex].vao)
 				var indexType uint32
