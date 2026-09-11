@@ -277,10 +277,6 @@ func (pv *RawUnitPreviewState) LoadUnit(ctx context.Context, fileID stingray.Fil
 			return fmt.Errorf("%v.unit does not have gpu data", fileID.Name.String())
 		}
 
-		if err != nil {
-			return err
-		}
-
 		for _, unitInfo := range info.MeshInfos {
 			meshInfos = append(meshInfos, geometry.MeshInfo{
 				Groups:          unitInfo.Groups,
