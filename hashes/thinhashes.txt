@@ -30914,6 +30914,7 @@ helmet_warbond_helghast_1
 helmet_warbond_helghast_2
 cape_warbond_helghast_1
 cape_warbond_helghast_2
+cape_51
 g_head_01
 g_head_01_LOD1
 g_head_01_LOD2
