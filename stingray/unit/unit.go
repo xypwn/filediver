@@ -179,6 +179,7 @@ const (
 	ItemPosition          MeshLayoutItemType = 0
 	ItemNormal            MeshLayoutItemType = 1
 	ItemTangent           MeshLayoutItemType = 2
+	ItemBinormal          MeshLayoutItemType = 3
 	ItemUVCoords          MeshLayoutItemType = 4
 	ItemColor             MeshLayoutItemType = 5
 	ItemBoneIdx           MeshLayoutItemType = 6

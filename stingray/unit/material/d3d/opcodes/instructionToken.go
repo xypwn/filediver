@@ -810,6 +810,19 @@ func (tok *InstructionToken) quintenaryOpGLSL(opType ShaderOpcodeType, cbs []Con
 		expr,
 	)
 
+	if tok.Saturate() {
+		expr = fmt.Sprintf("clamp(%v, 0.0, 1.0)", expr)
+	}
+	if opType.ReturnNumberType() != internalNumberTypeFloat {
+		expr = fmt.Sprintf("%v(%v)", opType.ReturnNumberType().BitcastToFloat(), expr)
+	}
+
+	toReturn += fmt.Sprintf(
+		"%v = %v;",
+		tok.operands[0].ToGLSL(cbs, isg, osg, res, masks[0], true, false),
+		expr,
+	)
+
 	return toReturn + "\n"
 }
 

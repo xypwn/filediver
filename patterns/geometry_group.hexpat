@@ -89,8 +89,11 @@ struct MeshInfo {
 enum MeshLayoutItemType : u32 {
     Position,
     Normal,
-    UVCoords = 4,
-    BoneIdx = 6,
+    Tangent,
+    Binormal,
+    UVCoords,
+    Color,
+    BoneIdx,
     BoneWeight
 };
 

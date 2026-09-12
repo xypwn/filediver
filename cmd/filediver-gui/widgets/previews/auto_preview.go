@@ -44,6 +44,7 @@ type AutoPreview struct {
 	activeID   stingray.FileID
 	previews   struct {
 		unit      *UnitPreviewState
+		rawUnit   *RawUnitPreviewState
 		speedtree *SpeedtreePreviewState
 		audio     *WwisePreview
 		video     *BinkPreview
@@ -82,6 +83,10 @@ func NewAutoPreview(otoCtx *oto.Context, audioSampleRate int, hashes map[stingra
 	if err != nil {
 		return nil, err
 	}
+	pv.previews.rawUnit, err = NewRawUnitPreview()
+	if err != nil {
+		return nil, err
+	}
 	pv.previews.audio = NewWwisePreview(otoCtx, audioSampleRate)
 	pv.previews.video = NewBinkPreview(runner)
 	pv.previews.texture = NewImagePreview()
@@ -95,6 +100,7 @@ func NewAutoPreview(otoCtx *oto.Context, audioSampleRate int, hashes map[stingra
 
 func (pv *AutoPreview) Delete() {
 	pv.previews.unit.Delete()
+	pv.previews.rawUnit.Delete()
 	pv.previews.speedtree.Delete()
 	pv.previews.audio.Delete()
 	pv.previews.video.Delete()
@@ -150,14 +156,8 @@ func (pv *AutoPreview) LoadFile(ctx context.Context, fileID stingray.FileID, max
 	switch fileID.Type {
 	case stingray.Sum("unit"):
 		pv.activeType = AutoPreviewUnit
-		if err := loadFiles(stingray.DataMain, stingray.DataGPU); err != nil {
-			pv.err = err
-			return
-		}
-		if err := pv.previews.unit.LoadUnit(
-			fileID.Name,
-			data[stingray.DataMain],
-			data[stingray.DataGPU],
+		if err := pv.previews.rawUnit.LoadUnit(
+			ctx, fileID,
 			pv.getResourceGenerator(true),
 			pv.thinhashes,
 		); err != nil {
@@ -359,7 +359,16 @@ func (pv *AutoPreview) Draw(name string) bool {
 	case AutoPreviewEmpty:
 		return false
 	case AutoPreviewUnit:
-		UnitPreview(name, pv.previews.unit)
+		RawUnitPreview(name, pv.previews.rawUnit,
+			func(hash stingray.Hash) (name string, ok bool) {
+				name, ok = pv.hashes[hash]
+				return
+			},
+			func(hash stingray.ThinHash) (name string, ok bool) {
+				name, ok = pv.thinhashes[hash]
+				return
+			},
+		)
 	case AutoPreviewTree:
 		SpeedtreePreview(name, pv.previews.speedtree)
 	case AutoPreviewAudio:

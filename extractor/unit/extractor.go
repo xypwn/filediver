@@ -1183,12 +1183,8 @@ func loadGeometryGroupMeshes(ctx *extractor.Context, doc *gltf.Document, unitInf
 	}
 
 	geoInfo, ok := geoGroup.MeshInfos[ctx.FileID().Name]
-	unitName, contains := ctx.Hashes()[ctx.FileID().Name]
-	if !contains {
-		unitName = ctx.FileID().Name.String()
-	}
 	if !ok {
-		return fmt.Errorf("%v.geometry_group does not contain %v.unit", unitInfo.GeometryGroup.String(), unitName)
+		return fmt.Errorf("%v.geometry_group does not contain %v.unit", unitInfo.GeometryGroup.String(), ctx.LookupHash(ctx.FileID().Name))
 	}
 
 	gpuR, err := ctx.Open(geoID, stingray.DataGPU)
