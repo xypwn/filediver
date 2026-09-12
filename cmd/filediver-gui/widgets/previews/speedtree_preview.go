@@ -139,6 +139,7 @@ type SpeedtreePreviewState struct {
 	dbgObjUniforms speedtreePreviewUniforms
 
 	vfov         float32
+	modelPos     mgl32.Vec4
 	model        mgl32.Mat4
 	viewDistance float32
 	viewRotation mgl32.Vec2 // {yaw, pitch}
@@ -649,6 +650,7 @@ func (pv *SpeedtreePreviewState) LoadSpeedtree(fileID stingray.Hash, mainData, g
 	}
 
 	pv.model = stingrayToGLCoords
+	pv.modelPos = mgl32.Vec4{0, 0, 0, 1}
 
 	if pv.autoZoomEnabled {
 		pv.doAutoZoomNextFrame = true
@@ -778,8 +780,23 @@ func SpeedtreePreview(name string, pv *SpeedtreePreviewState) {
 
 			if imgui.IsItemActive() {
 				md := io.MouseDelta()
-				pv.viewRotation = pv.viewRotation.Add(mgl32.Vec2{md.X, md.Y}.Mul(-0.01))
-				pv.viewRotation[1] = mgl32.Clamp(pv.viewRotation[1], -1.55, 1.55)
+				md4 := mgl32.Vec4{md.X, -md.Y, 0.0, 1.0}
+				if io.KeyShift() && md4.Vec2().LenSqr() > 0 {
+					_, _, view, projection := pv.computeMVP(viewSize.X/viewSize.Y, false)
+					modelViewProj := projection.Mul4(view).Mul4(pv.model)
+					invModelViewProjection := modelViewProj.Inv()
+
+					projected := modelViewProj.Mul4x1(pv.modelPos.Vec3().Vec4(1.0))
+					// Set depth to current model position
+					md4[2] = projected.Z() / projected.W()
+
+					positionDelta := invModelViewProjection.Mul4x1(md4)
+					positionDelta = positionDelta.Mul(1 / positionDelta.W())
+					pv.modelPos = pv.modelPos.Add(positionDelta.Mul(io.DeltaTime() / 2).Vec3().Vec4(0.0))
+				} else {
+					pv.viewRotation = pv.viewRotation.Add(mgl32.Vec2{md.X, md.Y}.Mul(-0.01))
+					pv.viewRotation[1] = mgl32.Clamp(pv.viewRotation[1], -1.55, 1.55)
+				}
 			}
 			if imgui.IsItemDeactivated() && pv.autoZoomEnabled {
 				pv.doAutoZoomNextFrame = true
@@ -802,7 +819,8 @@ func SpeedtreePreview(name string, pv *SpeedtreePreviewState) {
 			gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 
 			normal, viewPosition, view, projection := pv.computeMVP(size.X/size.Y, true)
-			mvp := projection.Mul4(view).Mul4(pv.model)
+			translation := mgl32.Translate3D(pv.modelPos.Vec3().Elem())
+			mvp := projection.Mul4(view).Mul4(pv.model.Mul4(translation))
 
 			// Draw object
 			gl.Enable(gl.DEPTH_TEST)
@@ -1051,6 +1069,7 @@ func SpeedtreePreview(name string, pv *SpeedtreePreviewState) {
 	// spaces as they need
 	if imgui.Button(fnt.I.Home) {
 		pv.viewRotation = mgl32.Vec2{}
+		pv.modelPos = mgl32.Vec4{0, 0, 0, 1}
 		pv.doAutoZoomNextFrame = true
 		pv.animTime = 0
 	}
