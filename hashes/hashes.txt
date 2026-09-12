@@ -104662,7 +104662,12 @@ packages/generated/loadout/tornado_small
 packages/generated/loadout/volcanic_activity
 packages/generated/loadout/volley_gun
 packages/generated/loadout/zipper_grenade
+packages/generated/scatter_settings/shared
 packages/generated/stamps/shared
+packages/generated/videos/video_arrowhead_logo
+packages/generated/videos/video_tutorial_idle_flag
+packages/generated/videos/videos_ship_small
+packages/generated/videos/videos_stratagems
 packages/localization/jp
 packages/localization/ko
 packages/localization/latin
