@@ -30820,6 +30820,8 @@ armor_warbond_nacho_1
 armor_warbond_nacho_2
 armor_warbond_siege_1
 armor_warbond_siege_2
+armor_warbond_shark_1
+armor_warbond_shark_2
 armor_warbond_trench_1
 armor_warbond_trench_2
 cape_warbond_08_1
@@ -30857,6 +30859,8 @@ cape_warbond_nacho_1
 cape_warbond_nacho_2
 cape_warbond_siege_1
 cape_warbond_siege_2
+cape_warbond_shark_1
+cape_warbond_shark_2
 cape_warbond_trench_1
 cape_warbond_trench_2
 helmet_warbond_08_1
@@ -30894,6 +30898,8 @@ helmet_warbond_nacho_1
 helmet_warbond_nacho_2
 helmet_warbond_siege_1
 helmet_warbond_siege_2
+helmet_warbond_shark_1
+helmet_warbond_shark_2
 helmet_warbond_trench_1
 helmet_warbond_trench_2
 armor_warbond_spec_ops_1
