@@ -43,6 +43,7 @@ func (pv *MaterialPreview) LoadMaterial(mat *material.Material, getResource GetR
 
 	clear(pv.settings)
 	pv.settingKeys = nil
+	pv.settingsVisible = true
 	pv.baseMaterial = stingray.Hash{}
 
 	var imgsToLoad []image.Image
