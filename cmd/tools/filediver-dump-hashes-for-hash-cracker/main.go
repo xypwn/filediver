@@ -16,6 +16,7 @@ import (
 	datalib "github.com/xypwn/filediver/datalibrary"
 	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/stingray/physics"
+	"github.com/xypwn/filediver/stingray/state_machine"
 	stingray_strings "github.com/xypwn/filediver/stingray/strings"
 	"github.com/xypwn/filediver/util"
 )
@@ -156,23 +157,53 @@ func main() {
 		writeItems(prt, "physics_name_endings.txt", maps.Keys(strs))
 	}
 
-	// File and type name hashes
+	// Murmur64 hashes
 	{
-		allHashes := make(map[uint64]struct{})
-		for id := range a.DataDir.Files {
-			allHashes[id.Name.Value] = struct{}{}
-			allHashes[id.Type.Value] = struct{}{}
-		}
-
 		known := make(map[string]struct{})
 		unknown := make(map[uint64]struct{})
-		for h := range allHashes {
-			if s, exists := a.Hashes[stingray.Hash{Value: h}]; exists {
-				if !reAudioPath.MatchString(s) {
-					known[s] = struct{}{}
+
+		// File and type name hashes
+		{
+			allHashes := make(map[uint64]struct{})
+			for id := range a.DataDir.Files {
+				allHashes[id.Name.Value] = struct{}{}
+				allHashes[id.Type.Value] = struct{}{}
+			}
+
+			for h := range allHashes {
+				if s, exists := a.Hashes[stingray.Hash{Value: h}]; exists {
+					if !reAudioPath.MatchString(s) {
+						known[s] = struct{}{}
+					}
+				} else {
+					unknown[h] = struct{}{}
 				}
-			} else {
-				unknown[h] = struct{}{}
+			}
+		}
+
+		// Animation names
+		{
+			for id := range a.DataDir.Files {
+				if id.Type != stingray.Sum("state_machine") {
+					continue
+				}
+				b, err := a.DataDir.Read(id, stingray.DataMain)
+				if err != nil {
+					prt.Fatalf("%v", err)
+				}
+				stateMachine, err := state_machine.LoadStateMachine(bytes.NewReader(b))
+				if err != nil {
+					prt.Fatalf("%v", err)
+				}
+				for _, layer := range stateMachine.Layers {
+					for _, state := range layer.States {
+						if s, exists := a.Hashes[state.Name]; exists {
+							known[s] = struct{}{}
+						} else {
+							unknown[state.Name.Value] = struct{}{}
+						}
+					}
+				}
 			}
 		}
 		writeItems(prt, "known_hashes.txt", maps.Keys(known))
