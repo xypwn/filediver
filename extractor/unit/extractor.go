@@ -807,14 +807,18 @@ type materialGeneratorSettings struct {
 
 func addTerrainProjectors(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_material.ImageOptions, zone datalib.ZoneSettings, colorGradingDDS bytes.Buffer) (stingray.Hash, []materialGeneratorSettings, error) {
 	noiseMap := stingray.Sum("")
-	ctx.Statusf("Using zone material lookup unit %v", ctx.LookupHash(zone.MaterialLookupUnit))
-	fMain, err := ctx.Open(stingray.NewFileID(zone.MaterialLookupUnit, stingray.Sum("unit")), stingray.DataMain)
-	if err != nil {
-		return noiseMap, nil, fmt.Errorf("Failed to open terrain lookup unit %v: %v", ctx.LookupHash(zone.MaterialLookupUnit), err)
-	}
-	materialLookup, err := unit.LoadInfo(fMain)
-	if err != nil {
-		return noiseMap, nil, fmt.Errorf("Failed to load terrain lookup unit %v: %v", ctx.LookupHash(zone.MaterialLookupUnit), err)
+	// ctx.Statusf("Using zone material lookup unit %v", ctx.LookupHash(zone.MaterialLookupUnit))
+	// fMain, err := ctx.Open(stingray.NewFileID(zone.MaterialLookupUnit, stingray.Sum("unit")), stingray.DataMain)
+	// if err != nil {
+	// 	return noiseMap, nil, fmt.Errorf("Failed to open terrain lookup unit %v: %v", ctx.LookupHash(zone.MaterialLookupUnit), err)
+	// }
+	// materialLookup, err := unit.LoadInfo(fMain)
+	// if err != nil {
+	// 	return noiseMap, nil, fmt.Errorf("Failed to load terrain lookup unit %v: %v", ctx.LookupHash(zone.MaterialLookupUnit), err)
+	// }
+	var materialLookup *unit.Info
+	if materialLookup == nil {
+		return noiseMap, nil, fmt.Errorf("Changed in 01.007.100, not reimplemented yet")
 	}
 	orderedMeshes := slices.SortedFunc(slices.Values(materialLookup.MeshInfos), func(a, b unit.MeshInfo) int {
 		nameA := ctx.LookupThinHash(a.Header.GroupBoneHash)

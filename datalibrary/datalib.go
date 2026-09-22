@@ -343,6 +343,7 @@ type DLTypeLibHeader struct {
 type rawDLMemberDesc struct {
 	NameOffset         uint32
 	CommentOffset      uint32
+	UnknownOffset      uint32
 	Type               DLType
 	TypeID             DLHash
 	Size               DLWidthDependentUInt32
@@ -351,6 +352,7 @@ type rawDLMemberDesc struct {
 	DefaultValueOffset uint32
 	DefaultValueSize   uint32
 	Flags              DLTypeFlags
+	_                  [16]uint8
 }
 
 type DLMemberDesc struct {

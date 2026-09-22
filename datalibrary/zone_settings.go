@@ -435,9 +435,27 @@ func (s rawMinimapScatterSet) Deserialize(r io.ReadSeeker, base int64) (*Minimap
 	}, nil
 }
 
+// DLHash 0089ab61 name length 26
+type UnkStruct struct {
+	Key   stingray.ThinHash
+	Value stingray.ThinHash
+}
+
+type SimpleUnkStruct struct {
+	Key   string
+	Value string
+}
+
+func (u UnkStruct) ToSimple(_ HashLookup, lookupThinHash ThinHashLookup, _ StringsLookup) SimpleUnkStruct {
+	return SimpleUnkStruct{
+		Key:   lookupThinHash(u.Key),
+		Value: lookupThinHash(u.Value),
+	}
+}
+
 type rawZoneSettings struct {
+	ZoneTags                       DLArray
 	StampGroups                    DLArray
-	MaterialLookupUnit             stingray.Hash
 	ColorVariationGenerators       DLArray
 	ShaderProperties1              DLArray
 	FogVolumeGenerators            DLArray
@@ -450,6 +468,7 @@ type rawZoneSettings struct {
 	MinimapTerrainType             enum.MinimapTerrainType
 	_                              [7]uint8
 	ScatterSetting                 DLString
+	UnkStructs                     DLArray
 	CameraEnvironmentEffects       DLArray
 	WindNoiseIds                   WindNoiseSettings
 	WaterMaterial                  stingray.Hash
@@ -572,8 +591,12 @@ type rawStampGroup struct {
 	MinDistanceFromRoute        float32
 	MaxDistanceFromPlayableArea float32
 	DifficultyBitfield
-	_         [2]uint8
-	UnkFloat2 float32
+	_           [2]uint8
+	UnkFloat2   float32
+	UnkInt1     uint32
+	UnkFloat3   float32
+	UnkBitfield uint8
+	_           [7]uint8
 }
 
 type StampWeights struct {
@@ -913,7 +936,10 @@ type StampGroup struct {
 	MinDistanceFromRoute        float32
 	MaxDistanceFromPlayableArea float32
 	DifficultyBitfield
-	UnkFloat2 float32
+	UnkFloat2   float32
+	UnkInt1     uint32
+	UnkFloat3   float32
+	UnkBitfield uint8
 }
 
 type SimpleStampGroup struct {
@@ -934,6 +960,9 @@ type SimpleStampGroup struct {
 	MaxDistanceFromPlayableArea float32                 `json:"max_distance_from_playable_area"`
 	DifficultyBitfield          `json:"difficulty_bitfield"`
 	UnkFloat2                   float32 `json:"unk_float2"`
+	UnkInt1                     uint32  `json:"unk_int1"`
+	UnkFloat3                   float32 `json:"unk_float3"`
+	UnkBitfield                 uint8   `json:"unk_bitfield"`
 }
 
 func (v StampGroup) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookupStrings StringsLookup) SimpleStampGroup {
@@ -960,6 +989,9 @@ func (v StampGroup) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLooku
 		MaxDistanceFromPlayableArea: v.MaxDistanceFromPlayableArea,
 		DifficultyBitfield:          v.DifficultyBitfield,
 		UnkFloat2:                   v.UnkFloat2,
+		UnkInt1:                     v.UnkInt1,
+		UnkFloat3:                   v.UnkFloat3,
+		UnkBitfield:                 v.UnkBitfield,
 	}
 }
 
@@ -1001,6 +1033,9 @@ func (g rawStampGroup) Deserialize(r io.ReadSeeker, base int64) (*StampGroup, er
 		MaxDistanceFromPlayableArea: g.MaxDistanceFromPlayableArea,
 		DifficultyBitfield:          g.DifficultyBitfield,
 		UnkFloat2:                   g.UnkFloat2,
+		UnkInt1:                     g.UnkInt1,
+		UnkFloat3:                   g.UnkFloat3,
+		UnkBitfield:                 g.UnkBitfield,
 	}, nil
 }
 
@@ -1268,8 +1303,8 @@ func (g rawCameraEffect) Deserialize(r io.ReadSeeker, base int64) (*CameraEffect
 }
 
 type ZoneSettings struct {
+	ZoneTags                       []enum.ZoneTag
 	StampGroups                    []StampGroup
-	MaterialLookupUnit             stingray.Hash
 	ColorVariationGenerators       []ShaderProperties
 	ShaderProperties1              []ShaderProperties
 	FogVolumeGenerators            []FogVolumeShaderProperties
@@ -1281,6 +1316,7 @@ type ZoneSettings struct {
 	MinimapColor                   mgl32.Vec3
 	MinimapTerrainType             enum.MinimapTerrainType
 	ScatterSetting                 *string
+	UnkStructs                     []UnkStruct
 	CameraEnvironmentEffects       []CameraEffect
 	WindNoiseIds                   WindNoiseSettings
 	WaterMaterial                  stingray.Hash
@@ -1363,8 +1399,8 @@ type ZoneSettings struct {
 }
 
 type SimpleZoneSettings struct {
+	ZoneTags                       []enum.ZoneTag                    `json:"zone_tags"`
 	StampGroups                    []SimpleStampGroup                `json:"stamp_groups"`
-	MaterialLookupUnit             string                            `json:"material_lookup_unit"`
 	ColorVariationGenerators       []SimpleShaderProperties          `json:"color_variation_generators"`
 	ShaderProperties1              []SimpleShaderProperties          `json:"shader_properties1"`
 	FogVolumeGenerators            []SimpleFogVolumeShaderProperties `json:"fog_volume_generators"`
@@ -1376,6 +1412,7 @@ type SimpleZoneSettings struct {
 	MinimapColor                   mgl32.Vec3                        `json:"minimap_color"`
 	MinimapTerrainType             enum.MinimapTerrainType           `json:"minimap_terrain_type"`
 	ScatterSetting                 *string                           `json:"scatter_setting"`
+	UnkStructs                     []SimpleUnkStruct                 `json:"unk_structs"`
 	CameraEnvironmentEffects       []SimpleCameraEffect              `json:"camera_environment_effects"`
 	WindNoiseIds                   WindNoiseSettings                 `json:"wind_noise_ids"`
 	WaterMaterial                  string                            `json:"water_material"`
@@ -1502,9 +1539,14 @@ func (z ZoneSettings) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLoo
 		cameraEffects = append(cameraEffects, effect.ToSimple(lookupHash, lookupThinHash, lookupStrings))
 	}
 
+	unkStructs := make([]SimpleUnkStruct, 0)
+	for _, item := range z.UnkStructs {
+		unkStructs = append(unkStructs, item.ToSimple(lookupHash, lookupThinHash, lookupStrings))
+	}
+
 	return SimpleZoneSettings{
+		ZoneTags:                       z.ZoneTags,
 		StampGroups:                    stampGroups,
-		MaterialLookupUnit:             lookupHash(z.MaterialLookupUnit),
 		ColorVariationGenerators:       colorVariationGenerators,
 		ShaderProperties1:              shaderProperties1,
 		FogVolumeGenerators:            fogVolumeGenerators,
@@ -1516,6 +1558,7 @@ func (z ZoneSettings) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLoo
 		MinimapColor:                   z.MinimapColor,
 		MinimapTerrainType:             z.MinimapTerrainType,
 		ScatterSetting:                 z.ScatterSetting,
+		UnkStructs:                     unkStructs,
 		CameraEnvironmentEffects:       cameraEffects,
 		WindNoiseIds:                   z.WindNoiseIds,
 		WaterMaterial:                  lookupHash(z.WaterMaterial),
@@ -1599,44 +1642,48 @@ func (z ZoneSettings) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLoo
 }
 
 func (z rawZoneSettings) Deserialize(r io.ReadSeeker, base int64) (*ZoneSettings, error) {
+	zoneTags, err := ResolveDLArray[enum.ZoneTag](z.ZoneTags, r, base)
+	if err != nil {
+		return nil, fmt.Errorf("resolving zone tags: %v", err)
+	}
 	rawStampGroups, err := ResolveDLArray[rawStampGroup](z.StampGroups, r, base)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("resolving stamp groups: %v", err)
 	}
 	rawColorVariationGenerators, err := ResolveDLArray[rawShaderProperties](z.ColorVariationGenerators, r, base)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("resolving color variation generators: %v", err)
 	}
 	rawShaderProperties1, err := ResolveDLArray[rawShaderProperties](z.ShaderProperties1, r, base)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("resolving shader properties 1: %v", err)
 	}
 	rawFogVolumeGenerators, err := ResolveDLArray[rawFogVolumeShaderProperties](z.FogVolumeGenerators, r, base)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("resolving fog volume generators: %v", err)
 	}
 	rawMinimapVisualizationGenerators, err := ResolveDLArray[rawShaderProperties](z.MinimapVisualizationGenerators, r, base)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("resolving minimap visualization generators: %v", err)
 	}
 	rawMaterialGenerators, err := ResolveDLArray[rawShaderProperties](z.MaterialGenerators, r, base)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("resolving material generators: %v", err)
 	}
 	rawShaderProperties2, err := ResolveDLArray[rawShaderProperties](z.ShaderProperties2, r, base)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("resolving shader properties 2: %v", err)
 	}
 	rawHeightGenerators, err := ResolveDLArray[rawShaderProperties](z.HeightGenerators, r, base)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("resolving height generators: %v", err)
 	}
 
 	stampGroups := make([]StampGroup, 0)
 	for _, raw := range rawStampGroups {
 		props, err := raw.Deserialize(r, base)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("deserializing stamp groups: %v", err)
 		}
 		stampGroups = append(stampGroups, *props)
 	}
@@ -1644,7 +1691,7 @@ func (z rawZoneSettings) Deserialize(r io.ReadSeeker, base int64) (*ZoneSettings
 	for _, raw := range rawColorVariationGenerators {
 		props, err := raw.Deserialize(r, base)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("deserializing color variation generators: %v", err)
 		}
 		colorVariationGenerators = append(colorVariationGenerators, *props)
 	}
@@ -1652,7 +1699,7 @@ func (z rawZoneSettings) Deserialize(r io.ReadSeeker, base int64) (*ZoneSettings
 	for _, raw := range rawShaderProperties1 {
 		props, err := raw.Deserialize(r, base)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("deserializing shader properties 1: %v", err)
 		}
 		shaderProperties1 = append(shaderProperties1, *props)
 	}
@@ -1660,7 +1707,7 @@ func (z rawZoneSettings) Deserialize(r io.ReadSeeker, base int64) (*ZoneSettings
 	for _, raw := range rawFogVolumeGenerators {
 		props, err := raw.Deserialize(r, base)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("deserializing fog volume generators: %v", err)
 		}
 		fogVolumeGenerators = append(fogVolumeGenerators, *props)
 	}
@@ -1668,7 +1715,7 @@ func (z rawZoneSettings) Deserialize(r io.ReadSeeker, base int64) (*ZoneSettings
 	for _, raw := range rawMinimapVisualizationGenerators {
 		props, err := raw.Deserialize(r, base)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("deserializing minimap visualization generators: %v", err)
 		}
 		minimapVisualizationGenerators = append(minimapVisualizationGenerators, *props)
 	}
@@ -1676,7 +1723,7 @@ func (z rawZoneSettings) Deserialize(r io.ReadSeeker, base int64) (*ZoneSettings
 	for _, raw := range rawMaterialGenerators {
 		props, err := raw.Deserialize(r, base)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("deserializing material generators: %v", err)
 		}
 		materialGenerators = append(materialGenerators, *props)
 	}
@@ -1684,7 +1731,7 @@ func (z rawZoneSettings) Deserialize(r io.ReadSeeker, base int64) (*ZoneSettings
 	for _, raw := range rawShaderProperties2 {
 		props, err := raw.Deserialize(r, base)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("deserializing shader properties 2: %v", err)
 		}
 		shaderProperties2 = append(shaderProperties2, *props)
 	}
@@ -1692,7 +1739,7 @@ func (z rawZoneSettings) Deserialize(r io.ReadSeeker, base int64) (*ZoneSettings
 	for _, raw := range rawHeightGenerators {
 		props, err := raw.Deserialize(r, base)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("deserializing height generators: %v", err)
 		}
 		heightGenerators = append(heightGenerators, *props)
 	}
@@ -1700,58 +1747,63 @@ func (z rawZoneSettings) Deserialize(r io.ReadSeeker, base int64) (*ZoneSettings
 	var scatterSetting *string
 	if z.ScatterSetting.Offset > 0 {
 		if _, err := r.Seek(base+z.ScatterSetting.Offset, io.SeekStart); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("seeking scatter setting string: %v", err)
 		}
 		scatterSettingVal, err := util.ReadCString(r)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("reading scatter setting string: %v", err)
 		}
 		scatterSetting = &scatterSettingVal
 	}
 
 	rawCameraEnvironmentEffects, err := ResolveDLArray[rawCameraEffect](z.CameraEnvironmentEffects, r, base)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("resolving camera environment effects: %v", err)
 	}
 	cameraEnvironmentEffects := make([]CameraEffect, 0)
 	for _, raw := range rawCameraEnvironmentEffects {
 		effect, err := raw.Deserialize(r, base)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("deserializing camera environment effects: %v", err)
 		}
 		cameraEnvironmentEffects = append(cameraEnvironmentEffects, *effect)
 	}
 
+	unkStructs, err := ResolveDLArray[UnkStruct](z.UnkStructs, r, base)
+	if err != nil {
+		return nil, fmt.Errorf("resolving unk structs: %v", err)
+	}
+
 	heightModificationCurve, err := ResolveDLArray[float32](z.HeightModificationCurve, r, base)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("resolving height modification curve: %v", err)
 	}
 
 	var reverbZone *string
 	if z.ReverbZone.Offset > 0 {
 		if _, err := r.Seek(base+z.ReverbZone.Offset, io.SeekStart); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("seeking reverb zone string: %v", err)
 		}
 		reverbZoneVal, err := util.ReadCString(r)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("reading reverb zone string: %v", err)
 		}
 		reverbZone = &reverbZoneVal
 	}
 
 	minimapScatter, err := z.MinimapScatter.Deserialize(r, base)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("deserializing minimap scatter: %v", err)
 	}
 
 	var unkString *string
 	if z.UnkString.Offset > 0 {
 		if _, err := r.Seek(base+z.UnkString.Offset, io.SeekStart); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("seeking unk string 1: %v", err)
 		}
 		unkStringVal, err := util.ReadCString(r)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("reading unk string 1: %v", err)
 		}
 		unkString = &unkStringVal
 	}
@@ -1759,28 +1811,28 @@ func (z rawZoneSettings) Deserialize(r io.ReadSeeker, base int64) (*ZoneSettings
 	var unkString2 *string
 	if z.UnkString2.Offset > 0 {
 		if _, err := r.Seek(base+z.UnkString2.Offset, io.SeekStart); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("seeking unk string 2: %v", err)
 		}
 		unkString2Val, err := util.ReadCString(r)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("reading unk string 2: %v", err)
 		}
 		unkString2 = &unkString2Val
 	}
 
 	boundaryWallSettings, err := z.BoundaryWallSettings.Deserialize(r, base)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("deserializing boundary wall settings: %v", err)
 	}
 
 	roadEmbankmentUnits, err := ResolveDLArray[stingray.Hash](z.RoadEmbankmentUnits, r, base)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("resolving road embankment units: %v", err)
 	}
 
 	return &ZoneSettings{
+		ZoneTags:                       zoneTags,
 		StampGroups:                    stampGroups,
-		MaterialLookupUnit:             z.MaterialLookupUnit,
 		ColorVariationGenerators:       colorVariationGenerators,
 		ShaderProperties1:              shaderProperties1,
 		FogVolumeGenerators:            fogVolumeGenerators,
@@ -1792,6 +1844,7 @@ func (z rawZoneSettings) Deserialize(r io.ReadSeeker, base int64) (*ZoneSettings
 		MinimapColor:                   z.MinimapColor,
 		MinimapTerrainType:             z.MinimapTerrainType,
 		ScatterSetting:                 scatterSetting,
+		UnkStructs:                     unkStructs,
 		CameraEnvironmentEffects:       cameraEnvironmentEffects,
 		WindNoiseIds:                   z.WindNoiseIds,
 		WaterMaterial:                  z.WaterMaterial,

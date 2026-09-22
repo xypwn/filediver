@@ -26,7 +26,8 @@ const (
 	CollectionFRV
 	CollectionFRVFlamer
 	CollectionFRVSupply
-	CollectionTank
+	CollectionTankBastion
+	CollectionTankMaelstrom
 	CollectionCount
 )
 
@@ -52,7 +53,9 @@ func (ucct UnitCustomizationCollectionType) Unit() (stingray.Hash, error) {
 		return stingray.Sum("content/fac_helldivers/hellpod/weapon_rack/weapon_rack"), nil
 	case CollectionShuttle:
 		return stingray.Sum("content/fac_helldivers/vehicles/shuttle_gunship/shuttle_gunship"), nil
-	case CollectionTank:
+	case CollectionTankBastion:
+		return stingray.Sum("content/fac_helldivers/vehicles/tank/tank"), nil
+	case CollectionTankMaelstrom:
 		return stingray.Sum("content/fac_helldivers/vehicles/tank/tank"), nil
 	}
 	return stingray.Hash{Value: 0}, fmt.Errorf("Unknown unit for UnitCustomizationCollectionType %v", ucct)

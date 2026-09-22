@@ -102,8 +102,9 @@ type rawPlanetData struct {
 	PlanetSystemNameLoc              uint32
 	PlanetLayoutId                   stingray.ThinHash
 	_                                [4]uint8
-	UnknownEnumOffset                int64
-	UnknownEnumCount                 int64
+	UnknownHashes                    [3]stingray.Hash
+	OperationTagsOffset              int64
+	OperationTagsCount               int64
 	ResourceOverridesOffset          int64
 	ResourceOverridesCount           int64
 	DebugNameOffset                  int64
@@ -162,7 +163,7 @@ type PlanetData struct {
 	PlanetDescriptionShortLoc        string
 	PlanetSystemNameLoc              string
 	PlanetLayoutId                   stingray.ThinHash
-	UnknownEnumArray                 []uint32
+	OperationTags                    []enum.OperationTag
 	ResourceOverrides                []ResourceOverride
 	DebugName                        string
 	RegionLowland                    LevelGenerationRegion
@@ -263,6 +264,16 @@ func LoadPlanetData(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookup
 			return nil, err
 		}
 		setting.Inherits = inherits
+
+		operationTags := make([]enum.OperationTag, rawSetting.OperationTagsCount)
+		if rawSetting.OperationTagsOffset > 0 {
+			if _, err := r.Seek(int64(base+rawSetting.OperationTagsOffset), io.SeekStart); err != nil {
+				return nil, err
+			}
+			if err := binary.Read(r, binary.LittleEndian, &operationTags); err != nil {
+				return nil, fmt.Errorf("reading operation tags: %v", err)
+			}
+		}
 
 		resourceOverrides := make([]ResourceOverride, rawSetting.ResourceOverridesCount)
 		if rawSetting.ResourceOverridesOffset > 0 {

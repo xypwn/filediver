@@ -99,6 +99,7 @@ enum dl_type_atom_t : u8 {
 struct dl_enum_desc {
     String name;
     dl_type_flags flags;
+    padding[3];
     dl_type_storage_t storage;
     padding[3];
     u32 value_count;
@@ -153,6 +154,7 @@ enum dl_type_t : u32 {
 struct dl_member_desc {
     String name;
     String comment;
+    padding[4];
     dl_type_t type;
     u32 type_id;
     u32 size[2];
@@ -161,6 +163,7 @@ struct dl_member_desc {
     u32 default_value_offset;
     u32 default_value_size;
     dl_type_flags flags;
+    padding[19];
 };
 
 struct dl_enum_value_desc {

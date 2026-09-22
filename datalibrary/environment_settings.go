@@ -66,14 +66,10 @@ type rawEnvironmentSettings struct {
 	_                          [4]uint8
 	WwiseStateStrOffset        int64
 	PlanetMaterialId           stingray.Hash
-	EnvSharedPackage           stingray.Hash
-	TerrainProjectorPackage    stingray.Hash
 	ShadingEnvironment         stingray.Hash
 	GradingDay                 stingray.Hash
 	GradingSunset              stingray.Hash
 	GradingNight               stingray.Hash
-	MinimapPackage             stingray.Hash
-	MinimapUtilityLevel        stingray.Hash
 	DirtColor                  mgl32.Vec3
 	LayerId                    stingray.ThinHash
 	HologramLightColor         mgl32.Vec3
@@ -82,95 +78,86 @@ type rawEnvironmentSettings struct {
 	_                          [4]uint8
 	HologramMinimapLut         stingray.Hash
 	PathSettings               [5]rawLevelGenerationPathSettings
-	UtilityLevel               stingray.Hash
 	ResourcePackages           DLArray
 	ResourceOverrideTags       uint32
 	_                          [4]uint8
 	TerrainMaterialPath        stingray.Hash
 	DefaultReverbZoneStrOffset int64
+	UnkThinHash                stingray.ThinHash // Name length 13
 	DefaultAmbienceSoundId     uint32
 	WindWwiseStartEvent        uint32
 	WindWwiseStopEvent         uint32
 	UnkEvent                   uint32 // Name length 32
 	UnkEvent2                  uint32 // Name length 31
-	_                          [4]uint8
-	UnkStr                     int64 // Name length 23
+	UnkStr                     int64  // Name length 23
 	UnkFloat                   float32
 	_                          [4]uint8
 }
 
 type EnvironmentSettings struct {
-	PlanetType              enum.PlanetType
-	DebugName               string
-	NameLoc                 uint32
-	NameLocStr              string
-	LoadoutIntelligenceLoc  uint32
-	WwiseStateStr           string
-	PlanetMaterialId        stingray.Hash
-	EnvSharedPackage        stingray.Hash
-	TerrainProjectorPackage stingray.Hash
-	ShadingEnvironment      stingray.Hash
-	GradingDay              stingray.Hash
-	GradingSunset           stingray.Hash
-	GradingNight            stingray.Hash
-	MinimapPackage          stingray.Hash
-	MinimapUtilityLevel     stingray.Hash
-	DirtColor               mgl32.Vec3
-	LayerId                 stingray.ThinHash
-	HologramLightColor      mgl32.Vec3
-	HologramOverlayColor    mgl32.Vec3
-	DropSelectRouteColor    mgl32.Vec3
-	HologramMinimapLut      stingray.Hash
-	PathSettings            [5]rawLevelGenerationPathSettings
-	UtilityLevel            stingray.Hash
-	ResourcePackages        []stingray.Hash
-	ResourceOverrideTags    uint32
-	TerrainMaterialPath     stingray.Hash
-	DefaultReverbZoneStr    string
-	DefaultAmbienceSoundId  uint32
-	WindWwiseStartEvent     uint32
-	WindWwiseStopEvent      uint32
-	UnkEvent                uint32  // Name length 32
-	UnkEvent2               uint32  // Name length 31
-	UnkStr                  string  // Name length 23
-	UnkFloat                float32 // Name length 29
+	PlanetType             enum.PlanetType
+	DebugName              string
+	NameLoc                uint32
+	NameLocStr             string
+	LoadoutIntelligenceLoc uint32
+	WwiseStateStr          string
+	PlanetMaterialId       stingray.Hash
+	ShadingEnvironment     stingray.Hash
+	GradingDay             stingray.Hash
+	GradingSunset          stingray.Hash
+	GradingNight           stingray.Hash
+	DirtColor              mgl32.Vec3
+	LayerId                stingray.ThinHash
+	HologramLightColor     mgl32.Vec3
+	HologramOverlayColor   mgl32.Vec3
+	DropSelectRouteColor   mgl32.Vec3
+	HologramMinimapLut     stingray.Hash
+	PathSettings           [5]rawLevelGenerationPathSettings
+	ResourcePackages       []stingray.Hash
+	ResourceOverrideTags   uint32
+	TerrainMaterialPath    stingray.Hash
+	DefaultReverbZoneStr   string
+	UnkThinHash            stingray.ThinHash // name length 13
+	DefaultAmbienceSoundId uint32
+	WindWwiseStartEvent    uint32
+	WindWwiseStopEvent     uint32
+	UnkEvent               uint32  // Name length 32
+	UnkEvent2              uint32  // Name length 31
+	UnkStr                 string  // Name length 23
+	UnkFloat               float32 // Name length 29
 }
 
 type SimpleEnvironmentSettings struct {
-	PlanetType              enum.PlanetType               `json:"planet_type"`
-	DebugName               string                        `json:"debug_name"`
-	NameLoc                 string                        `json:"name_loc"`
-	NameLocStr              string                        `json:"name_loc_str"`
-	LoadoutIntelligenceLoc  string                        `json:"loadout_intelligence_loc"`
-	WwiseStateStr           string                        `json:"wwise_state"`
-	PlanetMaterialId        string                        `json:"planet_material_id"`
-	EnvSharedPackage        string                        `json:"env_shared_package"`
-	TerrainProjectorPackage string                        `json:"terrain_projector_package"`
-	ShadingEnvironment      string                        `json:"shading_environment"`
-	GradingDay              string                        `json:"grading_day"`
-	GradingSunset           string                        `json:"grading_sunset"`
-	GradingNight            string                        `json:"grading_night"`
-	MinimapPackage          string                        `json:"minimap_package"`
-	MinimapUtilityLevel     string                        `json:"minimap_utility_level"`
-	DirtColor               mgl32.Vec3                    `json:"dirt_color"`
-	LayerId                 string                        `json:"layer_id"`
-	HologramLightColor      mgl32.Vec3                    `json:"hologram_light_color"`
-	HologramOverlayColor    mgl32.Vec3                    `json:"hologram_overlay_color"`
-	DropSelectRouteColor    mgl32.Vec3                    `json:"drop_select_route_color"`
-	HologramMinimapLut      string                        `json:"hologram_minimap_lut"`
-	PathSettings            []LevelGenerationPathSettings `json:"path_settings"`
-	UtilityLevel            string                        `json:"utility_level"`
-	ResourcePackages        []string                      `json:"resource_packages"`
-	ResourceOverrideTags    uint32                        `json:"resource_override_tags"`
-	TerrainMaterialPath     string                        `json:"terrain_material_path"`
-	DefaultReverbZoneStr    string                        `json:"default_reverb_zone"`
-	DefaultAmbienceSoundId  uint32                        `json:"default_ambience_sound_id"`
-	WindWwiseStartEvent     uint32                        `json:"wind_wwise_start_event"`
-	WindWwiseStopEvent      uint32                        `json:"wind_wwise_stop_event"`
-	UnkEvent                uint32                        `json:"unk_event"`  // Name length 32
-	UnkEvent2               uint32                        `json:"unk_event2"` // Name length 31
-	UnkStr                  string                        `json:"unk_str"`    // Name length 23
-	UnkFloat                float32                       `json:"unk_float"`  // Name length 29
+	PlanetType             enum.PlanetType               `json:"planet_type"`
+	DebugName              string                        `json:"debug_name"`
+	NameLoc                string                        `json:"name_loc"`
+	NameLocStr             string                        `json:"name_loc_str"`
+	LoadoutIntelligenceLoc string                        `json:"loadout_intelligence_loc"`
+	WwiseStateStr          string                        `json:"wwise_state"`
+	PlanetMaterialId       string                        `json:"planet_material_id"`
+	ShadingEnvironment     string                        `json:"shading_environment"`
+	GradingDay             string                        `json:"grading_day"`
+	GradingSunset          string                        `json:"grading_sunset"`
+	GradingNight           string                        `json:"grading_night"`
+	DirtColor              mgl32.Vec3                    `json:"dirt_color"`
+	LayerId                string                        `json:"layer_id"`
+	HologramLightColor     mgl32.Vec3                    `json:"hologram_light_color"`
+	HologramOverlayColor   mgl32.Vec3                    `json:"hologram_overlay_color"`
+	DropSelectRouteColor   mgl32.Vec3                    `json:"drop_select_route_color"`
+	HologramMinimapLut     string                        `json:"hologram_minimap_lut"`
+	PathSettings           []LevelGenerationPathSettings `json:"path_settings"`
+	ResourcePackages       []string                      `json:"resource_packages"`
+	ResourceOverrideTags   uint32                        `json:"resource_override_tags"`
+	TerrainMaterialPath    string                        `json:"terrain_material_path"`
+	DefaultReverbZoneStr   string                        `json:"default_reverb_zone"`
+	DefaultAmbienceSoundId uint32                        `json:"default_ambience_sound_id"`
+	UnkThinHash            string                        `json:"unk_thin_hash"`
+	WindWwiseStartEvent    uint32                        `json:"wind_wwise_start_event"`
+	WindWwiseStopEvent     uint32                        `json:"wind_wwise_stop_event"`
+	UnkEvent               uint32                        `json:"unk_event"`  // Name length 32
+	UnkEvent2              uint32                        `json:"unk_event2"` // Name length 31
+	UnkStr                 string                        `json:"unk_str"`    // Name length 23
+	UnkFloat               float32                       `json:"unk_float"`  // Name length 29
 }
 
 func (a EnvironmentSettings) Resolve(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookupStrings StringsLookup) SimpleEnvironmentSettings {
@@ -184,40 +171,36 @@ func (a EnvironmentSettings) Resolve(lookupHash HashLookup, lookupThinHash ThinH
 		resourcePackages = append(resourcePackages, lookupHash(resourcePackage))
 	}
 	return SimpleEnvironmentSettings{
-		PlanetType:              a.PlanetType,
-		DebugName:               a.DebugName,
-		NameLoc:                 lookupStrings(a.NameLoc),
-		NameLocStr:              a.NameLocStr,
-		LoadoutIntelligenceLoc:  lookupStrings(a.LoadoutIntelligenceLoc),
-		WwiseStateStr:           a.WwiseStateStr,
-		PlanetMaterialId:        lookupHash(a.PlanetMaterialId),
-		EnvSharedPackage:        lookupHash(a.EnvSharedPackage),
-		TerrainProjectorPackage: lookupHash(a.TerrainProjectorPackage),
-		ShadingEnvironment:      lookupHash(a.ShadingEnvironment),
-		GradingDay:              lookupHash(a.GradingDay),
-		GradingSunset:           lookupHash(a.GradingSunset),
-		GradingNight:            lookupHash(a.GradingNight),
-		MinimapPackage:          lookupHash(a.MinimapPackage),
-		MinimapUtilityLevel:     lookupHash(a.MinimapUtilityLevel),
-		DirtColor:               a.DirtColor,
-		LayerId:                 lookupThinHash(a.LayerId),
-		HologramLightColor:      a.HologramLightColor,
-		HologramOverlayColor:    a.HologramOverlayColor,
-		DropSelectRouteColor:    a.DropSelectRouteColor,
-		HologramMinimapLut:      lookupHash(a.HologramMinimapLut),
-		PathSettings:            pathSettings,
-		UtilityLevel:            lookupHash(a.UtilityLevel),
-		ResourcePackages:        resourcePackages,
-		ResourceOverrideTags:    a.ResourceOverrideTags,
-		TerrainMaterialPath:     lookupHash(a.TerrainMaterialPath),
-		DefaultReverbZoneStr:    a.DefaultReverbZoneStr,
-		DefaultAmbienceSoundId:  a.DefaultAmbienceSoundId,
-		WindWwiseStartEvent:     a.WindWwiseStartEvent,
-		WindWwiseStopEvent:      a.WindWwiseStopEvent,
-		UnkEvent:                a.UnkEvent,
-		UnkEvent2:               a.UnkEvent2,
-		UnkStr:                  a.UnkStr,
-		UnkFloat:                a.UnkFloat,
+		PlanetType:             a.PlanetType,
+		DebugName:              a.DebugName,
+		NameLoc:                lookupStrings(a.NameLoc),
+		NameLocStr:             a.NameLocStr,
+		LoadoutIntelligenceLoc: lookupStrings(a.LoadoutIntelligenceLoc),
+		WwiseStateStr:          a.WwiseStateStr,
+		PlanetMaterialId:       lookupHash(a.PlanetMaterialId),
+		ShadingEnvironment:     lookupHash(a.ShadingEnvironment),
+		GradingDay:             lookupHash(a.GradingDay),
+		GradingSunset:          lookupHash(a.GradingSunset),
+		GradingNight:           lookupHash(a.GradingNight),
+		DirtColor:              a.DirtColor,
+		LayerId:                lookupThinHash(a.LayerId),
+		HologramLightColor:     a.HologramLightColor,
+		HologramOverlayColor:   a.HologramOverlayColor,
+		DropSelectRouteColor:   a.DropSelectRouteColor,
+		HologramMinimapLut:     lookupHash(a.HologramMinimapLut),
+		PathSettings:           pathSettings,
+		ResourcePackages:       resourcePackages,
+		ResourceOverrideTags:   a.ResourceOverrideTags,
+		TerrainMaterialPath:    lookupHash(a.TerrainMaterialPath),
+		DefaultReverbZoneStr:   a.DefaultReverbZoneStr,
+		UnkThinHash:            lookupThinHash(a.UnkThinHash),
+		DefaultAmbienceSoundId: a.DefaultAmbienceSoundId,
+		WindWwiseStartEvent:    a.WindWwiseStartEvent,
+		WindWwiseStopEvent:     a.WindWwiseStopEvent,
+		UnkEvent:               a.UnkEvent,
+		UnkEvent2:              a.UnkEvent2,
+		UnkStr:                 a.UnkStr,
+		UnkFloat:               a.UnkFloat,
 	}
 }
 
@@ -247,34 +230,30 @@ func LoadEnvironmentSettings() ([]EnvironmentSettings, error) {
 		}
 
 		setting := EnvironmentSettings{
-			PlanetType:              rawSettings.PlanetType,
-			NameLoc:                 rawSettings.NameLoc,
-			LoadoutIntelligenceLoc:  rawSettings.LoadoutIntelligenceLoc,
-			PlanetMaterialId:        rawSettings.PlanetMaterialId,
-			EnvSharedPackage:        rawSettings.EnvSharedPackage,
-			TerrainProjectorPackage: rawSettings.TerrainProjectorPackage,
-			ShadingEnvironment:      rawSettings.ShadingEnvironment,
-			GradingDay:              rawSettings.GradingDay,
-			GradingSunset:           rawSettings.GradingSunset,
-			GradingNight:            rawSettings.GradingNight,
-			MinimapPackage:          rawSettings.MinimapPackage,
-			MinimapUtilityLevel:     rawSettings.MinimapUtilityLevel,
-			DirtColor:               rawSettings.DirtColor,
-			LayerId:                 rawSettings.LayerId,
-			HologramLightColor:      rawSettings.HologramLightColor,
-			HologramOverlayColor:    rawSettings.HologramOverlayColor,
-			DropSelectRouteColor:    rawSettings.DropSelectRouteColor,
-			HologramMinimapLut:      rawSettings.HologramMinimapLut,
-			PathSettings:            rawSettings.PathSettings,
-			UtilityLevel:            rawSettings.UtilityLevel,
-			ResourceOverrideTags:    rawSettings.ResourceOverrideTags,
-			TerrainMaterialPath:     rawSettings.TerrainMaterialPath,
-			DefaultAmbienceSoundId:  rawSettings.DefaultAmbienceSoundId,
-			WindWwiseStartEvent:     rawSettings.WindWwiseStartEvent,
-			WindWwiseStopEvent:      rawSettings.WindWwiseStopEvent,
-			UnkEvent:                rawSettings.UnkEvent,
-			UnkEvent2:               rawSettings.UnkEvent2,
-			UnkFloat:                rawSettings.UnkFloat,
+			PlanetType:             rawSettings.PlanetType,
+			NameLoc:                rawSettings.NameLoc,
+			LoadoutIntelligenceLoc: rawSettings.LoadoutIntelligenceLoc,
+			PlanetMaterialId:       rawSettings.PlanetMaterialId,
+			ShadingEnvironment:     rawSettings.ShadingEnvironment,
+			GradingDay:             rawSettings.GradingDay,
+			GradingSunset:          rawSettings.GradingSunset,
+			GradingNight:           rawSettings.GradingNight,
+			DirtColor:              rawSettings.DirtColor,
+			LayerId:                rawSettings.LayerId,
+			HologramLightColor:     rawSettings.HologramLightColor,
+			HologramOverlayColor:   rawSettings.HologramOverlayColor,
+			DropSelectRouteColor:   rawSettings.DropSelectRouteColor,
+			HologramMinimapLut:     rawSettings.HologramMinimapLut,
+			PathSettings:           rawSettings.PathSettings,
+			ResourceOverrideTags:   rawSettings.ResourceOverrideTags,
+			TerrainMaterialPath:    rawSettings.TerrainMaterialPath,
+			DefaultAmbienceSoundId: rawSettings.DefaultAmbienceSoundId,
+			UnkThinHash:            rawSettings.UnkThinHash,
+			WindWwiseStartEvent:    rawSettings.WindWwiseStartEvent,
+			WindWwiseStopEvent:     rawSettings.WindWwiseStopEvent,
+			UnkEvent:               rawSettings.UnkEvent,
+			UnkEvent2:              rawSettings.UnkEvent2,
+			UnkFloat:               rawSettings.UnkFloat,
 		}
 
 		setting.ResourcePackages = make([]stingray.Hash, rawSettings.ResourcePackages.Count)

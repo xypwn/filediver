@@ -101,7 +101,7 @@ struct WeatherColorSet {
 };
 
 struct LevelGenerationPaletteGroup {
-    MurmurHash palette;
+    //MurmurHash palette;
     MurmurHash asset_grading;
     MurmurHash sky_settings_group;
     MurmurHash day_grading;
@@ -109,7 +109,7 @@ struct LevelGenerationPaletteGroup {
     MurmurHash sunset_grading;
     ThinMurmurHash weather_color_set;
     WeatherColorSet weather_color_set_internal;
-    padding[264-sizeof(this)];
+    padding[256-sizeof(this)];
 };
 
 struct LevelGenerationRegion {
@@ -118,8 +118,8 @@ struct LevelGenerationRegion {
     char name[] @ base + name_offset;
     u32 id;
     LevelGenerationRegionType region;
-    u64 var_list_ptr; // not used?
-    if(var_list_ptr < 0xFFFFFFFFFFFFFFFF) {
+    s64 var_list_ptr; // not used?
+    if(var_list_ptr != -1) {
         std::print("var_list with value at {:#x}", $);
     }
     float unknown; // name length 6
@@ -154,6 +154,7 @@ struct LevelGenerationPlanetData {
     u32 planet_system_name_loc;
     u32 planet_layout_id;
     padding[4];
+    MurmurHash unkHashes[3];
     s64 unknown_offset_1; // These look to be hiveworld related
     s64 unknown_count_1;
     s64 unknown_offset_2;
@@ -172,12 +173,12 @@ struct LevelGenerationPlanetData {
     LevelGenerationPaletteGroup palette_group_highland;
     MurmurHash scenario_settings_lowland;
     MurmurHash scenario_settings_highland;
-    u64 gameplay_modifiers_offset;
+    s64 gameplay_modifiers_offset;
     u64 gameplay_modifiers_count;
     MurmurHash gameplay_modifiers[gameplay_modifiers_count] @ base + gameplay_modifiers_offset;
     u32 planet_type;
     u32 unknown;
-    u64 nature_location_tag_offset;
+    s64 nature_location_tag_offset;
     u64 nature_location_tag_count;
     u8 nature_location_tag[nature_location_tag_count] @ base + nature_location_tag_offset;
     ThinMurmurHash scatter_settings;
