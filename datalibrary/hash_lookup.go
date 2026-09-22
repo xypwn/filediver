@@ -9,40 +9,40 @@ import (
 )
 
 type hashLookup0x7056 struct {
-	ParentCount            uint32
-	Parents                []hashLookupParent
-	HashCount1             uint32
-	Hashes1                []stingray.Hash
-	HashCount2             uint32
-	Hashes2                []stingray.Hash
-	HashMap1EntryCount     uint32
-	HashMap1               []hashLookupMapEntry
-	HashCount3             uint32
-	Hashes3                []stingray.Hash
-	UnknownTypeIndicator   uint32
-	Hashes2MappingCount    uint32
-	Hashes2Mapping         []hashLookupHashMapping
-	ThinHashMap1EntryCount uint32
-	ThinHashMap1           []hashLookupThinMapEntry
-	HashCount4             uint32
-	Hashes4                []stingray.Hash
-	HashMap2EntryCount     uint32
-	HashMap2               []hashLookupMapEntry
-	LookupTreeCount1       uint32
-	LookupTrees1           []hashLookupTree
-	HashMap3EntryCount     uint32
-	HashMap3               []hashLookupMapEntry
-	LookupTreeCount2       uint32
-	LookupTrees2           []hashLookupTree
-	HashMap4EntryCount     uint32
-	HashMap4               []hashLookupMapEntry
-	LookupTreeCount3       uint32
-	LookupTrees3           []hashLookupTree
-	HashMap5EntryCount     uint32
-	HashMap5               []hashLookupMapEntry
-	LookupTreeCount4       uint32
-	LookupTrees4           []hashLookupTree
-	DEADBEE7               uint32
+	ParentCount        uint32
+	Parents            []hashLookupParent
+	HashCount1         uint32
+	Hashes1            []stingray.Hash
+	HashMap1EntryCount uint32
+	HashMap1           []hashLookupMapEntry
+	HashCount2         uint32
+	Hashes2            []stingray.Hash
+	// Hashes2MappingCount uint32
+	// Hashes2Mapping      []hashLookupHashMapping
+	// HashCount3             uint32
+	// Hashes3                []stingray.Hash
+	// UnknownTypeIndicator   uint32
+	// ThinHashMap1EntryCount uint32
+	// ThinHashMap1           []hashLookupThinMapEntry
+	// HashCount4             uint32
+	// Hashes4                []stingray.Hash
+	HashMap2EntryCount uint32
+	HashMap2           []hashLookupMapEntry
+	LookupTreeCount1   uint32
+	LookupTrees1       []hashLookupTree
+	HashMap3EntryCount uint32
+	HashMap3           []hashLookupMapEntry
+	LookupTreeCount2   uint32
+	LookupTrees2       []hashLookupTree
+	HashMap4EntryCount uint32
+	HashMap4           []hashLookupMapEntry
+	LookupTreeCount3   uint32
+	LookupTrees3       []hashLookupTree
+	HashMap5EntryCount uint32
+	HashMap5           []hashLookupMapEntry
+	LookupTreeCount4   uint32
+	LookupTrees4       []hashLookupTree
+	DEADBEE7           uint32
 }
 
 type hashLookupParent struct {
@@ -55,10 +55,10 @@ type hashLookupMapEntry struct {
 	Value uint64
 }
 
-type hashLookupThinMapEntry struct {
-	Hash  uint32
-	Index uint32
-}
+// type hashLookupThinMapEntry struct {
+// 	Hash  uint32
+// 	Index uint32
+// }
 
 type hashLookupHashMapping struct {
 	Type  uint32
@@ -110,14 +110,6 @@ func parseHashLookup(r io.Reader) (map[uint64]stingray.Hash, error) {
 		return nil, fmt.Errorf("read hashes_01 %v", err)
 	}
 
-	if err := binary.Read(r, binary.LittleEndian, &hashLookup.HashCount2); err != nil {
-		return nil, fmt.Errorf("read hash_count_02 %v", err)
-	}
-	hashLookup.Hashes2 = make([]stingray.Hash, hashLookup.HashCount2)
-	if err := binary.Read(r, binary.LittleEndian, &hashLookup.Hashes2); err != nil {
-		return nil, fmt.Errorf("read hashes_02 %v", err)
-	}
-
 	if err := binary.Read(r, binary.LittleEndian, &hashLookup.HashMap1EntryCount); err != nil {
 		return nil, fmt.Errorf("read hash_map_01_entry_count %v", err)
 	}
@@ -126,40 +118,48 @@ func parseHashLookup(r io.Reader) (map[uint64]stingray.Hash, error) {
 		return nil, fmt.Errorf("read hash_map_01 %v", err)
 	}
 
-	if err := binary.Read(r, binary.LittleEndian, &hashLookup.HashCount3); err != nil {
-		return nil, fmt.Errorf("read hash_count_03 %v", err)
+	if err := binary.Read(r, binary.LittleEndian, &hashLookup.HashCount2); err != nil {
+		return nil, fmt.Errorf("read hash_count_02 %v", err)
 	}
-	hashLookup.Hashes3 = make([]stingray.Hash, hashLookup.HashCount3)
-	if err := binary.Read(r, binary.LittleEndian, &hashLookup.Hashes3); err != nil {
-		return nil, fmt.Errorf("read hashes_03 %v", err)
-	}
-
-	if err := binary.Read(r, binary.LittleEndian, &hashLookup.UnknownTypeIndicator); err != nil {
-		return nil, fmt.Errorf("read unk_type_ind %v", err)
-	}
-	if err := binary.Read(r, binary.LittleEndian, &hashLookup.Hashes2MappingCount); err != nil {
-		return nil, fmt.Errorf("read hashes_02_mapping_count %v", err)
-	}
-	hashLookup.Hashes2Mapping = make([]hashLookupHashMapping, hashLookup.Hashes2MappingCount)
-	if err := binary.Read(r, binary.LittleEndian, &hashLookup.Hashes2Mapping); err != nil {
-		return nil, fmt.Errorf("read hashes_02_mapping %v", err)
+	hashLookup.Hashes2 = make([]stingray.Hash, hashLookup.HashCount2)
+	if err := binary.Read(r, binary.LittleEndian, &hashLookup.Hashes2); err != nil {
+		return nil, fmt.Errorf("read hashes_02 %v", err)
 	}
 
-	if err := binary.Read(r, binary.LittleEndian, &hashLookup.ThinHashMap1EntryCount); err != nil {
-		return nil, fmt.Errorf("read thin_hash_map_01_entry_count %v", err)
-	}
-	hashLookup.ThinHashMap1 = make([]hashLookupThinMapEntry, hashLookup.ThinHashMap1EntryCount)
-	if err := binary.Read(r, binary.LittleEndian, &hashLookup.ThinHashMap1); err != nil {
-		return nil, fmt.Errorf("read thin_hash_map_01 %v", err)
-	}
+	// if err := binary.Read(r, binary.LittleEndian, &hashLookup.HashCount3); err != nil {
+	// 	return nil, fmt.Errorf("read hash_count_03 %v", err)
+	// }
+	// hashLookup.Hashes3 = make([]stingray.Hash, hashLookup.HashCount3)
+	// if err := binary.Read(r, binary.LittleEndian, &hashLookup.Hashes3); err != nil {
+	// 	return nil, fmt.Errorf("read hashes_03 %v", err)
+	// }
 
-	if err := binary.Read(r, binary.LittleEndian, &hashLookup.HashCount4); err != nil {
-		return nil, fmt.Errorf("read hash_count_04 %v", err)
-	}
-	hashLookup.Hashes4 = make([]stingray.Hash, hashLookup.HashCount4)
-	if err := binary.Read(r, binary.LittleEndian, &hashLookup.Hashes4); err != nil {
-		return nil, fmt.Errorf("read hashes_04 %v", err)
-	}
+	// if err := binary.Read(r, binary.LittleEndian, &hashLookup.UnknownTypeIndicator); err != nil {
+	// 	return nil, fmt.Errorf("read unk_type_ind %v", err)
+	// }
+	// if err := binary.Read(r, binary.LittleEndian, &hashLookup.Hashes2MappingCount); err != nil {
+	// 	return nil, fmt.Errorf("read hashes_02_mapping_count %v", err)
+	// }
+	// hashLookup.Hashes2Mapping = make([]hashLookupHashMapping, hashLookup.Hashes2MappingCount)
+	// if err := binary.Read(r, binary.LittleEndian, &hashLookup.Hashes2Mapping); err != nil {
+	// 	return nil, fmt.Errorf("read hashes_02_mapping %v", err)
+	// }
+
+	// if err := binary.Read(r, binary.LittleEndian, &hashLookup.ThinHashMap1EntryCount); err != nil {
+	// 	return nil, fmt.Errorf("read thin_hash_map_01_entry_count %v", err)
+	// }
+	// hashLookup.ThinHashMap1 = make([]hashLookupThinMapEntry, hashLookup.ThinHashMap1EntryCount)
+	// if err := binary.Read(r, binary.LittleEndian, &hashLookup.ThinHashMap1); err != nil {
+	// 	return nil, fmt.Errorf("read thin_hash_map_01 %v", err)
+	// }
+
+	// if err := binary.Read(r, binary.LittleEndian, &hashLookup.HashCount4); err != nil {
+	// 	return nil, fmt.Errorf("read hash_count_04 %v", err)
+	// }
+	// hashLookup.Hashes4 = make([]stingray.Hash, hashLookup.HashCount4)
+	// if err := binary.Read(r, binary.LittleEndian, &hashLookup.Hashes4); err != nil {
+	// 	return nil, fmt.Errorf("read hashes_04 %v", err)
+	// }
 
 	if err := binary.Read(r, binary.LittleEndian, &hashLookup.HashMap2EntryCount); err != nil {
 		return nil, fmt.Errorf("read hash_map_02_entry_count %v", err)

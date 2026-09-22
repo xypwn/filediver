@@ -21,6 +21,14 @@ type EnemyTagSwap struct {
 	Name stingray.ThinHash
 }
 
+type CamouflageSwap struct {
+	CamouflageType  uint32
+	CamouflageSwaps [8]stingray.ThinHash
+	Swap            stingray.ThinHash
+	UnkByte         uint8
+	_               [3]uint8
+}
+
 type MaterialSwapSlot struct {
 	MaterialSlotName stingray.ThinHash // [string]The material slot to set on. If not set, then applied to all material slots.
 	_                [4]uint8
@@ -31,6 +39,7 @@ type MaterialSwapComponent struct {
 	MaterialSlots    [8]MaterialSwapSlot  // Material slots that can be set
 	DefaultOverrides [8]stingray.ThinHash // name is guessed - name length 17
 	EnemyTagSwaps    [8]EnemyTagSwap
+	CamouflageSwaps  [16]CamouflageSwap
 }
 
 type SimpleMaterialSwap struct {
@@ -48,10 +57,18 @@ type SimpleMaterialSwapSlot struct {
 	SwapSettings     []SimpleMaterialSwap `json:"swap_settings"`
 }
 
+type SimpleCamouflageSwap struct {
+	CamouflageType  uint32   `json:"camouflage_type"`
+	CamouflageSwaps []string `json:"camouflage_swaps"`
+	Swap            string   `json:"swap"`
+	UnkByte         uint8    `json:"unk_byte"`
+}
+
 type SimpleMaterialSwapComponent struct {
 	MaterialSlots    []SimpleMaterialSwapSlot `json:"material_slots"`
 	DefaultOverrides []string                 `json:"default_overrides"`
 	EnemyTagSwaps    []SimpleEnemyTagSwap     `json:"enemy_tag_swaps"`
+	CamouflageSwaps  []SimpleCamouflageSwap   `json:"camouflage_swaps"`
 }
 
 func (w MaterialSwapComponent) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookupStrings StringsLookup) any {
@@ -95,10 +112,31 @@ func (w MaterialSwapComponent) ToSimple(lookupHash HashLookup, lookupThinHash Th
 		})
 	}
 
+	camouflageSwaps := make([]SimpleCamouflageSwap, 0)
+	for _, camoSwap := range w.CamouflageSwaps {
+		if camoSwap.CamouflageType == 0 {
+			break
+		}
+		swapHashes := make([]string, 0)
+		for _, hash := range camoSwap.CamouflageSwaps {
+			if hash.Value == 0x0 {
+				break
+			}
+			swapHashes = append(swapHashes, lookupThinHash(hash))
+		}
+		camouflageSwaps = append(camouflageSwaps, SimpleCamouflageSwap{
+			CamouflageType:  camoSwap.CamouflageType,
+			CamouflageSwaps: swapHashes,
+			Swap:            lookupThinHash(camoSwap.Swap),
+			UnkByte:         camoSwap.UnkByte,
+		})
+	}
+
 	return SimpleMaterialSwapComponent{
 		MaterialSlots:    materialSlots,
 		DefaultOverrides: swappedMaterials,
 		EnemyTagSwaps:    enemyTagSwaps,
+		CamouflageSwaps:  camouflageSwaps,
 	}
 }
 
