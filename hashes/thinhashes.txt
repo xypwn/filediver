@@ -33385,3 +33385,14 @@ tank_storm_maingun
 turret_autocannon
 xl_elbow_90_side
 xl_elbow_90_standing
+cape_warbond_tank_1
+cape_warbond_tank_2
+helmet_warbond_tank_1
+helmet_warbond_tank_2
+armor_warbond_tank_1
+armor_warbond_tank_2
+cape_special_democracy
+cape_special_gloom
+cape_special_mars
+cape_special_pc
+cape_special_psn
