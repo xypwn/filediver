@@ -1174,6 +1174,10 @@ DynamicLightComponent
 DynamicLightComponentData
 BeamFireMode
 StampOverlapSettings
+CamouflageSwap
+CamouflageType
+VoTag
+ZoneTag
 
 // ======== Enums and Values ========
 HelldiverCustomizationPassiveBonus
