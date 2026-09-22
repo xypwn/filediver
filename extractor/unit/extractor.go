@@ -70,6 +70,9 @@ func AddSkeleton(ctx *extractor.Context, doc *gltf.Document, unitInfo *unit.Info
 		bindMatrix := mgl32.Mat4FromRows(jtm[0], jtm[1], jtm[2], jtm[3]).Transpose()
 		bindMatrix = gltfConversionMatrix.Mul4(bindMatrix)
 		row0, row1, row2, row3 := bindMatrix.Inv().Rows()
+		if row0.LenSqr() == 0 && row1.LenSqr() == 0 && row2.LenSqr() == 0 && row3.LenSqr() == 0 {
+			row0, row1, row2, row3 = mgl32.Ident4().Rows()
+		}
 		matrices[i] = [4][4]float32{row0, row1, row2, row3}
 		unitInfo.Bones[i].Matrix = bindMatrix
 	}
