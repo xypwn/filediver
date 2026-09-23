@@ -38,6 +38,9 @@ type SimplePlanetData struct {
 	PlanetDescriptionShortLoc        string                              `json:"planet_description_short_loc"`
 	PlanetSystemNameLoc              string                              `json:"planet_system_name_loc"`
 	PlanetLayoutId                   string                              `json:"planet_layout_id"`
+	MaterialLookupUnit1              string                              `json:"material_lookup_unit1"`
+	MaterialLookupUnit2              string                              `json:"material_lookup_unit2"`
+	MaterialLookupUnit3              string                              `json:"material_lookup_unit3"`
 	ResourceOverrides                []SimpleResourceOverride            `json:"resource_overrides"`
 	DebugName                        string                              `json:"debug_name"`
 	RegionLowland                    datalib.SimpleLevelGenerationRegion `json:"region_lowland"`
@@ -109,6 +112,9 @@ func Dump(a components.HashLookup) {
 			PlanetDescriptionShortLoc: planetData.PlanetDescriptionShortLoc,
 			PlanetSystemNameLoc:       planetData.PlanetSystemNameLoc,
 			PlanetLayoutId:            a.LookupThinHash(planetData.PlanetLayoutId),
+			MaterialLookupUnit1:       a.LookupHash(planetData.MaterialLookupUnit1),
+			MaterialLookupUnit2:       a.LookupHash(planetData.MaterialLookupUnit2),
+			MaterialLookupUnit3:       a.LookupHash(planetData.MaterialLookupUnit3),
 			ResourceOverrides:         resourceOverrides,
 			DebugName:                 planetData.DebugName,
 			RegionLowland:             planetData.RegionLowland.ToSimple(a.LookupHash, a.LookupThinHash, a.LookupString),
