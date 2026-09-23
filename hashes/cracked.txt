@@ -8628,6 +8628,9 @@ content/fac_helldivers/vehicles/tank/animations/radar_spinning
 content/fac_helldivers/vehicles/tank/animations/shoot_shake_01
 content/fac_helldivers/vehicles/tank/animations/suspension
 content/fac_helldivers/vehicles/tank/tank
+content/fac_helldivers/vehicles/tank_storm/armaments/tank_storm_maingun/tank_storm_maingun
+content/fac_helldivers/vehicles/tank_storm/armaments/tank_storm_silo/tank_storm_silo
+content/fac_helldivers/vehicles/tank_storm/armaments/tank_storm_smoke/tank_storm_smoke
 content/fac_helldivers/vehicles/tank_storm/tank_storm
 content/fac_illuminate/cha_beamer_champion/animations/actions/melee
 content/fac_illuminate/cha_beamer_champion/animations/actions/shoot_additive
