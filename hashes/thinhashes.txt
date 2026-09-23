@@ -21182,6 +21182,12 @@ missile_1
 missile_2
 missile_3
 missile_4
+missile_5
+missile_6
+missile_7
+missile_8
+missile_9
+missile_10
 missile_pod_rack
 mixer_base
 mktg_done
@@ -26340,6 +26346,7 @@ ammocheck_battlerifle_ceremonial
 ammocheck_jetrifle
 ammocheck_bullpup
 ammocheck_assault_rifle_helghast
+ammocheck_smart_pistol_missile
 ammocheck_smg_helghast
 holster_recoilless
 draw_sidearm
@@ -33396,3 +33403,8 @@ cape_special_gloom
 cape_special_mars
 cape_special_pc
 cape_special_psn
+reload_assault_rifle_risk
+reload_grenade_launcher
+reload_hornet_pistol
+reload_laser_smg_blaster
+reload_pump_grenade_launcher
