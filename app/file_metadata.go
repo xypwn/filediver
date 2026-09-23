@@ -28,6 +28,8 @@ type FileMetadata struct {
 	Format        string              `help:"Texture format" example:"\"BC1UNorm\""`
 	Language      stingray.ThinHash   `help:"Strings language" example:"\"us\""`
 	BaseMaterial  stingray.Hash       `help:"Materials' parent"`
+	TextureSlots  []stingray.ThinHash `help:"Material texture slot names"`
+	TextureNames  []stingray.Hash     `help:"Material texture names"`
 }
 
 // String representation for metadata types
