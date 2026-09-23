@@ -14,8 +14,10 @@ import (
 type RecoilComponentInfo struct {
 	HorizontalRecoil float32    `json:"horizontal_recoil"` // Defined in degrees / second, first value is first shot, second value is when rounds fired.
 	VerticalRecoil   float32    `json:"vertical_recoil"`   // Defined in degrees / second, first value is first shot, second value is when rounds fired.
-	HorizontalBias   float32    `json:"horizontal_bias"`   // In format Start / End: How much the recoil is biased, 0 is center.
-	RandomAmount     mgl32.Vec2 `json:"random_amount"`     // How much of the drift is random per axis. (0-1). Default 10% for vertical and 100% for horizontal. Higher values means larger range (1 is full).
+	UnkFloat1        float32    `json:"unk_float1"`
+	UnkFloat2        float32    `json:"unk_float2"`
+	HorizontalBias   float32    `json:"horizontal_bias"` // In format Start / End: How much the recoil is biased, 0 is center.
+	RandomAmount     mgl32.Vec2 `json:"random_amount"`   // How much of the drift is random per axis. (0-1). Default 10% for vertical and 100% for horizontal. Higher values means larger range (1 is full).
 }
 
 type RecoilInfo struct {
@@ -87,7 +89,7 @@ type WeaponDataComponent struct {
 	_                                      [3]uint8
 	AimZoom                                mgl32.Vec3 // The zoom of the weapon 1 = standard fov, 2 = half fov, 4 = quarter fov
 	ScopeSway                              float32
-	NoiseTemp                              enum.NoiseTemplate // The noise noise template settings to use when firing the weapon.
+	NoiseTemplate                          enum.NoiseTemplate // The noise noise template settings to use when firing the weapon.
 	VisibilityModifier                     float32            // When firing the weapon, the visibility will be set to this value, and the cone angle will be multiplied by this factor.
 	NumBurstRounds                         uint32             // Number of rounds fired for a burst shot.
 	PrimaryFireMode                        enum.FireMode      // The primary fire mode (0 = ignored, 1 = auto, 2 = single, 3 = burst, 4 = charge safety on, 5 = charge safety off.)
@@ -163,6 +165,10 @@ type WeaponDataComponent struct {
 	UnkHash2                               stingray.ThinHash
 	UnkHash3                               stingray.ThinHash
 	UnkHash4                               stingray.ThinHash
+	UnkBool                                uint8
+	_                                      [3]uint8
+	UnkFloat                               float32
+	_                                      [4]uint8
 }
 
 type SimpleOpticSetting struct {
@@ -200,7 +206,7 @@ type SimpleWeaponDataComponent struct {
 	IsSuppressed                           bool                           `json:"is_suppressed"`
 	AimZoom                                mgl32.Vec3                     `json:"aim_zoom"` // The zoom of the weapon 1 = standard fov, 2 = half fov, 4 = quarter fov
 	ScopeSway                              float32                        `json:"scope_sway"`
-	NoiseTemp                              enum.NoiseTemplate             `json:"noise_temp"`                                  // The noise noise template settings to use when firing the weapon.
+	NoiseTemplate                          enum.NoiseTemplate             `json:"noise_temp"`                                  // The noise noise template settings to use when firing the weapon.
 	VisibilityModifier                     float32                        `json:"visibility_modifier"`                         // When firing the weapon, the visibility will be set to this value, and the cone angle will be multiplied by this factor.
 	NumBurstRounds                         uint32                         `json:"num_burst_rounds"`                            // Number of rounds fired for a burst shot.
 	PrimaryFireMode                        enum.FireMode                  `json:"primary_fire_mode"`                           // The primary fire mode (0 = ignored, 1 = auto, 2 = single, 3 = burst, 4 = charge safety on, 5 = charge safety off.)
@@ -266,6 +272,8 @@ type SimpleWeaponDataComponent struct {
 	UnkHash2                               string                         `json:"unk_hash2"`
 	UnkHash3                               string                         `json:"unk_hash3"`
 	UnkHash4                               string                         `json:"unk_hash4"`
+	UnkBool                                bool                           `json:"unk_bool"`
+	UnkFloat                               float32                        `json:"unk_float"`
 }
 
 func (d WeaponDataComponent) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookupStrings StringsLookup) any {
@@ -354,7 +362,7 @@ func (d WeaponDataComponent) ToSimple(lookupHash HashLookup, lookupThinHash Thin
 		IsSuppressed:                           d.IsSuppressed != 0,
 		AimZoom:                                d.AimZoom,
 		ScopeSway:                              d.ScopeSway,
-		NoiseTemp:                              d.NoiseTemp,
+		NoiseTemplate:                          d.NoiseTemplate,
 		VisibilityModifier:                     d.VisibilityModifier,
 		NumBurstRounds:                         d.NumBurstRounds,
 		PrimaryFireMode:                        d.PrimaryFireMode,
@@ -420,6 +428,8 @@ func (d WeaponDataComponent) ToSimple(lookupHash HashLookup, lookupThinHash Thin
 		UnkHash2:                               lookupThinHash(d.UnkHash2),
 		UnkHash3:                               lookupThinHash(d.UnkHash3),
 		UnkHash4:                               lookupThinHash(d.UnkHash4),
+		UnkBool:                                d.UnkBool != 0,
+		UnkFloat:                               d.UnkFloat,
 	}
 }
 

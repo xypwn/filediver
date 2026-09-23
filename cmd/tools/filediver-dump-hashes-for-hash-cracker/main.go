@@ -99,6 +99,7 @@ func main() {
 				handleLevelThinHashes(prt, a, id, known, unknown)
 			}
 		}
+		handleVisibilityMasks(prt, a, known, unknown)
 		writeItems(prt, "target_murmur64a_thin.txt", maps.Keys(unknown))
 	}
 
