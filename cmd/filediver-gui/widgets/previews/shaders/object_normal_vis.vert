@@ -20,7 +20,10 @@ bool isShown() {
 }
 
 void main() {
-    if (!isShown()) return;
+    if (!isShown()) {
+        gl_Position = vec4(vec3(0.0), 1.0);
+        return;
+    }
     normalEndPosition    = mvp * vec4(inPosition + inNormal * len, 1.0);
     tangentEndPosition   = mvp * vec4(inPosition + inTangent.xyz * len, 1.0);
     bitangentEndPosition = mvp * vec4(inPosition + inBitangent * len, 1.0);

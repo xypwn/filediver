@@ -26,7 +26,10 @@ bool isShown() {
 }
 
 void main() {
-    if (!isShown()) return;
+    if (!isShown()) {
+        gl_Position = vec4(vec3(0.0), 1.0);
+        return;
+    }
     gl_Position = mvp * vec4(inPosition, 1.0);
     fragPosition = vec3(model * vec4(inPosition, 1.0));
     fragUV = inUV;
