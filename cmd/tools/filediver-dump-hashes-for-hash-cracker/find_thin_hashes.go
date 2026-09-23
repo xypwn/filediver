@@ -4,6 +4,7 @@ import (
 	"bytes"
 
 	"github.com/xypwn/filediver/app"
+	datalib "github.com/xypwn/filediver/datalibrary"
 	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/stingray/animation"
 	"github.com/xypwn/filediver/stingray/entity"
@@ -52,6 +53,27 @@ func handleUnitThinHashes(prt app.Printer, a *app.App, id stingray.FileID, known
 	}
 
 	return unitCount
+}
+
+func handleVisibilityMasks(prt app.Printer, a *app.App, known map[string]bool, unknown map[uint32]bool) int {
+	masks, err := datalib.ParseVisibilityMasks()
+	if err != nil {
+		prt.Errorf("parsing visibility masks: %v", err)
+		return 0
+	}
+	for _, mask := range masks {
+		for _, info := range mask.MaskInfos {
+			if info.Name.Value == 0x0 {
+				break
+			}
+			if name, exists := a.ThinHashes[info.Name]; exists {
+				known[name] = true
+			} else {
+				unknown[info.Name.Value] = true
+			}
+		}
+	}
+	return 0
 }
 
 func handleAnimationBeats(prt app.Printer, a *app.App, id stingray.FileID, known map[string]bool, unknown map[uint32]bool) int {
