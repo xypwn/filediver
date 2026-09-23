@@ -257,19 +257,28 @@ func getFileMetadata(dataDir *stingray.DataDir) map[stingray.FileID]FileMetadata
 			meta.Language = hdr.Language
 			meta.addAvailableFields("Language")
 		case stingray.Sum("material"):
-			b, err := dataDir.ReadAtMost(fileID, stingray.DataMain, 0x88)
+			b, err := dataDir.Read(fileID, stingray.DataMain)
 			if err != nil {
 				// ignore for now
 				continue
 			}
-			var hdr stingray_material.Header
-			err = binary.Read(bytes.NewReader(b), binary.LittleEndian, &hdr)
+			mat, err := stingray_material.LoadMain(bytes.NewReader(b))
 			if err != nil {
 				// ignore for now
 				continue
 			}
-			meta.BaseMaterial = hdr.BaseMaterial
+			slots := make([]stingray.ThinHash, 0)
+			textures := make([]stingray.Hash, 0)
+			if mat.Textures != nil {
+				slots = slices.Collect(maps.Keys(mat.Textures))
+				textures = slices.Collect(maps.Values(mat.Textures))
+			}
+			meta.BaseMaterial = mat.BaseMaterial
+			meta.TextureSlots = slots
+			meta.TextureNames = textures
 			meta.addAvailableFields("BaseMaterial")
+			meta.addAvailableFields("TextureSlots")
+			meta.addAvailableFields("TextureNames")
 		case stingray.Sum("unit"):
 			b, err := dataDir.Read(fileID, stingray.DataMain)
 			if err != nil {
