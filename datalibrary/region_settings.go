@@ -120,9 +120,9 @@ type rawGenerationRegionSettings struct {
 	UnkRegionHash              stingray.Hash
 	_                          [560]uint8
 	SubregionSettings          [16]rawSubRegionSettings
-	_                          [1156]uint8
+	_                          [3012]uint8
 	SubregionSettingsOverrides [16]SubRegionSettingsOverride
-	_                          [36]uint8
+	_                          [20]uint8
 }
 
 type GenerationRegionSettings struct {

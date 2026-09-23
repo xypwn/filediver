@@ -102,7 +102,9 @@ type rawPlanetData struct {
 	PlanetSystemNameLoc              uint32
 	PlanetLayoutId                   stingray.ThinHash
 	_                                [4]uint8
-	UnknownHashes                    [3]stingray.Hash
+	MaterialLookupUnit1              stingray.Hash // name len 32
+	MaterialLookupUnit2              stingray.Hash // name len 33
+	MaterialLookupUnit3              stingray.Hash // name len 28
 	OperationTagsOffset              int64
 	OperationTagsCount               int64
 	ResourceOverridesOffset          int64
@@ -163,6 +165,9 @@ type PlanetData struct {
 	PlanetDescriptionShortLoc        string
 	PlanetSystemNameLoc              string
 	PlanetLayoutId                   stingray.ThinHash
+	MaterialLookupUnit1              stingray.Hash
+	MaterialLookupUnit2              stingray.Hash
+	MaterialLookupUnit3              stingray.Hash
 	OperationTags                    []enum.OperationTag
 	ResourceOverrides                []ResourceOverride
 	DebugName                        string
@@ -203,6 +208,9 @@ func (a rawPlanetData) Resolve(lookupHash HashLookup, lookupThinHash ThinHashLoo
 		PlanetDescriptionShortLoc:        lookupStrings(a.PlanetDescriptionShortLoc),
 		PlanetSystemNameLoc:              lookupStrings(a.PlanetSystemNameLoc),
 		PlanetLayoutId:                   a.PlanetLayoutId,
+		MaterialLookupUnit1:              a.MaterialLookupUnit1,
+		MaterialLookupUnit2:              a.MaterialLookupUnit2,
+		MaterialLookupUnit3:              a.MaterialLookupUnit3,
 		PaletteGroupLowland:              a.PaletteGroupLowland,
 		PaletteGroupHighland:             a.PaletteGroupHighland,
 		ScenarioSettingsLowland:          a.ScenarioSettingsLowland,

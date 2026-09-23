@@ -808,26 +808,48 @@ type materialGeneratorSettings struct {
 	Settings      map[string]any `json:"settings"`
 }
 
-func addTerrainProjectors(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_material.ImageOptions, zone datalib.ZoneSettings, colorGradingDDS bytes.Buffer) (stingray.Hash, []materialGeneratorSettings, error) {
+type materialMapEntry struct {
+	name stingray.Hash
+	mat  *material.Material
+}
+
+func addTerrainProjectors(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_material.ImageOptions, zone datalib.ZoneSettings, colorGradingDDS bytes.Buffer, materialLookupUnits [3]stingray.Hash) (stingray.Hash, []materialGeneratorSettings, error) {
 	noiseMap := stingray.Sum("")
-	// ctx.Statusf("Using zone material lookup unit %v", ctx.LookupHash(zone.MaterialLookupUnit))
-	// fMain, err := ctx.Open(stingray.NewFileID(zone.MaterialLookupUnit, stingray.Sum("unit")), stingray.DataMain)
-	// if err != nil {
-	// 	return noiseMap, nil, fmt.Errorf("Failed to open terrain lookup unit %v: %v", ctx.LookupHash(zone.MaterialLookupUnit), err)
-	// }
-	// materialLookup, err := unit.LoadInfo(fMain)
-	// if err != nil {
-	// 	return noiseMap, nil, fmt.Errorf("Failed to load terrain lookup unit %v: %v", ctx.LookupHash(zone.MaterialLookupUnit), err)
-	// }
-	var materialLookup *unit.Info
-	if materialLookup == nil {
-		return noiseMap, nil, fmt.Errorf("Changed in 01.007.100, not reimplemented yet")
+	var materialLookups []*unit.Info
+	for _, lookupUnit := range materialLookupUnits {
+		fMain, err := ctx.Open(stingray.NewFileID(lookupUnit, stingray.Sum("unit")), stingray.DataMain)
+		if err != nil {
+			return noiseMap, nil, fmt.Errorf("Failed to open terrain lookup unit %v: %v", ctx.LookupHash(lookupUnit), err)
+		}
+		materialLookup, err := unit.LoadInfo(fMain)
+		if err != nil {
+			return noiseMap, nil, fmt.Errorf("Failed to load terrain lookup unit %v: %v", ctx.LookupHash(lookupUnit), err)
+		}
+		materialLookups = append(materialLookups, materialLookup)
 	}
-	orderedMeshes := slices.SortedFunc(slices.Values(materialLookup.MeshInfos), func(a, b unit.MeshInfo) int {
-		nameA := ctx.LookupThinHash(a.Header.GroupBoneHash)
-		nameB := ctx.LookupThinHash(b.Header.GroupBoneHash)
-		return strings.Compare(nameA, nameB)
-	})
+	materialMap := make(map[int]materialMapEntry)
+	for _, lookup := range materialLookups {
+		for _, matHash := range lookup.Materials {
+			materialId := ctx.OverrideAsset(stingray.NewFileID(matHash, stingray.Sum("material")))
+			matR, err := ctx.Open(materialId, stingray.DataMain)
+			if err != nil {
+				return noiseMap, nil, fmt.Errorf("could not open terrain material %v: %v", ctx.LookupHash(matHash), err)
+			}
+			mat, err := material.LoadMain(matR)
+			if err != nil {
+				return noiseMap, nil, fmt.Errorf("could not load terrain material %v: %v", ctx.LookupHash(matHash), err)
+			}
+			materialIndexSetting, contains := mat.Settings[stingray.Sum("material_index").Thin()]
+			if !contains {
+				continue
+			}
+			materialIndex := int(materialIndexSetting[0])
+			materialMap[materialIndex] = materialMapEntry{
+				name: matHash,
+				mat:  mat,
+			}
+		}
+	}
 	result := make([]materialGeneratorSettings, 0)
 	for _, materialGenerator := range zone.MaterialGenerators {
 		generatorMap := materialGenerator.Map()
@@ -849,16 +871,13 @@ func addTerrainProjectors(ctx *extractor.Context, doc *gltf.Document, imgOpts *e
 		}
 
 		materialIndex := int(materialIndexSetting.Value)
-		materialSlot := orderedMeshes[materialIndex].Materials[0]
-		materialPath := materialLookup.Materials[materialSlot]
-		matR, err := ctx.Open(stingray.NewFileID(materialPath, stingray.Sum("material")), stingray.DataMain)
-		if err != nil {
-			return noiseMap, nil, fmt.Errorf("could not open terrain material %v: %v", ctx.LookupHash(materialPath), err)
+		matEntry, contains := materialMap[materialIndex]
+		if !contains {
+			ctx.Warnf("material noise generator requested material index %v not present in lookup units, skipping", materialIndex)
+			continue
 		}
-		mat, err := material.LoadMain(matR)
-		if err != nil {
-			return noiseMap, nil, fmt.Errorf("could not load terrain material %v: %v", ctx.LookupHash(materialPath), err)
-		}
+		mat := matEntry.mat
+		materialPath := matEntry.name
 		extr_material.AddColorGradingLUT(ctx, doc, colorGradingDDS, mat)
 		matIdx, err := extr_material.AddMaterial(ctx.WithFileID(stingray.NewFileID(materialPath, stingray.Sum("material"))), mat, doc, imgOpts, stingray.Sum("terrain").Thin(), "terrain "+ctx.LookupHash(materialPath), nil)
 		if err != nil {
@@ -891,10 +910,13 @@ func AddTerrainMaterial(ctx *extractor.Context, doc *gltf.Document, imgOpts *ext
 		}
 	}
 
-	if zone == nil {
+	caser := cases.Lower(language.English)
+	planet, contains := ctx.Planets()[caser.String(ctx.Config().Planet.Name)]
+
+	if zone == nil || !contains {
 		ctx.Warnf("Defaulting to Super Earth since no planet was specified")
 		planetName := "super earth"
-		planet, contains := ctx.Planets()[planetName]
+		planet, contains = ctx.Planets()[planetName]
 		if !contains {
 			ctx.Warnf("Super Earth doesn't have settings associated with it? (This shouldn't happen)")
 			return nil
@@ -924,7 +946,7 @@ func AddTerrainMaterial(ctx *extractor.Context, doc *gltf.Document, imgOpts *ext
 		if err := extr_entity.WriteColorGradingLut(ctx, &colorGradingDDS); err != nil {
 			ctx.Warnf("Writing terrain color grading lut: %v", err)
 		}
-		noiseMap, materials, err = addTerrainProjectors(ctx, doc, imgOpts, *zone, colorGradingDDS)
+		noiseMap, materials, err = addTerrainProjectors(ctx, doc, imgOpts, *zone, colorGradingDDS, [3]stingray.Hash{planet.MaterialLookupUnit1, planet.MaterialLookupUnit2, planet.MaterialLookupUnit3})
 		if err != nil {
 			ctx.Warnf("Failed to add terrain projectors: %v", err)
 		}
