@@ -3,7 +3,7 @@
 out vec4 fragColor;
 
 in vec3 fragPosition;
-in vec2 fragUV;
+in vec2 fragUV0;
 in vec3 fragTangentLightPosition; // tangent meaning in tangent space
 in vec3 fragTangentViewPosition;
 in vec3 fragTangentFragmentPosition;
@@ -20,7 +20,7 @@ float reconstructNormalZ(vec2 xy) {
 }
 
 void main() {
-    vec3 normal = texture(texNormal, fragUV).xyz;
+    vec3 normal = texture(texNormal, fragUV0).xyz;
 
     //fragColor = vec4(normal, 1.0); return;
 
@@ -30,7 +30,7 @@ void main() {
     }
     normal.x = -normal.x;
 
-    vec3 albedo = texture(texAlbedo, fragUV).xyz;
+    vec3 albedo = texture(texAlbedo, fragUV0).xyz;
     vec3 ambient = vec3(1.0);
 
     vec3 lightDirection = normalize(fragTangentLightPosition - fragTangentFragmentPosition);
