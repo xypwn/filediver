@@ -5,9 +5,13 @@ layout(location = 1) in vec3 inNormal;
 layout(location = 2) in vec2 inUV;
 layout(location = 3) in vec4 inTangent;
 layout(location = 4) in vec3 inBitangent;
+layout(location = 5) in vec2 inUV1;
+layout(location = 6) in vec2 inUV2;
 
 out vec3 fragPosition;
 out vec2 fragUV0;
+out vec2 fragUV1;
+out vec2 fragUV2;
 out vec3 fragTangentLightPosition; // tangent meaning in tangent space
 out vec3 fragTangentViewPosition;
 out vec3 fragTangentFragmentPosition;
@@ -33,6 +37,8 @@ void main() {
     gl_Position = mvp * vec4(inPosition, 1.0);
     fragPosition = vec3(model * vec4(inPosition, 1.0));
     fragUV0 = inUV;
+    fragUV1 = inUV1;
+    fragUV2 = inUV2;
 
     {
         vec3 t = normalize(normalMat * inTangent.xyz);

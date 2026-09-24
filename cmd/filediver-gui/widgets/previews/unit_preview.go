@@ -9,6 +9,7 @@ import (
 	"image"
 	"io"
 	"math"
+	"math/rand/v2"
 	"strings"
 
 	"github.com/AllenDang/cimgui-go/imgui"
@@ -97,6 +98,11 @@ func (mat *unitPreviewMaterial) generate(shaderPaths []string, textures int, uni
 }
 
 func (mat *unitPreviewMaterial) delete() {
+	for i, texture := range mat.textures {
+		if material_detailer_tiler != nil && texture == *material_detailer_tiler {
+			mat.textures[i] = 0
+		}
+	}
 	if len(mat.textures) > 0 {
 		gl.DeleteTextures(int32(len(mat.textures)), &mat.textures[0])
 	}
@@ -213,6 +219,8 @@ type UnitPreviewState struct {
 	doAutoZoomNextFrame       bool
 }
 
+var material_detailer_tiler *uint32
+
 func NewUnitPreview() (*UnitPreviewState, error) {
 	var err error
 
@@ -275,6 +283,10 @@ func (pv *UnitPreviewState) Delete() {
 	pv.object.deleteObjects()
 	pv.wireframeMaterial.delete()
 	pv.dbgObj.deleteObjects()
+	if material_detailer_tiler != nil {
+		gl.DeleteTextures(1, material_detailer_tiler)
+		material_detailer_tiler = nil
+	}
 }
 
 func (pv *UnitPreviewState) loadMesh(meshInfos []unit.MeshInfo, meshLayouts []unit.MeshLayout, gpuData []byte) (unit.Mesh, error) {
@@ -338,7 +350,7 @@ func uploadStingrayTexture(getResource GetResourceFunc, textureID uint32, fileNa
 	return nil
 }
 
-func uploadStingrayTextureArray(getResource GetResourceFunc, textureID uint32, fileName stingray.Hash) error {
+func uploadStingrayTextureArray(getResource GetResourceFunc, textureID uint32, fileName stingray.Hash, mipmap int) error {
 	file := stingray.FileID{Name: fileName, Type: stingray.Sum("texture")}
 	var texMain, texStream, texGPU []byte
 	var err error
@@ -359,12 +371,15 @@ func uploadStingrayTextureArray(getResource GetResourceFunc, textureID uint32, f
 	if err != nil {
 		return fmt.Errorf("loading DDS image: %w", err)
 	}
-	completeRaw := make([]uint8, 0, len(dds.Images[0].MipMaps[0].Raw)*len(dds.Images))
-	for _, img := range dds.Images {
-		completeRaw = append(completeRaw, img.MipMaps[0].Raw...)
-	}
 	gl.BindTexture(gl.TEXTURE_2D_ARRAY, textureID)
-	gl.TexImage3D(gl.TEXTURE_2D_ARRAY, 0, gl.RGBA, int32(dds.Bounds().Dx()), int32(dds.Bounds().Dy()), int32(len(dds.Images)), 0, gl.RGBA, gl.UNSIGNED_BYTE, gl.Ptr(completeRaw))
+	gl.TexImage3D(gl.TEXTURE_2D_ARRAY, 0, gl.RGBA, int32(dds.Images[0].Image.Bounds().Dx()), int32(dds.Images[0].Image.Bounds().Dy()), int32(len(dds.Images)), 0, gl.RGBA, gl.UNSIGNED_BYTE, nil)
+	for idx := range dds.Images {
+		img, ok := dds.Images[idx].Image.(*image.NRGBA)
+		if !ok {
+			return fmt.Errorf("expected texture to be of type *image.NRGBA")
+		}
+		gl.TexSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, 0, int32(idx), int32(dds.Images[idx].Image.Bounds().Dx()), int32(dds.Images[idx].Image.Bounds().Dy()), 1, gl.RGBA, gl.UNSIGNED_BYTE, gl.Ptr(img.Pix))
+	}
 	gl.BindTexture(gl.TEXTURE_2D_ARRAY, 0)
 	return nil
 }
@@ -421,6 +436,9 @@ func (pv *UnitPreviewState) useBasicMaterial(getResource GetResourceFunc, info *
 	albedoTexFileName, albedoRemoveAlpha, normalTexFileName, reconstructNormalZ, err := func() (albedoFileName stingray.Hash, albedoRemoveAlpha bool, normalFileName stingray.Hash, reconstructNormalZ bool, err error) {
 		// TODO: Use all textures somehow. Currently, simply the first one
 		// found is used.
+		if mat == nil {
+			return
+		}
 		for texUsage, texFileName := range mat.Textures {
 			removeAlpha := true
 			switch texUsage {
@@ -485,16 +503,21 @@ func (pv *UnitPreviewState) useBasicMaterial(getResource GetResourceFunc, info *
 }
 
 func isLUTMaterial(mat *material.Material) bool {
+	if mat == nil {
+		return false
+	}
 	_, containsIdMasks := mat.Textures[stingray.Sum("id_masks_array").Thin()]
 	_, containsMaterialLut := mat.Textures[stingray.Sum("material_lut").Thin()]
 	return containsIdMasks && containsMaterialLut
 }
 
+var seed = rand.Uint32()
+
 func (pv *UnitPreviewState) useLUTMaterial(getResource GetResourceFunc, info *unit.Info, mesh unit.Mesh, group int, mat *material.Material) error {
 	err := pv.object.materials[group].generate(
 		[]string{"shaders/object.vert", "shaders/lut.frag"},
 		len(lutTextureNames),
-		append(baseUniforms, lutTextureNames...),
+		append(baseUniforms, append([]string{"seed"}, lutTextureNames...)...),
 	)
 	if err != nil {
 		return err
@@ -502,20 +525,23 @@ func (pv *UnitPreviewState) useLUTMaterial(getResource GetResourceFunc, info *un
 
 	for idx, texture := range pv.object.materials[group].textures {
 		switch lutTextureNames[idx] {
-		case "customization_camo_tiler_array", "customization_material_detail_tiler_array", "pattern_masks_array", "id_masks_array":
+		case "customization_camo_tiler_array", "pattern_masks_array", "id_masks_array":
 			setupTextureArray(texture)
+			pv.object.materials[group].targets[idx] = gl.TEXTURE_2D_ARRAY
+		case "customization_material_detail_tiler_array":
+			pv.object.materials[group].textures[idx] = *material_detailer_tiler
 			pv.object.materials[group].targets[idx] = gl.TEXTURE_2D_ARRAY
 		default:
 			setupTexture(texture)
 			pv.object.materials[group].targets[idx] = gl.TEXTURE_2D
 		}
 		textureHash, ok := mat.Textures[stingray.Sum(lutTextureNames[idx]).Thin()]
-		if !ok {
+		if !ok || lutTextureNames[idx] == "customization_material_detail_tiler_array" {
 			continue
 		}
 		switch lutTextureNames[idx] {
-		case "customization_camo_tiler_array", "customization_material_detail_tiler_array", "pattern_masks_array", "id_masks_array":
-			uploadStingrayTextureArray(getResource, texture, textureHash)
+		case "customization_camo_tiler_array", "pattern_masks_array", "id_masks_array":
+			uploadStingrayTextureArray(getResource, texture, textureHash, 0)
 		case "pattern_lut", "material_lut":
 			uploadStingrayLUT(getResource, texture, textureHash)
 		default:
@@ -533,6 +559,9 @@ func (pv *UnitPreviewState) useLUTMaterial(getResource GetResourceFunc, info *un
 }
 
 func loadMaterial(getResource GetResourceFunc, info *unit.Info, mesh unit.Mesh, group int) (*material.Material, error) {
+	if group >= len(mesh.Info.Groups) {
+		return nil, fmt.Errorf("group %v not found", group)
+	}
 	idx := mesh.Info.Groups[group].MaterialIdx
 	matID := mesh.Info.Materials[idx]
 	matFileName, ok := info.Materials[matID]
@@ -634,6 +663,14 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 		return fmt.Errorf("mesh contains no UV coordinates")
 	}
 
+	if material_detailer_tiler == nil {
+		tiler := uint32(0)
+		gl.GenTextures(1, &tiler)
+		setupTextureArray(tiler)
+		uploadStingrayTextureArray(getResource, tiler, stingray.Sum("content/art_shared/textures/customization/material_library/detail_tilers/customization_detail_tiler_array"), 1)
+		material_detailer_tiler = &tiler
+	}
+
 	// Create index buffers
 	{
 		if len(pv.object.ibos) != 0 {
@@ -646,10 +683,7 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 		pv.object.materials = make([]unitPreviewMaterial, len(mesh.Indices))
 		for group := range pv.object.materials {
 			mat, err := loadMaterial(getResource, info, mesh, group)
-			if err != nil {
-				return err
-			}
-			if isLUTMaterial(mat) {
+			if err == nil && isLUTMaterial(mat) {
 				if err := pv.useLUTMaterial(getResource, info, mesh, group, mat); err == nil {
 					continue
 				} else {
@@ -689,7 +723,7 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 		bitangentsSize := len(mesh.Bitangents) * 3 * 4
 
 		gl.BindBuffer(gl.ARRAY_BUFFER, pv.object.vbo)
-		gl.BufferData(gl.ARRAY_BUFFER, positionsSize+normalsSize+uvsSize+tangentsSize+bitangentsSize, nil, gl.STATIC_DRAW)
+		gl.BufferData(gl.ARRAY_BUFFER, positionsSize+normalsSize+uvsSize*len(mesh.UVCoords)+tangentsSize+bitangentsSize, nil, gl.STATIC_DRAW)
 		offset := 0
 		//
 		gl.BufferSubData(gl.ARRAY_BUFFER, offset, positionsSize, gl.Ptr(mesh.Positions))
@@ -716,6 +750,16 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 		gl.VertexAttribPointerWithOffset(4, 3, gl.FLOAT, true, 3*4, uintptr(offset))
 		gl.EnableVertexAttribArray(4)
 		offset += bitangentsSize
+		//
+		for layer, uvcoords := range mesh.UVCoords[1:] {
+			index := uint32(5 + layer)
+			uvsSize := len(uvcoords) * 2 * 4
+			fmt.Printf("size %v offset %v index %v\n", uvsSize, offset, index)
+			gl.BufferSubData(gl.ARRAY_BUFFER, offset, uvsSize, gl.Ptr(uvcoords))
+			gl.VertexAttribPointerWithOffset(index, 2, gl.FLOAT, false, 2*4, uintptr(offset))
+			gl.EnableVertexAttribArray(index)
+			offset += uvsSize
+		}
 
 		for group, indices := range mesh.Indices {
 			gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, pv.object.ibos[group])
@@ -963,6 +1007,9 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 					gl.UniformMatrix3fv(pv.object.materials[group].uniforms["normalMat"], 1, false, &normal[0])
 					gl.Uniform3fv(pv.object.materials[group].uniforms["viewPosition"], 1, &viewPosition[0])
 					gl.Uniform1iv(pv.object.materials[group].uniforms["udimShown"], 64, &pv.udimsShown[0])
+					if location, contains := pv.object.materials[group].uniforms["seed"]; contains {
+						gl.Uniform1ui(location, seed)
+					}
 					for idx, texture := range pv.object.materials[group].textures {
 						target := pv.object.materials[group].targets[idx]
 						gl.ActiveTexture(gl.TEXTURE0 + uint32(idx))
