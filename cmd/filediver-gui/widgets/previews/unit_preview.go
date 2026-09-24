@@ -39,12 +39,54 @@ var stingrayToGLCoords = mgl32.Mat4FromRows(
 	mgl32.Vec4{0, 0, 0, 1},
 )
 
+func setupTexture(textureID uint32) {
+	gl.BindTexture(gl.TEXTURE_2D, textureID)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+	gl.PixelStorei(gl.UNPACK_ROW_LENGTH, 0)
+	gl.BindTexture(gl.TEXTURE_2D, 0)
+}
+
+type unitPreviewMaterial struct {
+	program  uint32
+	uniforms unitPreviewUniforms
+	textures []uint32
+}
+
+func (mat *unitPreviewMaterial) generate(shaderPaths []string, textures int, uniforms []string) error {
+	var err error
+	mat.program, err = glutils.CreateProgramFromSources(
+		unitPreviewShaderCode,
+		shaderPaths...,
+	)
+	if err != nil {
+		return err
+	}
+	mat.textures = make([]uint32, textures)
+	if len(mat.textures) > 0 {
+		gl.GenTextures(int32(textures), &mat.textures[0])
+	}
+
+	mat.uniforms.generate(mat.program, uniforms...)
+
+	return nil
+}
+
+func (mat *unitPreviewMaterial) delete() {
+	if len(mat.textures) > 0 {
+		gl.DeleteTextures(int32(len(mat.textures)), &mat.textures[0])
+	}
+	gl.DeleteProgram(mat.program)
+
+}
+
 type unitPreviewObject struct {
-	vao       uint32 // vertex array object
-	ibo       uint32 // index buffer object
-	vbo       uint32 // vertex buffer object
-	texAlbedo uint32
-	texNormal uint32
+	vao      uint32 // vertex array object
+	ibo      uint32 // index buffer object
+	vbo      uint32 // vertex buffer object
+	material unitPreviewMaterial
 
 	numVertices int32
 	numIndices  int32
@@ -58,10 +100,6 @@ func (obj *unitPreviewObject) genObjects(textures bool) {
 	gl.GenVertexArrays(1, &obj.vao)
 	gl.GenBuffers(1, &obj.vbo)
 	gl.GenBuffers(1, &obj.ibo)
-	if textures {
-		gl.GenTextures(1, &obj.texAlbedo)
-		gl.GenTextures(1, &obj.texNormal)
-	}
 
 	gl.BindVertexArray(obj.vao)
 	defer gl.BindVertexArray(0)
@@ -94,18 +132,14 @@ func (obj unitPreviewObject) deleteObjects() {
 	gl.DeleteVertexArrays(1, &obj.vao)
 	gl.DeleteBuffers(1, &obj.vbo)
 	gl.DeleteBuffers(1, &obj.ibo)
-	gl.DeleteTextures(1, &obj.texAlbedo)
-	gl.DeleteTextures(1, &obj.texNormal)
+	obj.material.delete()
 }
 
 type UnitPreviewState struct {
 	fb *widgets.GLViewState
 
-	object                  unitPreviewObject
-	objectProgram           uint32
-	objectUniforms          unitPreviewUniforms
-	objectWireframeProgram  uint32
-	objectWireframeUniforms unitPreviewUniforms
+	object            unitPreviewObject
+	wireframeMaterial unitPreviewMaterial
 
 	objectNormalVisProgram  uint32
 	objectNormalVisUniforms unitPreviewUniforms
@@ -167,24 +201,27 @@ func NewUnitPreview() (*UnitPreviewState, error) {
 	}
 
 	pv.object.genObjects(true)
-	pv.objectProgram, err = glutils.CreateProgramFromSources(unitPreviewShaderCode,
-		"shaders/object.vert",
-		"shaders/object.frag",
+	err = pv.object.material.generate(
+		[]string{"shaders/object.vert", "shaders/object.frag"},
+		2,
+		[]string{"mvp", "model", "normalMat", "viewPosition", "texAlbedo", "texNormal", "shouldReconstructNormalZ", "udimShown"},
 	)
 	if err != nil {
 		return nil, err
 	}
-	pv.objectUniforms.generate(pv.objectProgram, "mvp", "model", "normalMat", "viewPosition", "texAlbedo", "texNormal", "shouldReconstructNormalZ", "udimShown")
 
-	pv.objectWireframeProgram, err = glutils.CreateProgramFromSources(unitPreviewShaderCode,
-		"shaders/object_wireframe.vert",
-		"shaders/object_wireframe.geom",
-		"shaders/object_wireframe.frag",
+	err = pv.wireframeMaterial.generate(
+		[]string{
+			"shaders/object_wireframe.vert",
+			"shaders/object_wireframe.geom",
+			"shaders/object_wireframe.frag",
+		},
+		0,
+		[]string{"mvp", "color", "udimShown"},
 	)
 	if err != nil {
 		return nil, err
 	}
-	pv.objectWireframeUniforms.generate(pv.objectWireframeProgram, "mvp", "color", "udimShown")
 
 	pv.objectNormalVisProgram, err = glutils.CreateProgramFromSources(unitPreviewShaderCode,
 		"shaders/object_normal_vis.vert",
@@ -206,21 +243,13 @@ func NewUnitPreview() (*UnitPreviewState, error) {
 	}
 	pv.dbgObjUniforms.generate(pv.dbgObjProgram, "mvp", "color")
 
-	setupTexture := func(textureID uint32) {
-		gl.BindTexture(gl.TEXTURE_2D, textureID)
-		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT)
-		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT)
-		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
-		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
-		gl.PixelStorei(gl.UNPACK_ROW_LENGTH, 0)
-		gl.BindTexture(gl.TEXTURE_2D, 0)
+	for _, texture := range pv.object.material.textures {
+		setupTexture(texture)
 	}
-	setupTexture(pv.object.texAlbedo)
-	setupTexture(pv.object.texNormal)
 
-	gl.UseProgram(pv.objectProgram)
-	gl.Uniform1i(pv.objectUniforms["texAlbedo"], 0)
-	gl.Uniform1i(pv.objectUniforms["texNormal"], 1)
+	gl.UseProgram(pv.object.material.program)
+	gl.Uniform1i(pv.object.material.uniforms["texAlbedo"], 0)
+	gl.Uniform1i(pv.object.material.uniforms["texNormal"], 1)
 	gl.UseProgram(0)
 
 	pv.vfov = mgl32.DegToRad(60)
@@ -234,8 +263,8 @@ func NewUnitPreview() (*UnitPreviewState, error) {
 
 func (pv *UnitPreviewState) Delete() {
 	pv.fb.Delete()
-	gl.DeleteProgram(pv.objectProgram)
 	pv.object.deleteObjects()
+	pv.wireframeMaterial.delete()
 	pv.dbgObj.deleteObjects()
 }
 
@@ -267,6 +296,148 @@ func (pv *UnitPreviewState) loadMesh(meshInfos []unit.MeshInfo, meshLayouts []un
 		mesh = meshes[meshToLoad]
 	}
 	return mesh, nil
+}
+
+func uploadStingrayTexture(getResource GetResourceFunc, textureID uint32, fileName stingray.Hash) error {
+	file := stingray.FileID{Name: fileName, Type: stingray.Sum("texture")}
+	var texMain, texStream, texGPU []byte
+	var err error
+	if texMain, _, err = getResource(file, stingray.DataMain); err != nil {
+		return fmt.Errorf("load texture %v.texture: %w", fileName, err)
+	}
+	texStream, _, _ = getResource(file, stingray.DataStream)
+	texGPU, _, _ = getResource(file, stingray.DataGPU)
+	dataR := io.MultiReader(
+		bytes.NewReader(texMain),
+		bytes.NewReader(texStream),
+		bytes.NewReader(texGPU),
+	)
+	if _, err := texture.DecodeInfo(dataR); err != nil {
+		return fmt.Errorf("loading stingray DDS info: %w", err)
+	}
+	dds, err := dds.Decode(dataR, false)
+	if err != nil {
+		return fmt.Errorf("loading DDS image: %w", err)
+	}
+	img, ok := dds.Image.(*image.NRGBA)
+	if !ok {
+		return fmt.Errorf("expected texture to be of type *image.NRGBA")
+	}
+	gl.BindTexture(gl.TEXTURE_2D, textureID)
+	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, int32(img.Bounds().Dx()), int32(img.Bounds().Dy()), 0, gl.RGBA, gl.UNSIGNED_BYTE, gl.Ptr(img.Pix))
+	gl.BindTexture(gl.TEXTURE_2D, 0)
+	return nil
+}
+
+func uploadStingrayLUT(getResource GetResourceFunc, textureID uint32, fileName stingray.Hash) error {
+	file := stingray.FileID{Name: fileName, Type: stingray.Sum("texture")}
+	var texMain, texStream, texGPU []byte
+	var err error
+	if texMain, _, err = getResource(file, stingray.DataMain); err != nil {
+		return fmt.Errorf("load texture %v.texture: %w", fileName, err)
+	}
+	texStream, _, _ = getResource(file, stingray.DataStream)
+	texGPU, _, _ = getResource(file, stingray.DataGPU)
+	dataR := io.MultiReader(
+		bytes.NewReader(texMain),
+		bytes.NewReader(texStream),
+		bytes.NewReader(texGPU),
+	)
+	if _, err := texture.DecodeInfo(dataR); err != nil {
+		return fmt.Errorf("loading stingray DDS info: %w", err)
+	}
+	dds, err := dds.Decode(dataR, false)
+	if err != nil {
+		return fmt.Errorf("loading DDS image: %w", err)
+	}
+	gl.BindTexture(gl.TEXTURE_2D, textureID)
+	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, int32(dds.Image.Bounds().Dx()), int32(dds.Image.Bounds().Dy()), 0, gl.RGBA, gl.FLOAT, gl.Ptr(dds.Images[0].MipMaps[0].Raw))
+	gl.BindTexture(gl.TEXTURE_2D, 0)
+	return nil
+}
+
+func (pv *UnitPreviewState) useBasicMaterial(getResource GetResourceFunc, info *unit.Info, mesh unit.Mesh) error {
+	// Upload object texture
+	albedoTexFileName, albedoRemoveAlpha, normalTexFileName, reconstructNormalZ, err := func() (albedoFileName stingray.Hash, albedoRemoveAlpha bool, normalFileName stingray.Hash, reconstructNormalZ bool, err error) {
+		for matID, matFileName := range info.Materials {
+			if !slices.Contains(mesh.Info.Materials, matID) {
+				continue
+			}
+			matData, ok, err := getResource(stingray.FileID{
+				Name: matFileName,
+				Type: stingray.Sum("material"),
+			}, stingray.DataMain)
+			if err != nil {
+				return stingray.Hash{}, false, stingray.Hash{}, false, fmt.Errorf("load material %v.material: %w", matFileName, err)
+			}
+			if !ok {
+				return stingray.Hash{}, false, stingray.Hash{}, false, fmt.Errorf("load material %v.material does not exist", matFileName)
+			}
+			mat, err := material.LoadMain(bytes.NewReader(matData))
+			if err != nil {
+				return stingray.Hash{}, false, stingray.Hash{}, false, fmt.Errorf("load material %v.material: %w", matFileName, err)
+			}
+			// TODO: Use all textures somehow. Currently, simply the first one
+			// found is used.
+			for texUsage, texFileName := range mat.Textures {
+				removeAlpha := true
+				switch texUsage {
+				case stingray.Sum("color_roughness").Thin(), stingray.Sum("color_specular_b").Thin(), stingray.Sum("albedo_iridescence").Thin():
+					removeAlpha = false
+					fallthrough
+				case stingray.Sum("covering_albedo").Thin(), stingray.Sum("input_image").Thin(), stingray.Sum("albedo").Thin():
+					albedoFileName = texFileName
+					albedoRemoveAlpha = removeAlpha
+				case stingray.Sum("normal_specular_ao").Thin():
+					normalFileName = texFileName
+					reconstructNormalZ = false
+				case stingray.Sum("normal").Thin(), stingray.Sum("normals").Thin(), stingray.Sum("normal_map").Thin(), stingray.Sum("covering_normal").Thin(), stingray.Sum("nac").Thin(), stingray.Sum("base_data").Thin(), stingray.Sum("nar").Thin(), stingray.Sum("normal_ao_roughness").Thin(), stingray.Sum("normal_xy_ao_rough_map").Thin(), stingray.Sum("normal_xy_roughness_opacity").Thin():
+					normalFileName = texFileName
+					reconstructNormalZ = true
+				}
+			}
+		}
+		return
+	}()
+	if err != nil {
+		return err
+	}
+
+	if albedoTexFileName.Value != 0 {
+		if err := uploadStingrayTexture(getResource, pv.object.material.textures[0], albedoTexFileName); err != nil {
+			return err
+		}
+		if albedoRemoveAlpha {
+			gl.BindTexture(gl.TEXTURE_2D, pv.object.material.textures[0])
+			gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_SWIZZLE_A, gl.ONE)
+			gl.BindTexture(gl.TEXTURE_2D, 0)
+		}
+	} else {
+		data := []byte{255, 255, 255, 255}
+		gl.BindTexture(gl.TEXTURE_2D, pv.object.material.textures[0])
+		gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, gl.Ptr(data))
+		gl.BindTexture(gl.TEXTURE_2D, 0)
+	}
+	if normalTexFileName.Value != 0 {
+		if err := uploadStingrayTexture(getResource, pv.object.material.textures[1], normalTexFileName); err != nil {
+			return err
+		}
+	} else {
+		data := []byte{128, 128, 255, 128}
+		gl.BindTexture(gl.TEXTURE_2D, pv.object.material.textures[1])
+		gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, gl.Ptr(data))
+		gl.BindTexture(gl.TEXTURE_2D, 0)
+		reconstructNormalZ = false
+	}
+
+	gl.UseProgram(pv.object.material.program)
+	if reconstructNormalZ {
+		gl.Uniform1i(pv.object.material.uniforms["shouldReconstructNormalZ"], 1)
+	} else {
+		gl.Uniform1i(pv.object.material.uniforms["shouldReconstructNormalZ"], 0)
+	}
+	gl.UseProgram(0)
+	return nil
 }
 
 func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []byte, getResource GetResourceFunc, thinhashes map[stingray.ThinHash]string) error {
@@ -351,115 +522,9 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 		return fmt.Errorf("mesh contains no UV coordinates")
 	}
 
-	// Upload object texture
-	albedoTexFileName, albedoRemoveAlpha, normalTexFileName, reconstructNormalZ, err := func() (albedoFileName stingray.Hash, albedoRemoveAlpha bool, normalFileName stingray.Hash, reconstructNormalZ bool, err error) {
-		for matID, matFileName := range info.Materials {
-			if !slices.Contains(mesh.Info.Materials, matID) {
-				continue
-			}
-			matData, ok, err := getResource(stingray.FileID{
-				Name: matFileName,
-				Type: stingray.Sum("material"),
-			}, stingray.DataMain)
-			if err != nil {
-				return stingray.Hash{}, false, stingray.Hash{}, false, fmt.Errorf("load material %v.material: %w", matFileName, err)
-			}
-			if !ok {
-				return stingray.Hash{}, false, stingray.Hash{}, false, fmt.Errorf("load material %v.material does not exist", matFileName)
-			}
-			mat, err := material.LoadMain(bytes.NewReader(matData))
-			if err != nil {
-				return stingray.Hash{}, false, stingray.Hash{}, false, fmt.Errorf("load material %v.material: %w", matFileName, err)
-			}
-			// TODO: Use all textures somehow. Currently, simply the first one
-			// found is used.
-			for texUsage, texFileName := range mat.Textures {
-				removeAlpha := true
-				switch texUsage {
-				case stingray.Sum("color_roughness").Thin(), stingray.Sum("color_specular_b").Thin(), stingray.Sum("albedo_iridescence").Thin():
-					removeAlpha = false
-					fallthrough
-				case stingray.Sum("covering_albedo").Thin(), stingray.Sum("input_image").Thin(), stingray.Sum("albedo").Thin():
-					albedoFileName = texFileName
-					albedoRemoveAlpha = removeAlpha
-				case stingray.Sum("normal_specular_ao").Thin():
-					normalFileName = texFileName
-					reconstructNormalZ = false
-				case stingray.Sum("normal").Thin(), stingray.Sum("normals").Thin(), stingray.Sum("normal_map").Thin(), stingray.Sum("covering_normal").Thin(), stingray.Sum("nac").Thin(), stingray.Sum("base_data").Thin(), stingray.Sum("nar").Thin(), stingray.Sum("normal_ao_roughness").Thin(), stingray.Sum("normal_xy_ao_rough_map").Thin(), stingray.Sum("normal_xy_roughness_opacity").Thin():
-					normalFileName = texFileName
-					reconstructNormalZ = true
-				}
-			}
-		}
-		return
-	}()
-	if err != nil {
+	if err := pv.useBasicMaterial(getResource, info, mesh); err != nil {
 		return err
 	}
-	uploadStingrayTexture := func(textureID uint32, fileName stingray.Hash) error {
-		file := stingray.FileID{Name: fileName, Type: stingray.Sum("texture")}
-		var texMain, texStream, texGPU []byte
-		if texMain, _, err = getResource(file, stingray.DataMain); err != nil {
-			return fmt.Errorf("load texture %v.texture: %w", fileName, err)
-		}
-		texStream, _, _ = getResource(file, stingray.DataStream)
-		texGPU, _, _ = getResource(file, stingray.DataGPU)
-		dataR := io.MultiReader(
-			bytes.NewReader(texMain),
-			bytes.NewReader(texStream),
-			bytes.NewReader(texGPU),
-		)
-		if _, err := texture.DecodeInfo(dataR); err != nil {
-			return fmt.Errorf("loading stingray DDS info: %w", err)
-		}
-		dds, err := dds.Decode(dataR, false)
-		if err != nil {
-			return fmt.Errorf("loading DDS image: %w", err)
-		}
-		img, ok := dds.Image.(*image.NRGBA)
-		if !ok {
-			return fmt.Errorf("expected texture to be of type *image.NRGBA")
-		}
-		gl.BindTexture(gl.TEXTURE_2D, textureID)
-		gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, int32(img.Bounds().Dx()), int32(img.Bounds().Dy()), 0, gl.RGBA, gl.UNSIGNED_BYTE, gl.Ptr(img.Pix))
-		gl.BindTexture(gl.TEXTURE_2D, 0)
-		return nil
-	}
-
-	if albedoTexFileName.Value != 0 {
-		if err := uploadStingrayTexture(pv.object.texAlbedo, albedoTexFileName); err != nil {
-			return err
-		}
-		if albedoRemoveAlpha {
-			gl.BindTexture(gl.TEXTURE_2D, pv.object.texAlbedo)
-			gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_SWIZZLE_A, gl.ONE)
-			gl.BindTexture(gl.TEXTURE_2D, 0)
-		}
-	} else {
-		data := []byte{255, 255, 255, 255}
-		gl.BindTexture(gl.TEXTURE_2D, pv.object.texAlbedo)
-		gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, gl.Ptr(data))
-		gl.BindTexture(gl.TEXTURE_2D, 0)
-	}
-	if normalTexFileName.Value != 0 {
-		if err := uploadStingrayTexture(pv.object.texNormal, normalTexFileName); err != nil {
-			return err
-		}
-	} else {
-		data := []byte{128, 128, 255, 128}
-		gl.BindTexture(gl.TEXTURE_2D, pv.object.texNormal)
-		gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, gl.Ptr(data))
-		gl.BindTexture(gl.TEXTURE_2D, 0)
-		reconstructNormalZ = false
-	}
-
-	gl.UseProgram(pv.objectProgram)
-	if reconstructNormalZ {
-		gl.Uniform1i(pv.objectUniforms["shouldReconstructNormalZ"], 1)
-	} else {
-		gl.Uniform1i(pv.objectUniforms["shouldReconstructNormalZ"], 0)
-	}
-	gl.UseProgram(0)
 
 	// Flatten indices
 	var indices []uint32
@@ -748,25 +813,25 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 			// Draw object
 			gl.Enable(gl.DEPTH_TEST)
 			if !pv.showWireframe {
-				gl.UseProgram(pv.objectProgram)
+				gl.UseProgram(pv.object.material.program)
 			} else {
-				gl.UseProgram(pv.objectWireframeProgram)
+				gl.UseProgram(pv.wireframeMaterial.program)
 			}
 			gl.BindVertexArray(pv.object.vao)
 			if !pv.showWireframe {
-				gl.UniformMatrix4fv(pv.objectUniforms["mvp"], 1, false, &mvp[0])
-				gl.UniformMatrix4fv(pv.objectUniforms["model"], 1, false, &pv.model[0])
-				gl.UniformMatrix3fv(pv.objectUniforms["normalMat"], 1, false, &normal[0])
-				gl.Uniform3fv(pv.objectUniforms["viewPosition"], 1, &viewPosition[0])
-				gl.Uniform1iv(pv.objectUniforms["udimShown"], 64, &pv.udimsShown[0])
+				gl.UniformMatrix4fv(pv.object.material.uniforms["mvp"], 1, false, &mvp[0])
+				gl.UniformMatrix4fv(pv.object.material.uniforms["model"], 1, false, &pv.model[0])
+				gl.UniformMatrix3fv(pv.object.material.uniforms["normalMat"], 1, false, &normal[0])
+				gl.Uniform3fv(pv.object.material.uniforms["viewPosition"], 1, &viewPosition[0])
+				gl.Uniform1iv(pv.object.material.uniforms["udimShown"], 64, &pv.udimsShown[0])
 				gl.ActiveTexture(gl.TEXTURE0)
-				gl.BindTexture(gl.TEXTURE_2D, pv.object.texAlbedo)
+				gl.BindTexture(gl.TEXTURE_2D, pv.object.material.textures[0])
 				gl.ActiveTexture(gl.TEXTURE1)
-				gl.BindTexture(gl.TEXTURE_2D, pv.object.texNormal)
+				gl.BindTexture(gl.TEXTURE_2D, pv.object.material.textures[1])
 			} else {
-				gl.UniformMatrix4fv(pv.objectWireframeUniforms["mvp"], 1, false, &mvp[0])
-				gl.Uniform4fv(pv.objectWireframeUniforms["color"], 1, &pv.wireframeColor[0])
-				gl.Uniform1iv(pv.objectWireframeUniforms["udimShown"], 64, &pv.udimsShown[0])
+				gl.UniformMatrix4fv(pv.wireframeMaterial.uniforms["mvp"], 1, false, &mvp[0])
+				gl.Uniform4fv(pv.wireframeMaterial.uniforms["color"], 1, &pv.wireframeColor[0])
+				gl.Uniform1iv(pv.wireframeMaterial.uniforms["udimShown"], 64, &pv.udimsShown[0])
 			}
 			gl.DrawElements(gl.TRIANGLES, pv.object.numIndices, gl.UNSIGNED_INT, nil)
 			gl.ActiveTexture(gl.TEXTURE0)
