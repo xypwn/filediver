@@ -141,8 +141,7 @@ type UnitPreviewState struct {
 	object            unitPreviewObject
 	wireframeMaterial unitPreviewMaterial
 
-	objectNormalVisProgram  uint32
-	objectNormalVisUniforms unitPreviewUniforms
+	normalVisMaterial unitPreviewMaterial
 
 	dbgObjProgram  uint32
 	dbgObj         unitPreviewObject
@@ -223,15 +222,18 @@ func NewUnitPreview() (*UnitPreviewState, error) {
 		return nil, err
 	}
 
-	pv.objectNormalVisProgram, err = glutils.CreateProgramFromSources(unitPreviewShaderCode,
-		"shaders/object_normal_vis.vert",
-		"shaders/object_normal_vis.geom",
-		"shaders/object_normal_vis.frag",
+	err = pv.normalVisMaterial.generate(
+		[]string{
+			"shaders/object_normal_vis.vert",
+			"shaders/object_normal_vis.geom",
+			"shaders/object_normal_vis.frag",
+		},
+		0,
+		[]string{"mvp", "len", "showTangentBitangent", "udimShown"},
 	)
 	if err != nil {
 		return nil, err
 	}
-	pv.objectNormalVisUniforms.generate(pv.objectNormalVisProgram, "mvp", "len", "showTangentBitangent", "udimShown")
 
 	pv.dbgObj.genObjects(false)
 	pv.dbgObjProgram, err = glutils.CreateProgramFromSources(unitPreviewShaderCode,
@@ -842,12 +844,12 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 
 			// Draw normal visualization
 			if pv.visualizeNormals {
-				gl.UseProgram(pv.objectNormalVisProgram)
+				gl.UseProgram(pv.normalVisMaterial.program)
 				gl.BindVertexArray(pv.object.vao)
-				gl.UniformMatrix4fv(pv.objectNormalVisUniforms["mvp"], 1, false, &mvp[0])
-				gl.Uniform1f(pv.objectNormalVisUniforms["len"], pv.viewDistance*0.02)
-				gl.Uniform1iv(pv.objectNormalVisUniforms["showTangentBitangent"], 1, &pv.visualizeTangentBitangent)
-				gl.Uniform1iv(pv.objectNormalVisUniforms["udimShown"], 64, &pv.udimsShown[0])
+				gl.UniformMatrix4fv(pv.normalVisMaterial.uniforms["mvp"], 1, false, &mvp[0])
+				gl.Uniform1f(pv.normalVisMaterial.uniforms["len"], pv.viewDistance*0.02)
+				gl.Uniform1iv(pv.normalVisMaterial.uniforms["showTangentBitangent"], 1, &pv.visualizeTangentBitangent)
+				gl.Uniform1iv(pv.normalVisMaterial.uniforms["udimShown"], 64, &pv.udimsShown[0])
 				gl.DrawElements(gl.POINTS, pv.object.numIndices, gl.UNSIGNED_INT, nil) // TODO: Make this not draw duplicate vertices
 				gl.BindVertexArray(0)
 				gl.UseProgram(0)
