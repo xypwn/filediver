@@ -22,6 +22,7 @@ uniform mat4 mvp; // projection*view*model
 uniform mat4 model;
 uniform mat3 normalMat; // normal matrix = transpose(inverse(model))
 uniform vec3 viewPosition;
+uniform bool hasVisibilityMasks;
 uniform bool udimShown[64];
 
 bool isShown() {
@@ -30,7 +31,7 @@ bool isShown() {
 }
 
 void main() {
-    if (!isShown()) {
+    if (hasVisibilityMasks && !isShown()) {
         gl_Position = vec4(vec3(0.0), 1.0);
         return;
     }

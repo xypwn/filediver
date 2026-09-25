@@ -495,7 +495,7 @@ func uploadStingrayLUT(getResource GetResourceFunc, textureID uint32, fileName s
 	return nil
 }
 
-var baseUniforms = []string{"mvp", "model", "normalMat", "viewPosition", "udimShown"}
+var baseUniforms = []string{"mvp", "model", "normalMat", "viewPosition", "hasVisibilityMasks", "udimShown"}
 
 func (pv *UnitPreviewState) useBasicMaterial(getResource GetResourceFunc, info *unit.Info, mesh unit.Mesh, group int, mat *material.Material) error {
 	err := pv.object.materials[group].generate(
@@ -582,6 +582,7 @@ func (pv *UnitPreviewState) useBasicMaterial(getResource GetResourceFunc, info *
 	} else {
 		gl.Uniform1i(pv.object.materials[group].uniforms["shouldReconstructNormalZ"], 0)
 	}
+	gl.Uniform1i(pv.object.materials[group].uniforms["hasVisibilityMasks"], 0)
 	gl.UseProgram(0)
 	return nil
 }
@@ -946,6 +947,17 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 		return err
 	}
 	if visibilityMask, ok := visibilityMasks[fileID]; ok {
+		for _, material := range pv.object.materials {
+			gl.UseProgram(material.program)
+			gl.Uniform1ui(material.uniforms["hasVisibilityMasks"], 1)
+			gl.UseProgram(0)
+		}
+		gl.UseProgram(pv.wireframeMaterial.program)
+		gl.Uniform1ui(pv.wireframeMaterial.uniforms["hasVisibilityMasks"], 1)
+		gl.UseProgram(0)
+		gl.UseProgram(pv.normalVisMaterial.program)
+		gl.Uniform1ui(pv.normalVisMaterial.uniforms["hasVisibilityMasks"], 1)
+		gl.UseProgram(0)
 		for _, info := range visibilityMask.MaskInfos {
 			if int(info.Index) >= len(pv.udimsShownDefault) {
 				// No support for udims with index > 64 at the moment
@@ -958,6 +970,13 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 			}
 			pv.udimNames[info.Index] = name
 		}
+	} else {
+		gl.UseProgram(pv.wireframeMaterial.program)
+		gl.Uniform1ui(pv.wireframeMaterial.uniforms["hasVisibilityMasks"], 0)
+		gl.UseProgram(0)
+		gl.UseProgram(pv.normalVisMaterial.program)
+		gl.Uniform1ui(pv.normalVisMaterial.uniforms["hasVisibilityMasks"], 0)
+		gl.UseProgram(0)
 	}
 	pv.udimsSelected = pv.udimsShownDefault
 

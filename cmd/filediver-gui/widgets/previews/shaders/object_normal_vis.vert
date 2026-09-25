@@ -12,6 +12,7 @@ out vec4 bitangentEndPosition;
 
 uniform mat4 mvp; // projection*view*model
 uniform float len; // normal length
+uniform bool hasVisibilityMasks;
 uniform bool udimShown[64];
 
 bool isShown() {
@@ -20,7 +21,7 @@ bool isShown() {
 }
 
 void main() {
-    if (!isShown()) {
+    if (hasVisibilityMasks && !isShown()) {
         gl_Position = vec4(vec3(0.0), 1.0);
         normalEndPosition    = vec4(vec3(0.0), 1.0);
         tangentEndPosition   = vec4(vec3(0.0), 1.0);
