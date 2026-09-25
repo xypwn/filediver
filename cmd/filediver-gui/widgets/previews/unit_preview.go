@@ -1116,7 +1116,7 @@ Drag to toggle multiple items (right-click to cancel)`)
 		}
 		imgui.PopStyleVar()
 		if dragging {
-			imgui.WindowDrawList().AddRectV(draggingMinPos, draggingMaxPos, imgui.ColorU32Col(imgui.ColButtonActive), 0, 0, 2)
+			imgui.WindowDrawList().AddRectV(draggingMinPos, draggingMaxPos, imgui.ColorU32Col(imgui.ColButtonActive), 0, 0, imgui.DrawFlagsNone)
 		}
 		imgui.EndPopup()
 	} else {
