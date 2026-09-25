@@ -120,7 +120,7 @@ func (block *unitPreviewUniformBlock) generate(program uint32, name string) {
 
 	gl.GenBuffers(1, &block.ubo)
 	gl.BindBuffer(gl.UNIFORM_BUFFER, block.ubo)
-	gl.BufferData(gl.UNIFORM_BUFFER, int(size), nil, gl.STATIC_DRAW)
+	gl.BufferData(gl.UNIFORM_BUFFER, int(size), gl.Ptr(make([]byte, size)), gl.STATIC_DRAW)
 	gl.BindBuffer(gl.UNIFORM_BUFFER, 0)
 	fmt.Printf("Uniform block id: %v\n", block.ubo)
 }
@@ -648,10 +648,18 @@ func (pv *UnitPreviewState) useLUTMaterial(getResource GetResourceFunc, info *un
 		}
 	}
 	for _, block := range pv.object.materials[group].uniformBlocks {
-		if _, contains := block.uniformOffsets["seed"]; !contains {
-			continue
+		if _, contains := block.uniformOffsets["seed"]; contains {
+			block.set("seed", &seed)
 		}
-		block.set("seed", &seed)
+		if _, contains := block.uniformOffsets["use_decals"]; contains {
+			val, contains := mat.Textures[stingray.Sum("decal_sheet").Thin()]
+			hasValue := val.Value != 0x0
+			if contains || hasValue {
+				block.set("use_decals", []uint32{1})
+			} else {
+				block.set("use_decals", []uint32{0})
+			}
+		}
 	}
 
 	gl.UseProgram(0)

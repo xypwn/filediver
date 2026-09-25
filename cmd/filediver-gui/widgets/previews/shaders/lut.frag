@@ -23,6 +23,7 @@ uniform sampler2DArray id_masks_array;
 
 layout(shared, binding = 0) uniform LutSettingsBlock {
     uint seed;
+    bool use_decals;
     float detail_tiler_factor_mult;
     float decal_id;
     float decal_id_offset_x;
@@ -179,11 +180,11 @@ void main() {
     }
 
     bvec2 decal_range = lessThan(abs(fragUV2 - 0.5), vec2(0.5));
-    if(decal_range.x && decal_range.y) {
+    if(use_decals && decal_range.x && decal_range.y) {
         vec4 decal_sheet_size = vec4(textureSize(decal_sheet, 0).xy, 0, 0);
         decal_sheet_size.zw = max(decal_sheet_size.xy, vec2(1.0));
         
-        // // note: spelled as "decal_normal_intentity" in files
+        // note: spelled as "decal_normal_intentity" in files
         float decal_normal_intensity = decal_normal_intentity;
         float decal_id_val = max(floor(decal_id + 0.5), 0.0);
 
