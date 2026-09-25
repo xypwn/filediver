@@ -76,7 +76,12 @@ func main() {
 				unknown[uint32(h)] = true
 			}
 		}
-		writeItems(prt, "target_datalib.txt", maps.Keys(unknown))
+		unknownStrs := make(map[string]bool)
+		for h := range unknown {
+			s := fmt.Sprintf("0x%08x##%d", h, typeLib.Types[datalib.DLHash(h)].NameLength)
+			unknownStrs[s] = true
+		}
+		writeItems(prt, "target_datalib.txt", maps.Keys(unknownStrs))
 	}
 
 	// Thin hashes
