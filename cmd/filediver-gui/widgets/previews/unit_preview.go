@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"cmp"
 	"embed"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"image"
@@ -70,11 +71,77 @@ func setupTextureArray(textureID uint32) {
 	gl.BindTexture(gl.TEXTURE_2D_ARRAY, 0)
 }
 
+type unitPreviewUniformBlock struct {
+	name           string
+	ubo            uint32
+	binding        uint32
+	uniformOffsets map[string]int32
+}
+
+func (block *unitPreviewUniformBlock) generate(program uint32, name string) {
+	block.uniformOffsets = make(map[string]int32)
+
+	cStr, free := gl.Strs(name + "\x00")
+	blockIdx := gl.GetProgramResourceIndex(program, gl.UNIFORM_BLOCK, *cStr)
+	free()
+
+	if blockIdx == gl.INVALID_INDEX {
+		return
+	}
+
+	var size int32
+	gl.GetActiveUniformBlockiv(program, blockIdx, gl.UNIFORM_BLOCK_DATA_SIZE, &size)
+
+	var numUniforms int32 = 0
+	blockProperties := []uint32{gl.NUM_ACTIVE_VARIABLES}
+	gl.GetProgramResourceiv(program, gl.UNIFORM_BLOCK, blockIdx, 1, &blockProperties[0], 1, nil, &numUniforms)
+
+	fmt.Printf("Uniform block has %v uniforms\n", numUniforms)
+	if numUniforms == 0 {
+		return
+	}
+
+	activeUniforms := []uint32{gl.ACTIVE_VARIABLES}
+	blockUniforms := make([]int32, numUniforms)
+	gl.GetProgramResourceiv(program, gl.UNIFORM_BLOCK, blockIdx, 1, &activeUniforms[0], numUniforms, nil, &blockUniforms[0])
+
+	for uniformIdx := range numUniforms {
+		uniformInfo := make([]int32, 3)
+		uniformProperties := []uint32{gl.NAME_LENGTH, gl.TYPE, gl.OFFSET}
+		gl.GetProgramResourceiv(program, gl.UNIFORM, uint32(blockUniforms[uniformIdx]), 3, &uniformProperties[0], 3, nil, &uniformInfo[0])
+
+		buf := make([]uint8, uniformInfo[0])
+		gl.GetProgramResourceName(program, gl.UNIFORM, uint32(blockUniforms[uniformIdx]), int32(len(buf)), nil, &buf[0])
+
+		uniformName := string(buf[:len(buf)-1])
+		fmt.Printf("block uniform %v: offset %v\n", uniformName, uniformInfo[2])
+		block.uniformOffsets[uniformName] = uniformInfo[2]
+	}
+
+	gl.GenBuffers(1, &block.ubo)
+	gl.BindBuffer(gl.UNIFORM_BUFFER, block.ubo)
+	gl.BufferData(gl.UNIFORM_BUFFER, int(size), nil, gl.STATIC_DRAW)
+	gl.BindBuffer(gl.UNIFORM_BUFFER, 0)
+	fmt.Printf("Uniform block id: %v\n", block.ubo)
+}
+
+// Data must be a slice
+func (block *unitPreviewUniformBlock) set(name string, data any) {
+	offset, contains := block.uniformOffsets[name]
+	if !contains {
+		return
+	}
+	gl.BindBuffer(gl.UNIFORM_BUFFER, block.ubo)
+	gl.BufferSubData(gl.UNIFORM_BUFFER, int(offset), binary.Size(data), gl.Ptr(data))
+	gl.BindBuffer(gl.UNIFORM_BUFFER, 0)
+}
+
 type unitPreviewMaterial struct {
-	program  uint32
-	uniforms unitPreviewUniforms
-	textures []uint32
-	targets  []uint32
+	program       uint32
+	uniforms      unitPreviewUniforms
+	uniformBlocks []unitPreviewUniformBlock
+	textures      []uint32
+	targets       []uint32
 }
 
 func (mat *unitPreviewMaterial) generate(shaderPaths []string, textures int, uniforms []string) error {
@@ -93,6 +160,23 @@ func (mat *unitPreviewMaterial) generate(shaderPaths []string, textures int, uni
 	}
 
 	mat.uniforms.generate(mat.program, uniforms...)
+
+	var numBlocks int32
+	gl.GetProgramInterfaceiv(mat.program, gl.UNIFORM_BLOCK, gl.ACTIVE_RESOURCES, &numBlocks)
+	for blockIdx := range numBlocks {
+		var length int32
+		buf := make([]uint8, 64)
+		gl.GetProgramResourceName(mat.program, gl.UNIFORM_BLOCK, uint32(blockIdx), int32(len(buf)), &length, &buf[0])
+
+		query := []uint32{gl.BUFFER_BINDING}
+		var bindpoint int32
+		gl.GetProgramResourceiv(mat.program, gl.UNIFORM_BLOCK, uint32(blockIdx), 1, &query[0], 1, nil, &bindpoint)
+
+		blockName := string(buf[:length])
+		block := unitPreviewUniformBlock{binding: uint32(bindpoint)}
+		block.generate(mat.program, blockName)
+		mat.uniformBlocks = append(mat.uniformBlocks, block)
+	}
 
 	return nil
 }
@@ -513,11 +597,11 @@ func isLUTMaterial(mat *material.Material) bool {
 
 var seed = rand.Uint32()
 
-func (pv *UnitPreviewState) useLUTMaterial(getResource GetResourceFunc, info *unit.Info, mesh unit.Mesh, group int, mat *material.Material) error {
+func (pv *UnitPreviewState) useLUTMaterial(getResource GetResourceFunc, info *unit.Info, mesh unit.Mesh, group int, mat *material.Material, lookupThinHash func(stingray.ThinHash) string) error {
 	err := pv.object.materials[group].generate(
 		[]string{"shaders/object.vert", "shaders/lut.frag"},
 		len(lutTextureNames),
-		append(baseUniforms, append([]string{"seed"}, lutTextureNames...)...),
+		append(baseUniforms, lutTextureNames...),
 	)
 	if err != nil {
 		return err
@@ -554,6 +638,22 @@ func (pv *UnitPreviewState) useLUTMaterial(getResource GetResourceFunc, info *un
 		gl.Uniform1i(pv.object.materials[group].uniforms[textureName], int32(index))
 	}
 
+	for setting, value := range mat.Settings {
+		settingName := lookupThinHash(setting)
+		for _, block := range pv.object.materials[group].uniformBlocks {
+			if _, contains := block.uniformOffsets[settingName]; !contains {
+				continue
+			}
+			block.set(settingName, value)
+		}
+	}
+	for _, block := range pv.object.materials[group].uniformBlocks {
+		if _, contains := block.uniformOffsets["seed"]; !contains {
+			continue
+		}
+		block.set("seed", &seed)
+	}
+
 	gl.UseProgram(0)
 	return nil
 }
@@ -585,6 +685,13 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 	info, err := unit.LoadInfo(bytes.NewReader(mainData))
 	if err != nil {
 		return err
+	}
+
+	lookupThinHash := func(hash stingray.ThinHash) string {
+		if name, ok := thinhashes[hash]; ok {
+			return name
+		}
+		return hash.String()
 	}
 
 	if len(info.MeshInfos) == 0 && len(info.TerrainInfos) == 0 && info.GeometryGroup.Value == 0x0 {
@@ -684,7 +791,7 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 		for group := range pv.object.materials {
 			mat, err := loadMaterial(getResource, info, mesh, group)
 			if err == nil && isLUTMaterial(mat) {
-				if err := pv.useLUTMaterial(getResource, info, mesh, group, mat); err == nil {
+				if err := pv.useLUTMaterial(getResource, info, mesh, group, mat, lookupThinHash); err == nil {
 					continue
 				} else {
 					fmt.Printf("got error when enabling lut material: %v\n", err)
@@ -1007,8 +1114,8 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 					gl.UniformMatrix3fv(pv.object.materials[group].uniforms["normalMat"], 1, false, &normal[0])
 					gl.Uniform3fv(pv.object.materials[group].uniforms["viewPosition"], 1, &viewPosition[0])
 					gl.Uniform1iv(pv.object.materials[group].uniforms["udimShown"], 64, &pv.udimsShown[0])
-					if location, contains := pv.object.materials[group].uniforms["seed"]; contains {
-						gl.Uniform1ui(location, seed)
+					for _, uniformBlock := range pv.object.materials[group].uniformBlocks {
+						gl.BindBufferBase(gl.UNIFORM_BUFFER, uniformBlock.binding, uniformBlock.ubo)
 					}
 					for idx, texture := range pv.object.materials[group].textures {
 						target := pv.object.materials[group].targets[idx]
@@ -1020,6 +1127,7 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 				gl.DrawElements(gl.TRIANGLES, pv.object.numIndices[group], gl.UNSIGNED_INT, nil)
 			}
 			gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, 0)
+			gl.BindBuffer(gl.UNIFORM_BUFFER, 0)
 			gl.ActiveTexture(gl.TEXTURE0)
 			gl.BindTexture(gl.TEXTURE_2D, 0)
 			gl.BindVertexArray(0)

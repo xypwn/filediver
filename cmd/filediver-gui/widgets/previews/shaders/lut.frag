@@ -21,25 +21,26 @@ uniform sampler2D material_lut;
 uniform sampler2DArray pattern_masks_array;
 uniform sampler2DArray id_masks_array;
 
-uniform uint seed;
-//uniform float detail_tiler_factor_mult; // todo
-
-//uniform float decal_id;
-//uniform float decal_id_offset_x;
-//uniform float decal_id_offset_y;
-//uniform float decal_size_x;
-//uniform float decal_size_y;
-//uniform float decal_lut_id;
-//uniform float decal_lut_size_x;
-//uniform float decal_lut_size_y;
-//uniform float decal_normal_intensity;
-//uniform float decal_normal_offset;
-//uniform vec2 decal_scalarfield_end;
-//uniform float decal_alpha_offset;
-//uniform float decal_alpha_sharpness;
-//uniform float decal_channel_selection;
-//uniform float use_decal_rgb_channels;
-//uniform float underlying_normal_behind_decal_opacity;
+layout(shared, binding = 0) uniform LutSettingsBlock {
+    uint seed;
+    float detail_tiler_factor_mult;
+    float decal_id;
+    float decal_id_offset_x;
+    float decal_id_offset_y;
+    float decal_size_x;
+    float decal_size_y;
+    float decal_lut_id;
+    float decal_lut_size_x;
+    float decal_lut_size_y;
+    float decal_normal_intentity;
+    float decal_normal_offset;
+    vec2 decal_scalarfield_end;
+    float decal_alpha_offset;
+    float decal_alpha_sharpness;
+    float decal_channel_selection;
+    float use_decal_rgb_channels;
+    float underlying_normal_behind_decal_opacity;
+};
 
 float reconstructNormalZ(vec2 xy) {
     return sqrt(1.0 - xy.x*xy.x - xy.y*xy.y);
@@ -182,30 +183,13 @@ void main() {
         vec4 decal_sheet_size = vec4(textureSize(decal_sheet, 0).xy, 0, 0);
         decal_sheet_size.zw = max(decal_sheet_size.xy, vec2(1.0));
         
-        // These will be uniforms
-        float decal_id = 0;
-        float decal_id_offset_x = 0;
-        float decal_id_offset_y = 100;
-        float decal_size_x = 100;
-        float decal_size_y = 100;
-        float decal_lut_id = 0;
-        float decal_lut_size_x = 0;
-        float decal_lut_size_y = 0;
-        // note: spelled as "decal_normal_intentity" in files
-        float decal_normal_intensity = -4;
-        float decal_normal_offset = 0.5;
-        vec2 decal_scalarfield_end = vec2(0.5);
-        float decal_alpha_offset = 0.5;
-        float decal_alpha_sharpness = 16.0;
-        float decal_channel_selection = 0.0;
-        float use_decal_rgb_channels = 0.0;
-        float underlying_normal_behind_decal_opacity = 1.0;
-
-        decal_id = max(floor(decal_id + 0.5), 0.0);
+        // // note: spelled as "decal_normal_intentity" in files
+        float decal_normal_intensity = decal_normal_intentity;
+        float decal_id_val = max(floor(decal_id + 0.5), 0.0);
 
         // r27
         vec4 decal_size_xyzw = vec4(max(decal_size_x, 1.0), max(decal_size_y, 1.0), decal_sheet_size.zw * fragUV2);
-        vec2 decal_offset = fragUV2 * decal_sheet_size.zw + (decal_id * vec2(decal_id_offset_x, -decal_id_offset_y));
+        vec2 decal_offset = fragUV2 * decal_sheet_size.zw + (decal_id_val * vec2(decal_id_offset_x, -decal_id_offset_y));
         decal_offset = decal_offset / decal_sheet_size.zw;
 
         vec2 decal_lut_size = vec2(decal_lut_size_x, decal_lut_size_y);
@@ -216,7 +200,7 @@ void main() {
         decal_lut_size = vec2(1) - temp;
         temp = temp * vec2(1.0/6.0, 1.0/3.0);
 
-        decal_lut_id = clamp(floor(decal_lut_id + 0.5), 0.0, 5.0);
+        float decal_lut_id_val = clamp(floor(decal_lut_id + 0.5), 0.0, 5.0);
 
         vec4 decal_sample = texture(decal_sheet, fragUV2);
 
@@ -227,7 +211,7 @@ void main() {
                 float channel = (decal_channel_selection == 2.0) ? decal_sample.z : decal_sample.x;
                 channel = (decal_channel_selection == 1.0) ? decal_sample.y : channel;
 
-                float decal_lut_id_plus_half = decal_lut_id + 0.5;
+                float decal_lut_id_plus_half = decal_lut_id_val + 0.5;
                 vec4 decal_lut_offset = vec4(decal_lut_id_plus_half, 0.5, decal_lut_id_plus_half, 1.5);
                 decal_lut_offset = decal_lut_offset * temp.xyxy + decal_lut_size.xyxy;
 
