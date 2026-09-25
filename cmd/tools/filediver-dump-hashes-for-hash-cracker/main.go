@@ -61,25 +61,21 @@ func main() {
 			prt.Fatalf("%v", err)
 		}
 		known := make(map[string]bool)
-		unknown := make(map[uint32]bool)
-		for h := range typeLib.Types {
-			if s, ok := datalib.DLHashesToStrings[h]; ok {
-				known[s] = true
-			} else {
-				unknown[uint32(h)] = true
-			}
-		}
-		for h := range typeLib.Enums {
-			if s, ok := datalib.DLHashesToStrings[h]; ok {
-				known[s] = true
-			} else {
-				unknown[uint32(h)] = true
-			}
-		}
 		unknownStrs := make(map[string]bool)
-		for h := range unknown {
-			s := fmt.Sprintf("0x%08x##%d", h, typeLib.Types[datalib.DLHash(h)].NameLength)
-			unknownStrs[s] = true
+		for h, info := range typeLib.Types {
+			if s, ok := datalib.DLHashesToStrings[h]; ok {
+				fmt.Println(info.Name, fmt.Sprintf("0x%08x##%d", uint32(h), info.NameLength))
+				known[s] = true
+			} else {
+				unknownStrs[fmt.Sprintf("0x%08x##%d", uint32(h), info.NameLength)] = true
+			}
+		}
+		for h, info := range typeLib.Enums {
+			if s, ok := datalib.DLHashesToStrings[h]; ok {
+				known[s] = true
+			} else {
+				unknownStrs[fmt.Sprintf("0x%08x##%d", uint32(h), info.NameLength)] = true
+			}
 		}
 		writeItems(prt, "target_datalib.txt", maps.Keys(unknownStrs))
 	}
