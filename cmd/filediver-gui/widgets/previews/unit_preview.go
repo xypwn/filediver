@@ -898,9 +898,14 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 	pv.object.numVertices = int32(len(mesh.Positions))
 
 	pv.numUdims = 0
-	for _, uv := range mesh.UVCoords[0] {
-		udim := uint32(uv[0]) | uint32(0.9999-uv[1])<<5
-		pv.numUdims = max(pv.numUdims, udim+1)
+	for group := range mesh.Indices {
+		for idx := range mesh.Indices[group] {
+			if idx%3 != 0 {
+				continue
+			}
+			udimCalc := mesh.Udims[mesh.Indices[group][idx]]
+			pv.numUdims = max(pv.numUdims, uint32(udimCalc)+1)
+		}
 	}
 	if pv.numUdims >= 64 {
 		pv.numUdims = 1
@@ -915,9 +920,10 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 		uvsSize := len(mesh.UVCoords[0]) * 2 * 4
 		tangentsSize := len(mesh.Tangents) * 4 * 4
 		bitangentsSize := len(mesh.Bitangents) * 3 * 4
+		udimsSize := len(mesh.Udims) * 4
 
 		gl.BindBuffer(gl.ARRAY_BUFFER, pv.object.vbo)
-		gl.BufferData(gl.ARRAY_BUFFER, positionsSize+normalsSize+uvsSize*len(mesh.UVCoords)+tangentsSize+bitangentsSize, nil, gl.STATIC_DRAW)
+		gl.BufferData(gl.ARRAY_BUFFER, positionsSize+normalsSize+uvsSize*len(mesh.UVCoords[:3])+tangentsSize+bitangentsSize+udimsSize, nil, gl.STATIC_DRAW)
 		offset := 0
 		//
 		gl.BufferSubData(gl.ARRAY_BUFFER, offset, positionsSize, gl.Ptr(mesh.Positions))
@@ -945,7 +951,7 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 		gl.EnableVertexAttribArray(4)
 		offset += bitangentsSize
 		//
-		for layer, uvcoords := range mesh.UVCoords[1:] {
+		for layer, uvcoords := range mesh.UVCoords[1:3] {
 			index := uint32(5 + layer)
 			uvsSize := len(uvcoords) * 2 * 4
 			fmt.Printf("size %v offset %v index %v\n", uvsSize, offset, index)
@@ -954,6 +960,10 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 			gl.EnableVertexAttribArray(index)
 			offset += uvsSize
 		}
+		gl.BufferSubData(gl.ARRAY_BUFFER, offset, udimsSize, gl.Ptr(mesh.Udims))
+		gl.VertexAttribPointerWithOffset(7, 1, gl.FLOAT, true, 4, uintptr(offset))
+		gl.EnableVertexAttribArray(7)
+		offset += udimsSize
 
 		for group, indices := range mesh.Indices {
 			gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, pv.object.ibos[group])

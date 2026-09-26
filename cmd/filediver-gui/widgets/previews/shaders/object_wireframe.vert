@@ -2,14 +2,14 @@
 
 layout(location = 0) in vec3 inPosition;
 layout(location = 2) in vec2 inUV;
+layout(location = 7) in float udim;
 
 uniform mat4 mvp; // projection*view*model
 uniform bool hasVisibilityMasks;
 uniform bool udimShown[64];
 
 bool isShown() {
-    int udim = int(inUV.x) | int(0.999999-clamp(inUV.y, -0.99, 0.99))<<5;
-    return udim < 64 && udimShown[udim];
+    return udim < 64 && udimShown[int(udim)];
 }
 
 void main() {

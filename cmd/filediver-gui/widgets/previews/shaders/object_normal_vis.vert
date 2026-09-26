@@ -5,6 +5,7 @@ layout(location = 1) in vec3 inNormal;
 layout(location = 2) in vec3 inUV;
 layout(location = 3) in vec4 inTangent;
 layout(location = 4) in vec3 inBitangent;
+layout(location = 7) in float udim;
 
 out vec4 normalEndPosition;
 out vec4 tangentEndPosition;
@@ -16,8 +17,7 @@ uniform bool hasVisibilityMasks;
 uniform bool udimShown[64];
 
 bool isShown() {
-    int udim = int(inUV.x) | int(0.999999-clamp(inUV.y, -0.99, 0.99))<<5;
-    return udim < 64 && udimShown[udim];
+    return udim < 64 && udimShown[int(udim)];
 }
 
 void main() {

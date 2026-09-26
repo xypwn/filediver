@@ -575,6 +575,7 @@ type Mesh struct {
 	Bitangents  [][3]float32
 	BoneIndices [][][4]uint8
 	BoneWeights [][4]float32
+	Udims       []float32
 	Indices     [][]uint32
 }
 
@@ -777,6 +778,7 @@ func loadMesh(gpuR io.ReadSeeker, info MeshInfo, layout MeshLayout) (Mesh, error
 		}
 	}
 	mesh.Indices = make([][]uint32, len(info.Groups))
+	mesh.Udims = make([]float32, layout.NumVertices)
 	for grp, group := range info.Groups {
 		mesh.Indices[grp] = make([]uint32, 0, group.NumIndices)
 		indexStride := layout.IndicesSize / layout.NumIndices
@@ -802,6 +804,23 @@ func loadMesh(gpuR io.ReadSeeker, info MeshInfo, layout MeshLayout) (Mesh, error
 				return Mesh{}, fmt.Errorf("unknown index stride: %v", indexStride)
 			}
 			mesh.Indices[grp] = append(mesh.Indices[grp], val+group.VertexOffset)
+		}
+		for i := range mesh.Indices[grp] {
+			if i%3 == 0 && len(mesh.UVCoords) > 0 && len(mesh.UVCoords[0]) > 0 {
+				uv1 := mesh.UVCoords[0][mesh.Indices[grp][i]]
+				uv2 := mesh.UVCoords[0][mesh.Indices[grp][i+1]]
+				uv3 := mesh.UVCoords[0][mesh.Indices[grp][i+2]]
+				udim1 := float32(math.Floor(float64(mgl32.Clamp(uv1[0], 0.0, 31.999)))) + float32(math.Floor(float64((0.999-mgl32.Clamp(uv1[1], -0.99, 0.99)))))*32
+				udim2 := float32(math.Floor(float64(mgl32.Clamp(uv2[0], 0.0, 31.999)))) + float32(math.Floor(float64((0.999-mgl32.Clamp(uv2[1], -0.99, 0.99)))))*32
+				udim3 := float32(math.Floor(float64(mgl32.Clamp(uv3[0], 0.0, 31.999)))) + float32(math.Floor(float64((0.999-mgl32.Clamp(uv3[1], -0.99, 0.99)))))*32
+
+				udim := float32(math.Min(float64(udim1), float64(udim2)))
+				udim = float32(math.Min(float64(udim3), float64(udim)))
+
+				mesh.Udims[mesh.Indices[grp][i]] = udim
+				mesh.Udims[mesh.Indices[grp][i+1]] = udim
+				mesh.Udims[mesh.Indices[grp][i+2]] = udim
+			}
 		}
 	}
 	return mesh, nil
