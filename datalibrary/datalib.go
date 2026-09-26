@@ -16,6 +16,7 @@ import (
 
 	"github.com/klauspost/compress/gzip"
 	"github.com/xypwn/filediver/hashes"
+	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/util"
 )
 
@@ -167,6 +168,32 @@ func init() {
 	wg.Wait()
 
 	//fmt.Println(time.Since(start))
+}
+
+// Units that have names that don't match any entity that uses them
+func UnitsToEntities(unitHash stingray.Hash) (entityHash stingray.Hash) {
+	// There's probably several more of these but these are the ones I know about
+	switch unitHash {
+	case stingray.Sum("content/fac_cyborgs/cha_lieutenant_assault/cha_lieutenant_assault"):
+		return stingray.Sum("content/fac_cyborgs/cha_lieutenant/cha_lieutenant_assault")
+	case stingray.Sum("content/fac_cyborgs/cha_lieutenant/cha_lieutenant"):
+		return stingray.Sum("content/fac_cyborgs/cha_lieutenant/cha_lieutenant_base")
+	case stingray.Sum("content/fac_cyborgs/turrets/cyborg_tank_turret_cannon/cyborg_tank_turret_cannon"):
+		return stingray.Sum("content/fac_cyborgs/turrets/cyborg_tank_turret_cannon/cyborg_turret_heavycannon")
+	case stingray.Sum("content/fac_cyborgs/turrets/cyborg_tank_turret_mortar/cyborg_tank_turret_mortar"):
+		return stingray.Sum("content/fac_cyborgs/turrets/cyborg_tank_turret_mortar/cyborg_turret_mortar")
+	case stingray.Sum("content/fac_cyborgs/vehicles/cyborg_tank/cyborg_tank"):
+		return stingray.Sum("content/fac_cyborgs/vehicles/cyborg_tank/cyborg_tank_heavycannon")
+	case stingray.Sum("content/fac_cyborgs/cha_soldier/cha_soldier_heavy_weapon"):
+		return stingray.Sum("content/fac_cyborgs/cha_soldier/cha_soldier_mg")
+	case stingray.Sum("content/fac_cyborgs/cha_soldier/cha_soldier_rocket"):
+		return stingray.Sum("content/fac_cyborgs/cha_soldier/cha_soldier_rpg")
+	case stingray.Sum("content/fac_cyborgs/cha_cyborg_elite/cha_elite_female"):
+		return stingray.Sum("content/fac_cyborgs/cha_cyborg_elite/cha_cyborg_elite_female")
+	case stingray.Sum("content/fac_cyborgs/cha_conscript/cha_conscript"):
+		return stingray.Sum("content/fac_cyborgs/cha_conscript/cha_conscript_base")
+	}
+	return unitHash
 }
 
 const BitsPerWord = 32 << (^uint(0) >> 63)
