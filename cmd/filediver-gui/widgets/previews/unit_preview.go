@@ -395,6 +395,7 @@ func NewUnitPreview() (*UnitPreviewState, error) {
 
 	pv.vfov = mgl32.DegToRad(60)
 	pv.viewDistance = 25
+	pv.modelPos = mgl32.Vec4{0.0, 0.0, 0.0, 1.0}
 
 	pv.wireframeColor = [4]float32{1.0, 1.0, 1.0, 0.5}
 	pv.aabbColor = [4]float32{0.3, 0.3, 0.8, 0.2}
@@ -999,7 +1000,6 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 	}
 
 	pv.model = stingrayToGLCoords
-	pv.modelPos = mgl32.Vec4{0, 0, 0, 1}
 
 	if pv.autoZoomEnabled {
 		pv.doAutoZoomNextFrame = true
