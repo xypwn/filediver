@@ -9,9 +9,12 @@ import (
 	"fmt"
 	"image"
 	"io"
+	"maps"
 	"math"
 	"math/rand/v2"
+	"slices"
 	"strings"
+	"time"
 
 	"github.com/AllenDang/cimgui-go/imgui"
 	"github.com/go-gl/gl/v4.3-core/gl"
@@ -40,6 +43,17 @@ var stingrayToGLCoords = mgl32.Mat4FromRows(
 	mgl32.Vec4{0, 0, 0, 1},
 )
 
+// Basic uniforms all shaders use
+var baseUniforms = []string{
+	"mvp",
+	"model",
+	"normalMat",
+	"viewPosition",
+	"hasVisibilityMasks",
+	"udimShown",
+}
+
+// Textures used by the lut fragment shader
 var lutTextureNames = []string{
 	"decal_sheet",
 	"customization_camo_tiler_array",
@@ -50,6 +64,8 @@ var lutTextureNames = []string{
 	"pattern_masks_array",
 	"id_masks_array",
 }
+
+var seed = rand.Uint32()
 
 func setupTexture(textureID uint32) {
 	gl.BindTexture(gl.TEXTURE_2D, textureID)
@@ -69,6 +85,133 @@ func setupTextureArray(textureID uint32) {
 	gl.TexParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
 	gl.PixelStorei(gl.UNPACK_ROW_LENGTH, 0)
 	gl.BindTexture(gl.TEXTURE_2D_ARRAY, 0)
+}
+
+type TextureCacheEntry struct {
+	id         uint32
+	references uint32
+	lastUsed   time.Time
+}
+
+type TextureCache struct {
+	cache              map[stingray.Hash]map[uint32]TextureCacheEntry
+	maxUnusedResidency time.Duration
+}
+
+func NewTextureCache(maxDuration time.Duration) *TextureCache {
+	return &TextureCache{
+		maxUnusedResidency: maxDuration,
+	}
+}
+
+// Generates a new texture for (hash, target) and adds it to the cache if not already present
+func (t *TextureCache) Acquire(hash stingray.Hash, target uint32) (textureId uint32, created bool) {
+	if t.cache == nil {
+		t.cache = make(map[stingray.Hash]map[uint32]TextureCacheEntry)
+	}
+	var val TextureCacheEntry
+	targets, contains := t.cache[hash]
+	if contains {
+		val, contains = targets[target]
+	} else {
+		// If this hash doesn't have a target map, create it
+		targets = make(map[uint32]TextureCacheEntry)
+	}
+	if contains {
+		textureId = val.id
+		val.lastUsed = time.Now()
+		val.references += 1
+		fmt.Printf("[cache] Acquiring texture %v (%v): new reference count %v\n", hash.String(), glutils.GLTarget(target).String(), val.references)
+	} else {
+		gl.GenTextures(1, &textureId)
+		val = TextureCacheEntry{
+			id:         textureId,
+			references: 1,
+			lastUsed:   time.Now(),
+		}
+		fmt.Printf("[cache] Created texture %v (%v)\n", hash.String(), glutils.GLTarget(target).String())
+	}
+	created = !contains
+	targets[target] = val
+	t.cache[hash] = targets
+	return
+}
+
+func (t *TextureCache) Release(hash stingray.Hash, target uint32) (contains bool) {
+	contains = false
+	if t.cache == nil {
+		return
+	}
+	var targets map[uint32]TextureCacheEntry
+	var val TextureCacheEntry
+	if targets, contains = t.cache[hash]; contains {
+		if val, contains = targets[target]; contains {
+			if val.references > 0 {
+				val.references -= 1
+			}
+			val.lastUsed = time.Now()
+			fmt.Printf(
+				"[cache] Dereferencing texture %v (%v): new reference count %v\n",
+				hash.String(),
+				glutils.GLTarget(target).String(),
+				val.references,
+			)
+			targets[target] = val
+			t.cache[hash] = targets
+		}
+	}
+	return
+}
+
+func (t *TextureCache) Delete(hash stingray.Hash, target uint32) (contains bool) {
+	contains = false
+	if t.cache == nil {
+		return
+	}
+	var targets map[uint32]TextureCacheEntry
+	var val TextureCacheEntry
+	if targets, contains = t.cache[hash]; contains {
+		if val, contains = targets[target]; contains {
+			fmt.Printf("[cache] Deleting texture %v target %v\n", hash.String(), glutils.GLTarget(target).String())
+			delete(t.cache[hash], target)
+			gl.DeleteTextures(1, &val.id)
+		}
+	}
+	return
+}
+
+func (t *TextureCache) DeleteAll() {
+	if t.cache == nil {
+		return
+	}
+	for hash := range t.cache {
+		for target := range t.cache[hash] {
+			t.Delete(hash, target)
+		}
+	}
+	return
+}
+
+func (t *TextureCache) Sweep() {
+	if t.cache == nil {
+		return
+	}
+	fmt.Printf("[cache] Sweeping...\n")
+	sweepTime := time.Now()
+	for hash, targets := range t.cache {
+		for target, entry := range targets {
+			if entry.references > 0 {
+				continue
+			}
+			entryDuration := sweepTime.Sub(entry.lastUsed)
+			fmt.Printf("[cache] Unused texture %v (%v) in residency for %.2fs\n", hash.String(), glutils.GLTarget(target).String(), entryDuration.Seconds())
+			if entryDuration >= t.maxUnusedResidency {
+				t.Delete(hash, target)
+			}
+		}
+	}
+	sweepDuration := time.Now().Sub(sweepTime)
+	fmt.Printf("[cache] Sweep completed in %vms\n", sweepDuration.Milliseconds())
 }
 
 type unitPreviewUniformBlock struct {
@@ -136,12 +279,17 @@ func (block *unitPreviewUniformBlock) set(name string, data any) {
 	gl.BindBuffer(gl.UNIFORM_BUFFER, 0)
 }
 
+type unitPreviewMaterialTexture struct {
+	id     uint32
+	name   stingray.Hash
+	target uint32
+}
+
 type unitPreviewMaterial struct {
 	program       uint32
 	uniforms      unitPreviewUniforms
 	uniformBlocks []unitPreviewUniformBlock
-	textures      []uint32
-	targets       []uint32
+	textures      []unitPreviewMaterialTexture
 }
 
 func (mat *unitPreviewMaterial) generate(shaderPaths []string, textures int, uniforms []string) error {
@@ -153,11 +301,7 @@ func (mat *unitPreviewMaterial) generate(shaderPaths []string, textures int, uni
 	if err != nil {
 		return err
 	}
-	mat.textures = make([]uint32, textures)
-	mat.targets = make([]uint32, textures)
-	if len(mat.textures) > 0 {
-		gl.GenTextures(int32(textures), &mat.textures[0])
-	}
+	mat.textures = make([]unitPreviewMaterialTexture, textures)
 
 	mat.uniforms.generate(mat.program, uniforms...)
 
@@ -181,17 +325,15 @@ func (mat *unitPreviewMaterial) generate(shaderPaths []string, textures int, uni
 	return nil
 }
 
-func (mat *unitPreviewMaterial) delete() {
-	for i, texture := range mat.textures {
-		if material_detailer_tiler != nil && texture == *material_detailer_tiler {
-			mat.textures[i] = 0
+func (mat *unitPreviewMaterial) delete(textureCache *TextureCache) {
+	for _, texture := range mat.textures {
+		if texture.name.Value == 0x0 {
+			gl.DeleteTextures(1, &texture.id)
+			continue
 		}
-	}
-	if len(mat.textures) > 0 {
-		gl.DeleteTextures(int32(len(mat.textures)), &mat.textures[0])
+		textureCache.Release(texture.name, texture.target)
 	}
 	gl.DeleteProgram(mat.program)
-
 }
 
 type unitPreviewObject struct {
@@ -238,19 +380,23 @@ func (uniforms *unitPreviewUniforms) generate(program uint32, names ...string) {
 	}
 }
 
-func (obj unitPreviewObject) deleteObjects() {
+func (obj unitPreviewObject) deleteObjects(textureCache *TextureCache) {
 	gl.DeleteVertexArrays(1, &obj.vao)
 	gl.DeleteBuffers(1, &obj.vbo)
 	if len(obj.ibos) > 0 {
 		gl.DeleteBuffers(int32(len(obj.ibos)), &obj.ibos[0])
 	}
 	for _, material := range obj.materials {
-		material.delete()
+		material.delete(textureCache)
 	}
 }
 
 type UnitPreviewState struct {
-	fb *widgets.GLViewState
+	fb                 *widgets.GLViewState
+	textureCache       *TextureCache
+	textureSweepTicker *time.Ticker
+	doSweep            bool
+	stopTextureSweep   func()
 
 	object            unitPreviewObject
 	wireframeMaterial unitPreviewMaterial
@@ -303,8 +449,6 @@ type UnitPreviewState struct {
 	doAutoZoomNextFrame       bool
 }
 
-var material_detailer_tiler *uint32
-
 func NewUnitPreview() (*UnitPreviewState, error) {
 	var err error
 
@@ -314,6 +458,29 @@ func NewUnitPreview() (*UnitPreviewState, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// Keep textures for a minute of disuse
+	duration, _ := time.ParseDuration("1m")
+	pv.textureCache = NewTextureCache(duration)
+
+	sweepInterval, _ := time.ParseDuration("30s")
+	pv.textureSweepTicker = time.NewTicker(sweepInterval)
+
+	done := make(chan bool)
+	pv.stopTextureSweep = func() {
+		done <- true
+	}
+	// schedule a texture sweep every time the ticker ticks
+	go func() {
+		for {
+			select {
+			case <-done:
+				return
+			case <-pv.textureSweepTicker.C:
+				pv.doSweep = true
+			}
+		}
+	}()
 
 	pv.object.genObjects(true, 0)
 
@@ -364,13 +531,11 @@ func NewUnitPreview() (*UnitPreviewState, error) {
 
 func (pv *UnitPreviewState) Delete() {
 	pv.fb.Delete()
-	pv.object.deleteObjects()
-	pv.wireframeMaterial.delete()
-	pv.dbgObj.deleteObjects()
-	if material_detailer_tiler != nil {
-		gl.DeleteTextures(1, material_detailer_tiler)
-		material_detailer_tiler = nil
-	}
+	pv.object.deleteObjects(pv.textureCache)
+	pv.wireframeMaterial.delete(pv.textureCache)
+	pv.dbgObj.deleteObjects(pv.textureCache)
+	pv.textureCache.DeleteAll()
+	pv.stopTextureSweep()
 }
 
 func (pv *UnitPreviewState) loadMesh(meshInfos []unit.MeshInfo, meshLayouts []unit.MeshLayout, gpuData []byte) (unit.Mesh, error) {
@@ -434,7 +599,7 @@ func uploadStingrayTexture(getResource GetResourceFunc, textureID uint32, fileNa
 	return nil
 }
 
-func uploadStingrayTextureArray(getResource GetResourceFunc, textureID uint32, fileName stingray.Hash, mipmap int) error {
+func uploadStingrayTextureArray(getResource GetResourceFunc, textureID uint32, fileName stingray.Hash) error {
 	file := stingray.FileID{Name: fileName, Type: stingray.Sum("texture")}
 	var texMain, texStream, texGPU []byte
 	var err error
@@ -495,7 +660,31 @@ func uploadStingrayLUT(getResource GetResourceFunc, textureID uint32, fileName s
 	return nil
 }
 
-var baseUniforms = []string{"mvp", "model", "normalMat", "viewPosition", "hasVisibilityMasks", "udimShown"}
+func (pv *UnitPreviewState) AcquireNamedTextureOrDefault(name stingray.Hash, defaultColor []byte, getResource GetResourceFunc) (*unitPreviewMaterialTexture, error) {
+	toReturn := unitPreviewMaterialTexture{
+		name: stingray.Hash{Value: 0},
+	}
+	if name.Value != 0 {
+		textureId, created := pv.textureCache.Acquire(name, gl.TEXTURE_2D)
+		toReturn.id = textureId
+		toReturn.name = name
+		if created {
+			setupTexture(toReturn.id)
+			if err := uploadStingrayTexture(getResource, toReturn.id, name); err != nil {
+				// Failed to upload data, so delete the entry in the cache
+				pv.textureCache.Delete(name, gl.TEXTURE_2D)
+				return nil, err
+			}
+		}
+	} else {
+		gl.GenTextures(1, &toReturn.id)
+		setupTexture(toReturn.id)
+		gl.BindTexture(gl.TEXTURE_2D, toReturn.id)
+		gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, gl.Ptr(defaultColor))
+		gl.BindTexture(gl.TEXTURE_2D, 0)
+	}
+	return &toReturn, nil
+}
 
 func (pv *UnitPreviewState) useBasicMaterial(getResource GetResourceFunc, info *unit.Info, mesh unit.Mesh, group int, mat *material.Material) error {
 	err := pv.object.materials[group].generate(
@@ -505,10 +694,6 @@ func (pv *UnitPreviewState) useBasicMaterial(getResource GetResourceFunc, info *
 	)
 	if err != nil {
 		return err
-	}
-
-	for _, texture := range pv.object.materials[group].textures {
-		setupTexture(texture)
 	}
 
 	gl.UseProgram(pv.object.materials[group].program)
@@ -546,35 +731,25 @@ func (pv *UnitPreviewState) useBasicMaterial(getResource GetResourceFunc, info *
 		return err
 	}
 
-	if albedoTexFileName.Value != 0 {
-		if err := uploadStingrayTexture(getResource, pv.object.materials[group].textures[0], albedoTexFileName); err != nil {
-			return err
-		}
-		if albedoRemoveAlpha {
-			gl.BindTexture(gl.TEXTURE_2D, pv.object.materials[group].textures[0])
-			gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_SWIZZLE_A, gl.ONE)
-			gl.BindTexture(gl.TEXTURE_2D, 0)
-		}
-	} else {
-		data := []byte{255, 255, 255, 255}
-		gl.BindTexture(gl.TEXTURE_2D, pv.object.materials[group].textures[0])
-		gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, gl.Ptr(data))
+	albedoTexture, err := pv.AcquireNamedTextureOrDefault(albedoTexFileName, []byte{255, 255, 255, 255}, getResource)
+	if err != nil {
+		return err
+	}
+	if albedoRemoveAlpha {
+		gl.BindTexture(gl.TEXTURE_2D, albedoTexture.id)
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_SWIZZLE_A, gl.ONE)
 		gl.BindTexture(gl.TEXTURE_2D, 0)
 	}
-	if normalTexFileName.Value != 0 {
-		if err := uploadStingrayTexture(getResource, pv.object.materials[group].textures[1], normalTexFileName); err != nil {
-			return err
-		}
-	} else {
-		data := []byte{128, 128, 255, 128}
-		gl.BindTexture(gl.TEXTURE_2D, pv.object.materials[group].textures[1])
-		gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, gl.Ptr(data))
-		gl.BindTexture(gl.TEXTURE_2D, 0)
-		reconstructNormalZ = false
-	}
+	pv.object.materials[group].textures[0] = *albedoTexture
 
-	pv.object.materials[group].targets[0] = gl.TEXTURE_2D
-	pv.object.materials[group].targets[1] = gl.TEXTURE_2D
+	normalTexture, err := pv.AcquireNamedTextureOrDefault(normalTexFileName, []byte{128, 128, 255, 128}, getResource)
+	if err != nil {
+		return err
+	}
+	pv.object.materials[group].textures[1] = *normalTexture
+
+	pv.object.materials[group].textures[0].target = gl.TEXTURE_2D
+	pv.object.materials[group].textures[1].target = gl.TEXTURE_2D
 
 	gl.UseProgram(pv.object.materials[group].program)
 	if reconstructNormalZ {
@@ -596,48 +771,82 @@ func isLUTMaterial(mat *material.Material) bool {
 	return containsIdMasks && containsMaterialLut
 }
 
-var seed = rand.Uint32()
+func getTarget(slot string) uint32 {
+	switch slot {
+	case "customization_camo_tiler_array", "pattern_masks_array", "id_masks_array", "customization_material_detail_tiler_array":
+		return gl.TEXTURE_2D_ARRAY
+	}
+	return gl.TEXTURE_2D
+}
 
 func (pv *UnitPreviewState) useLUTMaterial(getResource GetResourceFunc, info *unit.Info, mesh unit.Mesh, group int, mat *material.Material, lookupThinHash func(stingray.ThinHash) string) error {
 	err := pv.object.materials[group].generate(
 		[]string{"shaders/object.vert", "shaders/lut.frag"},
-		len(lutTextureNames),
+		0,
 		append(baseUniforms, lutTextureNames...),
 	)
 	if err != nil {
 		return err
 	}
 
-	for idx, texture := range pv.object.materials[group].textures {
-		switch lutTextureNames[idx] {
-		case "customization_camo_tiler_array", "pattern_masks_array", "id_masks_array":
-			setupTextureArray(texture)
-			pv.object.materials[group].targets[idx] = gl.TEXTURE_2D_ARRAY
-		case "customization_material_detail_tiler_array":
-			pv.object.materials[group].textures[idx] = *material_detailer_tiler
-			pv.object.materials[group].targets[idx] = gl.TEXTURE_2D_ARRAY
-		default:
-			setupTexture(texture)
-			pv.object.materials[group].targets[idx] = gl.TEXTURE_2D
-		}
-		textureHash, ok := mat.Textures[stingray.Sum(lutTextureNames[idx]).Thin()]
-		if !ok || lutTextureNames[idx] == "customization_material_detail_tiler_array" {
+	gl.UseProgram(pv.object.materials[group].program)
+	slotHashes := slices.SortedFunc(maps.Keys(mat.Textures), func(a, b stingray.ThinHash) int {
+		return a.Cmp(b)
+	})
+	for _, slotHash := range slotHashes {
+		slot := lookupThinHash(slotHash)
+		if !slices.Contains(lutTextureNames, slot) {
 			continue
 		}
-		switch lutTextureNames[idx] {
-		case "customization_camo_tiler_array", "pattern_masks_array", "id_masks_array":
-			uploadStingrayTextureArray(getResource, texture, textureHash, 0)
-		case "pattern_lut", "material_lut":
-			uploadStingrayLUT(getResource, texture, textureHash)
-		default:
-			uploadStingrayTexture(getResource, texture, textureHash)
+		nameHash := mat.Textures[slotHash]
+		target := getTarget(slot)
+		textureId, created := pv.textureCache.Acquire(nameHash, target)
+		texture := unitPreviewMaterialTexture{
+			id:     textureId,
+			name:   nameHash,
+			target: target,
 		}
+
+		var err error
+		switch slot {
+		case "customization_camo_tiler_array", "pattern_masks_array", "id_masks_array":
+			if created {
+				setupTextureArray(texture.id)
+				err = uploadStingrayTextureArray(getResource, texture.id, nameHash)
+			}
+		case "pattern_lut", "material_lut":
+			if created {
+				setupTexture(texture.id)
+				err = uploadStingrayLUT(getResource, texture.id, nameHash)
+			}
+		default:
+			if created {
+				setupTexture(texture.id)
+				err = uploadStingrayTexture(getResource, texture.id, nameHash)
+			}
+		}
+		if err != nil {
+			pv.textureCache.Delete(nameHash, texture.target)
+			return err
+		}
+
+		gl.Uniform1i(pv.object.materials[group].uniforms[slot], int32(len(pv.object.materials[group].textures)))
+		pv.object.materials[group].textures = append(pv.object.materials[group].textures, texture)
 	}
 
-	gl.UseProgram(pv.object.materials[group].program)
-	for index, textureName := range lutTextureNames {
-		gl.Uniform1i(pv.object.materials[group].uniforms[textureName], int32(index))
+	materialDetailerHash := stingray.Sum("content/art_shared/textures/customization/material_library/detail_tilers/customization_detail_tiler_array")
+	textureId, created := pv.textureCache.Acquire(materialDetailerHash, gl.TEXTURE_2D_ARRAY)
+	texture := unitPreviewMaterialTexture{
+		id:     textureId,
+		name:   materialDetailerHash,
+		target: gl.TEXTURE_2D_ARRAY,
 	}
+	if created {
+		setupTextureArray(texture.id)
+		err = uploadStingrayTextureArray(getResource, texture.id, materialDetailerHash)
+	}
+	gl.Uniform1i(pv.object.materials[group].uniforms["customization_material_detail_tiler_array"], int32(len(pv.object.materials[group].textures)))
+	pv.object.materials[group].textures = append(pv.object.materials[group].textures, texture)
 
 	for setting, value := range mat.Settings {
 		settingName := lookupThinHash(setting)
@@ -779,14 +988,6 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 		return fmt.Errorf("mesh contains no UV coordinates")
 	}
 
-	if material_detailer_tiler == nil {
-		tiler := uint32(0)
-		gl.GenTextures(1, &tiler)
-		setupTextureArray(tiler)
-		uploadStingrayTextureArray(getResource, tiler, stingray.Sum("content/art_shared/textures/customization/material_library/detail_tilers/customization_detail_tiler_array"), 1)
-		material_detailer_tiler = &tiler
-	}
-
 	// Create index buffers
 	{
 		if len(pv.object.ibos) != 0 {
@@ -795,6 +996,10 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 		pv.object.ibos = make([]uint32, len(mesh.Indices))
 		gl.GenBuffers(int32(len(pv.object.ibos)), &pv.object.ibos[0])
 
+		for idx := range pv.object.materials {
+			// release textures and delete shaders from old materials
+			pv.object.materials[idx].delete(pv.textureCache)
+		}
 		pv.object.numIndices = make([]int32, len(mesh.Indices))
 		pv.object.materials = make([]unitPreviewMaterial, len(mesh.Indices))
 		for group := range pv.object.materials {
@@ -954,7 +1159,6 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 		}
 		gl.UseProgram(pv.wireframeMaterial.program)
 		gl.Uniform1ui(pv.wireframeMaterial.uniforms["hasVisibilityMasks"], 1)
-		gl.UseProgram(0)
 		gl.UseProgram(pv.normalVisMaterial.program)
 		gl.Uniform1ui(pv.normalVisMaterial.uniforms["hasVisibilityMasks"], 1)
 		gl.UseProgram(0)
@@ -976,7 +1180,6 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 	} else {
 		gl.UseProgram(pv.wireframeMaterial.program)
 		gl.Uniform1ui(pv.wireframeMaterial.uniforms["hasVisibilityMasks"], 0)
-		gl.UseProgram(0)
 		gl.UseProgram(pv.normalVisMaterial.program)
 		gl.Uniform1ui(pv.normalVisMaterial.uniforms["hasVisibilityMasks"], 0)
 		gl.UseProgram(0)
@@ -1148,9 +1351,12 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 						gl.BindBufferBase(gl.UNIFORM_BUFFER, uniformBlock.binding, uniformBlock.ubo)
 					}
 					for idx, texture := range pv.object.materials[group].textures {
-						target := pv.object.materials[group].targets[idx]
 						gl.ActiveTexture(gl.TEXTURE0 + uint32(idx))
-						gl.BindTexture(target, texture)
+						gl.BindTexture(texture.target, texture.id)
+						glError := gl.GetError()
+						if glError != 0 {
+							fmt.Printf("[error] binding texture %v (%v) in group %v as target %v generated error %v\n", texture.name.String(), texture.id, group, glutils.GLTarget(texture.target).String(), glutils.GLError(glError).String())
+						}
 					}
 				}
 				gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo)
@@ -1527,5 +1733,11 @@ Drag to toggle multiple items (right-click to cancel)`)
 
 	if pv.animTime != -1 {
 		pv.animTime += 5 * imgui.CurrentIO().DeltaTime()
+	}
+
+	if pv.doSweep {
+		// We sweep the textures here so we aren't modifying opengl state during a draw call
+		pv.textureCache.Sweep()
+		pv.doSweep = false
 	}
 }
