@@ -14,6 +14,7 @@ import (
 	"math/rand/v2"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/AllenDang/cimgui-go/imgui"
@@ -271,6 +272,10 @@ type UnitPreviewState struct {
 	doSweep            bool
 	stopTextureSweep   func()
 
+	materialsLoading bool
+	materialsChannel chan error
+	spinner          uint32
+
 	object            unitPreviewObject
 	wireframeMaterial unitPreviewMaterial
 
@@ -412,6 +417,7 @@ func (pv *UnitPreviewState) Delete() {
 	pv.stopTextureSweep()
 }
 
+// TODO: use mesh LOD names to load all lod0 meshes in the unit
 func (pv *UnitPreviewState) loadMesh(meshInfos []unit.MeshInfo, meshLayouts []unit.MeshLayout, gpuData []byte) (unit.Mesh, error) {
 	var meshToLoad uint32
 	{
@@ -442,12 +448,12 @@ func (pv *UnitPreviewState) loadMesh(meshInfos []unit.MeshInfo, meshLayouts []un
 	return mesh, nil
 }
 
-func uploadStingrayTexture(getResource GetResourceFunc, textureID uint32, fileName stingray.Hash) error {
+func loadDDS(getResource GetResourceFunc, fileName stingray.Hash) (*dds.DDS, error) {
 	file := stingray.FileID{Name: fileName, Type: stingray.Sum("texture")}
 	var texMain, texStream, texGPU []byte
 	var err error
 	if texMain, _, err = getResource(file, stingray.DataMain); err != nil {
-		return fmt.Errorf("load texture %v.texture: %w", fileName, err)
+		return nil, fmt.Errorf("load texture %v.texture: %w", fileName, err)
 	}
 	texStream, _, _ = getResource(file, stingray.DataStream)
 	texGPU, _, _ = getResource(file, stingray.DataGPU)
@@ -457,79 +463,32 @@ func uploadStingrayTexture(getResource GetResourceFunc, textureID uint32, fileNa
 		bytes.NewReader(texGPU),
 	)
 	if _, err := texture.DecodeInfo(dataR); err != nil {
-		return fmt.Errorf("loading stingray DDS info: %w", err)
+		return nil, fmt.Errorf("loading stingray DDS info: %w", err)
 	}
 	dds, err := dds.Decode(dataR, false)
 	if err != nil {
-		return fmt.Errorf("loading DDS image: %w", err)
+		return nil, fmt.Errorf("loading DDS image: %w", err)
 	}
-	img, ok := dds.Image.(*image.NRGBA)
-	if !ok {
-		return fmt.Errorf("expected texture to be of type *image.NRGBA")
-	}
+	return dds, nil
+}
+
+func uploadStingrayTexture(getResource GetResourceFunc, textureID uint32, bounds image.Rectangle, data []uint8) error {
 	gl.BindTexture(gl.TEXTURE_2D, textureID)
-	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, int32(img.Bounds().Dx()), int32(img.Bounds().Dy()), 0, gl.RGBA, gl.UNSIGNED_BYTE, gl.Ptr(img.Pix))
+	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, int32(bounds.Dx()), int32(bounds.Dy()), 0, gl.RGBA, gl.UNSIGNED_BYTE, gl.Ptr(data))
 	gl.BindTexture(gl.TEXTURE_2D, 0)
 	return nil
 }
 
-func uploadStingrayTextureArray(getResource GetResourceFunc, textureID uint32, fileName stingray.Hash) error {
-	file := stingray.FileID{Name: fileName, Type: stingray.Sum("texture")}
-	var texMain, texStream, texGPU []byte
-	var err error
-	if texMain, _, err = getResource(file, stingray.DataMain); err != nil {
-		return fmt.Errorf("load texture %v.texture: %w", fileName, err)
-	}
-	texStream, _, _ = getResource(file, stingray.DataStream)
-	texGPU, _, _ = getResource(file, stingray.DataGPU)
-	dataR := io.MultiReader(
-		bytes.NewReader(texMain),
-		bytes.NewReader(texStream),
-		bytes.NewReader(texGPU),
-	)
-	if _, err := texture.DecodeInfo(dataR); err != nil {
-		return fmt.Errorf("loading stingray DDS info: %w", err)
-	}
-	dds, err := dds.Decode(dataR, false)
-	if err != nil {
-		return fmt.Errorf("loading DDS image: %w", err)
-	}
+func uploadStingrayTextureArray(getResource GetResourceFunc, textureID uint32, bounds image.Rectangle, depth int32, data []uint8) error {
 	gl.BindTexture(gl.TEXTURE_2D_ARRAY, textureID)
-	gl.TexImage3D(gl.TEXTURE_2D_ARRAY, 0, gl.RGBA, int32(dds.Images[0].Image.Bounds().Dx()), int32(dds.Images[0].Image.Bounds().Dy()), int32(len(dds.Images)), 0, gl.RGBA, gl.UNSIGNED_BYTE, nil)
-	for idx := range dds.Images {
-		img, ok := dds.Images[idx].Image.(*image.NRGBA)
-		if !ok {
-			return fmt.Errorf("expected texture to be of type *image.NRGBA")
-		}
-		gl.TexSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, 0, int32(idx), int32(dds.Images[idx].Image.Bounds().Dx()), int32(dds.Images[idx].Image.Bounds().Dy()), 1, gl.RGBA, gl.UNSIGNED_BYTE, gl.Ptr(img.Pix))
-	}
+	gl.TexImage3D(gl.TEXTURE_2D_ARRAY, 0, gl.RGBA, int32(bounds.Dx()), int32(bounds.Dy()), depth, 0, gl.RGBA, gl.UNSIGNED_BYTE, gl.Ptr(data))
 	gl.BindTexture(gl.TEXTURE_2D_ARRAY, 0)
 	return nil
 }
 
-func uploadStingrayLUT(getResource GetResourceFunc, textureID uint32, fileName stingray.Hash) error {
-	file := stingray.FileID{Name: fileName, Type: stingray.Sum("texture")}
-	var texMain, texStream, texGPU []byte
-	var err error
-	if texMain, _, err = getResource(file, stingray.DataMain); err != nil {
-		return fmt.Errorf("load texture %v.texture: %w", fileName, err)
-	}
-	texStream, _, _ = getResource(file, stingray.DataStream)
-	texGPU, _, _ = getResource(file, stingray.DataGPU)
-	dataR := io.MultiReader(
-		bytes.NewReader(texMain),
-		bytes.NewReader(texStream),
-		bytes.NewReader(texGPU),
-	)
-	if _, err := texture.DecodeInfo(dataR); err != nil {
-		return fmt.Errorf("loading stingray DDS info: %w", err)
-	}
-	dds, err := dds.Decode(dataR, false)
-	if err != nil {
-		return fmt.Errorf("loading DDS image: %w", err)
-	}
+func uploadStingrayLUT(getResource GetResourceFunc, textureID uint32, bounds image.Rectangle, data []uint8) error {
 	gl.BindTexture(gl.TEXTURE_2D, textureID)
-	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, int32(dds.Image.Bounds().Dx()), int32(dds.Image.Bounds().Dy()), 0, gl.RGBA, gl.HALF_FLOAT, gl.Ptr(dds.Images[0].MipMaps[0].Raw))
+	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, int32(bounds.Dx()), int32(bounds.Dy()), 0, gl.RGBA, gl.HALF_FLOAT, gl.Ptr(data))
 	gl.BindTexture(gl.TEXTURE_2D, 0)
 	return nil
 }
@@ -544,7 +503,17 @@ func (pv *UnitPreviewState) AcquireNamedTextureOrDefault(name stingray.Hash, def
 		toReturn.name = name
 		if created {
 			setupTexture(toReturn.id)
-			if err := uploadStingrayTexture(getResource, toReturn.id, name); err != nil {
+			dds, err := loadDDS(getResource, name)
+			if err != nil {
+				pv.textureCache.Delete(name, gl.TEXTURE_2D)
+				return nil, err
+			}
+			img, ok := dds.Image.(*image.NRGBA)
+			if !ok {
+				pv.textureCache.Delete(name, gl.TEXTURE_2D)
+				return nil, fmt.Errorf("expected texture to be of type *image.NRGBA")
+			}
+			if err := uploadStingrayTexture(getResource, toReturn.id, dds.Bounds(), img.Pix); err != nil {
 				// Failed to upload data, so delete the entry in the cache
 				pv.textureCache.Delete(name, gl.TEXTURE_2D)
 				return nil, err
@@ -653,6 +622,15 @@ func getTarget(slot string) uint32 {
 	return gl.TEXTURE_2D
 }
 
+type TextureData struct {
+	Slot   string
+	Name   stingray.Hash
+	Target uint32
+	Bounds image.Rectangle
+	Depth  int32
+	Data   []uint8
+}
+
 func (pv *UnitPreviewState) useLUTMaterial(getResource GetResourceFunc, info *unit.Info, mesh unit.Mesh, group int, mat *material.Material, lookupThinHash func(stingray.ThinHash) string) error {
 	err := pv.object.materials[group].generate(
 		[]string{"shaders/object.vert", "shaders/lut.frag"},
@@ -663,7 +641,8 @@ func (pv *UnitPreviewState) useLUTMaterial(getResource GetResourceFunc, info *un
 		return err
 	}
 
-	gl.UseProgram(pv.object.materials[group].program)
+	var textureWaitGroup sync.WaitGroup
+	textureData := make([]TextureData, 0)
 	slotHashes := slices.SortedFunc(maps.Keys(mat.Textures), func(a, b stingray.ThinHash) int {
 		return a.Cmp(b)
 	})
@@ -674,40 +653,49 @@ func (pv *UnitPreviewState) useLUTMaterial(getResource GetResourceFunc, info *un
 		}
 		nameHash := mat.Textures[slotHash]
 		target := getTarget(slot)
-		textureId, created := pv.textureCache.Acquire(nameHash, target)
-		texture := unitPreviewMaterialTexture{
-			id:     textureId,
-			name:   nameHash,
-			target: target,
+
+		texture := TextureData{
+			Slot:   slot,
+			Name:   nameHash,
+			Target: target,
+		}
+		textureData = append(textureData, texture)
+
+		if pv.textureCache.Contains(nameHash, target) {
+			// Already loaded, so we don't need to reload the data
+			continue
 		}
 
-		var err error
-		switch slot {
-		case "customization_camo_tiler_array", "pattern_masks_array", "id_masks_array":
-			if created {
-				setupTextureArray(texture.id)
-				err = uploadStingrayTextureArray(getResource, texture.id, nameHash)
-			}
-		case "pattern_lut", "material_lut":
-			if created {
-				setupTexture(texture.id)
-				err = uploadStingrayLUT(getResource, texture.id, nameHash)
-			}
-		default:
-			if created {
-				setupTexture(texture.id)
-				err = uploadStingrayTexture(getResource, texture.id, nameHash)
-			}
-		}
-		if err != nil {
-			pv.textureCache.Delete(nameHash, texture.target)
-			return err
-		}
+		textureWaitGroup.Go(func() {
+			texture.Bounds = image.Rect(0, 0, 1, 1)
+			texture.Data = make([]uint8, 4)
+			texture.Depth = 1
 
-		gl.Uniform1i(pv.object.materials[group].uniforms[slot], int32(len(pv.object.materials[group].textures)))
-		pv.object.materials[group].textures = append(pv.object.materials[group].textures, texture)
+			dds, err := loadDDS(getResource, nameHash)
+			if err != nil {
+				return
+			}
+			texture.Bounds = dds.Bounds()
+			texture.Depth = int32(len(dds.Images))
+
+			if slices.Contains([]string{"pattern_lut", "material_lut"}, texture.Slot) {
+				texture.Data = dds.Images[0].MipMaps[0].Raw
+				return
+			}
+
+			texture.Data = make([]uint8, 0, dds.Bounds().Dx()*dds.Bounds().Dy()*int(texture.Depth)*4)
+
+			for idx := range dds.Images {
+				img, ok := dds.Images[idx].Image.(*image.NRGBA)
+				if !ok {
+					return
+				}
+				texture.Data = append(texture.Data, img.Pix...)
+			}
+		})
 	}
 
+	// TODO: add material detailer tiler array to waitgroup
 	materialDetailerHash := stingray.Sum("content/art_shared/textures/customization/material_library/detail_tilers/customization_detail_tiler_array")
 	textureId, created := pv.textureCache.Acquire(materialDetailerHash, gl.TEXTURE_2D_ARRAY)
 	texture := unitPreviewMaterialTexture{
@@ -721,6 +709,42 @@ func (pv *UnitPreviewState) useLUTMaterial(getResource GetResourceFunc, info *un
 	}
 	gl.Uniform1i(pv.object.materials[group].uniforms["customization_material_detail_tiler_array"], int32(len(pv.object.materials[group].textures)))
 	pv.object.materials[group].textures = append(pv.object.materials[group].textures, texture)
+
+	gl.UseProgram(pv.object.materials[group].program)
+	for _, data := range textureData {
+		textureId, created := pv.textureCache.Acquire(data.Name, data.Target)
+		texture := unitPreviewMaterialTexture{
+			id:     textureId,
+			name:   data.Name,
+			target: data.Target,
+		}
+
+		var err error
+		switch data.Slot {
+		case "customization_camo_tiler_array", "customization_material_detail_tiler_array", "pattern_masks_array", "id_masks_array":
+			if created {
+				setupTextureArray(texture.id)
+				err = uploadStingrayTextureArray(getResource, texture.id, data.Bounds, data.Depth, data.Data)
+			}
+		case "pattern_lut", "material_lut":
+			if created {
+				setupTexture(texture.id)
+				err = uploadStingrayLUT(getResource, texture.id, data.Bounds, data.Data)
+			}
+		default:
+			if created {
+				setupTexture(texture.id)
+				err = uploadStingrayTexture(getResource, texture.id, data.Bounds, data.Data)
+			}
+		}
+		if err != nil {
+			pv.textureCache.Delete(data.Name, texture.target)
+			return err
+		}
+
+		gl.Uniform1i(pv.object.materials[group].uniforms[data.Slot], int32(len(pv.object.materials[group].textures)))
+		pv.object.materials[group].textures = append(pv.object.materials[group].textures, texture)
+	}
 
 	for setting, value := range mat.Settings {
 		settingName := lookupThinHash(setting)
@@ -954,6 +978,7 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 		gl.EnableVertexAttribArray(7)
 		offset += udimsSize
 
+		pv.object.numIndices = make([]int32, len(mesh.Indices))
 		for group, indices := range mesh.Indices {
 			gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, pv.object.ibos[group])
 			gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, len(indices)*4, gl.Ptr(indices), gl.STATIC_DRAW)
@@ -1150,6 +1175,11 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 
 	imgui.PushIDStr(name)
 	defer imgui.PopID()
+
+	if pv.materialsLoading {
+		widgets.SpinnerDnaDots("loading unit", 5.0, 0.5)
+		return
+	}
 
 	viewPos := imgui.CursorScreenPos()
 	viewSize := imgui.ContentRegionAvail()

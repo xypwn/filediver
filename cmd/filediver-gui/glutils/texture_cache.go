@@ -58,6 +58,25 @@ func (t *TextureCache) Acquire(hash stingray.Hash, target uint32) (textureId uin
 	return
 }
 
+// Reports whether the cache contains the texture
+func (t *TextureCache) Contains(hash stingray.Hash, target uint32) bool {
+	if t.cache == nil {
+		return false
+	}
+	targets, contains := t.cache[hash]
+	if contains {
+		var val TextureCacheEntry
+		val, contains = targets[target]
+		if contains {
+			// Refresh so we don't delete while loading images
+			val.lastUsed = time.Now()
+			targets[target] = val
+			t.cache[hash] = targets
+		}
+	}
+	return contains
+}
+
 func (t *TextureCache) Release(hash stingray.Hash, target uint32) (contains bool) {
 	contains = false
 	if t.cache == nil {
