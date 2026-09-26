@@ -1018,6 +1018,7 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 		pv.udimsShownDefault[i] = true
 		pv.udimNames[i] = ""
 	}
+	pv.numUdims = 1
 	visibilityMasks, err := datalib.ParseVisibilityMasks()
 	if err != nil {
 		return err
@@ -1028,7 +1029,6 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 		visibilityMask, ok = visibilityMasks[entityHash]
 	}
 	if ok {
-		pv.numUdims = 0
 		for _, material := range pv.object.materials {
 			gl.UseProgram(material.program)
 			gl.Uniform1ui(material.uniforms["hasVisibilityMasks"], 1)
