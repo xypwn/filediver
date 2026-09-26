@@ -87,133 +87,6 @@ func setupTextureArray(textureID uint32) {
 	gl.BindTexture(gl.TEXTURE_2D_ARRAY, 0)
 }
 
-type TextureCacheEntry struct {
-	id         uint32
-	references uint32
-	lastUsed   time.Time
-}
-
-type TextureCache struct {
-	cache              map[stingray.Hash]map[uint32]TextureCacheEntry
-	maxUnusedResidency time.Duration
-}
-
-func NewTextureCache(maxDuration time.Duration) *TextureCache {
-	return &TextureCache{
-		maxUnusedResidency: maxDuration,
-	}
-}
-
-// Generates a new texture for (hash, target) and adds it to the cache if not already present
-func (t *TextureCache) Acquire(hash stingray.Hash, target uint32) (textureId uint32, created bool) {
-	if t.cache == nil {
-		t.cache = make(map[stingray.Hash]map[uint32]TextureCacheEntry)
-	}
-	var val TextureCacheEntry
-	targets, contains := t.cache[hash]
-	if contains {
-		val, contains = targets[target]
-	} else {
-		// If this hash doesn't have a target map, create it
-		targets = make(map[uint32]TextureCacheEntry)
-	}
-	if contains {
-		textureId = val.id
-		val.lastUsed = time.Now()
-		val.references += 1
-		fmt.Printf("[cache] Acquiring texture %v (%v): new reference count %v\n", hash.String(), glutils.GLTarget(target).String(), val.references)
-	} else {
-		gl.GenTextures(1, &textureId)
-		val = TextureCacheEntry{
-			id:         textureId,
-			references: 1,
-			lastUsed:   time.Now(),
-		}
-		fmt.Printf("[cache] Created texture %v (%v)\n", hash.String(), glutils.GLTarget(target).String())
-	}
-	created = !contains
-	targets[target] = val
-	t.cache[hash] = targets
-	return
-}
-
-func (t *TextureCache) Release(hash stingray.Hash, target uint32) (contains bool) {
-	contains = false
-	if t.cache == nil {
-		return
-	}
-	var targets map[uint32]TextureCacheEntry
-	var val TextureCacheEntry
-	if targets, contains = t.cache[hash]; contains {
-		if val, contains = targets[target]; contains {
-			if val.references > 0 {
-				val.references -= 1
-			}
-			val.lastUsed = time.Now()
-			fmt.Printf(
-				"[cache] Dereferencing texture %v (%v): new reference count %v\n",
-				hash.String(),
-				glutils.GLTarget(target).String(),
-				val.references,
-			)
-			targets[target] = val
-			t.cache[hash] = targets
-		}
-	}
-	return
-}
-
-func (t *TextureCache) Delete(hash stingray.Hash, target uint32) (contains bool) {
-	contains = false
-	if t.cache == nil {
-		return
-	}
-	var targets map[uint32]TextureCacheEntry
-	var val TextureCacheEntry
-	if targets, contains = t.cache[hash]; contains {
-		if val, contains = targets[target]; contains {
-			fmt.Printf("[cache] Deleting texture %v target %v\n", hash.String(), glutils.GLTarget(target).String())
-			delete(t.cache[hash], target)
-			gl.DeleteTextures(1, &val.id)
-		}
-	}
-	return
-}
-
-func (t *TextureCache) DeleteAll() {
-	if t.cache == nil {
-		return
-	}
-	for hash := range t.cache {
-		for target := range t.cache[hash] {
-			t.Delete(hash, target)
-		}
-	}
-	return
-}
-
-func (t *TextureCache) Sweep() {
-	if t.cache == nil {
-		return
-	}
-	fmt.Printf("[cache] Sweeping...\n")
-	sweepTime := time.Now()
-	for hash, targets := range t.cache {
-		for target, entry := range targets {
-			if entry.references > 0 {
-				continue
-			}
-			entryDuration := sweepTime.Sub(entry.lastUsed)
-			fmt.Printf("[cache] Unused texture %v (%v) in residency for %.2fs\n", hash.String(), glutils.GLTarget(target).String(), entryDuration.Seconds())
-			if entryDuration >= t.maxUnusedResidency {
-				t.Delete(hash, target)
-			}
-		}
-	}
-	sweepDuration := time.Now().Sub(sweepTime)
-	fmt.Printf("[cache] Sweep completed in %vms\n", sweepDuration.Milliseconds())
-}
-
 type unitPreviewUniformBlock struct {
 	name           string
 	ubo            uint32
@@ -325,7 +198,7 @@ func (mat *unitPreviewMaterial) generate(shaderPaths []string, textures int, uni
 	return nil
 }
 
-func (mat *unitPreviewMaterial) delete(textureCache *TextureCache) {
+func (mat *unitPreviewMaterial) delete(textureCache *glutils.TextureCache) {
 	for _, texture := range mat.textures {
 		if texture.name.Value == 0x0 {
 			gl.DeleteTextures(1, &texture.id)
@@ -380,7 +253,7 @@ func (uniforms *unitPreviewUniforms) generate(program uint32, names ...string) {
 	}
 }
 
-func (obj unitPreviewObject) deleteObjects(textureCache *TextureCache) {
+func (obj unitPreviewObject) deleteObjects(textureCache *glutils.TextureCache) {
 	gl.DeleteVertexArrays(1, &obj.vao)
 	gl.DeleteBuffers(1, &obj.vbo)
 	if len(obj.ibos) > 0 {
@@ -393,7 +266,7 @@ func (obj unitPreviewObject) deleteObjects(textureCache *TextureCache) {
 
 type UnitPreviewState struct {
 	fb                 *widgets.GLViewState
-	textureCache       *TextureCache
+	textureCache       *glutils.TextureCache
 	textureSweepTicker *time.Ticker
 	doSweep            bool
 	stopTextureSweep   func()
@@ -461,7 +334,7 @@ func NewUnitPreview() (*UnitPreviewState, error) {
 
 	// Keep textures for a minute of disuse
 	duration, _ := time.ParseDuration("1m")
-	pv.textureCache = NewTextureCache(duration)
+	pv.textureCache = glutils.NewTextureCache(duration)
 
 	sweepInterval, _ := time.ParseDuration("30s")
 	pv.textureSweepTicker = time.NewTicker(sweepInterval)
