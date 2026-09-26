@@ -898,20 +898,6 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 
 	pv.object.numVertices = int32(len(mesh.Positions))
 
-	pv.numUdims = 0
-	for group := range mesh.Indices {
-		for idx := range mesh.Indices[group] {
-			if idx%3 != 0 {
-				continue
-			}
-			udimCalc := mesh.Udims[mesh.Indices[group][idx]]
-			pv.numUdims = max(pv.numUdims, uint32(udimCalc)+1)
-		}
-	}
-	if pv.numUdims >= 64 {
-		pv.numUdims = 1
-	}
-
 	// Upload object data
 	{
 		gl.BindVertexArray(pv.object.vao)
@@ -924,7 +910,7 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 		udimsSize := len(mesh.Udims) * 4
 
 		gl.BindBuffer(gl.ARRAY_BUFFER, pv.object.vbo)
-		gl.BufferData(gl.ARRAY_BUFFER, positionsSize+normalsSize+uvsSize*len(mesh.UVCoords[:3])+tangentsSize+bitangentsSize+udimsSize, nil, gl.STATIC_DRAW)
+		gl.BufferData(gl.ARRAY_BUFFER, positionsSize+normalsSize+uvsSize*min(len(mesh.UVCoords), 3)+tangentsSize+bitangentsSize+udimsSize, nil, gl.STATIC_DRAW)
 		offset := 0
 		//
 		gl.BufferSubData(gl.ARRAY_BUFFER, offset, positionsSize, gl.Ptr(mesh.Positions))
@@ -952,14 +938,16 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 		gl.EnableVertexAttribArray(4)
 		offset += bitangentsSize
 		//
-		for layer, uvcoords := range mesh.UVCoords[1:3] {
-			index := uint32(5 + layer)
-			uvsSize := len(uvcoords) * 2 * 4
-			fmt.Printf("size %v offset %v index %v\n", uvsSize, offset, index)
-			gl.BufferSubData(gl.ARRAY_BUFFER, offset, uvsSize, gl.Ptr(uvcoords))
-			gl.VertexAttribPointerWithOffset(index, 2, gl.FLOAT, false, 2*4, uintptr(offset))
-			gl.EnableVertexAttribArray(index)
-			offset += uvsSize
+		if len(mesh.UVCoords) >= 3 {
+			for layer, uvcoords := range mesh.UVCoords[1:3] {
+				index := uint32(5 + layer)
+				uvsSize := len(uvcoords) * 2 * 4
+				fmt.Printf("size %v offset %v index %v\n", uvsSize, offset, index)
+				gl.BufferSubData(gl.ARRAY_BUFFER, offset, uvsSize, gl.Ptr(uvcoords))
+				gl.VertexAttribPointerWithOffset(index, 2, gl.FLOAT, false, 2*4, uintptr(offset))
+				gl.EnableVertexAttribArray(index)
+				offset += uvsSize
+			}
 		}
 		gl.BufferSubData(gl.ARRAY_BUFFER, offset, udimsSize, gl.Ptr(mesh.Udims))
 		gl.VertexAttribPointerWithOffset(7, 1, gl.FLOAT, true, 4, uintptr(offset))
@@ -1034,7 +1022,13 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 	if err != nil {
 		return err
 	}
-	if visibilityMask, ok := visibilityMasks[fileID]; ok {
+	visibilityMask, ok := visibilityMasks[fileID]
+	if !ok {
+		entityHash := datalib.UnitsToEntities(fileID)
+		visibilityMask, ok = visibilityMasks[entityHash]
+	}
+	if ok {
+		pv.numUdims = 0
 		for _, material := range pv.object.materials {
 			gl.UseProgram(material.program)
 			gl.Uniform1ui(material.uniforms["hasVisibilityMasks"], 1)
@@ -1045,14 +1039,16 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 		gl.UseProgram(pv.normalVisMaterial.program)
 		gl.Uniform1ui(pv.normalVisMaterial.uniforms["hasVisibilityMasks"], 1)
 		gl.UseProgram(0)
-		for i, info := range visibilityMask.MaskInfos {
+		for _, info := range visibilityMask.MaskInfos {
 			if int(info.Index) >= len(pv.udimsShownDefault) {
 				// No support for udims with index > 64 at the moment
 				continue
 			}
-			if i > 0 && info.Index == 0 {
-				break
+			if info.Name.Value == 0 {
+				continue
 			}
+			pv.numUdims = max(uint32(info.Index)+1, pv.numUdims)
+
 			pv.udimsShownDefault[info.Index] = info.StartHidden == 0
 			name, ok := thinhashes[info.Name]
 			if !ok {

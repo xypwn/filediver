@@ -1223,15 +1223,8 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, me
 			if !contains {
 				// Some model names do not match any of the names of the entities that include them
 				// so they need to be patched up to get the correct visibility masks
-				if strings.Contains(ctx.LookupHash(ctx.FileID().Name), "cha_lieutenant") {
-					mask, contains = visibilityMaskData[stingray.Sum("content/fac_cyborgs/cha_lieutenant/cha_lieutenant_assault")]
-				}
-				if strings.Contains(ctx.LookupHash(ctx.FileID().Name), "cyborg_tank_turret_cannon/cyborg_tank_turret_cannon") {
-					mask, contains = visibilityMaskData[stingray.Sum("content/fac_cyborgs/turrets/cyborg_tank_turret_cannon/cyborg_turret_heavycannon")]
-				}
-				if ctx.FileID().Name == stingray.Sum("content/fac_cyborgs/vehicles/cyborg_tank/cyborg_tank") {
-					mask, contains = visibilityMaskData[stingray.Sum("content/fac_cyborgs/vehicles/cyborg_tank/cyborg_tank_heavycannon")]
-				}
+				entityHash = datalib.UnitsToEntities(ctx.FileID().Name)
+				mask, contains = visibilityMaskData[entityHash]
 			}
 			visibilityMasks = make(map[uint16]map[string]any)
 			udimIndexAccessors := make(map[uint32]uint32)
