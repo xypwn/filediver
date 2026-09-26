@@ -16,7 +16,7 @@ uniform bool hasVisibilityMasks;
 uniform bool udimShown[64];
 
 bool isShown() {
-    int udim = int(inUV.x) | int(1-inUV.y)<<5;
+    int udim = int(inUV.x) | int(0.999999-clamp(inUV.y, -0.99, 0.99))<<5;
     return udim < 64 && udimShown[udim];
 }
 

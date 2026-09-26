@@ -26,13 +26,16 @@ uniform bool hasVisibilityMasks;
 uniform bool udimShown[64];
 
 bool isShown() {
-    int udim = int(inUV.x) | int(1-inUV.y)<<5;
+    int udim = int(inUV.x) | int(0.999999-clamp(inUV.y, -0.99, 0.99))<<5;
     return udim < 64 && udimShown[udim];
 }
 
 void main() {
     if (hasVisibilityMasks && !isShown()) {
         gl_Position = vec4(vec3(0.0), 1.0);
+        fragUV0 = inUV;
+        fragUV1 = inUV1;
+        fragUV2 = inUV2;
         return;
     }
     gl_Position = mvp * vec4(inPosition, 1.0);

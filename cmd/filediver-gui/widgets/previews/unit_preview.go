@@ -821,7 +821,7 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 
 	pv.numUdims = 0
 	for _, uv := range mesh.UVCoords[0] {
-		udim := uint32(uv[0]) | uint32(1-uv[1])<<5
+		udim := uint32(uv[0]) | uint32(0.9999-uv[1])<<5
 		pv.numUdims = max(pv.numUdims, udim+1)
 	}
 	if pv.numUdims >= 64 {
@@ -958,10 +958,13 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 		gl.UseProgram(pv.normalVisMaterial.program)
 		gl.Uniform1ui(pv.normalVisMaterial.uniforms["hasVisibilityMasks"], 1)
 		gl.UseProgram(0)
-		for _, info := range visibilityMask.MaskInfos {
+		for i, info := range visibilityMask.MaskInfos {
 			if int(info.Index) >= len(pv.udimsShownDefault) {
 				// No support for udims with index > 64 at the moment
 				continue
+			}
+			if i > 0 && info.Index == 0 {
+				break
 			}
 			pv.udimsShownDefault[info.Index] = info.StartHidden == 0
 			name, ok := thinhashes[info.Name]
