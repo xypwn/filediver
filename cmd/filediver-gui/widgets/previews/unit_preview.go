@@ -309,11 +309,13 @@ type UnitPreviewState struct {
 
 	maxViewDistance float32
 
-	numUdims          uint32
-	udimsShownDefault [64]bool
-	udimsSelected     [64]bool  // udims persistently selected
-	udimsShown        [64]int32 // udims visually selected 1 (shown) or 0 (hidden)
-	udimNames         [64]string
+	numUdims           uint32
+	udimsShownDefault  [64]bool
+	udimsSelected      [64]bool  // udims persistently selected
+	udimsShown         [64]int32 // udims visually selected 1 (shown) or 0 (hidden)
+	udimNames          [64]string
+	udimsSettingsShown bool
+	udimsSettingsDrawn bool
 
 	// For dragging selection
 	activeUDimListItem  int32
@@ -409,6 +411,9 @@ func NewUnitPreview(getResource GetResourceFunc) (*UnitPreviewState, error) {
 	pv.wireframeColor = [4]float32{1.0, 1.0, 1.0, 0.5}
 	pv.aabbColor = [4]float32{0.3, 0.3, 0.8, 0.2}
 
+	pv.activeUDimListItem = -1
+	pv.hoveredUDimListItem = -1
+
 	return pv, nil
 }
 
@@ -488,7 +493,8 @@ func (pv *UnitPreviewState) loadMeshes(lookupThinHash func(stingray.ThinHash) st
 				strings.HasPrefix(object, "c_") ||
 				strings.Contains(object, "cull") ||
 				strings.Contains(object, "coll") ||
-				strings.HasSuffix(object, "rubble") {
+				strings.HasSuffix(object, "rubble") ||
+				object == "ai_blocker" {
 				shownDefault[object] = false
 			}
 			meshesToLoad = append(meshesToLoad, uint32(idx))
@@ -1312,7 +1318,7 @@ func sum(s []int32) (result int32) {
 	return
 }
 
-func UnitPreview(name string, pv *UnitPreviewState) {
+func (pv *UnitPreviewState) Draw(name string) {
 	if len(pv.objects) == 0 {
 		return
 	}
@@ -1325,7 +1331,6 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 	imgui.PushIDStr(name)
 	defer imgui.PopID()
 
-	viewPos := imgui.CursorScreenPos()
 	viewSize := imgui.ContentRegionAvail()
 	viewSize.Y -= imutils.CheckboxHeight()
 
@@ -1707,20 +1712,53 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 		pv.doAutoZoomNextFrame = true
 	}
 	imgui.SameLine()
+
 	// UDim selection
-	nextActiveUDimListItem := int32(-1)
-	nextHoveredUDimListItem := int32(-1)
 	imgui.BeginDisabledV(pv.numUdims <= 1)
-	if imgui.Button("UDims Selection") {
-		imgui.OpenPopupStr("UDims")
-		imgui.SetNextWindowPos(viewPos.Sub(imutils.SVec2(240, 0)))
-		imgui.SetNextWindowSize(imgui.NewVec2(imutils.S(240), viewSize.Y))
+	label := "Visibility Masks Selection"
+	if pv.numUdims <= 1 || !pv.udimsSettingsShown {
+		label = "Show " + label
+	} else {
+		label = "Hide " + label
+	}
+	if imgui.Button(label) {
+		pv.udimsSettingsShown = !pv.udimsSettingsShown
 	}
 	if pv.numUdims <= 1 {
-		imgui.SetItemTooltip("Mesh has no UDims")
+		imgui.SetItemTooltip("Mesh has no visibility masks")
 	}
 	imgui.EndDisabled()
-	if imgui.InternalBeginPopupEx(imgui.IDStr("UDims"), imgui.WindowFlagsNoTitleBar|imgui.WindowFlagsNoSavedSettings) {
+	if !pv.udimsSettingsShown || !pv.udimsSettingsDrawn {
+		for i := range pv.udimsShown {
+			if pv.udimsSelected[i] {
+				pv.udimsShown[i] = 1
+			} else {
+				pv.udimsShown[i] = 0
+			}
+		}
+	}
+
+	if pv.animTime != -1 {
+		pv.animTime += 5 * imgui.CurrentIO().DeltaTime()
+	}
+
+	if pv.doSweep {
+		// We sweep the textures here so we aren't modifying opengl state during a draw call
+		pv.textureCache.Sweep()
+		pv.doSweep = false
+	}
+}
+
+func (pv *UnitPreviewState) DrawSettings() {
+	if pv.udimsSettingsShown && pv.numUdims > 1 {
+		pv.drawVisibilityMaskSelector()
+	}
+}
+
+func (pv *UnitPreviewState) drawVisibilityMaskSelector() {
+	if pv.udimsSettingsDrawn = imgui.BeginV(fnt.I.FolderEye+" Visibility Mask Selection", &pv.udimsSettingsShown, imgui.WindowFlagsNoFocusOnAppearing); pv.udimsSettingsDrawn {
+		nextActiveUDimListItem := int32(-1)
+		nextHoveredUDimListItem := int32(-1)
 		if imgui.Button("Reset") {
 			pv.udimsSelected = pv.udimsShownDefault
 		}
@@ -1791,26 +1829,8 @@ Drag to toggle multiple items (right-click to cancel)`)
 		if dragging {
 			imgui.WindowDrawList().AddRectV(draggingMinPos, draggingMaxPos, imgui.ColorU32Col(imgui.ColButtonActive), 0, 0, imgui.DrawFlagsNone)
 		}
-		imgui.EndPopup()
-	} else {
-		for i := range pv.udimsShown {
-			if pv.udimsSelected[i] {
-				pv.udimsShown[i] = 1
-			} else {
-				pv.udimsShown[i] = 0
-			}
-		}
+		pv.activeUDimListItem = nextActiveUDimListItem
+		pv.hoveredUDimListItem = nextHoveredUDimListItem
 	}
-	pv.activeUDimListItem = nextActiveUDimListItem
-	pv.hoveredUDimListItem = nextHoveredUDimListItem
-
-	if pv.animTime != -1 {
-		pv.animTime += 5 * imgui.CurrentIO().DeltaTime()
-	}
-
-	if pv.doSweep {
-		// We sweep the textures here so we aren't modifying opengl state during a draw call
-		pv.textureCache.Sweep()
-		pv.doSweep = false
-	}
+	imgui.End()
 }

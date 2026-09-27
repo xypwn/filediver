@@ -359,7 +359,7 @@ func (pv *AutoPreview) Draw(name string) bool {
 	case AutoPreviewEmpty:
 		return false
 	case AutoPreviewUnit:
-		UnitPreview(name, pv.previews.unit)
+		pv.previews.unit.Draw(name)
 	case AutoPreviewTree:
 		SpeedtreePreview(name, pv.previews.speedtree)
 	case AutoPreviewAudio:
@@ -382,7 +382,7 @@ func (pv *AutoPreview) Draw(name string) bool {
 	return true
 }
 
-func (pv *AutoPreview) DrawMaterialSettings() bool {
+func (pv *AutoPreview) DrawSettings() bool {
 	if pv.err != nil {
 		return true
 	}
@@ -391,6 +391,8 @@ func (pv *AutoPreview) DrawMaterialSettings() bool {
 		return false
 	case AutoPreviewMaterial:
 		pv.previews.material.DrawSettings()
+	case AutoPreviewUnit:
+		pv.previews.unit.DrawSettings()
 	}
 	return true
 }

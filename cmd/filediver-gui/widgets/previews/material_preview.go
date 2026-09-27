@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/AllenDang/cimgui-go/imgui"
+	fnt "github.com/xypwn/filediver/cmd/filediver-gui/fonts"
 	"github.com/xypwn/filediver/cmd/filediver-gui/imutils"
 	"github.com/xypwn/filediver/cmd/filediver-gui/widgets"
 	"github.com/xypwn/filediver/dds"
@@ -166,33 +167,39 @@ func (pv *MaterialPreview) SetSettingsVisible(visible bool) {
 }
 
 func (pv *MaterialPreview) DrawSettings() {
-	const tableFlags = imgui.TableFlagsResizable | imgui.TableFlagsBorders | imgui.TableFlagsScrollY | imgui.TableFlagsRowBg
-	if imgui.BeginTableV("##Material Settings", 2, tableFlags, imgui.NewVec2(0, 0), 0) {
-		imgui.TableSetupColumnV("Name", imgui.TableColumnFlagsWidthStretch, 1, 0)
-		imgui.TableSetupColumnV("Value", imgui.TableColumnFlagsWidthStretch, 2, 0)
-		imgui.TableSetupScrollFreeze(0, 1)
-		imgui.TableHeadersRow()
-
-		for _, id := range pv.settingKeys {
-			imgui.PushIDStr(id)
-
-			imgui.TableNextColumn()
-			imutils.CopyableTextf("%v", id)
-
-			imgui.TableNextColumn()
-			settingValue := pv.settings[id]
-			formatted := make([]string, len(settingValue))
-			for i := range settingValue {
-				formatted[i] = fmt.Sprintf("%.3f", settingValue[i])
-			}
-			settingString := strings.Join(formatted, ", ")
-			if len(settingValue) > 1 {
-				settingString = "(" + settingString + ")"
-			}
-			imgui.TextUnformatted(settingString)
-
-			imgui.PopID()
-		}
-		imgui.EndTable()
+	if pv.SettingsEmpty() || !pv.settingsVisible {
+		return
 	}
+	if imgui.BeginV(fnt.I.DisplaySettings+" Material Settings", &pv.settingsVisible, imgui.WindowFlagsNoFocusOnAppearing) {
+		const tableFlags = imgui.TableFlagsResizable | imgui.TableFlagsBorders | imgui.TableFlagsScrollY | imgui.TableFlagsRowBg
+		if imgui.BeginTableV("##Material Settings", 2, tableFlags, imgui.NewVec2(0, 0), 0) {
+			imgui.TableSetupColumnV("Name", imgui.TableColumnFlagsWidthStretch, 1, 0)
+			imgui.TableSetupColumnV("Value", imgui.TableColumnFlagsWidthStretch, 2, 0)
+			imgui.TableSetupScrollFreeze(0, 1)
+			imgui.TableHeadersRow()
+
+			for _, id := range pv.settingKeys {
+				imgui.PushIDStr(id)
+
+				imgui.TableNextColumn()
+				imutils.CopyableTextf("%v", id)
+
+				imgui.TableNextColumn()
+				settingValue := pv.settings[id]
+				formatted := make([]string, len(settingValue))
+				for i := range settingValue {
+					formatted[i] = fmt.Sprintf("%.3f", settingValue[i])
+				}
+				settingString := strings.Join(formatted, ", ")
+				if len(settingValue) > 1 {
+					settingString = "(" + settingString + ")"
+				}
+				imgui.TextUnformatted(settingString)
+
+				imgui.PopID()
+			}
+			imgui.EndTable()
+		}
+	}
+	imgui.End()
 }
