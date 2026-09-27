@@ -306,8 +306,8 @@ type UnitPreviewState struct {
 	aabbMat map[string]mgl32.Mat4
 
 	// For fitting mesh to screen and debug info
-	meshPositions [][3]float32
-	meshNormals   [][3]float32
+	meshPositions map[string][][3]float32
+	meshNormals   map[string][][3]float32
 
 	maxViewDistance float32
 
@@ -437,7 +437,7 @@ func (pv *UnitPreviewState) Delete() {
 	pv.stopTextureSweep()
 }
 
-var objectRegex = regexp.MustCompile("^(g_)?(\\w*?)_?(cull|shadow|rubble|rubble_shadow|shadowmesh)?_?(LOD\\d)?$")
+var objectRegex = regexp.MustCompile("^(g_)?(\\w*?)_?(cull|shadow|rubble|rubble_shadow|shadowmesh|c)?_?(LOD\\d)?$")
 
 // TODO: use mesh LOD names to load all lod0 meshes in the unit
 func (pv *UnitPreviewState) loadMeshes(lookupThinHash func(stingray.ThinHash) string, meshInfos []unit.MeshInfo, meshLayouts []unit.MeshLayout, gpuData []byte) (map[string]unit.Mesh, map[string]bool, error) {
@@ -499,6 +499,7 @@ func (pv *UnitPreviewState) loadMeshes(lookupThinHash func(stingray.ThinHash) st
 		for object, idx := range minLods {
 			if strings.Contains(object, "shadow") ||
 				strings.HasPrefix(object, "c_") ||
+				strings.HasSuffix(object, "_c") ||
 				strings.Contains(object, "cull") ||
 				strings.Contains(object, "coll") ||
 				strings.HasSuffix(object, "rubble") ||
@@ -1025,6 +1026,8 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 	}
 	pv.objectsShown = maps.Clone(pv.objectsShownDefault)
 	pv.objectsSelected = maps.Clone(pv.objectsShownDefault)
+	pv.meshPositions = make(map[string][][3]float32)
+	pv.meshNormals = make(map[string][][3]float32)
 	pv.aabb = make(map[string][2]mgl32.Vec3)
 	pv.aabbMat = make(map[string]mgl32.Mat4, 0)
 	for name, mesh := range meshes {
@@ -1144,8 +1147,8 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 			gl.BindBuffer(gl.ARRAY_BUFFER, 0)
 		}
 
-		pv.meshPositions = mesh.Positions
-		pv.meshNormals = mesh.Normals
+		pv.meshPositions[name] = mesh.Positions
+		pv.meshNormals[name] = mesh.Normals
 		pv.objects[name] = object
 
 		// Upload debug object data
@@ -1179,19 +1182,21 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 	{
 		// Get origin sphere around mesh
 		var maxDistSqrFromOrigin float32
-		for _, p := range pv.meshPositions {
-			maxDistSqrFromOrigin = max(maxDistSqrFromOrigin,
-				mgl32.Vec3(p).LenSqr())
+		for name := range pv.meshPositions {
+			for _, p := range pv.meshPositions[name] {
+				maxDistSqrFromOrigin = max(maxDistSqrFromOrigin,
+					mgl32.Vec3(p).LenSqr())
+			}
+			maxDistFromOrigin := float32(math.Sqrt(float64(maxDistSqrFromOrigin)))
+
+			// Calculate camera distance to fit vertical frustum into disk orthogonal
+			// to view direction with radius of the sphere. Ideally, we'd want
+			// to fit the sphere into the frustum, but the disk should be close
+			// enough.
+			// tan(vfov/2) = maxDistFromOrigin/viewDistance
+			pv.maxViewDistance = float32(float64(maxDistFromOrigin) / math.Tan(float64(pv.vfov/2)))
+
 		}
-		maxDistFromOrigin := float32(math.Sqrt(float64(maxDistSqrFromOrigin)))
-
-		// Calculate camera distance to fit vertical frustum into disk orthogonal
-		// to view direction with radius of the sphere. Ideally, we'd want
-		// to fit the sphere into the frustum, but the disk should be close
-		// enough.
-		// tan(vfov/2) = maxDistFromOrigin/viewDistance
-		pv.maxViewDistance = float32(float64(maxDistFromOrigin) / math.Tan(float64(pv.vfov/2)))
-
 		// We want to be able to zoom out a bit further.
 		pv.maxViewDistance *= 2
 	}
@@ -1520,9 +1525,11 @@ func (pv *UnitPreviewState) Draw(name string) {
 				// wrong. Using all of the mesh positions instead takes no more than ~10ms on
 				// all of the models I've tried.
 				maxCamDistDelta := float32(-math.MaxFloat32)
-				for _, vert := range pv.meshPositions {
-					maxCamDistDelta = max(maxCamDistDelta,
-						fitVertexCamDistDelta(vert))
+				for name := range pv.meshPositions {
+					for _, vert := range pv.meshPositions[name] {
+						maxCamDistDelta = max(maxCamDistDelta,
+							fitVertexCamDistDelta(vert))
+					}
 				}
 				pv.viewDistance += maxCamDistDelta
 				pv.viewDistance *= 1.02
@@ -1626,29 +1633,34 @@ func (pv *UnitPreviewState) Draw(name string) {
 				var closestPos mgl32.Vec2
 				closestDist := float32(math.MaxFloat32)
 				var closestIdx int
-				for i, vtx := range pv.meshPositions {
-					v := mvp.Mul4x1(mgl32.Vec3(vtx).Vec4(1.0))
-					v = v.Mul(1 / v.W())
-					v[0] = (v[0] + 1) * size.X * 0.5
-					v[1] = (-v[1] + 1) * size.Y * 0.5
-					dist := mousePos.Sub(v.Vec2()).LenSqr()
-					if dist < closestDist {
-						closestPos = v.Vec2()
-						closestDist = dist
-						closestIdx = i
+				for name := range pv.meshPositions {
+					if shown, contains := pv.objectsShown[name]; contains && !shown {
+						continue
 					}
+					for i, vtx := range pv.meshPositions[name] {
+						v := mvp.Mul4x1(mgl32.Vec3(vtx).Vec4(1.0))
+						v = v.Mul(1 / v.W())
+						v[0] = (v[0] + 1) * size.X * 0.5
+						v[1] = (-v[1] + 1) * size.Y * 0.5
+						dist := mousePos.Sub(v.Vec2()).LenSqr()
+						if dist < closestDist {
+							closestPos = v.Vec2()
+							closestDist = dist
+							closestIdx = i
+						}
+					}
+					markerPos := pos.Add(imgui.NewVec2(closestPos.X(), closestPos.Y()))
+					dl.AddCircleFilled(
+						markerPos,
+						imutils.S(2),
+						imgui.ColorU32Vec4(imgui.NewVec4(1, 0, 0, 1)),
+					)
+					dl.AddTextVec2(
+						markerPos,
+						imgui.ColorU32Vec4(imgui.NewVec4(1, 1, 0, 1)),
+						fmt.Sprintf("Pos: %v\nNormal: %v", pv.meshPositions[name][closestIdx], pv.meshNormals[name][closestIdx]),
+					)
 				}
-				markerPos := pos.Add(imgui.NewVec2(closestPos.X(), closestPos.Y()))
-				dl.AddCircleFilled(
-					markerPos,
-					imutils.S(2),
-					imgui.ColorU32Vec4(imgui.NewVec4(1, 0, 0, 1)),
-				)
-				dl.AddTextVec2(
-					markerPos,
-					imgui.ColorU32Vec4(imgui.NewVec4(1, 1, 0, 1)),
-					fmt.Sprintf("Pos: %v\nNormal: %v", pv.meshPositions[closestIdx], pv.meshNormals[closestIdx]),
-				)
 			}
 		},
 	)

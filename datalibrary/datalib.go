@@ -192,6 +192,10 @@ func UnitsToEntities(unitHash stingray.Hash) (entityHash stingray.Hash) {
 		return stingray.Sum("content/fac_cyborgs/cha_cyborg_elite/cha_cyborg_elite_female")
 	case stingray.Sum("content/fac_cyborgs/cha_conscript/cha_conscript"):
 		return stingray.Sum("content/fac_cyborgs/cha_conscript/cha_conscript_base")
+	case stingray.Sum("content/fac_bugs/cha_warrior/cha_warrior"):
+		return stingray.Sum("content/fac_bugs/cha_warrior/cha_warrior_base")
+	case stingray.Sum("content/fac_bugs/cha_warrior/cha_warrior_gloom_tier_1"):
+		return stingray.Sum("content/fac_bugs/cha_warrior/cha_warrior_gloom")
 	}
 	return unitHash
 }
