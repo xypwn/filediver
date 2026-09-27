@@ -74,7 +74,7 @@ func NewAutoPreview(otoCtx *oto.Context, audioSampleRate int, hashes map[stingra
 		thinhashes:           thinhashes,
 		getResourceGenerator: getResourceGenerator,
 	}
-	pv.previews.unit, err = NewUnitPreview()
+	pv.previews.unit, err = NewUnitPreview(getResourceGenerator(true))
 	if err != nil {
 		return nil, err
 	}
