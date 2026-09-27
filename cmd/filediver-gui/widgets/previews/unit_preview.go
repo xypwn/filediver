@@ -12,6 +12,7 @@ import (
 	"maps"
 	"math"
 	"math/rand/v2"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -275,13 +276,15 @@ type UnitPreviewState struct {
 	detailerLoadState   DetailerLoadState
 	detailerTextureData TextureData
 
-	object            unitPreviewObject
-	wireframeMaterial unitPreviewMaterial
+	objects             map[string]unitPreviewObject
+	objectsShown        map[string]bool
+	objectsShownDefault map[string]bool
+	wireframeMaterial   unitPreviewMaterial
 
 	normalVisMaterial unitPreviewMaterial
 
+	dbgObjs        map[string]unitPreviewObject
 	dbgObjProgram  uint32
-	dbgObj         unitPreviewObject
 	dbgObjUniforms unitPreviewUniforms
 
 	vfov         float32
@@ -297,8 +300,8 @@ type UnitPreviewState struct {
 
 	// Axis-aligned bounding box. Don't forget
 	// to multiply aabb's vertices with aabbMat first!
-	aabb    [2]mgl32.Vec3
-	aabbMat mgl32.Mat4
+	aabb    map[string][2]mgl32.Vec3
+	aabbMat map[string]mgl32.Mat4
 
 	// For fitting mesh to screen and debug info
 	meshPositions [][3]float32
@@ -362,7 +365,7 @@ func NewUnitPreview(getResource GetResourceFunc) (*UnitPreviewState, error) {
 	pv.detailerLoadState = DetailerNotLoaded
 	pv.loadMaterialDetailer(getResource)
 
-	pv.object.genObjects(true, 0)
+	//pv.object.genObjects(true, 0)
 
 	err = pv.wireframeMaterial.generate(
 		[]string{
@@ -390,7 +393,6 @@ func NewUnitPreview(getResource GetResourceFunc) (*UnitPreviewState, error) {
 		return nil, err
 	}
 
-	pv.dbgObj.genObjects(false, 1)
 	pv.dbgObjProgram, err = glutils.CreateProgramFromSources(unitPreviewShaderCode,
 		"shaders/debug_object.vert",
 		"shaders/debug_object.frag",
@@ -412,18 +414,60 @@ func NewUnitPreview(getResource GetResourceFunc) (*UnitPreviewState, error) {
 
 func (pv *UnitPreviewState) Delete() {
 	pv.fb.Delete()
-	pv.object.deleteObjects(pv.textureCache)
+	for name := range pv.objects {
+		pv.objects[name].deleteObjects(pv.textureCache)
+		pv.dbgObjs[name].deleteObjects(pv.textureCache)
+	}
 	pv.wireframeMaterial.delete(pv.textureCache)
-	pv.dbgObj.deleteObjects(pv.textureCache)
 	pv.releaseMaterialDetailer()
 	pv.textureCache.DeleteAll()
 	pv.stopTextureSweep()
 }
 
+var objectRegex = regexp.MustCompile("^(g_)?(\\w*?)_?(cull|shadow|rubble|rubble_shadow|shadowmesh)?_?(LOD\\d)?$")
+
 // TODO: use mesh LOD names to load all lod0 meshes in the unit
-func (pv *UnitPreviewState) loadMesh(meshInfos []unit.MeshInfo, meshLayouts []unit.MeshLayout, gpuData []byte) (unit.Mesh, error) {
-	var meshToLoad uint32
-	{
+func (pv *UnitPreviewState) loadMeshes(lookupThinHash func(stingray.ThinHash) string, meshInfos []unit.MeshInfo, meshLayouts []unit.MeshLayout, gpuData []byte) (map[string]unit.Mesh, map[string]bool, error) {
+	minLods := make(map[string]int)
+	objects := make(map[string]map[string]int)
+	for idx, info := range meshInfos {
+		meshName := lookupThinHash(info.Header.MeshName)
+		if strings.HasPrefix(meshName, "0x") {
+			continue
+		}
+		object := objectRegex.FindStringSubmatch(meshName)
+		if object == nil || object[2] == "" {
+			fmt.Printf("Unusual mesh name: %v\n", meshName)
+			continue
+		}
+		fmt.Printf("Found object:\n    name: %v\n    shadow/rubble: %v\n    LOD: %v\n", object[2], object[3], object[4])
+		// rubble/shadow/rubble_shadow
+		objectName := object[2]
+		if object[3] != "" {
+			objectName += "_" + object[3]
+		}
+		foundObject, ok := objects[objectName]
+		if !ok {
+			foundObject = make(map[string]int)
+		}
+		foundObject[object[4]] = idx
+		objects[objectName] = foundObject
+	}
+
+	for object, lods := range objects {
+		sortedLods := slices.Sorted(maps.Keys(lods))
+		chosenLod := sortedLods[0]
+		if chosenLod == "" {
+			chosenLod = "<base-mesh>"
+		}
+		fmt.Printf("choosing %v as min lod for object %v\n", chosenLod, object)
+		minLods[object] = lods[sortedLods[0]]
+	}
+
+	meshesToLoad := make([]uint32, 0)
+	shownDefault := make(map[string]bool)
+	// if we don't have any idea what the lods are, just fall back to original behavior
+	if len(minLods) == 0 {
 		highestDetailIdx := -1
 		highestDetailCount := -1
 		for i, info := range meshInfos {
@@ -435,20 +479,42 @@ func (pv *UnitPreviewState) loadMesh(meshInfos []unit.MeshInfo, meshLayouts []un
 			}
 		}
 		if highestDetailIdx == -1 {
-			return unit.Mesh{}, fmt.Errorf("unable to find mesh to load")
+			return nil, nil, fmt.Errorf("unable to find mesh to load")
 		}
-		meshToLoad = uint32(highestDetailIdx)
+		meshesToLoad = append(meshesToLoad, uint32(highestDetailIdx))
+	} else {
+		for object, idx := range minLods {
+			if strings.Contains(object, "shadow") ||
+				strings.HasPrefix(object, "c_") ||
+				strings.Contains(object, "cull") ||
+				strings.Contains(object, "coll") ||
+				strings.HasSuffix(object, "rubble") {
+				shownDefault[object] = false
+			}
+			meshesToLoad = append(meshesToLoad, uint32(idx))
+		}
 	}
 
-	var mesh unit.Mesh
+	meshes := make(map[string]unit.Mesh)
 	{
-		meshes, err := unit.LoadMeshes(bytes.NewReader(gpuData), meshInfos, meshLayouts, []uint32{meshToLoad})
+		var err error
+		meshMap, err := unit.LoadMeshes(bytes.NewReader(gpuData), meshInfos, meshLayouts, meshesToLoad)
 		if err != nil {
-			return unit.Mesh{}, err
+			return nil, nil, err
 		}
-		mesh = meshes[meshToLoad]
+		if len(minLods) == 0 {
+			meshes["highest-detail"] = meshMap[meshesToLoad[0]]
+			shownDefault["highest-detail"] = true
+		} else {
+			for object, idx := range minLods {
+				if _, contains := shownDefault[object]; !contains {
+					shownDefault[object] = true
+				}
+				meshes[object] = meshMap[uint32(idx)]
+			}
+		}
 	}
-	return mesh, nil
+	return meshes, shownDefault, nil
 }
 
 func loadDDS(getResource GetResourceFunc, fileName stingray.Hash) (*dds.DDS, error) {
@@ -532,8 +598,8 @@ func (pv *UnitPreviewState) AcquireNamedTextureOrDefault(name stingray.Hash, def
 	return &toReturn, nil
 }
 
-func (pv *UnitPreviewState) useBasicMaterial(getResource GetResourceFunc, info *unit.Info, mesh unit.Mesh, group int, mat *material.Material) error {
-	err := pv.object.materials[group].generate(
+func (pv *UnitPreviewState) useBasicMaterial(getResource GetResourceFunc, info *unit.Info, mesh unit.Mesh, object *unitPreviewObject, group int, mat *material.Material) error {
+	err := object.materials[group].generate(
 		[]string{"shaders/object.vert", "shaders/object.frag"},
 		2,
 		append(baseUniforms, "texAlbedo", "texNormal", "shouldReconstructNormalZ"),
@@ -542,9 +608,9 @@ func (pv *UnitPreviewState) useBasicMaterial(getResource GetResourceFunc, info *
 		return err
 	}
 
-	gl.UseProgram(pv.object.materials[group].program)
-	gl.Uniform1i(pv.object.materials[group].uniforms["texAlbedo"], 0)
-	gl.Uniform1i(pv.object.materials[group].uniforms["texNormal"], 1)
+	gl.UseProgram(object.materials[group].program)
+	gl.Uniform1i(object.materials[group].uniforms["texAlbedo"], 0)
+	gl.Uniform1i(object.materials[group].uniforms["texNormal"], 1)
 	gl.UseProgram(0)
 
 	// Upload object texture
@@ -586,24 +652,24 @@ func (pv *UnitPreviewState) useBasicMaterial(getResource GetResourceFunc, info *
 		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_SWIZZLE_A, gl.ONE)
 		gl.BindTexture(gl.TEXTURE_2D, 0)
 	}
-	pv.object.materials[group].textures[0] = *albedoTexture
+	object.materials[group].textures[0] = *albedoTexture
 
 	normalTexture, err := pv.AcquireNamedTextureOrDefault(normalTexFileName, []byte{128, 128, 255, 128}, getResource)
 	if err != nil {
 		return err
 	}
-	pv.object.materials[group].textures[1] = *normalTexture
+	object.materials[group].textures[1] = *normalTexture
 
-	pv.object.materials[group].textures[0].target = gl.TEXTURE_2D
-	pv.object.materials[group].textures[1].target = gl.TEXTURE_2D
+	object.materials[group].textures[0].target = gl.TEXTURE_2D
+	object.materials[group].textures[1].target = gl.TEXTURE_2D
 
-	gl.UseProgram(pv.object.materials[group].program)
+	gl.UseProgram(object.materials[group].program)
 	if reconstructNormalZ {
-		gl.Uniform1i(pv.object.materials[group].uniforms["shouldReconstructNormalZ"], 1)
+		gl.Uniform1i(object.materials[group].uniforms["shouldReconstructNormalZ"], 1)
 	} else {
-		gl.Uniform1i(pv.object.materials[group].uniforms["shouldReconstructNormalZ"], 0)
+		gl.Uniform1i(object.materials[group].uniforms["shouldReconstructNormalZ"], 0)
 	}
-	gl.Uniform1i(pv.object.materials[group].uniforms["hasVisibilityMasks"], 0)
+	gl.Uniform1i(object.materials[group].uniforms["hasVisibilityMasks"], 0)
 	gl.UseProgram(0)
 	return nil
 }
@@ -727,8 +793,8 @@ func getTextureLoaderFunc(getResource GetResourceFunc, nameHash stingray.Hash, t
 	}
 }
 
-func (pv *UnitPreviewState) useLUTMaterial(getResource GetResourceFunc, info *unit.Info, mesh unit.Mesh, group int, mat *material.Material, lookupThinHash func(stingray.ThinHash) string) error {
-	err := pv.object.materials[group].generate(
+func (pv *UnitPreviewState) useLUTMaterial(getResource GetResourceFunc, info *unit.Info, mesh unit.Mesh, object *unitPreviewObject, group int, mat *material.Material, lookupThinHash func(stingray.ThinHash) string) error {
+	err := object.materials[group].generate(
 		[]string{"shaders/object.vert", "shaders/lut.frag"},
 		0,
 		append(baseUniforms, lutTextureNames...),
@@ -747,9 +813,7 @@ func (pv *UnitPreviewState) useLUTMaterial(getResource GetResourceFunc, info *un
 
 	var textureWaitGroup sync.WaitGroup
 	textureData := make([]TextureData, 0)
-	slotHashes := slices.SortedFunc(maps.Keys(mat.Textures), func(a, b stingray.ThinHash) int {
-		return a.Cmp(b)
-	})
+	slotHashes := slices.SortedFunc(maps.Keys(mat.Textures), stingray.ThinHash.Cmp)
 	for _, slotHash := range slotHashes {
 		slot := lookupThinHash(slotHash)
 		if !slices.Contains(lutTextureNames, slot) {
@@ -775,7 +839,7 @@ func (pv *UnitPreviewState) useLUTMaterial(getResource GetResourceFunc, info *un
 
 	textureWaitGroup.Wait()
 
-	gl.UseProgram(pv.object.materials[group].program)
+	gl.UseProgram(object.materials[group].program)
 	for _, data := range textureData {
 		textureId, created := pv.textureCache.Acquire(data.Name, data.Target)
 		texture := unitPreviewMaterialTexture{
@@ -807,20 +871,20 @@ func (pv *UnitPreviewState) useLUTMaterial(getResource GetResourceFunc, info *un
 			return err
 		}
 
-		gl.Uniform1i(pv.object.materials[group].uniforms[data.Slot], int32(len(pv.object.materials[group].textures)))
-		pv.object.materials[group].textures = append(pv.object.materials[group].textures, texture)
+		gl.Uniform1i(object.materials[group].uniforms[data.Slot], int32(len(object.materials[group].textures)))
+		object.materials[group].textures = append(object.materials[group].textures, texture)
 	}
 
 	for setting, value := range mat.Settings {
 		settingName := lookupThinHash(setting)
-		for _, block := range pv.object.materials[group].uniformBlocks {
+		for _, block := range object.materials[group].uniformBlocks {
 			if _, contains := block.uniformOffsets[settingName]; !contains {
 				continue
 			}
 			block.set(settingName, value)
 		}
 	}
-	for _, block := range pv.object.materials[group].uniformBlocks {
+	for _, block := range object.materials[group].uniformBlocks {
 		if _, contains := block.uniformOffsets["seed"]; contains {
 			block.set("seed", &seed)
 		}
@@ -875,18 +939,25 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 		return hash.String()
 	}
 
+	for name := range pv.objects {
+		pv.objects[name].deleteObjects(pv.textureCache)
+		pv.dbgObjs[name].deleteObjects(pv.textureCache)
+	}
+
 	if len(info.MeshInfos) == 0 && len(info.TerrainInfos) == 0 && info.GeometryGroup.Value == 0x0 {
 		return fmt.Errorf("unit contains no meshes")
 	}
 
-	var mesh unit.Mesh
+	pv.objects = make(map[string]unitPreviewObject) //len(info.MeshInfos) + len(info.TerrainInfos))
+
+	var meshes map[string]unit.Mesh
 	if len(info.MeshInfos) > 0 {
-		mesh, err = pv.loadMesh(info.MeshInfos, info.MeshLayouts, gpuData)
+		meshes, pv.objectsShownDefault, err = pv.loadMeshes(lookupThinHash, info.MeshInfos, info.MeshLayouts, gpuData)
 		if err != nil {
 			return err
 		}
 	} else if len(info.TerrainInfos) > 0 {
-		mesh, err = unit.LoadTerrain(info.TerrainInfos[0])
+		mesh, err := unit.LoadTerrain(info.TerrainInfos[0])
 		if err != nil {
 			return err
 		}
@@ -897,6 +968,8 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 			mesh.Tangents[i] = terrainConversionMatrix.Mul4x1(mgl32.Vec4(mesh.Tangents[i]))
 			mesh.Bitangents[i] = terrainConversionMatrix.Mul4x1(mgl32.Vec3(mesh.Bitangents[i]).Vec4(1)).Vec3()
 		}
+		meshes["terrain"] = mesh
+		pv.objectsShownDefault = map[string]bool{"terrain": true}
 	}
 	if info.GeometryGroup.Value != 0x0 {
 		geoID := stingray.NewFileID(info.GeometryGroup, stingray.Sum("geometry_group"))
@@ -931,151 +1004,155 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 		} else if err != nil {
 			return fmt.Errorf("failed to load %v.geometry_group gpu data: %v", info.GeometryGroup.String(), err)
 		}
-		mesh, err = pv.loadMesh(meshInfos, geoGroup.MeshLayouts, geoGPU)
+		meshes, pv.objectsShownDefault, err = pv.loadMeshes(lookupThinHash, meshInfos, geoGroup.MeshLayouts, geoGPU)
 		if err != nil {
 			return err
 		}
 	}
-	{
-		pv.aabb = [2]mgl32.Vec3{mesh.Info.Header.AABB.Min, mesh.Info.Header.AABB.Max}
-		pv.aabbMat = info.Bones[mesh.Info.Header.AABBTransformIndex].Matrix
-	}
+	pv.objectsShown = pv.objectsShownDefault
+	pv.aabb = make(map[string][2]mgl32.Vec3)
+	pv.aabbMat = make(map[string]mgl32.Mat4, 0)
+	for name, mesh := range meshes {
+		pv.aabb[name] = [2]mgl32.Vec3{mesh.Info.Header.AABB.Min, mesh.Info.Header.AABB.Max}
+		pv.aabbMat[name] = info.Bones[mesh.Info.Header.AABBTransformIndex].Matrix
 
-	if len(mesh.Positions) == 0 {
-		return fmt.Errorf("mesh contains no positions")
-	}
-	if len(mesh.Normals) == 0 {
-		return fmt.Errorf("mesh contains no normals")
-	}
-	if len(mesh.UVCoords) == 0 || len(mesh.UVCoords[0]) == 0 {
-		return fmt.Errorf("mesh contains no UV coordinates")
-	}
-
-	// Create index buffers
-	{
-		if len(pv.object.ibos) != 0 {
-			gl.DeleteBuffers(int32(len(pv.object.ibos)), &pv.object.ibos[0])
+		if len(mesh.Positions) == 0 {
+			return fmt.Errorf("mesh contains no positions")
 		}
-		pv.object.ibos = make([]uint32, len(mesh.Indices))
-		gl.GenBuffers(int32(len(pv.object.ibos)), &pv.object.ibos[0])
-
-		for idx := range pv.object.materials {
-			// release textures and delete shaders from old materials
-			pv.object.materials[idx].delete(pv.textureCache)
+		if len(mesh.Normals) == 0 {
+			return fmt.Errorf("mesh contains no normals")
 		}
-		pv.object.numIndices = make([]int32, len(mesh.Indices))
-		pv.object.materials = make([]unitPreviewMaterial, len(mesh.Indices))
-		for group := range pv.object.materials {
-			mat, err := loadMaterial(getResource, info, mesh, group)
-			if err == nil && isLUTMaterial(mat) {
-				if err := pv.useLUTMaterial(getResource, info, mesh, group, mat, lookupThinHash); err == nil {
-					continue
-				} else {
-					fmt.Printf("got error when enabling lut material: %v\n", err)
+		if len(mesh.UVCoords) == 0 || len(mesh.UVCoords[0]) == 0 {
+			return fmt.Errorf("mesh contains no UV coordinates")
+		}
+
+		object := unitPreviewObject{}
+
+		// Create index buffers
+		{
+			object.genObjects(true, 0)
+			object.ibos = make([]uint32, len(mesh.Indices))
+			gl.GenBuffers(int32(len(object.ibos)), &object.ibos[0])
+
+			for idx := range object.materials {
+				// release textures and delete shaders from old materials
+				object.materials[idx].delete(pv.textureCache)
+			}
+			object.numIndices = make([]int32, len(mesh.Indices))
+			object.materials = make([]unitPreviewMaterial, len(mesh.Indices))
+			for group := range object.materials {
+				mat, err := loadMaterial(getResource, info, mesh, group)
+				if err == nil && isLUTMaterial(mat) {
+					if err := pv.useLUTMaterial(getResource, info, mesh, &object, group, mat, lookupThinHash); err == nil {
+						continue
+					} else {
+						fmt.Printf("got error when enabling lut material: %v\n", err)
+					}
+					// fall back to basic material if the lut material fails to load
 				}
-				// fall back to basic material if the lut material fails to load
-			}
-			if err := pv.useBasicMaterial(getResource, info, mesh, group, mat); err != nil {
-				return err
-			}
-		}
-	}
-
-	if len(mesh.Positions) != len(mesh.UVCoords[0]) {
-		return errors.New("expected positions and UVs to have the same length")
-	}
-
-	pv.object.numVertices = int32(len(mesh.Positions))
-
-	// Upload object data
-	{
-		gl.BindVertexArray(pv.object.vao)
-
-		positionsSize := len(mesh.Positions) * 3 * 4
-		normalsSize := len(mesh.Normals) * 3 * 4
-		uvsSize := len(mesh.UVCoords[0]) * 2 * 4
-		tangentsSize := len(mesh.Tangents) * 4 * 4
-		bitangentsSize := len(mesh.Bitangents) * 3 * 4
-		udimsSize := len(mesh.Udims) * 4
-
-		gl.BindBuffer(gl.ARRAY_BUFFER, pv.object.vbo)
-		gl.BufferData(gl.ARRAY_BUFFER, positionsSize+normalsSize+uvsSize*min(len(mesh.UVCoords), 3)+tangentsSize+bitangentsSize+udimsSize, nil, gl.STATIC_DRAW)
-		offset := 0
-		//
-		gl.BufferSubData(gl.ARRAY_BUFFER, offset, positionsSize, gl.Ptr(mesh.Positions))
-		gl.VertexAttribPointerWithOffset(0, 3, gl.FLOAT, false, 3*4, uintptr(offset))
-		gl.EnableVertexAttribArray(0)
-		offset += positionsSize
-		//
-		gl.BufferSubData(gl.ARRAY_BUFFER, offset, normalsSize, gl.Ptr(mesh.Normals))
-		gl.VertexAttribPointerWithOffset(1, 3, gl.FLOAT, true, 3*4, uintptr(offset))
-		gl.EnableVertexAttribArray(1)
-		offset += normalsSize
-		//
-		gl.BufferSubData(gl.ARRAY_BUFFER, offset, uvsSize, gl.Ptr(mesh.UVCoords[0]))
-		gl.VertexAttribPointerWithOffset(2, 2, gl.FLOAT, false, 2*4, uintptr(offset))
-		gl.EnableVertexAttribArray(2)
-		offset += uvsSize
-		//
-		gl.BufferSubData(gl.ARRAY_BUFFER, offset, tangentsSize, gl.Ptr(mesh.Tangents))
-		gl.VertexAttribPointerWithOffset(3, 3, gl.FLOAT, true, 4*4, uintptr(offset))
-		gl.EnableVertexAttribArray(3)
-		offset += tangentsSize
-		//
-		gl.BufferSubData(gl.ARRAY_BUFFER, offset, bitangentsSize, gl.Ptr(mesh.Bitangents))
-		gl.VertexAttribPointerWithOffset(4, 3, gl.FLOAT, true, 3*4, uintptr(offset))
-		gl.EnableVertexAttribArray(4)
-		offset += bitangentsSize
-		//
-		if len(mesh.UVCoords) >= 3 {
-			for layer, uvcoords := range mesh.UVCoords[1:3] {
-				index := uint32(5 + layer)
-				uvsSize := len(uvcoords) * 2 * 4
-				fmt.Printf("size %v offset %v index %v\n", uvsSize, offset, index)
-				gl.BufferSubData(gl.ARRAY_BUFFER, offset, uvsSize, gl.Ptr(uvcoords))
-				gl.VertexAttribPointerWithOffset(index, 2, gl.FLOAT, false, 2*4, uintptr(offset))
-				gl.EnableVertexAttribArray(index)
-				offset += uvsSize
+				if err := pv.useBasicMaterial(getResource, info, mesh, &object, group, mat); err != nil {
+					return err
+				}
 			}
 		}
-		gl.BufferSubData(gl.ARRAY_BUFFER, offset, udimsSize, gl.Ptr(mesh.Udims))
-		gl.VertexAttribPointerWithOffset(7, 1, gl.FLOAT, true, 4, uintptr(offset))
-		gl.EnableVertexAttribArray(7)
-		offset += udimsSize
 
-		pv.object.numIndices = make([]int32, len(mesh.Indices))
-		for group, indices := range mesh.Indices {
-			gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, pv.object.ibos[group])
-			gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, len(indices)*4, gl.Ptr(indices), gl.STATIC_DRAW)
-			pv.object.numIndices[group] = int32(len(indices))
+		if len(mesh.Positions) != len(mesh.UVCoords[0]) {
+			return errors.New("expected positions and UVs to have the same length")
 		}
 
-		gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, 0)
-		gl.BindBuffer(gl.ARRAY_BUFFER, 0)
-		gl.BindVertexArray(0)
+		object.numVertices = int32(len(mesh.Positions))
+
+		// Upload object data
+		{
+			gl.BindVertexArray(object.vao)
+
+			positionsSize := len(mesh.Positions) * 3 * 4
+			normalsSize := len(mesh.Normals) * 3 * 4
+			uvsSize := len(mesh.UVCoords[0]) * 2 * 4
+			tangentsSize := len(mesh.Tangents) * 4 * 4
+			bitangentsSize := len(mesh.Bitangents) * 3 * 4
+			udimsSize := len(mesh.Udims) * 4
+
+			gl.BindBuffer(gl.ARRAY_BUFFER, object.vbo)
+			gl.BufferData(gl.ARRAY_BUFFER, positionsSize+normalsSize+uvsSize*min(len(mesh.UVCoords), 3)+tangentsSize+bitangentsSize+udimsSize, nil, gl.STATIC_DRAW)
+			offset := 0
+			//
+			gl.BufferSubData(gl.ARRAY_BUFFER, offset, positionsSize, gl.Ptr(mesh.Positions))
+			gl.VertexAttribPointerWithOffset(0, 3, gl.FLOAT, false, 3*4, uintptr(offset))
+			gl.EnableVertexAttribArray(0)
+			offset += positionsSize
+			//
+			gl.BufferSubData(gl.ARRAY_BUFFER, offset, normalsSize, gl.Ptr(mesh.Normals))
+			gl.VertexAttribPointerWithOffset(1, 3, gl.FLOAT, true, 3*4, uintptr(offset))
+			gl.EnableVertexAttribArray(1)
+			offset += normalsSize
+			//
+			gl.BufferSubData(gl.ARRAY_BUFFER, offset, uvsSize, gl.Ptr(mesh.UVCoords[0]))
+			gl.VertexAttribPointerWithOffset(2, 2, gl.FLOAT, false, 2*4, uintptr(offset))
+			gl.EnableVertexAttribArray(2)
+			offset += uvsSize
+			//
+			gl.BufferSubData(gl.ARRAY_BUFFER, offset, tangentsSize, gl.Ptr(mesh.Tangents))
+			gl.VertexAttribPointerWithOffset(3, 3, gl.FLOAT, true, 4*4, uintptr(offset))
+			gl.EnableVertexAttribArray(3)
+			offset += tangentsSize
+			//
+			gl.BufferSubData(gl.ARRAY_BUFFER, offset, bitangentsSize, gl.Ptr(mesh.Bitangents))
+			gl.VertexAttribPointerWithOffset(4, 3, gl.FLOAT, true, 3*4, uintptr(offset))
+			gl.EnableVertexAttribArray(4)
+			offset += bitangentsSize
+			//
+			if len(mesh.UVCoords) >= 3 {
+				for layer, uvcoords := range mesh.UVCoords[1:3] {
+					index := uint32(5 + layer)
+					uvsSize := len(uvcoords) * 2 * 4
+					fmt.Printf("size %v offset %v index %v\n", uvsSize, offset, index)
+					gl.BufferSubData(gl.ARRAY_BUFFER, offset, uvsSize, gl.Ptr(uvcoords))
+					gl.VertexAttribPointerWithOffset(index, 2, gl.FLOAT, false, 2*4, uintptr(offset))
+					gl.EnableVertexAttribArray(index)
+					offset += uvsSize
+				}
+			}
+			gl.BufferSubData(gl.ARRAY_BUFFER, offset, udimsSize, gl.Ptr(mesh.Udims))
+			gl.VertexAttribPointerWithOffset(7, 1, gl.FLOAT, true, 4, uintptr(offset))
+			gl.EnableVertexAttribArray(7)
+			offset += udimsSize
+
+			object.numIndices = make([]int32, len(mesh.Indices))
+			for group, indices := range mesh.Indices {
+				gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, object.ibos[group])
+				gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, len(indices)*4, gl.Ptr(indices), gl.STATIC_DRAW)
+				object.numIndices[group] = int32(len(indices))
+			}
+
+			gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, 0)
+			gl.BindBuffer(gl.ARRAY_BUFFER, 0)
+		}
+
+		pv.meshPositions = mesh.Positions
+		pv.meshNormals = mesh.Normals
+		pv.objects[name] = object
+
+		// Upload debug object data
+		{
+			dbgObj := unitPreviewObject{}
+			dbgObj.genObjects(false, 1)
+			gl.BindVertexArray(dbgObj.vao)
+
+			verts := pv.getAABBVertices(name)
+			gl.BindBuffer(gl.ARRAY_BUFFER, dbgObj.vbo)
+			defer gl.BindBuffer(gl.ARRAY_BUFFER, 0)
+			gl.BufferData(gl.ARRAY_BUFFER, len(verts)*3*4, gl.Ptr(verts[:]), gl.STATIC_DRAW)
+
+			dbgObj.numIndices[0] = int32(len(aabbIndices))
+			dbgObj.numVertices = int32(len(verts))
+			gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, int(dbgObj.numIndices[0]*4), gl.Ptr(aabbIndices[:]), gl.STATIC_DRAW)
+
+			gl.VertexAttribPointer(0, 3, gl.FLOAT, false, 3*4, nil)
+			gl.EnableVertexAttribArray(0)
+		}
 	}
-
-	pv.meshPositions = mesh.Positions
-	pv.meshNormals = mesh.Normals
-
-	// Upload debug object data
-	{
-		gl.BindVertexArray(pv.dbgObj.vao)
-
-		verts := pv.getAABBVertices()
-		gl.BindBuffer(gl.ARRAY_BUFFER, pv.dbgObj.vbo)
-		defer gl.BindBuffer(gl.ARRAY_BUFFER, 0)
-		gl.BufferData(gl.ARRAY_BUFFER, len(verts)*3*4, gl.Ptr(verts[:]), gl.STATIC_DRAW)
-
-		pv.dbgObj.numIndices[0] = int32(len(aabbIndices))
-		pv.dbgObj.numVertices = int32(len(verts))
-		gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, int(pv.dbgObj.numIndices[0]*4), gl.Ptr(aabbIndices[:]), gl.STATIC_DRAW)
-
-		gl.VertexAttribPointer(0, 3, gl.FLOAT, false, 3*4, nil)
-		gl.EnableVertexAttribArray(0)
-
-		gl.BindVertexArray(0)
-	}
+	gl.BindVertexArray(0)
 
 	pv.model = stingrayToGLCoords
 
@@ -1119,10 +1196,12 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 		visibilityMask, ok = visibilityMasks[entityHash]
 	}
 	if ok {
-		for _, material := range pv.object.materials {
-			gl.UseProgram(material.program)
-			gl.Uniform1ui(material.uniforms["hasVisibilityMasks"], 1)
-			gl.UseProgram(0)
+		for idx := range pv.objects {
+			for _, material := range pv.objects[idx].materials {
+				gl.UseProgram(material.program)
+				gl.Uniform1ui(material.uniforms["hasVisibilityMasks"], 1)
+				gl.UseProgram(0)
+			}
 		}
 		gl.UseProgram(pv.wireframeMaterial.program)
 		gl.Uniform1ui(pv.wireframeMaterial.uniforms["hasVisibilityMasks"], 1)
@@ -1212,16 +1291,16 @@ var aabbIndices = [12 * 3]uint32{
 	0, 5, 1,
 }
 
-func (pv *UnitPreviewState) getAABBVertices() [8]mgl32.Vec3 {
+func (pv *UnitPreviewState) getAABBVertices(name string) [8]mgl32.Vec3 {
 	return [8]mgl32.Vec3{
-		{pv.aabb[0][0], pv.aabb[0][1], pv.aabb[0][2]},
-		{pv.aabb[0][0], pv.aabb[0][1], pv.aabb[1][2]},
-		{pv.aabb[0][0], pv.aabb[1][1], pv.aabb[0][2]},
-		{pv.aabb[0][0], pv.aabb[1][1], pv.aabb[1][2]},
-		{pv.aabb[1][0], pv.aabb[0][1], pv.aabb[0][2]},
-		{pv.aabb[1][0], pv.aabb[0][1], pv.aabb[1][2]},
-		{pv.aabb[1][0], pv.aabb[1][1], pv.aabb[0][2]},
-		{pv.aabb[1][0], pv.aabb[1][1], pv.aabb[1][2]},
+		{pv.aabb[name][0][0], pv.aabb[name][0][1], pv.aabb[name][0][2]},
+		{pv.aabb[name][0][0], pv.aabb[name][0][1], pv.aabb[name][1][2]},
+		{pv.aabb[name][0][0], pv.aabb[name][1][1], pv.aabb[name][0][2]},
+		{pv.aabb[name][0][0], pv.aabb[name][1][1], pv.aabb[name][1][2]},
+		{pv.aabb[name][1][0], pv.aabb[name][0][1], pv.aabb[name][0][2]},
+		{pv.aabb[name][1][0], pv.aabb[name][0][1], pv.aabb[name][1][2]},
+		{pv.aabb[name][1][0], pv.aabb[name][1][1], pv.aabb[name][0][2]},
+		{pv.aabb[name][1][0], pv.aabb[name][1][1], pv.aabb[name][1][2]},
 	}
 }
 
@@ -1234,9 +1313,14 @@ func sum(s []int32) (result int32) {
 }
 
 func UnitPreview(name string, pv *UnitPreviewState) {
-	if len(pv.object.ibos) == 0 {
+	if len(pv.objects) == 0 {
 		return
 	}
+	// for idx := range pv.objects {
+	// 	if len(pv.objects[idx].ibos) == 0 {
+	// 		return
+	// 	}
+	// }
 
 	imgui.PushIDStr(name)
 	defer imgui.PopID()
@@ -1301,35 +1385,40 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 
 			// Draw object
 			gl.Enable(gl.DEPTH_TEST)
-			gl.BindVertexArray(pv.object.vao)
-			if pv.showWireframe {
-				gl.UseProgram(pv.wireframeMaterial.program)
-				gl.UniformMatrix4fv(pv.wireframeMaterial.uniforms["mvp"], 1, false, &mvp[0])
-				gl.Uniform4fv(pv.wireframeMaterial.uniforms["color"], 1, &pv.wireframeColor[0])
-				gl.Uniform1iv(pv.wireframeMaterial.uniforms["udimShown"], 64, &pv.udimsShown[0])
-			}
-			for group, ibo := range pv.object.ibos {
-				if !pv.showWireframe {
-					gl.UseProgram(pv.object.materials[group].program)
-					gl.UniformMatrix4fv(pv.object.materials[group].uniforms["mvp"], 1, false, &mvp[0])
-					gl.UniformMatrix4fv(pv.object.materials[group].uniforms["model"], 1, false, &pv.model[0])
-					gl.UniformMatrix3fv(pv.object.materials[group].uniforms["normalMat"], 1, false, &normal[0])
-					gl.Uniform3fv(pv.object.materials[group].uniforms["viewPosition"], 1, &viewPosition[0])
-					gl.Uniform1iv(pv.object.materials[group].uniforms["udimShown"], 64, &pv.udimsShown[0])
-					for _, uniformBlock := range pv.object.materials[group].uniformBlocks {
-						gl.BindBufferBase(gl.UNIFORM_BUFFER, uniformBlock.binding, uniformBlock.ubo)
-					}
-					for idx, texture := range pv.object.materials[group].textures {
-						gl.ActiveTexture(gl.TEXTURE0 + uint32(idx))
-						gl.BindTexture(texture.target, texture.id)
-						glError := gl.GetError()
-						if glError != 0 {
-							fmt.Printf("[error] binding texture %v (%v) in group %v as target %v generated error %v\n", texture.name.String(), texture.id, group, glutils.GLTarget(texture.target).String(), glutils.GLError(glError).String())
+			for name := range pv.objects {
+				if shown, contains := pv.objectsShown[name]; contains && !shown {
+					continue
+				}
+				gl.BindVertexArray(pv.objects[name].vao)
+				if pv.showWireframe {
+					gl.UseProgram(pv.wireframeMaterial.program)
+					gl.UniformMatrix4fv(pv.wireframeMaterial.uniforms["mvp"], 1, false, &mvp[0])
+					gl.Uniform4fv(pv.wireframeMaterial.uniforms["color"], 1, &pv.wireframeColor[0])
+					gl.Uniform1iv(pv.wireframeMaterial.uniforms["udimShown"], 64, &pv.udimsShown[0])
+				}
+				for group, ibo := range pv.objects[name].ibos {
+					if !pv.showWireframe {
+						gl.UseProgram(pv.objects[name].materials[group].program)
+						gl.UniformMatrix4fv(pv.objects[name].materials[group].uniforms["mvp"], 1, false, &mvp[0])
+						gl.UniformMatrix4fv(pv.objects[name].materials[group].uniforms["model"], 1, false, &pv.model[0])
+						gl.UniformMatrix3fv(pv.objects[name].materials[group].uniforms["normalMat"], 1, false, &normal[0])
+						gl.Uniform3fv(pv.objects[name].materials[group].uniforms["viewPosition"], 1, &viewPosition[0])
+						gl.Uniform1iv(pv.objects[name].materials[group].uniforms["udimShown"], 64, &pv.udimsShown[0])
+						for _, uniformBlock := range pv.objects[name].materials[group].uniformBlocks {
+							gl.BindBufferBase(gl.UNIFORM_BUFFER, uniformBlock.binding, uniformBlock.ubo)
+						}
+						for idx, texture := range pv.objects[name].materials[group].textures {
+							gl.ActiveTexture(gl.TEXTURE0 + uint32(idx))
+							gl.BindTexture(texture.target, texture.id)
+							glError := gl.GetError()
+							if glError != 0 {
+								fmt.Printf("[error] binding texture %v (%v) in group %v as target %v generated error %v\n", texture.name.String(), texture.id, group, glutils.GLTarget(texture.target).String(), glutils.GLError(glError).String())
+							}
 						}
 					}
+					gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo)
+					gl.DrawElements(gl.TRIANGLES, pv.objects[name].numIndices[group], gl.UNSIGNED_INT, nil)
 				}
-				gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo)
-				gl.DrawElements(gl.TRIANGLES, pv.object.numIndices[group], gl.UNSIGNED_INT, nil)
 			}
 			gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, 0)
 			gl.BindBuffer(gl.UNIFORM_BUFFER, 0)
@@ -1341,15 +1430,20 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 
 			// Draw normal visualization
 			if pv.visualizeNormals {
-				gl.UseProgram(pv.normalVisMaterial.program)
-				gl.BindVertexArray(pv.object.vao)
-				gl.UniformMatrix4fv(pv.normalVisMaterial.uniforms["mvp"], 1, false, &mvp[0])
-				gl.Uniform1f(pv.normalVisMaterial.uniforms["len"], pv.viewDistance*0.02)
-				gl.Uniform1iv(pv.normalVisMaterial.uniforms["showTangentBitangent"], 1, &pv.visualizeTangentBitangent)
-				gl.Uniform1iv(pv.normalVisMaterial.uniforms["udimShown"], 64, &pv.udimsShown[0])
-				for group, ibo := range pv.object.ibos {
-					gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo)
-					gl.DrawElements(gl.POINTS, pv.object.numIndices[group], gl.UNSIGNED_INT, nil)
+				for name := range pv.objects {
+					if shown, contains := pv.objectsShown[name]; contains && !shown {
+						continue
+					}
+					gl.UseProgram(pv.normalVisMaterial.program)
+					gl.BindVertexArray(pv.objects[name].vao)
+					gl.UniformMatrix4fv(pv.normalVisMaterial.uniforms["mvp"], 1, false, &mvp[0])
+					gl.Uniform1f(pv.normalVisMaterial.uniforms["len"], pv.viewDistance*0.02)
+					gl.Uniform1iv(pv.normalVisMaterial.uniforms["showTangentBitangent"], 1, &pv.visualizeTangentBitangent)
+					gl.Uniform1iv(pv.normalVisMaterial.uniforms["udimShown"], 64, &pv.udimsShown[0])
+					for group, ibo := range pv.objects[name].ibos {
+						gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo)
+						gl.DrawElements(gl.POINTS, pv.objects[name].numIndices[group], gl.UNSIGNED_INT, nil)
+					}
 				}
 				gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, 0) // TODO: Make this not draw duplicate vertices
 				gl.BindVertexArray(0)
@@ -1360,13 +1454,18 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 			if pv.showAABB {
 				gl.Disable(gl.DEPTH_TEST)
 				gl.UseProgram(pv.dbgObjProgram)
-				gl.BindVertexArray(pv.dbgObj.vao)
-				{
-					aabbMVP := mvp.Mul4(pv.aabbMat)
-					gl.UniformMatrix4fv(pv.dbgObjUniforms["mvp"], 1, false, &aabbMVP[0])
-				}
 				gl.Uniform4fv(pv.dbgObjUniforms["color"], 1, &pv.aabbColor[0])
-				gl.DrawElements(gl.TRIANGLES, pv.dbgObj.numIndices[0], gl.UNSIGNED_INT, nil)
+				for name := range pv.dbgObjs {
+					if shown, contains := pv.objectsShown[name]; contains && !shown {
+						continue
+					}
+					gl.BindVertexArray(pv.dbgObjs[name].vao)
+					{
+						aabbMVP := mvp.Mul4(pv.aabbMat[name])
+						gl.UniformMatrix4fv(pv.dbgObjUniforms["mvp"], 1, false, &aabbMVP[0])
+					}
+					gl.DrawElements(gl.TRIANGLES, pv.dbgObjs[name].numIndices[0], gl.UNSIGNED_INT, nil)
+				}
 				gl.BindVertexArray(0)
 				gl.UseProgram(0)
 			}
@@ -1555,10 +1654,15 @@ func UnitPreview(name string, pv *UnitPreviewState) {
 	if imgui.BeginPopup("Debug info") {
 		imgui.TextUnformatted("Mesh info")
 		imgui.Indent()
-		indexCount := sum(pv.object.numIndices)
-		imutils.Textf("Indices: %v", indexCount)
-		imutils.Textf("Vertices: %v", pv.object.numVertices)
-		imutils.Textf("Triangles: %v", indexCount/3)
+		var numVertices, numIndices int = 0, 0
+		for idx := range pv.objects {
+			numVertices += int(pv.objects[idx].numVertices)
+			indexCount := sum(pv.objects[idx].numIndices)
+			numIndices += int(indexCount)
+		}
+		imutils.Textf("Indices: %v", numIndices)
+		imutils.Textf("Vertices: %v", numVertices)
+		imutils.Textf("Triangles: %v", numIndices/3)
 		imgui.Unindent()
 
 		imgui.Separator()

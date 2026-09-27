@@ -1153,7 +1153,7 @@ func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gl
 				//   * Separate UDIMs
 				var meshHeader unit.MeshHeader
 				for _, meshInfo := range unitInfo.MeshInfos {
-					if meshInfo.Header.GroupBoneHash == unitInfo.GroupBones[i] {
+					if meshInfo.Header.MeshName == unitInfo.GroupBones[i] {
 						meshHeader = meshInfo.Header
 						break
 					}

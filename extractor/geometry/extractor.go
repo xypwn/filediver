@@ -1098,7 +1098,7 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, me
 			var transformBoneIdxMesh int32 = -1
 			var meshHeader unit.MeshHeader
 			for _, meshInfo := range unitInfo.MeshInfos {
-				if meshInfo.Header.GroupBoneHash == bones[i] {
+				if meshInfo.Header.MeshName == bones[i] {
 					transformBoneIdxMesh = int32(meshInfo.Header.TransformIdx)
 					meshHeader = meshInfo.Header
 					break

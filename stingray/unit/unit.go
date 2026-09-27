@@ -473,7 +473,7 @@ type MeshHeader struct {
 	AABB
 	UnkFloat00         float32
 	MeshType           MeshHeaderType
-	GroupBoneHash      stingray.ThinHash
+	MeshName           stingray.ThinHash
 	AABBTransformIndex uint32
 	TransformIdx       uint32
 	UnkInt03           uint32

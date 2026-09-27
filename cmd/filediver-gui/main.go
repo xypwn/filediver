@@ -655,9 +655,7 @@ func (a *guiApp) drawBrowserWindow() {
 							{Title: "Just exportable"},
 							{Title: "Not exportable"},
 						}
-						for _, typ := range slices.SortedFunc(maps.Keys(types), func(h1, h2 stingray.Hash) int {
-							return strings.Compare(a.gameData.LookupHash(h1), a.gameData.LookupHash(h2))
-						}) {
+						for _, typ := range slices.SortedFunc(maps.Keys(types), stingray.Hash.Cmp) {
 							var sectionIdx int
 							switch typ {
 							case // previewable and exportable
