@@ -963,7 +963,8 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 		return fmt.Errorf("unit contains no meshes")
 	}
 
-	pv.objects = make(map[string]unitPreviewObject) //len(info.MeshInfos) + len(info.TerrainInfos))
+	pv.objects = make(map[string]unitPreviewObject)
+	pv.dbgObjs = make(map[string]unitPreviewObject)
 
 	var meshes map[string]unit.Mesh
 	if len(info.MeshInfos) > 0 {
@@ -1164,10 +1165,13 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 
 			dbgObj.numIndices[0] = int32(len(aabbIndices))
 			dbgObj.numVertices = int32(len(verts))
+			gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, dbgObj.ibos[0])
+			defer gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, 0)
 			gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, int(dbgObj.numIndices[0]*4), gl.Ptr(aabbIndices[:]), gl.STATIC_DRAW)
 
 			gl.VertexAttribPointer(0, 3, gl.FLOAT, false, 3*4, nil)
 			gl.EnableVertexAttribArray(0)
+			pv.dbgObjs[name] = dbgObj
 		}
 	}
 	gl.BindVertexArray(0)
