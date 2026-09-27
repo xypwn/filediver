@@ -441,6 +441,7 @@ func (a *guiApp) onDraw(state *imgui_wrapper.State) {
 			imgui.InternalDockBuilderDockWindow(fnt.I.Tag+" Metadata", centerID)
 			imgui.InternalDockBuilderDockWindow(fnt.I.DisplaySettings+" Material Settings", bottomRightID)
 			imgui.InternalDockBuilderDockWindow(fnt.I.FolderEye+" Visibility Mask Selection", sideBarID)
+			imgui.InternalDockBuilderDockWindow(fnt.I.FolderEye+" Mesh Selection", sideBarID)
 			imgui.InternalDockBuilderFinish(id)
 			a.resetDockLayout = false
 		}

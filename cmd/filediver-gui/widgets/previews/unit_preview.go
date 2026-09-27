@@ -276,10 +276,12 @@ type UnitPreviewState struct {
 	detailerLoadState   DetailerLoadState
 	detailerTextureData TextureData
 
-	objects             map[string]unitPreviewObject
-	objectsShown        map[string]bool
-	objectsShownDefault map[string]bool
-	wireframeMaterial   unitPreviewMaterial
+	objects              map[string]unitPreviewObject
+	objectsShown         map[string]bool
+	objectsShownDefault  map[string]bool
+	objectsSelected      map[string]bool
+	objectsSettingsShown bool
+	wireframeMaterial    unitPreviewMaterial
 
 	normalVisMaterial unitPreviewMaterial
 
@@ -320,6 +322,9 @@ type UnitPreviewState struct {
 	// For dragging selection
 	activeUDimListItem  int32
 	hoveredUDimListItem int32
+
+	activeMeshListItem  int32
+	hoveredMeshListItem int32
 
 	showWireframe             bool
 	wireframeColor            [4]float32
@@ -413,6 +418,9 @@ func NewUnitPreview(getResource GetResourceFunc) (*UnitPreviewState, error) {
 
 	pv.activeUDimListItem = -1
 	pv.hoveredUDimListItem = -1
+
+	pv.activeMeshListItem = -1
+	pv.hoveredMeshListItem = -1
 
 	return pv, nil
 }
@@ -1015,7 +1023,8 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 			return err
 		}
 	}
-	pv.objectsShown = pv.objectsShownDefault
+	pv.objectsShown = maps.Clone(pv.objectsShownDefault)
+	pv.objectsSelected = maps.Clone(pv.objectsShownDefault)
 	pv.aabb = make(map[string][2]mgl32.Vec3)
 	pv.aabbMat = make(map[string]mgl32.Mat4, 0)
 	for name, mesh := range meshes {
@@ -1711,9 +1720,8 @@ func (pv *UnitPreviewState) Draw(name string) {
 	if imgui.Checkbox(fnt.I.AllOut+" Auto-zoom", &pv.autoZoomEnabled) && pv.autoZoomEnabled {
 		pv.doAutoZoomNextFrame = true
 	}
-	imgui.SameLine()
 
-	// UDim selection
+	imgui.SameLine()
 	imgui.BeginDisabledV(pv.numUdims <= 1)
 	label := "Visibility Masks Selection"
 	if pv.numUdims <= 1 || !pv.udimsSettingsShown {
@@ -1725,7 +1733,7 @@ func (pv *UnitPreviewState) Draw(name string) {
 		pv.udimsSettingsShown = !pv.udimsSettingsShown
 	}
 	if pv.numUdims <= 1 {
-		imgui.SetItemTooltip("Mesh has no visibility masks")
+		imgui.SetItemTooltip("Unit has no visibility masks")
 	}
 	imgui.EndDisabled()
 	if !pv.udimsSettingsShown || !pv.udimsSettingsDrawn {
@@ -1736,6 +1744,17 @@ func (pv *UnitPreviewState) Draw(name string) {
 				pv.udimsShown[i] = 0
 			}
 		}
+	}
+
+	imgui.SameLine()
+	label = "Mesh Selection"
+	if !pv.objectsSettingsShown {
+		label = "Show " + label
+	} else {
+		label = "Hide " + label
+	}
+	if imgui.Button(label) {
+		pv.objectsSettingsShown = !pv.objectsSettingsShown
 	}
 
 	if pv.animTime != -1 {
@@ -1752,6 +1771,9 @@ func (pv *UnitPreviewState) Draw(name string) {
 func (pv *UnitPreviewState) DrawSettings() {
 	if pv.udimsSettingsShown && pv.numUdims > 1 {
 		pv.drawVisibilityMaskSelector()
+	}
+	if pv.objectsSettingsShown {
+		pv.drawMeshSelector()
 	}
 }
 
@@ -1831,6 +1853,83 @@ Drag to toggle multiple items (right-click to cancel)`)
 		}
 		pv.activeUDimListItem = nextActiveUDimListItem
 		pv.hoveredUDimListItem = nextHoveredUDimListItem
+	}
+	imgui.End()
+}
+
+func (pv *UnitPreviewState) drawMeshSelector() {
+	if pv.udimsSettingsDrawn = imgui.BeginV(fnt.I.FolderEye+" Mesh Selection", &pv.udimsSettingsShown, imgui.WindowFlagsNoFocusOnAppearing); pv.udimsSettingsDrawn {
+		nextActiveMeshListItem := int32(-1)
+		nextHoveredMeshListItem := int32(-1)
+		if imgui.Button("Reset") {
+			pv.objectsSelected = pv.objectsShownDefault
+		}
+		imgui.Separator()
+		imgui.PushStyleVarVec2(imgui.StyleVarItemSpacing,
+			imgui.NewVec2(imgui.CurrentStyle().ItemSpacing().X, 0))
+		dragging := pv.activeMeshListItem != -1 && pv.hoveredMeshListItem != -1
+		var draggingMin, draggingMax int32
+		if dragging {
+			draggingMin = min(pv.activeMeshListItem, pv.hoveredMeshListItem)
+			draggingMax = max(pv.activeMeshListItem, pv.hoveredMeshListItem)
+		}
+		var draggingMinPos, draggingMaxPos imgui.Vec2
+		sortedObjectKeys := slices.Sorted(maps.Keys(pv.objects))
+		for i := range int32(len(pv.objects)) {
+			selected := pv.objectsSelected[sortedObjectKeys[i]]
+			if dragging {
+				if i >= draggingMin && i <= draggingMax {
+					selected = !selected
+				}
+				if imgui.IsMouseClickedBool(imgui.MouseButtonRight) {
+					imgui.CurrentContext().SetActiveId(0)
+				}
+			}
+			pv.objectsShown[sortedObjectKeys[i]] = selected
+			if imgui.IsMouseReleased(imgui.MouseButtonLeft) {
+				pv.objectsSelected[sortedObjectKeys[i]] = selected
+			}
+			var icon string
+			if selected {
+				icon = fnt.I.Visibility
+			} else {
+				icon = fnt.I.VisibilityOff
+			}
+			imgui.PushIDInt(i)
+			pos := imgui.CursorScreenPos()
+			size := imgui.NewVec2(imgui.ContentRegionAvail().X, imgui.FontSize())
+			if dragging {
+				if i == draggingMin {
+					draggingMinPos = pos
+				}
+				if i == draggingMax {
+					draggingMaxPos = pos.Add(size)
+				}
+			}
+			if selected {
+				imgui.WindowDrawList().AddRectFilled(pos, pos.Add(size), imgui.ColorU32Col(imgui.ColButton))
+			}
+			imutils.Textf(fmt.Sprintf("%s %s", icon, sortedObjectKeys[i]))
+			imgui.SetCursorScreenPos(pos)
+			imgui.SetNextItemAllowOverlap()
+			imgui.InvisibleButton("btn", size)
+			if imgui.IsItemActive() {
+				nextActiveMeshListItem = i
+			}
+			hovered := imgui.ItemStatusFlags(imgui.CurrentContext().LastItemData().CData.StatusFlags)&imgui.ItemStatusFlagsHoveredRect != 0
+			if hovered {
+				nextHoveredMeshListItem = i
+			}
+			imgui.SetItemTooltip(`Click to toggle item visibility
+Drag to toggle multiple items (right-click to cancel)`)
+			imgui.PopID()
+		}
+		imgui.PopStyleVar()
+		if dragging {
+			imgui.WindowDrawList().AddRectV(draggingMinPos, draggingMaxPos, imgui.ColorU32Col(imgui.ColButtonActive), 0, 0, imgui.DrawFlagsNone)
+		}
+		pv.activeMeshListItem = nextActiveMeshListItem
+		pv.hoveredMeshListItem = nextHoveredMeshListItem
 	}
 	imgui.End()
 }
