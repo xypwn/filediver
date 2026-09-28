@@ -1500,12 +1500,23 @@ func (pv *UnitPreviewState) Draw(name string) {
 					}
 					gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo)
 					gl.DrawElements(gl.TRIANGLES, pv.objects[name].numIndices[group], gl.UNSIGNED_INT, nil)
+					if !pv.showWireframe {
+						for idx, texture := range pv.objects[name].materials[group].textures {
+							gl.ActiveTexture(gl.TEXTURE0 + uint32(idx))
+							gl.BindTexture(texture.target, 0)
+							glError := gl.GetError()
+							if glError != 0 {
+								fmt.Printf("[error] unbinding texture %v (%v) in group %v as target %v generated error %v\n", texture.name.String(), texture.id, group, glutils.GLTarget(texture.target).String(), glutils.GLError(glError).String())
+							}
+						}
+					}
 				}
 			}
 			gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, 0)
 			gl.BindBuffer(gl.UNIFORM_BUFFER, 0)
 			gl.ActiveTexture(gl.TEXTURE0)
 			gl.BindTexture(gl.TEXTURE_2D, 0)
+			gl.BindTexture(gl.TEXTURE_2D_ARRAY, 0)
 			gl.BindVertexArray(0)
 			gl.UseProgram(0)
 			gl.PolygonMode(gl.FRONT_AND_BACK, gl.FILL)
