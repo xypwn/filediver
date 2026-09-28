@@ -300,6 +300,7 @@ type UnitPreviewState struct {
 	// Previous view distance and rotation (for view animation)
 	animOrigViewDistance float32
 	animOrigViewRotation mgl32.Vec2
+	animOrigModelPos     mgl32.Vec4
 	animTime             float32 // range [0;1], -1 when not animating
 
 	// Axis-aligned bounding box. Don't forget
@@ -418,6 +419,7 @@ func NewUnitPreview(getResource GetResourceFunc) (*UnitPreviewState, error) {
 	pv.vfov = mgl32.DegToRad(60)
 	pv.viewDistance = 25
 	pv.modelPos = mgl32.Vec4{0.0, 0.0, 0.0, 1.0}
+	pv.viewRotation = mgl32.Vec2{math.Pi, 0.0}
 
 	pv.wireframeColor = [4]float32{1.0, 1.0, 1.0, 0.5}
 	pv.skeletonColor = [4]float32{1.0, 0.5, 0.0, 0.5}
@@ -970,6 +972,8 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 		return fmt.Errorf("unit contains no meshes")
 	}
 
+	setModelPos := len(pv.objects) == 0
+
 	pv.objects = make(map[string]unitPreviewObject)
 	pv.dbgObjs = make(map[string]unitPreviewObject)
 
@@ -1295,11 +1299,21 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 	}
 	pv.udimsSelected = pv.udimsShownDefault
 
+	if setModelPos {
+		for name := range pv.objects {
+			if shown, contains := pv.objectsShown[name]; contains && !shown {
+				continue
+			}
+			pv.modelPos = pv.objects[name].matrix.Inv().Mul4x1(mgl32.Vec4{0, 0, 0, 1})
+			break
+		}
+	}
+
 	return nil
 }
 
 func (pv *UnitPreviewState) computeMVP(aspectRatio float32, animate bool) (
-	normal mgl32.Mat3,
+	modelPos mgl32.Vec4,
 	viewPosition mgl32.Vec3,
 	view mgl32.Mat4,
 	projection mgl32.Mat4,
@@ -1311,12 +1325,13 @@ func (pv *UnitPreviewState) computeMVP(aspectRatio float32, animate bool) (
 		// Animate -> lerp original to current by animTime
 		viewDistance = pv.animOrigViewDistance*(1-pv.animTime) + pv.viewDistance*pv.animTime
 		viewRotation = pv.animOrigViewRotation.Mul(1 - pv.animTime).Add(pv.viewRotation.Mul(pv.animTime))
+		modelPos = pv.animOrigModelPos.Mul(1 - pv.animTime).Add(pv.modelPos.Mul(pv.animTime))
 	} else {
 		viewDistance = pv.viewDistance
 		viewRotation = pv.viewRotation
+		modelPos = pv.modelPos
 	}
 
-	normal = pv.model.Inv().Transpose().Mat3()
 	{
 		mat := mgl32.Ident3()
 		mat = mat.Mul3(mgl32.Rotate3DY(viewRotation[0]))
@@ -1392,6 +1407,7 @@ func (pv *UnitPreviewState) Draw(name string) {
 	if pv.animTime == -1 || pv.animTime >= 1 {
 		pv.animOrigViewDistance = pv.viewDistance
 		pv.animOrigViewRotation = pv.viewRotation
+		pv.animOrigModelPos = pv.modelPos
 		pv.animTime = -1
 	}
 
@@ -1403,17 +1419,17 @@ func (pv *UnitPreviewState) Draw(name string) {
 				md := io.MouseDelta()
 				md4 := mgl32.Vec4{md.X, -md.Y, 0.0, 1.0}
 				if io.KeyShift() && md4.Vec2().LenSqr() > 0 {
-					_, _, view, projection := pv.computeMVP(viewSize.X/viewSize.Y, false)
+					modelPos, _, view, projection := pv.computeMVP(viewSize.X/viewSize.Y, false)
 					modelViewProj := projection.Mul4(view).Mul4(pv.model)
 					invModelViewProjection := modelViewProj.Inv()
 
-					projected := modelViewProj.Mul4x1(pv.modelPos.Vec3().Vec4(1.0))
+					projected := modelViewProj.Mul4x1(modelPos.Vec3().Vec4(1.0))
 					// Set depth to current model position
 					md4[2] = projected.Z() / projected.W()
 
 					positionDelta := invModelViewProjection.Mul4x1(md4)
 					positionDelta = positionDelta.Mul(1 / positionDelta.W())
-					pv.modelPos = pv.modelPos.Add(positionDelta.Mul(io.DeltaTime() / 2).Vec3().Vec4(0.0))
+					pv.modelPos = modelPos.Add(positionDelta.Mul(io.DeltaTime() / 2).Vec3().Vec4(0.0))
 				} else {
 					pv.viewRotation = pv.viewRotation.Add(mgl32.Vec2{md.X, md.Y}.Mul(-0.01))
 					pv.viewRotation[1] = mgl32.Clamp(pv.viewRotation[1], -1.55, 1.55)
@@ -1439,8 +1455,8 @@ func (pv *UnitPreviewState) Draw(name string) {
 			gl.ClearColor(0.2, 0.2, 0.2, 1)
 			gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 
-			normal, viewPosition, view, projection := pv.computeMVP(size.X/size.Y, true)
-			translation := mgl32.Translate3D(pv.modelPos.Vec3().Elem())
+			modelPos, viewPosition, view, projection := pv.computeMVP(size.X/size.Y, true)
+			translation := mgl32.Translate3D(modelPos.Vec3().Elem())
 			mvp := projection.Mul4(view).Mul4(pv.model.Mul4(translation))
 
 			// Draw object
@@ -1449,6 +1465,9 @@ func (pv *UnitPreviewState) Draw(name string) {
 				if shown, contains := pv.objectsShown[name]; contains && !shown {
 					continue
 				}
+				model := pv.model.Mul4(translation.Mul4(pv.objects[name].matrix))
+				mvp := projection.Mul4(view).Mul4(model)
+				normal := model.Inv().Transpose().Mat3()
 				gl.BindVertexArray(pv.objects[name].vao)
 				if pv.showWireframe {
 					gl.UseProgram(pv.wireframeMaterial.program)
@@ -1458,8 +1477,6 @@ func (pv *UnitPreviewState) Draw(name string) {
 				}
 				for group, ibo := range pv.objects[name].ibos {
 					if !pv.showWireframe {
-						model := pv.model.Mul4(translation.Mul4(pv.objects[name].matrix))
-						mvp := projection.Mul4(view).Mul4(model)
 						gl.UseProgram(pv.objects[name].materials[group].program)
 						gl.UniformMatrix4fv(pv.objects[name].materials[group].uniforms["mvp"], 1, false, &mvp[0])
 						gl.UniformMatrix4fv(pv.objects[name].materials[group].uniforms["model"], 1, false, &model[0])
@@ -1496,6 +1513,8 @@ func (pv *UnitPreviewState) Draw(name string) {
 					if shown, contains := pv.objectsShown[name]; contains && !shown {
 						continue
 					}
+					model := pv.model.Mul4(translation.Mul4(pv.objects[name].matrix))
+					mvp := projection.Mul4(view).Mul4(model)
 					gl.UseProgram(pv.normalVisMaterial.program)
 					gl.BindVertexArray(pv.objects[name].vao)
 					gl.UniformMatrix4fv(pv.normalVisMaterial.uniforms["mvp"], 1, false, &mvp[0])
@@ -1673,8 +1692,8 @@ func (pv *UnitPreviewState) Draw(name string) {
 
 			}
 
-			_, _, view, projection := pv.computeMVP(size.X/size.Y, false)
-			mvp := projection.Mul4(view).Mul4(pv.model)
+			modelPos, _, view, projection := pv.computeMVP(size.X/size.Y, false)
+			mvp := projection.Mul4(view).Mul4(pv.model.Mul4(mgl32.Translate3D(modelPos.Vec3().Elem())))
 
 			// Show hovered vertex info
 			if pv.visualizeNormals {
@@ -1719,8 +1738,15 @@ func (pv *UnitPreviewState) Draw(name string) {
 	)
 
 	if imgui.Button(fnt.I.Home) {
-		pv.viewRotation = mgl32.Vec2{}
+		pv.viewRotation = mgl32.Vec2{math.Pi, 0.0}
 		pv.modelPos = mgl32.Vec4{0, 0, 0, 1}
+		for name := range pv.objects {
+			if shown, contains := pv.objectsShown[name]; contains && !shown {
+				continue
+			}
+			pv.modelPos = pv.objects[name].matrix.Inv().Mul4x1(mgl32.Vec4{0, 0, 0, 1})
+			break
+		}
 		pv.doAutoZoomNextFrame = true
 		pv.animTime = 0
 	}
