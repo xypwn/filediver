@@ -69,14 +69,14 @@ var lutTextureNames = []string{
 
 var seed = rand.Uint32()
 
-func setupTexture(textureID uint32) {
-	gl.BindTexture(gl.TEXTURE_2D, textureID)
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT)
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT)
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+func setupTexture(textureID, target uint32) {
+	gl.BindTexture(target, textureID)
+	gl.TexParameteri(target, gl.TEXTURE_WRAP_S, gl.REPEAT)
+	gl.TexParameteri(target, gl.TEXTURE_WRAP_T, gl.REPEAT)
+	gl.TexParameteri(target, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+	gl.TexParameteri(target, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
 	gl.PixelStorei(gl.UNPACK_ROW_LENGTH, 0)
-	gl.BindTexture(gl.TEXTURE_2D, 0)
+	gl.BindTexture(target, 0)
 }
 
 func setupTextureArray(textureID uint32) {
@@ -565,24 +565,14 @@ func loadDDS(getResource GetResourceFunc, fileName stingray.Hash) (*dds.DDS, err
 	return dds, nil
 }
 
-func uploadStingrayTexture(textureID uint32, bounds image.Rectangle, data []uint8) error {
-	gl.BindTexture(gl.TEXTURE_2D, textureID)
-	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, int32(bounds.Dx()), int32(bounds.Dy()), 0, gl.RGBA, gl.UNSIGNED_BYTE, gl.Ptr(data))
-	gl.BindTexture(gl.TEXTURE_2D, 0)
-	return nil
-}
-
-func uploadStingrayTextureArray(textureID uint32, bounds image.Rectangle, depth int32, data []uint8) error {
-	gl.BindTexture(gl.TEXTURE_2D_ARRAY, textureID)
-	gl.TexImage3D(gl.TEXTURE_2D_ARRAY, 0, gl.RGBA, int32(bounds.Dx()), int32(bounds.Dy()), depth, 0, gl.RGBA, gl.UNSIGNED_BYTE, gl.Ptr(data))
-	gl.BindTexture(gl.TEXTURE_2D_ARRAY, 0)
-	return nil
-}
-
-func uploadStingrayLUT(textureID uint32, bounds image.Rectangle, data []uint8) error {
-	gl.BindTexture(gl.TEXTURE_2D, textureID)
-	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, int32(bounds.Dx()), int32(bounds.Dy()), 0, gl.RGBA, gl.HALF_FLOAT, gl.Ptr(data))
-	gl.BindTexture(gl.TEXTURE_2D, 0)
+func uploadStingrayTexture(textureID uint32, data TextureData) error {
+	gl.BindTexture(data.Target, textureID)
+	if data.Target == gl.TEXTURE_2D {
+		gl.TexImage2D(data.Target, 0, data.InternalFormat, int32(data.Bounds.Dx()), int32(data.Bounds.Dy()), 0, data.Format, data.Type, gl.Ptr(data.Data))
+	} else if data.Target == gl.TEXTURE_2D_ARRAY {
+		gl.TexImage3D(data.Target, 0, data.InternalFormat, int32(data.Bounds.Dx()), int32(data.Bounds.Dy()), data.Depth, 0, data.Format, data.Type, gl.Ptr(data.Data))
+	}
+	gl.BindTexture(data.Target, 0)
 	return nil
 }
 
@@ -595,7 +585,7 @@ func (pv *UnitPreviewState) AcquireNamedTextureOrDefault(name stingray.Hash, def
 		toReturn.id = textureId
 		toReturn.name = name
 		if created {
-			setupTexture(toReturn.id)
+			setupTexture(toReturn.id, gl.TEXTURE_2D)
 			dds, err := loadDDS(getResource, name)
 			if err != nil {
 				pv.textureCache.Delete(name, gl.TEXTURE_2D)
@@ -606,7 +596,15 @@ func (pv *UnitPreviewState) AcquireNamedTextureOrDefault(name stingray.Hash, def
 				pv.textureCache.Delete(name, gl.TEXTURE_2D)
 				return nil, fmt.Errorf("expected texture to be of type *image.NRGBA")
 			}
-			if err := uploadStingrayTexture(toReturn.id, dds.Bounds(), img.Pix); err != nil {
+			texData := TextureData{
+				Target:         gl.TEXTURE_2D,
+				Bounds:         dds.Bounds(),
+				InternalFormat: gl.RGBA,
+				Format:         gl.RGBA,
+				Type:           gl.UNSIGNED_BYTE,
+				Data:           img.Pix,
+			}
+			if err := uploadStingrayTexture(toReturn.id, texData); err != nil {
 				// Failed to upload data, so delete the entry in the cache
 				pv.textureCache.Delete(name, gl.TEXTURE_2D)
 				return nil, err
@@ -614,7 +612,7 @@ func (pv *UnitPreviewState) AcquireNamedTextureOrDefault(name stingray.Hash, def
 		}
 	} else {
 		gl.GenTextures(1, &toReturn.id)
-		setupTexture(toReturn.id)
+		setupTexture(toReturn.id, gl.TEXTURE_2D)
 		gl.BindTexture(gl.TEXTURE_2D, toReturn.id)
 		gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, gl.Ptr(defaultColor))
 		gl.BindTexture(gl.TEXTURE_2D, 0)
@@ -716,12 +714,15 @@ func getTarget(slot string) uint32 {
 }
 
 type TextureData struct {
-	Slot   string
-	Name   stingray.Hash
-	Target uint32
-	Bounds image.Rectangle
-	Depth  int32
-	Data   []uint8
+	Slot           string
+	Name           stingray.Hash
+	Target         uint32
+	Bounds         image.Rectangle
+	Depth          int32
+	InternalFormat int32
+	Format         uint32
+	Type           uint32
+	Data           []uint8
 }
 
 type DetailerLoadState uint8
@@ -769,8 +770,8 @@ func (pv *UnitPreviewState) uploadMaterialDetailer(data TextureData) {
 	if !created {
 		return
 	}
-	setupTextureArray(texture.id)
-	err := uploadStingrayTextureArray(texture.id, data.Bounds, data.Depth, data.Data)
+	setupTexture(texture.id, data.Target)
+	err := uploadStingrayTexture(texture.id, data)
 	if err != nil {
 		pv.releaseMaterialDetailer()
 		pv.detailerLoadState = DetailerNotLoaded
@@ -792,27 +793,42 @@ func getTextureLoaderFunc(getResource GetResourceFunc, nameHash stingray.Hash, t
 		(*textureData)[index].Data = make([]uint8, 4)
 		(*textureData)[index].Depth = 1
 
-		dds, err := loadDDS(getResource, nameHash)
+		ddsImage, err := loadDDS(getResource, nameHash)
 		if err != nil {
 			return
 		}
-		(*textureData)[index].Bounds = dds.Bounds()
-		(*textureData)[index].Depth = int32(len(dds.Images))
+		(*textureData)[index].Bounds = ddsImage.Bounds()
+		(*textureData)[index].Depth = int32(len(ddsImage.Images))
 
-		if slices.Contains([]string{"pattern_lut", "material_lut"}, (*textureData)[index].Slot) {
-			(*textureData)[index].Data = dds.Images[0].MipMaps[0].Raw
-			return
-		}
-
-		(*textureData)[index].Data = make([]uint8, 0, dds.Bounds().Dx()*dds.Bounds().Dy()*int((*textureData)[index].Depth)*4)
-
-		for idx := range dds.Images {
-			img, ok := dds.Images[idx].Image.(*image.NRGBA)
-			if !ok {
-				fmt.Printf("Failed to convert image %v of %v\n", idx, (*textureData)[index].Slot)
-				return
+		for idx := range ddsImage.Images {
+			if ddsImage.Info.DXT10Header != nil && ddsImage.Info.DXT10Header.DXGIFormat == dds.DXGIFormatR16G16B16A16Float {
+				(*textureData)[index].Format = gl.RGBA
+				(*textureData)[index].InternalFormat = gl.RGBA16F
+				(*textureData)[index].Type = gl.HALF_FLOAT
+				(*textureData)[index].Data = ddsImage.Images[0].MipMaps[0].Raw
+			} else {
+				switch img := ddsImage.Images[idx].Image.(type) {
+				case *image.NRGBA:
+					(*textureData)[index].Format = gl.RGBA
+					(*textureData)[index].InternalFormat = gl.RGBA
+					(*textureData)[index].Type = gl.UNSIGNED_BYTE
+					if idx == 0 {
+						(*textureData)[index].Data = make([]uint8, 0, ddsImage.Bounds().Dx()*ddsImage.Bounds().Dy()*int((*textureData)[index].Depth)*4)
+					}
+					(*textureData)[index].Data = append((*textureData)[index].Data, img.Pix...)
+				case *image.Gray:
+					(*textureData)[index].Format = gl.RED
+					(*textureData)[index].InternalFormat = gl.RED
+					(*textureData)[index].Type = gl.UNSIGNED_BYTE
+					if idx == 0 {
+						(*textureData)[index].Data = make([]uint8, 0, ddsImage.Bounds().Dx()*ddsImage.Bounds().Dy()*int((*textureData)[index].Depth))
+					}
+					(*textureData)[index].Data = append((*textureData)[index].Data, img.Pix...)
+				default:
+					fmt.Printf("[error] Failed to convert image %v of %v\n", idx, (*textureData)[index].Slot)
+					return
+				}
 			}
-			(*textureData)[index].Data = append((*textureData)[index].Data, img.Pix...)
 		}
 	}
 }
@@ -873,22 +889,9 @@ func (pv *UnitPreviewState) useLUTMaterial(getResource GetResourceFunc, info *un
 		}
 
 		var err error
-		switch data.Slot {
-		case "customization_camo_tiler_array", "customization_material_detail_tiler_array", "pattern_masks_array", "id_masks_array":
-			if created {
-				setupTextureArray(texture.id)
-				err = uploadStingrayTextureArray(texture.id, data.Bounds, data.Depth, data.Data)
-			}
-		case "pattern_lut", "material_lut":
-			if created {
-				setupTexture(texture.id)
-				err = uploadStingrayLUT(texture.id, data.Bounds, data.Data)
-			}
-		default:
-			if created {
-				setupTexture(texture.id)
-				err = uploadStingrayTexture(texture.id, data.Bounds, data.Data)
-			}
+		if created {
+			setupTexture(texture.id, data.Target)
+			err = uploadStingrayTexture(texture.id, data)
 		}
 		if err != nil {
 			pv.textureCache.Delete(data.Name, texture.target)
