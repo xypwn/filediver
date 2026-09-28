@@ -151,6 +151,7 @@ func DecodeInfo(r io.Reader) (Info, error) {
 				DXGIFormatR32G32B32Float,
 				DXGIFormatR16G16B16A16Float,
 				DXGIFormatR16G16B16A16UNorm,
+				DXGIFormatR16G16Float,
 				DXGIFormatR32G32Float:
 				info.ColorModel = color.NRGBA64Model
 				info.Decompress = DecompressUncompressedDXT10
