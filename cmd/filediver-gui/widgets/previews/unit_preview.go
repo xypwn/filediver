@@ -65,6 +65,7 @@ var lutTextureNames = []string{
 	"material_lut",
 	"pattern_masks_array",
 	"id_masks_array",
+	"ibl_brdf_lut",
 }
 
 var seed = rand.Uint32()
@@ -806,6 +807,11 @@ func getTextureLoaderFunc(getResource GetResourceFunc, nameHash stingray.Hash, t
 				(*textureData)[index].InternalFormat = gl.RGBA16F
 				(*textureData)[index].Type = gl.HALF_FLOAT
 				(*textureData)[index].Data = ddsImage.Images[0].MipMaps[0].Raw
+			} else if ddsImage.Info.DXT10Header != nil && ddsImage.Info.DXT10Header.DXGIFormat == dds.DXGIFormatR16G16Float {
+				(*textureData)[index].Format = gl.RG
+				(*textureData)[index].InternalFormat = gl.RG16F
+				(*textureData)[index].Type = gl.HALF_FLOAT
+				(*textureData)[index].Data = ddsImage.Images[0].MipMaps[0].Raw
 			} else {
 				switch img := ddsImage.Images[idx].Image.(type) {
 				case *image.NRGBA:
@@ -850,6 +856,10 @@ func (pv *UnitPreviewState) useLUTMaterial(getResource GetResourceFunc, info *un
 	slot := "customization_material_detail_tiler_array"
 	materialDetailerHash := stingray.Sum("content/art_shared/textures/customization/material_library/detail_tilers/customization_detail_tiler_array")
 	mat.Textures[stingray.Sum(slot).Thin()] = materialDetailerHash
+
+	slot = "ibl_brdf_lut"
+	iblBRDFHash := stingray.Sum("core/stingray_renderer/lookup_tables/ibl_specular_brdf_lut")
+	mat.Textures[stingray.Sum(slot).Thin()] = iblBRDFHash
 
 	if _, contains := mat.Textures[stingray.Sum("pattern_masks_array").Thin()]; !contains {
 		mat.Textures[stingray.Sum("pattern_masks_array").Thin()] = stingray.Sum("content/art_shared/textures/black_all_channels_dummy")

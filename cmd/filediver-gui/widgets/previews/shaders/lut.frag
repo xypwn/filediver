@@ -20,6 +20,7 @@ uniform sampler2D base_data;
 uniform sampler2D material_lut;
 uniform sampler2DArray pattern_masks_array;
 uniform sampler2DArray id_masks_array;
+uniform sampler2D ibl_brdf_lut;
 
 layout(shared, binding = 0) uniform LutSettingsBlock {
     uint seed;
@@ -400,18 +401,49 @@ void main() {
 
     // perform basic lighting calcs
 
-    vec3 ambient = vec3(1.0);
+    vec3 ambient = vec3(0.5) * base_data_sample.z;
     vec3 lightDirection = normalize(fragTangentLightPosition - fragTangentFragmentPosition);
     vec3 lightColor = vec3(0.7);
     vec3 diffuse = max(dot(normal_modified, lightDirection), 0) * lightColor;
 
+    vec3 specularColor = mix(vec3(0.04), base_color.rgb, detail_metallic);
+
     vec3 viewDirection = normalize(fragTangentViewPosition - fragTangentFragmentPosition);
     vec3 reflectDirection = reflect(-lightDirection, normal_modified);
     vec3 halfwayDirection = normalize(lightDirection + viewDirection);
-    vec3 specular = pow(max(dot(normal_modified, halfwayDirection), 0.0), 32.0) * lightColor;
 
-    //fragColor = vec4(vec3(camo_mix), 1.0);
+    // blinn specular reflectance
+    float NdH = max(dot(normal_modified, halfwayDirection), 0.001);
+    float HdV = max(dot(halfwayDirection, viewDirection), 0.001);
+    float NdL = max(dot(normal_modified, lightDirection), 0.0);
+    float NdV = max(dot(normal_modified, viewDirection), 0.001);
+
+    vec3 specularFresnel = mix(specularColor, vec3(0.7), pow(1.01 - HdV, 5.0));
+    float k = 1.999 / (roughness * roughness);
+
+    vec3 blinnSpecularRef = min(1.0, 3.0 * 0.0398 * k) * pow(NdH, min(10000.0, k)) * specularFresnel * vec3(NdL);
+    vec3 diffRef = (vec3(1.0) - specularFresnel) * (1.0 / 3.1415926) * NdL;
+
+    vec3 reflectedLight = blinnSpecularRef * lightColor;
+    vec3 diffuseLight = diffRef * lightColor;
+
+    // ibl lighting
+    vec2 brdf = texture2D(ibl_brdf_lut, vec2(roughness, NdV)).xy * 0.66;
+    vec3 iblspec = min(vec3(0.99), mix(specularColor, vec3(1.0), pow(1.01 - NdV, 5.0))) * brdf.x + brdf.y;
+    reflectedLight += iblspec * ambient;
+    diffuseLight += ambient * (1.0 / 3.1415926);
+
+    vec3 specular = pow(NdH, 32.0) * lightColor;
+    // adjust saturation
+    base_color.rgb = rgb2hsv(base_color.rgb);
+    base_color.g *= 1.30;
+    base_color.rgb = hsv2rgb(base_color.rgb); 
+    // adjust contrast
+    base_color.rgb = (base_color.rgb - 0.5) * 1.6 + 0.5;
+
+    //fragColor = vec4(normal_modified * 0.5 + 0.5, 1.0);
     //fragColor = vec4(reflectDirection, 1.0);
     //fragColor = vec4(material_detail_sample.xyz, 1.0);
-    fragColor = vec4(base_color.rgb * (mix(ambient, diffuse, 0.6) + 0.5 * specular), 1.0);
+    //fragColor = vec4(base_color.rgb * (mix(ambient, diffuse, 0.6) + 0.5 * specular), 1.0);
+    fragColor = vec4(diffuseLight * mix(base_color.rgb, vec3(0.0), detail_metallic) + reflectedLight, 1.0);
 }
