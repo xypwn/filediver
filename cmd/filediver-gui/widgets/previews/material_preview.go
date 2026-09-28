@@ -36,6 +36,25 @@ func NewMaterialPreview() *MaterialPreview {
 	}
 }
 
+func (pv *MaterialPreview) Draw(name string) {
+	pv.ImagePreview.Draw(name)
+	imgui.SameLine()
+	imgui.BeginDisabledV(pv.SettingsEmpty())
+	label := "Settings"
+	if !pv.SettingsEmpty() && pv.settingsVisible {
+		label = "Hide " + label
+	} else {
+		label = "Show " + label
+	}
+	if imgui.Button(label) {
+		pv.SetSettingsVisible(!pv.settingsVisible)
+	}
+	if pv.SettingsEmpty() {
+		imgui.SetItemTooltip("Material has no settings")
+	}
+	imgui.EndDisabled()
+}
+
 func (pv *MaterialPreview) LoadMaterial(mat *material.Material, getResource GetResourceFunc, hashes map[stingray.Hash]string, thinhashes map[stingray.ThinHash]string) error {
 	if mat == nil {
 		return fmt.Errorf("attempted to load nil material")
