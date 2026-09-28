@@ -1015,6 +1015,7 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 			mesh.Tangents[i] = terrainConversionMatrix.Mul4x1(mgl32.Vec4(mesh.Tangents[i]))
 			mesh.Bitangents[i] = terrainConversionMatrix.Mul4x1(mgl32.Vec3(mesh.Bitangents[i]).Vec4(1)).Vec3()
 		}
+		meshes = make(map[string]unit.Mesh)
 		meshes["terrain"] = mesh
 		pv.objectsShownDefault = map[string]bool{"terrain": true}
 	}
