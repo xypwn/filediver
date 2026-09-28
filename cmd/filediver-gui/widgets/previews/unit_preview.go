@@ -216,6 +216,7 @@ type unitPreviewObject struct {
 	ibos      []uint32 // index buffer objects
 	vbo       uint32   // vertex buffer object
 	materials []unitPreviewMaterial
+	matrix    mgl32.Mat4
 
 	numVertices int32
 	numIndices  []int32
@@ -281,10 +282,11 @@ type UnitPreviewState struct {
 	objectsShownDefault  map[string]bool
 	objectsSelected      map[string]bool
 	objectsSettingsShown bool
-	wireframeMaterial    unitPreviewMaterial
 
+	wireframeMaterial unitPreviewMaterial
 	normalVisMaterial unitPreviewMaterial
 
+	skeleton       unitPreviewObject
 	dbgObjs        map[string]unitPreviewObject
 	dbgObjProgram  uint32
 	dbgObjUniforms unitPreviewUniforms
@@ -330,6 +332,8 @@ type UnitPreviewState struct {
 	wireframeColor            [4]float32
 	showAABB                  bool
 	aabbColor                 [4]float32
+	showSkeleton              bool
+	skeletonColor             [4]float32
 	visualizeNormals          bool
 	visualizeTangentBitangent int32 // 1 or 0
 	autoZoomEnabled           bool
@@ -400,6 +404,8 @@ func NewUnitPreview(getResource GetResourceFunc) (*UnitPreviewState, error) {
 		return nil, err
 	}
 
+	pv.skeleton.genObjects(false, 1)
+
 	pv.dbgObjProgram, err = glutils.CreateProgramFromSources(unitPreviewShaderCode,
 		"shaders/debug_object.vert",
 		"shaders/debug_object.frag",
@@ -414,6 +420,7 @@ func NewUnitPreview(getResource GetResourceFunc) (*UnitPreviewState, error) {
 	pv.modelPos = mgl32.Vec4{0.0, 0.0, 0.0, 1.0}
 
 	pv.wireframeColor = [4]float32{1.0, 1.0, 1.0, 0.5}
+	pv.skeletonColor = [4]float32{1.0, 0.5, 0.0, 0.5}
 	pv.aabbColor = [4]float32{0.3, 0.3, 0.8, 0.2}
 
 	pv.activeUDimListItem = -1
@@ -1046,6 +1053,7 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 		}
 
 		object := unitPreviewObject{}
+		object.matrix = info.Bones[mesh.Info.Header.TransformIdx].Matrix
 
 		// Create index buffers
 		{
@@ -1174,6 +1182,35 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 			pv.dbgObjs[name] = dbgObj
 		}
 	}
+
+	skeletonVertices := make([]mgl32.Vec3, 0)
+	skeletonIndices := make([]uint32, 0)
+	root := info.Bones[0]
+	var recurseSkeleton func(unit.Bone) uint32
+	recurseSkeleton = func(curr unit.Bone) uint32 {
+		currentVertex := uint32(len(skeletonVertices))
+		skeletonVertices = append(skeletonVertices, curr.Matrix.Mul4x1(mgl32.Vec4{0.0, 0.0, 0.0, 1.0}).Vec3())
+		for _, idx := range curr.Children {
+			childVertexIdx := recurseSkeleton(info.Bones[idx])
+			skeletonIndices = append(skeletonIndices, currentVertex, childVertexIdx)
+		}
+		return currentVertex
+	}
+	recurseSkeleton(root)
+
+	gl.BindVertexArray(pv.skeleton.vao)
+	gl.BindBuffer(gl.ARRAY_BUFFER, pv.skeleton.vbo)
+	gl.BufferData(gl.ARRAY_BUFFER, len(skeletonVertices)*3*4, gl.Ptr(skeletonVertices), gl.STATIC_DRAW)
+	gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, pv.skeleton.ibos[0])
+	gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, len(skeletonIndices)*4, gl.Ptr(skeletonIndices), gl.STATIC_DRAW)
+	pv.skeleton.numVertices = int32(len(skeletonVertices))
+	pv.skeleton.numIndices[0] = int32(len(skeletonIndices))
+
+	gl.VertexAttribPointer(0, 3, gl.FLOAT, false, 3*4, nil)
+	gl.EnableVertexAttribArray(0)
+
+	gl.BindBuffer(gl.ARRAY_BUFFER, 0)
+	gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, 0)
 	gl.BindVertexArray(0)
 
 	pv.model = stingrayToGLCoords
@@ -1421,9 +1458,11 @@ func (pv *UnitPreviewState) Draw(name string) {
 				}
 				for group, ibo := range pv.objects[name].ibos {
 					if !pv.showWireframe {
+						model := pv.model.Mul4(translation.Mul4(pv.objects[name].matrix))
+						mvp := projection.Mul4(view).Mul4(model)
 						gl.UseProgram(pv.objects[name].materials[group].program)
 						gl.UniformMatrix4fv(pv.objects[name].materials[group].uniforms["mvp"], 1, false, &mvp[0])
-						gl.UniformMatrix4fv(pv.objects[name].materials[group].uniforms["model"], 1, false, &pv.model[0])
+						gl.UniformMatrix4fv(pv.objects[name].materials[group].uniforms["model"], 1, false, &model[0])
 						gl.UniformMatrix3fv(pv.objects[name].materials[group].uniforms["normalMat"], 1, false, &normal[0])
 						gl.Uniform3fv(pv.objects[name].materials[group].uniforms["viewPosition"], 1, &viewPosition[0])
 						gl.Uniform1iv(pv.objects[name].materials[group].uniforms["udimShown"], 64, &pv.udimsShown[0])
@@ -1469,8 +1508,6 @@ func (pv *UnitPreviewState) Draw(name string) {
 					}
 				}
 				gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, 0) // TODO: Make this not draw duplicate vertices
-				gl.BindVertexArray(0)
-				gl.UseProgram(0)
 			}
 
 			// Draw debug object
@@ -1489,9 +1526,21 @@ func (pv *UnitPreviewState) Draw(name string) {
 					}
 					gl.DrawElements(gl.TRIANGLES, pv.dbgObjs[name].numIndices[0], gl.UNSIGNED_INT, nil)
 				}
-				gl.BindVertexArray(0)
-				gl.UseProgram(0)
 			}
+
+			if pv.showSkeleton {
+				gl.Disable(gl.DEPTH_TEST)
+				gl.UseProgram(pv.dbgObjProgram)
+				gl.Uniform4fv(pv.dbgObjUniforms["color"], 1, &pv.skeletonColor[0])
+
+				gl.UniformMatrix4fv(pv.dbgObjUniforms["mvp"], 1, false, &mvp[0])
+				gl.BindVertexArray(pv.skeleton.vao)
+				gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, pv.skeleton.ibos[0])
+				gl.DrawElements(gl.LINES, pv.skeleton.numIndices[0], gl.UNSIGNED_INT, nil)
+			}
+
+			gl.BindVertexArray(0)
+			gl.UseProgram(0)
 
 			if pv.doAutoZoomNextFrame {
 				pv.viewDistance = pv.maxViewDistance
@@ -1703,6 +1752,10 @@ func (pv *UnitPreviewState) Draw(name string) {
 		imgui.Checkbox("Wireframe mode", &pv.showWireframe)
 		imgui.SameLineV(imutils.S(170), -1)
 		imgui.ColorEdit4V("Wireframe color", &pv.wireframeColor, colorPickerFlags)
+
+		imgui.Checkbox("Show Skeleton", &pv.showSkeleton)
+		imgui.SameLineV(imutils.S(170), -1)
+		imgui.ColorEdit4V("Skeleton color", &pv.skeletonColor, colorPickerFlags)
 
 		imgui.Checkbox("Bounding box", &pv.showAABB)
 		imgui.SameLine()

@@ -367,7 +367,7 @@ func GetMeshNameFbxConvertAndTransformBone(unitInfo *unit.Info, groupBoneHash st
 }
 
 func remapJoint[E ~[]I, I uint8 | uint32](idxs E, remapList, remappedBoneIndices []uint32) {
-	for k := 0; k < 4; k++ {
+	for k := range 4 {
 		if uint32(idxs[k]) >= uint32(len(remapList)) {
 			continue
 		}
