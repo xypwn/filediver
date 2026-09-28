@@ -902,6 +902,7 @@ func LoadTerrain(terrainInfo TerrainInfo) (Mesh, error) {
 	mesh.Normals = normals
 	mesh.Tangents = tangents
 	mesh.Bitangents = bitangents
+	mesh.Udims = make([]float32, len(vertices))
 	return mesh, nil
 }
 
