@@ -93,7 +93,7 @@ void main() {
     normal.x = -normal.x;
     vec3 normal_modified = normal;
     float ao = 1 - (base_data_sample.z * 0.4 + 0.6);
-    float roughness = base_data_sample.w;
+    float base_data_roughness = base_data_sample.w;
 
     uint material_lut_row = getMaterialLutRow();
 
@@ -103,7 +103,10 @@ void main() {
     vec4 lut_3 = texelFetch(material_lut, ivec2(3, material_lut_row), 0);
     vec4 lut_4 = texelFetch(material_lut, ivec2(4, material_lut_row), 0);
     vec4 lut_5 = texelFetch(material_lut, ivec2(5, material_lut_row), 0);
-    float lut_10_x = texelFetch(material_lut, ivec2(10, material_lut_row), 0).x;
+    vec4 lut_6 = texelFetch(material_lut, ivec2(6, material_lut_row), 0);
+    vec4 metallic_detail_controls = texelFetch(material_lut, ivec2(7, material_lut_row), 0);
+    vec4 specular_detail_controls = texelFetch(material_lut, ivec2(8, material_lut_row), 0);
+    float roughness = texelFetch(material_lut, ivec2(10, material_lut_row), 0).x;
     vec4 camo_controls = texelFetch(material_lut, ivec2(21, material_lut_row), 0);
     vec4 detail_tiling = texelFetch(material_lut, ivec2(22, material_lut_row), 0);
 
@@ -124,12 +127,13 @@ void main() {
         material_detailing_zw.xy = material_detail_sample.xy * vec2(-1, 1);
     }
 
-    vec4 scaled_lut_4 = vec4(lut_4.xy * max((roughness - 0.5) * lut_4.z, 0.0) * 4, 0.0, 0.0);
+    vec4 scaled_lut_4 = vec4(lut_4.xy * max((base_data_roughness - 0.5) * lut_4.z, 0.0) * 4, 0.0, 0.0);
     lut_4 = lut_4 + scaled_lut_4;
     material_detailing_xy.zw = base_data_sample.wz * vec2(1, -0.4) + vec2(-0.5, 0.4);
+    // r15.z
     float detail_roughness = clamp(dot(lut_4, material_detailing_xy) + detail_layer.w, 0.0, 1.0);
     
-    vec4 scaled_lut_3 = vec4(lut_3.xy * max((roughness - 0.5) * lut_3.z, 0.0) * 4, 0.0, 0.0);
+    vec4 scaled_lut_3 = vec4(lut_3.xy * max((base_data_roughness - 0.5) * lut_3.z, 0.0) * 4, 0.0, 0.0);
     lut_3 = lut_3 + scaled_lut_3;
     vec4 modified_material_detail_tiling = material_detailing_xy;
     float temp_r15w = clamp(material_detailing_xy.y + 0.5, 0.0, 1.0);
@@ -137,16 +141,28 @@ void main() {
     // r15.w
     float detail_intensity = clamp(dot(lut_3, modified_material_detail_tiling) + detail_layer.z, 0.0, 1.0);
 
+    vec4 scaled_metallic_detail_controls = vec4(metallic_detail_controls.xy * max((base_data_roughness - 0.5) * metallic_detail_controls.z, 0.0) * 4, 0.0, 0.0);
+    metallic_detail_controls = metallic_detail_controls + scaled_metallic_detail_controls;
+    // r15.x
+    float detail_metallic = clamp(lut_6.w + dot(metallic_detail_controls, material_detailing_xy), 0.0, 1.0);
+
+    vec3 scaled_specular_detail_controls = vec3(specular_detail_controls.xy * max((base_data_roughness - 0.5) * specular_detail_controls.z, 0.0) * 4, 0.0);
+    scaled_specular_detail_controls = scaled_specular_detail_controls + specular_detail_controls.xyz;
+    // r15.y
+    float detail_specular = clamp(specular_detail_controls.w + dot(scaled_specular_detail_controls, material_detailing_xy.xyz), 0.0, 1.0);
+
+    vec2 temp_detailing;
     if (base_color.w <= 3.0) {
         lut_2.w = detail_intensity * (lut_2.w - 1.0) + 1.0;
         lut_2.w = detail_roughness * (lut_5.w - lut_2.w) + lut_2.w;
 
-        vec2 temp_detailing = material_detailing_zw.xy + material_detailing_zw.xy;
+        temp_detailing = material_detailing_zw.xy + material_detailing_zw.xy;
         vec2 temp_detailing_sq = temp_detailing * temp_detailing;
-        float detailing_z = recoverInverseZ(temp_detailing);
+        float detailing_z = 1 - temp_detailing.x * temp_detailing.x - temp_detailing.y * temp_detailing.y;
+        detailing_z = inversesqrt(max(max(temp_detailing_sq.x, temp_detailing_sq.y) * 0.000061, detailing_z));
         temp_detailing = temp_detailing * -detailing_z * detail_layer.y * lut_2.w;
 
-        normal_modified = normalize(dbg_fragITBN * (temp_detailing.y * dbg_fragTBN[1] + (temp_detailing.y * dbg_fragTBN[0])) + normal_modified);
+        normal_modified = vec3(temp_detailing, 0.0) + normal_modified;
     }
 
     vec3 camo_sample = vec3(0);
@@ -168,14 +184,46 @@ void main() {
         camo_result = mix(camo_result, camo_color_4, camo_sample.z);
 
         if (base_color.w != 1.0) {
-            float camo_edge_wear = max((roughness - 0.5) * camo_color_4.w, 0.0) * 4;
+            float camo_edge_wear = max((base_data_roughness - 0.5) * camo_color_4.w, 0.0) * 4;
             camo_combined_1 = vec3(camo_edge_wear * camo_color_2.w, camo_edge_wear * camo_color_3.w, 0.0);
             vec3 camo_combined_2 = vec3(camo_color_2.w, camo_color_3.w, camo_color_4.w);
             camo_combined_1 = camo_combined_1 + camo_combined_2;
             camo_mix = clamp(dot(camo_combined_1, material_detailing_xy.xyz) - camo_control_extra, 0.0, 1.0);
             base_color.xyz = mix(camo_result.xyz, base_color.xyz, camo_mix);
+            detail_metallic = max(detail_metallic - (1.0 - camo_mix), 0.0);
+            float camo_tiling = detail_tiling.w * (1.0 - camo_mix);
+            roughness = camo_tiling * (camo_color_1.w - roughness) + roughness;
         } else {
             base_color.xyz = camo_result.xyz;
+            camo_mix = 1.0;
+        }
+    } else {
+        camo_mix = 1.0;
+    }
+
+    // pattern mask
+    if (base_color.w != 3.0) {
+        vec4 pattern_color = texelFetch(pattern_lut, ivec2(0, 0), 0);
+        if (pattern_color.w != -1.0) {
+            int depth = textureSize(pattern_masks_array, 0).z;
+            vec4 pattern_controls_1 = texelFetch(pattern_lut, ivec2(1, 0), 0);
+            float pattern_edge_wear = max((base_data_roughness - 0.5) * pattern_controls_1.z, 0.0) * 4.0;
+            vec3 pattern_normal = vec3(pattern_controls_1.xy * pattern_edge_wear, 0.0) + pattern_controls_1.xyz;
+            float pattern_mix = clamp(dot(pattern_normal, material_detailing_xy.xyz) + pattern_controls_1.w, 0.0, 1.0);
+            vec3 pattern_mask_uv = vec3(fragUV0, float(int(pattern_color.w) % depth));
+            float mask_sample = clamp(100 * (texture(pattern_masks_array, pattern_mask_uv).x - 0.5), 0.0, 1.0);
+            float pattern_mix_masked = pattern_mix * mask_sample;
+            if (pattern_mix_masked > 0.0) {
+                base_color.xyz = mix(base_color.xyz, pattern_color.xyz, pattern_mix_masked);
+                if (base_color.w != 1.0) {
+                    float pattern_roughness = min(detail_roughness - (pattern_mix_masked * pattern_mix_masked) + 1.0, 1.0);
+                    detail_metallic = detail_metallic * pattern_roughness;
+                    float pattern_control_2 = texelFetch(pattern_lut, ivec2(2, 0), 0).w;
+                    pattern_mix = max(pattern_mix * mask_sample - detail_roughness, 0.0) * (1.0 / (2.0 - roughness));
+                    roughness = pattern_mix * (pattern_roughness - roughness) + roughness;
+                    detail_specular = pattern_mix_masked * (0.5 - detail_specular) + detail_specular;
+                }
+            }
         }
     }
 
@@ -272,7 +320,54 @@ void main() {
         float decal_mix = clamp(decal_sample.w - detail_roughness, 0.0, 1.0);
         vec3 temp_color = decal_sample.xyz - base_color.xyz;
         base_color.xyz = temp_color * decal_mix + base_color.xyz;
+        detail_metallic = detail_metallic * (1.0 - decal_mix);
+        roughness = max(decal_mix - detail_intensity, 0.0) * (0.4 - roughness) + roughness;
     }
+
+    lut_2.xyz = detail_intensity * (lut_2.xyz - base_color.xyz) + base_color.xyz;
+    roughness = detail_tiling.z * detail_intensity * (detail_tiling.y - roughness) + roughness;
+    float camo_roughness = detail_roughness * camo_mix;
+    lut_2.xyz = camo_roughness * (lut_6.xyz - lut_2.xyz) + lut_2.xyz;
+    camo_roughness = camo_roughness * detail_roughness;
+    lut_2.xyz = camo_roughness * (lut_5.xyz - lut_2.xyz) + lut_2.xyz;
+    lut_2.xyz = max(lut_2.xyz, vec3(0.000061));
+    bvec3 notVerySmall = lessThan(vec3(0.04045), lut_2.xyz);
+    vec3 srgb_temp = lut_2.xyz * vec3(0.947867) + vec3(0.052133);
+    srgb_temp = gamma(srgb_temp, 2.4);
+    lut_2.xyz = lut_2.xyz * vec3(0.0774);
+    vec3 temp;
+    temp.x = notVerySmall.x ? srgb_temp.x : lut_2.x;
+    temp.y = notVerySmall.y ? srgb_temp.y : lut_2.y;
+    temp.z = notVerySmall.z ? srgb_temp.z : lut_2.z;
+    lut_2.xyz = temp;
+
+    // r17.z - 0.5
+    float dirt_ao = 0.5;
+    dirt_ao = clamp(dirt_ao * 2, 0.0, 1.0);
+    vec3 dirty_color = lut_2.xyz * dirt_ao * vec3(0.7);
+    dirty_color = lut_2.xyz * vec3(0.3) + dirty_color;
+
+    float dirt_roughness = 0.7;
+    vec4 weathering_special = vec4(0.5);
+    float weathering_dirt_roughness = (clamp(weathering_special.z * 0.5 + (dirt_roughness - clamp(base_data_roughness - 0.5, 0.0, 1.0) * 5.0), 0.0, 1.0) - 0.5) * 5.0;
+    float weathering_amount = 1.0;
+
+    uint material = 1 << material_lut_row;
+    uint damage_mask_selector = 2;
+    bool damage_mask_selection = (damage_mask_selector & material) > 0;
+    // r13.z (also probably only for vehicles, so...)
+    float damage_weathering_amount = damage_mask_selection ? clamp(weathering_amount, 0.0, 1.0) : 0.0;
+
+    weathering_dirt_roughness = damage_weathering_amount * min(clamp(weathering_dirt_roughness * clamp(2 * (weathering_amount - 0.5), 0.0, 1.0), 0.0, 1.0), 0.75);
+
+    base_color.xyz = weathering_dirt_roughness * (dirty_color - lut_2.xyz) + lut_2.xyz;
+    detail_specular = detail_specular - weathering_dirt_roughness * detail_specular;
+
+    roughness = clamp(weathering_dirt_roughness * (0.8 - roughness) + roughness, 0.0, 1.0);
+
+    base_color.xyz = sRGB(base_color.xyz);
+
+    normal_modified = normalize(normal_modified);
 
     // perform basic lighting calcs
 

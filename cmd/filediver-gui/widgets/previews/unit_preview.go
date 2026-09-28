@@ -851,6 +851,13 @@ func (pv *UnitPreviewState) useLUTMaterial(getResource GetResourceFunc, info *un
 	materialDetailerHash := stingray.Sum("content/art_shared/textures/customization/material_library/detail_tilers/customization_detail_tiler_array")
 	mat.Textures[stingray.Sum(slot).Thin()] = materialDetailerHash
 
+	if _, contains := mat.Textures[stingray.Sum("pattern_masks_array").Thin()]; !contains {
+		mat.Textures[stingray.Sum("pattern_masks_array").Thin()] = stingray.Sum("content/art_shared/textures/black_all_channels_dummy")
+	}
+	if _, contains := mat.Textures[stingray.Sum("pattern_masks_array").Thin()]; !contains {
+		mat.Textures[stingray.Sum("pattern_lut").Thin()] = stingray.Hash{Value: 0xcf0cc31b981786c9}
+	}
+
 	var textureWaitGroup sync.WaitGroup
 	textureData := make([]TextureData, 0)
 	slotHashes := slices.SortedFunc(maps.Keys(mat.Textures), stingray.ThinHash.Cmp)
