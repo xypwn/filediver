@@ -11,6 +11,36 @@ import (
 	"github.com/go-gl/gl/v4.3-core/gl"
 )
 
+type GLError uint32
+
+const (
+	GL_NO_ERROR                      GLError = gl.NO_ERROR
+	GL_INVALID_ENUM                  GLError = gl.INVALID_ENUM
+	GL_INVALID_VALUE                 GLError = gl.INVALID_VALUE
+	GL_INVALID_OPERATION             GLError = gl.INVALID_OPERATION
+	GL_INVALID_FRAMEBUFFER_OPERATION GLError = gl.INVALID_FRAMEBUFFER_OPERATION
+	GL_OUT_OF_MEMORY                 GLError = gl.OUT_OF_MEMORY
+	GL_STACK_UNDERFLOW               GLError = gl.STACK_UNDERFLOW
+	GL_STACK_OVERFLOW                GLError = gl.STACK_OVERFLOW
+)
+
+//go:generate go run golang.org/x/tools/cmd/stringer -type=GLError
+
+type GLTarget uint32
+
+const (
+	GL_TEXTURE_1D             GLTarget = gl.TEXTURE_1D
+	GL_TEXTURE_2D             GLTarget = gl.TEXTURE_2D
+	GL_TEXTURE_3D             GLTarget = gl.TEXTURE_3D
+	GL_TEXTURE_1D_ARRAY       GLTarget = gl.TEXTURE_1D_ARRAY
+	GL_TEXTURE_2D_ARRAY       GLTarget = gl.TEXTURE_2D_ARRAY
+	GL_TEXTURE_CUBE_MAP       GLTarget = gl.TEXTURE_CUBE_MAP
+	GL_TEXTURE_CUBE_MAP_ARRAY GLTarget = gl.TEXTURE_CUBE_MAP_ARRAY
+	GL_TEXTURE_BUFFER         GLTarget = gl.TEXTURE_BUFFER
+)
+
+//go:generate go run golang.org/x/tools/cmd/stringer -type=GLTarget
+
 func CreateShader(source string, shaderType uint32) (uint32, error) {
 	shader := gl.CreateShader(shaderType)
 	{

@@ -376,6 +376,27 @@ func DecompressUncompressedDXT10(buf []uint8, r io.Reader, width, height int, in
 			}
 			return nil
 		}
+	case DXGIFormatR16G16Float:
+		if info.ColorModel != color.NRGBA64Model {
+			return nil, errors.New("expected NRGBA64 model for R16G16Float")
+		}
+		translatePixel = func(idx int) error {
+			for i := 0; i < 2; i++ {
+				var v uint16
+				if err := binary.Read(r, binary.LittleEndian, &v); err != nil {
+					return err
+				}
+				binary.BigEndian.PutUint16(buf[idx+2*i:], uint16(float16.Frombits(v).Float32()*0xffff))
+				var err error
+				raw, err = binary.Append(raw, binary.LittleEndian, v)
+				if err != nil {
+					return err
+				}
+			}
+			binary.BigEndian.PutUint16(buf[idx+4:], 0)
+			binary.BigEndian.PutUint16(buf[idx+6:], 0xffff)
+			return nil
+		}
 	case DXGIFormatR32Float:
 		if info.ColorModel != color.Gray16Model {
 			return nil, errors.New("expected Gray16 model for R32Float")

@@ -429,16 +429,19 @@ func (a *guiApp) onDraw(state *imgui_wrapper.State) {
 		if imgui.InternalDockBuilderGetNode(id).CData == nil || a.resetDockLayout {
 			imgui.InternalDockBuilderAddNodeV(id, imgui.DockNodeFlags(imgui.DockNodeFlagsDockSpace))
 			imgui.InternalDockBuilderSetNodeSize(id, dockSpaceSize)
-			var leftID, topLeftID, bottomLeftID, rightID, topRightID, bottomRightID imgui.ID
-			imgui.InternalDockBuilderSplitNode(id, imgui.DirLeft, 0.5, &leftID, &rightID)
+			var leftID, topLeftID, bottomLeftID, rightID, topRightID, centerID, bottomRightID, sideBarID imgui.ID
+			imgui.InternalDockBuilderSplitNode(id, imgui.DirLeft, 0.3, &leftID, &rightID)
 			imgui.InternalDockBuilderSplitNode(leftID, imgui.DirDown, 0.4, &bottomLeftID, &topLeftID)
 			imgui.InternalDockBuilderSplitNode(rightID, imgui.DirDown, 0.4, &bottomRightID, &topRightID)
+			imgui.InternalDockBuilderSplitNode(topRightID, imgui.DirRight, 0.15, &sideBarID, &centerID)
 			imgui.InternalDockBuilderDockWindow(fnt.I.ViewList+" Browser", topLeftID)
 			imgui.InternalDockBuilderDockWindow(fnt.I.FileExport+" Export", bottomLeftID)
 			imgui.InternalDockBuilderDockWindow(fnt.I.SettingsApplications+" Extractor config", bottomLeftID)
-			imgui.InternalDockBuilderDockWindow(fnt.I.Preview+" Preview", topRightID)
-			imgui.InternalDockBuilderDockWindow(fnt.I.Tag+" Metadata", topRightID)
+			imgui.InternalDockBuilderDockWindow(fnt.I.Preview+" Preview", centerID)
+			imgui.InternalDockBuilderDockWindow(fnt.I.Tag+" Metadata", centerID)
 			imgui.InternalDockBuilderDockWindow(fnt.I.DisplaySettings+" Material Settings", bottomRightID)
+			imgui.InternalDockBuilderDockWindow(fnt.I.FolderEye+" Visibility Mask Selection", sideBarID)
+			imgui.InternalDockBuilderDockWindow(fnt.I.FolderEye+" Mesh Selection", sideBarID)
 			imgui.InternalDockBuilderFinish(id)
 			a.resetDockLayout = false
 		}
@@ -464,7 +467,7 @@ func (a *guiApp) onDraw(state *imgui_wrapper.State) {
 	a.drawLogWindow()
 	a.drawPreviewWindow(state)
 	a.drawMetadataWindow()
-	a.drawMaterialSettingsWindow()
+	a.drawSettingsWindow()
 
 	if a.shouldSetupWindowFocus {
 		imgui.SetWindowFocusStr(fnt.I.Preview + " Preview")
@@ -655,9 +658,7 @@ func (a *guiApp) drawBrowserWindow() {
 							{Title: "Just exportable"},
 							{Title: "Not exportable"},
 						}
-						for _, typ := range slices.SortedFunc(maps.Keys(types), func(h1, h2 stingray.Hash) int {
-							return strings.Compare(a.gameData.LookupHash(h1), a.gameData.LookupHash(h2))
-						}) {
+						for _, typ := range slices.SortedFunc(maps.Keys(types), stingray.Hash.Cmp) {
 							var sectionIdx int
 							switch typ {
 							case // previewable and exportable
@@ -1255,20 +1256,11 @@ func (a *guiApp) drawMetadataWindow() {
 	imgui.End()
 }
 
-func (a *guiApp) drawMaterialSettingsWindow() {
-	if a.gameData == nil || a.preview == nil ||
-		a.preview.ActiveType() != previews.AutoPreviewMaterial ||
-		a.preview.MaterialSettingsEmpty() {
+func (a *guiApp) drawSettingsWindow() {
+	if a.gameData == nil || a.preview == nil {
 		return
 	}
-	visible := a.preview.MaterialSettingsVisible()
-	if visible {
-		if imgui.BeginV(fnt.I.DisplaySettings+" Material Settings", &visible, imgui.WindowFlagsNoFocusOnAppearing) {
-			a.preview.DrawMaterialSettings()
-		}
-		imgui.End()
-	}
-	a.preview.SetMaterialSettingsVisible(visible)
+	a.preview.DrawSettings()
 }
 
 func (a *guiApp) drawCheckForUpdatesPopup(state *imgui_wrapper.State) {

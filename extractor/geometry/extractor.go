@@ -367,7 +367,7 @@ func GetMeshNameFbxConvertAndTransformBone(unitInfo *unit.Info, groupBoneHash st
 }
 
 func remapJoint[E ~[]I, I uint8 | uint32](idxs E, remapList, remappedBoneIndices []uint32) {
-	for k := 0; k < 4; k++ {
+	for k := range 4 {
 		if uint32(idxs[k]) >= uint32(len(remapList)) {
 			continue
 		}
@@ -1098,7 +1098,7 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, me
 			var transformBoneIdxMesh int32 = -1
 			var meshHeader unit.MeshHeader
 			for _, meshInfo := range unitInfo.MeshInfos {
-				if meshInfo.Header.GroupBoneHash == bones[i] {
+				if meshInfo.Header.MeshName == bones[i] {
 					transformBoneIdxMesh = int32(meshInfo.Header.TransformIdx)
 					meshHeader = meshInfo.Header
 					break
@@ -1223,15 +1223,8 @@ func LoadGLTF(ctx *extractor.Context, gpuR io.ReadSeeker, doc *gltf.Document, me
 			if !contains {
 				// Some model names do not match any of the names of the entities that include them
 				// so they need to be patched up to get the correct visibility masks
-				if strings.Contains(ctx.LookupHash(ctx.FileID().Name), "cha_lieutenant") {
-					mask, contains = visibilityMaskData[stingray.Sum("content/fac_cyborgs/cha_lieutenant/cha_lieutenant_assault")]
-				}
-				if strings.Contains(ctx.LookupHash(ctx.FileID().Name), "cyborg_tank_turret_cannon/cyborg_tank_turret_cannon") {
-					mask, contains = visibilityMaskData[stingray.Sum("content/fac_cyborgs/turrets/cyborg_tank_turret_cannon/cyborg_turret_heavycannon")]
-				}
-				if ctx.FileID().Name == stingray.Sum("content/fac_cyborgs/vehicles/cyborg_tank/cyborg_tank") {
-					mask, contains = visibilityMaskData[stingray.Sum("content/fac_cyborgs/vehicles/cyborg_tank/cyborg_tank_heavycannon")]
-				}
+				entityHash = datalib.UnitsToEntities(ctx.FileID().Name)
+				mask, contains = visibilityMaskData[entityHash]
 			}
 			visibilityMasks = make(map[uint16]map[string]any)
 			udimIndexAccessors := make(map[uint32]uint32)

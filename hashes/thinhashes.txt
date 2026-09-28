@@ -33796,3 +33796,5 @@ interact_gunner_socket
 interact_power_on
 interact_restock_ammo
 interact_side_hatch
+ibl_brdf_lut
+vehicle_damage_data
