@@ -33798,3 +33798,4 @@ interact_restock_ammo
 interact_side_hatch
 ibl_brdf_lut
 vehicle_damage_data
+decal_scalar_fields
