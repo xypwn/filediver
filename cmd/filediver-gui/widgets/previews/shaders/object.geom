@@ -37,43 +37,27 @@ uint getUDIM(vec2 uv) {
     return uint(floor(clamp(uv.x, 0.0, 31.999)) + 32 * floor(clamp(0.99 - uv.y, 0.0, 1.0)));
 }
 
+void drawVertex(int idx) {
+    gl_Position = gl_in[idx].gl_Position;
+    fragPosition = inVertices[idx].fragPosition;
+    fragUV0 = inVertices[idx].fragUV0;
+    fragUV1 = inVertices[idx].fragUV1;
+    fragUV2 = inVertices[idx].fragUV2;
+    fragTangentLightPosition = inVertices[idx].fragTangentLightPosition;
+    fragTangentViewPosition = inVertices[idx].fragTangentViewPosition;
+    fragTangentFragmentPosition = inVertices[idx].fragTangentFragmentPosition;
+    dbg_fragTBN = inVertices[idx].dbg_fragTBN;
+    dbg_fragITBN = inVertices[idx].dbg_fragITBN;
+    EmitVertex();
+}
+
 void main() {
     uint udim = min(getUDIM(inVertices[0].fragUV0), min(getUDIM(inVertices[1].fragUV0), getUDIM(inVertices[2].fragUV0)));
     if (hasVisibilityMasks && !isShown(udim)) {
         return;
     }
-    gl_Position = gl_in[0].gl_Position;
-    fragPosition = inVertices[0].fragPosition;
-    fragUV0 = inVertices[0].fragUV0;
-    fragUV1 = inVertices[0].fragUV1;
-    fragUV2 = inVertices[0].fragUV2;
-    fragTangentLightPosition = inVertices[0].fragTangentLightPosition;
-    fragTangentViewPosition = inVertices[0].fragTangentViewPosition;
-    fragTangentFragmentPosition = inVertices[0].fragTangentFragmentPosition;
-    dbg_fragTBN = inVertices[0].dbg_fragTBN;
-    dbg_fragITBN = inVertices[0].dbg_fragITBN;
-    EmitVertex();
-    gl_Position = gl_in[1].gl_Position;
-    fragPosition = inVertices[1].fragPosition;
-    fragUV0 = inVertices[1].fragUV0;
-    fragUV1 = inVertices[1].fragUV1;
-    fragUV2 = inVertices[1].fragUV2;
-    fragTangentLightPosition = inVertices[1].fragTangentLightPosition;
-    fragTangentViewPosition = inVertices[1].fragTangentViewPosition;
-    fragTangentFragmentPosition = inVertices[1].fragTangentFragmentPosition;
-    dbg_fragTBN = inVertices[1].dbg_fragTBN;
-    dbg_fragITBN = inVertices[1].dbg_fragITBN;
-    EmitVertex();
-    gl_Position = gl_in[2].gl_Position;
-    fragPosition = inVertices[2].fragPosition;
-    fragUV0 = inVertices[2].fragUV0;
-    fragUV1 = inVertices[2].fragUV1;
-    fragUV2 = inVertices[2].fragUV2;
-    fragTangentLightPosition = inVertices[2].fragTangentLightPosition;
-    fragTangentViewPosition = inVertices[2].fragTangentViewPosition;
-    fragTangentFragmentPosition = inVertices[2].fragTangentFragmentPosition;
-    dbg_fragTBN = inVertices[2].dbg_fragTBN;
-    dbg_fragITBN = inVertices[2].dbg_fragITBN;
-    EmitVertex();
+    drawVertex(0);
+    drawVertex(1);
+    drawVertex(2);
     EndPrimitive();
 }
