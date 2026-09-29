@@ -403,6 +403,10 @@ func (a *guiApp) onPreDraw(state *imgui_wrapper.State) error {
 				UseCity:              &a.extractorConfig.Planet.City,
 				UpdateAssetOverrides: a.gameData.UpdateAssetOverrides,
 			},
+			previews.ExtractorArmorParameters{
+				ArmorSets:        a.gameData.ArmorSets,
+				SelectedArchives: func() []stingray.Hash { return slices.SortedFunc(maps.Keys(a.selectedArchives), stingray.Hash.Cmp) },
+			},
 		)
 		if err != nil {
 			return fmt.Errorf("creating preview: %w", err)
