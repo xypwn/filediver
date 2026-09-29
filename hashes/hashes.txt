@@ -2007,6 +2007,7 @@ Reload_Group/assault_rifle_grenadier
 Reload_Group/assault_rifle_grenadier_fast
 Reload_Group/assault_rifle_grenadier_launcher
 Reload_Group/assault_rifle_risk
+Reload_Group/assault_rifle_risk_fast
 Reload_Group/colony_shotgun
 Reload_Group/colony_shotgun_fast
 Reload_Group/cricket_reload
@@ -96251,6 +96252,7 @@ content/fac_helldivers/equipment/primary_weapons/smg_flamer/animations/flamer_re
 content/fac_helldivers/equipment/primary_weapons/smg_flamer/animations/smg_fire
 content/fac_helldivers/equipment/primary_weapons/smg_flamer/animations/smg_reload
 content/fac_helldivers/equipment/primary_weapons/smg_flamer/animations/smg_reload_fast
+content/fac_helldivers/equipment/primary_weapons/smg_flamer/animations/smg_reload_fast_onehand
 content/fac_helldivers/equipment/primary_weapons/smg_flamer/animations/smg_reload_onehand
 content/fac_helldivers/equipment/primary_weapons/smg_flamer/smg_flamer
 content/fac_helldivers/equipment/primary_weapons/smg_flamer/smg_flamer_attachment/smg_flamer_attachment
