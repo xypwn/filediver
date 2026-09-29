@@ -17,10 +17,12 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unsafe"
 
 	"github.com/AllenDang/cimgui-go/imgui"
 	"github.com/go-gl/gl/v4.3-core/gl"
 	"github.com/go-gl/mathgl/mgl32"
+	"github.com/x448/float16"
 	fnt "github.com/xypwn/filediver/cmd/filediver-gui/fonts"
 	"github.com/xypwn/filediver/cmd/filediver-gui/glutils"
 	"github.com/xypwn/filediver/cmd/filediver-gui/imutils"
@@ -58,6 +60,7 @@ var baseUniforms = []string{
 // Textures used by the lut fragment shader
 var lutTextureNames = []string{
 	"decal_sheet",
+	"composite_array",
 	"customization_camo_tiler_array",
 	"customization_material_detail_tiler_array",
 	"pattern_lut",
@@ -95,10 +98,16 @@ type unitPreviewUniformBlock struct {
 	ubo            uint32
 	binding        uint32
 	uniformOffsets map[string]int32
+	uniformTypes   map[string]glutils.GLType
+	defaultValues  map[string][]uint8
+	currentValues  map[string][]uint8
 }
 
 func (block *unitPreviewUniformBlock) generate(program uint32, name string) {
 	block.uniformOffsets = make(map[string]int32)
+	block.uniformTypes = make(map[string]glutils.GLType)
+	block.defaultValues = make(map[string][]uint8)
+	block.currentValues = make(map[string][]uint8)
 
 	cStr, free := gl.Strs(name + "\x00")
 	blockIdx := gl.GetProgramResourceIndex(program, gl.UNIFORM_BLOCK, *cStr)
@@ -125,16 +134,20 @@ func (block *unitPreviewUniformBlock) generate(program uint32, name string) {
 	gl.GetProgramResourceiv(program, gl.UNIFORM_BLOCK, blockIdx, 1, &activeUniforms[0], numUniforms, nil, &blockUniforms[0])
 
 	for uniformIdx := range numUniforms {
-		uniformInfo := make([]int32, 3)
-		uniformProperties := []uint32{gl.NAME_LENGTH, gl.TYPE, gl.OFFSET}
-		gl.GetProgramResourceiv(program, gl.UNIFORM, uint32(blockUniforms[uniformIdx]), 3, &uniformProperties[0], 3, nil, &uniformInfo[0])
+		uniformInfo := make([]int32, 4)
+		uniformProperties := []uint32{gl.NAME_LENGTH, gl.TYPE, gl.ARRAY_SIZE, gl.OFFSET}
+		gl.GetProgramResourceiv(program, gl.UNIFORM, uint32(blockUniforms[uniformIdx]), 4, &uniformProperties[0], 4, nil, &uniformInfo[0])
 
 		buf := make([]uint8, uniformInfo[0])
 		gl.GetProgramResourceName(program, gl.UNIFORM, uint32(blockUniforms[uniformIdx]), int32(len(buf)), nil, &buf[0])
 
 		uniformName := string(buf[:len(buf)-1])
-		fmt.Printf("block uniform %v: offset %v\n", uniformName, uniformInfo[2])
-		block.uniformOffsets[uniformName] = uniformInfo[2]
+		uniformType := glutils.GLType(uniformInfo[1])
+		fmt.Printf("block uniform %v: offset %v type %v array size %v\n", uniformName, uniformInfo[3], uniformType.String(), uniformInfo[2])
+		block.uniformOffsets[uniformName] = uniformInfo[3]
+		block.uniformTypes[uniformName] = uniformType
+		block.defaultValues[uniformName] = make([]uint8, max(1, uniformInfo[2])*int32(uniformType.Size()))
+		block.currentValues[uniformName] = make([]uint8, max(1, uniformInfo[2])*int32(uniformType.Size()))
 	}
 
 	gl.GenBuffers(1, &block.ubo)
@@ -144,15 +157,45 @@ func (block *unitPreviewUniformBlock) generate(program uint32, name string) {
 	fmt.Printf("Uniform block id: %v\n", block.ubo)
 }
 
-// Data must be a slice
+// Data must be a slice or ptr
 func (block *unitPreviewUniformBlock) set(name string, data any) {
 	offset, contains := block.uniformOffsets[name]
-	if !contains {
+	if !contains || binary.Size(data) > len(block.currentValues[name]) {
 		return
 	}
 	gl.BindBuffer(gl.UNIFORM_BUFFER, block.ubo)
 	gl.BufferSubData(gl.UNIFORM_BUFFER, int(offset), binary.Size(data), gl.Ptr(data))
 	gl.BindBuffer(gl.UNIFORM_BUFFER, 0)
+	if _, err := binary.Encode(block.currentValues[name], binary.LittleEndian, data); err != nil {
+		fmt.Printf("[error] current value for %v could not be encoded: %v\n", name, err)
+	}
+}
+
+func (block *unitPreviewUniformBlock) reset(name string) {
+	data, contains := block.defaultValues[name]
+	if !contains {
+		return
+	}
+	block.set(name, data)
+}
+
+// Data must be a slice
+func (block *unitPreviewUniformBlock) setDefault(name string, data any) {
+	_, contains := block.defaultValues[name]
+	if !contains {
+		return
+	}
+	if _, err := binary.Encode(block.defaultValues[name], binary.LittleEndian, data); err != nil {
+		fmt.Printf("[error] default value for %v could not be encoded: %v\n", name, err)
+	}
+}
+
+func (block *unitPreviewUniformBlock) get(name string, outData any) {
+	data, contains := block.currentValues[name]
+	if !contains {
+		return
+	}
+	binary.Decode(data, binary.LittleEndian, outData)
 }
 
 type unitPreviewMaterialTexture struct {
@@ -283,6 +326,9 @@ type UnitPreviewState struct {
 	objectsShownDefault  map[string]bool
 	objectsSelected      map[string]bool
 	objectsSettingsShown bool
+
+	materialSettingsShown bool
+	materialSettingsDrawn bool
 
 	wireframeMaterial unitPreviewMaterial
 	normalVisMaterial unitPreviewMaterial
@@ -929,20 +975,23 @@ func (pv *UnitPreviewState) useLUTMaterial(getResource GetResourceFunc, info *un
 				continue
 			}
 			block.set(settingName, value)
+			block.setDefault(settingName, value)
 		}
 	}
 	for _, block := range object.materials[group].uniformBlocks {
 		if _, contains := block.uniformOffsets["seed"]; contains {
 			block.set("seed", &seed)
+			block.setDefault("seed", &seed)
 		}
 		if _, contains := block.uniformOffsets["use_decals"]; contains {
 			val, contains := mat.Textures[stingray.Sum("decal_sheet").Thin()]
 			hasValue := val.Value != 0x0
+			useDecals := uint32(0)
 			if contains || hasValue {
-				block.set("use_decals", []uint32{1})
-			} else {
-				block.set("use_decals", []uint32{0})
+				useDecals = 1
 			}
+			block.set("use_decals", &useDecals)
+			block.setDefault("use_decals", &useDecals)
 		}
 	}
 
@@ -1887,6 +1936,17 @@ func (pv *UnitPreviewState) Draw(name string) {
 		pv.objectsSettingsShown = !pv.objectsSettingsShown
 	}
 
+	imgui.SameLine()
+	label = "Material Settings Editor"
+	if !pv.materialSettingsShown {
+		label = "Show " + label
+	} else {
+		label = "Hide " + label
+	}
+	if imgui.Button(label) {
+		pv.materialSettingsShown = !pv.materialSettingsShown
+	}
+
 	if pv.animTime != -1 {
 		pv.animTime += 5 * imgui.CurrentIO().DeltaTime()
 	}
@@ -1904,6 +1964,139 @@ func (pv *UnitPreviewState) DrawSettings() {
 	}
 	if pv.objectsSettingsShown {
 		pv.drawMeshSelector()
+	}
+	if pv.materialSettingsShown {
+		pv.drawMaterialSettingsEditor()
+	}
+}
+
+func (pv *UnitPreviewState) drawMaterialSettingsEditor() {
+	defer imgui.End()
+	if pv.materialSettingsDrawn = imgui.BeginV(fnt.I.Settings+" Material Settings Editor", &pv.materialSettingsShown, imgui.WindowFlagsNoFocusOnAppearing); !pv.materialSettingsDrawn {
+		return
+	}
+	sortedObjectKeys := slices.Sorted(maps.Keys(pv.objects))
+	for _, name := range sortedObjectKeys {
+		shown := pv.objectsShown[name]
+		var icon string
+		if shown {
+			icon = fnt.I.Visibility
+		} else {
+			icon = fnt.I.VisibilityOff
+		}
+		imgui.PushIDStr(name)
+		defer imgui.PopID()
+		pos := imgui.CursorScreenPos()
+		size := imgui.NewVec2(imgui.ContentRegionAvail().X, imgui.FontSize())
+		imutils.Textf(fmt.Sprintf("%s %s", icon, name))
+		imgui.SetCursorScreenPos(pos)
+		imgui.SetNextItemAllowOverlap()
+		if imgui.InvisibleButton("btn", size) {
+			pv.objectsShown[name] = !shown
+			pv.objectsSelected[name] = !shown
+		}
+		if !shown {
+			continue
+		}
+		for idx := range pv.objects[name].materials {
+			imgui.Indent()
+			imutils.Textf(fmt.Sprintf("%s %s", fnt.I.Texture, pv.objects[name].materials[idx].name))
+			for block := range pv.objects[name].materials[idx].uniformBlocks {
+				imgui.Indent()
+				uniformBlock := pv.objects[name].materials[idx].uniformBlocks[block]
+				sortedSettingsKeys := slices.Sorted(maps.Keys(uniformBlock.currentValues))
+				longest := slices.MaxFunc(sortedSettingsKeys, func(a, b string) int { return cmp.Compare(len(a), len(b)) })
+				for _, key := range sortedSettingsKeys {
+					imgui.PushIDStr(fmt.Sprintf("%v %v", block, key))
+					defer imgui.PopID()
+					style := imgui.CurrentStyle()
+					imgui.SetNextItemWidth(size.X - style.IndentSpacing()*2 - (style.ItemInnerSpacing().X + imgui.CalcTextSize(longest).X))
+					var n int32 = 4
+					switch uniformBlock.uniformTypes[key] {
+					case glutils.GL_BOOL:
+						var val uint32
+						uniformBlock.get(key, &val)
+						result := val != 0
+						if imgui.Checkbox(key, &result) {
+							uniformBlock.set(key, []uint32{(val + 1) % 2})
+						}
+					case glutils.GL_BYTE:
+						var val int8
+						uniformBlock.get(key, &val)
+						oldval := val
+						if imgui.InputScalar(key, imgui.DataTypeS8, uintptr(unsafe.Pointer(&val))) && oldval != val {
+							uniformBlock.set(key, &val)
+						}
+					case glutils.GL_UNSIGNED_BYTE:
+						var val uint8
+						uniformBlock.get(key, &val)
+						oldval := val
+						if imgui.InputScalar(key, imgui.DataTypeU8, uintptr(unsafe.Pointer(&val))) && oldval != val {
+							uniformBlock.set(key, &val)
+						}
+					case glutils.GL_SHORT:
+						var val int16
+						uniformBlock.get(key, &val)
+						oldval := val
+						if imgui.InputScalar(key, imgui.DataTypeS16, uintptr(unsafe.Pointer(&val))) && oldval != val {
+							uniformBlock.set(key, &val)
+						}
+					case glutils.GL_UNSIGNED_SHORT:
+						var val uint16
+						uniformBlock.get(key, &val)
+						oldval := val
+						if imgui.InputScalar(key, imgui.DataTypeU16, uintptr(unsafe.Pointer(&val))) && oldval != val {
+							uniformBlock.set(key, &val)
+						}
+					case glutils.GL_INT:
+						var val int32
+						uniformBlock.get(key, &val)
+						oldval := val
+						if imgui.InputScalar(key, imgui.DataTypeS32, uintptr(unsafe.Pointer(&val))) && oldval != val {
+							uniformBlock.set(key, &val)
+						}
+					case glutils.GL_UNSIGNED_INT:
+						var val uint32
+						uniformBlock.get(key, &val)
+						oldval := val
+						if imgui.InputScalar(key, imgui.DataTypeU32, uintptr(unsafe.Pointer(&val))) && oldval != val {
+							uniformBlock.set(key, &val)
+						}
+					case glutils.GL_HALF_FLOAT:
+						var val float16.Float16
+						uniformBlock.get(key, &val)
+						floatVal := val.Float32()
+						oldval := floatVal
+						if imgui.InputScalar(key, imgui.DataTypeFloat, uintptr(unsafe.Pointer(&floatVal))) && oldval != floatVal {
+							val = float16.Fromfloat32(floatVal)
+							uniformBlock.set(key, &val)
+						}
+					case glutils.GL_FLOAT:
+						var val float32
+						uniformBlock.get(key, &val)
+						oldval := val
+						if imgui.InputScalar(key, imgui.DataTypeFloat, uintptr(unsafe.Pointer(&val))) && oldval != val {
+							uniformBlock.set(key, &val)
+						}
+					case glutils.GL_FLOAT_VEC2:
+						n = min(2, n)
+						fallthrough
+					case glutils.GL_FLOAT_VEC3:
+						n = min(3, n)
+						fallthrough
+					case glutils.GL_FLOAT_VEC4:
+						n = min(4, n)
+						vals := make([]float32, n)
+						uniformBlock.get(key, vals)
+						if imgui.InputScalarN(key, imgui.DataTypeFloat, uintptr(unsafe.Pointer(&vals[0])), n) {
+							uniformBlock.set(key, vals)
+						}
+					}
+				}
+				imgui.Unindent()
+			}
+			imgui.Unindent()
+		}
 	}
 }
 
