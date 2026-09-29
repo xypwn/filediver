@@ -273,8 +273,9 @@ type unitPreviewObject struct {
 	materials []unitPreviewMaterial
 	matrix    mgl32.Mat4
 
-	numVertices int32
-	numIndices  []int32
+	numVertices        int32
+	numIndices         []int32
+	hasVisibilityMasks int32
 }
 
 // NOTE(xypwn): We do at most ~10 lookups once per frame,
@@ -457,7 +458,7 @@ func NewUnitPreview(getResource GetResourceFunc, ArmorParams ExtractorArmorParam
 			"shaders/object_wireframe.frag",
 		},
 		0,
-		[]string{"mvp", "color", "udimShown"},
+		[]string{"mvp", "color", "udimShown", "hasVisibilityMasks"},
 	)
 	if err != nil {
 		return nil, err
@@ -471,7 +472,7 @@ func NewUnitPreview(getResource GetResourceFunc, ArmorParams ExtractorArmorParam
 			"shaders/object_normal_vis.frag",
 		},
 		0,
-		[]string{"mvp", "len", "showTangentBitangent", "udimShown"},
+		[]string{"mvp", "len", "showTangentBitangent", "udimShown", "hasVisibilityMasks"},
 	)
 	if err != nil {
 		return nil, err
@@ -520,7 +521,6 @@ func (pv *UnitPreviewState) Delete() {
 
 var objectRegex = regexp.MustCompile("^(g_)?(\\w*?)_?(cull|shadow|rubble|rubble_shadow|shadowmesh|c)?_?(LOD\\d)?$")
 
-// TODO: use mesh LOD names to load all lod0 meshes in the unit
 func (pv *UnitPreviewState) loadMeshes(lookupThinHash func(stingray.ThinHash) string, meshInfos []unit.MeshInfo, meshLayouts []unit.MeshLayout, gpuData []byte) (map[string]unit.Mesh, map[string]bool, error) {
 	minLods := make(map[string]int)
 	objects := make(map[string]map[string]int)
@@ -695,7 +695,7 @@ func (pv *UnitPreviewState) AcquireNamedTextureOrDefault(name stingray.Hash, def
 
 func (pv *UnitPreviewState) useBasicMaterial(getResource GetResourceFunc, object *unitPreviewObject, group int, mat *material.Material) error {
 	err := object.materials[group].generate(
-		[]string{"shaders/object.vert", "shaders/object.frag"},
+		[]string{"shaders/object.vert", "shaders/object.geom", "shaders/object.frag"},
 		0,
 		append(baseUniforms, "texAlbedo", "texNormal", "shouldReconstructNormalZ"),
 	)
@@ -945,7 +945,7 @@ func overrideLUTMaterial(mat *material.Material, armorInfo *datalib.UnitData) {
 
 func (pv *UnitPreviewState) useLUTMaterial(getResource GetResourceFunc, object *unitPreviewObject, group int, mat *material.Material, lookupThinHash func(stingray.ThinHash) string) error {
 	err := object.materials[group].generate(
-		[]string{"shaders/object.vert", "shaders/lut.frag"},
+		[]string{"shaders/object.vert", "shaders/object.geom", "shaders/lut.frag"},
 		0,
 		append(baseUniforms, lutTextureNames...),
 	)
@@ -1212,13 +1212,19 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 		pv.aabbMat[name] = info.Bones[mesh.Info.Header.AABBTransformIndex].Matrix
 
 		if len(mesh.Positions) == 0 {
-			return fmt.Errorf("mesh contains no positions")
+			// gui logger warning probably
+			fmt.Printf("mesh %v contains no positions\n", name)
+			continue
 		}
 		if len(mesh.Normals) == 0 {
-			return fmt.Errorf("mesh contains no normals")
+			// gui logger warning probably
+			fmt.Printf("mesh %v contains no normals\n", name)
+			continue
 		}
 		if len(mesh.UVCoords) == 0 || len(mesh.UVCoords[0]) == 0 {
-			return fmt.Errorf("mesh contains no UV coordinates")
+			// gui logger warning probably
+			fmt.Printf("mesh %v contains no UV coordinates\n", name)
+			continue
 		}
 
 		object := unitPreviewObject{}
@@ -1271,10 +1277,9 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 			uvsSize := len(mesh.UVCoords[0]) * 2 * 4
 			tangentsSize := len(mesh.Tangents) * 4 * 4
 			bitangentsSize := len(mesh.Bitangents) * 3 * 4
-			udimsSize := len(mesh.Udims) * 4
 
 			gl.BindBuffer(gl.ARRAY_BUFFER, object.vbo)
-			gl.BufferData(gl.ARRAY_BUFFER, positionsSize+normalsSize+uvsSize*min(len(mesh.UVCoords), 3)+tangentsSize+bitangentsSize+udimsSize, nil, gl.STATIC_DRAW)
+			gl.BufferData(gl.ARRAY_BUFFER, positionsSize+normalsSize+uvsSize*min(len(mesh.UVCoords), 3)+tangentsSize+bitangentsSize, nil, gl.STATIC_DRAW)
 			offset := 0
 			//
 			gl.BufferSubData(gl.ARRAY_BUFFER, offset, positionsSize, gl.Ptr(mesh.Positions))
@@ -1313,10 +1318,6 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 					offset += uvsSize
 				}
 			}
-			gl.BufferSubData(gl.ARRAY_BUFFER, offset, udimsSize, gl.Ptr(mesh.Udims))
-			gl.VertexAttribPointerWithOffset(7, 1, gl.FLOAT, true, 4, uintptr(offset))
-			gl.EnableVertexAttribArray(7)
-			offset += udimsSize
 
 			object.numIndices = make([]int32, len(mesh.Indices))
 			for group, indices := range mesh.Indices {
@@ -1333,26 +1334,26 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 		pv.meshNormals[name] = mesh.Normals
 		pv.objects[name] = object
 
-		// Upload debug object data
+		// Upload bounding box data
 		{
-			dbgObj := unitPreviewObject{}
-			dbgObj.genObjects(false, 1)
-			gl.BindVertexArray(dbgObj.vao)
+			boundingBox := unitPreviewObject{}
+			boundingBox.genObjects(false, 1)
+			gl.BindVertexArray(boundingBox.vao)
 
 			verts := pv.getAABBVertices(name)
-			gl.BindBuffer(gl.ARRAY_BUFFER, dbgObj.vbo)
+			gl.BindBuffer(gl.ARRAY_BUFFER, boundingBox.vbo)
 			defer gl.BindBuffer(gl.ARRAY_BUFFER, 0)
 			gl.BufferData(gl.ARRAY_BUFFER, len(verts)*3*4, gl.Ptr(verts[:]), gl.STATIC_DRAW)
 
-			dbgObj.numIndices[0] = int32(len(aabbIndices))
-			dbgObj.numVertices = int32(len(verts))
-			gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, dbgObj.ibos[0])
+			boundingBox.numIndices[0] = int32(len(aabbIndices))
+			boundingBox.numVertices = int32(len(verts))
+			gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, boundingBox.ibos[0])
 			defer gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, 0)
-			gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, int(dbgObj.numIndices[0]*4), gl.Ptr(aabbIndices[:]), gl.STATIC_DRAW)
+			gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, int(boundingBox.numIndices[0]*4), gl.Ptr(aabbIndices[:]), gl.STATIC_DRAW)
 
 			gl.VertexAttribPointer(0, 3, gl.FLOAT, false, 3*4, nil)
 			gl.EnableVertexAttribArray(0)
-			pv.boundingBoxes[name] = dbgObj
+			pv.boundingBoxes[name] = boundingBox
 		}
 	}
 
@@ -1430,18 +1431,16 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 		visibilityMask, ok = visibilityMasks[entityHash]
 	}
 	if ok {
-		for idx := range pv.objects {
-			for _, material := range pv.objects[idx].materials {
+		for name := range pv.objects {
+			object := pv.objects[name]
+			object.hasVisibilityMasks = 1
+			pv.objects[name] = object
+			for _, material := range pv.objects[name].materials {
 				gl.UseProgram(material.program)
 				gl.Uniform1ui(material.uniforms["hasVisibilityMasks"], 1)
 				gl.UseProgram(0)
 			}
 		}
-		gl.UseProgram(pv.wireframeMaterial.program)
-		gl.Uniform1ui(pv.wireframeMaterial.uniforms["hasVisibilityMasks"], 1)
-		gl.UseProgram(pv.normalVisMaterial.program)
-		gl.Uniform1ui(pv.normalVisMaterial.uniforms["hasVisibilityMasks"], 1)
-		gl.UseProgram(0)
 		for _, info := range visibilityMask.MaskInfos {
 			if int(info.Index) >= len(pv.udimsShownDefault) {
 				// No support for udims with index > 64 at the moment
@@ -1459,12 +1458,6 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 			}
 			pv.udimNames[info.Index] = name
 		}
-	} else {
-		gl.UseProgram(pv.wireframeMaterial.program)
-		gl.Uniform1ui(pv.wireframeMaterial.uniforms["hasVisibilityMasks"], 0)
-		gl.UseProgram(pv.normalVisMaterial.program)
-		gl.Uniform1ui(pv.normalVisMaterial.uniforms["hasVisibilityMasks"], 0)
-		gl.UseProgram(0)
 	}
 	pv.udimsSelected = pv.udimsShownDefault
 
@@ -1645,6 +1638,7 @@ func (pv *UnitPreviewState) Draw(name string) {
 					gl.UseProgram(pv.wireframeMaterial.program)
 					gl.UniformMatrix4fv(pv.wireframeMaterial.uniforms["mvp"], 1, false, &mvp[0])
 					gl.Uniform4fv(pv.wireframeMaterial.uniforms["color"], 1, &pv.wireframeColor[0])
+					gl.Uniform1i(pv.wireframeMaterial.uniforms["hasVisibilityMasks"], pv.objects[name].hasVisibilityMasks)
 					gl.Uniform1iv(pv.wireframeMaterial.uniforms["udimShown"], 64, &pv.udimsShown[0])
 				}
 				for group, ibo := range pv.objects[name].ibos {
@@ -1703,6 +1697,7 @@ func (pv *UnitPreviewState) Draw(name string) {
 					gl.UniformMatrix4fv(pv.normalVisMaterial.uniforms["mvp"], 1, false, &mvp[0])
 					gl.Uniform1f(pv.normalVisMaterial.uniforms["len"], pv.viewDistance*0.02)
 					gl.Uniform1iv(pv.normalVisMaterial.uniforms["showTangentBitangent"], 1, &pv.visualizeTangentBitangent)
+					gl.Uniform1i(pv.normalVisMaterial.uniforms["hasVisibilityMasks"], pv.objects[name].hasVisibilityMasks)
 					gl.Uniform1iv(pv.normalVisMaterial.uniforms["udimShown"], 64, &pv.udimsShown[0])
 					for group, ibo := range pv.objects[name].ibos {
 						gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo)
@@ -1876,7 +1871,7 @@ func (pv *UnitPreviewState) Draw(name string) {
 			}
 
 			modelPos, _, view, projection := pv.computeMVP(size.X/size.Y, false)
-			mvp := projection.Mul4(view).Mul4(pv.model.Mul4(mgl32.Translate3D(modelPos.Vec3().Elem())))
+			translation := mgl32.Translate3D(modelPos.Vec3().Elem())
 
 			// Show hovered vertex info
 			if pv.visualizeNormals {
@@ -1892,6 +1887,7 @@ func (pv *UnitPreviewState) Draw(name string) {
 					if shown, contains := pv.objectsShown[name]; contains && !shown {
 						continue
 					}
+					mvp := projection.Mul4(view).Mul4(pv.model.Mul4(translation.Mul4(pv.objects[name].matrix)))
 					for i, vtx := range pv.meshPositions[name] {
 						v := mvp.Mul4x1(mgl32.Vec3(vtx).Vec4(1.0))
 						v = v.Mul(1 / v.W())
