@@ -12,6 +12,7 @@ import (
 
 	"github.com/ebitengine/oto/v3"
 	"github.com/xypwn/filediver/cmd/filediver-gui/imutils"
+	datalib "github.com/xypwn/filediver/datalibrary"
 	"github.com/xypwn/filediver/dds"
 	"github.com/xypwn/filediver/exec"
 	"github.com/xypwn/filediver/stingray"
@@ -67,14 +68,19 @@ type ExtractorPlanetParameters struct {
 	UpdateAssetOverrides func(string, bool)
 }
 
-func NewAutoPreview(otoCtx *oto.Context, audioSampleRate int, hashes map[stingray.Hash]string, thinhashes map[stingray.ThinHash]string, getResourceGenerator GetResourceGeneratorFunc, runner *exec.Runner, planetParams ExtractorPlanetParameters) (*AutoPreview, error) {
+type ExtractorArmorParameters struct {
+	ArmorSets        map[stingray.Hash]datalib.ArmorSet
+	SelectedArchives func() []stingray.Hash
+}
+
+func NewAutoPreview(otoCtx *oto.Context, audioSampleRate int, hashes map[stingray.Hash]string, thinhashes map[stingray.ThinHash]string, getResourceGenerator GetResourceGeneratorFunc, runner *exec.Runner, planetParams ExtractorPlanetParameters, armorParams ExtractorArmorParameters) (*AutoPreview, error) {
 	var err error
 	pv := &AutoPreview{
 		hashes:               hashes,
 		thinhashes:           thinhashes,
 		getResourceGenerator: getResourceGenerator,
 	}
-	pv.previews.unit, err = NewUnitPreview(getResourceGenerator(true))
+	pv.previews.unit, err = NewUnitPreview(getResourceGenerator(true), armorParams)
 	if err != nil {
 		return nil, err
 	}

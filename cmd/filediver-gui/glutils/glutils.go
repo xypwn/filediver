@@ -41,6 +41,45 @@ const (
 
 //go:generate go run golang.org/x/tools/cmd/stringer -type=GLTarget
 
+type GLType uint32
+
+const (
+	GL_BOOL           GLType = gl.BOOL
+	GL_BYTE           GLType = gl.BYTE
+	GL_UNSIGNED_BYTE  GLType = gl.UNSIGNED_BYTE
+	GL_SHORT          GLType = gl.SHORT
+	GL_UNSIGNED_SHORT GLType = gl.UNSIGNED_SHORT
+	GL_INT            GLType = gl.INT
+	GL_UNSIGNED_INT   GLType = gl.UNSIGNED_INT
+	GL_FIXED          GLType = gl.FIXED
+	GL_HALF_FLOAT     GLType = gl.HALF_FLOAT
+	GL_FLOAT          GLType = gl.FLOAT
+	GL_FLOAT_VEC2     GLType = gl.FLOAT_VEC2
+	GL_FLOAT_VEC3     GLType = gl.FLOAT_VEC3
+	GL_FLOAT_VEC4     GLType = gl.FLOAT_VEC4
+	GL_DOUBLE         GLType = gl.DOUBLE
+)
+
+//go:generate go run golang.org/x/tools/cmd/stringer -type=GLType
+
+func (t GLType) Size() uint32 {
+	switch t {
+	case GL_BYTE, GL_UNSIGNED_BYTE:
+		return 1
+	case GL_SHORT, GL_UNSIGNED_SHORT, GL_HALF_FLOAT:
+		return 2
+	case GL_INT, GL_UNSIGNED_INT, GL_FIXED, GL_FLOAT, GL_BOOL:
+		return 4
+	case GL_DOUBLE, GL_FLOAT_VEC2:
+		return 8
+	case GL_FLOAT_VEC3:
+		return 12
+	case GL_FLOAT_VEC4:
+		return 16
+	}
+	return 0
+}
+
 func CreateShader(source string, shaderType uint32) (uint32, error) {
 	shader := gl.CreateShader(shaderType)
 	{
