@@ -13,6 +13,7 @@ in mat3 dbg_fragTBN;
 in mat3 dbg_fragITBN;
 
 uniform sampler2D decal_sheet;
+uniform sampler2DArray composite_array;
 uniform sampler2DArray customization_camo_tiler_array;
 uniform sampler2DArray customization_material_detail_tiler_array;
 uniform sampler2D pattern_lut;
@@ -25,7 +26,8 @@ uniform sampler2D ibl_brdf_lut;
 layout(shared, binding = 0) uniform LutSettingsBlock {
     uint seed;
     bool use_decals;
-    float detail_tiler_factor_mult;
+    float damage_mask_selector;
+    float detail_tile_factor_mult;
     float decal_id;
     float decal_id_offset_x;
     float decal_id_offset_y;
@@ -114,8 +116,15 @@ vec3 hsv2rgb(vec3 c)
     return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
 }
 
+// base and detail should be unpacked already, and this will return an unpacked normal
+vec3 reorientNormalMaps(vec3 base, vec3 detail) {
+    vec3 t = base + vec3(0, 0, 1);
+    vec3 u = detail * vec3(-1, -1, 1);
+    return normalize(t*dot(t, u)/t.z - u);
+}
+
 void main() {
-    float detail_tiler_factor_mult = 1.0;
+    float detail_tile_factor_mult = 1.0;
 
     vec4 base_data_sample = texture(base_data, fragUV0);
     vec3 normal = vec3(base_data_sample.xy * 2.0 - 1.0, 0);
@@ -136,25 +145,60 @@ void main() {
     vec4 lut_6 = texelFetch(material_lut, ivec2(6, material_lut_row), 0);
     vec4 metallic_detail_controls = texelFetch(material_lut, ivec2(7, material_lut_row), 0);
     vec4 specular_detail_controls = texelFetch(material_lut, ivec2(8, material_lut_row), 0);
-    float roughness = texelFetch(material_lut, ivec2(10, material_lut_row), 0).x;
+    vec4 lut_10 = texelFetch(material_lut, ivec2(10, material_lut_row), 0);
+    vec4 lut_11 = texelFetch(material_lut, ivec2(11, material_lut_row), 0);
+    float roughness = lut_10.x;
     vec4 camo_controls = texelFetch(material_lut, ivec2(21, material_lut_row), 0);
     vec4 detail_tiling = texelFetch(material_lut, ivec2(22, material_lut_row), 0);
 
+    // overwritten by composite_array, if used
     vec4 material_detailing_xy = vec4(0);
+
     vec4 material_detailing_zw = vec4(0);
     vec4 material_detail_sample = vec4(0);
 
+    // r12.w
+    float detail_normal_2_alignment;
+    vec4 material_detail_sample_2 = vec4(0);
+    uvec2 random_detail_offset = uvec2(seed, seed >> 9);
+    uvec2 bitmask = (((uvec2(1) << uvec2(23)) - uvec2(1)) << uvec2(0)) & 0xffffffff;
+    random_detail_offset = (random_detail_offset & bitmask.xy) | (uvec2(0x3f800000) & ~bitmask.xy);
+    vec2 detail_offset = uintBitsToFloat(random_detail_offset) - 1;
+
+    uint material_detail_len = textureSize(customization_material_detail_tiler_array, 0).z;
     if (base_color.w <= 3.0) {
-        uint material_detail_len = textureSize(customization_material_detail_tiler_array, 0).z;
-        uvec2 random_detail_offset = uvec2(seed, seed >> 9);
-        uvec2 bitmask = (((uvec2(1) << uvec2(23)) - uvec2(1)) << uvec2(0)) & 0xffffffff;
-        random_detail_offset = (random_detail_offset & bitmask.xy) | (uvec2(0x3f800000) & ~bitmask.xy);
-        vec2 detail_offset = uintBitsToFloat(random_detail_offset) - 1;
-        float detail_scaling = detail_tiling.x * detail_tiler_factor_mult;
+        float detail_scaling = detail_tiling.x * detail_tile_factor_mult;
         vec3 detail_uvs = vec3(fragUV1 * detail_scaling + detail_offset, float(uint(detail_layer.x) % material_detail_len));
         material_detail_sample = texture(customization_material_detail_tiler_array, detail_uvs) - 0.5;
         material_detailing_xy.xy = material_detail_sample.zw;
         material_detailing_zw.xy = material_detail_sample.xy * vec2(-1, 1);
+    }
+
+    if (base_color.w >= 2.0 && lut_10.z > 0.0) {
+        vec3 detail_uvs_2 = vec3(detail_tiling.x * detail_tile_factor_mult * fragUV1 + detail_offset, float(uint(lut_10.y) % material_detail_len));
+        material_detail_sample_2 = texture(customization_material_detail_tiler_array, detail_uvs_2) - 0.5;
+        // r16.zw
+        material_detailing_zw.zw = material_detail_sample_2.xy * vec2(-2, 2);
+        vec2 temp_sq = material_detailing_zw.zw * material_detailing_zw.zw;
+        float material_detailing_normal_z = max(max(temp_sq.x, temp_sq.y) * 0.000061, reconstructNormalZ(material_detailing_zw.zw));
+        material_detailing_zw.zw = -inversesqrt(material_detailing_normal_z) * material_detailing_zw.zw * lut_10.w;
+        normal_modified = normalize(vec3(material_detailing_zw.zw + normal_modified.xy, normal_modified.z * material_detailing_normal_z));
+        material_detail_sample_2.xyz = vec3(material_detail_sample_2.zw, clamp((base_data_roughness - 0.5), 0.0, 1.0));
+        detail_normal_2_alignment = dot(lut_11.xyz, material_detail_sample_2.xyz) + lut_11.w;
+    } else {
+        lut_10.z = 0.0;
+        detail_normal_2_alignment = 0.0;
+    }
+
+    if (base_color.w == 4.0) {
+        vec3 composite_uvs = vec3(detail_tiling.x * detail_tile_factor_mult * 4.0 * fragUV1, float(uint(detail_layer.x) % material_detail_len /*not composite length, yes*/));
+        vec3 composite_sample = texture(composite_array, composite_uvs).xyz;
+        material_detailing_xy.xyz = composite_sample.zxy - 0.5;
+        material_detailing_xy.w = -(composite_sample.x - 0.5);
+        material_detailing_zw.zw = vec2(-(composite_sample.x - 0.5), composite_sample.y - 0.5);
+        material_detailing_xy.y = 0.0;
+    } else {
+        material_detailing_zw.zw = material_detailing_zw.xy;
     }
 
     vec4 scaled_lut_4 = vec4(lut_4.xy * max((base_data_roughness - 0.5) * lut_4.z, 0.0) * 4, 0.0, 0.0);
@@ -192,7 +236,7 @@ void main() {
         detailing_z = inversesqrt(max(max(temp_detailing_sq.x, temp_detailing_sq.y) * 0.000061, detailing_z));
         temp_detailing = temp_detailing * -detailing_z * detail_layer.y * lut_2.w;
 
-        normal_modified = vec3(temp_detailing, 0.0) + normal_modified;
+        normal_modified = normalize(vec3(temp_detailing + normal_modified.xy, normal_modified.z * detailing_z));
     }
 
     vec3 camo_sample = vec3(0);
@@ -207,7 +251,7 @@ void main() {
         vec4 camo_color_4 = texelFetch(material_lut, ivec2(19, material_lut_row), 0);
         float camo_control_extra = texelFetch(material_lut, ivec2(20, material_lut_row), 0).w;
 
-        vec3 camo_uvs = vec3(detail_tiler_factor_mult * camo_controls.z * fragUV1, camo_controls.w);
+        vec3 camo_uvs = vec3(detail_tile_factor_mult * camo_controls.z * fragUV1, camo_controls.w);
         camo_sample = clamp((texture(customization_camo_tiler_array, camo_uvs).xyz - 0.5) * camo_controls.xxx + camo_controls.yyy, 0.0, 1.0);
         camo_result = mix(camo_color_1, camo_color_2, camo_sample.x);
         camo_result = mix(camo_result, camo_color_3, camo_sample.y);
@@ -383,8 +427,7 @@ void main() {
     float weathering_amount = 1.0;
 
     uint material = 1 << material_lut_row;
-    uint damage_mask_selector = 2;
-    bool damage_mask_selection = (damage_mask_selector & material) > 0;
+    bool damage_mask_selection = (uint(damage_mask_selector) & material) > 0;
     // r13.z (also probably only for vehicles, so...)
     float damage_weathering_amount = damage_mask_selection ? clamp(weathering_amount, 0.0, 1.0) : 0.0;
 
@@ -441,7 +484,7 @@ void main() {
     // adjust contrast
     base_color.rgb = (base_color.rgb - 0.5) * 1.6 + 0.5;
 
-    //fragColor = vec4(normal_modified * 0.5 + 0.5, 1.0);
+    //fragColor = vec4(vec3(base_color.w == 4.0), 1.0);
     //fragColor = vec4(reflectDirection, 1.0);
     //fragColor = vec4(material_detail_sample.xyz, 1.0);
     //fragColor = vec4(base_color.rgb * (mix(ambient, diffuse, 0.6) + 0.5 * specular), 1.0);
