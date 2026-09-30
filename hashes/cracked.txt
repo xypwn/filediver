@@ -9026,6 +9026,7 @@ content/markers/exploration_markers/narrative_node_no_destruction
 content/markers/generic_marker
 content/markers/grenade_box_marker
 content/markers/health_pack_marker
+content/markers/hellpod_markers/manned_turret_marker
 content/markers/impact_event_marker
 content/markers/landing_zone
 content/markers/location_map_marker
