@@ -1330,6 +1330,7 @@ Reload_Group/assault_rifle_grenadier
 Reload_Group/assault_rifle_grenadier_fast
 Reload_Group/assault_rifle_grenadier_launcher
 Reload_Group/assault_rifle_risk
+Reload_Group/assault_rifle_risk_fast
 Reload_Group/colony_shotgun
 Reload_Group/colony_shotgun_fast
 Reload_Group/cricket_reload
@@ -7648,6 +7649,7 @@ content/fac_helldivers/equipment/primary_weapons/smg_flamer/animations/flamer_re
 content/fac_helldivers/equipment/primary_weapons/smg_flamer/animations/smg_fire
 content/fac_helldivers/equipment/primary_weapons/smg_flamer/animations/smg_reload
 content/fac_helldivers/equipment/primary_weapons/smg_flamer/animations/smg_reload_fast
+content/fac_helldivers/equipment/primary_weapons/smg_flamer/animations/smg_reload_fast_onehand
 content/fac_helldivers/equipment/primary_weapons/smg_flamer/animations/smg_reload_onehand
 content/fac_helldivers/equipment/primary_weapons/smg_flamer/smg_flamer
 content/fac_helldivers/equipment/primary_weapons/smg_flamer/smg_flamer_attachment/smg_flamer_attachment
@@ -9000,8 +9002,12 @@ content/levels/ship_hub-cubemaps/reflection_probe_diffuse_bake
 content/levels/ship_hub-cubemaps/reflection_probe_radiance_bake
 content/levels/ship_hub-cubemaps/reflection_probe_specular_bake
 content/markers/ammo_box_marker
+content/markers/ammo_support_box_marker
+content/markers/bug_tcs_spawner_marker
 content/markers/camera_marker
 content/markers/customization_marker
+content/markers/cylinder_marker
+content/markers/enemy_encounter_marker
 content/markers/exploration_markers/narrative/poi_text_battlefield_medium_01
 content/markers/exploration_markers/narrative/poi_text_botremains_01_01
 content/markers/exploration_markers/narrative/poi_text_bug_research_01_01
@@ -9020,8 +9026,10 @@ content/markers/exploration_markers/narrative_node_no_destruction
 content/markers/generic_marker
 content/markers/grenade_box_marker
 content/markers/health_pack_marker
+content/markers/hellpod_markers/manned_turret_marker
 content/markers/impact_event_marker
 content/markers/landing_zone
+content/markers/location_map_marker
 content/markers/m_bug_marker
 content/markers/m_cyborg_marker
 content/markers/m_helldiver_marker
@@ -9032,6 +9040,7 @@ content/markers/m_superearth_marker
 content/markers/navmesh_seed_point
 content/markers/simple_path_marker
 content/markers/simple_path_node
+content/markers/tutorial_spawn_point_marker
 content/objectives/obj_bugs/central_core/animations/anchor_locks
 content/objectives/obj_bugs/central_core/animations/arm_nuke
 content/objectives/obj_bugs/central_core/animations/drilling

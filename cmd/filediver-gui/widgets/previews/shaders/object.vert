@@ -7,37 +7,26 @@ layout(location = 3) in vec4 inTangent;
 layout(location = 4) in vec3 inBitangent;
 layout(location = 5) in vec2 inUV1;
 layout(location = 6) in vec2 inUV2;
-layout(location = 7) in float udim;
 
-out vec3 fragPosition;
-out vec2 fragUV0;
-out vec2 fragUV1;
-out vec2 fragUV2;
-out vec3 fragTangentLightPosition; // tangent meaning in tangent space
-out vec3 fragTangentViewPosition;
-out vec3 fragTangentFragmentPosition;
-out mat3 dbg_fragTBN;
-out mat3 dbg_fragITBN;
+out VertexOutput
+{
+    vec3 fragPosition;
+    vec2 fragUV0;
+    vec2 fragUV1;
+    vec2 fragUV2;
+    vec3 fragTangentLightPosition; // tangent meaning in tangent space
+    vec3 fragTangentViewPosition;
+    vec3 fragTangentFragmentPosition;
+    mat3 dbg_fragTBN;
+    mat3 dbg_fragITBN;
+};
 
 uniform mat4 mvp; // projection*view*model
 uniform mat4 model;
 uniform mat3 normalMat; // normal matrix = transpose(inverse(model))
 uniform vec3 viewPosition;
-uniform bool hasVisibilityMasks;
-uniform bool udimShown[64];
-
-bool isShown() {
-    return udim < 64 && udimShown[int(udim)];
-}
 
 void main() {
-    if (hasVisibilityMasks && !isShown()) {
-        gl_Position = vec4(vec3(0.0), 1.0);
-        fragUV0 = inUV;
-        fragUV1 = inUV1;
-        fragUV2 = inUV2;
-        return;
-    }
     gl_Position = mvp * vec4(inPosition, 1.0);
     fragPosition = vec3(model * vec4(inPosition, 1.0));
     fragUV0 = inUV;
