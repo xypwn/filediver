@@ -7,6 +7,7 @@ import (
 	"github.com/AllenDang/cimgui-go/imgui"
 	"github.com/go-gl/gl/v4.3-core/gl"
 	fnt "github.com/xypwn/filediver/cmd/filediver-gui/fonts"
+	"github.com/xypwn/filediver/cmd/filediver-gui/imgui_wrapper"
 	"github.com/xypwn/filediver/cmd/filediver-gui/imutils"
 )
 
@@ -185,6 +186,12 @@ func (pv *ImagePreview) drawImage(pvImg *ImagePreviewImage, pos, area imgui.Vec2
 		scaledImageSize = pvImg.size.Mul(scale)
 		offsetPx := imgui.NewVec2(pv.offset.X*scaledImageSize.X/2, pv.offset.Y*scaledImageSize.Y/2)
 		imgPos := pos.Sub(scaledImageSize.Div(2)).Add(area.Div(2)).Add(offsetPx)
+		imgui.ClearDrawCallbackPool()
+		if pv.linearFiltering {
+			imgui_wrapper.DrawListAddCallbackSetSamplerLinear(imgui.WindowDrawList())
+		} else {
+			imgui_wrapper.DrawListAddCallbackSetSamplerNearest(imgui.WindowDrawList())
+		}
 		imgui.WindowDrawList().AddImage(pvImg.textureRef, imgPos, imgPos.Add(scaledImageSize))
 	}
 	imgui.SetNextItemAllowOverlap()
@@ -271,15 +278,7 @@ func (pv *ImagePreview) Draw(name string) {
 	imgui.SetItemTooltip("Reset view")
 	if pv.Flags&LinearFilteringButton != 0 {
 		imgui.SameLine()
-		if imgui.Checkbox("Linear filtering", &pv.linearFiltering) {
-			filter := int32(gl.NEAREST)
-			if pv.linearFiltering {
-				filter = gl.LINEAR
-			}
-			gl.BindTexture(gl.TEXTURE_2D, pvImg.textureId)
-			gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter)
-			gl.BindTexture(gl.TEXTURE_2D, 0)
-		}
+		imgui.Checkbox("Linear filtering", &pv.linearFiltering)
 		imgui.SetItemTooltip("Linear filtering \"blurs\" pixels when zooming in. Disable to view individual pixels more clearly.")
 	}
 	if pv.Flags&IgnoreAlphaButton != 0 {
@@ -290,9 +289,11 @@ func (pv *ImagePreview) Draw(name string) {
 			if pv.ignoreAlpha {
 				swizzleA = gl.ONE
 			}
-			gl.BindTexture(gl.TEXTURE_2D, pvImg.textureId)
-			gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_SWIZZLE_A, swizzleA)
-			gl.BindTexture(gl.TEXTURE_2D, 0)
+			for idx := range pv.Images {
+				gl.BindTexture(gl.TEXTURE_2D, pv.Images[idx].textureId)
+				gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_SWIZZLE_A, swizzleA)
+				gl.BindTexture(gl.TEXTURE_2D, 0)
+			}
 		}
 		imgui.EndDisabled()
 		if !pvImg.hasAlpha {

@@ -185,6 +185,13 @@ type guiApp struct {
 	toolsHashConverterState  *widgets.HashConverterState
 	isToolsHashConverterOpen bool
 
+	runUnitPreviewLoadingTest bool
+	allUnits                  []stingray.Hash
+	unitTestIdx               int
+	unitTestErrors            map[stingray.Hash]error
+	unitTestCooldown          int
+	unitTestErrorsCopied      bool
+
 	lastBrowserItemCopiedIndex int32
 	lastBrowserItemCopiedTime  float64
 
@@ -222,6 +229,10 @@ func newGUIApp(showErrorPopup func(error)) *guiApp {
 		lastBrowserItemCopiedIndex: -1,
 		lastBrowserItemCopiedTime:  -math.MaxFloat64,
 		iconImage:                  appicons.Icon128Img(),
+		runUnitPreviewLoadingTest:  false,
+		allUnits:                   nil,
+		unitTestIdx:                0,
+		unitTestErrors:             make(map[stingray.Hash]error),
 	}
 }
 
@@ -490,6 +501,7 @@ func (a *guiApp) onDraw(state *imgui_wrapper.State) {
 	a.drawExtensionsPopup()
 	a.drawPreferencesPopup(state)
 	a.drawAboutPopup()
+	a.drawUnitPreviewTestPopup()
 }
 
 func (a *guiApp) goCheckForUpdates(isOnStartup bool) {
@@ -628,6 +640,19 @@ func (a *guiApp) drawMenuBar() {
 		}
 		if imgui.BeginMenu("Tools") {
 			imgui.MenuItemBoolPtrV(fnt.I.TableConvert+" Hash Converter", "", &a.isToolsHashConverterOpen, true)
+			if imgui.MenuItemBool(fnt.I.LabResearch + " Run Unit Preview Test") {
+				a.allUnits = slices.Collect(func(yield func(stingray.Hash) bool) {
+					for file := range a.gameData.DataDir.Files {
+						if file.Type == stingray.Sum("unit") && !yield(file.Name) {
+							return
+						}
+					}
+				})
+				a.unitTestIdx = 0
+				a.unitTestErrors = make(map[stingray.Hash]error)
+				a.runUnitPreviewLoadingTest = true
+				a.popupManager.Open["Running Unit Preview Load Test"] = true
+			}
 			imgui.EndMenu()
 		}
 		if imgui.BeginMenu("Settings") {
@@ -1229,6 +1254,36 @@ func (a *guiApp) drawLogWindow() {
 func (a *guiApp) drawPreviewWindow(state *imgui_wrapper.State) {
 	if imgui.Begin(fnt.I.Preview + " Preview") {
 		if a.preview != nil {
+			defer func() {
+				if a.runUnitPreviewLoadingTest {
+					if a.preview.Err() != nil && a.unitTestCooldown%5 == 0 && a.unitTestIdx < len(a.allUnits) {
+						a.unitTestErrors[a.allUnits[a.unitTestIdx]] = a.preview.Err()
+						fmt.Printf("[error] %v\n", a.preview.Err())
+						a.unitTestErrorsCopied = false
+					}
+					if err := recover(); err != nil {
+						a.unitTestErrors[a.allUnits[a.unitTestIdx]] = fmt.Errorf("%v", err)
+						fmt.Printf("[error] %v\nstack trace: %s\n", err, debug.Stack())
+						a.preview.LoadFile(a.ctx, stingray.FileID{}, 0, stingray.FileID{}, nil)
+						a.runUnitPreviewLoadingTest = false
+					} else if a.unitTestIdx < len(a.allUnits) && a.unitTestCooldown%5 == 0 {
+						a.unitTestIdx = a.unitTestIdx + 1
+					} else if a.unitTestCooldown%5 == 0 {
+						a.runUnitPreviewLoadingTest = false
+						a.preview.LoadFile(a.ctx, stingray.FileID{}, 0, stingray.FileID{}, nil)
+					}
+				}
+			}()
+			if a.runUnitPreviewLoadingTest && a.unitTestIdx >= len(a.allUnits) {
+				a.runUnitPreviewLoadingTest = false
+			}
+			if a.runUnitPreviewLoadingTest && a.unitTestCooldown%5 == 0 && a.unitTestIdx < len(a.allUnits) {
+				fmt.Printf("Loading %v.unit\n", a.gameData.LookupHash(a.allUnits[a.unitTestIdx]))
+				a.preview.LoadFile(a.ctx, stingray.NewFileID(a.allUnits[a.unitTestIdx], stingray.Sum("unit")), a.preferences.PreviewVideoVerticalResolution, a.gameData.ColorGrading, a.gameData.EntityVarMapping)
+			}
+			if a.runUnitPreviewLoadingTest {
+				a.unitTestCooldown = a.unitTestCooldown + 1
+			}
 			if !a.preview.Draw("Preview") {
 				active := a.preview.ActiveID()
 				imgui.PushTextWrapPos()
@@ -1355,6 +1410,47 @@ func (a *guiApp) drawWelcomePopup() {
 			close()
 		}
 	}, imgui.WindowFlagsAlwaysAutoResize, true)
+}
+
+func (a *guiApp) drawUnitPreviewTestPopup() {
+	viewport := imgui.MainViewport()
+	imgui.SetNextWindowPosV(viewport.Center(), imgui.CondAlways, imgui.NewVec2(0.5, 0.5))
+	a.popupManager.Popup("Running Unit Preview Load Test", func(close func()) {
+		buttonLabel := "Cancel"
+		imgui.PushTextWrapPos()
+		if a.unitTestIdx < len(a.allUnits) {
+			imutils.Textf("[%v/%v] Previewing %v.unit", a.unitTestIdx+1, len(a.allUnits), filepath.Base(a.gameData.LookupHash(a.allUnits[a.unitTestIdx])))
+		} else {
+			imutils.Textf("[%v/%v] Done", a.unitTestIdx, len(a.allUnits))
+		}
+		imgui.ProgressBar(float32(a.unitTestIdx+1) / float32(len(a.allUnits)))
+		errorFiles := slices.SortedFunc(maps.Keys(a.unitTestErrors), stingray.Hash.Cmp)
+		if len(a.unitTestErrors) > 0 {
+			imgui.Separator()
+			if imgui.Button("Copy Errors") {
+				builder := strings.Builder{}
+				for _, file := range errorFiles {
+					builder.WriteString(fmt.Sprintf("%v.unit: %v\n", a.gameData.LookupHash(file), a.unitTestErrors[file]))
+				}
+				imgui.SetClipboardText(builder.String())
+				a.unitTestErrorsCopied = true
+			}
+			if a.unitTestErrorsCopied {
+				imgui.SetItemTooltip("Copied!")
+			}
+		}
+		for _, file := range errorFiles {
+			imutils.TextError(fmt.Errorf("%v.unit: %v", filepath.Base(a.gameData.LookupHash(file)), a.unitTestErrors[file]))
+		}
+		imgui.Separator()
+		if !a.runUnitPreviewLoadingTest {
+			buttonLabel = "Close"
+		}
+		if imgui.ButtonV(buttonLabel, imutils.SVec2(300, 0)) {
+			a.runUnitPreviewLoadingTest = false
+			close()
+		}
+	}, imgui.WindowFlagsAlwaysAutoResize, false)
 }
 
 func (a *guiApp) drawExtensionsWarningPopup() {
