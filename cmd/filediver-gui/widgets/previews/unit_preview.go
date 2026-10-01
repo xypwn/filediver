@@ -714,7 +714,7 @@ func (pv *UnitPreviewState) AcquireNamedTextureOrDefault(name stingray.Hash, def
 		}
 		returnPtr = &toReturn
 	}
-	return &toReturn, nil
+	return
 }
 
 func (pv *UnitPreviewState) useBasicMaterial(getResource GetResourceFunc, object *unitPreviewObject, group int, mat *material.Material) error {
