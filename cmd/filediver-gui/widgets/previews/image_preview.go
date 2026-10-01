@@ -11,11 +11,6 @@ package previews
 		int Capacity;
 		char* Data;
 	} ImVectorChar;
-	typedef struct ImDrawList ImDrawList;
-	typedef struct ImDrawCmd ImDrawCmd;
-
-	unsigned int GL_NEAREST = 0x2600;
-	unsigned int GL_LINEAR = 0x2601;
 
 	typedef struct ImGui_ImplOpenGL3_RenderState
 	{
@@ -51,38 +46,6 @@ package previews
 
 		ImVectorChar  TempBuffer;
 	} ImGui_ImplOpenGL3_Data;
-
-	static int DrawCallback_SetSamplerLinear(ImGui_ImplOpenGL3_RenderState* render_state, ImGui_ImplOpenGL3_Data* bd)
-	{
-		if (bd->HasBindSampler)
-		{
-			render_state->CurrentSampler = bd->TexSamplers[0];
-			render_state->UseTexParameterFilter = false;
-			return (int)render_state->CurrentSampler;
-		}
-		else
-		{
-			render_state->UseTexParameterFilter = true;
-			render_state->CurrentTexParameterFilter = GL_LINEAR;
-		}
-		return -1;
-	}
-
-	static int DrawCallback_SetSamplerNearest(ImGui_ImplOpenGL3_RenderState* render_state, ImGui_ImplOpenGL3_Data* bd)
-	{
-		if (bd->HasBindSampler)
-		{
-			render_state->CurrentSampler = bd->TexSamplers[1];
-			render_state->UseTexParameterFilter = false;
-			return (int)render_state->CurrentSampler;
-		}
-		else
-		{
-			render_state->UseTexParameterFilter = true;
-			render_state->CurrentTexParameterFilter = GL_NEAREST;
-		}
-		return -1;
-	}
 */
 import "C"
 import (
@@ -132,6 +95,7 @@ type ImagePreview struct {
 	err             error
 }
 
+// taken from cimgui-go/internal/type_wrapper.go
 func ReinterpretCast[RET, SRC any](src SRC) RET {
 	return *(*RET)(unsafe.Pointer(&src))
 }
@@ -142,15 +106,27 @@ func NewImagePreview() *ImagePreview {
 	// So we have to reimplement them here instead
 	// There is probably a better way to do this, but this _does_ fix the bug where textures wouldn't respect our filter settings
 	pv.linearCallback = func(parent_list *imgui.DrawList, cmd *imgui.DrawCmd) {
-		currentSampler := C.DrawCallback_SetSamplerLinear(ReinterpretCast[*C.ImGui_ImplOpenGL3_RenderState](imgui.CurrentPlatformIO().RendererRenderState), ReinterpretCast[*C.ImGui_ImplOpenGL3_Data](imgui.CurrentIO().CData.BackendRendererUserData))
-		if currentSampler != -1 {
-			gl.BindSampler(0, uint32(currentSampler))
+		bd := ReinterpretCast[*C.ImGui_ImplOpenGL3_Data](imgui.CurrentIO().CData.BackendRendererUserData)
+		renderState := ReinterpretCast[*C.ImGui_ImplOpenGL3_RenderState](imgui.CurrentPlatformIO().CData.Renderer_RenderState)
+		if bd.HasBindSampler {
+			renderState.CurrentSampler = bd.TexSamplers[0]
+			renderState.UseTexParameterFilter = false
+			gl.BindSampler(0, uint32(renderState.CurrentSampler))
+		} else {
+			renderState.UseTexParameterFilter = true
+			renderState.CurrentTexParameterFilter = gl.LINEAR
 		}
 	}
 	pv.nearestCallback = func(parent_list *imgui.DrawList, cmd *imgui.DrawCmd) {
-		currentSampler := C.DrawCallback_SetSamplerNearest(ReinterpretCast[*C.ImGui_ImplOpenGL3_RenderState](imgui.CurrentPlatformIO().RendererRenderState), ReinterpretCast[*C.ImGui_ImplOpenGL3_Data](imgui.CurrentIO().CData.BackendRendererUserData))
-		if currentSampler != -1 {
-			gl.BindSampler(0, uint32(currentSampler))
+		bd := ReinterpretCast[*C.ImGui_ImplOpenGL3_Data](imgui.CurrentIO().CData.BackendRendererUserData)
+		renderState := ReinterpretCast[*C.ImGui_ImplOpenGL3_RenderState](imgui.CurrentPlatformIO().CData.Renderer_RenderState)
+		if bd.HasBindSampler {
+			renderState.CurrentSampler = bd.TexSamplers[1]
+			renderState.UseTexParameterFilter = false
+			gl.BindSampler(0, uint32(renderState.CurrentSampler))
+		} else {
+			renderState.UseTexParameterFilter = true
+			renderState.CurrentTexParameterFilter = gl.NEAREST
 		}
 	}
 	return pv
