@@ -8,6 +8,7 @@ layout(location = 3) in vec4 windParams;
 out vec4 normalEndPosition;
 out vec4 tangentEndPosition;
 out vec4 bitangentEndPosition;
+out vec2 vertexUV;
 
 uniform mat4 mvp; // projection*view*model
 uniform float len;
@@ -16,6 +17,7 @@ uniform sampler2D fibonacci_normal_lut;
 
 void main() {
     gl_Position = mvp * vec4(inPositionU.xyz, 1.0);
+    vertexUV = vec2(0.0);
 
     uvec2 topBitsNT = packedNormalTangentAOTwosided.xy >> uvec2(4, 4);
     uvec2 lowBitsNT = packedNormalTangentAOTwosided.xy & uvec2(0xf, 0xf);
