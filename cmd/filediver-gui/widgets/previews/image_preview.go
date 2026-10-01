@@ -1,8 +1,94 @@
 package previews
 
+/*
+	#include <stdbool.h>
+	#include <stdint.h>
+	typedef int32_t GLint;
+	typedef uint32_t GLuint;
+	typedef uint64_t GLsizeiptr;
+	typedef struct ImVectorChar {
+		int Size;
+		int Capacity;
+		char* Data;
+	} ImVectorChar;
+	typedef struct ImDrawList ImDrawList;
+	typedef struct ImDrawCmd ImDrawCmd;
+
+	unsigned int GL_NEAREST = 0x2600;
+	unsigned int GL_LINEAR = 0x2601;
+
+	typedef struct ImGui_ImplOpenGL3_RenderState
+	{
+		bool            UseBindSampler;
+		bool            UseTexParameterFilter;
+		unsigned int    CurrentSampler;                 // (GLuint) Used if UseBindSampler == true, otherwise always 0
+		unsigned int    CurrentTexParameterFilter;      // (GLuint) Used if UseTexParameterToSetSampler == true
+	} ImGui_ImplOpenGL3_RenderState;
+	// OpenGL Data
+	typedef struct ImGui_ImplOpenGL3_Data
+	{
+		GLuint          GlVersion;               // Extracted at runtime using GL_MAJOR_VERSION, GL_MINOR_VERSION queries (e.g. 320 for GL 3.2)
+		char            GlslVersionString[32];   // Specified by user or detected based on compile time GL settings.
+		bool            GlProfileIsES2;
+		bool            GlProfileIsES3;
+		bool            GlProfileIsCompat;
+		GLint           GlProfileMask;
+		GLint           MaxTextureSize;
+		GLuint          ShaderHandle;
+		GLint           AttribLocationTex;       // Uniforms location
+		GLint           AttribLocationProjMtx;
+		GLuint          AttribLocationVtxPos;    // Vertex attributes location
+		GLuint          AttribLocationVtxUV;
+		GLuint          AttribLocationVtxColor;
+		unsigned int    VboHandle, ElementsHandle;
+		GLsizeiptr      VertexBufferSize;
+		GLsizeiptr      IndexBufferSize;
+		bool            HasPolygonMode;
+		bool            HasBindSampler;
+		bool            HasClipOrigin;
+		bool            UseBufferSubData;
+		GLuint          TexSamplers[2];         // Used if HasBindSimpler. (0=linear, 1=nearest)
+
+		ImVectorChar  TempBuffer;
+	} ImGui_ImplOpenGL3_Data;
+
+	static int DrawCallback_SetSamplerLinear(ImGui_ImplOpenGL3_RenderState* render_state, ImGui_ImplOpenGL3_Data* bd)
+	{
+		if (bd->HasBindSampler)
+		{
+			render_state->CurrentSampler = bd->TexSamplers[0];
+			render_state->UseTexParameterFilter = false;
+			return (int)render_state->CurrentSampler;
+		}
+		else
+		{
+			render_state->UseTexParameterFilter = true;
+			render_state->CurrentTexParameterFilter = GL_LINEAR;
+		}
+		return -1;
+	}
+
+	static int DrawCallback_SetSamplerNearest(ImGui_ImplOpenGL3_RenderState* render_state, ImGui_ImplOpenGL3_Data* bd)
+	{
+		if (bd->HasBindSampler)
+		{
+			render_state->CurrentSampler = bd->TexSamplers[1];
+			render_state->UseTexParameterFilter = false;
+			return (int)render_state->CurrentSampler;
+		}
+		else
+		{
+			render_state->UseTexParameterFilter = true;
+			render_state->CurrentTexParameterFilter = GL_NEAREST;
+		}
+		return -1;
+	}
+*/
+import "C"
 import (
 	"fmt"
 	"image"
+	"unsafe"
 
 	"github.com/AllenDang/cimgui-go/imgui"
 	"github.com/go-gl/gl/v4.3-core/gl"
@@ -40,12 +126,33 @@ type ImagePreview struct {
 	offset          imgui.Vec2 // -1 < x,y < 1
 	zoom            float32
 	linearFiltering bool
+	linearCallback  imgui.DrawCallback
+	nearestCallback imgui.DrawCallback
 	ignoreAlpha     bool
 	err             error
 }
 
+func ReinterpretCast[RET, SRC any](src SRC) RET {
+	return *(*RET)(unsafe.Pointer(&src))
+}
+
 func NewImagePreview() *ImagePreview {
 	pv := &ImagePreview{Alt: "<no images>", zoom: 1}
+	// Yes this is kinda (read: very) horrific, but apparently to make imgui "easier" to use they added callbacks to set filtering... which don't seem to be implemented properly in the go bindings -_-
+	// So we have to reimplement them here instead
+	// There is probably a better way to do this, but this _does_ fix the bug where textures wouldn't respect our filter settings
+	pv.linearCallback = func(parent_list *imgui.DrawList, cmd *imgui.DrawCmd) {
+		currentSampler := C.DrawCallback_SetSamplerLinear(ReinterpretCast[*C.ImGui_ImplOpenGL3_RenderState](imgui.CurrentPlatformIO().RendererRenderState), ReinterpretCast[*C.ImGui_ImplOpenGL3_Data](imgui.CurrentIO().CData.BackendRendererUserData))
+		if currentSampler != -1 {
+			gl.BindSampler(0, uint32(currentSampler))
+		}
+	}
+	pv.nearestCallback = func(parent_list *imgui.DrawList, cmd *imgui.DrawCmd) {
+		currentSampler := C.DrawCallback_SetSamplerNearest(ReinterpretCast[*C.ImGui_ImplOpenGL3_RenderState](imgui.CurrentPlatformIO().RendererRenderState), ReinterpretCast[*C.ImGui_ImplOpenGL3_Data](imgui.CurrentIO().CData.BackendRendererUserData))
+		if currentSampler != -1 {
+			gl.BindSampler(0, uint32(currentSampler))
+		}
+	}
 	return pv
 }
 
@@ -185,6 +292,12 @@ func (pv *ImagePreview) drawImage(pvImg *ImagePreviewImage, pos, area imgui.Vec2
 		scaledImageSize = pvImg.size.Mul(scale)
 		offsetPx := imgui.NewVec2(pv.offset.X*scaledImageSize.X/2, pv.offset.Y*scaledImageSize.Y/2)
 		imgPos := pos.Sub(scaledImageSize.Div(2)).Add(area.Div(2)).Add(offsetPx)
+		imgui.ClearDrawCallbackPool()
+		if pv.linearFiltering {
+			imgui.WindowDrawList().AddCallback(pv.linearCallback)
+		} else {
+			imgui.WindowDrawList().AddCallback(pv.nearestCallback)
+		}
 		imgui.WindowDrawList().AddImage(pvImg.textureRef, imgPos, imgPos.Add(scaledImageSize))
 	}
 	imgui.SetNextItemAllowOverlap()
@@ -271,15 +384,7 @@ func (pv *ImagePreview) Draw(name string) {
 	imgui.SetItemTooltip("Reset view")
 	if pv.Flags&LinearFilteringButton != 0 {
 		imgui.SameLine()
-		if imgui.Checkbox("Linear filtering", &pv.linearFiltering) {
-			filter := int32(gl.NEAREST)
-			if pv.linearFiltering {
-				filter = gl.LINEAR
-			}
-			gl.BindTexture(gl.TEXTURE_2D, pvImg.textureId)
-			gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter)
-			gl.BindTexture(gl.TEXTURE_2D, 0)
-		}
+		imgui.Checkbox("Linear filtering", &pv.linearFiltering)
 		imgui.SetItemTooltip("Linear filtering \"blurs\" pixels when zooming in. Disable to view individual pixels more clearly.")
 	}
 	if pv.Flags&IgnoreAlphaButton != 0 {
@@ -290,9 +395,11 @@ func (pv *ImagePreview) Draw(name string) {
 			if pv.ignoreAlpha {
 				swizzleA = gl.ONE
 			}
-			gl.BindTexture(gl.TEXTURE_2D, pvImg.textureId)
-			gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_SWIZZLE_A, swizzleA)
-			gl.BindTexture(gl.TEXTURE_2D, 0)
+			for idx := range pv.Images {
+				gl.BindTexture(gl.TEXTURE_2D, pv.Images[idx].textureId)
+				gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_SWIZZLE_A, swizzleA)
+				gl.BindTexture(gl.TEXTURE_2D, 0)
+			}
 		}
 		imgui.EndDisabled()
 		if !pvImg.hasAlpha {
