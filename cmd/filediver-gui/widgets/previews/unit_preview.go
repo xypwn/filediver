@@ -298,7 +298,6 @@ func (obj *unitPreviewObject) genObjects(textures bool, numIbos int32) {
 	defer gl.BindBuffer(gl.ARRAY_BUFFER, 0)
 }
 
-// Panicks if a name is not a uniform.
 func (uniforms *unitPreviewUniforms) generate(program uint32, names ...string) {
 	if *uniforms == nil {
 		*uniforms = unitPreviewUniforms{}
@@ -345,13 +344,12 @@ type UnitPreviewState struct {
 	materialSettingsShown bool
 	materialSettingsDrawn bool
 
-	wireframeMaterial unitPreviewMaterial
-	normalVisMaterial unitPreviewMaterial
+	wireframeMaterial   unitPreviewMaterial
+	normalVisMaterial   unitPreviewMaterial
+	boundingBoxMaterial unitPreviewMaterial
 
-	skeleton            unitPreviewObject
-	boundingBoxes       map[string]unitPreviewObject
-	boundingBoxProgram  uint32
-	boundingBoxUniforms unitPreviewUniforms
+	skeleton      unitPreviewObject
+	boundingBoxes map[string]unitPreviewObject
 
 	vfov         float32
 	modelPos     mgl32.Vec4
@@ -478,16 +476,20 @@ func NewUnitPreview(getResource GetResourceFunc, ArmorParams ExtractorArmorParam
 		return nil, err
 	}
 
-	pv.skeleton.genObjects(false, 1)
-
-	pv.boundingBoxProgram, err = glutils.CreateProgramFromSources(unitPreviewShaderCode,
-		"shaders/debug_object.vert",
-		"shaders/debug_object.frag",
+	pv.boundingBoxMaterial.name = "bounding box"
+	err = pv.boundingBoxMaterial.generate(
+		[]string{
+			"shaders/debug_object.vert",
+			"shaders/debug_object.frag",
+		},
+		0,
+		[]string{"mvp", "color"},
 	)
 	if err != nil {
 		return nil, err
 	}
-	pv.boundingBoxUniforms.generate(pv.boundingBoxProgram, "mvp", "color")
+
+	pv.skeleton.genObjects(false, 1)
 
 	pv.vfov = mgl32.DegToRad(60)
 	pv.viewDistance = 25
@@ -617,8 +619,11 @@ func loadDDS(getResource GetResourceFunc, fileName stingray.Hash) (*dds.DDS, err
 	file := stingray.FileID{Name: fileName, Type: stingray.Sum("texture")}
 	var texMain, texStream, texGPU []byte
 	var err error
-	if texMain, _, err = getResource(file, stingray.DataMain); err != nil {
-		return nil, fmt.Errorf("load texture %v.texture: %w", fileName, err)
+	var exists bool
+	if texMain, exists, err = getResource(file, stingray.DataMain); err != nil {
+		return nil, fmt.Errorf("load texture %v.texture: %v", fileName.String(), err)
+	} else if !exists {
+		return nil, fmt.Errorf("%v.texture does not exist", fileName.String())
 	}
 	texStream, _, _ = getResource(file, stingray.DataStream)
 	texGPU, _, _ = getResource(file, stingray.DataGPU)
@@ -648,49 +653,71 @@ func uploadStingrayTexture(textureID uint32, data TextureData) error {
 	return nil
 }
 
-func (pv *UnitPreviewState) AcquireNamedTextureOrDefault(name stingray.Hash, defaultColor []byte, getResource GetResourceFunc) (*unitPreviewMaterialTexture, error) {
+func (pv *UnitPreviewState) AcquireNamedTextureOrDefault(name stingray.Hash, defaultColor []byte, getResource GetResourceFunc) (returnPtr *unitPreviewMaterialTexture, err error) {
 	toReturn := unitPreviewMaterialTexture{
 		name:   stingray.Hash{Value: 0},
 		target: gl.TEXTURE_2D,
 	}
-	if name.Value != 0 {
-		textureId, created := pv.textureCache.Acquire(name, toReturn.target)
-		toReturn.id = textureId
-		toReturn.name = name
-		if created {
-			setupTexture(toReturn.id, toReturn.target)
-			dds, err := loadDDS(getResource, name)
-			if err != nil {
-				pv.textureCache.Delete(name, toReturn.target)
-				return nil, err
-			}
-			img, ok := dds.Image.(*image.NRGBA)
-			if !ok {
-				pv.textureCache.Delete(name, toReturn.target)
-				return nil, fmt.Errorf("expected texture to be of type *image.NRGBA")
-			}
-			texData := TextureData{
-				Target:         gl.TEXTURE_2D,
-				Bounds:         dds.Bounds(),
-				InternalFormat: gl.RGBA,
-				Format:         gl.RGBA,
-				Type:           gl.UNSIGNED_BYTE,
-				Data:           img.Pix,
-			}
-			if err := uploadStingrayTexture(toReturn.id, texData); err != nil {
-				// Failed to upload data, so delete the entry in the cache
-				pv.textureCache.Delete(name, toReturn.target)
-				return nil, err
-			}
+	defer func() {
+		if returnPtr != nil {
+			return
 		}
-	} else {
 		gl.GenTextures(1, &toReturn.id)
 		setupTexture(toReturn.id, toReturn.target)
 		gl.BindTexture(toReturn.target, toReturn.id)
 		gl.TexImage2D(toReturn.target, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, gl.Ptr(defaultColor))
 		gl.BindTexture(toReturn.target, 0)
+		returnPtr = &toReturn
+	}()
+	if name.Value == 0 {
+		return
 	}
-	return &toReturn, nil
+	textureId, created := pv.textureCache.Acquire(name, toReturn.target)
+	toReturn.id = textureId
+	toReturn.name = name
+	if created {
+		setupTexture(toReturn.id, toReturn.target)
+		var dds *dds.DDS
+		dds, err = loadDDS(getResource, name)
+		if err != nil {
+			pv.textureCache.Delete(name, toReturn.target)
+			return
+		}
+		texData := TextureData{
+			Target: gl.TEXTURE_2D,
+			Bounds: dds.Bounds(),
+			Type:   gl.UNSIGNED_BYTE,
+		}
+		switch img := dds.Image.(type) {
+		case *image.Gray:
+			texData.InternalFormat = gl.RED
+			texData.Format = gl.RED
+			texData.Data = img.Pix
+			gl.BindTexture(texData.Target, toReturn.id)
+			swizzles := []uint32{gl.RED, gl.RED, gl.RED, gl.RED}
+			gl.TextureParameterIuiv(toReturn.id, gl.TEXTURE_SWIZZLE_RGBA, &swizzles[0])
+			gl.BindTexture(texData.Target, 0)
+		case *image.NRGBA:
+			texData.InternalFormat = gl.RGBA
+			texData.Format = gl.RGBA
+			texData.Data = img.Pix
+		default:
+			if dds.Info.DXT10Header != nil {
+				err = fmt.Errorf("unexpected texture color model: %v", dds.Info.DXT10Header.DXGIFormat.String())
+			} else {
+				err = fmt.Errorf("unexpected texture color model")
+			}
+			pv.textureCache.Delete(name, toReturn.target)
+			return
+		}
+		if err = uploadStingrayTexture(toReturn.id, texData); err != nil {
+			// Failed to upload data, so delete the entry in the cache
+			pv.textureCache.Delete(name, toReturn.target)
+			return
+		}
+		returnPtr = &toReturn
+	}
+	return
 }
 
 func (pv *UnitPreviewState) useBasicMaterial(getResource GetResourceFunc, object *unitPreviewObject, group int, mat *material.Material) error {
@@ -740,7 +767,8 @@ func (pv *UnitPreviewState) useBasicMaterial(getResource GetResourceFunc, object
 
 	albedoTexture, err := pv.AcquireNamedTextureOrDefault(albedoTexFileName, []byte{255, 255, 255, 255}, getResource)
 	if err != nil {
-		return err
+		// gui logger warning here
+		fmt.Printf("acquiring %v.texture: %v\nfalling back to default value", albedoTexFileName.String(), err)
 	}
 	if albedoRemoveAlpha {
 		gl.BindTexture(gl.TEXTURE_2D, albedoTexture.id)
@@ -751,7 +779,7 @@ func (pv *UnitPreviewState) useBasicMaterial(getResource GetResourceFunc, object
 
 	normalTexture, err := pv.AcquireNamedTextureOrDefault(normalTexFileName, []byte{128, 128, 255, 128}, getResource)
 	if err != nil {
-		return err
+		fmt.Printf("acquiring %v.texture: %v\nfalling back to default value", normalTexFileName.String(), err)
 	}
 	object.materials[group].textures = append(object.materials[group].textures, *normalTexture)
 
@@ -1255,7 +1283,7 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 					//return fmt.Errorf("load material: id %v not found", matID.String())
 				}
 				object.materials[group].id = matFileName
-				object.materials[group].name = lookupThinHash(mesh.Info.Materials[group])
+				object.materials[group].name = lookupThinHash(matID)
 			}
 			if err := pv.loadMaterials(getResource, &object, armorInfo, lookupThinHash); err != nil {
 				return err
@@ -1372,16 +1400,17 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 	}
 	recurseSkeleton(root)
 
-	gl.BindVertexArray(pv.skeleton.vao)
-	gl.BindBuffer(gl.ARRAY_BUFFER, pv.skeleton.vbo)
-	gl.BufferData(gl.ARRAY_BUFFER, len(skeletonVertices)*3*4, gl.Ptr(skeletonVertices), gl.STATIC_DRAW)
-	gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, pv.skeleton.ibos[0])
-	gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, len(skeletonIndices)*4, gl.Ptr(skeletonIndices), gl.STATIC_DRAW)
+	if len(skeletonIndices) > 0 {
+		gl.BindVertexArray(pv.skeleton.vao)
+		gl.BindBuffer(gl.ARRAY_BUFFER, pv.skeleton.vbo)
+		gl.BufferData(gl.ARRAY_BUFFER, len(skeletonVertices)*3*4, gl.Ptr(skeletonVertices), gl.STATIC_DRAW)
+		gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, pv.skeleton.ibos[0])
+		gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, len(skeletonIndices)*4, gl.Ptr(skeletonIndices), gl.STATIC_DRAW)
+		gl.VertexAttribPointer(0, 3, gl.FLOAT, false, 3*4, nil)
+		gl.EnableVertexAttribArray(0)
+	}
 	pv.skeleton.numVertices = int32(len(skeletonVertices))
 	pv.skeleton.numIndices[0] = int32(len(skeletonIndices))
-
-	gl.VertexAttribPointer(0, 3, gl.FLOAT, false, 3*4, nil)
-	gl.EnableVertexAttribArray(0)
 
 	gl.BindBuffer(gl.ARRAY_BUFFER, 0)
 	gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, 0)
@@ -1511,7 +1540,7 @@ func (pv *UnitPreviewState) computeMVP(aspectRatio float32, animate bool) (
 	projection = mgl32.Perspective(
 		pv.vfov,
 		aspectRatio,
-		0.001,
+		max(0.001, 0.001*viewDistance),
 		32768,
 	)
 	return
@@ -1710,8 +1739,8 @@ func (pv *UnitPreviewState) Draw(name string) {
 			// Draw debug object
 			if pv.showAABB {
 				gl.Disable(gl.DEPTH_TEST)
-				gl.UseProgram(pv.boundingBoxProgram)
-				gl.Uniform4fv(pv.boundingBoxUniforms["color"], 1, &pv.aabbColor[0])
+				gl.UseProgram(pv.boundingBoxMaterial.program)
+				gl.Uniform4fv(pv.boundingBoxMaterial.uniforms["color"], 1, &pv.aabbColor[0])
 				for name := range pv.boundingBoxes {
 					if shown, contains := pv.objectsShown[name]; contains && !shown {
 						continue
@@ -1719,7 +1748,7 @@ func (pv *UnitPreviewState) Draw(name string) {
 					gl.BindVertexArray(pv.boundingBoxes[name].vao)
 					{
 						aabbMVP := mvp.Mul4(pv.aabbMat[name])
-						gl.UniformMatrix4fv(pv.boundingBoxUniforms["mvp"], 1, false, &aabbMVP[0])
+						gl.UniformMatrix4fv(pv.boundingBoxMaterial.uniforms["mvp"], 1, false, &aabbMVP[0])
 					}
 					gl.DrawElements(gl.TRIANGLES, pv.boundingBoxes[name].numIndices[0], gl.UNSIGNED_INT, nil)
 				}
@@ -1727,10 +1756,10 @@ func (pv *UnitPreviewState) Draw(name string) {
 
 			if pv.showSkeleton {
 				gl.Disable(gl.DEPTH_TEST)
-				gl.UseProgram(pv.boundingBoxProgram)
-				gl.Uniform4fv(pv.boundingBoxUniforms["color"], 1, &pv.skeletonColor[0])
+				gl.UseProgram(pv.boundingBoxMaterial.program)
+				gl.Uniform4fv(pv.boundingBoxMaterial.uniforms["color"], 1, &pv.skeletonColor[0])
 
-				gl.UniformMatrix4fv(pv.boundingBoxUniforms["mvp"], 1, false, &mvp[0])
+				gl.UniformMatrix4fv(pv.boundingBoxMaterial.uniforms["mvp"], 1, false, &mvp[0])
 				gl.BindVertexArray(pv.skeleton.vao)
 				gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, pv.skeleton.ibos[0])
 				gl.DrawElements(gl.LINES, pv.skeleton.numIndices[0], gl.UNSIGNED_INT, nil)
@@ -1771,14 +1800,13 @@ func (pv *UnitPreviewState) Draw(name string) {
 					return od * (maxDist - 1)
 				}
 
-				// NOTE(xypwn): I used to use the AABB vertices for this, but they would often be
-				// wrong. Using all of the mesh positions instead takes no more than ~10ms on
-				// all of the models I've tried.
 				maxCamDistDelta := float32(-math.MaxFloat32)
-				for name := range pv.meshPositions {
-					for _, vert := range pv.meshPositions[name] {
+				for name := range pv.objects {
+					positions := pv.getAABBVertices(name)
+					aabbMVP := mvp.Mul4(pv.aabbMat[name])
+					for _, vert := range positions {
 						maxCamDistDelta = max(maxCamDistDelta,
-							fitVertexCamDistDelta(vert))
+							fitVertexCamDistDelta(aabbMVP.Mul4x1(vert.Vec4(1.0)).Vec3()))
 					}
 				}
 				pv.viewDistance += maxCamDistDelta

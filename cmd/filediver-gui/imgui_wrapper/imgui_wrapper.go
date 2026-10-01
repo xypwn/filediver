@@ -48,6 +48,14 @@ void ImGui_ImplOpenGL3_Shutdown();
 void ImGui_ImplGlfw_Shutdown();
 
 // cimgui-go C++ wrapper stuff
+typedef struct ImDrawList ImDrawList;
+typedef struct ImDrawCmd ImDrawCmd;
+typedef void (*ImDrawCallback)(const ImDrawList* parent_list, const ImDrawCmd* cmd);
+typedef struct ImGuiPlatformIO ImGuiPlatformIO;
+void wrap_ImDrawList_AddCallback(ImDrawList* self, ImDrawCallback callback);
+ImDrawCallback wrap_ImGuiPlatformIO_GetDrawCallback_ResetRenderState(ImGuiPlatformIO *self);
+ImDrawCallback wrap_ImGuiPlatformIO_GetDrawCallback_SetSamplerLinear(ImGuiPlatformIO *self);
+ImDrawCallback wrap_ImGuiPlatformIO_GetDrawCallback_SetSamplerNearest(ImGuiPlatformIO *self);
 typedef void (*VoidCallback)();
 void glfw_render(GLFWwindow *window, VoidCallback renderLoop);
 
@@ -100,6 +108,21 @@ var onWindowRefresh func(window *C.GLFWwindow)
 //export goWindowRefreshCallback
 func goWindowRefreshCallback(window *C.GLFWwindow) {
 	onWindowRefresh(window)
+}
+
+// taken from cimgui-go/internal/type_wrapper.go
+func reinterpretCast[RET, SRC any](src SRC) RET {
+	return *(*RET)(unsafe.Pointer(&src))
+}
+
+func DrawListAddCallbackSetSamplerLinear(list *imgui.DrawList) {
+	C.wrap_ImDrawList_AddCallback(reinterpretCast[*C.ImDrawList](list.CData),
+		C.wrap_ImGuiPlatformIO_GetDrawCallback_SetSamplerLinear(reinterpretCast[*C.ImGuiPlatformIO](imgui.CurrentPlatformIO().CData)))
+}
+
+func DrawListAddCallbackSetSamplerNearest(list *imgui.DrawList) {
+	C.wrap_ImDrawList_AddCallback(reinterpretCast[*C.ImDrawList](list.CData),
+		C.wrap_ImGuiPlatformIO_GetDrawCallback_SetSamplerNearest(reinterpretCast[*C.ImGuiPlatformIO](imgui.CurrentPlatformIO().CData)))
 }
 
 // State contains exported fields, which
