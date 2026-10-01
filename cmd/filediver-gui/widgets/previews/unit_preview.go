@@ -31,6 +31,7 @@ import (
 	datalib "github.com/xypwn/filediver/datalibrary"
 	"github.com/xypwn/filediver/dds"
 	"github.com/xypwn/filediver/stingray"
+	"github.com/xypwn/filediver/stingray/prefab"
 	"github.com/xypwn/filediver/stingray/unit"
 	geometrygroup "github.com/xypwn/filediver/stingray/unit/geometry_group"
 	"github.com/xypwn/filediver/stingray/unit/material"
@@ -333,11 +334,14 @@ type UnitPreviewState struct {
 	detailerLoadState   DetailerLoadState
 	detailerTextureData TextureData
 
-	loadedUnits             map[stingray.Hash]any
 	unitsShown              map[stingray.Hash]bool
 	loadUnitGetResourceFunc GetResourceFunc
 
-	unitMatrices         map[stingray.Hash]mgl32.Mat4
+	// map of item name (prefab/level ID) -> unit resource
+	renderedObjects      map[stingray.Hash]stingray.Hash
+	renderObjectMatrices map[stingray.Hash]mgl32.Mat4
+
+	// hash is a unit resource
 	objects              map[stingray.Hash]map[string]unitPreviewObject
 	objectsShown         map[stingray.Hash]map[string]bool
 	objectsShownDefault  map[stingray.Hash]map[string]bool
@@ -1123,16 +1127,22 @@ func (pv *UnitPreviewState) loadMaterials(getResource GetResourceFunc, object *u
 	return nil
 }
 
-func (pv *UnitPreviewState) RemoveUnit(hash stingray.Hash) {
-	if _, contains := pv.loadedUnits[hash]; !contains {
+func (pv *UnitPreviewState) RemoveRenderedObject(objectName stingray.Hash) {
+	hash, contains := pv.renderedObjects[objectName]
+	if !contains {
+		return
+	}
+	delete(pv.renderedObjects, objectName)
+	delete(pv.renderObjectMatrices, objectName)
+
+	// several rendered objects may map to the same unit resource, so check if its already been removed
+	if _, contains := pv.objects[hash]; !contains {
 		return
 	}
 	for name := range pv.objects[hash] {
 		pv.objects[hash][name].deleteObjects(pv.textureCache)
 		pv.boundingBoxes[hash][name].deleteObjects(pv.textureCache)
 	}
-	delete(pv.loadedUnits, hash)
-	delete(pv.unitMatrices, hash)
 	delete(pv.objects, hash)
 	delete(pv.boundingBoxes, hash)
 	delete(pv.unitsShown, hash)
@@ -1146,21 +1156,70 @@ func (pv *UnitPreviewState) RemoveUnit(hash stingray.Hash) {
 }
 
 func (pv *UnitPreviewState) Clear() {
-	for hash := range pv.objects {
-		pv.RemoveUnit(hash)
+	for hash := range pv.renderedObjects {
+		pv.RemoveRenderedObject(hash)
 	}
 }
 
-func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []byte, getResource GetResourceFunc, thinhashes map[stingray.ThinHash]string) error {
-	info, err := unit.LoadInfo(bytes.NewReader(mainData))
+func (pv *UnitPreviewState) LoadPrefab(fileID stingray.Hash, mainData []byte, getResource GetResourceFunc, thinhashes map[stingray.ThinHash]string) error {
+	info, err := prefab.Load(bytes.NewReader(mainData))
 	if err != nil {
 		return err
 	}
 
-	if pv.loadedUnits == nil {
-		pv.loadedUnits = make(map[stingray.Hash]any)
+	if pv.renderedObjects == nil {
+		pv.renderedObjects = make(map[stingray.Hash]stingray.Hash)
+		pv.renderObjectMatrices = make(map[stingray.Hash]mgl32.Mat4)
 	}
-	pv.Clear()
+
+	for _, unit := range info.Units {
+		var err error
+		defer func() {
+			if err == nil {
+				pv.renderedObjects[unit.UUID] = unit.Hash
+				pv.renderObjectMatrices[unit.UUID] = mgl32.Scale3D(unit.Scale().Elem()).Mul4(unit.Rotation().Quat().Mat4().Mul4(mgl32.Translate3D(unit.Position().Elem())))
+			}
+		}()
+		if _, contains := pv.objects[unit.Hash]; contains {
+			continue
+		}
+		unitMainData, exists, err := getResource(stingray.NewFileID(unit.Hash, stingray.Sum("unit")), stingray.DataMain)
+		if err != nil {
+			return fmt.Errorf("loading %v.unit data in %v.prefab: %v", pv.lookupHash(unit.Hash), pv.lookupHash(fileID), err)
+		}
+		if !exists {
+			return fmt.Errorf("%v.unit in %v.prefab does not exist", pv.lookupHash(unit.Hash), pv.lookupHash(fileID))
+		}
+
+		// Some units won't have GPU data but will have terrain or geometry group info
+		unitGpuData, _, _ := getResource(stingray.NewFileID(unit.Hash, stingray.Sum("unit")), stingray.DataGPU)
+
+		err = pv.LoadUnit(unit.Hash, unitMainData, unitGpuData, getResource, thinhashes)
+		if err != nil {
+			return fmt.Errorf("loading %v.unit in %v.prefab for rendering: %v", pv.lookupHash(unit.Hash), pv.lookupHash(fileID), err)
+		}
+	}
+
+	return nil
+}
+
+func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []byte, getResource GetResourceFunc, thinhashes map[stingray.ThinHash]string) error {
+	if pv.renderedObjects == nil {
+		pv.renderedObjects = make(map[stingray.Hash]stingray.Hash)
+		pv.renderObjectMatrices = make(map[stingray.Hash]mgl32.Mat4)
+	}
+
+	pv.renderedObjects[fileID] = fileID
+	pv.renderObjectMatrices[fileID] = mgl32.Ident4()
+
+	return pv.loadUnit(fileID, mainData, gpuData, getResource, thinhashes)
+}
+
+func (pv *UnitPreviewState) loadUnit(fileID stingray.Hash, mainData, gpuData []byte, getResource GetResourceFunc, thinhashes map[stingray.ThinHash]string) error {
+	info, err := unit.LoadInfo(bytes.NewReader(mainData))
+	if err != nil {
+		return err
+	}
 
 	pv.lookupThinHash = func(hash stingray.ThinHash) string {
 		if name, ok := thinhashes[hash]; ok {
@@ -1194,7 +1253,6 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 	setModelPos := len(pv.objects) == 0
 
 	if pv.objects == nil {
-		pv.unitMatrices = make(map[stingray.Hash]mgl32.Mat4)
 		pv.objects = make(map[stingray.Hash]map[string]unitPreviewObject)
 		pv.boundingBoxes = make(map[stingray.Hash]map[string]unitPreviewObject)
 		pv.unitsShown = make(map[stingray.Hash]bool)
@@ -1280,7 +1338,6 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 	pv.aabbMat[fileID] = make(map[string]mgl32.Mat4, 0)
 	pv.boundingBoxes[fileID] = make(map[string]unitPreviewObject)
 	pv.unitsShown[fileID] = true
-	pv.unitMatrices[fileID] = mgl32.Ident4()
 	for name, mesh := range meshes {
 		pv.aabb[fileID][name] = [2]mgl32.Vec3{mesh.Info.Header.AABB.Min, mesh.Info.Header.AABB.Max}
 		pv.aabbMat[fileID][name] = info.Bones[mesh.Info.Header.AABBTransformIndex].Matrix
@@ -1552,8 +1609,6 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 	}
 
 	pv.loadUnitGetResourceFunc = getResource
-	pv.loadedUnits[fileID] = true
-
 	return nil
 }
 
@@ -1703,14 +1758,25 @@ func (pv *UnitPreviewState) Draw(previewId string) {
 			modelPos, viewPosition, view, projection := pv.computeMVP(size.X/size.Y, true)
 			translation := mgl32.Translate3D(modelPos.Vec3().Elem())
 
-			// Draw object
+			// Draw objects
 			gl.Enable(gl.DEPTH_TEST)
-			for hash := range pv.objects {
+			for renderedName, hash := range pv.renderedObjects {
+				_, contains := pv.objects[hash]
+				for !contains {
+					hash, contains = pv.renderedObjects[hash]
+					if !contains {
+						break
+					}
+					_, contains = pv.objects[hash]
+				}
+				if !contains {
+					continue
+				}
 				for name := range pv.objects[hash] {
 					if shown, contains := pv.objectsShown[hash][name]; contains && !shown {
 						continue
 					}
-					model := pv.model.Mul4(translation.Mul4(pv.unitMatrices[hash].Mul4(pv.objects[hash][name].matrix)))
+					model := pv.model.Mul4(translation.Mul4(pv.renderObjectMatrices[renderedName].Mul4(pv.objects[hash][name].matrix)))
 					mvp := projection.Mul4(view).Mul4(model)
 					normal := model.Inv().Transpose().Mat3()
 					gl.BindVertexArray(pv.objects[hash][name].vao)
@@ -1755,24 +1821,22 @@ func (pv *UnitPreviewState) Draw(previewId string) {
 						}
 					}
 				}
-			}
-			gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, 0)
-			gl.BindBuffer(gl.UNIFORM_BUFFER, 0)
-			gl.ActiveTexture(gl.TEXTURE0)
-			gl.BindTexture(gl.TEXTURE_2D, 0)
-			gl.BindTexture(gl.TEXTURE_2D_ARRAY, 0)
-			gl.BindVertexArray(0)
-			gl.UseProgram(0)
-			gl.PolygonMode(gl.FRONT_AND_BACK, gl.FILL)
+				gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, 0)
+				gl.BindBuffer(gl.UNIFORM_BUFFER, 0)
+				gl.ActiveTexture(gl.TEXTURE0)
+				gl.BindTexture(gl.TEXTURE_2D, 0)
+				gl.BindTexture(gl.TEXTURE_2D_ARRAY, 0)
+				gl.BindVertexArray(0)
+				gl.UseProgram(0)
+				gl.PolygonMode(gl.FRONT_AND_BACK, gl.FILL)
 
-			// Draw normal visualization
-			if pv.visualizeNormals {
-				for hash := range pv.objects {
+				// Draw normal visualization
+				if pv.visualizeNormals {
 					for name := range pv.objects[hash] {
 						if shown, contains := pv.objectsShown[hash][name]; contains && !shown {
 							continue
 						}
-						model := pv.model.Mul4(translation.Mul4(pv.unitMatrices[hash].Mul4(pv.objects[hash][name].matrix)))
+						model := pv.model.Mul4(translation.Mul4(pv.renderObjectMatrices[renderedName].Mul4(pv.objects[hash][name].matrix)))
 						mvp := projection.Mul4(view).Mul4(model)
 						gl.UseProgram(pv.normalVisMaterial.program)
 						gl.BindVertexArray(pv.objects[hash][name].vao)
@@ -1786,50 +1850,47 @@ func (pv *UnitPreviewState) Draw(previewId string) {
 							gl.DrawElements(gl.POINTS, pv.objects[hash][name].numIndices[group], gl.UNSIGNED_INT, nil)
 						}
 					}
+					gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, 0) // TODO: Make this not draw duplicate vertices
 				}
-				gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, 0) // TODO: Make this not draw duplicate vertices
-			}
 
-			// Draw debug object
-			if pv.showAABB {
-				gl.Disable(gl.DEPTH_TEST)
-				gl.UseProgram(pv.boundingBoxMaterial.program)
-				gl.Uniform4fv(pv.boundingBoxMaterial.uniforms["color"], 1, &pv.aabbColor[0])
-				for hash := range pv.boundingBoxes {
+				// Draw debug object
+				if pv.showAABB {
+					gl.Disable(gl.DEPTH_TEST)
+					gl.UseProgram(pv.boundingBoxMaterial.program)
+					gl.Uniform4fv(pv.boundingBoxMaterial.uniforms["color"], 1, &pv.aabbColor[0])
 					for name := range pv.boundingBoxes[hash] {
 						if shown, contains := pv.objectsShown[hash][name]; contains && !shown {
 							continue
 						}
 						gl.BindVertexArray(pv.boundingBoxes[hash][name].vao)
 						{
-							model := pv.model.Mul4(translation.Mul4(pv.unitMatrices[hash].Mul4(pv.aabbMat[hash][name])))
+							model := pv.model.Mul4(translation.Mul4(pv.renderObjectMatrices[renderedName].Mul4(pv.aabbMat[hash][name])))
 							mvp := projection.Mul4(view).Mul4(model)
 							gl.UniformMatrix4fv(pv.boundingBoxMaterial.uniforms["mvp"], 1, false, &mvp[0])
 						}
 						gl.DrawElements(gl.TRIANGLES, pv.boundingBoxes[hash][name].numIndices[0], gl.UNSIGNED_INT, nil)
 					}
 				}
-			}
 
-			if pv.showSkeleton {
-				gl.Disable(gl.DEPTH_TEST)
-				gl.UseProgram(pv.boundingBoxMaterial.program)
-				gl.Uniform4fv(pv.boundingBoxMaterial.uniforms["color"], 1, &pv.skeletonColor[0])
+				if pv.showSkeleton {
+					gl.Disable(gl.DEPTH_TEST)
+					gl.UseProgram(pv.boundingBoxMaterial.program)
+					gl.Uniform4fv(pv.boundingBoxMaterial.uniforms["color"], 1, &pv.skeletonColor[0])
 
-				for hash := range pv.skeletons {
-					model := pv.model.Mul4(translation.Mul4(pv.unitMatrices[hash]))
-					mvp := projection.Mul4(view).Mul4(model)
+					for hash := range pv.skeletons {
+						model := pv.model.Mul4(translation.Mul4(pv.renderObjectMatrices[renderedName]))
+						mvp := projection.Mul4(view).Mul4(model)
 
-					gl.UniformMatrix4fv(pv.boundingBoxMaterial.uniforms["mvp"], 1, false, &mvp[0])
-					gl.BindVertexArray(pv.skeletons[hash].vao)
-					gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, pv.skeletons[hash].ibos[0])
-					gl.DrawElements(gl.LINES, pv.skeletons[hash].numIndices[0], gl.UNSIGNED_INT, nil)
+						gl.UniformMatrix4fv(pv.boundingBoxMaterial.uniforms["mvp"], 1, false, &mvp[0])
+						gl.BindVertexArray(pv.skeletons[hash].vao)
+						gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, pv.skeletons[hash].ibos[0])
+						gl.DrawElements(gl.LINES, pv.skeletons[hash].numIndices[0], gl.UNSIGNED_INT, nil)
+					}
 				}
+				gl.BindVertexArray(0)
+				gl.UseProgram(0)
+
 			}
-
-			gl.BindVertexArray(0)
-			gl.UseProgram(0)
-
 			if pv.doAutoZoomNextFrame {
 				pv.viewDistance = pv.maxViewDistance
 
@@ -1863,12 +1924,23 @@ func (pv *UnitPreviewState) Draw(previewId string) {
 				}
 
 				maxCamDistDelta := float32(-math.MaxFloat32)
-				for hash := range pv.objects {
+				for renderedName, hash := range pv.renderedObjects {
+					_, contains := pv.objects[hash]
+					for !contains {
+						hash, contains = pv.renderedObjects[hash]
+						if !contains {
+							break
+						}
+						_, contains = pv.objects[hash]
+					}
+					if !contains {
+						continue
+					}
 					for name := range pv.objects[hash] {
 						positions := pv.getAABBVertices(hash, name)
 						for _, vert := range positions {
 							maxCamDistDelta = max(maxCamDistDelta,
-								fitVertexCamDistDelta(pv.aabbMat[hash][name].Mul4x1(vert.Vec4(1.0)).Vec3()))
+								fitVertexCamDistDelta(pv.renderObjectMatrices[renderedName].Mul4(pv.aabbMat[hash][name]).Mul4x1(vert.Vec4(1.0)).Vec3()))
 						}
 					}
 				}
@@ -1974,12 +2046,23 @@ func (pv *UnitPreviewState) Draw(previewId string) {
 				var closestPos mgl32.Vec2
 				closestDist := float32(math.MaxFloat32)
 				var closestIdx int
-				for hash := range pv.meshPositions {
+				for renderedName, hash := range pv.renderedObjects {
+					_, contains := pv.objects[hash]
+					for !contains {
+						hash, contains = pv.renderedObjects[hash]
+						if !contains {
+							break
+						}
+						_, contains = pv.objects[hash]
+					}
+					if !contains {
+						continue
+					}
 					for name := range pv.meshPositions[hash] {
 						if shown, contains := pv.objectsShown[hash][name]; contains && !shown {
 							continue
 						}
-						mvp := projection.Mul4(view).Mul4(pv.model.Mul4(translation.Mul4(pv.objects[hash][name].matrix)))
+						mvp := projection.Mul4(view).Mul4(pv.model.Mul4(translation.Mul4(pv.renderObjectMatrices[renderedName].Mul4(pv.objects[hash][name].matrix))))
 						for i, vtx := range pv.meshPositions[hash][name] {
 							v := mvp.Mul4x1(mgl32.Vec3(vtx).Vec4(1.0))
 							v = v.Mul(1 / v.W())
@@ -2448,8 +2531,25 @@ func (pv *UnitPreviewState) drawMeshSelector() {
 			draggingMax = max(pv.activeMeshListItem, pv.hoveredMeshListItem)
 		}
 		var draggingMinPos, draggingMaxPos imgui.Vec2
-		sortedUnitKeys := slices.SortedFunc(maps.Keys(pv.objects), stingray.Hash.Cmp)
-		for _, hash := range sortedUnitKeys {
+		seen := make(map[stingray.Hash]any)
+		sortedUnitKeys := slices.SortedFunc(maps.Keys(pv.renderedObjects), stingray.Hash.Cmp)
+		for _, renderedName := range sortedUnitKeys {
+			hash := pv.renderedObjects[renderedName]
+			_, contains := pv.objects[hash]
+			for !contains {
+				hash, contains = pv.renderedObjects[hash]
+				if !contains {
+					break
+				}
+				_, contains = pv.objects[hash]
+			}
+			if !contains {
+				continue
+			}
+			if _, contains := seen[hash]; contains {
+				continue
+			}
+			seen[hash] = true
 			sortedObjectKeys := slices.Sorted(maps.Keys(pv.objects[hash]))
 			for i := range int32(len(pv.objects[hash])) {
 				selected := pv.objectsSelected[hash][sortedObjectKeys[i]]
