@@ -109,6 +109,10 @@ func (pv *AutoPreview) Delete() {
 	pv.previews.font.Delete()
 }
 
+func (pv *AutoPreview) Err() error {
+	return pv.err
+}
+
 func (pv *AutoPreview) ActiveID() stingray.FileID {
 	return pv.activeID
 }
