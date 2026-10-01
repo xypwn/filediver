@@ -170,10 +170,27 @@ func (pv *AutoPreview) LoadFile(ctx context.Context, fileID stingray.FileID, max
 			pv.err = err
 			return
 		}
+		pv.previews.unit.Clear()
 		if err := pv.previews.unit.LoadUnit(
 			fileID.Name,
 			data[stingray.DataMain],
 			data[stingray.DataGPU],
+			pv.getResourceGenerator(true),
+			pv.thinhashes,
+		); err != nil {
+			pv.err = fmt.Errorf("loading unit: %w", err)
+			return
+		}
+	case stingray.Sum("prefab"):
+		pv.activeType = AutoPreviewUnit
+		if err := loadFiles(stingray.DataMain); err != nil {
+			pv.err = err
+			return
+		}
+		pv.previews.unit.Clear()
+		if err := pv.previews.unit.LoadPrefab(
+			fileID.Name,
+			data[stingray.DataMain],
 			pv.getResourceGenerator(true),
 			pv.thinhashes,
 		); err != nil {
