@@ -344,13 +344,12 @@ type UnitPreviewState struct {
 	materialSettingsShown bool
 	materialSettingsDrawn bool
 
-	wireframeMaterial unitPreviewMaterial
-	normalVisMaterial unitPreviewMaterial
+	wireframeMaterial   unitPreviewMaterial
+	normalVisMaterial   unitPreviewMaterial
+	boundingBoxMaterial unitPreviewMaterial
 
-	skeleton            unitPreviewObject
-	boundingBoxes       map[string]unitPreviewObject
-	boundingBoxProgram  uint32
-	boundingBoxUniforms unitPreviewUniforms
+	skeleton      unitPreviewObject
+	boundingBoxes map[string]unitPreviewObject
 
 	vfov         float32
 	modelPos     mgl32.Vec4
@@ -477,16 +476,20 @@ func NewUnitPreview(getResource GetResourceFunc, ArmorParams ExtractorArmorParam
 		return nil, err
 	}
 
-	pv.skeleton.genObjects(false, 1)
-
-	pv.boundingBoxProgram, err = glutils.CreateProgramFromSources(unitPreviewShaderCode,
-		"shaders/debug_object.vert",
-		"shaders/debug_object.frag",
+	pv.boundingBoxMaterial.name = "bounding box"
+	err = pv.boundingBoxMaterial.generate(
+		[]string{
+			"shaders/debug_object.vert",
+			"shaders/debug_object.frag",
+		},
+		0,
+		[]string{"mvp", "color"},
 	)
 	if err != nil {
 		return nil, err
 	}
-	pv.boundingBoxUniforms.generate(pv.boundingBoxProgram, "mvp", "color")
+
+	pv.skeleton.genObjects(false, 1)
 
 	pv.vfov = mgl32.DegToRad(60)
 	pv.viewDistance = 25
@@ -1736,8 +1739,8 @@ func (pv *UnitPreviewState) Draw(name string) {
 			// Draw debug object
 			if pv.showAABB {
 				gl.Disable(gl.DEPTH_TEST)
-				gl.UseProgram(pv.boundingBoxProgram)
-				gl.Uniform4fv(pv.boundingBoxUniforms["color"], 1, &pv.aabbColor[0])
+				gl.UseProgram(pv.boundingBoxMaterial.program)
+				gl.Uniform4fv(pv.boundingBoxMaterial.uniforms["color"], 1, &pv.aabbColor[0])
 				for name := range pv.boundingBoxes {
 					if shown, contains := pv.objectsShown[name]; contains && !shown {
 						continue
@@ -1745,7 +1748,7 @@ func (pv *UnitPreviewState) Draw(name string) {
 					gl.BindVertexArray(pv.boundingBoxes[name].vao)
 					{
 						aabbMVP := mvp.Mul4(pv.aabbMat[name])
-						gl.UniformMatrix4fv(pv.boundingBoxUniforms["mvp"], 1, false, &aabbMVP[0])
+						gl.UniformMatrix4fv(pv.boundingBoxMaterial.uniforms["mvp"], 1, false, &aabbMVP[0])
 					}
 					gl.DrawElements(gl.TRIANGLES, pv.boundingBoxes[name].numIndices[0], gl.UNSIGNED_INT, nil)
 				}
@@ -1753,10 +1756,10 @@ func (pv *UnitPreviewState) Draw(name string) {
 
 			if pv.showSkeleton {
 				gl.Disable(gl.DEPTH_TEST)
-				gl.UseProgram(pv.boundingBoxProgram)
-				gl.Uniform4fv(pv.boundingBoxUniforms["color"], 1, &pv.skeletonColor[0])
+				gl.UseProgram(pv.boundingBoxMaterial.program)
+				gl.Uniform4fv(pv.boundingBoxMaterial.uniforms["color"], 1, &pv.skeletonColor[0])
 
-				gl.UniformMatrix4fv(pv.boundingBoxUniforms["mvp"], 1, false, &mvp[0])
+				gl.UniformMatrix4fv(pv.boundingBoxMaterial.uniforms["mvp"], 1, false, &mvp[0])
 				gl.BindVertexArray(pv.skeleton.vao)
 				gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, pv.skeleton.ibos[0])
 				gl.DrawElements(gl.LINES, pv.skeleton.numIndices[0], gl.UNSIGNED_INT, nil)
@@ -1797,14 +1800,13 @@ func (pv *UnitPreviewState) Draw(name string) {
 					return od * (maxDist - 1)
 				}
 
-				// NOTE(xypwn): I used to use the AABB vertices for this, but they would often be
-				// wrong. Using all of the mesh positions instead takes no more than ~10ms on
-				// all of the models I've tried.
 				maxCamDistDelta := float32(-math.MaxFloat32)
-				for name := range pv.meshPositions {
-					for _, vert := range pv.meshPositions[name] {
+				for name := range pv.objects {
+					positions := pv.getAABBVertices(name)
+					aabbMVP := mvp.Mul4(pv.aabbMat[name])
+					for _, vert := range positions {
 						maxCamDistDelta = max(maxCamDistDelta,
-							fitVertexCamDistDelta(vert))
+							fitVertexCamDistDelta(aabbMVP.Mul4x1(vert.Vec4(1.0)).Vec3()))
 					}
 				}
 				pv.viewDistance += maxCamDistDelta
