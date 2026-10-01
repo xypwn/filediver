@@ -1,61 +1,13 @@
 package previews
 
-/*
-	#include <stdbool.h>
-	#include <stdint.h>
-	typedef int32_t GLint;
-	typedef uint32_t GLuint;
-	typedef uint64_t GLsizeiptr;
-	typedef struct ImVectorChar {
-		int Size;
-		int Capacity;
-		char* Data;
-	} ImVectorChar;
-
-	typedef struct ImGui_ImplOpenGL3_RenderState
-	{
-		bool            UseBindSampler;
-		bool            UseTexParameterFilter;
-		unsigned int    CurrentSampler;                 // (GLuint) Used if UseBindSampler == true, otherwise always 0
-		unsigned int    CurrentTexParameterFilter;      // (GLuint) Used if UseTexParameterToSetSampler == true
-	} ImGui_ImplOpenGL3_RenderState;
-	// OpenGL Data
-	typedef struct ImGui_ImplOpenGL3_Data
-	{
-		GLuint          GlVersion;               // Extracted at runtime using GL_MAJOR_VERSION, GL_MINOR_VERSION queries (e.g. 320 for GL 3.2)
-		char            GlslVersionString[32];   // Specified by user or detected based on compile time GL settings.
-		bool            GlProfileIsES2;
-		bool            GlProfileIsES3;
-		bool            GlProfileIsCompat;
-		GLint           GlProfileMask;
-		GLint           MaxTextureSize;
-		GLuint          ShaderHandle;
-		GLint           AttribLocationTex;       // Uniforms location
-		GLint           AttribLocationProjMtx;
-		GLuint          AttribLocationVtxPos;    // Vertex attributes location
-		GLuint          AttribLocationVtxUV;
-		GLuint          AttribLocationVtxColor;
-		unsigned int    VboHandle, ElementsHandle;
-		GLsizeiptr      VertexBufferSize;
-		GLsizeiptr      IndexBufferSize;
-		bool            HasPolygonMode;
-		bool            HasBindSampler;
-		bool            HasClipOrigin;
-		bool            UseBufferSubData;
-		GLuint          TexSamplers[2];         // Used if HasBindSimpler. (0=linear, 1=nearest)
-
-		ImVectorChar  TempBuffer;
-	} ImGui_ImplOpenGL3_Data;
-*/
-import "C"
 import (
 	"fmt"
 	"image"
-	"unsafe"
 
 	"github.com/AllenDang/cimgui-go/imgui"
 	"github.com/go-gl/gl/v4.3-core/gl"
 	fnt "github.com/xypwn/filediver/cmd/filediver-gui/fonts"
+	"github.com/xypwn/filediver/cmd/filediver-gui/imgui_wrapper"
 	"github.com/xypwn/filediver/cmd/filediver-gui/imutils"
 )
 
@@ -89,46 +41,12 @@ type ImagePreview struct {
 	offset          imgui.Vec2 // -1 < x,y < 1
 	zoom            float32
 	linearFiltering bool
-	linearCallback  imgui.DrawCallback
-	nearestCallback imgui.DrawCallback
 	ignoreAlpha     bool
 	err             error
 }
 
-// taken from cimgui-go/internal/type_wrapper.go
-func ReinterpretCast[RET, SRC any](src SRC) RET {
-	return *(*RET)(unsafe.Pointer(&src))
-}
-
 func NewImagePreview() *ImagePreview {
 	pv := &ImagePreview{Alt: "<no images>", zoom: 1}
-	// Yes this is kinda (read: very) horrific, but apparently to make imgui "easier" to use they added callbacks to set filtering... which don't seem to be implemented properly in the go bindings -_-
-	// So we have to reimplement them here instead
-	// There is probably a better way to do this, but this _does_ fix the bug where textures wouldn't respect our filter settings
-	pv.linearCallback = func(parent_list *imgui.DrawList, cmd *imgui.DrawCmd) {
-		bd := ReinterpretCast[*C.ImGui_ImplOpenGL3_Data](imgui.CurrentIO().CData.BackendRendererUserData)
-		renderState := ReinterpretCast[*C.ImGui_ImplOpenGL3_RenderState](imgui.CurrentPlatformIO().CData.Renderer_RenderState)
-		if bd.HasBindSampler {
-			renderState.CurrentSampler = bd.TexSamplers[0]
-			renderState.UseTexParameterFilter = false
-			gl.BindSampler(0, uint32(renderState.CurrentSampler))
-		} else {
-			renderState.UseTexParameterFilter = true
-			renderState.CurrentTexParameterFilter = gl.LINEAR
-		}
-	}
-	pv.nearestCallback = func(parent_list *imgui.DrawList, cmd *imgui.DrawCmd) {
-		bd := ReinterpretCast[*C.ImGui_ImplOpenGL3_Data](imgui.CurrentIO().CData.BackendRendererUserData)
-		renderState := ReinterpretCast[*C.ImGui_ImplOpenGL3_RenderState](imgui.CurrentPlatformIO().CData.Renderer_RenderState)
-		if bd.HasBindSampler {
-			renderState.CurrentSampler = bd.TexSamplers[1]
-			renderState.UseTexParameterFilter = false
-			gl.BindSampler(0, uint32(renderState.CurrentSampler))
-		} else {
-			renderState.UseTexParameterFilter = true
-			renderState.CurrentTexParameterFilter = gl.NEAREST
-		}
-	}
 	return pv
 }
 
@@ -270,9 +188,9 @@ func (pv *ImagePreview) drawImage(pvImg *ImagePreviewImage, pos, area imgui.Vec2
 		imgPos := pos.Sub(scaledImageSize.Div(2)).Add(area.Div(2)).Add(offsetPx)
 		imgui.ClearDrawCallbackPool()
 		if pv.linearFiltering {
-			imgui.WindowDrawList().AddCallback(pv.linearCallback)
+			imgui.WindowDrawList().AddCallback(imgui_wrapper.SetSamplerLinear)
 		} else {
-			imgui.WindowDrawList().AddCallback(pv.nearestCallback)
+			imgui.WindowDrawList().AddCallback(imgui_wrapper.SetSamplerNearest)
 		}
 		imgui.WindowDrawList().AddImage(pvImg.textureRef, imgPos, imgPos.Add(scaledImageSize))
 	}
