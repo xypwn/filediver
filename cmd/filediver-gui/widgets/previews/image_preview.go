@@ -188,9 +188,9 @@ func (pv *ImagePreview) drawImage(pvImg *ImagePreviewImage, pos, area imgui.Vec2
 		imgPos := pos.Sub(scaledImageSize.Div(2)).Add(area.Div(2)).Add(offsetPx)
 		imgui.ClearDrawCallbackPool()
 		if pv.linearFiltering {
-			imgui.WindowDrawList().AddCallback(imgui_wrapper.SetSamplerLinear)
+			imgui_wrapper.DrawListAddCallbackSetSamplerLinear(imgui.WindowDrawList())
 		} else {
-			imgui.WindowDrawList().AddCallback(imgui_wrapper.SetSamplerNearest)
+			imgui_wrapper.DrawListAddCallbackSetSamplerNearest(imgui.WindowDrawList())
 		}
 		imgui.WindowDrawList().AddImage(pvImg.textureRef, imgPos, imgPos.Add(scaledImageSize))
 	}

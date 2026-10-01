@@ -4,12 +4,6 @@ package imgui_wrapper
 /*
 #cgo windows LDFLAGS: -ldwmapi
 
-#include <stdbool.h>
-#include <stdint.h>
-typedef int32_t GLint;
-typedef uint32_t GLuint;
-typedef uint64_t GLsizeiptr;
-
 // GLFW
 typedef struct GLFWwindow GLFWwindow;
 typedef struct GLFWmonitor GLFWmonitor;
@@ -53,48 +47,15 @@ void ImGui_ImplOpenGL3_RenderDrawData(ImDrawData* draw_data);
 void ImGui_ImplOpenGL3_Shutdown();
 void ImGui_ImplGlfw_Shutdown();
 
-typedef struct ImVectorChar {
-	int Size;
-	int Capacity;
-	char* Data;
-} ImVectorChar;
-
-typedef struct ImGui_ImplOpenGL3_RenderState
-{
-	bool            UseBindSampler;
-	bool            UseTexParameterFilter;
-	unsigned int    CurrentSampler;                 // (GLuint) Used if UseBindSampler == true, otherwise always 0
-	unsigned int    CurrentTexParameterFilter;      // (GLuint) Used if UseTexParameterToSetSampler == true
-} ImGui_ImplOpenGL3_RenderState;
-
-typedef struct ImGui_ImplOpenGL3_Data
-{
-	GLuint          GlVersion;               // Extracted at runtime using GL_MAJOR_VERSION, GL_MINOR_VERSION queries (e.g. 320 for GL 3.2)
-	char            GlslVersionString[32];   // Specified by user or detected based on compile time GL settings.
-	bool            GlProfileIsES2;
-	bool            GlProfileIsES3;
-	bool            GlProfileIsCompat;
-	GLint           GlProfileMask;
-	GLint           MaxTextureSize;
-	GLuint          ShaderHandle;
-	GLint           AttribLocationTex;       // Uniforms location
-	GLint           AttribLocationProjMtx;
-	GLuint          AttribLocationVtxPos;    // Vertex attributes location
-	GLuint          AttribLocationVtxUV;
-	GLuint          AttribLocationVtxColor;
-	unsigned int    VboHandle, ElementsHandle;
-	GLsizeiptr      VertexBufferSize;
-	GLsizeiptr      IndexBufferSize;
-	bool            HasPolygonMode;
-	bool            HasBindSampler;
-	bool            HasClipOrigin;
-	bool            UseBufferSubData;
-	GLuint          TexSamplers[2];         // Used if HasBindSimpler. (0=linear, 1=nearest)
-
-	ImVectorChar  TempBuffer;
-} ImGui_ImplOpenGL3_Data;
-
 // cimgui-go C++ wrapper stuff
+typedef struct ImDrawList ImDrawList;
+typedef struct ImDrawCmd ImDrawCmd;
+typedef void (*ImDrawCallback)(const ImDrawList* parent_list, const ImDrawCmd* cmd);
+typedef struct ImGuiPlatformIO ImGuiPlatformIO;
+void wrap_ImDrawList_AddCallback(ImDrawList* self, ImDrawCallback callback);
+ImDrawCallback wrap_ImGuiPlatformIO_GetDrawCallback_ResetRenderState(ImGuiPlatformIO *self);
+ImDrawCallback wrap_ImGuiPlatformIO_GetDrawCallback_SetSamplerLinear(ImGuiPlatformIO *self);
+ImDrawCallback wrap_ImGuiPlatformIO_GetDrawCallback_SetSamplerNearest(ImGuiPlatformIO *self);
 typedef void (*VoidCallback)();
 void glfw_render(GLFWwindow *window, VoidCallback renderLoop);
 
@@ -154,31 +115,14 @@ func reinterpretCast[RET, SRC any](src SRC) RET {
 	return *(*RET)(unsafe.Pointer(&src))
 }
 
-// implementations of these functions https://github.com/ocornut/imgui/issues/9378
-var SetSamplerLinear imgui.DrawCallback = func(parent_list *imgui.DrawList, cmd *imgui.DrawCmd) {
-	bd := reinterpretCast[*C.ImGui_ImplOpenGL3_Data](imgui.CurrentIO().CData.BackendRendererUserData)
-	renderState := reinterpretCast[*C.ImGui_ImplOpenGL3_RenderState](imgui.CurrentPlatformIO().CData.Renderer_RenderState)
-	if bd.HasBindSampler {
-		renderState.CurrentSampler = bd.TexSamplers[0]
-		renderState.UseTexParameterFilter = false
-		gl.BindSampler(0, uint32(renderState.CurrentSampler))
-	} else {
-		renderState.UseTexParameterFilter = true
-		renderState.CurrentTexParameterFilter = gl.LINEAR
-	}
+func DrawListAddCallbackSetSamplerLinear(list *imgui.DrawList) {
+	C.wrap_ImDrawList_AddCallback(reinterpretCast[*C.ImDrawList](list.CData),
+		C.wrap_ImGuiPlatformIO_GetDrawCallback_SetSamplerLinear(reinterpretCast[*C.ImGuiPlatformIO](imgui.CurrentPlatformIO().CData)))
 }
 
-var SetSamplerNearest imgui.DrawCallback = func(parent_list *imgui.DrawList, cmd *imgui.DrawCmd) {
-	bd := reinterpretCast[*C.ImGui_ImplOpenGL3_Data](imgui.CurrentIO().CData.BackendRendererUserData)
-	renderState := reinterpretCast[*C.ImGui_ImplOpenGL3_RenderState](imgui.CurrentPlatformIO().CData.Renderer_RenderState)
-	if bd.HasBindSampler {
-		renderState.CurrentSampler = bd.TexSamplers[1]
-		renderState.UseTexParameterFilter = false
-		gl.BindSampler(0, uint32(renderState.CurrentSampler))
-	} else {
-		renderState.UseTexParameterFilter = true
-		renderState.CurrentTexParameterFilter = gl.NEAREST
-	}
+func DrawListAddCallbackSetSamplerNearest(list *imgui.DrawList) {
+	C.wrap_ImDrawList_AddCallback(reinterpretCast[*C.ImDrawList](list.CData),
+		C.wrap_ImGuiPlatformIO_GetDrawCallback_SetSamplerNearest(reinterpretCast[*C.ImGuiPlatformIO](imgui.CurrentPlatformIO().CData)))
 }
 
 // State contains exported fields, which
