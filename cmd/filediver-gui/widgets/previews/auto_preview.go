@@ -80,7 +80,13 @@ func NewAutoPreview(otoCtx *oto.Context, audioSampleRate int, hashes map[stingra
 		thinhashes:           thinhashes,
 		getResourceGenerator: getResourceGenerator,
 	}
-	pv.previews.unit, err = NewUnitPreview(getResourceGenerator(true), armorParams)
+	lookupHash := func(h stingray.Hash) string {
+		if val, contains := hashes[h]; contains {
+			return val
+		}
+		return h.String()
+	}
+	pv.previews.unit, err = NewUnitPreview(getResourceGenerator(true), armorParams, lookupHash)
 	if err != nil {
 		return nil, err
 	}
