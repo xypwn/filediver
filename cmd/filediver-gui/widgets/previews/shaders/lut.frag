@@ -87,15 +87,15 @@ uint getMaterialLutRow() {
     return material_lut_row;
 }
 
-vec3 sRGB(vec3 input) {
-    vec3 temp = max(input, vec3(0.000061));
-    input = temp * 12.92;
+vec3 sRGB(vec3 color) {
+    vec3 temp = max(color, vec3(0.000061));
+    color = temp * 12.92;
     temp = exp2(log2(max(temp, vec3(0.003131))) * 0.416667) * 1.055 - 0.055;
-    return min(input, temp);
+    return min(color, temp);
 }
 
-vec3 gamma(vec3 input, float value) {
-    return exp2(log2(input) * vec3(value));
+vec3 gamma(vec3 color, float value) {
+    return exp2(log2(color) * vec3(value));
 }
 
 vec3 rgb2hsv(vec3 c)
