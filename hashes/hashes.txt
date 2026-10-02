@@ -124,6 +124,7 @@ $POSITIONING_CLOSEST_TO_LISTENER
 16x16_001_rc
 16x16_001_rc1
 16x16_001_rc_collapsed
+16x16_001_slice_
 16x16_001_slice_01
 16x16_001_slice_02
 16x16_001_slice_03
@@ -146,6 +147,7 @@ $POSITIONING_CLOSEST_TO_LISTENER
 24x12_001_slice_02
 24x12_001_slice_03
 24x12_001_slice_04
+24x12_ceremonial_flags
 24x12_destroyed_proxy
 24x12_proxy
 259e4b21-bf26-420b-9b6c-ecff62ea32c1
@@ -184,6 +186,7 @@ $POSITIONING_CLOSEST_TO_LISTENER
 32c55a23-9c0a-4189-bcd3-703096921f7a
 32x24_001_rc
 32x24_001_rc_collapsed
+32x24_ceremonial_flags
 32x24_proxy
 32x32_001
 32x32_001_rc
@@ -653,6 +656,7 @@ Box/Idle
 Box/Reload
 Box/Reload_Fast
 Box_Scale
+Bridge
 Bridge_idle
 Broken
 C#:hE
@@ -689,6 +693,7 @@ Clip_State
 Clip_State_1
 Clip_State_2
 Clip_State_2_1
+Close_Floor_Hatch
 Close_Lock
 Cocked
 Color
@@ -702,6 +707,7 @@ ColorMaterial
 Combat/Turn_Loop_Idle
 Combat/Walk
 Combat/idle
+Combat_pose_variation
 Concussion
 Cone_Primitive
 Confusion
@@ -1552,6 +1558,7 @@ Group_State/wind_down
 Group_State/wind_up
 Group_State/wings_idle
 Group_State/yaw
+Guarding
 Guarding/Idle
 Guarding/turn_loop_idle
 GwNavBotConfiguration
@@ -1706,6 +1713,7 @@ Listener4
 Listener5
 Listener6
 Listener7
+Locks_Closed_Idle
 Loco/Turn_Dead
 Loco/idle
 Loco/turn
@@ -1796,6 +1804,7 @@ Off
 OneShot
 Opaque Lighting
 Open_Close
+Open_Floor_Hatch
 Open_Locks
 Overload
 Override/Crouching/Foliage
@@ -2164,6 +2173,7 @@ SAMPLE
 SAMPLE_BASED) && !defined(SAMPLE_HEIGHT) && !defined(FLATTEN)
 SAMPLE_HEIGHT) && !defined(FLATTEN)
 SCREEN_SPACE)
+SEAF_artillery_terminal
 SELECTION_PASS)
 SEPARABLE_BILINEAR_GAUSSIAN_5TAP_X
 SEPARABLE_BILINEAR_GAUSSIAN_5TAP_Y
@@ -2644,6 +2654,13 @@ ammo_box_discoverable_4
 ammo_box_marker
 ammo_box_marker1
 ammo_box_marker2
+ammo_box_marker3
+ammo_box_marker4
+ammo_box_marker5
+ammo_box_marker6
+ammo_box_marker7
+ammo_box_marker8
+ammo_box_marker9
 ammo_indicator
 ammo_wiggle
 ammo_wiggle_idle
@@ -2652,6 +2669,7 @@ ammobox_01
 ammobox_1
 ammobox_2
 ammobox_5
+ammocheck
 ammocrate_closed_
 ammocrate_closed_01
 ammocrate_closed_1
@@ -2741,6 +2759,7 @@ apd
 apk
 apng
 append
+apply_cave_alpha
 apply_vr_distortion
 apx
 ar_main
@@ -2824,15 +2843,24 @@ automaton_super_sample_1
 aux_bus
 aux_buses
 avoidance
+b01
 b01_proxy
+b02
 b02_proxy1
+b03
 b03_proxy
+b04
 b04_proxy
+b05
 b05_proxy
+b06
 b063dfd0-5b68-4dbf-b7f6-ed971cdf357e
 b06_proxy
+b07
 b07_proxy
+b08
 b08_proxy
+b09
 b09_proxy
 b0XC
 b0a1d2af-6152-44c8-85e9-cc9f63cf68eb
@@ -2936,11 +2964,19 @@ barrel_
 barrel_01
 barrel_02
 barrel_1
+barrel_10
+barrel_11
+barrel_12
+barrel_13
+barrel_14
 barrel_2
 barrel_3
 barrel_4
 barrel_5
 barrel_6
+barrel_7
+barrel_8
+barrel_9
 barrel_spin
 base
 base/Deploy
@@ -3112,6 +3148,7 @@ black_box_3
 black_box_4
 black_box_5
 black_box_6
+black_hole
 blacksaffron_sample_base_
 blacksaffron_sample_base_01
 blacksaffron_sample_base_1
@@ -3223,6 +3260,7 @@ blue_corp_weather_vane_01
 blue_glossiness
 blue_maps_scale
 blue_specular
+blur_fog_particles
 bmp
 bnk
 body_bag_01
@@ -3251,6 +3289,7 @@ bone_creature_14
 bone_creature_2
 bone_creature_3
 bone_creature_4
+bone_creature_hive_
 bone_creature_hive_01
 bone_creature_hive_010
 bone_creature_hive_011
@@ -3293,6 +3332,7 @@ box_03_2stack
 box_04
 box_05
 box_05_2stack
+box_05_2stack1
 box_06
 box_06_2stack
 box_06_2stack1
@@ -3324,6 +3364,7 @@ branch
 brdf_lut
 brdf_lut:default:PLATFORM_WIN32:RENDERER_D3D11
 bridge decal
+bridge_backwall
 bridge_cables
 bridge_collision
 bridge_door
@@ -3555,6 +3596,7 @@ bug_rock_cliff_face_4
 bug_rock_cliff_face_5
 bug_rock_cliff_face_6
 bug_rock_cliff_face_7
+bug_rock_climbing_
 bug_rock_climbing_01
 bug_rock_flat_
 bug_rock_flat_01
@@ -3812,6 +3854,7 @@ cable_4
 cache
 cache_interactable_box
 cache_loot_marker
+cache_loot_marker1
 calculate_cloud_shadows
 calculate_cloud_shadows:init
 calculate_coc
@@ -3822,10 +3865,15 @@ camera_avatar_inspect
 camera_default
 camera_editor
 camera_equipment_inspect
+camera_hellpod_01
+camera_hellpod_02
+camera_hellpod_03
+camera_hellpod_04
 camera_inv_projection
 camera_inv_view
 camera_last_view
 camera_last_view_projection
+camera_loadout_hellpods
 camera_loadout_table
 camera_loadout_window
 camera_near_far
@@ -3879,9 +3927,11 @@ carry_flag_
 cascaded_shadow_mapping
 case_01
 case_02
+case_02_2stack
 case_02_2stacked
 case_03
 case_03_2x
+case_03_2x1
 case_03_2x2
 case_03_3x
 case_03_3x3
@@ -3891,18 +3941,22 @@ cave_stalactites_03
 cb2821ca-a40f-40eb-b1cb-85ac8e75a625
 ccdafa82-4a0d-41b7-952b-3c10361bab92
 cctv_camera_01
+cctv_camera_02
 cctv_camera_02_anim
 cd02b858-a80f-422a-8b7d-396e6633d0b1
 cd33575a-f8ce-4e8b-8aac-6a3e62051ec2
 cd8f2898-5821-4e3f-8348-a7d2f3c869d2
 cea884a8-efa2-4941-a71b-8732bf4fe38c
 ceiling
+ceiling_1m
+ceiling_5m
 ceiling_aircon
 ceiling_lamp_long_02
 ceiling_light_01
 ceiling_light_02
 ceiling_light_03
 ceiling_light_logistics
+ceiling_rail_1m
 central_core_hole_01
 cf607d4e-2916-4843-8e0c-b0a6d9d3caa2
 cha_admiral_male
@@ -3924,6 +3978,20 @@ chimney_01
 chm
 chroma
 cities_berserker_corpse_01
+cities_bug_cluster_01
+cities_bug_cluster_02
+cities_bug_corpse_warrior_
+cities_bug_goop_pillow_
+cities_bug_rock_small_
+cities_bug_rock_spike_
+cities_bug_rock_wall_
+cities_bug_web_
+cities_bug_web_01
+cities_bug_web_02
+cities_bug_web_05
+cities_bug_web_06
+cities_bug_web_07
+cities_bug_web_08
 cities_colony_antenna_big_01
 cities_conscript_corpse_01
 cities_conscript_corpse_02
@@ -3953,6 +4021,7 @@ cities_flood_light_02
 cities_forest_tree_01_gibs
 cities_forest_tree_02_gibs
 cities_lieutentant_corpse_01
+cities_male_industrial_corpse_
 cities_rock_cliff_face_01
 cities_rock_cliff_face_02
 cities_rock_huge_03
@@ -3964,6 +4033,38 @@ cities_se_flag_vertical_01
 cities_search_light_air
 cities_search_light_air_large
 cities_soldier_corpse_01
+cities_spore_cluster_
+cities_spore_cluster_01
+cities_spore_cluster_02
+cities_spore_cluster_03
+cities_spore_cluster_04
+cities_spore_cluster_1
+cities_spore_cluster_10
+cities_spore_cluster_11
+cities_spore_cluster_12
+cities_spore_cluster_13
+cities_spore_cluster_14
+cities_spore_cluster_15
+cities_spore_cluster_16
+cities_spore_cluster_17
+cities_spore_cluster_18
+cities_spore_cluster_19
+cities_spore_cluster_2
+cities_spore_cluster_20
+cities_spore_cluster_21
+cities_spore_cluster_22
+cities_spore_cluster_23
+cities_spore_cluster_24
+cities_spore_cluster_25
+cities_spore_cluster_3
+cities_spore_cluster_4
+cities_spore_cluster_5
+cities_spore_cluster_6
+cities_spore_cluster_7
+cities_spore_cluster_8
+cities_spore_cluster_9
+cities_spore_light_01
+cities_spore_light_02
 cities_trench_floor_01
 cities_trench_floor_1x2
 city_car_
@@ -3976,6 +4077,7 @@ city_car_06
 city_car_07
 city_car_08
 city_center_spotlight_01
+civilian_extract_door_
 civilian_spawn_door
 civilian_spawn_door1
 clamp
@@ -4030,6 +4132,7 @@ coffee
 col_roof_prop_
 col_roof_prop_03
 collapsed
+collect_resource_marker
 collider_collector
 colony_antenna_big_
 colony_antenna_big_01
@@ -4068,6 +4171,8 @@ colony_cable_10m_b
 colony_cable_20m_a
 colony_cable_20m_b
 colony_camera_pole
+colony_capsule_antenna
+colony_capsule_antenna1
 colony_checkpoint_barrier_
 colony_checkpoint_barrier_01
 colony_checkpoint_kiosk_
@@ -4125,6 +4230,8 @@ colony_sign_01_light_01
 colony_sign_01_light_1
 colony_sign_02_a
 colony_sign_02_a1
+colony_sign_1
+colony_solar_panel
 colony_trashcan_
 colony_trashcan_01
 colony_tunnel
@@ -4134,6 +4241,8 @@ colony_tv_02
 colony_tv_05
 colony_tv_1
 colony_tv_2
+colony_tv_3
+colony_tv_4
 colony_wall_pillar_01
 colony_wall_segment_12m_damaged
 colony_wall_segment_2m5_01
@@ -4232,6 +4341,7 @@ const float4 pull_speed
 const float4 whirl_speed 
 constant_color
 construct_vector3_f1f1f1
+container_
 container_01
 container_02
 container_03
@@ -91138,7 +91248,9 @@ content/effects/env_illuminate/props/il_spotlight_01
 content/effects/env_illuminate/props/il_turret_eye
 content/effects/env_illuminate/props/il_turret_tactical_base
 content/effects/env_illuminate/props/il_turret_tactical_eye
+content/effects/env_shared/ambient/units/flies_flying
 content/effects/env_shared/particle_empty
+content/effects/env_shared/sparks/units/sparks_medium
 content/effects/env_ship/admiral_intro_table
 content/effects/env_ship/hologram_planet_rift
 content/effects/env_ship/hologram_space_cloud
@@ -94820,6 +94932,7 @@ content/fac_bugs/cha_boomer/cha_boomer_sss
 content/fac_bugs/cha_boomer/cha_boomer_tier_2
 content/fac_bugs/cha_boomer/cha_boomer_tier_2_bci
 content/fac_bugs/cha_boomer/cha_boomer_tier_2_sss
+content/fac_bugs/cha_boomer_burrower/burrower_bile_grenade_mesh
 content/fac_bugs/cha_boomer_burrower/cha_boomer_burrower
 content/fac_bugs/cha_boomer_nurser/cha_boomer_nurser
 content/fac_bugs/cha_boomer_nurser/cha_boomer_nurser_02
@@ -98499,6 +98612,7 @@ content/objectives/obj_common/ship_hub/ship_destroyer
 content/objectives/obj_common/ship_hub/ship_hub_arcade_terminal
 content/objectives/obj_common/ship_hub/ship_hub_character_customization
 content/objectives/obj_common/ship_hub/ship_hub_stratagem_armory
+content/objectives/obj_common/shoulder_mounted_camera/cyborg_gather_footage_box
 content/objectives/obj_common/shoulder_mounted_camera/gen_footage_volume
 content/objectives/obj_common/shoulder_mounted_camera/materials/m_shoulder_mounted_camera
 content/objectives/obj_common/shoulder_mounted_camera/shoulder_mounted_camera
@@ -98749,6 +98863,9 @@ content/objectives/obj_illuminate/il_destroy_weather_device/il_harvester_cables_
 content/objectives/obj_illuminate/il_destroy_weather_device/il_obj_asset_weather_device_core
 content/objectives/obj_illuminate/il_destroy_weather_device/il_weather_device_battery
 content/objectives/obj_illuminate/il_destroy_weather_device/materials/m_il_weather_device_battery
+content/objectives/obj_illuminate/il_destroy_weather_device/weather_tower_mountain_01
+content/objectives/obj_illuminate/il_destroy_weather_device/weather_tower_mountain_02
+content/objectives/obj_illuminate/il_destroy_weather_device/weather_tower_mountain_03
 content/objectives/obj_illuminate/il_encounter_ship/il_encounter_ship_landed
 content/objectives/obj_illuminate/il_encounter_ship/il_encounter_ship_landed_door_shield
 content/objectives/obj_illuminate/il_encounter_ship/il_encounter_ship_landed_prefab
@@ -100343,6 +100460,7 @@ content/ui/ship/menu/menbackgrounds/menugrid_test
 content/ui/simple_menu
 content/ui/template_hud
 content/videos/stratagems/tank
+content/wwise/wwise_audio_volume
 contributes
 control_tower_01
 cooling_server_
@@ -102167,6 +102285,7 @@ create_unit_actor
 creature
 credit_card
 credit_card_max
+crew_shiplight
 crewdoor
 crewdoor1
 cross_product
@@ -102533,6 +102652,7 @@ cyborg_turret_tall2
 cyborg_turret_tall3
 cyborg_turret_tall4
 cylinder
+cylinder_marker
 cylinder_primitive
 cylinder_primitive1
 d
@@ -102650,6 +102770,7 @@ decal_common
 decal_scorch
 decal_uv_0
 decals
+deciduous_vista_01
 def
 default
 default framebuffer
@@ -102812,6 +102933,7 @@ duration_type
 dylib
 dynamic
 dynamic_branch
+dynamic_dof_bake
 dynamicnavmesh_budget
 e103a398-62f2-48bf-be43-80fb82048d9d
 e1a17142-4951-4a47-84dab8b946feb94f
@@ -102856,6 +102978,7 @@ eject_cover_close
 eject_cover_open
 electric
 electric_box_01
+electric_street_box_
 electric_street_box_01
 electric_street_box_02
 elevate
@@ -102927,6 +103050,7 @@ emissive_particle_intensity
 emp_grenade
 empty
 empty_combat
+empty_paper_01
 empty_paper_stack
 enable
 enable_crowd_dispersion
@@ -102934,6 +103058,14 @@ enable_force_passage
 enable_slowing_down
 enable_stop
 enabled
+enemy_encounter_marker
+enemy_encounter_marker1
+enemy_encounter_marker2
+enemy_encounter_marker3
+enemy_encounter_marker4
+enemy_encounter_marker5
+enemy_encounter_marker6
+enemy_encounter_marker7
 engine
 engine_turnover
 engineering_computer
@@ -102990,6 +103122,7 @@ exit_back_right
 exit_driver
 exit_front_right
 exit_gunner
+exit_landingpad_trigger
 exp
 expand
 exploded_database
@@ -103150,6 +103283,7 @@ fighting_worker_male_corpse_6
 fighting_worker_male_corpse_7
 fighting_worker_male_corpse_8
 fighting_worker_male_corpse_9
+fill_ground_color
 fill_mode
 fill_solid
 fill_wireframe
@@ -103183,6 +103317,8 @@ filter_cubemap:specular
 filter_lightmap
 filter_scatter_lookup
 final
+finalize_fog_volumes
+finalize_glow_up
 find_global_light
 fire
 fire_add
@@ -103361,8 +103497,11 @@ gate_02
 gate_enter_village
 gate_inner_1
 gate_light_01
+gate_main_
 gate_main_1
+gate_main_2
 gate_outer
+gate_outer_
 gate_outer_1
 gate_outer_2
 gate_outer_west
@@ -103372,6 +103511,7 @@ gate_to_reinforce
 gate_to_sprint
 gate_to_stim
 gate_to_stratagem
+gather_high_pass
 gbuffer
 gbuffer0
 gbuffer1
@@ -103794,10 +103934,16 @@ green_specular
 grenade_box_discoverable_
 grenade_box_discoverable_01
 grenade_box_marker
+grenade_box_marker1
+grenade_box_marker2
+grenade_box_marker3
+grenade_box_marker4
+grenade_box_marker5
 grenade_launcher_marker
 grenade_launcher_marker1
 greybox_kit_outerwall_corner
 greybox_kit_outerwall_turret
+ground_1m
 ground_5m
 group
 guard/Empty_State
@@ -103914,6 +104060,7 @@ h_scale
 habs/containers/case_02
 habs_antenna_roof_
 habs_antenna_roof_01
+habs_antenna_roof_1
 habs_barrel_fuel
 habs_barrel_fuel1
 habs_barrel_fuel2
@@ -103933,6 +104080,7 @@ habs_colony_building_ground_01_master4
 habs_colony_building_ground_01_master5
 habs_colony_building_ground_01_master6
 habs_colony_building_ground_01_master7
+habs_colony_building_middle_
 habs_container_large_
 habs_container_large_01
 habs_container_large_02
@@ -104070,6 +104218,7 @@ habs_lamp_wall_2
 habs_lamp_wall_3
 habs_landing_pad_
 habs_landing_pad_01
+habs_landing_pad_1
 habs_landing_pad_ramp_01
 habs_parkbench_
 habs_parkbench_01
@@ -104095,8 +104244,12 @@ habs_platform_2
 habs_platform_3
 habs_platform_3x2
 habs_platform_3x3
+habs_platform_4
+habs_platform_5
+habs_platform_7
 habs_platform_staris_
 habs_platform_staris_01
+habs_platform_staris_1
 habs_platform_staris_2
 habs_railing_1m
 habs_railing_1m1
@@ -104119,7 +104272,9 @@ habs_railing_corner6
 habs_railing_corner_cover
 habs_railing_corner_cover1
 habs_railing_corner_cover2
+habs_signal_light_
 habs_signal_light_01
+habs_spherical_oil_tank_
 habs_spherical_oil_tank_01
 habs_spherical_tank_large_01
 habs_stairs_door_short_straight_
@@ -104136,7 +104291,9 @@ habs_storage_wall_01
 habs_storage_wall_1
 habs_tablet
 habs_tablet1
+habs_tablet_
 habs_tablet_02
+habs_tablet_1
 habs_ventilation_roof_
 habs_ventilation_roof_01
 habs_ventilation_roof_05
@@ -104145,7 +104302,9 @@ habs_ventilation_roof_08
 habs_ventilation_roof_1
 habs_ventilation_roof_2
 habs_ventilation_roof_3
+habs_ventilation_roof_4
 habs_ventilation_roof_5
+habs_ventilation_roof_6
 habs_ventilation_wall_
 habs_ventilation_wall_010
 habs_ventilation_wall_013
@@ -104157,6 +104316,9 @@ habs_ventilation_wall_08
 habs_ventilation_wall_1
 habs_ventilation_wall_10
 habs_ventilation_wall_11
+habs_ventilation_wall_12
+habs_ventilation_wall_13
+habs_ventilation_wall_14
 habs_ventilation_wall_15
 habs_ventilation_wall_16
 habs_ventilation_wall_17
@@ -104185,6 +104347,7 @@ hammer_up
 handle_01
 handtruck_01
 handtruck_02
+hangar_
 hangar_01
 hangar_box_supplies_01
 hangar_crate_large_01
@@ -104259,6 +104422,7 @@ head/Ragdoll
 head/default
 head_spike_
 head_spike_01
+head_spike_02
 head_spike_03
 head_spike_1
 head_spike_2
@@ -104284,6 +104448,8 @@ health_pack_discoverable_4
 health_pack_marker
 health_pack_marker1
 health_pack_marker2
+health_pack_marker3
+health_pack_marker4
 heat_distortion_medium
 heat_distortion_medium1
 height
@@ -104341,10 +104507,13 @@ hellpod_jammed_pinata2
 hellpod_jammed_pinata3
 hellpod_launcher
 hellpod_launcher_blocker
+hellpod_lid_tutorial_
 hellpod_lid_tutorial_01
 hellpod_optimized_landed
 hellpod_optimized_landed_lid
+hellpod_optimized_tutorial_
 hellpod_warning_light_01
+hellpods_maintenance
 hidden
 hide_helper_mesh
 high_altitude_clouds
@@ -104357,6 +104526,7 @@ histogram
 hive_lord_endpiece
 hive_lord_head
 hive_lord_large_mandible
+hive_lord_leg
 hive_lord_midpiece
 hive_lord_small_mandible
 hive_world_spore_lung
@@ -104414,10 +104584,12 @@ icbm_lock3
 icbm_lock4
 icbm_rocket
 icbm_silo
+icbm_silo_wide
 ice_structure_
 ice_structure_01
 ice_structure_02
 ice_structure_03
+icicle_stalagmites_01
 icicle_stalagmites_02
 icicle_stalagmites_03
 icicle_stalagmites_04
@@ -104542,6 +104714,7 @@ il_corrupted_goo_03
 il_corrupted_goo_04
 il_corrupted_goo_05
 il_corrupted_goo_06
+il_cover_wall_
 il_cover_wall_01
 il_cover_wall_02
 il_cover_wall_03
@@ -104569,6 +104742,14 @@ il_harvester_hole_01
 il_incubation_tank_01
 il_incubation_tank_02
 il_incubation_tank_03
+il_ivy_01
+il_ivy_02
+il_ivy_03
+il_ivy_04
+il_ivy_05
+il_ivy_06
+il_ivy_07
+il_ivy_08
 il_lamp_01
 il_laser_tower
 il_misc_machine_02
@@ -104750,6 +104931,7 @@ il_spawner1
 il_spotlight_
 il_spotlight_01
 il_stairs_curved
+il_steam_exhaust_
 il_steam_exhaust_01
 il_stratagem_scrambler
 il_teslatower
@@ -104780,6 +104962,7 @@ imp_override_transparency
 imp_weight_merge
 impact
 impact_event_marker
+implode
 import_options
 import_scene_lod_presets
 in
@@ -105044,6 +105227,7 @@ lightblue
 lighting
 lighting_and_shadow_shader
 lighting_data
+lighting_only_modify
 lighting_shader
 lightmap
 lightmap_ambient_term
@@ -105104,6 +105288,9 @@ local_pose
 local_position
 local_rotation
 local_shadows
+location_map_marker
+location_map_marker1
+location_map_marker2
 locator1
 locator_beacon
 loco
@@ -105118,6 +105305,7 @@ locomotion_combat/glide_loop_2
 locomotion_guarding/idle
 locomotion_guarding/walk
 log
+log_heat_map
 log_large_
 log_large_01
 log_large_02
@@ -105126,6 +105314,17 @@ log_medium_01
 log_medium_02
 log_small_
 log_small_01
+logistics_lamp_
+logistics_lamp_01
+logistics_lamp_02
+logistics_lamp_1
+logistics_lamp_10
+logistics_lamp_11
+logistics_lamp_12
+logistics_lamp_2
+logistics_lamp_7
+logistics_lamp_8
+logistics_lamp_9
 look_at
 lookup_tables
 lower
@@ -105153,11 +105352,16 @@ magma_rock_massive_01
 magma_rock_medium_01
 magma_rock_medium_02
 magma_rock_small_01
+magma_vista_01
+magma_vista_02
+magma_vista_03
 main
 make_auto_sourceY
 make_manual_source
 manifest
 manned_turret_marker
+manned_turret_marker1
+manned_turret_marker2
 manned_turret_wreck
 mannequin
 manual
@@ -105251,6 +105455,7 @@ min_max_resolution
 min_point_mag_linear_mip_point
 min_point_mag_mip_linear
 min_width
+mind_scramble_apply
 mine_launcher_prop
 mini_renderer)
 minimal
@@ -105277,6 +105482,7 @@ modified_files/2
 modified_files/3
 modifiers
 modulus
+molten_metal_pit_
 molten_metal_pit_01
 mortar_turret_prop
 motion vectors
@@ -106013,6 +106219,7 @@ packages/generated/stamps/colony_tac_sam_site_02
 packages/generated/stamps/colony_tac_sam_site_03
 packages/generated/stamps/colony_tac_seaf_artillery_01
 packages/generated/stamps/colony_tac_seaf_artillery_02
+packages/generated/stamps/coniferous_extraction_01
 packages/generated/stamps/cy_camp_assault_easy_02/cyborg
 packages/generated/stamps/cy_camp_assault_easy_03/cyborg
 packages/generated/stamps/cy_camp_assault_hard_01/cyborg
@@ -106588,6 +106795,7 @@ pickup_backpack
 pillar_01
 pipeline_curve
 pipeline_curve_floating
+pipeline_curve_floating1
 pipeline_end
 pipeline_end1
 pipeline_ring
@@ -106601,6 +106809,7 @@ pipeline_straight_floating1
 pipeline_tsection
 pipes_pile_
 pipes_pile_01
+pipes_pile_1
 pipes_singlepipe_01
 piston_l
 piston_r
@@ -106609,6 +106818,7 @@ pitch
 pixel_depth) || defined(FORWARD_SHADING) || defined(FUR_MATERIAL)
 pixel_formats
 pixel_position_0_c323d347
+plane_curved_01
 plane_primitive
 planet_atmosphere_space
 planet_atmosphere_space_compute
@@ -106713,7 +106923,11 @@ pole_flag8
 pole_flag9
 portable_fryingpan_01
 portable_pot_01
+portable_toilet_
 portable_toilet_01
+portable_toilet_2
+portable_toilet_3
+portable_toilet_4
 pos
 pose_01
 position
@@ -106737,8 +106951,10 @@ poster_ministry_expansion_02
 poster_ministry_truth_
 poster_ministry_truth_01
 poster_ministry_truth_02
+poster_ministry_unity_
 poster_ministry_unity_01
 poster_ministry_unity_02
+poster_propaganda_
 poster_propaganda_01
 poster_propaganda_02
 poster_propaganda_03
@@ -106817,6 +107033,7 @@ property_types/all_properties
 props_trash_
 props_trash_01
 props_trash_1
+props_trash_2
 prototype
 prototypes
 prowl/additive_slopes
@@ -106861,6 +107078,8 @@ r_qm
 r_rear_suspension
 r_wP
 radar_wagon
+radial_device_
+radial_device_01
 radiance_cube
 radiance_filter
 radius
@@ -106930,6 +107149,7 @@ reload/Empty_State
 reload/empty_state
 reload/reload
 reload/reload_onehand
+reload__onehand
 reload_autopistol
 reload_autopistol_fast
 reload_detach
@@ -107031,6 +107251,7 @@ retract
 retract_warheads
 retracted
 retracted_idle
+rift_corals_gibs
 rift_meadow_8m_01
 rift_meadow_route_16m_01
 rift_meadow_route_16m_02
@@ -107038,6 +107259,7 @@ rift_mountain_4m_01
 rift_spores_01
 rift_spores_02
 rift_spores_03
+rift_spores_mini_
 rift_spores_mini_01
 rift_spores_mini_02
 rift_spores_mini_03
@@ -107118,8 +107340,35 @@ rock_large_04
 rock_large_05
 rock_large_06
 rock_large_1
+rock_large_10
+rock_large_11
+rock_large_12
+rock_large_13
+rock_large_14
+rock_large_15
+rock_large_16
+rock_large_17
+rock_large_18
+rock_large_19
 rock_large_2
+rock_large_20
+rock_large_21
+rock_large_22
+rock_large_23
+rock_large_24
+rock_large_25
+rock_large_26
+rock_large_28
+rock_large_29
 rock_large_3
+rock_large_30
+rock_large_31
+rock_large_4
+rock_large_5
+rock_large_6
+rock_large_7
+rock_large_8
+rock_large_9
 rock_medium_
 rock_medium_01
 rock_medium_02
@@ -107163,7 +107412,14 @@ rock_rubble_11
 rock_rubble_12
 rock_rubble_13
 rock_rubble_14
+rock_rubble_15
+rock_rubble_16
+rock_rubble_17
+rock_rubble_18
+rock_rubble_19
 rock_rubble_2
+rock_rubble_21
+rock_rubble_22
 rock_rubble_3
 rock_rubble_4
 rock_rubble_5
@@ -107180,6 +107436,7 @@ rocket_walkway
 rocky_mountain_03
 rocky_pillar_01
 rocky_rock_large_01
+rocky_vista_generic_
 rom
 root_large_01
 root_large_02
@@ -107213,6 +107470,8 @@ rotator_idle
 roughness
 roughness_map
 round
+route_distance_pack
+route_distance_smooth
 rp_box
 rp_camera_mesh
 rp_distortion_mesh
@@ -107359,12 +107618,18 @@ sample_artifact_marker9
 sample_bio_marker
 sample_count
 sample_height
+sample_legendarium_marker
+sample_legendarium_marker1
+sample_legendarium_marker2
+sample_legendarium_marker3
+sample_legendarium_marker4
 sample_mask
 sample_oil_marker
 sample_oil_marker1
 sample_oil_marker2
 sample_oil_marker3
 sample_oil_marker4
+sample_screen_data
 sample_skydome_f2s2d_da24a8f6
 sample_spice_marker
 sample_spice_marker1
@@ -107440,6 +107705,7 @@ scaleformstudio_plugin_default_layer
 scaleformstudio_plugin_vr_hud_layer
 scatter
 scatter_brush
+scatter_lookup_bake
 scatter_type/scatter_brush
 scene
 scene_cache
@@ -107569,6 +107835,7 @@ se_destroyer_supportcannon_missile_launcher
 se_destroyer_supportcannon_orbital_cannon_single
 se_destroyer_supportcannon_orbital_gatling_single
 se_destroyer_supportcannon_planet_killer
+se_flag_ceremonial_
 se_flag_ceremonial_01
 se_flag_ceremonial_02
 se_flag_horizontal_
@@ -107614,6 +107881,7 @@ se_pipeline_straight_4x
 se_pipeline_straight_4x1
 se_pipeline_straight_4x2
 se_playground_carousell
+se_playground_monkeybar_
 se_playground_playhouse
 se_playground_seesaw
 se_playground_slide
@@ -107645,6 +107913,7 @@ se_wall_pillar
 se_wall_tall
 se_wallbig_buttress
 se_wallbig_pillar
+se_wallbig_pillar1
 se_wallbig_pillar_top
 se_wallbig_wall_halfpipe_full
 se_wallbig_wall_halfpipe_third
@@ -107666,6 +107935,9 @@ se_wallmed_wall_top_full_blue
 se_wallmed_wall_top_third
 seaf_gun_ammo_marker
 seaf_helmet
+seaf_shell_napalm
+seaf_shell_regular
+seaf_shell_smoke
 seaf_soldier_male_corpse_01
 seaf_soldier_male_corpse_02
 seaf_soldier_male_corpse_03
@@ -107857,6 +108129,7 @@ shell_layer_length
 shell_length_0
 shell_length_pixel
 shell_material
+ship
 shiphub_collision
 shoot_shake
 shotgun_8ga
@@ -107877,6 +108150,7 @@ sign_circle_
 sign_circle_02
 sign_crew_manifest
 sign_demolition_range
+sign_down_01
 sign_electricity_01
 sign_extraction
 sign_facility_scaffolding
@@ -107887,6 +108161,8 @@ sign_icu
 sign_icu1
 sign_insulation
 sign_insulation1
+sign_light_1m
+sign_light_1m1
 sign_maintain_safe_distance
 sign_no_rotation_01
 sign_orbital_cannon_01
@@ -107960,6 +108236,8 @@ smooth_rock_medium_02
 smooth_rock_small_01
 smooth_rock_small_02
 smoothen_map
+smuggler_cache
+smuggler_cache_02
 sniper_rifle_marker
 socket_02
 solar_panel_
@@ -107976,6 +108254,8 @@ sound_source
 sounds
 soup_vertex_offset
 source_id
+space_backdrop_cubemap
+space_backdrop_nebula
 space_conversion
 sparks_medium
 sparks_medium1
@@ -107990,6 +108270,7 @@ sparks_small_light_smoking3
 spawn
 spawn_armory_debug
 spawn_entity
+spawn_hellpods_debug
 spawn_host_01
 spawn_unit
 spawn_unit_position_rotation
@@ -108154,6 +108435,8 @@ staggers/stagger_medium_right
 stairs
 stairs_platform_01
 standard_pistol
+standard_verticalgrip
+star_lut_apply
 start
 state
 state_groups
@@ -108229,12 +108512,14 @@ strings
 struct vf_in
 struct vf_out
 stump_huge_01
+stump_large_
 stump_large_01
 stump_medium_01
 stun/Empty_State
 stun/stunned
 stun_enter
 stun_exit
+stunned
 stunned/Empty_State
 stunned/stunned
 sub_orientations
@@ -108268,6 +108553,7 @@ sun_world_to_shadow_slice0
 sun_world_to_shadow_slice1
 sun_world_to_shadow_slice2
 sun_world_to_shadow_slice3
+super_earth_cache
 super_earth_cache_wing_l
 super_earth_cache_wing_l1
 super_earth_cache_wing_r
@@ -108279,6 +108565,8 @@ supply_container_01_2x
 supply_container_01_2x1
 supply_container_02
 support_pillar_01
+support_pillar_02
+support_pillar_03
 surface_properties
 survival_shovel_marker
 survival_shovel_marker1
@@ -108318,7 +108606,14 @@ tank_spikes_3m_2
 tank_spikes_3m_3
 target_exposure_pos
 target_on_spline_distances
+task_superearth_guard
 tcm0
+tcs_button_01
+tcs_button_02
+tcs_button_03
+tcs_charger_01
+tcs_charger_02
+tcs_charger_03
 teleport
 teleporter_area
 teleporter_door
@@ -108346,9 +108641,11 @@ temporal_aa:depth_stabilize
 temporal_aa_depth
 temporal_aa_depth:default:PLATFORM_WIN32:RENDERER_D3D11
 temporal_aa_depth_compute
+tentacles
 terminal
 terminal1
 terminal_lamp_01
+terminal_stratagem_hero
 terrain
 terrain1
 terrain:ALPHA_DIFFUSE_MAP:BLUE_DIFFUSE_MAP:DIFFUSE_MAP:GREEN_DIFFUSE_MAP:RED_DIFFUSE_MAP
@@ -108499,6 +108796,9 @@ trashbin_lid_1
 trashbin_lid_2
 trashcan_01
 traverse
+tree_nest_01
+tree_nest_02
+tree_nest_03
 trench_floor_
 trench_floor_01
 trench_floor_1
@@ -108550,6 +108850,7 @@ tri_soup_indices
 tri_soup_instances
 tri_soup_vertices
 trigger
+trigger_box
 trigger_bug_pit
 trigger_event
 trigger_event	node
@@ -108598,6 +108899,7 @@ tutorial_death_trench_wall_02
 tutorial_death_trench_wall_03
 tutorial_death_trench_wall_04
 tutorial_death_trench_wall_1
+tutorial_trigger_area
 twist_left
 twist_left_revert
 twist_right
@@ -108649,9 +108951,11 @@ update_lighting_structures
 update_near_particles
 update_unit
 update_vista_particles
+update_wound_lut
 update_wounds
 updated
 upsample_2x2
+upsample_2x2_compute
 use_ao_map
 use_bump_map
 use_channel
@@ -108668,7 +108972,11 @@ use_roughness_map
 user_data_id
 user_settings
 user_shadow_depth_bias
+utilities_speakers_
 utilities_speakers_01
+utilities_speakers_1
+utilities_speakers_2
+utilities_speakers_3
 uv_flip
 uv_offset
 uv_offset_bump
@@ -108746,6 +109054,7 @@ visualizer_type() == billboard
 volume
 volume_type
 volumes
+volumetric_fog_calculate
 vp_code
 vp_code_debug
 vp_max_slice0
@@ -108811,6 +109120,7 @@ wall_claw_animated
 wall_hullseam_b
 wall_mat
 wall_support_b
+wall_upper_1m
 wall_upper_5m
 warning
 warning_lamp_01
@@ -108847,10 +109157,12 @@ water_container_1
 water_container_2
 water_container_3
 water_container_4
+water_height_finalize
 water_plane
 water_plane1
 water_remove_cube
 water_remove_plane
+water_remove_plane1
 wav
 waypoint_helldiver
 wcmdline
@@ -108933,6 +109245,7 @@ write_mask6
 write_mask7
 write_shadow_depth_bias
 write_shadows_enabled
+wwise_audio_portal
 wwise_audio_render
 wwise_audio_volume
 wwise_bank
@@ -109004,6 +109317,7 @@ xl_elbow_90_side
 xl_elbow_90_side_sharp
 xl_elbow_90_standing
 xl_pipe_1x
+xl_pipe_1x1
 xl_pipe_2x
 xl_pipe_2x_01
 xl_pipe_accessory_01
