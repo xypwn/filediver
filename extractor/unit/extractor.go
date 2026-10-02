@@ -1234,7 +1234,7 @@ func loadGeometryGroupMeshes(ctx *extractor.Context, doc *gltf.Document, unitInf
 		})
 	}
 
-	return geometry.LoadGLTF(ctx, gpuR, doc, meshInfos, geoInfo.Bones, geoGroup.MeshLayouts, unitInfo, meshNodes, materialIndices, parent, skin)
+	return geometry.LoadGLTF(ctx, gpuR, doc, meshInfos, geoInfo.MeshNames, geoGroup.MeshLayouts, unitInfo, meshNodes, materialIndices, parent, skin)
 }
 
 func Convert(currDoc *gltf.Document) func(ctx *extractor.Context) error {

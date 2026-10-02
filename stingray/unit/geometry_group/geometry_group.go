@@ -25,7 +25,7 @@ type MeshHeader struct {
 }
 
 type MeshInfo struct {
-	Bones       []stingray.ThinHash
+	MeshNames   []stingray.ThinHash
 	MeshHeaders []MeshHeader
 }
 
@@ -113,7 +113,7 @@ func LoadGeometryGroup(mainR io.ReadSeeker) (*GeometryGroup, error) {
 			meshHeaders = append(meshHeaders, meshHeader)
 		}
 		meshInfoMap[unitEntries[i].Unit] = MeshInfo{
-			Bones:       boneHashes,
+			MeshNames:   boneHashes,
 			MeshHeaders: meshHeaders,
 		}
 	}
