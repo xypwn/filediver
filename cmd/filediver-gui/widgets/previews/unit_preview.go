@@ -334,12 +334,13 @@ type UnitPreviewState struct {
 	detailerLoadState   DetailerLoadState
 	detailerTextureData TextureData
 
-	unitsShown              map[stingray.Hash]bool
 	loadUnitGetResourceFunc GetResourceFunc
 
-	// map of item name (prefab/level ID) -> unit resource
-	renderedObjects      map[stingray.Hash]stingray.Hash
-	renderObjectMatrices map[stingray.Hash]mgl32.Mat4
+	// map of item name (prefab/level/unit ID) -> (0->n intermediate prefab/level ids) -> unit resource
+	renderedObjects        map[stingray.Hash]stingray.Hash
+	renderedObjectMatrices map[stingray.Hash]mgl32.Mat4
+	renderedObjectShown    map[stingray.Hash]bool
+	renderedObjectName     map[stingray.Hash]stingray.Hash
 
 	// hash is a unit resource
 	objects              map[stingray.Hash]map[string]unitPreviewObject
@@ -531,14 +532,20 @@ func (pv *UnitPreviewState) Delete() {
 	pv.stopTextureSweep()
 }
 
-var objectRegex = regexp.MustCompile("^(g_)?(\\w*?)_?(cull|shadow|rubble|rubble_shadow|shadowmesh|c)?_?(LOD\\d)?$")
+var objectRegex = regexp.MustCompile("^(g_)?(\\w*?)_?(cull|shadow|rubble|rubble_shadow|debris|shadowmesh|c)?_?\\d*?_?(LOD\\d)?$")
 
 func (pv *UnitPreviewState) loadMeshes(lookupThinHash func(stingray.ThinHash) string, meshInfos []unit.MeshInfo, meshLayouts []unit.MeshLayout, gpuData []byte) (map[string]unit.Mesh, map[string]bool, error) {
 	minLods := make(map[string]int)
 	objects := make(map[string]map[string]int)
 	for idx, info := range meshInfos {
 		meshName := lookupThinHash(info.Header.MeshName)
+		if strings.HasPrefix(meshName, "0x") {
+			continue
+		}
 		object := objectRegex.FindStringSubmatch(meshName)
+		if object == nil || object[2] == "" {
+			continue
+		}
 		fmt.Printf("Found object:\n    name: %v\n    shadow/rubble: %v\n    LOD: %v\n", object[2], object[3], object[4])
 		// rubble/shadow/rubble_shadow
 		objectName := object[2]
@@ -590,6 +597,8 @@ func (pv *UnitPreviewState) loadMeshes(lookupThinHash func(stingray.ThinHash) st
 					strings.Contains(object, "cull") ||
 					strings.Contains(object, "coll") ||
 					strings.HasSuffix(object, "rubble") ||
+					strings.HasPrefix(object, "rubble") ||
+					strings.HasSuffix(object, "debris") ||
 					object == "ai_blocker") {
 				shownDefault[object] = false
 			}
@@ -1133,7 +1142,7 @@ func (pv *UnitPreviewState) RemoveRenderedObject(objectName stingray.Hash) {
 		return
 	}
 	delete(pv.renderedObjects, objectName)
-	delete(pv.renderObjectMatrices, objectName)
+	delete(pv.renderedObjectMatrices, objectName)
 
 	// several rendered objects may map to the same unit resource, so check if its already been removed
 	if _, contains := pv.objects[hash]; !contains {
@@ -1145,7 +1154,7 @@ func (pv *UnitPreviewState) RemoveRenderedObject(objectName stingray.Hash) {
 	}
 	delete(pv.objects, hash)
 	delete(pv.boundingBoxes, hash)
-	delete(pv.unitsShown, hash)
+	delete(pv.renderedObjectShown, hash)
 	delete(pv.objectsShown, hash)
 	delete(pv.objectsSelected, hash)
 	delete(pv.objectsShownDefault, hash)
@@ -1161,6 +1170,50 @@ func (pv *UnitPreviewState) Clear() {
 	}
 }
 
+// Calculate max zoom out distance
+func (pv *UnitPreviewState) getMaxZoom(renderedObject stingray.Hash) (maxViewDistance float32) {
+	// Get origin sphere around mesh
+	var maxDistSqrFromOrigin float32
+	fileID, contains := pv.getRenderedObjectUnitHash(renderedObject)
+	if !contains {
+		return 0.001
+	}
+	for name := range pv.objects[fileID] {
+		matrix := pv.renderedObjectMatrices[renderedObject].Mul4(pv.aabbMat[fileID][name])
+		for _, p := range pv.getAABBVertices(fileID, name) {
+			maxDistSqrFromOrigin = max(maxDistSqrFromOrigin,
+				matrix.Mul4x1(p.Vec4(1.0)).Vec3().LenSqr())
+		}
+		maxDistFromOrigin := float32(math.Sqrt(float64(maxDistSqrFromOrigin)))
+
+		// Calculate camera distance to fit vertical frustum into disk orthogonal
+		// to view direction with radius of the sphere. Ideally, we'd want
+		// to fit the sphere into the frustum, but the disk should be close
+		// enough.
+		// tan(vfov/2) = maxDistFromOrigin/viewDistance
+		maxViewDistance = float32(float64(maxDistFromOrigin) / math.Tan(float64(pv.vfov/2)))
+	}
+	// We want to be able to zoom out a bit further.
+	maxViewDistance *= 2
+	return
+}
+
+func (pv *UnitPreviewState) getRenderedObjectUnitHash(renderedObject stingray.Hash) (stingray.Hash, bool) {
+	hash, contains := pv.renderedObjects[renderedObject]
+	if !contains {
+		return stingray.Hash{}, contains
+	}
+	_, contains = pv.objects[hash]
+	for !contains {
+		hash, contains = pv.renderedObjects[hash]
+		if !contains {
+			break
+		}
+		_, contains = pv.objects[hash]
+	}
+	return hash, contains
+}
+
 func (pv *UnitPreviewState) LoadPrefab(fileID stingray.Hash, mainData []byte, getResource GetResourceFunc, thinhashes map[stingray.ThinHash]string) error {
 	info, err := prefab.Load(bytes.NewReader(mainData))
 	if err != nil {
@@ -1169,15 +1222,22 @@ func (pv *UnitPreviewState) LoadPrefab(fileID stingray.Hash, mainData []byte, ge
 
 	if pv.renderedObjects == nil {
 		pv.renderedObjects = make(map[stingray.Hash]stingray.Hash)
-		pv.renderObjectMatrices = make(map[stingray.Hash]mgl32.Mat4)
+		pv.renderedObjectMatrices = make(map[stingray.Hash]mgl32.Mat4)
+		pv.renderedObjectShown = make(map[stingray.Hash]bool)
+		pv.renderedObjectName = make(map[stingray.Hash]stingray.Hash)
 	}
+
+	pv.maxViewDistance = 0.001
 
 	for _, unit := range info.Units {
 		var err error
 		defer func() {
 			if err == nil {
 				pv.renderedObjects[unit.UUID] = unit.Hash
-				pv.renderObjectMatrices[unit.UUID] = mgl32.Scale3D(unit.Scale().Elem()).Mul4(unit.Rotation().Quat().Mat4().Mul4(mgl32.Translate3D(unit.Position().Elem())))
+				pv.renderedObjectMatrices[unit.UUID] = mgl32.Translate3D(unit.Position().Elem()).Mul4(unit.Rotation().Quat().Mat4().Mul4(mgl32.Scale3D(unit.Scale().Elem())))
+				pv.renderedObjectShown[unit.UUID] = true
+				pv.renderedObjectName[unit.UUID] = unit.Name
+				pv.maxViewDistance = max(pv.maxViewDistance, pv.getMaxZoom(unit.UUID))
 			}
 		}()
 		if _, contains := pv.objects[unit.Hash]; contains {
@@ -1194,7 +1254,7 @@ func (pv *UnitPreviewState) LoadPrefab(fileID stingray.Hash, mainData []byte, ge
 		// Some units won't have GPU data but will have terrain or geometry group info
 		unitGpuData, _, _ := getResource(stingray.NewFileID(unit.Hash, stingray.Sum("unit")), stingray.DataGPU)
 
-		err = pv.LoadUnit(unit.Hash, unitMainData, unitGpuData, getResource, thinhashes)
+		err = pv.loadUnit(unit.Hash, unitMainData, unitGpuData, getResource, thinhashes)
 		if err != nil {
 			return fmt.Errorf("loading %v.unit in %v.prefab for rendering: %v", pv.lookupHash(unit.Hash), pv.lookupHash(fileID), err)
 		}
@@ -1206,13 +1266,24 @@ func (pv *UnitPreviewState) LoadPrefab(fileID stingray.Hash, mainData []byte, ge
 func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []byte, getResource GetResourceFunc, thinhashes map[stingray.ThinHash]string) error {
 	if pv.renderedObjects == nil {
 		pv.renderedObjects = make(map[stingray.Hash]stingray.Hash)
-		pv.renderObjectMatrices = make(map[stingray.Hash]mgl32.Mat4)
+		pv.renderedObjectMatrices = make(map[stingray.Hash]mgl32.Mat4)
+		pv.renderedObjectShown = make(map[stingray.Hash]bool)
+		pv.renderedObjectName = make(map[stingray.Hash]stingray.Hash)
 	}
 
 	pv.renderedObjects[fileID] = fileID
-	pv.renderObjectMatrices[fileID] = mgl32.Ident4()
+	pv.renderedObjectMatrices[fileID] = mgl32.Ident4()
+	pv.renderedObjectShown[fileID] = true
+	pv.renderedObjectName[fileID] = fileID
 
-	return pv.loadUnit(fileID, mainData, gpuData, getResource, thinhashes)
+	err := pv.loadUnit(fileID, mainData, gpuData, getResource, thinhashes)
+	if err != nil {
+		return err
+	}
+
+	pv.maxViewDistance = pv.getMaxZoom(fileID)
+
+	return nil
 }
 
 func (pv *UnitPreviewState) loadUnit(fileID stingray.Hash, mainData, gpuData []byte, getResource GetResourceFunc, thinhashes map[stingray.ThinHash]string) error {
@@ -1255,7 +1326,6 @@ func (pv *UnitPreviewState) loadUnit(fileID stingray.Hash, mainData, gpuData []b
 	if pv.objects == nil {
 		pv.objects = make(map[stingray.Hash]map[string]unitPreviewObject)
 		pv.boundingBoxes = make(map[stingray.Hash]map[string]unitPreviewObject)
-		pv.unitsShown = make(map[stingray.Hash]bool)
 		pv.objectsShown = make(map[stingray.Hash]map[string]bool)
 		pv.objectsSelected = make(map[stingray.Hash]map[string]bool)
 		pv.objectsShownDefault = make(map[stingray.Hash]map[string]bool)
@@ -1266,7 +1336,7 @@ func (pv *UnitPreviewState) loadUnit(fileID stingray.Hash, mainData, gpuData []b
 	}
 
 	var meshes map[string]unit.Mesh
-	if len(info.MeshInfos) > 0 {
+	if len(info.MeshInfos) > 0 && info.GeometryGroup.Value == 0x0 {
 		var defaultShown map[string]bool
 		meshes, defaultShown, err = pv.loadMeshes(pv.lookupThinHash, info.MeshInfos, info.MeshLayouts, gpuData)
 		if err != nil {
@@ -1288,8 +1358,7 @@ func (pv *UnitPreviewState) loadUnit(fileID stingray.Hash, mainData, gpuData []b
 		meshes = make(map[string]unit.Mesh)
 		meshes["terrain"] = mesh
 		pv.objectsShownDefault[fileID] = map[string]bool{"terrain": true}
-	}
-	if info.GeometryGroup.Value != 0x0 {
+	} else if info.GeometryGroup.Value != 0x0 {
 		geoID := stingray.NewFileID(info.GeometryGroup, stingray.Sum("geometry_group"))
 		geoMain, exists, err := getResource(geoID, stingray.DataMain)
 		if !exists {
@@ -1306,12 +1375,25 @@ func (pv *UnitPreviewState) loadUnit(fileID stingray.Hash, mainData, gpuData []b
 			return fmt.Errorf("%v.geometry_group does not contain %v.unit", info.GeometryGroup.String(), fileID)
 		}
 		meshInfos := make([]unit.MeshInfo, 0)
-		for _, header := range geoInfo.MeshHeaders {
+		for idx, header := range geoInfo.MeshHeaders {
+			meshName := geoInfo.MeshNames[idx]
+			var aabb unit.AABB
+			var transformIdx uint32
+			for _, meshInfo := range info.MeshInfos {
+				if meshInfo.Header.MeshName == meshName {
+					aabb = meshInfo.Header.AABB
+					transformIdx = meshInfo.Header.AABBTransformIndex
+					break
+				}
+			}
 			meshInfos = append(meshInfos, unit.MeshInfo{
 				Groups: header.Groups,
 				Header: unit.MeshHeader{
-					MeshType:  unit.MeshTypeUnknown01,
-					LayoutIdx: int32(header.MeshLayoutIndex),
+					MeshName:           meshName,
+					AABB:               aabb,
+					AABBTransformIndex: transformIdx,
+					MeshType:           unit.MeshTypeUnknown01,
+					LayoutIdx:          int32(header.MeshLayoutIndex),
 				},
 				Materials: header.Materials,
 			})
@@ -1337,7 +1419,6 @@ func (pv *UnitPreviewState) loadUnit(fileID stingray.Hash, mainData, gpuData []b
 	pv.aabb[fileID] = make(map[string][2]mgl32.Vec3)
 	pv.aabbMat[fileID] = make(map[string]mgl32.Mat4, 0)
 	pv.boundingBoxes[fileID] = make(map[string]unitPreviewObject)
-	pv.unitsShown[fileID] = true
 	for name, mesh := range meshes {
 		pv.aabb[fileID][name] = [2]mgl32.Vec3{mesh.Info.Header.AABB.Min, mesh.Info.Header.AABB.Max}
 		pv.aabbMat[fileID][name] = info.Bones[mesh.Info.Header.AABBTransformIndex].Matrix
@@ -1528,29 +1609,6 @@ func (pv *UnitPreviewState) loadUnit(fileID stingray.Hash, mainData, gpuData []b
 
 	if pv.autoZoomEnabled {
 		pv.doAutoZoomNextFrame = true
-	}
-
-	// Calculate max zoom out distance
-	{
-		// Get origin sphere around mesh
-		var maxDistSqrFromOrigin float32
-		for name := range pv.objects[fileID] {
-			for _, p := range pv.getAABBVertices(fileID, name) {
-				maxDistSqrFromOrigin = max(maxDistSqrFromOrigin,
-					pv.aabbMat[fileID][name].Mul4x1(p.Vec4(1.0)).Vec3().LenSqr())
-			}
-			maxDistFromOrigin := float32(math.Sqrt(float64(maxDistSqrFromOrigin)))
-
-			// Calculate camera distance to fit vertical frustum into disk orthogonal
-			// to view direction with radius of the sphere. Ideally, we'd want
-			// to fit the sphere into the frustum, but the disk should be close
-			// enough.
-			// tan(vfov/2) = maxDistFromOrigin/viewDistance
-			pv.maxViewDistance = float32(float64(maxDistFromOrigin) / math.Tan(float64(pv.vfov/2)))
-
-		}
-		// We want to be able to zoom out a bit further.
-		pv.maxViewDistance *= 2
 	}
 
 	for i := range pv.udimsShownDefault {
@@ -1760,15 +1818,11 @@ func (pv *UnitPreviewState) Draw(previewId string) {
 
 			// Draw objects
 			gl.Enable(gl.DEPTH_TEST)
-			for renderedName, hash := range pv.renderedObjects {
-				_, contains := pv.objects[hash]
-				for !contains {
-					hash, contains = pv.renderedObjects[hash]
-					if !contains {
-						break
-					}
-					_, contains = pv.objects[hash]
+			for renderedName := range pv.renderedObjects {
+				if shown, contains := pv.renderedObjectShown[renderedName]; contains && !shown {
+					continue
 				}
+				hash, contains := pv.getRenderedObjectUnitHash(renderedName)
 				if !contains {
 					continue
 				}
@@ -1776,7 +1830,7 @@ func (pv *UnitPreviewState) Draw(previewId string) {
 					if shown, contains := pv.objectsShown[hash][name]; contains && !shown {
 						continue
 					}
-					model := pv.model.Mul4(translation.Mul4(pv.renderObjectMatrices[renderedName].Mul4(pv.objects[hash][name].matrix)))
+					model := pv.model.Mul4(translation.Mul4(pv.renderedObjectMatrices[renderedName].Mul4(pv.objects[hash][name].matrix)))
 					mvp := projection.Mul4(view).Mul4(model)
 					normal := model.Inv().Transpose().Mat3()
 					gl.BindVertexArray(pv.objects[hash][name].vao)
@@ -1836,7 +1890,7 @@ func (pv *UnitPreviewState) Draw(previewId string) {
 						if shown, contains := pv.objectsShown[hash][name]; contains && !shown {
 							continue
 						}
-						model := pv.model.Mul4(translation.Mul4(pv.renderObjectMatrices[renderedName].Mul4(pv.objects[hash][name].matrix)))
+						model := pv.model.Mul4(translation.Mul4(pv.renderedObjectMatrices[renderedName].Mul4(pv.objects[hash][name].matrix)))
 						mvp := projection.Mul4(view).Mul4(model)
 						gl.UseProgram(pv.normalVisMaterial.program)
 						gl.BindVertexArray(pv.objects[hash][name].vao)
@@ -1864,7 +1918,7 @@ func (pv *UnitPreviewState) Draw(previewId string) {
 						}
 						gl.BindVertexArray(pv.boundingBoxes[hash][name].vao)
 						{
-							model := pv.model.Mul4(translation.Mul4(pv.renderObjectMatrices[renderedName].Mul4(pv.aabbMat[hash][name])))
+							model := pv.model.Mul4(translation.Mul4(pv.renderedObjectMatrices[renderedName].Mul4(pv.aabbMat[hash][name])))
 							mvp := projection.Mul4(view).Mul4(model)
 							gl.UniformMatrix4fv(pv.boundingBoxMaterial.uniforms["mvp"], 1, false, &mvp[0])
 						}
@@ -1878,7 +1932,7 @@ func (pv *UnitPreviewState) Draw(previewId string) {
 					gl.Uniform4fv(pv.boundingBoxMaterial.uniforms["color"], 1, &pv.skeletonColor[0])
 
 					for hash := range pv.skeletons {
-						model := pv.model.Mul4(translation.Mul4(pv.renderObjectMatrices[renderedName]))
+						model := pv.model.Mul4(translation.Mul4(pv.renderedObjectMatrices[renderedName]))
 						mvp := projection.Mul4(view).Mul4(model)
 
 						gl.UniformMatrix4fv(pv.boundingBoxMaterial.uniforms["mvp"], 1, false, &mvp[0])
@@ -1924,15 +1978,8 @@ func (pv *UnitPreviewState) Draw(previewId string) {
 				}
 
 				maxCamDistDelta := float32(-math.MaxFloat32)
-				for renderedName, hash := range pv.renderedObjects {
-					_, contains := pv.objects[hash]
-					for !contains {
-						hash, contains = pv.renderedObjects[hash]
-						if !contains {
-							break
-						}
-						_, contains = pv.objects[hash]
-					}
+				for renderedName := range pv.renderedObjects {
+					hash, contains := pv.getRenderedObjectUnitHash(renderedName)
 					if !contains {
 						continue
 					}
@@ -1940,7 +1987,7 @@ func (pv *UnitPreviewState) Draw(previewId string) {
 						positions := pv.getAABBVertices(hash, name)
 						for _, vert := range positions {
 							maxCamDistDelta = max(maxCamDistDelta,
-								fitVertexCamDistDelta(pv.renderObjectMatrices[renderedName].Mul4(pv.aabbMat[hash][name]).Mul4x1(vert.Vec4(1.0)).Vec3()))
+								fitVertexCamDistDelta(pv.renderedObjectMatrices[renderedName].Mul4(pv.aabbMat[hash][name]).Mul4x1(vert.Vec4(1.0)).Vec3()))
 						}
 					}
 				}
@@ -2062,7 +2109,7 @@ func (pv *UnitPreviewState) Draw(previewId string) {
 						if shown, contains := pv.objectsShown[hash][name]; contains && !shown {
 							continue
 						}
-						mvp := projection.Mul4(view).Mul4(pv.model.Mul4(translation.Mul4(pv.renderObjectMatrices[renderedName].Mul4(pv.objects[hash][name].matrix))))
+						mvp := projection.Mul4(view).Mul4(pv.model.Mul4(translation.Mul4(pv.renderedObjectMatrices[renderedName].Mul4(pv.objects[hash][name].matrix))))
 						for i, vtx := range pv.meshPositions[hash][name] {
 							v := mvp.Mul4x1(mgl32.Vec3(vtx).Vec4(1.0))
 							v = v.Mul(1 / v.W())
@@ -2279,24 +2326,32 @@ func (pv *UnitPreviewState) drawMaterialSettingsEditor() {
 	if pv.materialSettingsDrawn = imgui.BeginV(fnt.I.Settings+" Material Settings Editor", &pv.materialSettingsShown, imgui.WindowFlagsNoFocusOnAppearing); !pv.materialSettingsDrawn {
 		return
 	}
-	sortedUnitKeys := slices.SortedFunc(maps.Keys(pv.objects), stingray.Hash.Cmp)
-	for _, hash := range sortedUnitKeys {
+	renderedObjectKeys := slices.SortedFunc(maps.Keys(pv.renderedObjects), func(a, b stingray.Hash) int {
+		keyAName := pv.renderedObjectName[a]
+		keyBName := pv.renderedObjectName[b]
+		aString := pv.lookupHash(keyAName)
+		bString := pv.lookupHash(keyBName)
+		return strings.Compare(aString, bString)
+	})
+	for _, renderedObjectID := range renderedObjectKeys {
+		name := pv.renderedObjectName[renderedObjectID]
+		hash, _ := pv.getRenderedObjectUnitHash(renderedObjectID)
 		root := imgui.CursorScreenPos()
 		size := imgui.NewVec2(imgui.ContentRegionAvail().X, imgui.FontSize())
-		imgui.PushIDStr(hash.String())
+		imgui.PushIDStr(renderedObjectID.String())
 		defer imgui.PopID()
-		shown := pv.unitsShown[hash]
+		shown := pv.renderedObjectShown[renderedObjectID]
 		var icon string
 		if shown {
 			icon = fnt.I.Visibility
 		} else {
 			icon = fnt.I.VisibilityOff
 		}
-		imutils.Textf(fmt.Sprintf("%s %s", icon, filepath.Base(pv.lookupHash(hash))))
+		imutils.Textf(fmt.Sprintf("%s %s", icon, filepath.Base(pv.lookupHash(name))))
 		imgui.SetCursorScreenPos(root)
 		imgui.SetNextItemAllowOverlap()
 		if imgui.InvisibleButton("btnUnit", size) {
-			pv.unitsShown[hash] = !shown
+			pv.renderedObjectShown[renderedObjectID] = !shown
 			//pv.unitsSelected[hash] = !shown
 		}
 		if !shown {
@@ -2532,17 +2587,20 @@ func (pv *UnitPreviewState) drawMeshSelector() {
 		}
 		var draggingMinPos, draggingMaxPos imgui.Vec2
 		seen := make(map[stingray.Hash]any)
-		sortedUnitKeys := slices.SortedFunc(maps.Keys(pv.renderedObjects), stingray.Hash.Cmp)
-		for _, renderedName := range sortedUnitKeys {
-			hash := pv.renderedObjects[renderedName]
-			_, contains := pv.objects[hash]
-			for !contains {
-				hash, contains = pv.renderedObjects[hash]
-				if !contains {
-					break
-				}
-				_, contains = pv.objects[hash]
+		sortedObjectIDs := slices.SortedFunc(maps.Keys(pv.renderedObjects), func(a, b stingray.Hash) int {
+			aString := pv.lookupHash(a)
+			bString := pv.lookupHash(b)
+			if strings.HasPrefix(aString, "0x") && strings.HasPrefix(bString, "0x") {
+				return a.Cmp(b)
+			} else if strings.HasPrefix(aString, "0x") {
+				return -1
+			} else if strings.HasPrefix(bString, "0x") {
+				return 1
 			}
+			return strings.Compare(aString, bString)
+		})
+		for _, renderedName := range sortedObjectIDs {
+			hash, contains := pv.getRenderedObjectUnitHash(renderedName)
 			if !contains {
 				continue
 			}

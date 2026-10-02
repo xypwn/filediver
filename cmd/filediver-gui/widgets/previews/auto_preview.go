@@ -194,7 +194,7 @@ func (pv *AutoPreview) LoadFile(ctx context.Context, fileID stingray.FileID, max
 			pv.getResourceGenerator(true),
 			pv.thinhashes,
 		); err != nil {
-			pv.err = fmt.Errorf("loading unit: %w", err)
+			pv.err = fmt.Errorf("loading prefab: %w", err)
 			return
 		}
 	case stingray.Sum("speedtree"):
