@@ -1759,6 +1759,8 @@ ammo_box_marker7
 ammo_box_marker8
 ammo_box_marker9
 ammo_indicator
+ammo_support_box_marker
+ammo_support_discoverable_box_01
 ammo_wiggle
 ammo_wiggle_idle
 ammobox_
@@ -13008,6 +13010,7 @@ oil_hose_connection
 oil_hose_connection1
 oil_pump
 oil_pump_valve
+oilrig_drill_location_marker
 on
 open
 open_destroyed
@@ -14256,6 +14259,7 @@ prepare_open
 prepare_ready
 press
 pressed
+prevent_invasion_landing_marker
 project_water
 propaganda_screen
 propaganda_screen_01
