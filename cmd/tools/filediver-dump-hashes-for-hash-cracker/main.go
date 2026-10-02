@@ -15,7 +15,9 @@ import (
 	"github.com/xypwn/filediver/cmd/tools/fdtools-common"
 	datalib "github.com/xypwn/filediver/datalibrary"
 	"github.com/xypwn/filediver/stingray"
+	"github.com/xypwn/filediver/stingray/level"
 	"github.com/xypwn/filediver/stingray/physics"
+	"github.com/xypwn/filediver/stingray/prefab"
 	"github.com/xypwn/filediver/stingray/state_machine"
 	stingray_strings "github.com/xypwn/filediver/stingray/strings"
 	"github.com/xypwn/filediver/util"
@@ -168,6 +170,49 @@ func main() {
 		{
 			allHashes := make(map[uint64]struct{})
 			for id := range a.DataDir.Files {
+				switch id.Type {
+				case stingray.Sum("prefab"):
+					prefabMain, err := a.DataDir.Read(id, stingray.DataMain)
+					if err != nil {
+						break
+					}
+					prefabInfo, err := prefab.Load(bytes.NewReader(prefabMain))
+					if err != nil {
+						break
+					}
+					for _, unit := range prefabInfo.Units {
+						allHashes[unit.Name.Value] = struct{}{}
+						allHashes[unit.UUID.Value] = struct{}{}
+					}
+					for _, nested := range prefabInfo.NestedPrefabs {
+						allHashes[nested.Name.Value] = struct{}{}
+					}
+				case stingray.Sum("level"):
+					levelMain, err := a.DataDir.Read(id, stingray.DataMain)
+					if err != nil {
+						break
+					}
+					levelInfo, err := level.LoadLevel(bytes.NewReader(levelMain), nil)
+					if err != nil {
+						break
+					}
+					for _, unit := range levelInfo.Units {
+						allHashes[unit.Name.Value] = struct{}{}
+						allHashes[unit.UUIDHash.Value] = struct{}{}
+					}
+					for _, levelPrefab := range levelInfo.Prefabs {
+						allHashes[levelPrefab.UUIDHash.Value] = struct{}{}
+					}
+					for _, prefabInfo := range levelInfo.EmbeddedPrefabs {
+						for _, unit := range prefabInfo.Units {
+							allHashes[unit.Name.Value] = struct{}{}
+							allHashes[unit.UUID.Value] = struct{}{}
+						}
+						for _, nested := range prefabInfo.NestedPrefabs {
+							allHashes[nested.Name.Value] = struct{}{}
+						}
+					}
+				}
 				allHashes[id.Name.Value] = struct{}{}
 				allHashes[id.Type.Value] = struct{}{}
 			}
