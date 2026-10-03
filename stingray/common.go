@@ -42,3 +42,7 @@ func (o *Transform) SetScale(v mgl32.Vec3) {
 func (o *Transform) ToGLTF() (mgl32.Vec3, mgl32.Vec4, mgl32.Vec3) {
 	return ToGLTFMatrix.Mul4x1(o.PositionVec.Vec4(1)).Vec3(), ToGLTFMatrix.Mul4x1(o.RotationVec), mgl32.Vec3{o.ScaleVec[0], o.ScaleVec[2], o.ScaleVec[1]}
 }
+
+func (o *Transform) Matrix() mgl32.Mat4 {
+	return mgl32.Translate3D(o.Position().Elem()).Mul4(o.Rotation().Quat().Mat4().Mul4(mgl32.Scale3D(o.Scale().Elem())))
+}

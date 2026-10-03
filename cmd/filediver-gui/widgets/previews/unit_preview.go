@@ -324,6 +324,14 @@ func (obj unitPreviewObject) deleteObjects(textureCache *glutils.TextureCache) {
 	}
 }
 
+type unitPreviewNode struct {
+	name     stingray.Hash
+	shown    bool
+	matrix   mgl32.Mat4
+	children []stingray.Hash
+	parent   stingray.Hash
+}
+
 type UnitPreviewState struct {
 	fb                 *widgets.GLViewState
 	textureCache       *glutils.TextureCache
@@ -336,21 +344,18 @@ type UnitPreviewState struct {
 
 	loadUnitGetResourceFunc GetResourceFunc
 
-	// map of item name (prefab/level/unit ID) -> (0->n intermediate prefab/level ids) -> unit resource
-	renderedObjects        map[stingray.Hash]stingray.Hash
-	renderedObjectMatrices map[stingray.Hash]mgl32.Mat4
-	renderedObjectShown    map[stingray.Hash]bool
-	renderedObjectName     map[stingray.Hash]stingray.Hash
+	nodes    map[stingray.Hash]unitPreviewNode
+	root     unitPreviewNode
+	rootHash stingray.Hash
 
 	// hash is a unit resource
-	objects              map[stingray.Hash]map[string]unitPreviewObject
-	objectsShown         map[stingray.Hash]map[string]bool
-	objectsShownDefault  map[stingray.Hash]map[string]bool
-	objectsSelected      map[stingray.Hash]map[string]bool
-	objectsSettingsShown bool
+	objects             map[stingray.Hash]map[string]unitPreviewObject
+	objectsShown        map[stingray.Hash]map[string]bool
+	objectsShownDefault map[stingray.Hash]map[string]bool
+	objectsSelected     map[stingray.Hash]map[string]bool
 
-	materialSettingsShown bool
-	materialSettingsDrawn bool
+	treeViewShown bool
+	treeViewDrawn bool
 
 	wireframeMaterial   unitPreviewMaterial
 	normalVisMaterial   unitPreviewMaterial
@@ -599,7 +604,9 @@ func (pv *UnitPreviewState) loadMeshes(lookupThinHash func(stingray.ThinHash) st
 					strings.HasSuffix(object, "rubble") ||
 					strings.HasPrefix(object, "rubble") ||
 					strings.HasSuffix(object, "debris") ||
-					object == "ai_blocker") {
+					object == "ai_blocker" ||
+					object == "v" ||
+					object == "navigation") {
 				shownDefault[object] = false
 			}
 			meshesToLoad = append(meshesToLoad, uint32(idx))
@@ -1136,119 +1143,151 @@ func (pv *UnitPreviewState) loadMaterials(getResource GetResourceFunc, object *u
 	return nil
 }
 
-func (pv *UnitPreviewState) RemoveRenderedObject(objectName stingray.Hash) {
-	hash, contains := pv.renderedObjects[objectName]
+func (pv *UnitPreviewState) RemoveRenderedObject(nodeId stingray.Hash) {
+	node, contains := pv.nodes[nodeId]
 	if !contains {
 		return
 	}
-	delete(pv.renderedObjects, objectName)
-	delete(pv.renderedObjectMatrices, objectName)
+	delete(pv.nodes, nodeId)
 
-	// several rendered objects may map to the same unit resource, so check if its already been removed
-	if _, contains := pv.objects[hash]; !contains {
-		return
+	for _, hash := range node.children {
+		if _, contains := pv.nodes[hash]; contains {
+			pv.RemoveRenderedObject(hash)
+		}
+		// several rendered objects may map to the same unit resource, so check if its already been removed
+		if _, contains := pv.objects[hash]; !contains {
+			return
+		}
+		for name := range pv.objects[hash] {
+			pv.objects[hash][name].deleteObjects(pv.textureCache)
+			pv.boundingBoxes[hash][name].deleteObjects(pv.textureCache)
+		}
+		delete(pv.objects, hash)
+		delete(pv.boundingBoxes, hash)
+		delete(pv.objectsShown, hash)
+		delete(pv.objectsSelected, hash)
+		delete(pv.objectsShownDefault, hash)
+		delete(pv.aabb, hash)
+		delete(pv.aabbMat, hash)
+		delete(pv.meshPositions, hash)
+		delete(pv.meshNormals, hash)
 	}
-	for name := range pv.objects[hash] {
-		pv.objects[hash][name].deleteObjects(pv.textureCache)
-		pv.boundingBoxes[hash][name].deleteObjects(pv.textureCache)
-	}
-	delete(pv.objects, hash)
-	delete(pv.boundingBoxes, hash)
-	delete(pv.renderedObjectShown, hash)
-	delete(pv.objectsShown, hash)
-	delete(pv.objectsSelected, hash)
-	delete(pv.objectsShownDefault, hash)
-	delete(pv.aabb, hash)
-	delete(pv.aabbMat, hash)
-	delete(pv.meshPositions, hash)
-	delete(pv.meshNormals, hash)
 }
 
 func (pv *UnitPreviewState) Clear() {
-	for hash := range pv.renderedObjects {
+	for hash := range pv.nodes {
 		pv.RemoveRenderedObject(hash)
 	}
 }
 
 // Calculate max zoom out distance
-func (pv *UnitPreviewState) getMaxZoom(renderedObject stingray.Hash) (maxViewDistance float32) {
+func (pv *UnitPreviewState) getMaxZoom(node unitPreviewNode) (maxViewDistance float32) {
 	// Get origin sphere around mesh
 	var maxDistSqrFromOrigin float32
-	fileID, contains := pv.getRenderedObjectUnitHash(renderedObject)
-	if !contains {
-		return 0.001
-	}
-	for name := range pv.objects[fileID] {
-		matrix := pv.renderedObjectMatrices[renderedObject].Mul4(pv.aabbMat[fileID][name])
-		for _, p := range pv.getAABBVertices(fileID, name) {
-			maxDistSqrFromOrigin = max(maxDistSqrFromOrigin,
-				matrix.Mul4x1(p.Vec4(1.0)).Vec3().LenSqr())
+	var calcDistance func(curr unitPreviewNode, matrix mgl32.Mat4)
+	calcDistance = func(curr unitPreviewNode, matrix mgl32.Mat4) {
+		for _, childHash := range curr.children {
+			if child, contains := pv.nodes[childHash]; contains {
+				calcDistance(child, matrix.Mul4(child.matrix))
+			}
+			if _, contains := pv.objects[childHash]; contains {
+				for name := range pv.objects[childHash] {
+					for _, p := range pv.getAABBVertices(childHash, name) {
+						maxDistSqrFromOrigin = max(maxDistSqrFromOrigin,
+							matrix.Mul4(pv.aabbMat[childHash][name]).Mul4x1(p.Vec4(1.0)).Vec3().LenSqr())
+					}
+				}
+			}
 		}
-		maxDistFromOrigin := float32(math.Sqrt(float64(maxDistSqrFromOrigin)))
-
-		// Calculate camera distance to fit vertical frustum into disk orthogonal
-		// to view direction with radius of the sphere. Ideally, we'd want
-		// to fit the sphere into the frustum, but the disk should be close
-		// enough.
-		// tan(vfov/2) = maxDistFromOrigin/viewDistance
-		maxViewDistance = float32(float64(maxDistFromOrigin) / math.Tan(float64(pv.vfov/2)))
 	}
+	calcDistance(node, mgl32.Ident4())
+
+	maxDistFromOrigin := float32(math.Sqrt(float64(maxDistSqrFromOrigin)))
+
+	// Calculate camera distance to fit vertical frustum into disk orthogonal
+	// to view direction with radius of the sphere. Ideally, we'd want
+	// to fit the sphere into the frustum, but the disk should be close
+	// enough.
+	// tan(vfov/2) = maxDistFromOrigin/viewDistance
+	maxViewDistance = float32(float64(maxDistFromOrigin) / math.Tan(float64(pv.vfov/2)))
+
 	// We want to be able to zoom out a bit further.
-	maxViewDistance *= 2
+	maxViewDistance = max(0.001, maxViewDistance*2)
 	return
 }
 
-func (pv *UnitPreviewState) getRenderedObjectUnitHash(renderedObject stingray.Hash) (stingray.Hash, bool) {
-	hash, contains := pv.renderedObjects[renderedObject]
+func (pv *UnitPreviewState) getNodeUnitHash(nodeId stingray.Hash) (stingray.Hash, bool) {
+	node, contains := pv.nodes[nodeId]
 	if !contains {
 		return stingray.Hash{}, contains
 	}
+	// this is not a node that just has one unit
+	if len(node.children) != 1 {
+		return stingray.Hash{}, false
+	}
+	hash := node.children[0]
 	_, contains = pv.objects[hash]
 	for !contains {
-		hash, contains = pv.renderedObjects[hash]
+		node, contains = pv.nodes[hash]
 		if !contains {
 			break
 		}
+		// this is not a node that just has one unit
+		if len(node.children) != 1 {
+			return stingray.Hash{}, false
+		}
+		hash = node.children[0]
 		_, contains = pv.objects[hash]
 	}
 	return hash, contains
 }
 
 func (pv *UnitPreviewState) LoadPrefab(fileID stingray.Hash, mainData []byte, getResource GetResourceFunc, thinhashes map[stingray.ThinHash]string) error {
-	info, err := prefab.Load(bytes.NewReader(mainData))
-	if err != nil {
-		return err
-	}
-
-	if pv.renderedObjects == nil {
-		pv.renderedObjects = make(map[stingray.Hash]stingray.Hash)
-		pv.renderedObjectMatrices = make(map[stingray.Hash]mgl32.Mat4)
-		pv.renderedObjectShown = make(map[stingray.Hash]bool)
-		pv.renderedObjectName = make(map[stingray.Hash]stingray.Hash)
+	if pv.nodes == nil {
+		pv.nodes = make(map[stingray.Hash]unitPreviewNode)
 	}
 
 	pv.maxViewDistance = 0.001
 
+	children, err := pv.loadPrefab(fileID, mainData, getResource, thinhashes)
+	pv.root = unitPreviewNode{
+		name:     fileID,
+		shown:    true,
+		matrix:   mgl32.Ident4(),
+		children: children,
+		parent:   stingray.Hash{},
+	}
+	pv.rootHash = fileID
+	pv.maxViewDistance = pv.getMaxZoom(pv.root)
+	return err
+}
+
+func (pv *UnitPreviewState) loadPrefab(fileID stingray.Hash, mainData []byte, getResource GetResourceFunc, thinhashes map[stingray.ThinHash]string) ([]stingray.Hash, error) {
+	info, err := prefab.Load(bytes.NewReader(mainData))
+	if err != nil {
+		return []stingray.Hash{}, err
+	}
+
+	contents := make([]stingray.Hash, 0)
 	for _, unit := range info.Units {
 		var err error
-		defer func() {
-			if err == nil {
-				pv.renderedObjects[unit.UUID] = unit.Hash
-				pv.renderedObjectMatrices[unit.UUID] = mgl32.Translate3D(unit.Position().Elem()).Mul4(unit.Rotation().Quat().Mat4().Mul4(mgl32.Scale3D(unit.Scale().Elem())))
-				pv.renderedObjectShown[unit.UUID] = true
-				pv.renderedObjectName[unit.UUID] = unit.Name
-				pv.maxViewDistance = max(pv.maxViewDistance, pv.getMaxZoom(unit.UUID))
-			}
-		}()
 		if _, contains := pv.objects[unit.Hash]; contains {
+			contents = append(contents, unit.UUID)
+			pv.nodes[unit.UUID] = unitPreviewNode{
+				name:     unit.Name,
+				shown:    true,
+				matrix:   unit.Matrix(),
+				children: []stingray.Hash{unit.Hash},
+				parent:   fileID,
+			}
 			continue
 		}
 		unitMainData, exists, err := getResource(stingray.NewFileID(unit.Hash, stingray.Sum("unit")), stingray.DataMain)
 		if err != nil {
-			return fmt.Errorf("loading %v.unit data in %v.prefab: %v", pv.lookupHash(unit.Hash), pv.lookupHash(fileID), err)
+			return contents, fmt.Errorf("loading %v.unit data in %v.prefab: %v", pv.lookupHash(unit.Hash), pv.lookupHash(fileID), err)
 		}
 		if !exists {
-			return fmt.Errorf("%v.unit in %v.prefab does not exist", pv.lookupHash(unit.Hash), pv.lookupHash(fileID))
+			return contents, fmt.Errorf("%v.unit in %v.prefab does not exist", pv.lookupHash(unit.Hash), pv.lookupHash(fileID))
 		}
 
 		// Some units won't have GPU data but will have terrain or geometry group info
@@ -1256,32 +1295,72 @@ func (pv *UnitPreviewState) LoadPrefab(fileID stingray.Hash, mainData []byte, ge
 
 		err = pv.loadUnit(unit.Hash, unitMainData, unitGpuData, getResource, thinhashes)
 		if err != nil {
-			return fmt.Errorf("loading %v.unit in %v.prefab for rendering: %v", pv.lookupHash(unit.Hash), pv.lookupHash(fileID), err)
+			return contents, fmt.Errorf("loading %v.unit in %v.prefab for rendering: %v", pv.lookupHash(unit.Hash), pv.lookupHash(fileID), err)
+		}
+		contents = append(contents, unit.UUID)
+		pv.nodes[unit.UUID] = unitPreviewNode{
+			name:     unit.Name,
+			shown:    true,
+			matrix:   unit.Matrix(),
+			children: []stingray.Hash{unit.Hash},
+			parent:   fileID,
 		}
 	}
 
-	return nil
+	for _, prefab := range info.NestedPrefabs {
+		var err error
+		var nestedChildren []stingray.Hash
+		if _, contains := pv.nodes[prefab.Name]; contains {
+			contents = append(contents, prefab.Name)
+			continue
+		}
+		prefabMainData, exists, err := getResource(stingray.NewFileID(prefab.Path, stingray.Sum("prefab")), stingray.DataMain)
+		if err != nil {
+			return contents, fmt.Errorf("loading %v.prefab data in %v.prefab: %v", pv.lookupHash(prefab.Path), pv.lookupHash(fileID), err)
+		}
+		if !exists {
+			return contents, fmt.Errorf("%v.prefab in %v.prefab does not exist", pv.lookupHash(prefab.Path), pv.lookupHash(fileID))
+		}
+
+		nestedChildren, err = pv.loadPrefab(prefab.Path, prefabMainData, getResource, thinhashes)
+		if err != nil {
+			return contents, fmt.Errorf("loading %v.unit in %v.prefab for rendering: %v", pv.lookupHash(prefab.Path), pv.lookupHash(fileID), err)
+		}
+		contents = append(contents, prefab.Name)
+		pv.nodes[prefab.Name] = unitPreviewNode{
+			name:     prefab.Name,
+			shown:    true,
+			matrix:   prefab.Matrix(),
+			children: nestedChildren,
+			parent:   fileID,
+		}
+	}
+
+	return contents, nil
 }
 
 func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []byte, getResource GetResourceFunc, thinhashes map[stingray.ThinHash]string) error {
-	if pv.renderedObjects == nil {
-		pv.renderedObjects = make(map[stingray.Hash]stingray.Hash)
-		pv.renderedObjectMatrices = make(map[stingray.Hash]mgl32.Mat4)
-		pv.renderedObjectShown = make(map[stingray.Hash]bool)
-		pv.renderedObjectName = make(map[stingray.Hash]stingray.Hash)
+	if pv.nodes == nil {
+		pv.nodes = make(map[stingray.Hash]unitPreviewNode)
 	}
 
-	pv.renderedObjects[fileID] = fileID
-	pv.renderedObjectMatrices[fileID] = mgl32.Ident4()
-	pv.renderedObjectShown[fileID] = true
-	pv.renderedObjectName[fileID] = fileID
+	pv.root = unitPreviewNode{
+		name:     fileID,
+		shown:    true,
+		matrix:   mgl32.Ident4(),
+		children: []stingray.Hash{fileID},
+		parent:   stingray.Hash{},
+	}
+	pv.rootHash = fileID
+
+	pv.nodes[stingray.Hash{}] = pv.root
 
 	err := pv.loadUnit(fileID, mainData, gpuData, getResource, thinhashes)
 	if err != nil {
 		return err
 	}
 
-	pv.maxViewDistance = pv.getMaxZoom(fileID)
+	pv.maxViewDistance = pv.getMaxZoom(pv.root)
 
 	return nil
 }
@@ -1746,15 +1825,125 @@ func sum(s []int32) (result int32) {
 	return
 }
 
+func (pv *UnitPreviewState) drawObject(hash stingray.Hash, matrix, translation, view, projection mgl32.Mat4, viewPosition mgl32.Vec3) {
+	gl.Enable(gl.DEPTH_TEST)
+	for name := range pv.objects[hash] {
+		if shown, contains := pv.objectsShown[hash][name]; contains && !shown {
+			continue
+		}
+		model := pv.model.Mul4(translation.Mul4(matrix.Mul4(pv.objects[hash][name].matrix)))
+		mvp := projection.Mul4(view).Mul4(model)
+		normal := model.Inv().Transpose().Mat3()
+		gl.BindVertexArray(pv.objects[hash][name].vao)
+		if pv.showWireframe {
+			gl.UseProgram(pv.wireframeMaterial.program)
+			gl.UniformMatrix4fv(pv.wireframeMaterial.uniforms["mvp"], 1, false, &mvp[0])
+			gl.Uniform4fv(pv.wireframeMaterial.uniforms["color"], 1, &pv.wireframeColor[0])
+			gl.Uniform1i(pv.wireframeMaterial.uniforms["hasVisibilityMasks"], pv.objects[hash][name].hasVisibilityMasks)
+			gl.Uniform1iv(pv.wireframeMaterial.uniforms["udimShown"], 64, &pv.udimsShown[0])
+		}
+		for group, ibo := range pv.objects[hash][name].ibos {
+			if !pv.showWireframe {
+				gl.UseProgram(pv.objects[hash][name].materials[group].program)
+				gl.UniformMatrix4fv(pv.objects[hash][name].materials[group].uniforms["mvp"], 1, false, &mvp[0])
+				gl.UniformMatrix4fv(pv.objects[hash][name].materials[group].uniforms["model"], 1, false, &model[0])
+				gl.UniformMatrix3fv(pv.objects[hash][name].materials[group].uniforms["normalMat"], 1, false, &normal[0])
+				gl.Uniform3fv(pv.objects[hash][name].materials[group].uniforms["viewPosition"], 1, &viewPosition[0])
+				gl.Uniform1iv(pv.objects[hash][name].materials[group].uniforms["udimShown"], 64, &pv.udimsShown[0])
+				for _, uniformBlock := range pv.objects[hash][name].materials[group].uniformBlocks {
+					gl.BindBufferBase(gl.UNIFORM_BUFFER, uniformBlock.binding, uniformBlock.ubo)
+				}
+				for idx, texture := range pv.objects[hash][name].materials[group].textures {
+					gl.ActiveTexture(gl.TEXTURE0 + uint32(idx))
+					gl.BindTexture(texture.target, texture.id)
+					glError := gl.GetError()
+					if glError != 0 {
+						fmt.Printf("[error] binding texture %v (%v) in group %v as target %v generated error %v\n", texture.name.String(), texture.id, group, glutils.GLTarget(texture.target).String(), glutils.GLError(glError).String())
+					}
+				}
+			}
+			gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo)
+			gl.DrawElements(gl.TRIANGLES, pv.objects[hash][name].numIndices[group], gl.UNSIGNED_INT, nil)
+			if !pv.showWireframe {
+				for idx, texture := range pv.objects[hash][name].materials[group].textures {
+					gl.ActiveTexture(gl.TEXTURE0 + uint32(idx))
+					gl.BindTexture(texture.target, 0)
+					glError := gl.GetError()
+					if glError != 0 {
+						fmt.Printf("[error] unbinding texture %v (%v) in group %v as target %v generated error %v\n", texture.name.String(), texture.id, group, glutils.GLTarget(texture.target).String(), glutils.GLError(glError).String())
+					}
+				}
+			}
+		}
+	}
+	gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, 0)
+	gl.BindBuffer(gl.UNIFORM_BUFFER, 0)
+	gl.ActiveTexture(gl.TEXTURE0)
+	gl.BindTexture(gl.TEXTURE_2D, 0)
+	gl.BindTexture(gl.TEXTURE_2D_ARRAY, 0)
+	gl.BindVertexArray(0)
+	gl.UseProgram(0)
+	gl.PolygonMode(gl.FRONT_AND_BACK, gl.FILL)
+}
+
+func (pv *UnitPreviewState) drawNormalVis(hash stingray.Hash, matrix, translation, view, projection mgl32.Mat4) {
+	for name := range pv.objects[hash] {
+		if shown, contains := pv.objectsShown[hash][name]; contains && !shown {
+			continue
+		}
+		model := pv.model.Mul4(translation.Mul4(matrix.Mul4(pv.objects[hash][name].matrix)))
+		mvp := projection.Mul4(view).Mul4(model)
+		gl.UseProgram(pv.normalVisMaterial.program)
+		gl.BindVertexArray(pv.objects[hash][name].vao)
+		gl.UniformMatrix4fv(pv.normalVisMaterial.uniforms["mvp"], 1, false, &mvp[0])
+		gl.Uniform1f(pv.normalVisMaterial.uniforms["len"], pv.viewDistance*0.02)
+		gl.Uniform1iv(pv.normalVisMaterial.uniforms["showTangentBitangent"], 1, &pv.visualizeTangentBitangent)
+		gl.Uniform1i(pv.normalVisMaterial.uniforms["hasVisibilityMasks"], pv.objects[hash][name].hasVisibilityMasks)
+		gl.Uniform1iv(pv.normalVisMaterial.uniforms["udimShown"], 64, &pv.udimsShown[0])
+		for group, ibo := range pv.objects[hash][name].ibos {
+			gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo)
+			gl.DrawElements(gl.POINTS, pv.objects[hash][name].numIndices[group], gl.UNSIGNED_INT, nil)
+		}
+	}
+	gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, 0) // TODO: Make this not draw duplicate vertices
+}
+
+func (pv *UnitPreviewState) drawBoundingBox(hash stingray.Hash, matrix, translation, view, projection mgl32.Mat4) {
+	gl.Disable(gl.DEPTH_TEST)
+	gl.UseProgram(pv.boundingBoxMaterial.program)
+	gl.Uniform4fv(pv.boundingBoxMaterial.uniforms["color"], 1, &pv.aabbColor[0])
+	for name := range pv.boundingBoxes[hash] {
+		if shown, contains := pv.objectsShown[hash][name]; contains && !shown {
+			continue
+		}
+		gl.BindVertexArray(pv.boundingBoxes[hash][name].vao)
+		{
+			model := pv.model.Mul4(translation.Mul4(matrix.Mul4(pv.aabbMat[hash][name])))
+			mvp := projection.Mul4(view).Mul4(model)
+			gl.UniformMatrix4fv(pv.boundingBoxMaterial.uniforms["mvp"], 1, false, &mvp[0])
+		}
+		gl.DrawElements(gl.TRIANGLES, pv.boundingBoxes[hash][name].numIndices[0], gl.UNSIGNED_INT, nil)
+	}
+}
+
+func (pv *UnitPreviewState) drawSkeleton(hash stingray.Hash, matrix, translation, view, projection mgl32.Mat4) {
+	gl.Disable(gl.DEPTH_TEST)
+	gl.UseProgram(pv.boundingBoxMaterial.program)
+	gl.Uniform4fv(pv.boundingBoxMaterial.uniforms["color"], 1, &pv.skeletonColor[0])
+
+	model := pv.model.Mul4(translation.Mul4(matrix))
+	mvp := projection.Mul4(view).Mul4(model)
+
+	gl.UniformMatrix4fv(pv.boundingBoxMaterial.uniforms["mvp"], 1, false, &mvp[0])
+	gl.BindVertexArray(pv.skeletons[hash].vao)
+	gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, pv.skeletons[hash].ibos[0])
+	gl.DrawElements(gl.LINES, pv.skeletons[hash].numIndices[0], gl.UNSIGNED_INT, nil)
+}
+
 func (pv *UnitPreviewState) Draw(previewId string) {
 	if len(pv.objects) == 0 {
 		return
 	}
-	// for idx := range pv.objects {
-	// 	if len(pv.objects[idx].ibos) == 0 {
-	// 		return
-	// 	}
-	// }
 
 	imgui.PushIDStr(previewId)
 	defer imgui.PopID()
@@ -1816,135 +2005,73 @@ func (pv *UnitPreviewState) Draw(previewId string) {
 			modelPos, viewPosition, view, projection := pv.computeMVP(size.X/size.Y, true)
 			translation := mgl32.Translate3D(modelPos.Vec3().Elem())
 
-			// Draw objects
-			gl.Enable(gl.DEPTH_TEST)
-			for renderedName := range pv.renderedObjects {
-				if shown, contains := pv.renderedObjectShown[renderedName]; contains && !shown {
-					continue
+			var drawNode, drawNodeNormalVis, drawNodeBoundingBox, drawNodeSkeletons func(unitPreviewNode, stingray.Hash)
+			drawNode = func(curr unitPreviewNode, nodeId stingray.Hash) {
+				if !curr.shown {
+					return
 				}
-				hash, contains := pv.getRenderedObjectUnitHash(renderedName)
-				if !contains {
-					continue
-				}
-				for name := range pv.objects[hash] {
-					if shown, contains := pv.objectsShown[hash][name]; contains && !shown {
-						continue
-					}
-					model := pv.model.Mul4(translation.Mul4(pv.renderedObjectMatrices[renderedName].Mul4(pv.objects[hash][name].matrix)))
-					mvp := projection.Mul4(view).Mul4(model)
-					normal := model.Inv().Transpose().Mat3()
-					gl.BindVertexArray(pv.objects[hash][name].vao)
-					if pv.showWireframe {
-						gl.UseProgram(pv.wireframeMaterial.program)
-						gl.UniformMatrix4fv(pv.wireframeMaterial.uniforms["mvp"], 1, false, &mvp[0])
-						gl.Uniform4fv(pv.wireframeMaterial.uniforms["color"], 1, &pv.wireframeColor[0])
-						gl.Uniform1i(pv.wireframeMaterial.uniforms["hasVisibilityMasks"], pv.objects[hash][name].hasVisibilityMasks)
-						gl.Uniform1iv(pv.wireframeMaterial.uniforms["udimShown"], 64, &pv.udimsShown[0])
-					}
-					for group, ibo := range pv.objects[hash][name].ibos {
-						if !pv.showWireframe {
-							gl.UseProgram(pv.objects[hash][name].materials[group].program)
-							gl.UniformMatrix4fv(pv.objects[hash][name].materials[group].uniforms["mvp"], 1, false, &mvp[0])
-							gl.UniformMatrix4fv(pv.objects[hash][name].materials[group].uniforms["model"], 1, false, &model[0])
-							gl.UniformMatrix3fv(pv.objects[hash][name].materials[group].uniforms["normalMat"], 1, false, &normal[0])
-							gl.Uniform3fv(pv.objects[hash][name].materials[group].uniforms["viewPosition"], 1, &viewPosition[0])
-							gl.Uniform1iv(pv.objects[hash][name].materials[group].uniforms["udimShown"], 64, &pv.udimsShown[0])
-							for _, uniformBlock := range pv.objects[hash][name].materials[group].uniformBlocks {
-								gl.BindBufferBase(gl.UNIFORM_BUFFER, uniformBlock.binding, uniformBlock.ubo)
-							}
-							for idx, texture := range pv.objects[hash][name].materials[group].textures {
-								gl.ActiveTexture(gl.TEXTURE0 + uint32(idx))
-								gl.BindTexture(texture.target, texture.id)
-								glError := gl.GetError()
-								if glError != 0 {
-									fmt.Printf("[error] binding texture %v (%v) in group %v as target %v generated error %v\n", texture.name.String(), texture.id, group, glutils.GLTarget(texture.target).String(), glutils.GLError(glError).String())
-								}
-							}
-						}
-						gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo)
-						gl.DrawElements(gl.TRIANGLES, pv.objects[hash][name].numIndices[group], gl.UNSIGNED_INT, nil)
-						if !pv.showWireframe {
-							for idx, texture := range pv.objects[hash][name].materials[group].textures {
-								gl.ActiveTexture(gl.TEXTURE0 + uint32(idx))
-								gl.BindTexture(texture.target, 0)
-								glError := gl.GetError()
-								if glError != 0 {
-									fmt.Printf("[error] unbinding texture %v (%v) in group %v as target %v generated error %v\n", texture.name.String(), texture.id, group, glutils.GLTarget(texture.target).String(), glutils.GLError(glError).String())
-								}
-							}
-						}
+				for _, childHash := range curr.children {
+					if child, contains := pv.nodes[childHash]; contains && nodeId != childHash {
+						child.matrix = child.matrix.Mul4(curr.matrix)
+						drawNode(child, childHash)
+					} else {
+						pv.drawObject(childHash, curr.matrix, translation, view, projection, viewPosition)
 					}
 				}
-				gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, 0)
-				gl.BindBuffer(gl.UNIFORM_BUFFER, 0)
-				gl.ActiveTexture(gl.TEXTURE0)
-				gl.BindTexture(gl.TEXTURE_2D, 0)
-				gl.BindTexture(gl.TEXTURE_2D_ARRAY, 0)
-				gl.BindVertexArray(0)
-				gl.UseProgram(0)
-				gl.PolygonMode(gl.FRONT_AND_BACK, gl.FILL)
-
-				// Draw normal visualization
-				if pv.visualizeNormals {
-					for name := range pv.objects[hash] {
-						if shown, contains := pv.objectsShown[hash][name]; contains && !shown {
-							continue
-						}
-						model := pv.model.Mul4(translation.Mul4(pv.renderedObjectMatrices[renderedName].Mul4(pv.objects[hash][name].matrix)))
-						mvp := projection.Mul4(view).Mul4(model)
-						gl.UseProgram(pv.normalVisMaterial.program)
-						gl.BindVertexArray(pv.objects[hash][name].vao)
-						gl.UniformMatrix4fv(pv.normalVisMaterial.uniforms["mvp"], 1, false, &mvp[0])
-						gl.Uniform1f(pv.normalVisMaterial.uniforms["len"], pv.viewDistance*0.02)
-						gl.Uniform1iv(pv.normalVisMaterial.uniforms["showTangentBitangent"], 1, &pv.visualizeTangentBitangent)
-						gl.Uniform1i(pv.normalVisMaterial.uniforms["hasVisibilityMasks"], pv.objects[hash][name].hasVisibilityMasks)
-						gl.Uniform1iv(pv.normalVisMaterial.uniforms["udimShown"], 64, &pv.udimsShown[0])
-						for group, ibo := range pv.objects[hash][name].ibos {
-							gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo)
-							gl.DrawElements(gl.POINTS, pv.objects[hash][name].numIndices[group], gl.UNSIGNED_INT, nil)
-						}
-					}
-					gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, 0) // TODO: Make this not draw duplicate vertices
-				}
-
-				// Draw debug object
-				if pv.showAABB {
-					gl.Disable(gl.DEPTH_TEST)
-					gl.UseProgram(pv.boundingBoxMaterial.program)
-					gl.Uniform4fv(pv.boundingBoxMaterial.uniforms["color"], 1, &pv.aabbColor[0])
-					for name := range pv.boundingBoxes[hash] {
-						if shown, contains := pv.objectsShown[hash][name]; contains && !shown {
-							continue
-						}
-						gl.BindVertexArray(pv.boundingBoxes[hash][name].vao)
-						{
-							model := pv.model.Mul4(translation.Mul4(pv.renderedObjectMatrices[renderedName].Mul4(pv.aabbMat[hash][name])))
-							mvp := projection.Mul4(view).Mul4(model)
-							gl.UniformMatrix4fv(pv.boundingBoxMaterial.uniforms["mvp"], 1, false, &mvp[0])
-						}
-						gl.DrawElements(gl.TRIANGLES, pv.boundingBoxes[hash][name].numIndices[0], gl.UNSIGNED_INT, nil)
-					}
-				}
-
-				if pv.showSkeleton {
-					gl.Disable(gl.DEPTH_TEST)
-					gl.UseProgram(pv.boundingBoxMaterial.program)
-					gl.Uniform4fv(pv.boundingBoxMaterial.uniforms["color"], 1, &pv.skeletonColor[0])
-
-					for hash := range pv.skeletons {
-						model := pv.model.Mul4(translation.Mul4(pv.renderedObjectMatrices[renderedName]))
-						mvp := projection.Mul4(view).Mul4(model)
-
-						gl.UniformMatrix4fv(pv.boundingBoxMaterial.uniforms["mvp"], 1, false, &mvp[0])
-						gl.BindVertexArray(pv.skeletons[hash].vao)
-						gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, pv.skeletons[hash].ibos[0])
-						gl.DrawElements(gl.LINES, pv.skeletons[hash].numIndices[0], gl.UNSIGNED_INT, nil)
-					}
-				}
-				gl.BindVertexArray(0)
-				gl.UseProgram(0)
-
 			}
+			drawNodeNormalVis = func(curr unitPreviewNode, nodeId stingray.Hash) {
+				if !curr.shown {
+					return
+				}
+				for _, childHash := range curr.children {
+					if child, contains := pv.nodes[childHash]; contains && nodeId != childHash {
+						child.matrix = child.matrix.Mul4(curr.matrix)
+						drawNodeNormalVis(child, childHash)
+					} else {
+						pv.drawNormalVis(childHash, curr.matrix, translation, view, projection)
+					}
+				}
+			}
+			drawNodeBoundingBox = func(curr unitPreviewNode, nodeId stingray.Hash) {
+				if !curr.shown {
+					return
+				}
+				for _, childHash := range curr.children {
+					if child, contains := pv.nodes[childHash]; contains && nodeId != childHash {
+						child.matrix = child.matrix.Mul4(curr.matrix)
+						drawNodeBoundingBox(child, childHash)
+					} else {
+						pv.drawBoundingBox(childHash, curr.matrix, translation, view, projection)
+					}
+				}
+			}
+			drawNodeSkeletons = func(curr unitPreviewNode, nodeId stingray.Hash) {
+				if !curr.shown {
+					return
+				}
+				for _, childHash := range curr.children {
+					if child, contains := pv.nodes[childHash]; contains && nodeId != childHash {
+						child.matrix = child.matrix.Mul4(curr.matrix)
+						drawNodeSkeletons(child, childHash)
+					} else {
+						pv.drawSkeleton(childHash, curr.matrix, translation, view, projection)
+					}
+				}
+			}
+			drawNode(pv.root, pv.rootHash)
+			if pv.visualizeNormals {
+				drawNodeNormalVis(pv.root, pv.rootHash)
+			}
+			if pv.showAABB {
+				drawNodeBoundingBox(pv.root, pv.rootHash)
+			}
+			if pv.showSkeleton {
+				drawNodeSkeletons(pv.root, pv.rootHash)
+			}
+
+			gl.BindVertexArray(0)
+			gl.UseProgram(0)
+
 			if pv.doAutoZoomNextFrame {
 				pv.viewDistance = pv.maxViewDistance
 
@@ -1978,8 +2105,8 @@ func (pv *UnitPreviewState) Draw(previewId string) {
 				}
 
 				maxCamDistDelta := float32(-math.MaxFloat32)
-				for renderedName := range pv.renderedObjects {
-					hash, contains := pv.getRenderedObjectUnitHash(renderedName)
+				for nodeName, node := range pv.nodes {
+					hash, contains := pv.getNodeUnitHash(nodeName)
 					if !contains {
 						continue
 					}
@@ -1987,7 +2114,7 @@ func (pv *UnitPreviewState) Draw(previewId string) {
 						positions := pv.getAABBVertices(hash, name)
 						for _, vert := range positions {
 							maxCamDistDelta = max(maxCamDistDelta,
-								fitVertexCamDistDelta(pv.renderedObjectMatrices[renderedName].Mul4(pv.aabbMat[hash][name]).Mul4x1(vert.Vec4(1.0)).Vec3()))
+								fitVertexCamDistDelta(node.matrix.Mul4(pv.aabbMat[hash][name]).Mul4x1(vert.Vec4(1.0)).Vec3()))
 						}
 					}
 				}
@@ -2092,49 +2219,56 @@ func (pv *UnitPreviewState) Draw(previewId string) {
 				}
 				var closestPos mgl32.Vec2
 				closestDist := float32(math.MaxFloat32)
-				var closestIdx int
-				for renderedName, hash := range pv.renderedObjects {
-					_, contains := pv.objects[hash]
-					for !contains {
-						hash, contains = pv.renderedObjects[hash]
-						if !contains {
-							break
-						}
-						_, contains = pv.objects[hash]
+				var closestVertex, closestNormal [3]float32
+				var findNearestNormal func(unitPreviewNode, stingray.Hash)
+				findNearestNormal = func(curr unitPreviewNode, nodeId stingray.Hash) {
+					if !curr.shown {
+						return
 					}
-					if !contains {
-						continue
-					}
-					for name := range pv.meshPositions[hash] {
-						if shown, contains := pv.objectsShown[hash][name]; contains && !shown {
-							continue
-						}
-						mvp := projection.Mul4(view).Mul4(pv.model.Mul4(translation.Mul4(pv.renderedObjectMatrices[renderedName].Mul4(pv.objects[hash][name].matrix))))
-						for i, vtx := range pv.meshPositions[hash][name] {
-							v := mvp.Mul4x1(mgl32.Vec3(vtx).Vec4(1.0))
-							v = v.Mul(1 / v.W())
-							v[0] = (v[0] + 1) * size.X * 0.5
-							v[1] = (-v[1] + 1) * size.Y * 0.5
-							dist := mousePos.Sub(v.Vec2()).LenSqr()
-							if dist < closestDist {
-								closestPos = v.Vec2()
-								closestDist = dist
-								closestIdx = i
+					for _, childHash := range curr.children {
+						if child, contains := pv.nodes[childHash]; contains && nodeId != childHash {
+							child.matrix = child.matrix.Mul4(curr.matrix)
+							findNearestNormal(child, childHash)
+						} else {
+							for name := range pv.meshPositions[childHash] {
+								if shown, contains := pv.objectsShown[childHash][name]; contains && !shown {
+									continue
+								}
+								if len(pv.meshPositions[childHash][name]) != len(pv.meshNormals[childHash][name]) {
+									continue
+								}
+								model := pv.model.Mul4(translation.Mul4(curr.matrix.Mul4(pv.objects[childHash][name].matrix)))
+								mvp := projection.Mul4(view).Mul4(model)
+								for i, vtx := range pv.meshPositions[childHash][name] {
+									v := mvp.Mul4x1(mgl32.Vec3(vtx).Vec4(1.0))
+									v = v.Mul(1 / v.W())
+									v[0] = (v[0] + 1) * size.X * 0.5
+									v[1] = (-v[1] + 1) * size.Y * 0.5
+									dist := mousePos.Sub(v.Vec2()).LenSqr()
+									if dist < closestDist {
+										closestPos = v.Vec2()
+										closestDist = dist
+										closestVertex = model.Mul4x1(mgl32.Vec3(vtx).Vec4(1.0)).Vec3()
+										normal := pv.meshNormals[childHash][name][i]
+										closestNormal = model.Mul4x1(mgl32.Vec3(normal).Vec4(0.0)).Vec3().Normalize()
+									}
+								}
 							}
 						}
-						markerPos := pos.Add(imgui.NewVec2(closestPos.X(), closestPos.Y()))
-						dl.AddCircleFilled(
-							markerPos,
-							imutils.S(2),
-							imgui.ColorU32Vec4(imgui.NewVec4(1, 0, 0, 1)),
-						)
-						dl.AddTextVec2(
-							markerPos,
-							imgui.ColorU32Vec4(imgui.NewVec4(1, 1, 0, 1)),
-							fmt.Sprintf("Pos: %v\nNormal: %v", pv.meshPositions[hash][name][closestIdx], pv.meshNormals[hash][name][closestIdx]),
-						)
 					}
 				}
+				findNearestNormal(pv.root, pv.rootHash)
+				markerPos := pos.Add(imgui.NewVec2(closestPos.X(), closestPos.Y()))
+				dl.AddCircleFilled(
+					markerPos,
+					imutils.S(2),
+					imgui.ColorU32Vec4(imgui.NewVec4(1, 0, 0, 1)),
+				)
+				dl.AddTextVec2(
+					markerPos,
+					imgui.ColorU32Vec4(imgui.NewVec4(1, 1, 0, 1)),
+					fmt.Sprintf("Pos: %v\nNormal: %v", closestVertex, closestNormal),
+				)
 			}
 		},
 	)
@@ -2248,25 +2382,14 @@ func (pv *UnitPreviewState) Draw(previewId string) {
 	}
 
 	imgui.SameLine()
-	label = "Mesh Selection"
-	if !pv.objectsSettingsShown {
+	label = "Tree View"
+	if !pv.treeViewShown {
 		label = "Show " + label
 	} else {
 		label = "Hide " + label
 	}
 	if imgui.Button(label) {
-		pv.objectsSettingsShown = !pv.objectsSettingsShown
-	}
-
-	imgui.SameLine()
-	label = "Material Settings Editor"
-	if !pv.materialSettingsShown {
-		label = "Show " + label
-	} else {
-		label = "Hide " + label
-	}
-	if imgui.Button(label) {
-		pv.materialSettingsShown = !pv.materialSettingsShown
+		pv.treeViewShown = !pv.treeViewShown
 	}
 
 	if pv.animTime != -1 {
@@ -2313,180 +2436,214 @@ func (pv *UnitPreviewState) DrawSettings() {
 	if pv.udimsSettingsShown && pv.numUdims > 1 {
 		pv.drawVisibilityMaskSelector()
 	}
-	if pv.objectsSettingsShown {
-		pv.drawMeshSelector()
-	}
-	if pv.materialSettingsShown {
-		pv.drawMaterialSettingsEditor()
+	if pv.treeViewShown {
+		pv.drawTreeViewEditor()
 	}
 }
 
-func (pv *UnitPreviewState) drawMaterialSettingsEditor() {
-	defer imgui.End()
-	if pv.materialSettingsDrawn = imgui.BeginV(fnt.I.Settings+" Material Settings Editor", &pv.materialSettingsShown, imgui.WindowFlagsNoFocusOnAppearing); !pv.materialSettingsDrawn {
-		return
-	}
-	renderedObjectKeys := slices.SortedFunc(maps.Keys(pv.renderedObjects), func(a, b stingray.Hash) int {
-		keyAName := pv.renderedObjectName[a]
-		keyBName := pv.renderedObjectName[b]
-		aString := pv.lookupHash(keyAName)
-		bString := pv.lookupHash(keyBName)
+func cmpHashStringsGenerator(lookupHash func(stingray.Hash) string, nodes map[stingray.Hash]unitPreviewNode) func(a, b stingray.Hash) int {
+	return func(a, b stingray.Hash) int {
+		keyAName := a
+		keyBName := b
+		if nodes != nil {
+			keyAName = nodes[a].name
+			keyBName = nodes[b].name
+		}
+		aString := lookupHash(keyAName)
+		bString := lookupHash(keyBName)
 		return strings.Compare(aString, bString)
-	})
-	for _, renderedObjectID := range renderedObjectKeys {
-		name := pv.renderedObjectName[renderedObjectID]
-		hash, _ := pv.getRenderedObjectUnitHash(renderedObjectID)
-		root := imgui.CursorScreenPos()
-		size := imgui.NewVec2(imgui.ContentRegionAvail().X, imgui.FontSize())
-		imgui.PushIDStr(renderedObjectID.String())
+	}
+}
+
+func (pv *UnitPreviewState) drawUniformBlock(block int, uniformBlock unitPreviewUniformBlock) {
+	sortedSettingsKeys := slices.Sorted(maps.Keys(uniformBlock.currentValues))
+	longest := slices.MaxFunc(sortedSettingsKeys, func(a, b string) int { return cmp.Compare(len(a), len(b)) })
+	//pos := imgui.CursorScreenPos()
+	size := imgui.NewVec2(imgui.ContentRegionAvail().X, imgui.FontSize())
+	for _, key := range sortedSettingsKeys {
+		imgui.PushIDStr(fmt.Sprintf("%v %v", block, key))
 		defer imgui.PopID()
-		shown := pv.renderedObjectShown[renderedObjectID]
+		style := imgui.CurrentStyle()
+		imgui.SetNextItemWidth(size.X - (style.ItemInnerSpacing().X + imgui.CalcTextSize(longest).X))
+		switch uniformBlock.uniformTypes[key] {
+		case glutils.GL_BOOL:
+			var val uint32
+			uniformBlock.get(key, &val)
+			result := val != 0
+			if imgui.Checkbox(key, &result) {
+				uniformBlock.set(key, []uint32{(val + 1) % 2})
+			}
+		case glutils.GL_BYTE:
+			var val int8
+			uniformBlock.get(key, &val)
+			oldval := val
+			if imgui.InputScalar(key, imgui.DataTypeS8, uintptr(unsafe.Pointer(&val))) && oldval != val {
+				uniformBlock.set(key, &val)
+			}
+		case glutils.GL_UNSIGNED_BYTE:
+			var val uint8
+			uniformBlock.get(key, &val)
+			oldval := val
+			if imgui.InputScalar(key, imgui.DataTypeU8, uintptr(unsafe.Pointer(&val))) && oldval != val {
+				uniformBlock.set(key, &val)
+			}
+		case glutils.GL_SHORT:
+			var val int16
+			uniformBlock.get(key, &val)
+			oldval := val
+			if imgui.InputScalar(key, imgui.DataTypeS16, uintptr(unsafe.Pointer(&val))) && oldval != val {
+				uniformBlock.set(key, &val)
+			}
+		case glutils.GL_UNSIGNED_SHORT:
+			var val uint16
+			uniformBlock.get(key, &val)
+			oldval := val
+			if imgui.InputScalar(key, imgui.DataTypeU16, uintptr(unsafe.Pointer(&val))) && oldval != val {
+				uniformBlock.set(key, &val)
+			}
+		case glutils.GL_INT:
+			var val int32
+			uniformBlock.get(key, &val)
+			oldval := val
+			if imgui.InputScalar(key, imgui.DataTypeS32, uintptr(unsafe.Pointer(&val))) && oldval != val {
+				uniformBlock.set(key, &val)
+			}
+		case glutils.GL_UNSIGNED_INT:
+			var val uint32
+			uniformBlock.get(key, &val)
+			oldval := val
+			if imgui.InputScalar(key, imgui.DataTypeU32, uintptr(unsafe.Pointer(&val))) && oldval != val {
+				uniformBlock.set(key, &val)
+			}
+		case glutils.GL_HALF_FLOAT:
+			var val float16.Float16
+			uniformBlock.get(key, &val)
+			floatVal := val.Float32()
+			oldval := floatVal
+			if imgui.InputScalar(key, imgui.DataTypeFloat, uintptr(unsafe.Pointer(&floatVal))) && oldval != floatVal {
+				val = float16.Fromfloat32(floatVal)
+				uniformBlock.set(key, &val)
+			}
+		case glutils.GL_FLOAT:
+			var val float32
+			uniformBlock.get(key, &val)
+			oldval := val
+			if imgui.InputScalar(key, imgui.DataTypeFloat, uintptr(unsafe.Pointer(&val))) && oldval != val {
+				uniformBlock.set(key, &val)
+			}
+		case glutils.GL_FLOAT_VEC2, glutils.GL_FLOAT_VEC3, glutils.GL_FLOAT_VEC4:
+			n := uniformBlock.uniformTypes[key].Count()
+			vals := make([]float32, n)
+			uniformBlock.get(key, vals)
+			if imgui.InputScalarN(key, imgui.DataTypeFloat, uintptr(unsafe.Pointer(&vals[0])), n) {
+				uniformBlock.set(key, vals)
+			}
+		}
+	}
+}
+
+func (pv *UnitPreviewState) drawUnitMaterialSettings(unit stingray.Hash, object map[string]unitPreviewObject, flags imgui.TreeNodeFlags) {
+	unitMeshNames := slices.Sorted(maps.Keys(object))
+	for _, mesh := range unitMeshNames {
+		shown := pv.objectsShown[unit][mesh]
+		color := imgui.StyleColorVec4(imgui.ColText)
+		if !shown {
+			color = imgui.StyleColorVec4(imgui.ColTextDisabled)
+		}
+		if !imutils.TreeNodeExcf(*color, flags, "%s %s", fnt.I.DeployedCode, mesh) {
+			continue
+		}
+
 		var icon string
 		if shown {
 			icon = fnt.I.Visibility
 		} else {
 			icon = fnt.I.VisibilityOff
 		}
-		imutils.Textf(fmt.Sprintf("%s %s", icon, filepath.Base(pv.lookupHash(name))))
-		imgui.SetCursorScreenPos(root)
+		rootPos := imgui.CursorScreenPos()
+		size := imgui.NewVec2(imgui.ContentRegionAvail().X, imgui.FontSize())
+		imutils.Textcf(*color, "%v Toggle Visibility", icon)
+		imgui.SetCursorScreenPos(rootPos)
 		imgui.SetNextItemAllowOverlap()
-		if imgui.InvisibleButton("btnUnit", size) {
-			pv.renderedObjectShown[renderedObjectID] = !shown
-			//pv.unitsSelected[hash] = !shown
+		if imgui.InvisibleButton("btnMesh", size) {
+			pv.objectsShown[unit][mesh] = !shown
 		}
-		if !shown {
-			continue
-		}
-		sortedObjectKeys := slices.Sorted(maps.Keys(pv.objects[hash]))
-		for _, name := range sortedObjectKeys {
-			imgui.Indent()
-			shown := pv.objectsShown[hash][name]
-			var icon string
-			if shown {
-				icon = fnt.I.Visibility
-			} else {
-				icon = fnt.I.VisibilityOff
-			}
-			imgui.PushIDStr(hash.String() + name)
-			defer imgui.PopID()
-			pos := imgui.CursorScreenPos()
-			imutils.Textf(fmt.Sprintf("%s %s", icon, name))
-			imgui.SetCursorScreenPos(pos)
-			imgui.Unindent()
-			imgui.SetNextItemAllowOverlap()
-			if imgui.InvisibleButton("btn", size) {
-				pv.objectsShown[hash][name] = !shown
-				pv.objectsSelected[hash][name] = !shown
-			}
-			// pos = imgui.CursorScreenPos()
-			// pos.X = pos.X + imgui.CurrentStyle().IndentSpacing()
-			// imgui.SetCursorScreenPos(pos)
-			if !shown {
+		for idx := range pv.objects[unit][mesh].materials {
+			if !imutils.TreeNodeExcf(*color, flags, "%s %s", fnt.I.Texture, pv.objects[unit][mesh].materials[idx].name) {
 				continue
 			}
-			imgui.Indent()
-			for idx := range pv.objects[hash][name].materials {
-				imgui.Indent()
-				imutils.Textf(fmt.Sprintf("%s %s", fnt.I.Texture, pv.objects[hash][name].materials[idx].name))
-				for block := range pv.objects[hash][name].materials[idx].uniformBlocks {
-					imgui.Indent()
-					uniformBlock := pv.objects[hash][name].materials[idx].uniformBlocks[block]
-					sortedSettingsKeys := slices.Sorted(maps.Keys(uniformBlock.currentValues))
-					longest := slices.MaxFunc(sortedSettingsKeys, func(a, b string) int { return cmp.Compare(len(a), len(b)) })
-					for _, key := range sortedSettingsKeys {
-						imgui.PushIDStr(fmt.Sprintf("%v %v", block, key))
-						defer imgui.PopID()
-						style := imgui.CurrentStyle()
-						imgui.SetNextItemWidth(size.X - style.IndentSpacing()*3 - (style.ItemInnerSpacing().X + imgui.CalcTextSize(longest).X))
-						var n int32 = 4
-						switch uniformBlock.uniformTypes[key] {
-						case glutils.GL_BOOL:
-							var val uint32
-							uniformBlock.get(key, &val)
-							result := val != 0
-							if imgui.Checkbox(key, &result) {
-								uniformBlock.set(key, []uint32{(val + 1) % 2})
-							}
-						case glutils.GL_BYTE:
-							var val int8
-							uniformBlock.get(key, &val)
-							oldval := val
-							if imgui.InputScalar(key, imgui.DataTypeS8, uintptr(unsafe.Pointer(&val))) && oldval != val {
-								uniformBlock.set(key, &val)
-							}
-						case glutils.GL_UNSIGNED_BYTE:
-							var val uint8
-							uniformBlock.get(key, &val)
-							oldval := val
-							if imgui.InputScalar(key, imgui.DataTypeU8, uintptr(unsafe.Pointer(&val))) && oldval != val {
-								uniformBlock.set(key, &val)
-							}
-						case glutils.GL_SHORT:
-							var val int16
-							uniformBlock.get(key, &val)
-							oldval := val
-							if imgui.InputScalar(key, imgui.DataTypeS16, uintptr(unsafe.Pointer(&val))) && oldval != val {
-								uniformBlock.set(key, &val)
-							}
-						case glutils.GL_UNSIGNED_SHORT:
-							var val uint16
-							uniformBlock.get(key, &val)
-							oldval := val
-							if imgui.InputScalar(key, imgui.DataTypeU16, uintptr(unsafe.Pointer(&val))) && oldval != val {
-								uniformBlock.set(key, &val)
-							}
-						case glutils.GL_INT:
-							var val int32
-							uniformBlock.get(key, &val)
-							oldval := val
-							if imgui.InputScalar(key, imgui.DataTypeS32, uintptr(unsafe.Pointer(&val))) && oldval != val {
-								uniformBlock.set(key, &val)
-							}
-						case glutils.GL_UNSIGNED_INT:
-							var val uint32
-							uniformBlock.get(key, &val)
-							oldval := val
-							if imgui.InputScalar(key, imgui.DataTypeU32, uintptr(unsafe.Pointer(&val))) && oldval != val {
-								uniformBlock.set(key, &val)
-							}
-						case glutils.GL_HALF_FLOAT:
-							var val float16.Float16
-							uniformBlock.get(key, &val)
-							floatVal := val.Float32()
-							oldval := floatVal
-							if imgui.InputScalar(key, imgui.DataTypeFloat, uintptr(unsafe.Pointer(&floatVal))) && oldval != floatVal {
-								val = float16.Fromfloat32(floatVal)
-								uniformBlock.set(key, &val)
-							}
-						case glutils.GL_FLOAT:
-							var val float32
-							uniformBlock.get(key, &val)
-							oldval := val
-							if imgui.InputScalar(key, imgui.DataTypeFloat, uintptr(unsafe.Pointer(&val))) && oldval != val {
-								uniformBlock.set(key, &val)
-							}
-						case glutils.GL_FLOAT_VEC2:
-							n = min(2, n)
-							fallthrough
-						case glutils.GL_FLOAT_VEC3:
-							n = min(3, n)
-							fallthrough
-						case glutils.GL_FLOAT_VEC4:
-							n = min(4, n)
-							vals := make([]float32, n)
-							uniformBlock.get(key, vals)
-							if imgui.InputScalarN(key, imgui.DataTypeFloat, uintptr(unsafe.Pointer(&vals[0])), n) {
-								uniformBlock.set(key, vals)
-							}
-						}
-					}
-					imgui.Unindent()
-				}
-				imgui.Unindent()
+			imgui.PushStyleColorVec4(imgui.ColText, *color)
+			for block := range pv.objects[unit][mesh].materials[idx].uniformBlocks {
+				pv.drawUniformBlock(block, pv.objects[unit][mesh].materials[idx].uniformBlocks[block])
 			}
-			imgui.Unindent()
+			imgui.PopStyleColor()
+			imgui.TreePop()
 		}
+		imgui.TreePop()
 	}
+}
+
+func (pv *UnitPreviewState) drawNodeTree(curr unitPreviewNode, nodeId stingray.Hash, matrix mgl32.Mat4) {
+	flags := imgui.TreeNodeFlagsDefaultOpen | imgui.TreeNodeFlagsOpenOnArrow
+	if imgui.TreeNodeExStrV(pv.lookupHash(curr.name), flags) {
+		shown := curr.shown
+		var icon string
+		if shown {
+			icon = fnt.I.Visibility
+		} else {
+			icon = fnt.I.VisibilityOff
+		}
+		rootPos := imgui.CursorScreenPos()
+		size := imgui.NewVec2(imgui.ContentRegionAvail().X, imgui.FontSize())
+		color := imgui.StyleColorVec4(imgui.ColText)
+		if !shown {
+			color = imgui.StyleColorVec4(imgui.ColTextDisabled)
+		}
+		imutils.Textcf(*color, "%v Toggle Visibility", icon)
+		imgui.SetCursorScreenPos(rootPos)
+		imgui.SetNextItemAllowOverlap()
+		if imgui.InvisibleButton("btnNode", size) {
+			curr.shown = !shown
+			pv.nodes[nodeId] = curr
+			if pv.rootHash == nodeId {
+				pv.root = curr
+			}
+			//pv.unitsSelected[hash] = !shown
+		}
+		children := slices.SortedFunc(slices.Values(curr.children), cmpHashStringsGenerator(pv.lookupHash, pv.nodes))
+		units := make([]stingray.Hash, 0)
+		for _, childHash := range children {
+			if child, contains := pv.nodes[childHash]; contains && childHash != nodeId {
+				childMatrix := matrix.Mul4(child.matrix)
+				pv.drawNodeTree(child, childHash, childMatrix)
+			} else {
+				units = append(units, childHash)
+			}
+		}
+
+		unitHashesSorted := slices.SortedFunc(slices.Values(units), cmpHashStringsGenerator(pv.lookupHash, nil))
+		for _, unit := range unitHashesSorted {
+			if _, contains := pv.objects[unit]; !contains {
+				continue
+			}
+			object := pv.objects[unit]
+			if !imgui.TreeNodeExStrV(fmt.Sprintf("%v %v", fnt.I.Box, filepath.Base(pv.lookupHash(unit))), flags) {
+				continue
+			}
+			pv.drawUnitMaterialSettings(unit, object, flags)
+
+			imgui.TreePop()
+		}
+		imgui.TreePop()
+	}
+}
+
+func (pv *UnitPreviewState) drawTreeViewEditor() {
+	defer imgui.End()
+	if pv.treeViewDrawn = imgui.BeginV(fnt.I.Settings+" Tree View", &pv.treeViewShown, imgui.WindowFlagsNoFocusOnAppearing); !pv.treeViewDrawn {
+		return
+	}
+	pv.drawNodeTree(pv.root, pv.rootHash, pv.root.matrix)
 }
 
 func (pv *UnitPreviewState) drawVisibilityMaskSelector() {
@@ -2565,106 +2722,6 @@ Drag to toggle multiple items (right-click to cancel)`)
 		}
 		pv.activeUDimListItem = nextActiveUDimListItem
 		pv.hoveredUDimListItem = nextHoveredUDimListItem
-	}
-	imgui.End()
-}
-
-func (pv *UnitPreviewState) drawMeshSelector() {
-	if pv.udimsSettingsDrawn = imgui.BeginV(fnt.I.FolderEye+" Mesh Selection", &pv.udimsSettingsShown, imgui.WindowFlagsNoFocusOnAppearing); pv.udimsSettingsDrawn {
-		nextActiveMeshListItem := int32(-1)
-		nextHoveredMeshListItem := int32(-1)
-		if imgui.Button("Reset") {
-			pv.objectsSelected = pv.objectsShownDefault
-		}
-		imgui.Separator()
-		imgui.PushStyleVarVec2(imgui.StyleVarItemSpacing,
-			imgui.NewVec2(imgui.CurrentStyle().ItemSpacing().X, 0))
-		dragging := pv.activeMeshListItem != -1 && pv.hoveredMeshListItem != -1
-		var draggingMin, draggingMax int32
-		if dragging {
-			draggingMin = min(pv.activeMeshListItem, pv.hoveredMeshListItem)
-			draggingMax = max(pv.activeMeshListItem, pv.hoveredMeshListItem)
-		}
-		var draggingMinPos, draggingMaxPos imgui.Vec2
-		seen := make(map[stingray.Hash]any)
-		sortedObjectIDs := slices.SortedFunc(maps.Keys(pv.renderedObjects), func(a, b stingray.Hash) int {
-			aString := pv.lookupHash(a)
-			bString := pv.lookupHash(b)
-			if strings.HasPrefix(aString, "0x") && strings.HasPrefix(bString, "0x") {
-				return a.Cmp(b)
-			} else if strings.HasPrefix(aString, "0x") {
-				return -1
-			} else if strings.HasPrefix(bString, "0x") {
-				return 1
-			}
-			return strings.Compare(aString, bString)
-		})
-		for _, renderedName := range sortedObjectIDs {
-			hash, contains := pv.getRenderedObjectUnitHash(renderedName)
-			if !contains {
-				continue
-			}
-			if _, contains := seen[hash]; contains {
-				continue
-			}
-			seen[hash] = true
-			sortedObjectKeys := slices.Sorted(maps.Keys(pv.objects[hash]))
-			for i := range int32(len(pv.objects[hash])) {
-				selected := pv.objectsSelected[hash][sortedObjectKeys[i]]
-				if dragging {
-					if i >= draggingMin && i <= draggingMax {
-						selected = !selected
-					}
-					if imgui.IsMouseClickedBool(imgui.MouseButtonRight) {
-						imgui.CurrentContext().SetActiveId(0)
-					}
-				}
-				pv.objectsShown[hash][sortedObjectKeys[i]] = selected
-				if imgui.IsMouseReleased(imgui.MouseButtonLeft) {
-					pv.objectsSelected[hash][sortedObjectKeys[i]] = selected
-				}
-				var icon string
-				if selected {
-					icon = fnt.I.Visibility
-				} else {
-					icon = fnt.I.VisibilityOff
-				}
-				imgui.PushIDStr(hash.String() + fmt.Sprint(i))
-				pos := imgui.CursorScreenPos()
-				size := imgui.NewVec2(imgui.ContentRegionAvail().X, imgui.FontSize())
-				if dragging {
-					if i == draggingMin {
-						draggingMinPos = pos
-					}
-					if i == draggingMax {
-						draggingMaxPos = pos.Add(size)
-					}
-				}
-				if selected {
-					imgui.WindowDrawList().AddRectFilled(pos, pos.Add(size), imgui.ColorU32Col(imgui.ColButton))
-				}
-				imutils.Textf(fmt.Sprintf("%s %s", icon, sortedObjectKeys[i]))
-				imgui.SetCursorScreenPos(pos)
-				imgui.SetNextItemAllowOverlap()
-				imgui.InvisibleButton("btn", size)
-				if imgui.IsItemActive() {
-					nextActiveMeshListItem = i
-				}
-				hovered := imgui.ItemStatusFlags(imgui.CurrentContext().LastItemData().CData.StatusFlags)&imgui.ItemStatusFlagsHoveredRect != 0
-				if hovered {
-					nextHoveredMeshListItem = i
-				}
-				imgui.SetItemTooltip(`Click to toggle item visibility
-Drag to toggle multiple items (right-click to cancel)`)
-				imgui.PopID()
-			}
-		}
-		imgui.PopStyleVar()
-		if dragging {
-			imgui.WindowDrawList().AddRectV(draggingMinPos, draggingMaxPos, imgui.ColorU32Col(imgui.ColButtonActive), 0, 0, imgui.DrawFlagsNone)
-		}
-		pv.activeMeshListItem = nextActiveMeshListItem
-		pv.hoveredMeshListItem = nextHoveredMeshListItem
 	}
 	imgui.End()
 }
