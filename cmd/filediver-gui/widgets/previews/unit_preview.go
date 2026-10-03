@@ -2640,7 +2640,7 @@ func (pv *UnitPreviewState) drawNodeTree(curr unitPreviewNode, nodeId stingray.H
 
 func (pv *UnitPreviewState) drawTreeViewEditor() {
 	defer imgui.End()
-	if pv.treeViewDrawn = imgui.BeginV(fnt.I.Settings+" Tree View", &pv.treeViewShown, imgui.WindowFlagsNoFocusOnAppearing); !pv.treeViewDrawn {
+	if pv.treeViewDrawn = imgui.BeginV(fnt.I.Settings+" Tree View", &pv.treeViewShown, 0); !pv.treeViewDrawn {
 		return
 	}
 	pv.drawNodeTree(pv.root, pv.rootHash, pv.root.matrix)
