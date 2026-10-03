@@ -389,6 +389,7 @@ Action_Group/Attention_Salute_Loop
 Action_Group/Break_Coffee
 Action_Group/Empty_State
 Action_Group/Generic_Victory_Cheer
+Action_Group/Robotics_Terminal_Work
 Action_Group/Salute_Enter_1
 Action_Group/Salute_Exit_1
 Action_Group/Salute_Loop
@@ -514,6 +515,7 @@ Actions_Group/tongue_attack
 Actions_Group/traverse_jump
 Activate
 Add_Shoot
+Additive_Clip_State
 Aentity
 Aim
 Android
@@ -549,6 +551,7 @@ BLEND_TRANSPARENT
 BOX_FILTER
 Backpack
 Backpack_Crouch
+Barrel_Spin
 Barrels/Empty_State
 Barrels/Rotating
 Barrels/Wind_Down
@@ -575,15 +578,22 @@ Base/Guarding/Walk
 Base/Guarding/idle
 Base/Idle
 Base/Mechanic_Jog
+Base/Pillar_Dormant
 Base/Ragdoll
 Base/Spin_Down
 Base/Spin_Loop
 Base/Spin_Up
+Base/Tower_Prepared
+Base/Tower_Raise
+Base/Tower_Raised
+Base/Turn_Adjust_180
+Base/Turn_Adjust_90
 Base/Walk
 Base/alarm
 Base/attack_flight
 Base/attack_spew_end
 Base/attack_spew_enter
+Base/attack_spew_loop_1
 Base/bite
 Base/bite_jump
 Base/burrow
@@ -647,6 +657,8 @@ Belt/Reload
 Belt/Reload_Fast
 Bff-C
 Bff-Cm
+Bipod_Fold
+Bipod_Open
 Bloom
 Bolt_Open
 Borken
@@ -870,15 +882,20 @@ Global Lighting
 Global Sine
 Global Utility
 Group
+Group_State/Additive_Clip_State
 Group_State/Admiral_Intro
 Group_State/Agro_Variation
 Group_State/Agro_Variation_1
 Group_State/AngledGrip
 Group_State/AngledGrip_Advanced
 Group_State/AngledGrip_Laser
+Group_State/Armor_Dead_Front
+Group_State/Armor_Dead_Left
+Group_State/Armor_Dead_Right
 Group_State/Arms_Activate
 Group_State/Arms_Activated
 Group_State/Arms_Deactivate
+Group_State/Attach_Holster_Base
 Group_State/Attack
 Group_State/Attack_execute
 Group_State/Back
@@ -886,6 +903,7 @@ Group_State/Belly_Thrusters_Deploy
 Group_State/Belly_Thrusters_Deployed
 Group_State/Belly_Thrusters_Idle
 Group_State/Belly_Thrusters_Undeploy
+Group_State/Belly_Thrusters_Undeployed
 Group_State/Blocker
 Group_State/Bridge/Aim_Horizontal
 Group_State/Bridge/bridge_add
@@ -919,6 +937,10 @@ Group_State/Death_Body_Front
 Group_State/Death_Body_Left
 Group_State/Death_Body_Right
 Group_State/Death_Head
+Group_State/Death_Leg_Left_Back
+Group_State/Death_Leg_Left_Front
+Group_State/Death_Leg_Right_Back
+Group_State/Death_Leg_Right_Front
 Group_State/Default
 Group_State/Default_dead
 Group_State/Default_land
@@ -930,8 +952,11 @@ Group_State/Doors_Opened
 Group_State/Dormant
 Group_State/Drill_Prepared
 Group_State/Drill_Sequence_1
+Group_State/Drill_Sequence_1_Idle
 Group_State/Drill_Sequence_2
+Group_State/Drill_Sequence_2_Idle
 Group_State/Drill_Sequence_3
+Group_State/Drill_Sequence_3_Idle
 Group_State/Emerge
 Group_State/Empty
 Group_State/Empty_State
@@ -946,6 +971,7 @@ Group_State/Enter
 Group_State/Exhausts_Deploy
 Group_State/Exhausts_Deployed
 Group_State/Exhausts_Undeploy
+Group_State/Exhausts_Undeployed
 Group_State/Exit
 Group_State/Face_Closed
 Group_State/Fire
@@ -959,6 +985,9 @@ Group_State/Foliage_Add
 Group_State/Foliage_Add_Exit
 Group_State/Front
 Group_State/Full_Rev
+Group_State/Guard_Sentry_Enter
+Group_State/Guard_Sentry_Exit
+Group_State/Guard_Sentry_Loop
 Group_State/Guarding
 Group_State/Guarding_Head_Variation
 Group_State/Head
@@ -983,6 +1012,8 @@ Group_State/Iris_Closed
 Group_State/Iris_Opened
 Group_State/Kinematic
 Group_State/Left
+Group_State/Light_Loop
+Group_State/Light_Loop_Start
 Group_State/Loop
 Group_State/Minor_Taunt
 Group_State/Move
@@ -992,6 +1023,7 @@ Group_State/Nod_Talking_01
 Group_State/Normal_Loop
 Group_State/Null
 Group_State/Off
+Group_State/Oil_Hose_Idle
 Group_State/Open
 Group_State/Open_Idle
 Group_State/Open_Iris
@@ -1000,6 +1032,10 @@ Group_State/Open_to_Neutral
 Group_State/Overload
 Group_State/Pack_Up
 Group_State/Packed_up
+Group_State/Pillar_1_Prepare
+Group_State/Pillar_2_Prepare
+Group_State/Pillar_3_Prepare
+Group_State/Pillar_Dormant
 Group_State/Pitch
 Group_State/Power_Off
 Group_State/Power_On
@@ -1084,6 +1120,8 @@ Group_State/Task_Praying_Loop
 Group_State/Turn_Off
 Group_State/Turn_On
 Group_State/Turret_Recoil
+Group_State/Undeployed
+Group_State/Unwielded
 Group_State/Variation_1
 Group_State/Variation_2
 Group_State/Variation_Micro
@@ -1099,6 +1137,12 @@ Group_State/action_smash_enter_1
 Group_State/action_smash_execute
 Group_State/action_stomp_left
 Group_State/action_stomp_right
+Group_State/action_swipe_left_enter
+Group_State/action_swipe_left_execute
+Group_State/action_swipe_left_exit
+Group_State/action_swipe_right_enter
+Group_State/action_swipe_right_execute
+Group_State/action_swipe_right_exit
 Group_State/activate
 Group_State/activated_idle
 Group_State/active_loop
@@ -1131,6 +1175,10 @@ Group_State/attack_barrage_right
 Group_State/attack_combo_execute
 Group_State/attack_combo_windup
 Group_State/attack_dive
+Group_State/attack_leap_left_execute
+Group_State/attack_leap_left_windup
+Group_State/attack_leap_right_execute
+Group_State/attack_leap_right_windup
 Group_State/attack_thrash
 Group_State/autoshotgun_add
 Group_State/barrage_left
@@ -1302,7 +1350,9 @@ Group_State/horizontal_swipe
 Group_State/horizontal_swipe_windup
 Group_State/idle
 Group_State/idle_a
+Group_State/idle_attack_left_execute
 Group_State/idle_attack_right
+Group_State/idle_attack_right_execute
 Group_State/idle_b
 Group_State/idle_guard
 Group_State/idle_in
@@ -1805,6 +1855,7 @@ OneShot
 Opaque Lighting
 Open_Close
 Open_Floor_Hatch
+Open_Floor_Hatch_Idle
 Open_Locks
 Overload
 Override/Crouching/Foliage
@@ -1817,17 +1868,24 @@ Override/Crouching/directional_shield_draw
 Override/Crouching/directional_shield_melee
 Override/Crouching/flag
 Override/Crouching/foliage_exit
+Override/Crouching/onehand_drop
 Override/Crouching/shield
 Override/Crouching/shield_aim
 Override/Crouching/shield_draw
 Override/Crouching/shield_holster
 Override/Crouching/shield_melee
+Override/Crouching/twohand_drop
+Override/Crouching/twohand_drop_stratagem
+Override/Crouching/twohand_stratagem
+Override/Crouching/twohand_throw
+Override/Crouching/twohand_throw_stratagem
 Override/Prone/Idle
 Override/Prone/directional_shield
 Override/Prone/directional_shield_aim
 Override/Prone/directional_shield_draw
 Override/Prone/directional_shield_melee
 Override/Prone/flag
+Override/Prone/onehand_drop
 Override/Prone/shield
 Override/Prone/shield_aim
 Override/Prone/shield_draw
@@ -1843,11 +1901,17 @@ Override/Standing/directional_shield_draw
 Override/Standing/directional_shield_melee
 Override/Standing/flag
 Override/Standing/foliage_exit
+Override/Standing/onehand_drop
 Override/Standing/shield
 Override/Standing/shield_aim
 Override/Standing/shield_draw
 Override/Standing/shield_holster
 Override/Standing/shield_melee
+Override/Standing/twohand_drop
+Override/Standing/twohand_drop_stratagem
+Override/Standing/twohand_stratagem
+Override/Standing/twohand_throw
+Override/Standing/twohand_throw_stratagem
 PAV*
 PCF_5X5
 PIXEL_COORDINATES
@@ -1890,6 +1954,7 @@ Plane_Primitive
 Planet Atmosphere
 Playing_Id
 Pn=core/stingray_renderer/shading_environment_components/weathering_resources
+Pods_Aim
 Position
 Position	node
 Positioning
@@ -2010,8 +2075,13 @@ Reload/reload_onehand
 Reload_Fast
 Reload_Feedbullet
 Reload_Feedgrenade
+Reload_Group/Breaker_Drum
+Reload_Group/Breaker_Fast
 Reload_Group/Empty_State
+Reload_Group/Jet_Rifle
 Reload_Group/Laser_rifle_long
+Reload_Group/Reload_Lasercannon
+Reload_Group/Stalwart_Reload
 Reload_Group/assault_rifle_grenadier
 Reload_Group/assault_rifle_grenadier_fast
 Reload_Group/assault_rifle_grenadier_launcher
@@ -2167,6 +2237,7 @@ Reload_Group/trenchgun_pump
 Remove_Card
 Render Utility
 Right_Mag
+Root_Motion_Flight
 Root_Position
 Rotation
 SAMPLE
@@ -2225,6 +2296,7 @@ Spawn/Spawn_Bughole_Right
 Spawn/Spawn_Deploy
 Spawn/Spawn_Falling
 Spawn/Spawn_Landing
+Spawn/Spawn_Spawner
 Spawn/Spawn_Start
 Spawn/spawn_door
 Sphere Push/Pull
@@ -94902,6 +94974,7 @@ content/env_super_earth/wartorn/wartorn_shuttle_gunship_legs
 content/fac_bugs/cha_alpha_charger/cha_alpha_charger
 content/fac_bugs/cha_boomer/animations/additive_none
 content/fac_bugs/cha_boomer/animations/alarm
+content/fac_bugs/cha_boomer/animations/attack_bite
 content/fac_bugs/cha_boomer/animations/barks/surprised
 content/fac_bugs/cha_boomer/animations/barks/suspicious
 content/fac_bugs/cha_boomer/animations/barks/target_aquired
@@ -94910,6 +94983,7 @@ content/fac_bugs/cha_boomer/animations/burrow
 content/fac_bugs/cha_boomer/animations/calm_down
 content/fac_bugs/cha_boomer/animations/explode
 content/fac_bugs/cha_boomer/animations/idle
+content/fac_bugs/cha_boomer/animations/jump_attack
 content/fac_bugs/cha_boomer/animations/player_spotted
 content/fac_bugs/cha_boomer/animations/puke_enter_1
 content/fac_bugs/cha_boomer/animations/puke_exit_1
@@ -94978,6 +95052,7 @@ content/fac_bugs/cha_charger_bull/cha_charger_bull_ccras
 content/fac_bugs/cha_charger_bull/cha_charger_bull_normal
 content/fac_bugs/cha_charger_bull/cha_charger_bull_sss
 content/fac_bugs/cha_charger_burrower/cha_charger_burrower
+content/fac_bugs/cha_charger_burrower/textures/cha_charger_burrower_normal
 content/fac_bugs/cha_dragon/animations/locomotion/fly
 content/fac_bugs/cha_dragon/animations/locomotion/fly_turn_lft
 content/fac_bugs/cha_dragon/animations/locomotion/fly_turn_rgt
@@ -95254,6 +95329,7 @@ content/fac_cyborgs/cha_berserker/cha_berserker_jumppack
 content/fac_cyborgs/cha_conscript/animation/actions/flamethrower_enter
 content/fac_cyborgs/cha_conscript/animation/actions/flamethrower_exit
 content/fac_cyborgs/cha_conscript/animation/actions/flamethrower_idle
+content/fac_cyborgs/cha_conscript/animation/actions/grenade_throw_1
 content/fac_cyborgs/cha_conscript/animation/actions/order_point
 content/fac_cyborgs/cha_conscript/animation/actions/reload_smg
 content/fac_cyborgs/cha_conscript/animation/emplacements/hmg_enter
@@ -97545,6 +97621,7 @@ content/fac_illuminate/cha_illuminate_guy_staff/animations/actions/shoot_execute
 content/fac_illuminate/cha_illuminate_guy_staff/animations/actions/shoot_exit
 content/fac_illuminate/cha_illuminate_guy_staff/animations/actions/shoot_idle
 content/fac_illuminate/cha_illuminate_guy_staff/animations/actions/smash_execute
+content/fac_illuminate/cha_illuminate_guy_staff/animations/actions/smash_windup
 content/fac_illuminate/cha_illuminate_guy_staff/animations/actions/taunt_01
 content/fac_illuminate/cha_illuminate_guy_staff/animations/actions/taunt_02
 content/fac_illuminate/cha_illuminate_guy_staff/animations/actions/taunt_03
@@ -105958,8 +106035,10 @@ packages/generated/loadout/directional_energy_shield
 packages/generated/loadout/directional_energy_shield_backpack
 packages/generated/loadout/displacement_backpack
 packages/generated/loadout/drilling_charge
+packages/generated/loadout/drone_assault_rifle_backpack
 packages/generated/loadout/drone_flamethrower_backpack
 packages/generated/loadout/drone_gas_projector_backpack
+packages/generated/loadout/drone_laser_rifle_backpack
 packages/generated/loadout/drone_mg_backpack
 packages/generated/loadout/dust_devils
 packages/generated/loadout/eagle_airstrike
@@ -106093,6 +106172,7 @@ packages/generated/loadout/plasma_turret
 packages/generated/loadout/poison_drill_01
 packages/generated/loadout/power_sword
 packages/generated/loadout/prospecting_drill
+packages/generated/loadout/pump_action_shotgun_plasma
 packages/generated/loadout/pump_shotgun
 packages/generated/loadout/pump_shotgun_dragon
 packages/generated/loadout/pump_shotgun_stun
@@ -106116,6 +106196,9 @@ packages/generated/loadout/samples_tech
 packages/generated/loadout/samples_uranium
 packages/generated/loadout/sandstorm
 packages/generated/loadout/seaf_assault_rifle
+packages/generated/loadout/seaf_gun_ammo_emp
+packages/generated/loadout/seaf_gun_ammo_napalm
+packages/generated/loadout/seaf_gun_ammo_smoke
 packages/generated/loadout/seaf_machinegun
 packages/generated/loadout/seaf_smg
 packages/generated/loadout/seaf_squad
