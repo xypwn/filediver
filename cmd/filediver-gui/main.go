@@ -53,6 +53,8 @@ var (
 		stingray.Sum("wwise_stream"):   "loose audio",
 		stingray.Sum("texture"):        "image/texture",
 		stingray.Sum("unit"):           "3D model",
+		stingray.Sum("prefab"):         "pre-arranged group of 3D models",
+		stingray.Sum("level"):          "objectives/POIs",
 		stingray.Sum("speedtree"):      "3D model for vegetation",
 		stingray.Sum("strings"):        "text table",
 		stingray.Sum("package"):        "file bundle",
@@ -72,7 +74,7 @@ const ffmpegFeatures = `- Preview video
 - Convert audio to OGG/AAC/MP3
 - Convert video to MP4`
 
-const scriptsDistFeatures = `- Export models (units/geometry_groups/prefabs) and materials to .blend (Blender)`
+const scriptsDistFeatures = `- Export models (units/geometry_groups/prefabs/levels) and materials to .blend (Blender)`
 
 var selfUpdateTask tasks.TaskFunc = tasks.Pipeline(
 	"Preparing##prep##0.1", func(ctx context.Context, params map[string]any, onProgress func(prog float64), onStatus func(string)) (result map[string]any, err error) {
@@ -698,6 +700,7 @@ func (a *guiApp) drawBrowserWindow() {
 								stingray.Sum("wwise_bank"),
 								stingray.Sum("wwise_stream"),
 								stingray.Sum("unit"),
+								stingray.Sum("prefab"),
 								stingray.Sum("speedtree"),
 								stingray.Sum("strings"),
 								stingray.Sum("xaml"),
