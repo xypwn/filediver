@@ -234,6 +234,7 @@ Activate
 Add_Shoot
 Additive_Clip_State
 Aim
+Any
 Arm_Missiles
 Arm_Missiles_Revert
 Attach_Holster
@@ -1564,6 +1565,7 @@ Root_Position
 SEAF_artillery_terminal
 Safe
 Shortcut_State
+Slim
 Spawn/Burrow
 Spawn/Death_Stagger
 Spawn/Empty_State
@@ -1615,6 +1617,7 @@ States/fly_in
 States/fly_in_city
 States/fly_out
 States/fly_out_city
+Stocky
 Stop
 Stunned
 Stunned/Crawl/Empty_State
