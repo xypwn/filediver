@@ -80,6 +80,20 @@ func (t GLType) Size() uint32 {
 	return 0
 }
 
+func (t GLType) Count() int32 {
+	switch t {
+	case GL_BYTE, GL_UNSIGNED_BYTE, GL_SHORT, GL_UNSIGNED_SHORT, GL_HALF_FLOAT, GL_INT, GL_UNSIGNED_INT, GL_FIXED, GL_FLOAT, GL_BOOL, GL_DOUBLE:
+		return 1
+	case GL_FLOAT_VEC2:
+		return 2
+	case GL_FLOAT_VEC3:
+		return 3
+	case GL_FLOAT_VEC4:
+		return 4
+	}
+	return 0
+}
+
 func CreateShader(source string, shaderType uint32) (uint32, error) {
 	shader := gl.CreateShader(shaderType)
 	{

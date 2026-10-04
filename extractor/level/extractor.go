@@ -33,7 +33,7 @@ type SimpleMaterial struct {
 }
 
 type SimplePrefab struct {
-	UUID string `json:"uuid"`
+	Name string `json:"name"`
 	Path string `json:"path"`
 	stingray.Transform
 	UnkExtraRotation mgl32.Vec4 `json:"extra_rotation"`
@@ -136,7 +136,7 @@ func ExtractLevelJSON(ctx *extractor.Context) error {
 	prefabs := make([]SimplePrefab, 0)
 	for _, prefab := range levelData.Prefabs {
 		prefabs = append(prefabs, SimplePrefab{
-			UUID:             ctx.LookupHash(prefab.UUIDHash),
+			Name:             ctx.LookupHash(prefab.Name),
 			Path:             ctx.LookupHash(prefab.Path),
 			Transform:        prefab.Transform,
 			UnkExtraRotation: prefab.UnkExtraRotation,
@@ -183,7 +183,7 @@ func ExtractLevelJSON(ctx *extractor.Context) error {
 	units := make([]SimpleUnit, 0)
 	for _, unit := range levelData.Units {
 		units = append(units, SimpleUnit{
-			UUID:      ctx.LookupHash(unit.UUIDHash),
+			UUID:      ctx.LookupHash(unit.UUID),
 			Name:      ctx.LookupHash(unit.Name),
 			Path:      ctx.LookupHash(unit.Path()),
 			Transform: unit.Transform,

@@ -13,8 +13,8 @@ import (
 )
 
 type Unit struct {
-	UUIDHash stingray.Hash // hm yes, today I'll represent a 128 bit number as a 64 bit hash of the string representation of the 128 bit number
-	Name     stingray.Hash
+	UUID stingray.Hash // hm yes, today I'll represent a 128 bit number as a 64 bit hash of the string representation of the 128 bit number
+	Name stingray.Hash
 	stingray.Hash
 	_ [8]uint8
 	stingray.Transform
@@ -26,8 +26,8 @@ func (p *Unit) Path() stingray.Hash {
 }
 
 type Prefab struct {
-	UUIDHash stingray.Hash
-	Path     stingray.Hash
+	Name stingray.Hash
+	Path stingray.Hash
 	stingray.Transform
 	UnkExtraRotation mgl32.Vec4
 }
