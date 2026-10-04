@@ -208,6 +208,7 @@ type unitPreviewMaterialTexture struct {
 
 type unitPreviewMaterial struct {
 	name          string
+	shown         bool
 	id            stingray.Hash
 	program       uint32
 	uniforms      unitPreviewUniforms
@@ -467,6 +468,7 @@ func NewUnitPreview(getResource GetResourceFunc, ArmorParams ExtractorArmorParam
 	//pv.object.genObjects(true, 0)
 
 	pv.wireframeMaterial.name = "wireframe"
+	pv.wireframeMaterial.shown = true
 	err = pv.wireframeMaterial.generate(
 		[]string{
 			"shaders/object_wireframe.vert",
@@ -481,6 +483,7 @@ func NewUnitPreview(getResource GetResourceFunc, ArmorParams ExtractorArmorParam
 	}
 
 	pv.normalVisMaterial.name = "normal visualization"
+	pv.normalVisMaterial.shown = true
 	err = pv.normalVisMaterial.generate(
 		[]string{
 			"shaders/object_normal_vis.vert",
@@ -495,6 +498,7 @@ func NewUnitPreview(getResource GetResourceFunc, ArmorParams ExtractorArmorParam
 	}
 
 	pv.boundingBoxMaterial.name = "bounding box"
+	pv.boundingBoxMaterial.shown = true
 	err = pv.boundingBoxMaterial.generate(
 		[]string{
 			"shaders/debug_object.vert",
@@ -1257,7 +1261,14 @@ func (pv *UnitPreviewState) LoadPrefab(fileID stingray.Hash, mainData []byte, ge
 
 	pv.maxViewDistance = 0.001
 
-	children, err := pv.loadPrefab(fileID, mainData, getResource, thinhashes)
+	pv.lookupThinHash = func(hash stingray.ThinHash) string {
+		if name, ok := thinhashes[hash]; ok {
+			return name
+		}
+		return hash.String()
+	}
+
+	children, err := pv.loadPrefab(fileID, mainData, getResource)
 	pv.root = unitPreviewNode{
 		name:     fileID,
 		shown:    true,
@@ -1270,7 +1281,7 @@ func (pv *UnitPreviewState) LoadPrefab(fileID stingray.Hash, mainData []byte, ge
 	return err
 }
 
-func (pv *UnitPreviewState) loadPrefab(fileID stingray.Hash, mainData []byte, getResource GetResourceFunc, thinhashes map[stingray.ThinHash]string) ([]stingray.Hash, error) {
+func (pv *UnitPreviewState) loadPrefab(fileID stingray.Hash, mainData []byte, getResource GetResourceFunc) ([]stingray.Hash, error) {
 	info, err := prefab.Load(bytes.NewReader(mainData))
 	if err != nil {
 		return []stingray.Hash{}, err
@@ -1301,7 +1312,7 @@ func (pv *UnitPreviewState) loadPrefab(fileID stingray.Hash, mainData []byte, ge
 		// Some units won't have GPU data but will have terrain or geometry group info
 		unitGpuData, _, _ := getResource(stingray.NewFileID(unit.Hash, stingray.Sum("unit")), stingray.DataGPU)
 
-		err = pv.loadUnit(unit.Hash, unitMainData, unitGpuData, getResource, thinhashes)
+		err = pv.loadUnit(unit.Hash, unitMainData, unitGpuData, getResource)
 		if err != nil {
 			return contents, fmt.Errorf("loading %v.unit in %v.prefab for rendering: %v", pv.lookupHash(unit.Hash), pv.lookupHash(fileID), err)
 		}
@@ -1330,7 +1341,7 @@ func (pv *UnitPreviewState) loadPrefab(fileID stingray.Hash, mainData []byte, ge
 			return contents, fmt.Errorf("%v.prefab in %v.prefab does not exist", pv.lookupHash(prefab.Path), pv.lookupHash(fileID))
 		}
 
-		nestedChildren, err = pv.loadPrefab(prefab.Path, prefabMainData, getResource, thinhashes)
+		nestedChildren, err = pv.loadPrefab(prefab.Path, prefabMainData, getResource)
 		if err != nil {
 			return contents, fmt.Errorf("loading %v.unit in %v.prefab for rendering: %v", pv.lookupHash(prefab.Path), pv.lookupHash(fileID), err)
 		}
@@ -1362,7 +1373,14 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 	pv.rootHash = fileID
 	pv.nodes[fileID] = pv.root
 
-	err := pv.loadUnit(fileID, mainData, gpuData, getResource, thinhashes)
+	pv.lookupThinHash = func(hash stingray.ThinHash) string {
+		if name, ok := thinhashes[hash]; ok {
+			return name
+		}
+		return hash.String()
+	}
+
+	err := pv.loadUnit(fileID, mainData, gpuData, getResource)
 	if err != nil {
 		return err
 	}
@@ -1372,17 +1390,10 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 	return nil
 }
 
-func (pv *UnitPreviewState) loadUnit(fileID stingray.Hash, mainData, gpuData []byte, getResource GetResourceFunc, thinhashes map[stingray.ThinHash]string) error {
+func (pv *UnitPreviewState) loadUnit(fileID stingray.Hash, mainData, gpuData []byte, getResource GetResourceFunc) error {
 	info, err := unit.LoadInfo(bytes.NewReader(mainData))
 	if err != nil {
 		return err
-	}
-
-	pv.lookupThinHash = func(hash stingray.ThinHash) string {
-		if name, ok := thinhashes[hash]; ok {
-			return name
-		}
-		return hash.String()
 	}
 
 	var armorInfo *datalib.UnitData
@@ -1551,6 +1562,7 @@ func (pv *UnitPreviewState) loadUnit(fileID stingray.Hash, mainData, gpuData []b
 				}
 				object.materials[group].id = matFileName
 				object.materials[group].name = pv.lookupThinHash(matID)
+				object.materials[group].shown = !strings.Contains(object.materials[group].name, "gibs")
 			}
 			if err := pv.loadMaterials(getResource, &object, armorInfo, pv.lookupThinHash); err != nil {
 				return err
@@ -1731,10 +1743,7 @@ func (pv *UnitPreviewState) loadUnit(fileID stingray.Hash, mainData, gpuData []b
 			pv.numUdims = max(uint32(info.Index)+1, pv.numUdims)
 
 			pv.udimsShownDefault[info.Index] = info.StartHidden == 0
-			name, ok := thinhashes[info.Name]
-			if !ok {
-				name = info.Name.String()
-			}
+			name := pv.lookupThinHash(info.Name)
 			pv.udimNames[info.Index] = name
 		}
 	}
@@ -1752,6 +1761,43 @@ func (pv *UnitPreviewState) loadUnit(fileID stingray.Hash, mainData, gpuData []b
 
 	pv.loadUnitGetResourceFunc = getResource
 	return nil
+}
+
+// Loads the specified armor set and any others in the armor set list that share the armor set id
+// Therefore this can load the armor and helmet at the same time
+func (pv *UnitPreviewState) loadArmorSet(armorSets []datalib.ArmorSet, selectedSet int32) {
+	pv.Clear()
+	children := make([]stingray.Hash, 0)
+	setId := armorSets[selectedSet].SetId
+	for _, set := range armorSets {
+		if set.SetId != setId {
+			continue
+		}
+		for childHash := range set.UnitMetadata {
+			fileId := stingray.NewFileID(childHash, stingray.Sum("unit"))
+			unitMain, exists, err := pv.loadUnitGetResourceFunc(fileId, stingray.DataMain)
+			if err != nil || !exists {
+				continue
+			}
+			unitGpu, _, _ := pv.loadUnitGetResourceFunc(fileId, stingray.DataGPU)
+			if err := pv.loadUnit(childHash, unitMain, unitGpu, pv.loadUnitGetResourceFunc); err != nil {
+				continue
+			}
+			children = append(children, childHash)
+		}
+	}
+	pv.root = unitPreviewNode{
+		name:     armorSets[selectedSet].Archive,
+		shown:    true,
+		matrix:   mgl32.Ident4(),
+		children: children,
+		parent:   stingray.Hash{},
+	}
+	pv.rootHash = pv.root.name
+	pv.nodes[pv.rootHash] = pv.root
+
+	pv.maxViewDistance = pv.getMaxZoom(pv.root, pv.rootHash, false)
+	pv.modelPos = mgl32.Vec4{0.0, 0.0, 0.0, 1.0}
 }
 
 func (pv *UnitPreviewState) computeMVP(aspectRatio float32, animate bool) (
@@ -1849,6 +1895,9 @@ func (pv *UnitPreviewState) drawObject(hash stingray.Hash, matrix, translation, 
 		}
 		for group, ibo := range pv.objects[hash][name].ibos {
 			if !pv.showWireframe {
+				if !pv.objects[hash][name].materials[group].shown {
+					continue
+				}
 				gl.UseProgram(pv.objects[hash][name].materials[group].program)
 				gl.UniformMatrix4fv(pv.objects[hash][name].materials[group].uniforms["mvp"], 1, false, &mvp[0])
 				gl.UniformMatrix4fv(pv.objects[hash][name].materials[group].uniforms["model"], 1, false, &model[0])
@@ -2408,16 +2457,54 @@ func (pv *UnitPreviewState) Draw(previewId string) {
 	}
 
 	currentArchives := pv.getSelectedArchives()
+
+	var armorSets []datalib.ArmorSet
+	if len(currentArchives) > 0 {
+		armorSets = make([]datalib.ArmorSet, 0)
+		maxStr := ""
+		for idx := range currentArchives {
+			var set datalib.ArmorSet
+			var contains bool
+			if set, contains = pv.armorSets[currentArchives[idx]]; !contains {
+				continue
+			}
+			if len(set.Name) > len(maxStr) {
+				maxStr = set.Name
+			}
+			armorSets = append(armorSets, set)
+		}
+		armorSets := slices.SortedFunc(slices.Values(armorSets), func(a, b datalib.ArmorSet) int {
+			return strings.Compare(a.Name, b.Name)
+		})
+		if len(armorSets) > 0 {
+			imgui.SameLine()
+			var selectedSet int32 = -1
+			width := imgui.CalcTextSize(maxStr).X + 2*imgui.CurrentStyle().FramePadding().X
+			imgui.SetNextItemWidth(width + imgui.TextLineHeightWithSpacing())
+			seenNames := make(map[string]any)
+			if imgui.BeginComboV("Load Armor Set...", "", imgui.ComboFlagsNone) {
+				for idx, set := range armorSets {
+					if _, contains := seenNames[set.Name]; contains {
+						continue
+					}
+					imgui.SetNextItemWidth(width)
+					if imgui.SelectableBoolV(set.Name, int32(idx) == selectedSet, imgui.SelectableFlagsNone, imgui.NewVec2(width, 0)) {
+						selectedSet = int32(idx)
+					}
+					seenNames[set.Name] = true
+				}
+				imgui.EndCombo()
+			}
+			if selectedSet != -1 {
+				pv.loadArmorSet(armorSets, selectedSet)
+			}
+		}
+	}
+
 	if len(pv.previousSelectedArchives) != len(currentArchives) {
 		for hash := range pv.objects {
 			var armorInfo *datalib.UnitData
-			for idx := range currentArchives {
-				var set datalib.ArmorSet
-				var contains bool
-				if set, contains = pv.armorSets[currentArchives[idx]]; !contains {
-					continue
-				}
-
+			for _, set := range armorSets {
 				value, contains := set.UnitMetadata[hash]
 				if !contains {
 					continue
@@ -2576,6 +2663,25 @@ func (pv *UnitPreviewState) drawUnitMaterialSettings(unit stingray.Hash, object 
 		for idx := range pv.objects[unit][mesh].materials {
 			if !imutils.TreeNodeExcf(*color, flags, "%s %s", fnt.I.Texture, pv.objects[unit][mesh].materials[idx].name) {
 				continue
+			}
+			matShown := pv.objects[unit][mesh].materials[idx].shown
+			if matShown {
+				icon = fnt.I.Visibility
+			} else {
+				icon = fnt.I.VisibilityOff
+			}
+			rootPos := imgui.CursorScreenPos()
+			size := imgui.NewVec2(imgui.ContentRegionAvail().X, imgui.FontSize())
+			imutils.Textcf(*color, "%v Toggle Visibility", icon)
+			imgui.SetCursorScreenPos(rootPos)
+			imgui.SetNextItemAllowOverlap()
+			if imgui.InvisibleButton("btnMat", size) {
+				pv.objects[unit][mesh].materials[idx].shown = !matShown
+			}
+			if matShown && shown {
+				color = imgui.StyleColorVec4(imgui.ColText)
+			} else {
+				color = imgui.StyleColorVec4(imgui.ColTextDisabled)
 			}
 			imgui.PushStyleColorVec4(imgui.ColText, *color)
 			for block := range pv.objects[unit][mesh].materials[idx].uniformBlocks {
