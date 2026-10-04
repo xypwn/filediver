@@ -53,6 +53,8 @@ var (
 		stingray.Sum("wwise_stream"):   "loose audio",
 		stingray.Sum("texture"):        "image/texture",
 		stingray.Sum("unit"):           "3D model",
+		stingray.Sum("prefab"):         "pre-arranged group of 3D models",
+		stingray.Sum("level"):          "objectives/POIs",
 		stingray.Sum("speedtree"):      "3D model for vegetation",
 		stingray.Sum("strings"):        "text table",
 		stingray.Sum("package"):        "file bundle",
@@ -72,7 +74,7 @@ const ffmpegFeatures = `- Preview video
 - Convert audio to OGG/AAC/MP3
 - Convert video to MP4`
 
-const scriptsDistFeatures = `- Export models (units/geometry_groups/prefabs) and materials to .blend (Blender)`
+const scriptsDistFeatures = `- Export models (units/geometry_groups/prefabs/levels) and materials to .blend (Blender)`
 
 var selfUpdateTask tasks.TaskFunc = tasks.Pipeline(
 	"Preparing##prep##0.1", func(ctx context.Context, params map[string]any, onProgress func(prog float64), onStatus func(string)) (result map[string]any, err error) {
@@ -444,21 +446,19 @@ func (a *guiApp) onDraw(state *imgui_wrapper.State) {
 		if imgui.InternalDockBuilderGetNode(id).CData == nil || a.resetDockLayout {
 			imgui.InternalDockBuilderAddNodeV(id, imgui.DockNodeFlags(imgui.DockNodeFlagsDockSpace))
 			imgui.InternalDockBuilderSetNodeSize(id, dockSpaceSize)
-			var leftID, topLeftID, bottomLeftID, rightID, topRightID, centerID, bottomRightID, sideBarID, sideBarTopID, sideBarBottomID imgui.ID
-			imgui.InternalDockBuilderSplitNode(id, imgui.DirLeft, 0.3, &leftID, &rightID)
+			var leftID, topLeftID, bottomLeftID, rightID, topRightID, centerID, bottomRightID, sideBarID imgui.ID
+			imgui.InternalDockBuilderSplitNode(id, imgui.DirLeft, 0.25, &leftID, &rightID)
 			imgui.InternalDockBuilderSplitNode(leftID, imgui.DirDown, 0.4, &bottomLeftID, &topLeftID)
-			imgui.InternalDockBuilderSplitNode(rightID, imgui.DirRight, 0.15, &sideBarID, &centerID)
+			imgui.InternalDockBuilderSplitNode(rightID, imgui.DirRight, 0.25, &sideBarID, &centerID)
 			imgui.InternalDockBuilderSplitNode(centerID, imgui.DirDown, 0.4, &bottomRightID, &topRightID)
-			imgui.InternalDockBuilderSplitNode(sideBarID, imgui.DirDown, 0.5, &sideBarBottomID, &sideBarTopID)
 			imgui.InternalDockBuilderDockWindow(fnt.I.ViewList+" Browser", topLeftID)
 			imgui.InternalDockBuilderDockWindow(fnt.I.FileExport+" Export", bottomLeftID)
 			imgui.InternalDockBuilderDockWindow(fnt.I.SettingsApplications+" Extractor config", bottomLeftID)
 			imgui.InternalDockBuilderDockWindow(fnt.I.Preview+" Preview", topRightID)
 			imgui.InternalDockBuilderDockWindow(fnt.I.Tag+" Metadata", topRightID)
 			imgui.InternalDockBuilderDockWindow(fnt.I.DisplaySettings+" Material Settings", bottomRightID)
-			imgui.InternalDockBuilderDockWindow(fnt.I.FolderEye+" Visibility Mask Selection", sideBarTopID)
-			imgui.InternalDockBuilderDockWindow(fnt.I.FolderEye+" Mesh Selection", sideBarTopID)
-			imgui.InternalDockBuilderDockWindow(fnt.I.Settings+" Material Settings Editor", sideBarBottomID)
+			imgui.InternalDockBuilderDockWindow(fnt.I.FolderEye+" Visibility Mask Selection", sideBarID)
+			imgui.InternalDockBuilderDockWindow(fnt.I.Settings+" Tree View", sideBarID)
 			imgui.InternalDockBuilderFinish(id)
 			a.resetDockLayout = false
 		}
@@ -700,6 +700,7 @@ func (a *guiApp) drawBrowserWindow() {
 								stingray.Sum("wwise_bank"),
 								stingray.Sum("wwise_stream"),
 								stingray.Sum("unit"),
+								stingray.Sum("prefab"),
 								stingray.Sum("speedtree"),
 								stingray.Sum("strings"),
 								stingray.Sum("xaml"),

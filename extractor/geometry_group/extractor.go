@@ -88,7 +88,7 @@ func ConvertOpts(ctx *extractor.Context, imgOpts *extr_material.ImageOptions, gl
 		}
 
 		var meshNodes []uint32 = make([]uint32, 0)
-		err = geometry.LoadGLTF(ctx.WithFileID(unitId), fGPU, doc, meshInfos, meshInfo.Bones, geoGroup.MeshLayouts, unitInfo, &meshNodes, materialIdxs, *parent, skin)
+		err = geometry.LoadGLTF(ctx.WithFileID(unitId), fGPU, doc, meshInfos, meshInfo.MeshNames, geoGroup.MeshLayouts, unitInfo, &meshNodes, materialIdxs, *parent, skin)
 		if err != nil {
 			return err
 		}
