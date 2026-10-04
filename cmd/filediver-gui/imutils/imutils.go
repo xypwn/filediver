@@ -139,6 +139,7 @@ func Textcf(color imgui.Vec4, format string, args ...any) {
 
 func TreeNodeExf(flags imgui.TreeNodeFlags, format string, args ...any) bool {
 	if i := strings.Index(format, "##"); i != -1 {
+		imgui.PushIDStr(format[i+2:])
 		format = format[:i]
 	}
 	return imgui.TreeNodeExStrV(fmt.Sprintf(format, args...), flags)
