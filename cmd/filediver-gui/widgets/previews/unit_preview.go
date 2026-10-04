@@ -1767,8 +1767,28 @@ func (pv *UnitPreviewState) loadUnit(fileID stingray.Hash, mainData, gpuData []b
 // Therefore this can load the armor and helmet at the same time
 func (pv *UnitPreviewState) loadArmorSet(armorSets []datalib.ArmorSet, selectedSet int32) {
 	pv.Clear()
-	children := make([]stingray.Hash, 0)
 	setId := armorSets[selectedSet].SetId
+	pv.nodes[stingray.Sum("body_any")] = unitPreviewNode{
+		name:     stingray.Sum("Any"),
+		shown:    true,
+		matrix:   mgl32.Ident4(),
+		children: []stingray.Hash{},
+		parent:   armorSets[selectedSet].Archive,
+	}
+	pv.nodes[stingray.Sum("body_male")] = unitPreviewNode{
+		name:     stingray.Sum("Stocky"),
+		shown:    true,
+		matrix:   mgl32.Ident4(),
+		children: []stingray.Hash{},
+		parent:   armorSets[selectedSet].Archive,
+	}
+	pv.nodes[stingray.Sum("body_female")] = unitPreviewNode{
+		name:     stingray.Sum("Slim"),
+		shown:    true,
+		matrix:   mgl32.Ident4(),
+		children: []stingray.Hash{},
+		parent:   armorSets[selectedSet].Archive,
+	}
 	for _, set := range armorSets {
 		if set.SetId != setId {
 			continue
@@ -1783,15 +1803,32 @@ func (pv *UnitPreviewState) loadArmorSet(armorSets []datalib.ArmorSet, selectedS
 			if err := pv.loadUnit(childHash, unitMain, unitGpu, pv.loadUnitGetResourceFunc); err != nil {
 				continue
 			}
-			children = append(children, childHash)
+			switch set.UnitMetadata[childHash].BodyType {
+			case datalib.BodyTypeAny:
+				node := pv.nodes[stingray.Sum("body_any")]
+				node.children = append(node.children, childHash)
+				pv.nodes[stingray.Sum("body_any")] = node
+			case datalib.BodyTypeSlim:
+				node := pv.nodes[stingray.Sum("body_female")]
+				node.children = append(node.children, childHash)
+				pv.nodes[stingray.Sum("body_female")] = node
+			case datalib.BodyTypeStocky:
+				node := pv.nodes[stingray.Sum("body_male")]
+				node.children = append(node.children, childHash)
+				pv.nodes[stingray.Sum("body_male")] = node
+			}
 		}
 	}
 	pv.root = unitPreviewNode{
-		name:     armorSets[selectedSet].Archive,
-		shown:    true,
-		matrix:   mgl32.Ident4(),
-		children: children,
-		parent:   stingray.Hash{},
+		name:   armorSets[selectedSet].Archive,
+		shown:  true,
+		matrix: mgl32.Ident4(),
+		children: []stingray.Hash{
+			stingray.Sum("body_any"),
+			stingray.Sum("body_male"),
+			stingray.Sum("body_female"),
+		},
+		parent: stingray.Hash{},
 	}
 	pv.rootHash = pv.root.name
 	pv.nodes[pv.rootHash] = pv.root
