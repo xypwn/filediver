@@ -385,6 +385,8 @@ type UnitPreviewState struct {
 	meshPositions map[stingray.Hash]map[string][][3]float32
 	meshNormals   map[stingray.Hash]map[string][][3]float32
 
+	skeletonPositions map[stingray.Hash][]mgl32.Vec3
+
 	maxViewDistance float32
 
 	numUdims           uint32
@@ -1181,14 +1183,14 @@ func (pv *UnitPreviewState) Clear() {
 }
 
 // Calculate max zoom out distance
-func (pv *UnitPreviewState) getMaxZoom(node unitPreviewNode) (maxViewDistance float32) {
+func (pv *UnitPreviewState) getMaxZoom(node unitPreviewNode, nodeId stingray.Hash, useSkeleton bool) (maxViewDistance float32) {
 	// Get origin sphere around mesh
 	var maxDistSqrFromOrigin float32
-	var calcDistance func(curr unitPreviewNode, matrix mgl32.Mat4)
-	calcDistance = func(curr unitPreviewNode, matrix mgl32.Mat4) {
+	var calcDistance func(unitPreviewNode, stingray.Hash, mgl32.Mat4, bool)
+	calcDistance = func(curr unitPreviewNode, nodeId stingray.Hash, matrix mgl32.Mat4, useSkeleton bool) {
 		for _, childHash := range curr.children {
-			if child, contains := pv.nodes[childHash]; contains {
-				calcDistance(child, matrix.Mul4(child.matrix))
+			if child, contains := pv.nodes[childHash]; contains && nodeId != childHash {
+				calcDistance(child, childHash, matrix.Mul4(child.matrix), useSkeleton)
 			}
 			if _, contains := pv.objects[childHash]; contains {
 				for name := range pv.objects[childHash] {
@@ -1197,10 +1199,16 @@ func (pv *UnitPreviewState) getMaxZoom(node unitPreviewNode) (maxViewDistance fl
 							matrix.Mul4(pv.aabbMat[childHash][name]).Mul4x1(p.Vec4(1.0)).Vec3().LenSqr())
 					}
 				}
+				if skeletonVertices, contains := pv.skeletonPositions[childHash]; contains && useSkeleton {
+					for _, sk := range skeletonVertices {
+						maxDistSqrFromOrigin = max(maxDistSqrFromOrigin,
+							matrix.Mul4x1(sk.Vec4(1.0)).Vec3().LenSqr())
+					}
+				}
 			}
 		}
 	}
-	calcDistance(node, mgl32.Ident4())
+	calcDistance(node, nodeId, mgl32.Ident4(), useSkeleton)
 
 	maxDistFromOrigin := float32(math.Sqrt(float64(maxDistSqrFromOrigin)))
 
@@ -1258,7 +1266,7 @@ func (pv *UnitPreviewState) LoadPrefab(fileID stingray.Hash, mainData []byte, ge
 		parent:   stingray.Hash{},
 	}
 	pv.rootHash = fileID
-	pv.maxViewDistance = pv.getMaxZoom(pv.root)
+	pv.maxViewDistance = pv.getMaxZoom(pv.root, pv.rootHash, false)
 	return err
 }
 
@@ -1352,15 +1360,14 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 		parent:   stingray.Hash{},
 	}
 	pv.rootHash = fileID
-
-	pv.nodes[stingray.Hash{}] = pv.root
+	pv.nodes[fileID] = pv.root
 
 	err := pv.loadUnit(fileID, mainData, gpuData, getResource, thinhashes)
 	if err != nil {
 		return err
 	}
 
-	pv.maxViewDistance = pv.getMaxZoom(pv.root)
+	pv.maxViewDistance = pv.getMaxZoom(pv.root, pv.rootHash, len(pv.aabb[fileID]) == 0)
 
 	return nil
 }
@@ -1396,10 +1403,6 @@ func (pv *UnitPreviewState) loadUnit(fileID stingray.Hash, mainData, gpuData []b
 	}
 	pv.previousSelectedArchives = selectedArchives
 
-	if len(info.MeshInfos) == 0 && len(info.TerrainInfos) == 0 && info.GeometryGroup.Value == 0x0 {
-		return fmt.Errorf("unit contains no meshes")
-	}
-
 	setModelPos := len(pv.objects) == 0
 
 	if pv.objects == nil {
@@ -1412,6 +1415,7 @@ func (pv *UnitPreviewState) loadUnit(fileID stingray.Hash, mainData, gpuData []b
 		pv.aabbMat = make(map[stingray.Hash]map[string]mgl32.Mat4, 0)
 		pv.meshPositions = make(map[stingray.Hash]map[string][][3]float32)
 		pv.meshNormals = make(map[stingray.Hash]map[string][][3]float32)
+		pv.skeletonPositions = make(map[stingray.Hash][]mgl32.Vec3)
 	}
 
 	var meshes map[string]unit.Mesh
@@ -1677,6 +1681,7 @@ func (pv *UnitPreviewState) loadUnit(fileID stingray.Hash, mainData, gpuData []b
 		gl.EnableVertexAttribArray(0)
 		skeleton.numVertices = int32(len(skeletonVertices))
 		skeleton.numIndices[0] = int32(len(skeletonIndices))
+		pv.skeletonPositions[fileID] = skeletonVertices
 		pv.skeletons[fileID] = skeleton
 	}
 
