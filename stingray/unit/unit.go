@@ -827,9 +827,11 @@ func LoadTerrain(terrainInfo TerrainInfo) (Mesh, error) {
 	tangents := make([][4]float32, 0)
 	bitangents := make([][3]float32, 0)
 	up := mgl32.Vec3{0, 1, 0}
+	var maxHeight float32 = -math.MaxFloat32
 	for y := range terrainInfo.Textures[0].Resolution {
 		for x := range terrainInfo.Textures[0].Resolution {
 			center := decompressHeight(terrainValues[y*terrainInfo.Textures[0].Resolution+x], terrainInfo.Min[2], terrainInfo.Max[2])
+			maxHeight = max(maxHeight, center)
 			vertices = append(vertices, [3]float32{
 				(terrainInfo.Max[0]-terrainInfo.Min[0])*(float32(x)/float32(terrainInfo.Textures[0].Resolution)) + terrainInfo.Min[0],
 				center,
@@ -883,6 +885,14 @@ func LoadTerrain(terrainInfo TerrainInfo) (Mesh, error) {
 	mesh.Normals = normals
 	mesh.Tangents = tangents
 	mesh.Bitangents = bitangents
+	mesh.Info = MeshInfo{
+		Header: MeshHeader{
+			AABB: AABB{
+				Min: mgl32.Vec3{terrainInfo.Min[0], terrainInfo.Min[1], 0.0},
+				Max: mgl32.Vec3{terrainInfo.Max[0], terrainInfo.Max[1], maxHeight},
+			},
+		},
+	}
 	return mesh, nil
 }
 

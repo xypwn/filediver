@@ -137,6 +137,21 @@ func Textcf(color imgui.Vec4, format string, args ...any) {
 	imgui.PopStyleColor()
 }
 
+func TreeNodeExf(flags imgui.TreeNodeFlags, format string, args ...any) bool {
+	if i := strings.Index(format, "##"); i != -1 {
+		imgui.PushIDStr(format[i+2:])
+		format = format[:i]
+	}
+	return imgui.TreeNodeExStrV(fmt.Sprintf(format, args...), flags)
+}
+
+func TreeNodeExcf(color imgui.Vec4, flags imgui.TreeNodeFlags, format string, args ...any) (result bool) {
+	imgui.PushStyleColorVec4(imgui.ColText, color)
+	result = TreeNodeExf(flags, format, args...)
+	imgui.PopStyleColor()
+	return
+}
+
 func CheckboxHeight() float32 {
 	// HACK: This is probably not accurate, but it seems
 	// good enough so it's not noticeable for the user.
