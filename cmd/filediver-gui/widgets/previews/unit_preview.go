@@ -258,6 +258,9 @@ func (mat *unitPreviewMaterial) generate(shaderPaths []string, textures int, uni
 
 func (mat *unitPreviewMaterial) delete(textureCache *glutils.TextureCache) {
 	mat.releaseTextures(textureCache)
+	for _, block := range mat.uniformBlocks {
+		gl.DeleteBuffers(1, &block.ubo)
+	}
 	gl.DeleteProgram(mat.program)
 }
 
@@ -674,85 +677,18 @@ func loadDDS(getResource GetResourceFunc, fileName stingray.Hash) (*dds.DDS, err
 	return dds, nil
 }
 
-func uploadStingrayTexture(textureID uint32, data TextureData) error {
-	gl.BindTexture(data.Target, textureID)
+func uploadStingrayTexture(textureID uint32, target uint32, data TextureData) error {
+	gl.BindTexture(target, textureID)
 	if data.Swizzles != nil {
 		gl.TextureParameterIuiv(textureID, gl.TEXTURE_SWIZZLE_RGBA, &data.Swizzles[0])
 	}
-	if data.Target == gl.TEXTURE_2D {
-		gl.TexImage2D(data.Target, 0, data.InternalFormat, int32(data.Bounds.Dx()), int32(data.Bounds.Dy()), 0, data.Format, data.Type, gl.Ptr(data.Data))
-	} else if data.Target == gl.TEXTURE_2D_ARRAY {
-		gl.TexImage3D(data.Target, 0, data.InternalFormat, int32(data.Bounds.Dx()), int32(data.Bounds.Dy()), data.Depth, 0, data.Format, data.Type, gl.Ptr(data.Data))
+	if target == gl.TEXTURE_2D {
+		gl.TexImage2D(target, 0, data.InternalFormat, int32(data.Bounds.Dx()), int32(data.Bounds.Dy()), 0, data.Format, data.Type, gl.Ptr(data.Data))
+	} else if target == gl.TEXTURE_2D_ARRAY {
+		gl.TexImage3D(target, 0, data.InternalFormat, int32(data.Bounds.Dx()), int32(data.Bounds.Dy()), data.Depth, 0, data.Format, data.Type, gl.Ptr(data.Data))
 	}
-	gl.BindTexture(data.Target, 0)
+	gl.BindTexture(target, 0)
 	return nil
-}
-
-func (pv *UnitPreviewState) AcquireNamedTextureOrDefault(name stingray.Hash, defaultColor []byte, getResource GetResourceFunc) (returnPtr *unitPreviewMaterialTexture, err error) {
-	toReturn := unitPreviewMaterialTexture{
-		name:   stingray.Hash{Value: 0},
-		target: gl.TEXTURE_2D,
-	}
-	defer func() {
-		if returnPtr != nil {
-			return
-		}
-		// create default if loading failed
-		gl.GenTextures(1, &toReturn.id)
-		setupTexture(toReturn.id, toReturn.target)
-		gl.BindTexture(toReturn.target, toReturn.id)
-		gl.TexImage2D(toReturn.target, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, gl.Ptr(defaultColor))
-		gl.BindTexture(toReturn.target, 0)
-		returnPtr = &toReturn
-	}()
-	if name.Value == 0 {
-		return
-	}
-
-	textureId, created := pv.textureCache.Acquire(name, toReturn.target)
-	toReturn.id = textureId
-	toReturn.name = name
-	if created {
-		var dds *dds.DDS
-		dds, err = loadDDS(getResource, name)
-		if err != nil {
-			pv.textureCache.Delete(name, toReturn.target)
-			return
-		}
-		texData := TextureData{
-			Target: gl.TEXTURE_2D,
-			Bounds: dds.Bounds(),
-			Type:   gl.UNSIGNED_BYTE,
-		}
-		switch img := dds.Image.(type) {
-		case *image.Gray:
-			texData.InternalFormat = gl.RED
-			texData.Format = gl.RED
-			texData.Data = img.Pix
-			texData.Swizzles = []uint32{gl.RED, gl.RED, gl.RED, gl.RED}
-		case *image.NRGBA:
-			texData.InternalFormat = gl.RGBA
-			texData.Format = gl.RGBA
-			texData.Data = img.Pix
-		default:
-			if dds.Info.DXT10Header != nil {
-				err = fmt.Errorf("unexpected texture color model: %v", dds.Info.DXT10Header.DXGIFormat.String())
-			} else {
-				err = fmt.Errorf("unexpected texture color model")
-			}
-			pv.textureCache.Delete(name, toReturn.target)
-			return
-		}
-		setupTexture(toReturn.id, toReturn.target)
-		if err = uploadStingrayTexture(toReturn.id, texData); err != nil {
-			// Failed to upload data, so delete the entry in the cache
-			pv.textureCache.Delete(name, toReturn.target)
-			return
-		}
-	}
-	// We successfully found a texture, so don't replace it in the deferred setup function
-	returnPtr = &toReturn
-	return
 }
 
 func (pv *UnitPreviewState) useBasicMaterial(getResource GetResourceFunc, object *unitPreviewObject, group int, mat *material.Material) error {
@@ -813,10 +749,6 @@ func (pv *UnitPreviewState) useBasicMaterial(getResource GetResourceFunc, object
 	}
 	object.materials[group].textures = append(object.materials[group].textures, albedoTexture)
 
-	// normalTexture, err := pv.AcquireNamedTextureOrDefault(normalTexFileName, []byte{128, 128, 255, 128}, getResource)
-	// if err != nil {
-	// 	fmt.Printf("acquiring %v.texture: %v\nfalling back to default value", normalTexFileName.String(), err)
-	// }
 	reconstructNormalZ := false
 	normalName := stingray.Hash{}
 	for _, texture := range normalTextures {
@@ -861,7 +793,7 @@ func getTarget(slot string) uint32 {
 type TextureData struct {
 	Slot           string
 	Name           stingray.Hash
-	Target         uint32
+	Targets        []uint32
 	Bounds         image.Rectangle
 	Depth          int32
 	InternalFormat int32
@@ -894,9 +826,9 @@ func (pv *UnitPreviewState) loadMaterialDetailer(getResource GetResourceFunc) {
 		pv.textureData = make(map[stingray.Hash]TextureData)
 	}
 	pv.textureData[materialDetailerHash] = TextureData{
-		Slot:   slot,
-		Name:   materialDetailerHash,
-		Target: target,
+		Slot:    slot,
+		Name:    materialDetailerHash,
+		Targets: []uint32{target},
 	}
 
 	pv.detailerLoadState = DetailerLoading
@@ -910,18 +842,18 @@ func (pv *UnitPreviewState) loadMaterialDetailer(getResource GetResourceFunc) {
 }
 
 func (pv *UnitPreviewState) uploadMaterialDetailer(data TextureData) {
-	textureId, created := pv.textureCache.Acquire(data.Name, data.Target)
+	textureId, created := pv.textureCache.Acquire(data.Name, data.Targets[0])
 	texture := unitPreviewMaterialTexture{
 		id:     textureId,
 		name:   data.Name,
-		target: data.Target,
+		target: data.Targets[0],
 	}
 
 	if !created {
 		return
 	}
-	setupTexture(texture.id, data.Target)
-	err := uploadStingrayTexture(texture.id, data)
+	setupTexture(texture.id, texture.target)
+	err := uploadStingrayTexture(texture.id, texture.target, data)
 	if err != nil {
 		pv.releaseMaterialDetailer()
 		pv.detailerLoadState = DetailerNotLoaded
@@ -941,7 +873,6 @@ var textureDataMutex sync.Mutex
 
 func getTextureLoaderFunc(getResource GetResourceFunc, nameHash stingray.Hash, textureData map[stingray.Hash]TextureData) func() {
 	return func() {
-		loadStart := time.Now()
 		textureDataMutex.Lock()
 		data := textureData[nameHash]
 		textureDataMutex.Unlock()
@@ -998,7 +929,6 @@ func getTextureLoaderFunc(getResource GetResourceFunc, nameHash stingray.Hash, t
 		textureDataMutex.Lock()
 		textureData[nameHash] = data
 		textureDataMutex.Unlock()
-		fmt.Printf("took %vms to load %v.texture\n", time.Since(loadStart).Milliseconds(), nameHash.String())
 	}
 }
 
@@ -1062,15 +992,28 @@ func (pv *UnitPreviewState) loadMaterialTexturesAsync(getResource GetResourceFun
 		nameHash := mat.Textures[slotHash]
 		target := getTarget(slot)
 
-		if _, contains := pv.textureData[nameHash]; contains {
+		textureDataMutex.Lock()
+		existing, contains := pv.textureData[nameHash]
+		textureDataMutex.Unlock()
+
+		if contains && slices.Contains(existing.Targets, target) {
 			// already loading, so we don't need to create another load request
 			continue
 		}
-		pv.textureData[nameHash] = TextureData{
-			Slot:   slot,
-			Name:   nameHash,
-			Target: target,
+		targets := make([]uint32, 0)
+		data := TextureData{}
+		if contains {
+			targets = existing.Targets
+			data = existing
 		}
+		targets = append(targets, target)
+		data.Slot = slot
+		data.Name = nameHash
+		data.Targets = targets
+
+		textureDataMutex.Lock()
+		pv.textureData[nameHash] = data
+		textureDataMutex.Unlock()
 
 		if pv.textureCache.Contains(nameHash, target) {
 			// Already loaded, so we don't need to reload the data
@@ -1087,7 +1030,6 @@ func (pv *UnitPreviewState) finalizeMaterialTextures(object *unitPreviewObject, 
 		var id uint32
 		uniform := object.materials[group].uniforms[texture.slot]
 		if texture.name.Value == 0 {
-			fmt.Printf("finalizing %v: default color: %v\n", texture.slot, texture.defaultColor)
 			gl.GenTextures(1, &object.materials[group].textures[idx].id)
 			id = object.materials[group].textures[idx].id
 			setupTexture(id, texture.target)
@@ -1103,7 +1045,7 @@ func (pv *UnitPreviewState) finalizeMaterialTextures(object *unitPreviewObject, 
 		var err error
 		if object.materials[group].textures[idx].created {
 			setupTexture(id, texture.target)
-			err = uploadStingrayTexture(id, pv.textureData[texture.name])
+			err = uploadStingrayTexture(id, texture.target, pv.textureData[texture.name])
 		}
 		if err != nil {
 			pv.textureCache.Delete(texture.name, texture.target)
@@ -2067,16 +2009,6 @@ func (pv *UnitPreviewState) drawObject(hash stingray.Hash, matrix, translation, 
 			}
 			gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo)
 			gl.DrawElements(gl.TRIANGLES, pv.objects[hash][name].numIndices[group], gl.UNSIGNED_INT, nil)
-			if !pv.showWireframe {
-				for idx, texture := range pv.objects[hash][name].materials[group].textures {
-					gl.ActiveTexture(gl.TEXTURE0 + uint32(idx))
-					gl.BindTexture(texture.target, 0)
-					glError := gl.GetError()
-					if glError != 0 {
-						fmt.Printf("[error] unbinding texture %v (%v) in group %v as target %v generated error %v\n", texture.name.String(), texture.id, group, glutils.GLTarget(texture.target).String(), glutils.GLError(glError).String())
-					}
-				}
-			}
 		}
 	}
 	gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, 0)
@@ -2215,7 +2147,7 @@ func (pv *UnitPreviewState) Draw(previewId string) {
 				}
 				for _, childHash := range curr.children {
 					if child, contains := pv.nodes[childHash]; contains && nodeId != childHash {
-						child.matrix = child.matrix.Mul4(curr.matrix)
+						child.matrix = curr.matrix.Mul4(child.matrix)
 						drawNode(child, childHash)
 					} else {
 						pv.drawObject(childHash, curr.matrix, translation, view, projection, viewPosition)
