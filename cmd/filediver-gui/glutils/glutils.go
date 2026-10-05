@@ -1,12 +1,16 @@
 package glutils
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"image"
 	"io"
 	"io/fs"
 	"path"
+	"path/filepath"
+	"regexp"
+	"strings"
 
 	"github.com/go-gl/gl/v4.3-core/gl"
 )
@@ -144,6 +148,8 @@ func CreateProgram(shaders ...uint32) (uint32, error) {
 	return program, nil
 }
 
+var includeRegex *regexp.Regexp = regexp.MustCompile("#include \"(.*?)\"")
+
 // Recognized extensions: .frag, .vert, .geom
 func CreateProgramFromSources(fs fs.FS, paths ...string) (uint32, error) {
 	var shaders []uint32
@@ -172,6 +178,40 @@ func CreateProgramFromSources(fs fs.FS, paths ...string) (uint32, error) {
 		data, err := io.ReadAll(r)
 		if err != nil {
 			return 0, fmt.Errorf("reading \"%v\": %w", p, err)
+		}
+		{
+			idx := bytes.Index(data, []byte("#include"))
+
+			addedLines := 0
+			for idx != -1 {
+				length := bytes.Index(data[idx:], []byte("\n"))
+				line := string(data[idx : idx+length+1])
+				match := includeRegex.FindStringSubmatch(line)
+				var inclData []byte
+				if len(match) > 1 {
+					includePath := strings.Join([]string{filepath.Dir(p), match[1]}, "/")
+					r, err := fs.Open(includePath)
+					if err != nil {
+						return 0, fmt.Errorf("opening \"%v\": %w", includePath, err)
+					}
+					defer r.Close()
+					inclData, err = io.ReadAll(r)
+					if err != nil {
+						return 0, fmt.Errorf("reading \"%v\": %w", includePath, err)
+					}
+					found := bytes.Contains(inclData, []byte("#include"))
+					if found {
+						// This might be fine since we're looping but I don't want to worry about making this
+						// more complex right now
+						panic(fmt.Errorf("CreateProgramFromSources: nested includes in shader source not supported!"))
+					}
+					addedLines += strings.Count(string(inclData), "\n")
+				}
+				// replace the line with the included source
+				data = append(data[:idx], append(inclData, data[idx+length+1:]...)...)
+				//fmt.Println(string(data))
+				idx = bytes.Index(data, []byte("#include"))
+			}
 		}
 		shader, err := CreateShader(string(data), shaderType)
 		if err != nil {

@@ -74,6 +74,17 @@ var lutTextureNames = []string{
 	"ibl_brdf_lut",
 }
 
+// Textures used by the standard fragment shader
+var standardTextureNames = []string{
+	"ao_map",
+	"color_map",
+	"emissive_map",
+	"metallic_map",
+	"normal_map",
+	"roughness_map",
+	"ibl_brdf_lut",
+}
+
 var seed = rand.Uint32()
 
 func setupTexture(textureID, target uint32) {
@@ -211,28 +222,50 @@ type unitPreviewMaterialTexture struct {
 }
 
 type unitPreviewMaterial struct {
-	name          string
-	shown         bool
-	id            stingray.Hash
-	program       uint32
-	uniforms      unitPreviewUniforms
-	uniformBlocks []unitPreviewUniformBlock
-	textures      []unitPreviewMaterialTexture
+	name           string
+	shown          bool
+	id             stingray.Hash
+	program        uint32
+	shaderCacheKey string
+	uniforms       unitPreviewUniforms
+	uniformBlocks  []unitPreviewUniformBlock
+	textures       []unitPreviewMaterialTexture
 }
+
+type shaderCacheEntry struct {
+	program uint32
+	users   int
+}
+
+var shaderCache map[string]shaderCacheEntry
 
 func (mat *unitPreviewMaterial) generate(shaderPaths []string, textures int, uniforms []string) error {
 	if mat.program != 0 || len(mat.uniformBlocks) > 0 || len(mat.uniforms) > 0 {
 		// already generated this material
 		return nil
 	}
-	var err error
-	mat.program, err = glutils.CreateProgramFromSources(
-		unitPreviewShaderCode,
-		shaderPaths...,
-	)
-	if err != nil {
-		return err
+	if shaderCache == nil {
+		shaderCache = make(map[string]shaderCacheEntry)
 	}
+	mat.shaderCacheKey = strings.Join(shaderPaths, "&&")
+	var entry shaderCacheEntry
+	var contains bool
+	if entry, contains = shaderCache[mat.shaderCacheKey]; contains {
+		mat.program = entry.program
+	} else {
+		var err error
+		mat.program, err = glutils.CreateProgramFromSources(
+			unitPreviewShaderCode,
+			shaderPaths...,
+		)
+		if err != nil {
+			return err
+		}
+		entry.program = mat.program
+	}
+	entry.users += 1
+	shaderCache[mat.shaderCacheKey] = entry
+
 	mat.textures = make([]unitPreviewMaterialTexture, textures)
 
 	mat.uniforms.generate(mat.program, uniforms...)
@@ -262,7 +295,13 @@ func (mat *unitPreviewMaterial) delete(textureCache *glutils.TextureCache) {
 	for _, block := range mat.uniformBlocks {
 		gl.DeleteBuffers(1, &block.ubo)
 	}
-	gl.DeleteProgram(mat.program)
+	if entry, contains := shaderCache[mat.shaderCacheKey]; contains && entry.users <= 1 {
+		gl.DeleteProgram(mat.program)
+		delete(shaderCache, mat.shaderCacheKey)
+	} else if contains {
+		entry.users -= 1
+		shaderCache[mat.shaderCacheKey] = entry
+	}
 }
 
 func (mat *unitPreviewMaterial) releaseTextures(textureCache *glutils.TextureCache) {
@@ -942,6 +981,14 @@ func isLUTMaterial(mat *material.Material) bool {
 	return containsIdMasks && containsMaterialLut
 }
 
+func isStandardMaterial(mat *material.Material) bool {
+	if mat == nil {
+		return false
+	}
+
+	return mat.BaseMaterial == stingray.Sum("core/stingray_renderer/shader_import/standard")
+}
+
 func overrideLUTMaterial(mat *material.Material, armorInfo *datalib.UnitData) {
 	if mat == nil || mat.Textures == nil || armorInfo == nil {
 		return
@@ -1074,46 +1121,28 @@ func (pv *UnitPreviewState) finalizeObjectMaterials() error {
 	return nil
 }
 
-func (pv *UnitPreviewState) useLUTMaterial(getResource GetResourceFunc, object *unitPreviewObject, group int, mat *material.Material, lookupThinHash func(stingray.ThinHash) string) error {
-	err := object.materials[group].generate(
-		[]string{"shaders/object.vert", "shaders/object.geom", "shaders/lut.frag"},
-		0,
-		append(baseUniforms, lutTextureNames...),
-	)
-	if err != nil {
-		return err
-	}
-
-	if pv.detailerLoadState == DetailerLoaded {
-		pv.uploadMaterialDetailer(pv.detailerTextureData)
-	}
-
-	slot := "customization_material_detail_tiler_array"
-	materialDetailerHash := stingray.Sum("content/art_shared/textures/customization/material_library/detail_tilers/customization_detail_tiler_array")
-	mat.Textures[stingray.Sum(slot).Thin()] = materialDetailerHash
-
-	slot = "ibl_brdf_lut"
+func (pv *UnitPreviewState) setupMaterialCommon(getResource GetResourceFunc, textureNames []string, object *unitPreviewObject, group int, mat *material.Material, lookupThinHash func(stingray.ThinHash) string) {
+	slot := "ibl_brdf_lut"
 	iblBRDFHash := stingray.Sum("core/stingray_renderer/lookup_tables/ibl_specular_brdf_lut")
 	mat.Textures[stingray.Sum(slot).Thin()] = iblBRDFHash
 
-	if _, contains := mat.Textures[stingray.Sum("pattern_masks_array").Thin()]; !contains {
-		mat.Textures[stingray.Sum("pattern_masks_array").Thin()] = stingray.Sum("content/art_shared/textures/black_all_channels_dummy")
-	}
-	if _, contains := mat.Textures[stingray.Sum("composite_array").Thin()]; !contains {
-		mat.Textures[stingray.Sum("composite_array").Thin()] = stingray.Sum("content/art_shared/textures/black_all_channels_dummy")
-	}
-	if _, contains := mat.Textures[stingray.Sum("pattern_lut").Thin()]; !contains {
-		mat.Textures[stingray.Sum("pattern_lut").Thin()] = stingray.Hash{Value: 0xcf0cc31b981786c9}
+	for _, slot := range textureNames {
+		slotHash := stingray.Sum(slot).Thin()
+		if _, contains := mat.Textures[slotHash]; !contains {
+			mat.Textures[slotHash] = stingray.Sum("content/art_shared/textures/black_all_channels_dummy")
+		}
 	}
 
-	pv.loadMaterialTexturesAsync(getResource, mat, lutTextureNames)
+	pv.loadMaterialTexturesAsync(getResource, mat, textureNames)
 
 	gl.UseProgram(object.materials[group].program)
-	for slotHash, textureHash := range mat.Textures {
+	sortedSlots := slices.SortedFunc(maps.Keys(mat.Textures), stingray.ThinHash.Cmp)
+	for _, slotHash := range sortedSlots {
 		slot := pv.lookupThinHash(slotHash)
-		if !slices.Contains(lutTextureNames, slot) {
+		if !slices.Contains(textureNames, slot) {
 			continue
 		}
+		textureHash := mat.Textures[slotHash]
 		target := getTarget(slot)
 		texture := unitPreviewMaterialTexture{
 			id:      0,
@@ -1138,13 +1167,43 @@ func (pv *UnitPreviewState) useLUTMaterial(getResource GetResourceFunc, object *
 			block.setDefault(settingName, value)
 		}
 	}
+	gl.UseProgram(0)
+}
+
+func (pv *UnitPreviewState) useLUTMaterial(getResource GetResourceFunc, object *unitPreviewObject, group int, mat *material.Material, lookupThinHash func(stingray.ThinHash) string) error {
+	err := object.materials[group].generate(
+		[]string{"shaders/object.vert", "shaders/object.geom", "shaders/lut.frag"},
+		0,
+		append(baseUniforms, lutTextureNames...),
+	)
+	if err != nil {
+		return err
+	}
+
+	if pv.detailerLoadState == DetailerLoaded {
+		pv.uploadMaterialDetailer(pv.detailerTextureData)
+	}
+
+	originalTextures := maps.Clone(mat.Textures)
+
+	slot := "customization_material_detail_tiler_array"
+	materialDetailerHash := stingray.Sum("content/art_shared/textures/customization/material_library/detail_tilers/customization_detail_tiler_array")
+	mat.Textures[stingray.Sum(slot).Thin()] = materialDetailerHash
+
+	if _, contains := mat.Textures[stingray.Sum("pattern_lut").Thin()]; !contains {
+		mat.Textures[stingray.Sum("pattern_lut").Thin()] = stingray.Hash{Value: 0xcf0cc31b981786c9}
+	}
+
+	pv.setupMaterialCommon(getResource, lutTextureNames, object, group, mat, lookupThinHash)
+
+	gl.UseProgram(object.materials[group].program)
 	for _, block := range object.materials[group].uniformBlocks {
 		if _, contains := block.uniformOffsets["seed"]; contains {
 			block.set("seed", &seed)
 			block.setDefault("seed", &seed)
 		}
 		if _, contains := block.uniformOffsets["use_decals"]; contains {
-			val, contains := mat.Textures[stingray.Sum("decal_sheet").Thin()]
+			val, contains := originalTextures[stingray.Sum("decal_sheet").Thin()]
 			hasValue := val.Value != 0x0
 			useDecals := uint32(0)
 			if contains || hasValue {
@@ -1154,8 +1213,21 @@ func (pv *UnitPreviewState) useLUTMaterial(getResource GetResourceFunc, object *
 			block.setDefault("use_decals", &useDecals)
 		}
 	}
-
 	gl.UseProgram(0)
+	return nil
+}
+
+func (pv *UnitPreviewState) useStandardMaterial(getResource GetResourceFunc, object *unitPreviewObject, group int, mat *material.Material, lookupThinHash func(stingray.ThinHash) string) error {
+	err := object.materials[group].generate(
+		[]string{"shaders/object.vert", "shaders/object.geom", "shaders/standard.frag"},
+		0,
+		append(baseUniforms, standardTextureNames...),
+	)
+	if err != nil {
+		return err
+	}
+
+	pv.setupMaterialCommon(getResource, standardTextureNames, object, group, mat, lookupThinHash)
 	return nil
 }
 
@@ -1189,6 +1261,13 @@ func (pv *UnitPreviewState) loadMaterials(getResource GetResourceFunc, object *u
 				fmt.Printf("got error when enabling lut material: %v\n", err)
 			}
 			// fall back to basic material if the lut material fails to load
+		}
+		if err == nil && isStandardMaterial(mat) {
+			if err := pv.useStandardMaterial(getResource, object, group, mat, lookupThinHash); err == nil {
+				continue
+			} else {
+				fmt.Printf("got error when enabling lut material: %v\n", err)
+			}
 		}
 		if err := pv.useBasicMaterial(getResource, object, group, mat); err != nil {
 			return err
@@ -1558,6 +1637,10 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 	return nil
 }
 
+func materialShown(slot string) bool {
+	return !strings.Contains(slot, "gibs") && slot != "transparent"
+}
+
 func (pv *UnitPreviewState) loadUnit(fileID stingray.Hash, mainData, gpuData []byte, getResource GetResourceFunc) error {
 	info, err := unit.LoadInfo(bytes.NewReader(mainData))
 	if err != nil {
@@ -1733,7 +1816,7 @@ func (pv *UnitPreviewState) loadUnit(fileID stingray.Hash, mainData, gpuData []b
 				}
 				object.materials[group].id = matFileName
 				object.materials[group].name = pv.lookupThinHash(matID)
-				object.materials[group].shown = !strings.Contains(object.materials[group].name, "gibs")
+				object.materials[group].shown = materialShown(object.materials[group].name)
 			}
 			if err := pv.loadMaterials(getResource, &object, armorInfo, pv.lookupThinHash); err != nil {
 				return err
@@ -2277,7 +2360,7 @@ func (pv *UnitPreviewState) Draw(previewId string) {
 				}
 				for _, childHash := range curr.children {
 					if child, contains := pv.nodes[childHash]; contains && nodeId != childHash {
-						child.matrix = child.matrix.Mul4(curr.matrix)
+						child.matrix = curr.matrix.Mul4(child.matrix)
 						drawNodeNormalVis(child, childHash)
 					} else {
 						pv.drawNormalVis(childHash, curr.matrix, translation, view, projection)
@@ -2290,7 +2373,7 @@ func (pv *UnitPreviewState) Draw(previewId string) {
 				}
 				for _, childHash := range curr.children {
 					if child, contains := pv.nodes[childHash]; contains && nodeId != childHash {
-						child.matrix = child.matrix.Mul4(curr.matrix)
+						child.matrix = curr.matrix.Mul4(child.matrix)
 						drawNodeBoundingBox(child, childHash)
 					} else {
 						pv.drawBoundingBox(childHash, curr.matrix, translation, view, projection)
@@ -2303,7 +2386,7 @@ func (pv *UnitPreviewState) Draw(previewId string) {
 				}
 				for _, childHash := range curr.children {
 					if child, contains := pv.nodes[childHash]; contains && nodeId != childHash {
-						child.matrix = child.matrix.Mul4(curr.matrix)
+						child.matrix = curr.matrix.Mul4(child.matrix)
 						drawNodeSkeletons(child, childHash)
 					} else {
 						pv.drawSkeleton(childHash, curr.matrix, translation, view, projection)
@@ -2479,7 +2562,7 @@ func (pv *UnitPreviewState) Draw(previewId string) {
 					}
 					for _, childHash := range curr.children {
 						if child, contains := pv.nodes[childHash]; contains && nodeId != childHash {
-							child.matrix = child.matrix.Mul4(curr.matrix)
+							child.matrix = curr.matrix.Mul4(child.matrix)
 							findNearestNormal(child, childHash)
 						} else {
 							for name := range pv.meshPositions[childHash] {
