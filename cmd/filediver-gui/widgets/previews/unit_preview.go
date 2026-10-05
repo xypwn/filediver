@@ -201,9 +201,12 @@ func (block *unitPreviewUniformBlock) get(name string, outData any) {
 }
 
 type unitPreviewMaterialTexture struct {
-	id     uint32
-	name   stingray.Hash
-	target uint32
+	id           uint32
+	target       uint32
+	name         stingray.Hash
+	slot         string
+	created      bool
+	defaultColor []byte
 }
 
 type unitPreviewMaterial struct {
@@ -422,6 +425,9 @@ type UnitPreviewState struct {
 	archivesModified         bool
 	lookupThinHash           func(stingray.ThinHash) string
 	lookupHash               func(stingray.Hash) string
+
+	textureData      map[stingray.Hash]TextureData
+	textureWaitGroup sync.WaitGroup
 }
 
 func NewUnitPreview(getResource GetResourceFunc, ArmorParams ExtractorArmorParameters, lookupHash func(stingray.Hash) string) (*UnitPreviewState, error) {
@@ -670,6 +676,9 @@ func loadDDS(getResource GetResourceFunc, fileName stingray.Hash) (*dds.DDS, err
 
 func uploadStingrayTexture(textureID uint32, data TextureData) error {
 	gl.BindTexture(data.Target, textureID)
+	if data.Swizzles != nil {
+		gl.TextureParameterIuiv(textureID, gl.TEXTURE_SWIZZLE_RGBA, &data.Swizzles[0])
+	}
 	if data.Target == gl.TEXTURE_2D {
 		gl.TexImage2D(data.Target, 0, data.InternalFormat, int32(data.Bounds.Dx()), int32(data.Bounds.Dy()), 0, data.Format, data.Type, gl.Ptr(data.Data))
 	} else if data.Target == gl.TEXTURE_2D_ARRAY {
@@ -688,6 +697,7 @@ func (pv *UnitPreviewState) AcquireNamedTextureOrDefault(name stingray.Hash, def
 		if returnPtr != nil {
 			return
 		}
+		// create default if loading failed
 		gl.GenTextures(1, &toReturn.id)
 		setupTexture(toReturn.id, toReturn.target)
 		gl.BindTexture(toReturn.target, toReturn.id)
@@ -698,11 +708,11 @@ func (pv *UnitPreviewState) AcquireNamedTextureOrDefault(name stingray.Hash, def
 	if name.Value == 0 {
 		return
 	}
+
 	textureId, created := pv.textureCache.Acquire(name, toReturn.target)
 	toReturn.id = textureId
 	toReturn.name = name
 	if created {
-		setupTexture(toReturn.id, toReturn.target)
 		var dds *dds.DDS
 		dds, err = loadDDS(getResource, name)
 		if err != nil {
@@ -719,10 +729,7 @@ func (pv *UnitPreviewState) AcquireNamedTextureOrDefault(name stingray.Hash, def
 			texData.InternalFormat = gl.RED
 			texData.Format = gl.RED
 			texData.Data = img.Pix
-			gl.BindTexture(texData.Target, toReturn.id)
-			swizzles := []uint32{gl.RED, gl.RED, gl.RED, gl.RED}
-			gl.TextureParameterIuiv(toReturn.id, gl.TEXTURE_SWIZZLE_RGBA, &swizzles[0])
-			gl.BindTexture(texData.Target, 0)
+			texData.Swizzles = []uint32{gl.RED, gl.RED, gl.RED, gl.RED}
 		case *image.NRGBA:
 			texData.InternalFormat = gl.RGBA
 			texData.Format = gl.RGBA
@@ -736,13 +743,15 @@ func (pv *UnitPreviewState) AcquireNamedTextureOrDefault(name stingray.Hash, def
 			pv.textureCache.Delete(name, toReturn.target)
 			return
 		}
+		setupTexture(toReturn.id, toReturn.target)
 		if err = uploadStingrayTexture(toReturn.id, texData); err != nil {
 			// Failed to upload data, so delete the entry in the cache
 			pv.textureCache.Delete(name, toReturn.target)
 			return
 		}
-		returnPtr = &toReturn
 	}
+	// We successfully found a texture, so don't replace it in the deferred setup function
+	returnPtr = &toReturn
 	return
 }
 
@@ -756,58 +765,79 @@ func (pv *UnitPreviewState) useBasicMaterial(getResource GetResourceFunc, object
 		return err
 	}
 
-	gl.UseProgram(object.materials[group].program)
-	gl.Uniform1i(object.materials[group].uniforms["texAlbedo"], 0)
-	gl.Uniform1i(object.materials[group].uniforms["texNormal"], 1)
-	gl.UseProgram(0)
-
-	// Upload object texture
-	albedoTexFileName, albedoRemoveAlpha, normalTexFileName, reconstructNormalZ, err := func() (albedoFileName stingray.Hash, albedoRemoveAlpha bool, normalFileName stingray.Hash, reconstructNormalZ bool, err error) {
-		// TODO: Use all textures somehow. Currently, simply the first one
-		// found is used.
-		if mat == nil {
-			return
-		}
-		for texUsage, texFileName := range mat.Textures {
-			removeAlpha := true
-			switch texUsage {
-			case stingray.Sum("color_roughness").Thin(), stingray.Sum("color_specular_b").Thin(), stingray.Sum("albedo_iridescence").Thin():
-				removeAlpha = false
-				fallthrough
-			case stingray.Sum("covering_albedo").Thin(), stingray.Sum("input_image").Thin(), stingray.Sum("albedo").Thin():
-				albedoFileName = texFileName
-				albedoRemoveAlpha = removeAlpha
-			case stingray.Sum("normal_specular_ao").Thin():
-				normalFileName = texFileName
-				reconstructNormalZ = false
-			case stingray.Sum("normal").Thin(), stingray.Sum("normals").Thin(), stingray.Sum("normal_map").Thin(), stingray.Sum("covering_normal").Thin(), stingray.Sum("nac").Thin(), stingray.Sum("base_data").Thin(), stingray.Sum("nar").Thin(), stingray.Sum("normal_ao_roughness").Thin(), stingray.Sum("normal_xy_ao_rough_map").Thin(), stingray.Sum("normal_xy_roughness_opacity").Thin():
-				normalFileName = texFileName
-				reconstructNormalZ = true
-			}
-		}
-		return
-	}()
-	if err != nil {
-		return err
+	albedoRemoveAlphaTextures := []string{
+		"covering_albedo", "input_image", "albedo",
 	}
-
-	albedoTexture, err := pv.AcquireNamedTextureOrDefault(albedoTexFileName, []byte{255, 255, 255, 255}, getResource)
-	if err != nil {
-		// gui logger warning here
-		fmt.Printf("acquiring %v.texture: %v\nfalling back to default value", albedoTexFileName.String(), err)
+	albedoTextures := []string{
+		"color_roughness", "color_specular_b", "albedo_iridescence",
+		"covering_albedo", "input_image", "albedo",
+	}
+	normalReconstructTextures := []string{
+		"normal", "normals", "normal_map", "covering_normal", "nac", "base_data", "nar", "normal_ao_roughness", "normal_xy_ao_rough_map", "normal_xy_roughness_opacity",
+	}
+	normalTextures := []string{
+		"normal_specular_ao",
+		"normal", "normals", "normal_map", "covering_normal", "nac", "base_data", "nar", "normal_ao_roughness", "normal_xy_ao_rough_map", "normal_xy_roughness_opacity",
+	}
+	allTextures := make([]string, 0)
+	allTextures = append(allTextures, albedoTextures...)
+	allTextures = append(allTextures, normalTextures...)
+	pv.loadMaterialTexturesAsync(getResource, mat, allTextures)
+	albedoRemoveAlpha := false
+	albedoName := stingray.Hash{}
+	for _, texture := range albedoTextures {
+		if mat == nil {
+			break
+		}
+		if name, contains := mat.Textures[stingray.Sum(texture).Thin()]; contains {
+			albedoRemoveAlpha = slices.Contains(albedoRemoveAlphaTextures, texture)
+			albedoName = name
+			break
+		}
+	}
+	albedoTexture := unitPreviewMaterialTexture{
+		id:           0,
+		target:       gl.TEXTURE_2D,
+		name:         albedoName,
+		slot:         "texAlbedo",
+		created:      false,
+		defaultColor: []byte{255, 255, 255, 255},
 	}
 	if albedoRemoveAlpha {
-		gl.BindTexture(gl.TEXTURE_2D, albedoTexture.id)
-		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_SWIZZLE_A, gl.ONE)
-		gl.BindTexture(gl.TEXTURE_2D, 0)
+		data := pv.textureData[albedoName]
+		if data.Swizzles == nil {
+			data.Swizzles = []uint32{gl.RED, gl.GREEN, gl.BLUE, gl.ALPHA}
+		}
+		data.Swizzles[3] = gl.ONE
+		pv.textureData[albedoName] = data
 	}
-	object.materials[group].textures = append(object.materials[group].textures, *albedoTexture)
+	object.materials[group].textures = append(object.materials[group].textures, albedoTexture)
 
-	normalTexture, err := pv.AcquireNamedTextureOrDefault(normalTexFileName, []byte{128, 128, 255, 128}, getResource)
-	if err != nil {
-		fmt.Printf("acquiring %v.texture: %v\nfalling back to default value", normalTexFileName.String(), err)
+	// normalTexture, err := pv.AcquireNamedTextureOrDefault(normalTexFileName, []byte{128, 128, 255, 128}, getResource)
+	// if err != nil {
+	// 	fmt.Printf("acquiring %v.texture: %v\nfalling back to default value", normalTexFileName.String(), err)
+	// }
+	reconstructNormalZ := false
+	normalName := stingray.Hash{}
+	for _, texture := range normalTextures {
+		if mat == nil {
+			break
+		}
+		if name, contains := mat.Textures[stingray.Sum(texture).Thin()]; contains {
+			reconstructNormalZ = slices.Contains(normalReconstructTextures, texture)
+			normalName = name
+			break
+		}
 	}
-	object.materials[group].textures = append(object.materials[group].textures, *normalTexture)
+	normalTexture := unitPreviewMaterialTexture{
+		id:           0,
+		target:       gl.TEXTURE_2D,
+		name:         normalName,
+		slot:         "texNormal",
+		created:      false,
+		defaultColor: []byte{128, 128, 255, 128},
+	}
+	object.materials[group].textures = append(object.materials[group].textures, normalTexture)
 
 	gl.UseProgram(object.materials[group].program)
 	if reconstructNormalZ {
@@ -836,6 +866,7 @@ type TextureData struct {
 	Depth          int32
 	InternalFormat int32
 	Format         uint32
+	Swizzles       []uint32
 	Type           uint32
 	Data           []uint8
 }
@@ -858,18 +889,22 @@ func (pv *UnitPreviewState) loadMaterialDetailer(getResource GetResourceFunc) {
 		// Already loaded, so we don't need to reload the data
 		return
 	}
-	textureData := []TextureData{{
+
+	if pv.textureData == nil {
+		pv.textureData = make(map[stingray.Hash]TextureData)
+	}
+	pv.textureData[materialDetailerHash] = TextureData{
 		Slot:   slot,
 		Name:   materialDetailerHash,
 		Target: target,
-	}}
+	}
 
 	pv.detailerLoadState = DetailerLoading
 
-	textureLoader := getTextureLoaderFunc(getResource, materialDetailerHash, &textureData, 0)
+	textureLoader := getTextureLoaderFunc(getResource, materialDetailerHash, pv.textureData)
 	go func() {
 		textureLoader()
-		pv.detailerTextureData = textureData[0]
+		pv.detailerTextureData = pv.textureData[materialDetailerHash]
 		pv.detailerLoadState = DetailerLoaded
 	}()
 }
@@ -902,54 +937,68 @@ func (pv *UnitPreviewState) releaseMaterialDetailer() {
 	pv.textureCache.Release(materialDetailerHash, gl.TEXTURE_2D_ARRAY)
 }
 
-func getTextureLoaderFunc(getResource GetResourceFunc, nameHash stingray.Hash, textureData *[]TextureData, index int) func() {
+var textureDataMutex sync.Mutex
+
+func getTextureLoaderFunc(getResource GetResourceFunc, nameHash stingray.Hash, textureData map[stingray.Hash]TextureData) func() {
 	return func() {
-		(*textureData)[index].Bounds = image.Rect(0, 0, 1, 1)
-		(*textureData)[index].Data = make([]uint8, 4)
-		(*textureData)[index].Depth = 1
+		loadStart := time.Now()
+		textureDataMutex.Lock()
+		data := textureData[nameHash]
+		textureDataMutex.Unlock()
+		data.Bounds = image.Rect(0, 0, 1, 1)
+		data.Data = make([]uint8, 4)
+		data.Depth = 1
+		textureDataMutex.Lock()
+		textureData[nameHash] = data
+		textureDataMutex.Unlock()
 
 		ddsImage, err := loadDDS(getResource, nameHash)
 		if err != nil {
 			return
 		}
-		(*textureData)[index].Bounds = ddsImage.Bounds()
-		(*textureData)[index].Depth = int32(len(ddsImage.Images))
+		data.Bounds = ddsImage.Bounds()
+		data.Depth = int32(len(ddsImage.Images))
 
 		for idx := range ddsImage.Images {
 			if ddsImage.Info.DXT10Header != nil && ddsImage.Info.DXT10Header.DXGIFormat == dds.DXGIFormatR16G16B16A16Float {
-				(*textureData)[index].Format = gl.RGBA
-				(*textureData)[index].InternalFormat = gl.RGBA16F
-				(*textureData)[index].Type = gl.HALF_FLOAT
-				(*textureData)[index].Data = ddsImage.Images[0].MipMaps[0].Raw
+				data.Format = gl.RGBA
+				data.InternalFormat = gl.RGBA16F
+				data.Type = gl.HALF_FLOAT
+				data.Data = ddsImage.Images[0].MipMaps[0].Raw
 			} else if ddsImage.Info.DXT10Header != nil && ddsImage.Info.DXT10Header.DXGIFormat == dds.DXGIFormatR16G16Float {
-				(*textureData)[index].Format = gl.RG
-				(*textureData)[index].InternalFormat = gl.RG16F
-				(*textureData)[index].Type = gl.HALF_FLOAT
-				(*textureData)[index].Data = ddsImage.Images[0].MipMaps[0].Raw
+				data.Format = gl.RG
+				data.InternalFormat = gl.RG16F
+				data.Type = gl.HALF_FLOAT
+				data.Data = ddsImage.Images[0].MipMaps[0].Raw
 			} else {
 				switch img := ddsImage.Images[idx].Image.(type) {
 				case *image.NRGBA:
-					(*textureData)[index].Format = gl.RGBA
-					(*textureData)[index].InternalFormat = gl.RGBA
-					(*textureData)[index].Type = gl.UNSIGNED_BYTE
+					data.Format = gl.RGBA
+					data.InternalFormat = gl.RGBA
+					data.Type = gl.UNSIGNED_BYTE
 					if idx == 0 {
-						(*textureData)[index].Data = make([]uint8, 0, ddsImage.Bounds().Dx()*ddsImage.Bounds().Dy()*int((*textureData)[index].Depth)*4)
+						data.Data = make([]uint8, 0, ddsImage.Bounds().Dx()*ddsImage.Bounds().Dy()*int(data.Depth)*4)
 					}
-					(*textureData)[index].Data = append((*textureData)[index].Data, img.Pix...)
+					data.Data = append(data.Data, img.Pix...)
 				case *image.Gray:
-					(*textureData)[index].Format = gl.RED
-					(*textureData)[index].InternalFormat = gl.RED
-					(*textureData)[index].Type = gl.UNSIGNED_BYTE
+					data.Format = gl.RED
+					data.InternalFormat = gl.RED
+					data.Type = gl.UNSIGNED_BYTE
+					data.Swizzles = []uint32{gl.RED, gl.RED, gl.RED, gl.RED}
 					if idx == 0 {
-						(*textureData)[index].Data = make([]uint8, 0, ddsImage.Bounds().Dx()*ddsImage.Bounds().Dy()*int((*textureData)[index].Depth))
+						data.Data = make([]uint8, 0, ddsImage.Bounds().Dx()*ddsImage.Bounds().Dy()*int(data.Depth))
 					}
-					(*textureData)[index].Data = append((*textureData)[index].Data, img.Pix...)
+					data.Data = append(data.Data, img.Pix...)
 				default:
-					fmt.Printf("[error] Failed to convert image %v of %v\n", idx, (*textureData)[index].Slot)
+					fmt.Printf("[error] Failed to convert image %v of %v\n", idx, data.Slot)
 					return
 				}
 			}
 		}
+		textureDataMutex.Lock()
+		textureData[nameHash] = data
+		textureDataMutex.Unlock()
+		fmt.Printf("took %vms to load %v.texture\n", time.Since(loadStart).Milliseconds(), nameHash.String())
 	}
 }
 
@@ -997,6 +1046,91 @@ func overrideLUTMaterial(mat *material.Material, armorInfo *datalib.UnitData) {
 	}
 }
 
+func (pv *UnitPreviewState) loadMaterialTexturesAsync(getResource GetResourceFunc, mat *material.Material, textureNames []string) {
+	if mat == nil {
+		return
+	}
+	if pv.textureData == nil {
+		pv.textureData = make(map[stingray.Hash]TextureData)
+	}
+	slotHashes := slices.SortedFunc(maps.Keys(mat.Textures), stingray.ThinHash.Cmp)
+	for _, slotHash := range slotHashes {
+		slot := pv.lookupThinHash(slotHash)
+		if !slices.Contains(textureNames, slot) {
+			continue
+		}
+		nameHash := mat.Textures[slotHash]
+		target := getTarget(slot)
+
+		if _, contains := pv.textureData[nameHash]; contains {
+			// already loading, so we don't need to create another load request
+			continue
+		}
+		pv.textureData[nameHash] = TextureData{
+			Slot:   slot,
+			Name:   nameHash,
+			Target: target,
+		}
+
+		if pv.textureCache.Contains(nameHash, target) {
+			// Already loaded, so we don't need to reload the data
+			continue
+		}
+
+		pv.textureWaitGroup.Go(getTextureLoaderFunc(getResource, nameHash, pv.textureData))
+	}
+}
+
+func (pv *UnitPreviewState) finalizeMaterialTextures(object *unitPreviewObject, group int) error {
+	gl.UseProgram(object.materials[group].program)
+	for idx, texture := range object.materials[group].textures {
+		var id uint32
+		uniform := object.materials[group].uniforms[texture.slot]
+		if texture.name.Value == 0 {
+			fmt.Printf("finalizing %v: default color: %v\n", texture.slot, texture.defaultColor)
+			gl.GenTextures(1, &object.materials[group].textures[idx].id)
+			id = object.materials[group].textures[idx].id
+			setupTexture(id, texture.target)
+			gl.BindTexture(texture.target, id)
+			gl.TexImage2D(texture.target, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, gl.Ptr(texture.defaultColor))
+			gl.BindTexture(texture.target, 0)
+			gl.Uniform1i(uniform, int32(idx))
+			continue
+		}
+		id, created := pv.textureCache.Acquire(texture.name, texture.target)
+		object.materials[group].textures[idx].id = id
+		object.materials[group].textures[idx].created = created
+		var err error
+		if object.materials[group].textures[idx].created {
+			setupTexture(id, texture.target)
+			err = uploadStingrayTexture(id, pv.textureData[texture.name])
+		}
+		if err != nil {
+			pv.textureCache.Delete(texture.name, texture.target)
+			return err
+		}
+		gl.Uniform1i(uniform, int32(idx))
+	}
+	gl.UseProgram(0)
+	return nil
+}
+
+func (pv *UnitPreviewState) finalizeObjectMaterials() error {
+	pv.textureWaitGroup.Wait()
+	for objectHash := range pv.objects {
+		for mesh := range pv.objects[objectHash] {
+			for group := range pv.objects[objectHash][mesh].materials {
+				object := pv.objects[objectHash][mesh]
+				if err := pv.finalizeMaterialTextures(&object, group); err != nil {
+					return err
+				}
+				pv.objects[objectHash][mesh] = object
+			}
+		}
+	}
+	return nil
+}
+
 func (pv *UnitPreviewState) useLUTMaterial(getResource GetResourceFunc, object *unitPreviewObject, group int, mat *material.Material, lookupThinHash func(stingray.ThinHash) string) error {
 	err := object.materials[group].generate(
 		[]string{"shaders/object.vert", "shaders/object.geom", "shaders/lut.frag"},
@@ -1029,57 +1163,28 @@ func (pv *UnitPreviewState) useLUTMaterial(getResource GetResourceFunc, object *
 		mat.Textures[stingray.Sum("pattern_lut").Thin()] = stingray.Hash{Value: 0xcf0cc31b981786c9}
 	}
 
-	var textureWaitGroup sync.WaitGroup
-	textureData := make([]TextureData, 0)
-	slotHashes := slices.SortedFunc(maps.Keys(mat.Textures), stingray.ThinHash.Cmp)
-	for _, slotHash := range slotHashes {
-		slot := lookupThinHash(slotHash)
+	pv.loadMaterialTexturesAsync(getResource, mat, lutTextureNames)
+
+	gl.UseProgram(object.materials[group].program)
+	for slotHash, textureHash := range mat.Textures {
+		slot := pv.lookupThinHash(slotHash)
 		if !slices.Contains(lutTextureNames, slot) {
 			continue
 		}
-		nameHash := mat.Textures[slotHash]
 		target := getTarget(slot)
-
-		index := len(textureData)
-		textureData = append(textureData, TextureData{
-			Slot:   slot,
-			Name:   nameHash,
-			Target: target,
-		})
-
-		if pv.textureCache.Contains(nameHash, target) {
-			// Already loaded, so we don't need to reload the data
-			continue
-		}
-
-		textureWaitGroup.Go(getTextureLoaderFunc(getResource, nameHash, &textureData, index))
-	}
-
-	textureWaitGroup.Wait()
-
-	gl.UseProgram(object.materials[group].program)
-	for _, data := range textureData {
-		textureId, created := pv.textureCache.Acquire(data.Name, data.Target)
 		texture := unitPreviewMaterialTexture{
-			id:     textureId,
-			name:   data.Name,
-			target: data.Target,
+			id:      0,
+			name:    textureHash,
+			target:  target,
+			slot:    slot,
+			created: false,
 		}
 
-		var err error
-		if created {
-			setupTexture(texture.id, data.Target)
-			err = uploadStingrayTexture(texture.id, data)
-		}
-		if err != nil {
-			pv.textureCache.Delete(data.Name, texture.target)
-			return err
-		}
-
-		gl.Uniform1i(object.materials[group].uniforms[data.Slot], int32(len(object.materials[group].textures)))
 		object.materials[group].textures = append(object.materials[group].textures, texture)
 	}
+	gl.UseProgram(0)
 
+	gl.UseProgram(object.materials[group].program)
 	for setting, value := range mat.Settings {
 		settingName := lookupThinHash(setting)
 		for _, block := range object.materials[group].uniformBlocks {
@@ -1278,7 +1383,11 @@ func (pv *UnitPreviewState) LoadPrefab(fileID stingray.Hash, mainData []byte, ge
 	}
 	pv.rootHash = fileID
 	pv.maxViewDistance = pv.getMaxZoom(pv.root, pv.rootHash, false)
-	return err
+
+	if err != nil {
+		return err
+	}
+	return pv.finalizeObjectMaterials()
 }
 
 func (pv *UnitPreviewState) loadPrefab(fileID stingray.Hash, mainData []byte, getResource GetResourceFunc) ([]stingray.Hash, error) {
@@ -1380,8 +1489,11 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 		return hash.String()
 	}
 
-	err := pv.loadUnit(fileID, mainData, gpuData, getResource)
-	if err != nil {
+	if err := pv.loadUnit(fileID, mainData, gpuData, getResource); err != nil {
+		return err
+	}
+
+	if err := pv.finalizeObjectMaterials(); err != nil {
 		return err
 	}
 
