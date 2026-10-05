@@ -892,6 +892,17 @@ func LoadTerrain(terrainInfo TerrainInfo) (Mesh, error) {
 				Max: mgl32.Vec3{terrainInfo.Max[0], terrainInfo.Max[1], maxHeight},
 			},
 		},
+		Groups: []MeshGroup{{
+			MaterialIdx:  0,
+			NumVertices:  uint32(len(mesh.Positions)),
+			NumIndices:   uint32(len(mesh.Indices[0])),
+			VertexOffset: 0,
+			IndexOffset:  0,
+			GroupIdx:     0,
+		}},
+		Materials: []stingray.ThinHash{
+			stingray.Sum("terrain").Thin(),
+		},
 	}
 	return mesh, nil
 }
