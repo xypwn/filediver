@@ -701,6 +701,7 @@ func (a *guiApp) drawBrowserWindow() {
 								stingray.Sum("wwise_stream"),
 								stingray.Sum("unit"),
 								stingray.Sum("prefab"),
+								stingray.Sum("level"),
 								stingray.Sum("speedtree"),
 								stingray.Sum("strings"),
 								stingray.Sum("xaml"),
