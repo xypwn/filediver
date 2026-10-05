@@ -197,6 +197,22 @@ func (pv *AutoPreview) LoadFile(ctx context.Context, fileID stingray.FileID, max
 			pv.err = fmt.Errorf("loading prefab: %w", err)
 			return
 		}
+	case stingray.Sum("level"):
+		pv.activeType = AutoPreviewUnit
+		if err := loadFiles(stingray.DataMain); err != nil {
+			pv.err = err
+			return
+		}
+		pv.previews.unit.Clear()
+		if err := pv.previews.unit.LoadLevel(
+			fileID.Name,
+			data[stingray.DataMain],
+			pv.getResourceGenerator(true),
+			pv.thinhashes,
+		); err != nil {
+			pv.err = fmt.Errorf("loading prefab: %w", err)
+			return
+		}
 	case stingray.Sum("speedtree"):
 		pv.activeType = AutoPreviewTree
 		if err := loadFiles(stingray.DataMain, stingray.DataGPU); err != nil {

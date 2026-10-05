@@ -31,6 +31,7 @@ import (
 	datalib "github.com/xypwn/filediver/datalibrary"
 	"github.com/xypwn/filediver/dds"
 	"github.com/xypwn/filediver/stingray"
+	"github.com/xypwn/filediver/stingray/level"
 	"github.com/xypwn/filediver/stingray/prefab"
 	"github.com/xypwn/filediver/stingray/unit"
 	geometrygroup "github.com/xypwn/filediver/stingray/unit/geometry_group"
@@ -1301,6 +1302,116 @@ func (pv *UnitPreviewState) getNodeUnitHash(nodeId stingray.Hash) (stingray.Hash
 	return hash, contains
 }
 
+func (pv *UnitPreviewState) LoadLevel(fileID stingray.Hash, mainData []byte, getResource GetResourceFunc, thinhashes map[stingray.ThinHash]string) error {
+	if pv.nodes == nil {
+		pv.nodes = make(map[stingray.Hash]unitPreviewNode)
+	}
+
+	pv.maxViewDistance = 0.001
+
+	pv.lookupThinHash = func(hash stingray.ThinHash) string {
+		if name, ok := thinhashes[hash]; ok {
+			return name
+		}
+		return hash.String()
+	}
+
+	children := make([]stingray.Hash, 0)
+
+	levelInfo, err := level.LoadLevel(bytes.NewReader(mainData), nil)
+	if err != nil {
+		return err
+	}
+
+	for _, unit := range levelInfo.Units {
+		children = append(children, unit.UUID)
+		pv.nodes[unit.UUID] = unitPreviewNode{
+			name:     unit.Name,
+			shown:    true,
+			matrix:   unit.Matrix(),
+			children: []stingray.Hash{unit.Hash},
+			parent:   fileID,
+		}
+		if _, contains := pv.objects[unit.Hash]; contains {
+			continue
+		}
+		unitMainData, exists, err := getResource(stingray.NewFileID(unit.Hash, stingray.Sum("unit")), stingray.DataMain)
+		if err != nil {
+			return fmt.Errorf("loading %v.unit data in %v.level: %v", pv.lookupHash(unit.Hash), pv.lookupHash(fileID), err)
+		}
+		if !exists {
+			return fmt.Errorf("%v.unit in %v.level does not exist", pv.lookupHash(unit.Hash), pv.lookupHash(fileID))
+		}
+
+		// Some units won't have GPU data but will have terrain or geometry group info
+		unitGpuData, _, _ := getResource(stingray.NewFileID(unit.Hash, stingray.Sum("unit")), stingray.DataGPU)
+
+		err = pv.loadUnit(unit.Hash, unitMainData, unitGpuData, getResource)
+		if err != nil {
+			return fmt.Errorf("loading %v.unit in %v.prefab for rendering: %v", pv.lookupHash(unit.Hash), pv.lookupHash(fileID), err)
+		}
+	}
+
+	for _, prefab := range levelInfo.Prefabs {
+		children = append(children, prefab.Name)
+		if _, contains := pv.nodes[prefab.Name]; contains {
+			continue
+		}
+		prefabMainData, exists, err := getResource(stingray.NewFileID(prefab.Path, stingray.Sum("prefab")), stingray.DataMain)
+		if err != nil {
+			return fmt.Errorf("loading %v.prefab data in %v.level: %v", pv.lookupHash(prefab.Path), pv.lookupHash(fileID), err)
+		}
+		if !exists {
+			return fmt.Errorf("%v.prefab in %v.level does not exist", pv.lookupHash(prefab.Path), pv.lookupHash(fileID))
+		}
+
+		nestedChildren, err := pv.loadPrefab(prefab.Path, prefabMainData, getResource)
+		if err != nil {
+			return fmt.Errorf("loading %v.prefab in %v.level for rendering: %v", pv.lookupHash(prefab.Path), pv.lookupHash(fileID), err)
+		}
+		pv.nodes[prefab.Name] = unitPreviewNode{
+			name:     prefab.Name,
+			shown:    true,
+			matrix:   prefab.Matrix(),
+			children: nestedChildren,
+			parent:   fileID,
+		}
+	}
+
+	for _, prefab := range levelInfo.EmbeddedPrefabs {
+		children = append(children, prefab.EmbeddedPrefabTransform.Hash)
+		if _, contains := pv.nodes[prefab.EmbeddedPrefabTransform.Hash]; contains {
+			continue
+		}
+		nestedChildren, err := pv.loadPrefabInfo(prefab.EmbeddedPrefabTransform.Hash, &prefab.Prefab, getResource)
+		if err != nil {
+			return fmt.Errorf("loading embedded %v.prefab in %v.level for rendering: %v", pv.lookupHash(prefab.EmbeddedPrefabTransform.Hash), pv.lookupHash(fileID), err)
+		}
+		pv.nodes[prefab.EmbeddedPrefabTransform.Hash] = unitPreviewNode{
+			name:     prefab.EmbeddedPrefabTransform.Hash,
+			shown:    true,
+			matrix:   prefab.Matrix(),
+			children: nestedChildren,
+			parent:   fileID,
+		}
+	}
+
+	pv.root = unitPreviewNode{
+		name:     fileID,
+		shown:    true,
+		matrix:   mgl32.Ident4(),
+		children: children,
+		parent:   stingray.Hash{},
+	}
+	pv.rootHash = fileID
+	pv.maxViewDistance = pv.getMaxZoom(pv.root, pv.rootHash, false)
+
+	if err != nil {
+		return err
+	}
+	return pv.finalizeObjectMaterials()
+}
+
 func (pv *UnitPreviewState) LoadPrefab(fileID stingray.Hash, mainData []byte, getResource GetResourceFunc, thinhashes map[stingray.ThinHash]string) error {
 	if pv.nodes == nil {
 		pv.nodes = make(map[stingray.Hash]unitPreviewNode)
@@ -1337,7 +1448,10 @@ func (pv *UnitPreviewState) loadPrefab(fileID stingray.Hash, mainData []byte, ge
 	if err != nil {
 		return []stingray.Hash{}, err
 	}
+	return pv.loadPrefabInfo(fileID, info, getResource)
+}
 
+func (pv *UnitPreviewState) loadPrefabInfo(fileID stingray.Hash, info *prefab.Prefab, getResource GetResourceFunc) ([]stingray.Hash, error) {
 	contents := make([]stingray.Hash, 0)
 	for _, unit := range info.Units {
 		var err error
@@ -1505,8 +1619,11 @@ func (pv *UnitPreviewState) loadUnit(fileID stingray.Hash, mainData, gpuData []b
 		}
 		meshes = make(map[string]unit.Mesh)
 		meshes["terrain"] = mesh
+		info.Materials[stingray.Sum("terrain").Thin()] = fileID
 		pv.objectsShownDefault[fileID] = map[string]bool{"terrain": true}
-	} else if info.GeometryGroup.Value != 0x0 {
+	} else if info.GeometryGroup.Value != 0x0 && info.GeometryGroup.Value != 0xfce38c71ca9c2166 {
+		// 0xfce38c71ca9c2166 seems to be a "dev assets" geometry group that isn't included in the
+		// prod release of the game, so in our POV its the same as a null geometry group
 		geoID := stingray.NewFileID(info.GeometryGroup, stingray.Sum("geometry_group"))
 		geoMain, exists, err := getResource(geoID, stingray.DataMain)
 		if !exists {
