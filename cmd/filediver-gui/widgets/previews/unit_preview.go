@@ -372,7 +372,7 @@ func (obj unitPreviewObject) deleteObjects(textureCache *glutils.TextureCache) {
 }
 
 type unitPreviewNode struct {
-	name     stingray.Hash
+	name     string
 	shown    bool
 	matrix   mgl32.Mat4
 	children []stingray.Hash
@@ -1402,10 +1402,25 @@ func (pv *UnitPreviewState) LoadLevel(fileID stingray.Hash, mainData []byte, get
 		return err
 	}
 
-	for _, unit := range levelInfo.Units {
-		children = append(children, unit.UUID)
+	childrenRange := make(map[stingray.ThinHash][]stingray.Hash)
+	for idx, unit := range levelInfo.Units {
+		var collection *level.HashIndexRange
+		for _, hashRange := range levelInfo.UnitHashIndexRange {
+			if idx >= int(hashRange.End) || idx < int(hashRange.Start) || hashRange.Hash.Value == 0x0 {
+				continue
+			}
+			collection = &hashRange
+			if _, contains := childrenRange[collection.Hash]; !contains {
+				childrenRange[collection.Hash] = make([]stingray.Hash, 0)
+			}
+		}
+		if collection == nil {
+			children = append(children, unit.UUID)
+		} else {
+			childrenRange[collection.Hash] = append(childrenRange[collection.Hash], unit.UUID)
+		}
 		pv.nodes[unit.UUID] = unitPreviewNode{
-			name:     unit.Name,
+			name:     pv.lookupHash(unit.Name),
 			shown:    true,
 			matrix:   unit.Matrix(),
 			children: []stingray.Hash{unit.Hash},
@@ -1431,8 +1446,22 @@ func (pv *UnitPreviewState) LoadLevel(fileID stingray.Hash, mainData []byte, get
 		}
 	}
 
-	for _, prefab := range levelInfo.Prefabs {
-		children = append(children, prefab.Name)
+	for idx, prefab := range levelInfo.Prefabs {
+		var collection *level.HashIndexRange
+		for _, hashRange := range levelInfo.PrefabHashIndexRange {
+			if idx >= int(hashRange.End) || idx < int(hashRange.Start) || hashRange.Hash.Value == 0x0 {
+				continue
+			}
+			collection = &hashRange
+			if _, contains := childrenRange[collection.Hash]; !contains {
+				childrenRange[collection.Hash] = make([]stingray.Hash, 0)
+			}
+		}
+		if collection == nil {
+			children = append(children, prefab.Name)
+		} else {
+			childrenRange[collection.Hash] = append(childrenRange[collection.Hash], prefab.Name)
+		}
 		if _, contains := pv.nodes[prefab.Name]; contains {
 			continue
 		}
@@ -1449,7 +1478,7 @@ func (pv *UnitPreviewState) LoadLevel(fileID stingray.Hash, mainData []byte, get
 			return fmt.Errorf("loading %v.prefab in %v.level for rendering: %v", pv.lookupHash(prefab.Path), pv.lookupHash(fileID), err)
 		}
 		pv.nodes[prefab.Name] = unitPreviewNode{
-			name:     prefab.Name,
+			name:     pv.lookupHash(prefab.Name),
 			shown:    true,
 			matrix:   prefab.Matrix(),
 			children: nestedChildren,
@@ -1457,8 +1486,22 @@ func (pv *UnitPreviewState) LoadLevel(fileID stingray.Hash, mainData []byte, get
 		}
 	}
 
-	for _, prefab := range levelInfo.EmbeddedPrefabs {
-		children = append(children, prefab.EmbeddedPrefabTransform.Hash)
+	for idx, prefab := range levelInfo.EmbeddedPrefabs {
+		var collection *level.HashIndexRange
+		for _, hashRange := range levelInfo.PrefabHashIndexRange {
+			if idx >= int(hashRange.End) || idx < int(hashRange.Start) || hashRange.Hash.Value == 0x0 {
+				continue
+			}
+			collection = &hashRange
+			if _, contains := childrenRange[collection.Hash]; !contains {
+				childrenRange[collection.Hash] = make([]stingray.Hash, 0)
+			}
+		}
+		if collection == nil {
+			children = append(children, prefab.EmbeddedPrefabTransform.Hash)
+		} else {
+			childrenRange[collection.Hash] = append(childrenRange[collection.Hash], prefab.EmbeddedPrefabTransform.Hash)
+		}
 		if _, contains := pv.nodes[prefab.EmbeddedPrefabTransform.Hash]; contains {
 			continue
 		}
@@ -1467,7 +1510,7 @@ func (pv *UnitPreviewState) LoadLevel(fileID stingray.Hash, mainData []byte, get
 			return fmt.Errorf("loading embedded %v.prefab in %v.level for rendering: %v", pv.lookupHash(prefab.EmbeddedPrefabTransform.Hash), pv.lookupHash(fileID), err)
 		}
 		pv.nodes[prefab.EmbeddedPrefabTransform.Hash] = unitPreviewNode{
-			name:     prefab.EmbeddedPrefabTransform.Hash,
+			name:     pv.lookupHash(prefab.EmbeddedPrefabTransform.Hash),
 			shown:    true,
 			matrix:   prefab.Matrix(),
 			children: nestedChildren,
@@ -1475,8 +1518,26 @@ func (pv *UnitPreviewState) LoadLevel(fileID stingray.Hash, mainData []byte, get
 		}
 	}
 
+	for collectionHash, collectionChildren := range childrenRange {
+		name := pv.lookupThinHash(collectionHash)
+		hash := stingray.Sum(name)
+		if strings.HasPrefix(name, "0x") {
+			hash = stingray.Hash{
+				Value: uint64(collectionHash.Value) << 32,
+			}
+		}
+		pv.nodes[hash] = unitPreviewNode{
+			name:     name,
+			shown:    true,
+			matrix:   mgl32.Ident4(),
+			children: collectionChildren,
+			parent:   fileID,
+		}
+		children = append(children, hash)
+	}
+
 	pv.root = unitPreviewNode{
-		name:     fileID,
+		name:     pv.lookupHash(fileID),
 		shown:    true,
 		matrix:   mgl32.Ident4(),
 		children: children,
@@ -1507,7 +1568,7 @@ func (pv *UnitPreviewState) LoadPrefab(fileID stingray.Hash, mainData []byte, ge
 
 	children, err := pv.loadPrefab(fileID, mainData, getResource)
 	pv.root = unitPreviewNode{
-		name:     fileID,
+		name:     pv.lookupHash(fileID),
 		shown:    true,
 		matrix:   mgl32.Ident4(),
 		children: children,
@@ -1537,7 +1598,7 @@ func (pv *UnitPreviewState) loadPrefabInfo(fileID stingray.Hash, info *prefab.Pr
 		if _, contains := pv.objects[unit.Hash]; contains {
 			contents = append(contents, unit.UUID)
 			pv.nodes[unit.UUID] = unitPreviewNode{
-				name:     unit.Name,
+				name:     pv.lookupHash(unit.Name),
 				shown:    true,
 				matrix:   unit.Matrix(),
 				children: []stingray.Hash{unit.Hash},
@@ -1562,7 +1623,7 @@ func (pv *UnitPreviewState) loadPrefabInfo(fileID stingray.Hash, info *prefab.Pr
 		}
 		contents = append(contents, unit.UUID)
 		pv.nodes[unit.UUID] = unitPreviewNode{
-			name:     unit.Name,
+			name:     pv.lookupHash(unit.Name),
 			shown:    true,
 			matrix:   unit.Matrix(),
 			children: []stingray.Hash{unit.Hash},
@@ -1591,7 +1652,7 @@ func (pv *UnitPreviewState) loadPrefabInfo(fileID stingray.Hash, info *prefab.Pr
 		}
 		contents = append(contents, prefab.Name)
 		pv.nodes[prefab.Name] = unitPreviewNode{
-			name:     prefab.Name,
+			name:     pv.lookupHash(prefab.Name),
 			shown:    true,
 			matrix:   prefab.Matrix(),
 			children: nestedChildren,
@@ -1608,7 +1669,7 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 	}
 
 	pv.root = unitPreviewNode{
-		name:     fileID,
+		name:     pv.lookupHash(fileID),
 		shown:    true,
 		matrix:   mgl32.Ident4(),
 		children: []stingray.Hash{fileID},
@@ -2023,21 +2084,21 @@ func (pv *UnitPreviewState) loadArmorSet(armorSets []datalib.ArmorSet, selectedS
 	pv.Clear()
 	setId := armorSets[selectedSet].SetId
 	pv.nodes[stingray.Sum("body_any")] = unitPreviewNode{
-		name:     stingray.Sum("Any"),
+		name:     "Any",
 		shown:    true,
 		matrix:   mgl32.Ident4(),
 		children: []stingray.Hash{},
 		parent:   armorSets[selectedSet].Archive,
 	}
 	pv.nodes[stingray.Sum("body_male")] = unitPreviewNode{
-		name:     stingray.Sum("Stocky"),
+		name:     "Stocky",
 		shown:    true,
 		matrix:   mgl32.Ident4(),
 		children: []stingray.Hash{},
 		parent:   armorSets[selectedSet].Archive,
 	}
 	pv.nodes[stingray.Sum("body_female")] = unitPreviewNode{
-		name:     stingray.Sum("Slim"),
+		name:     "Slim",
 		shown:    true,
 		matrix:   mgl32.Ident4(),
 		children: []stingray.Hash{},
@@ -2074,7 +2135,7 @@ func (pv *UnitPreviewState) loadArmorSet(armorSets []datalib.ArmorSet, selectedS
 		}
 	}
 	pv.root = unitPreviewNode{
-		name:   armorSets[selectedSet].Archive,
+		name:   armorSets[selectedSet].Name,
 		shown:  true,
 		matrix: mgl32.Ident4(),
 		children: []stingray.Hash{
@@ -2084,7 +2145,7 @@ func (pv *UnitPreviewState) loadArmorSet(armorSets []datalib.ArmorSet, selectedS
 		},
 		parent: stingray.Hash{},
 	}
-	pv.rootHash = pv.root.name
+	pv.rootHash = armorSets[selectedSet].Archive
 	pv.nodes[pv.rootHash] = pv.root
 
 	pv.maxViewDistance = pv.getMaxZoom(pv.root, pv.rootHash, false)
@@ -2573,6 +2634,7 @@ func (pv *UnitPreviewState) Draw(previewId string) {
 									continue
 								}
 								model := pv.model.Mul4(translation.Mul4(curr.matrix.Mul4(pv.objects[childHash][name].matrix)))
+								normalMat := model.Inv().Transpose().Mat3()
 								mvp := projection.Mul4(view).Mul4(model)
 								for i, vtx := range pv.meshPositions[childHash][name] {
 									v := mvp.Mul4x1(mgl32.Vec3(vtx).Vec4(1.0))
@@ -2585,7 +2647,7 @@ func (pv *UnitPreviewState) Draw(previewId string) {
 										closestDist = dist
 										closestVertex = model.Mul4x1(mgl32.Vec3(vtx).Vec4(1.0)).Vec3()
 										normal := pv.meshNormals[childHash][name][i]
-										closestNormal = model.Mul4x1(mgl32.Vec3(normal).Vec4(0.0)).Vec3().Normalize()
+										closestNormal = normalMat.Mul3x1(normal)
 									}
 								}
 							}
@@ -2816,14 +2878,12 @@ func (pv *UnitPreviewState) DrawSettings() {
 
 func cmpHashStringsGenerator(lookupHash func(stingray.Hash) string, nodes map[stingray.Hash]unitPreviewNode) func(a, b stingray.Hash) int {
 	return func(a, b stingray.Hash) int {
-		keyAName := a
-		keyBName := b
+		aString := lookupHash(a)
+		bString := lookupHash(b)
 		if nodes != nil {
-			keyAName = nodes[a].name
-			keyBName = nodes[b].name
+			aString = nodes[a].name
+			bString = nodes[b].name
 		}
-		aString := lookupHash(keyAName)
-		bString := lookupHash(keyBName)
 		return strings.Compare(aString, bString)
 	}
 }
@@ -2977,7 +3037,7 @@ func (pv *UnitPreviewState) drawUnitMaterialSettings(unit stingray.Hash, object 
 
 func (pv *UnitPreviewState) drawNodeTree(curr unitPreviewNode, nodeId stingray.Hash, matrix mgl32.Mat4) {
 	flags := imgui.TreeNodeFlagsDefaultOpen | imgui.TreeNodeFlagsOpenOnArrow
-	if imgui.TreeNodeExStrV(pv.lookupHash(curr.name), flags) {
+	if imgui.TreeNodeExStrV(curr.name, flags) {
 		shown := curr.shown
 		var icon string
 		if shown {

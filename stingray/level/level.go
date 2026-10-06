@@ -204,23 +204,10 @@ type EmbeddedPrefab struct {
 	prefab.Prefab
 }
 
-type ExtraUnit struct {
-	UUIDHash stingray.Hash
-	Path     stingray.Hash
-	Name     stingray.Hash
-	_        [8]uint8
+type Particle struct {
+	stingray.Hash
 	stingray.Transform
-	UnkFloats [3]float32
-	UnkInt    uint32
-	UnkInt2   uint32
-}
-
-type ExtraPrefab struct {
-	UUIDHash stingray.Hash
-	Path     stingray.Hash
-	stingray.Transform
-	UnkFloats [3]float32
-	UnkInt    uint32
+	UnkInts [2]uint32
 }
 
 type RawLevel struct {
@@ -230,16 +217,17 @@ type RawLevel struct {
 	UnkOffsets00                   [1]uint32
 	MetadataOffset                 uint32
 	UnkOffsets01                   [13]uint32
-	UnkCount00                     uint32
-	UnkOffsets02                   [8]uint32
+	ParticleCount                  uint32
+	ParticleOffset                 uint32
+	UnkOffsets02                   [7]uint32
 	PrefabCount                    uint32
 	PrefabOffset                   uint32
 	EmbeddedPrefabsCount           uint32
 	EmbeddedPrefabHashesOffset     uint32
-	EmbeddedPrefabTransformsOffset uint32 // Double pointers for several items here
+	EmbeddedPrefabTransformsOffset uint32
 	EmbeddedPrefabsOffset          uint32
 	UnitHashIndexRangeOffset       uint32
-	UnkHashIndexRangeOffset0       uint32
+	ParticleHashIndexRangeOffset   uint32
 	UnkHashIndexRangeOffset1       uint32
 	UnkHashIndexRangeOffset2       uint32
 	PrefabHashIndexRangeOffset     uint32
@@ -267,8 +255,9 @@ type Level struct {
 	Speedtrees                   []Speedtree
 	Entity                       *entity.Entity
 	EmbeddedPrefabs              []EmbeddedPrefab
+	Particles                    []Particle
 	UnitHashIndexRange           []HashIndexRange
-	UnkHashIndexRange1           []HashIndexRange
+	ParticleHashIndexRange       []HashIndexRange
 	UnkHashIndexRange2           []HashIndexRange
 	UnkHashIndexRange3           []HashIndexRange
 	PrefabHashIndexRange         []HashIndexRange
@@ -462,6 +451,16 @@ func LoadLevel(r io.ReadSeeker, entityVarMapping shading_environment.ShadingEnvi
 		}
 	}
 
+	particles := make([]Particle, raw.ParticleCount)
+	if raw.ParticleCount != 0 {
+		if _, err := r.Seek(int64(raw.ParticleOffset), io.SeekStart); err != nil {
+			return nil, err
+		}
+		if err := binary.Read(r, binary.LittleEndian, particles); err != nil {
+			return nil, err
+		}
+	}
+
 	readHashIndexRangeList := func(r io.ReadSeeker, offset uint32) ([]HashIndexRange, error) {
 		if offset == 0 {
 			return nil, nil
@@ -488,7 +487,7 @@ func LoadLevel(r io.ReadSeeker, entityVarMapping shading_environment.ShadingEnvi
 		return nil, err
 	}
 
-	unkHashIndexRangeList0, err := readHashIndexRangeList(r, raw.UnkHashIndexRangeOffset0)
+	particleHashIndexRangeList, err := readHashIndexRangeList(r, raw.ParticleHashIndexRangeOffset)
 	if err != nil {
 		return nil, err
 	}
@@ -535,8 +534,9 @@ func LoadLevel(r io.ReadSeeker, entityVarMapping shading_environment.ShadingEnvi
 		Speedtrees:                   speedtrees,
 		Entity:                       embeddedEntity,
 		EmbeddedPrefabs:              embeddedPrefabList,
+		Particles:                    particles,
 		UnitHashIndexRange:           unitHashIndexRangeList,
-		UnkHashIndexRange1:           unkHashIndexRangeList0,
+		ParticleHashIndexRange:       particleHashIndexRangeList,
 		UnkHashIndexRange2:           unkHashIndexRangeList1,
 		UnkHashIndexRange3:           unkHashIndexRangeList2,
 		PrefabHashIndexRange:         prefabHashIndexRangeList,
