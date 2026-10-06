@@ -320,6 +320,8 @@ type unitPreviewObject struct {
 	ibos      []uint32 // index buffer objects
 	vbo       uint32   // vertex buffer object
 	materials []unitPreviewMaterial
+	wireframe unitPreviewMaterial
+	normalVis unitPreviewMaterial
 	matrix    mgl32.Mat4
 
 	numVertices        int32
@@ -369,6 +371,8 @@ func (obj unitPreviewObject) deleteObjects(textureCache *glutils.TextureCache) {
 	for _, material := range obj.materials {
 		material.delete(textureCache)
 	}
+	obj.wireframe.delete(textureCache)
+	obj.normalVis.delete(textureCache)
 }
 
 type unitPreviewNode struct {
@@ -404,8 +408,6 @@ type UnitPreviewState struct {
 	treeViewShown bool
 	treeViewDrawn bool
 
-	wireframeMaterial   unitPreviewMaterial
-	normalVisMaterial   unitPreviewMaterial
 	boundingBoxMaterial unitPreviewMaterial
 
 	skeletons     map[stingray.Hash]unitPreviewObject
@@ -516,36 +518,6 @@ func NewUnitPreview(getResource GetResourceFunc, ArmorParams ExtractorArmorParam
 
 	//pv.object.genObjects(true, 0)
 
-	pv.wireframeMaterial.name = "wireframe"
-	pv.wireframeMaterial.shown = true
-	err = pv.wireframeMaterial.generate(
-		[]string{
-			"shaders/object_wireframe.vert",
-			"shaders/object_wireframe.geom",
-			"shaders/object_wireframe.frag",
-		},
-		0,
-		[]string{"mvp", "color", "udimShown", "hasVisibilityMasks"},
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	pv.normalVisMaterial.name = "normal visualization"
-	pv.normalVisMaterial.shown = true
-	err = pv.normalVisMaterial.generate(
-		[]string{
-			"shaders/object_normal_vis.vert",
-			"shaders/object_normal_vis.geom",
-			"shaders/object_normal_vis.frag",
-		},
-		0,
-		[]string{"mvp", "len", "showTangentBitangent", "udimShown", "hasVisibilityMasks"},
-	)
-	if err != nil {
-		return nil, err
-	}
-
 	pv.boundingBoxMaterial.name = "bounding box"
 	pv.boundingBoxMaterial.shown = true
 	err = pv.boundingBoxMaterial.generate(
@@ -586,7 +558,6 @@ func (pv *UnitPreviewState) Delete() {
 			pv.boundingBoxes[hash][name].deleteObjects(pv.textureCache)
 		}
 	}
-	pv.wireframeMaterial.delete(pv.textureCache)
 	pv.releaseMaterialDetailer()
 	pv.textureCache.DeleteAll()
 	pv.stopTextureSweep()
@@ -1850,6 +1821,35 @@ func (pv *UnitPreviewState) loadUnit(fileID stingray.Hash, mainData, gpuData []b
 
 		object := unitPreviewObject{}
 		object.matrix = info.Bones[mesh.Info.Header.TransformIdx].Matrix
+		object.wireframe.name = "wireframe"
+		object.wireframe.shown = true
+		err = object.wireframe.generate(
+			[]string{
+				"shaders/object_wireframe.vert",
+				"shaders/object_wireframe.geom",
+				"shaders/object_wireframe.frag",
+			},
+			0,
+			[]string{"mvp", "color", "udimShown", "hasVisibilityMasks"},
+		)
+		if err != nil {
+			return err
+		}
+
+		object.normalVis.name = "normal visualization"
+		object.normalVis.shown = true
+		err = object.normalVis.generate(
+			[]string{
+				"shaders/object_normal_vis.vert",
+				"shaders/object_normal_vis.geom",
+				"shaders/object_normal_vis.frag",
+			},
+			0,
+			[]string{"mvp", "len", "showTangentBitangent", "udimShown", "hasVisibilityMasks"},
+		)
+		if err != nil {
+			return err
+		}
 
 		// Create index buffers
 		{
@@ -2239,11 +2239,11 @@ func (pv *UnitPreviewState) drawObject(hash stingray.Hash, matrix, translation, 
 		normal := model.Inv().Transpose().Mat3()
 		gl.BindVertexArray(pv.objects[hash][name].vao)
 		if pv.showWireframe {
-			gl.UseProgram(pv.wireframeMaterial.program)
-			gl.UniformMatrix4fv(pv.wireframeMaterial.uniforms["mvp"], 1, false, &mvp[0])
-			gl.Uniform4fv(pv.wireframeMaterial.uniforms["color"], 1, &pv.wireframeColor[0])
-			gl.Uniform1i(pv.wireframeMaterial.uniforms["hasVisibilityMasks"], pv.objects[hash][name].hasVisibilityMasks)
-			gl.Uniform1iv(pv.wireframeMaterial.uniforms["udimShown"], 64, &pv.udimsShown[0])
+			gl.UseProgram(pv.objects[hash][name].wireframe.program)
+			gl.UniformMatrix4fv(pv.objects[hash][name].wireframe.uniforms["mvp"], 1, false, &mvp[0])
+			gl.Uniform4fv(pv.objects[hash][name].wireframe.uniforms["color"], 1, &pv.wireframeColor[0])
+			gl.Uniform1i(pv.objects[hash][name].wireframe.uniforms["hasVisibilityMasks"], pv.objects[hash][name].hasVisibilityMasks)
+			gl.Uniform1iv(pv.objects[hash][name].wireframe.uniforms["udimShown"], 64, &pv.udimsShown[0])
 		}
 		for group, ibo := range pv.objects[hash][name].ibos {
 			if !pv.showWireframe {
@@ -2289,13 +2289,13 @@ func (pv *UnitPreviewState) drawNormalVis(hash stingray.Hash, matrix, translatio
 		}
 		model := pv.model.Mul4(translation.Mul4(matrix.Mul4(pv.objects[hash][name].matrix)))
 		mvp := projection.Mul4(view).Mul4(model)
-		gl.UseProgram(pv.normalVisMaterial.program)
+		gl.UseProgram(pv.objects[hash][name].normalVis.program)
 		gl.BindVertexArray(pv.objects[hash][name].vao)
-		gl.UniformMatrix4fv(pv.normalVisMaterial.uniforms["mvp"], 1, false, &mvp[0])
-		gl.Uniform1f(pv.normalVisMaterial.uniforms["len"], pv.viewDistance*0.02)
-		gl.Uniform1iv(pv.normalVisMaterial.uniforms["showTangentBitangent"], 1, &pv.visualizeTangentBitangent)
-		gl.Uniform1i(pv.normalVisMaterial.uniforms["hasVisibilityMasks"], pv.objects[hash][name].hasVisibilityMasks)
-		gl.Uniform1iv(pv.normalVisMaterial.uniforms["udimShown"], 64, &pv.udimsShown[0])
+		gl.UniformMatrix4fv(pv.objects[hash][name].normalVis.uniforms["mvp"], 1, false, &mvp[0])
+		gl.Uniform1f(pv.objects[hash][name].normalVis.uniforms["len"], pv.viewDistance*0.02)
+		gl.Uniform1iv(pv.objects[hash][name].normalVis.uniforms["showTangentBitangent"], 1, &pv.visualizeTangentBitangent)
+		gl.Uniform1i(pv.objects[hash][name].normalVis.uniforms["hasVisibilityMasks"], pv.objects[hash][name].hasVisibilityMasks)
+		gl.Uniform1iv(pv.objects[hash][name].normalVis.uniforms["udimShown"], 64, &pv.udimsShown[0])
 		for group, ibo := range pv.objects[hash][name].ibos {
 			gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo)
 			gl.DrawElements(gl.POINTS, pv.objects[hash][name].numIndices[group], gl.UNSIGNED_INT, nil)
