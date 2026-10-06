@@ -44,15 +44,14 @@ type AutoPreview struct {
 	activeType AutoPreviewType
 	activeID   stingray.FileID
 	previews   struct {
-		unit      *UnitPreviewState
-		speedtree *SpeedtreePreviewState
-		audio     *WwisePreview
-		video     *BinkPreview
-		texture   *ImagePreview
-		strings   *StringsPreview
-		material  *MaterialPreview
-		xaml      *XamlPreview
-		font      *FontPreview
+		unit     *UnitPreviewState
+		audio    *WwisePreview
+		video    *BinkPreview
+		texture  *ImagePreview
+		strings  *StringsPreview
+		material *MaterialPreview
+		xaml     *XamlPreview
+		font     *FontPreview
 	}
 
 	hashes               map[stingray.Hash]string
@@ -90,10 +89,6 @@ func NewAutoPreview(otoCtx *oto.Context, audioSampleRate int, hashes map[stingra
 	if err != nil {
 		return nil, err
 	}
-	pv.previews.speedtree, err = NewSpeedtreePreview(planetParams)
-	if err != nil {
-		return nil, err
-	}
 	pv.previews.audio = NewWwisePreview(otoCtx, audioSampleRate)
 	pv.previews.video = NewBinkPreview(runner)
 	pv.previews.texture = NewImagePreview()
@@ -107,7 +102,6 @@ func NewAutoPreview(otoCtx *oto.Context, audioSampleRate int, hashes map[stingra
 
 func (pv *AutoPreview) Delete() {
 	pv.previews.unit.Delete()
-	pv.previews.speedtree.Delete()
 	pv.previews.audio.Delete()
 	pv.previews.video.Delete()
 	pv.previews.texture.Delete()
@@ -214,7 +208,7 @@ func (pv *AutoPreview) LoadFile(ctx context.Context, fileID stingray.FileID, max
 			return
 		}
 	case stingray.Sum("speedtree"):
-		pv.activeType = AutoPreviewTree
+		pv.activeType = AutoPreviewUnit
 		if err := loadFiles(stingray.DataMain, stingray.DataGPU); err != nil {
 			pv.err = err
 			return
@@ -224,7 +218,8 @@ func (pv *AutoPreview) LoadFile(ctx context.Context, fileID stingray.FileID, max
 		if err == nil && exists {
 			entityInfo, err = entity.LoadEntity(bytes.NewReader(entityData), entityVarMapping)
 		}
-		if err := pv.previews.speedtree.LoadSpeedtree(
+		pv.previews.unit.Clear()
+		if err := pv.previews.unit.LoadSpeedtree(
 			fileID.Name,
 			data[stingray.DataMain],
 			data[stingray.DataGPU],
@@ -409,8 +404,6 @@ func (pv *AutoPreview) Draw(name string) bool {
 		return false
 	case AutoPreviewUnit:
 		pv.previews.unit.Draw(name)
-	case AutoPreviewTree:
-		SpeedtreePreview(name, pv.previews.speedtree)
 	case AutoPreviewAudio:
 		pv.previews.audio.Draw(name)
 	case AutoPreviewVideo:

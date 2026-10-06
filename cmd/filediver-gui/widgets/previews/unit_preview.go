@@ -30,9 +30,12 @@ import (
 	"github.com/xypwn/filediver/cmd/filediver-gui/widgets"
 	datalib "github.com/xypwn/filediver/datalibrary"
 	"github.com/xypwn/filediver/dds"
+	extr_entity "github.com/xypwn/filediver/extractor/entity"
 	"github.com/xypwn/filediver/stingray"
+	"github.com/xypwn/filediver/stingray/entity"
 	"github.com/xypwn/filediver/stingray/level"
 	"github.com/xypwn/filediver/stingray/prefab"
+	"github.com/xypwn/filediver/stingray/speedtree"
 	"github.com/xypwn/filediver/stingray/unit"
 	geometrygroup "github.com/xypwn/filediver/stingray/unit/geometry_group"
 	"github.com/xypwn/filediver/stingray/unit/material"
@@ -84,6 +87,21 @@ var standardTextureNames = []string{
 	"roughness_map",
 	"ibl_brdf_lut",
 }
+
+// Textures used by the speedtree fragment shader
+var speedtreeTextureNames = []string{
+	"tex0",
+	"tex1",
+	"tex2",
+	//"asset_grading_lut",
+	"fibonacci_normal_lut",
+	"ibl_brdf_lut",
+}
+
+var UNIT = stingray.Sum("unit")
+var SPEEDTREE = stingray.Sum("speedtree")
+var PREFAB = stingray.Sum("prefab")
+var LEVEL = stingray.Sum("level")
 
 var seed = rand.Uint32()
 
@@ -218,6 +236,7 @@ type unitPreviewMaterialTexture struct {
 	name         stingray.Hash
 	slot         string
 	created      bool
+	loaded       bool
 	defaultColor []byte
 }
 
@@ -326,6 +345,7 @@ type unitPreviewObject struct {
 
 	numVertices        int32
 	numIndices         []int32
+	indexType          []uint32
 	hasVisibilityMasks int32
 }
 
@@ -379,7 +399,7 @@ type unitPreviewNode struct {
 	name     string
 	shown    bool
 	matrix   mgl32.Mat4
-	children []stingray.Hash
+	children []stingray.FileID
 	parent   stingray.Hash
 }
 
@@ -397,21 +417,26 @@ type UnitPreviewState struct {
 
 	nodes    map[stingray.Hash]unitPreviewNode
 	root     unitPreviewNode
-	rootHash stingray.Hash
+	rootHash stingray.FileID
 
 	// hash is a unit resource
-	objects             map[stingray.Hash]map[string]unitPreviewObject
-	objectsShown        map[stingray.Hash]map[string]bool
-	objectsShownDefault map[stingray.Hash]map[string]bool
-	objectsSelected     map[stingray.Hash]map[string]bool
+	objects             map[stingray.FileID]map[string]unitPreviewObject
+	objectsShown        map[stingray.FileID]map[string]bool
+	objectsShownDefault map[stingray.FileID]map[string]bool
+	objectsSelected     map[stingray.FileID]map[string]bool
+
+	entityInfo             *entity.Entity
+	assetGradingLut        []extr_entity.Vec4F16
+	assetGradingLutTexture uint32
+	assetGradingLutBuffer  uint32
 
 	treeViewShown bool
 	treeViewDrawn bool
 
 	boundingBoxMaterial unitPreviewMaterial
 
-	skeletons     map[stingray.Hash]unitPreviewObject
-	boundingBoxes map[stingray.Hash]map[string]unitPreviewObject
+	skeletons     map[stingray.FileID]unitPreviewObject
+	boundingBoxes map[stingray.FileID]map[string]unitPreviewObject
 
 	vfov         float32
 	modelPos     mgl32.Vec4
@@ -427,14 +452,14 @@ type UnitPreviewState struct {
 
 	// Axis-aligned bounding box. Don't forget
 	// to multiply aabb's vertices with aabbMat first!
-	aabb    map[stingray.Hash]map[string][2]mgl32.Vec3
-	aabbMat map[stingray.Hash]map[string]mgl32.Mat4
+	aabb    map[stingray.FileID]map[string][2]mgl32.Vec3
+	aabbMat map[stingray.FileID]map[string]mgl32.Mat4
 
 	// For fitting mesh to screen and debug info
-	meshPositions map[stingray.Hash]map[string][][3]float32
-	meshNormals   map[stingray.Hash]map[string][][3]float32
+	meshPositions map[stingray.FileID]map[string][][3]float32
+	meshNormals   map[stingray.FileID]map[string][][3]float32
 
-	skeletonPositions map[stingray.Hash][]mgl32.Vec3
+	skeletonPositions map[stingray.FileID][]mgl32.Vec3
 
 	maxViewDistance float32
 
@@ -486,6 +511,7 @@ func NewUnitPreview(getResource GetResourceFunc, ArmorParams ExtractorArmorParam
 	}
 
 	pv.lookupHash = lookupHash
+	pv.model = stingrayToGLCoords
 
 	pv.armorSets = ArmorParams.ArmorSets
 	pv.getSelectedArchives = ArmorParams.SelectedArchives
@@ -557,6 +583,11 @@ func (pv *UnitPreviewState) Delete() {
 			pv.objects[hash][name].deleteObjects(pv.textureCache)
 			pv.boundingBoxes[hash][name].deleteObjects(pv.textureCache)
 		}
+	}
+	if pv.assetGradingLut != nil {
+		gl.DeleteBuffers(1, &pv.assetGradingLutBuffer)
+		gl.DeleteTextures(1, &pv.assetGradingLutTexture)
+		pv.assetGradingLut = nil
 	}
 	pv.releaseMaterialDetailer()
 	pv.textureCache.DeleteAll()
@@ -689,6 +720,9 @@ func loadDDS(getResource GetResourceFunc, fileName stingray.Hash) (*dds.DDS, err
 }
 
 func uploadStingrayTexture(textureID uint32, target uint32, data TextureData) error {
+	if target == gl.TEXTURE_BUFFER {
+		gl.BindBuffer(target, data.Buffer)
+	}
 	gl.BindTexture(target, textureID)
 	if data.Swizzles != nil {
 		gl.TextureParameterIuiv(textureID, gl.TEXTURE_SWIZZLE_RGBA, &data.Swizzles[0])
@@ -697,6 +731,8 @@ func uploadStingrayTexture(textureID uint32, target uint32, data TextureData) er
 		gl.TexImage2D(target, 0, data.InternalFormat, int32(data.Bounds.Dx()), int32(data.Bounds.Dy()), 0, data.Format, data.Type, gl.Ptr(data.Data))
 	} else if target == gl.TEXTURE_2D_ARRAY {
 		gl.TexImage3D(target, 0, data.InternalFormat, int32(data.Bounds.Dx()), int32(data.Bounds.Dy()), data.Depth, 0, data.Format, data.Type, gl.Ptr(data.Data))
+	} else if target == gl.TEXTURE_BUFFER {
+		gl.TexBuffer(target, data.Format, textureID)
 	}
 	gl.BindTexture(target, 0)
 	return nil
@@ -748,6 +784,7 @@ func (pv *UnitPreviewState) useBasicMaterial(getResource GetResourceFunc, object
 		name:         albedoName,
 		slot:         "texAlbedo",
 		created:      false,
+		loaded:       false,
 		defaultColor: []byte{255, 255, 255, 255},
 	}
 	if albedoRemoveAlpha {
@@ -778,6 +815,7 @@ func (pv *UnitPreviewState) useBasicMaterial(getResource GetResourceFunc, object
 		name:         normalName,
 		slot:         "texNormal",
 		created:      false,
+		loaded:       false,
 		defaultColor: []byte{128, 128, 255, 128},
 	}
 	object.materials[group].textures = append(object.materials[group].textures, normalTexture)
@@ -811,6 +849,7 @@ type TextureData struct {
 	Format         uint32
 	Swizzles       []uint32
 	Type           uint32
+	Buffer         uint32
 	Data           []uint8
 }
 
@@ -858,6 +897,7 @@ func (pv *UnitPreviewState) uploadMaterialDetailer(data TextureData) {
 		id:     textureId,
 		name:   data.Name,
 		target: data.Targets[0],
+		loaded: false,
 	}
 
 	if !created {
@@ -906,6 +946,11 @@ func getTextureLoaderFunc(getResource GetResourceFunc, nameHash stingray.Hash, t
 				data.Format = gl.RGBA
 				data.InternalFormat = gl.RGBA16F
 				data.Type = gl.HALF_FLOAT
+				data.Data = ddsImage.Images[0].MipMaps[0].Raw
+			} else if ddsImage.Info.DXT10Header != nil && ddsImage.Info.DXT10Header.DXGIFormat == dds.DXGIFormatR32G32B32A32Float {
+				data.Format = gl.RGBA
+				data.InternalFormat = gl.RGBA32F
+				data.Type = gl.FLOAT
 				data.Data = ddsImage.Images[0].MipMaps[0].Raw
 			} else if ddsImage.Info.DXT10Header != nil && ddsImage.Info.DXT10Header.DXGIFormat == dds.DXGIFormatR16G16Float {
 				data.Format = gl.RG
@@ -1057,18 +1102,19 @@ func (pv *UnitPreviewState) finalizeMaterialTextures(object *unitPreviewObject, 
 			gl.BindTexture(texture.target, 0)
 			gl.Uniform1i(uniform, int32(idx))
 			continue
-		}
-		id, created := pv.textureCache.Acquire(texture.name, texture.target)
-		object.materials[group].textures[idx].id = id
-		object.materials[group].textures[idx].created = created
-		var err error
-		if object.materials[group].textures[idx].created {
-			setupTexture(id, texture.target)
-			err = uploadStingrayTexture(id, texture.target, pv.textureData[texture.name])
-		}
-		if err != nil {
-			pv.textureCache.Delete(texture.name, texture.target)
-			return err
+		} else if !texture.loaded {
+			id, created := pv.textureCache.Acquire(texture.name, texture.target)
+			object.materials[group].textures[idx].id = id
+			object.materials[group].textures[idx].created = created
+			var err error
+			if object.materials[group].textures[idx].created {
+				setupTexture(id, texture.target)
+				err = uploadStingrayTexture(id, texture.target, pv.textureData[texture.name])
+			}
+			if err != nil {
+				pv.textureCache.Delete(texture.name, texture.target)
+				return err
+			}
 		}
 		gl.Uniform1i(uniform, int32(idx))
 	}
@@ -1090,6 +1136,9 @@ func (pv *UnitPreviewState) finalizeObjectMaterials() error {
 		}
 	}
 	return nil
+}
+
+func (pv *UnitPreviewState) UpdateAssetOverrides(getResource GetResourceFunc) {
 }
 
 func (pv *UnitPreviewState) setupMaterialCommon(getResource GetResourceFunc, textureNames []string, object *unitPreviewObject, group int, mat *material.Material, lookupThinHash func(stingray.ThinHash) string) {
@@ -1121,6 +1170,7 @@ func (pv *UnitPreviewState) setupMaterialCommon(getResource GetResourceFunc, tex
 			target:  target,
 			slot:    slot,
 			created: false,
+			loaded:  false,
 		}
 
 		object.materials[group].textures = append(object.materials[group].textures, texture)
@@ -1202,6 +1252,58 @@ func (pv *UnitPreviewState) useStandardMaterial(getResource GetResourceFunc, obj
 	return nil
 }
 
+func (pv *UnitPreviewState) useSpeedtreeMaterial(getResource GetResourceFunc, object *unitPreviewObject, group int, mat *material.Material, lookupThinHash func(stingray.ThinHash) string) error {
+	err := object.materials[group].generate(
+		[]string{"shaders/speedtree.vert", "shaders/speedtree.frag"},
+		0,
+		append(baseUniforms, speedtreeTextureNames...),
+	)
+	if err != nil {
+		return err
+	}
+
+	if pv.assetGradingLut == nil {
+		pv.assetGradingLut = extr_entity.CreateIdentityColorGradingLut()
+		gl.GenTextures(1, &pv.assetGradingLutTexture)
+		gl.GenBuffers(1, &pv.assetGradingLutBuffer)
+	}
+	if pv.entityInfo != nil {
+		entityAssetGradingLut, err := extr_entity.CreateColorGradingLut(pv.entityInfo)
+		if err == nil {
+			pv.assetGradingLut = entityAssetGradingLut
+		}
+	}
+
+	assetGradingData, err := binary.Append(nil, binary.LittleEndian, pv.assetGradingLut)
+	if err != nil {
+		return err
+	}
+
+	gl.BindBuffer(gl.TEXTURE_BUFFER, pv.assetGradingLutBuffer)
+	gl.BufferData(gl.TEXTURE_BUFFER, len(assetGradingData), gl.Ptr(assetGradingData), gl.STATIC_DRAW)
+	gl.BindBuffer(gl.TEXTURE_BUFFER, 0)
+
+	gl.BindTexture(gl.TEXTURE_BUFFER, pv.assetGradingLutTexture)
+	gl.TexBuffer(gl.TEXTURE_BUFFER, gl.RGBA16F, pv.assetGradingLutBuffer)
+	gl.BindTexture(gl.TEXTURE_BUFFER, 0)
+
+	object.materials[group].textures = append(object.materials[group].textures, unitPreviewMaterialTexture{
+		id:      pv.assetGradingLutTexture,
+		target:  gl.TEXTURE_BUFFER,
+		name:    stingray.Sum("asset_grading_lut"),
+		slot:    "asset_grading_lut",
+		created: false,
+		loaded:  true,
+	})
+
+	if _, contains := mat.Textures[stingray.Sum("fibonacci_normal_lut").Thin()]; !contains {
+		mat.Textures[stingray.Sum("fibonacci_normal_lut").Thin()] = stingray.Sum("content/art_shared/textures/fibonacci_normal_lut")
+	}
+
+	pv.setupMaterialCommon(getResource, speedtreeTextureNames, object, group, mat, lookupThinHash)
+	return nil
+}
+
 func loadMaterial(getResource GetResourceFunc, matFileName stingray.Hash) (*material.Material, error) {
 	if matFileName.Value == 0x0 {
 		return nil, fmt.Errorf("nil material")
@@ -1237,7 +1339,7 @@ func (pv *UnitPreviewState) loadMaterials(getResource GetResourceFunc, object *u
 			if err := pv.useStandardMaterial(getResource, object, group, mat, lookupThinHash); err == nil {
 				continue
 			} else {
-				fmt.Printf("got error when enabling lut material: %v\n", err)
+				fmt.Printf("got error when enabling standard material: %v\n", err)
 			}
 		}
 		if err := pv.useBasicMaterial(getResource, object, group, mat); err != nil {
@@ -1255,8 +1357,8 @@ func (pv *UnitPreviewState) RemoveRenderedObject(nodeId stingray.Hash) {
 	delete(pv.nodes, nodeId)
 
 	for _, hash := range node.children {
-		if _, contains := pv.nodes[hash]; contains {
-			pv.RemoveRenderedObject(hash)
+		if _, contains := pv.nodes[hash.Name]; contains {
+			pv.RemoveRenderedObject(hash.Name)
 		}
 		// several rendered objects may map to the same unit resource, so check if its already been removed
 		if _, contains := pv.objects[hash]; !contains {
@@ -1282,16 +1384,23 @@ func (pv *UnitPreviewState) Clear() {
 	for hash := range pv.nodes {
 		pv.RemoveRenderedObject(hash)
 	}
+	if pv.assetGradingLut != nil {
+		gl.DeleteBuffers(1, &pv.assetGradingLutBuffer)
+		pv.assetGradingLutBuffer = 0
+		gl.DeleteTextures(1, &pv.assetGradingLutTexture)
+		pv.assetGradingLutTexture = 0
+		pv.assetGradingLut = nil
+	}
 }
 
 // Calculate max zoom out distance
-func (pv *UnitPreviewState) getMaxZoom(node unitPreviewNode, nodeId stingray.Hash, useSkeleton bool) (maxViewDistance float32) {
+func (pv *UnitPreviewState) getMaxZoom(node unitPreviewNode, nodeId stingray.FileID, useSkeleton bool) (maxViewDistance float32) {
 	// Get origin sphere around mesh
 	var maxDistSqrFromOrigin float32
-	var calcDistance func(unitPreviewNode, stingray.Hash, mgl32.Mat4, bool)
-	calcDistance = func(curr unitPreviewNode, nodeId stingray.Hash, matrix mgl32.Mat4, useSkeleton bool) {
+	var calcDistance func(unitPreviewNode, stingray.FileID, mgl32.Mat4, bool)
+	calcDistance = func(curr unitPreviewNode, nodeId stingray.FileID, matrix mgl32.Mat4, useSkeleton bool) {
 		for _, childHash := range curr.children {
-			if child, contains := pv.nodes[childHash]; contains && nodeId != childHash {
+			if child, contains := pv.nodes[childHash.Name]; contains && nodeId != childHash {
 				calcDistance(child, childHash, matrix.Mul4(child.matrix), useSkeleton)
 			}
 			if _, contains := pv.objects[childHash]; contains {
@@ -1326,25 +1435,25 @@ func (pv *UnitPreviewState) getMaxZoom(node unitPreviewNode, nodeId stingray.Has
 	return
 }
 
-func (pv *UnitPreviewState) getNodeUnitHash(nodeId stingray.Hash) (stingray.Hash, bool) {
+func (pv *UnitPreviewState) getNodeUnitFileID(nodeId stingray.Hash) (stingray.FileID, bool) {
 	node, contains := pv.nodes[nodeId]
 	if !contains {
-		return stingray.Hash{}, contains
+		return stingray.FileID{}, contains
 	}
 	// this is not a node that just has one unit
 	if len(node.children) != 1 {
-		return stingray.Hash{}, false
+		return stingray.FileID{}, false
 	}
 	hash := node.children[0]
 	_, contains = pv.objects[hash]
 	for !contains {
-		node, contains = pv.nodes[hash]
+		node, contains = pv.nodes[hash.Name]
 		if !contains {
 			break
 		}
 		// this is not a node that just has one unit
 		if len(node.children) != 1 {
-			return stingray.Hash{}, false
+			return stingray.FileID{}, false
 		}
 		hash = node.children[0]
 		_, contains = pv.objects[hash]
@@ -1366,14 +1475,14 @@ func (pv *UnitPreviewState) LoadLevel(fileID stingray.Hash, mainData []byte, get
 		return hash.String()
 	}
 
-	children := make([]stingray.Hash, 0)
+	children := make([]stingray.FileID, 0)
 
 	levelInfo, err := level.LoadLevel(bytes.NewReader(mainData), nil)
 	if err != nil {
 		return err
 	}
 
-	childrenRange := make(map[stingray.ThinHash][]stingray.Hash)
+	childrenRange := make(map[stingray.ThinHash][]stingray.FileID)
 	for idx, unit := range levelInfo.Units {
 		var collection *level.HashIndexRange
 		for _, hashRange := range levelInfo.UnitHashIndexRange {
@@ -1382,25 +1491,27 @@ func (pv *UnitPreviewState) LoadLevel(fileID stingray.Hash, mainData []byte, get
 			}
 			collection = &hashRange
 			if _, contains := childrenRange[collection.Hash]; !contains {
-				childrenRange[collection.Hash] = make([]stingray.Hash, 0)
+				childrenRange[collection.Hash] = make([]stingray.FileID, 0)
 			}
 		}
+		childId := stingray.NewFileID(unit.UUID, stingray.Hash{})
 		if collection == nil {
-			children = append(children, unit.UUID)
+			children = append(children, childId)
 		} else {
-			childrenRange[collection.Hash] = append(childrenRange[collection.Hash], unit.UUID)
+			childrenRange[collection.Hash] = append(childrenRange[collection.Hash], childId)
 		}
+		unitID := stingray.NewFileID(unit.Hash, UNIT)
 		pv.nodes[unit.UUID] = unitPreviewNode{
 			name:     pv.lookupHash(unit.Name),
 			shown:    true,
 			matrix:   unit.Matrix(),
-			children: []stingray.Hash{unit.Hash},
+			children: []stingray.FileID{unitID},
 			parent:   fileID,
 		}
-		if _, contains := pv.objects[unit.Hash]; contains {
+		if _, contains := pv.objects[unitID]; contains {
 			continue
 		}
-		unitMainData, exists, err := getResource(stingray.NewFileID(unit.Hash, stingray.Sum("unit")), stingray.DataMain)
+		unitMainData, exists, err := getResource(unitID, stingray.DataMain)
 		if err != nil {
 			return fmt.Errorf("loading %v.unit data in %v.level: %v", pv.lookupHash(unit.Hash), pv.lookupHash(fileID), err)
 		}
@@ -1409,11 +1520,11 @@ func (pv *UnitPreviewState) LoadLevel(fileID stingray.Hash, mainData []byte, get
 		}
 
 		// Some units won't have GPU data but will have terrain or geometry group info
-		unitGpuData, _, _ := getResource(stingray.NewFileID(unit.Hash, stingray.Sum("unit")), stingray.DataGPU)
+		unitGpuData, _, _ := getResource(unitID, stingray.DataGPU)
 
-		err = pv.loadUnit(unit.Hash, unitMainData, unitGpuData, getResource)
+		err = pv.loadUnit(unitID, unitMainData, unitGpuData, getResource)
 		if err != nil {
-			return fmt.Errorf("loading %v.unit in %v.prefab for rendering: %v", pv.lookupHash(unit.Hash), pv.lookupHash(fileID), err)
+			return fmt.Errorf("loading %v.unit in %v.level for rendering: %v", pv.lookupHash(unit.Hash), pv.lookupHash(fileID), err)
 		}
 	}
 
@@ -1425,13 +1536,14 @@ func (pv *UnitPreviewState) LoadLevel(fileID stingray.Hash, mainData []byte, get
 			}
 			collection = &hashRange
 			if _, contains := childrenRange[collection.Hash]; !contains {
-				childrenRange[collection.Hash] = make([]stingray.Hash, 0)
+				childrenRange[collection.Hash] = make([]stingray.FileID, 0)
 			}
 		}
+		childId := stingray.NewFileID(prefab.Name, stingray.Hash{})
 		if collection == nil {
-			children = append(children, prefab.Name)
+			children = append(children, childId)
 		} else {
-			childrenRange[collection.Hash] = append(childrenRange[collection.Hash], prefab.Name)
+			childrenRange[collection.Hash] = append(childrenRange[collection.Hash], childId)
 		}
 		if _, contains := pv.nodes[prefab.Name]; contains {
 			continue
@@ -1444,7 +1556,8 @@ func (pv *UnitPreviewState) LoadLevel(fileID stingray.Hash, mainData []byte, get
 			return fmt.Errorf("%v.prefab in %v.level does not exist", pv.lookupHash(prefab.Path), pv.lookupHash(fileID))
 		}
 
-		nestedChildren, err := pv.loadPrefab(prefab.Path, prefabMainData, getResource)
+		prefabId := stingray.NewFileID(prefab.Path, PREFAB)
+		nestedChildren, err := pv.loadPrefab(prefabId, prefabMainData, getResource)
 		if err != nil {
 			return fmt.Errorf("loading %v.prefab in %v.level for rendering: %v", pv.lookupHash(prefab.Path), pv.lookupHash(fileID), err)
 		}
@@ -1465,18 +1578,20 @@ func (pv *UnitPreviewState) LoadLevel(fileID stingray.Hash, mainData []byte, get
 			}
 			collection = &hashRange
 			if _, contains := childrenRange[collection.Hash]; !contains {
-				childrenRange[collection.Hash] = make([]stingray.Hash, 0)
+				childrenRange[collection.Hash] = make([]stingray.FileID, 0)
 			}
 		}
+		childId := stingray.NewFileID(prefab.EmbeddedPrefabTransform.Hash, stingray.Hash{})
 		if collection == nil {
-			children = append(children, prefab.EmbeddedPrefabTransform.Hash)
+			children = append(children, childId)
 		} else {
-			childrenRange[collection.Hash] = append(childrenRange[collection.Hash], prefab.EmbeddedPrefabTransform.Hash)
+			childrenRange[collection.Hash] = append(childrenRange[collection.Hash], childId)
 		}
 		if _, contains := pv.nodes[prefab.EmbeddedPrefabTransform.Hash]; contains {
 			continue
 		}
-		nestedChildren, err := pv.loadPrefabInfo(prefab.EmbeddedPrefabTransform.Hash, &prefab.Prefab, getResource)
+		prefabId := stingray.NewFileID(prefab.EmbeddedPrefabTransform.Hash, PREFAB)
+		nestedChildren, err := pv.loadPrefabInfo(prefabId, &prefab.Prefab, getResource)
 		if err != nil {
 			return fmt.Errorf("loading embedded %v.prefab in %v.level for rendering: %v", pv.lookupHash(prefab.EmbeddedPrefabTransform.Hash), pv.lookupHash(fileID), err)
 		}
@@ -1491,20 +1606,21 @@ func (pv *UnitPreviewState) LoadLevel(fileID stingray.Hash, mainData []byte, get
 
 	for collectionHash, collectionChildren := range childrenRange {
 		name := pv.lookupThinHash(collectionHash)
-		hash := stingray.Sum(name)
+		collectionId := stingray.NewFileID(stingray.Sum(name), stingray.Sum("collection"))
 		if strings.HasPrefix(name, "0x") {
-			hash = stingray.Hash{
+			hash := stingray.Hash{
 				Value: uint64(collectionHash.Value) << 32,
 			}
+			collectionId = stingray.NewFileID(hash, stingray.Sum("collection"))
 		}
-		pv.nodes[hash] = unitPreviewNode{
+		pv.nodes[collectionId.Name] = unitPreviewNode{
 			name:     name,
 			shown:    true,
 			matrix:   mgl32.Ident4(),
 			children: collectionChildren,
 			parent:   fileID,
 		}
-		children = append(children, hash)
+		children = append(children, collectionId)
 	}
 
 	pv.root = unitPreviewNode{
@@ -1514,7 +1630,7 @@ func (pv *UnitPreviewState) LoadLevel(fileID stingray.Hash, mainData []byte, get
 		children: children,
 		parent:   stingray.Hash{},
 	}
-	pv.rootHash = fileID
+	pv.rootHash = stingray.NewFileID(fileID, LEVEL)
 	pv.maxViewDistance = pv.getMaxZoom(pv.root, pv.rootHash, false)
 
 	if err != nil {
@@ -1537,7 +1653,9 @@ func (pv *UnitPreviewState) LoadPrefab(fileID stingray.Hash, mainData []byte, ge
 		return hash.String()
 	}
 
-	children, err := pv.loadPrefab(fileID, mainData, getResource)
+	prefabID := stingray.NewFileID(fileID, PREFAB)
+
+	children, err := pv.loadPrefab(prefabID, mainData, getResource)
 	pv.root = unitPreviewNode{
 		name:     pv.lookupHash(fileID),
 		shown:    true,
@@ -1545,7 +1663,7 @@ func (pv *UnitPreviewState) LoadPrefab(fileID stingray.Hash, mainData []byte, ge
 		children: children,
 		parent:   stingray.Hash{},
 	}
-	pv.rootHash = fileID
+	pv.rootHash = stingray.NewFileID(fileID, PREFAB)
 	pv.maxViewDistance = pv.getMaxZoom(pv.root, pv.rootHash, false)
 
 	if err != nil {
@@ -1554,80 +1672,84 @@ func (pv *UnitPreviewState) LoadPrefab(fileID stingray.Hash, mainData []byte, ge
 	return pv.finalizeObjectMaterials()
 }
 
-func (pv *UnitPreviewState) loadPrefab(fileID stingray.Hash, mainData []byte, getResource GetResourceFunc) ([]stingray.Hash, error) {
+func (pv *UnitPreviewState) loadPrefab(fileID stingray.FileID, mainData []byte, getResource GetResourceFunc) ([]stingray.FileID, error) {
 	info, err := prefab.Load(bytes.NewReader(mainData))
 	if err != nil {
-		return []stingray.Hash{}, err
+		return []stingray.FileID{}, err
 	}
 	return pv.loadPrefabInfo(fileID, info, getResource)
 }
 
-func (pv *UnitPreviewState) loadPrefabInfo(fileID stingray.Hash, info *prefab.Prefab, getResource GetResourceFunc) ([]stingray.Hash, error) {
-	contents := make([]stingray.Hash, 0)
+func (pv *UnitPreviewState) loadPrefabInfo(fileID stingray.FileID, info *prefab.Prefab, getResource GetResourceFunc) ([]stingray.FileID, error) {
+	contents := make([]stingray.FileID, 0)
 	for _, unit := range info.Units {
 		var err error
-		if _, contains := pv.objects[unit.Hash]; contains {
-			contents = append(contents, unit.UUID)
+		unitID := stingray.NewFileID(unit.Hash, UNIT)
+		nodeID := stingray.NewFileID(unit.UUID, stingray.Hash{})
+		if _, contains := pv.objects[unitID]; contains {
+			contents = append(contents, nodeID)
 			pv.nodes[unit.UUID] = unitPreviewNode{
 				name:     pv.lookupHash(unit.Name),
 				shown:    true,
 				matrix:   unit.Matrix(),
-				children: []stingray.Hash{unit.Hash},
-				parent:   fileID,
+				children: []stingray.FileID{unitID},
+				parent:   fileID.Name,
 			}
 			continue
 		}
-		unitMainData, exists, err := getResource(stingray.NewFileID(unit.Hash, stingray.Sum("unit")), stingray.DataMain)
+		unitMainData, exists, err := getResource(unitID, stingray.DataMain)
 		if err != nil {
-			return contents, fmt.Errorf("loading %v.unit data in %v.prefab: %v", pv.lookupHash(unit.Hash), pv.lookupHash(fileID), err)
+			return contents, fmt.Errorf("loading %v.unit data in %v.prefab: %v", pv.lookupHash(unit.Hash), pv.lookupHash(fileID.Name), err)
 		}
 		if !exists {
-			return contents, fmt.Errorf("%v.unit in %v.prefab does not exist", pv.lookupHash(unit.Hash), pv.lookupHash(fileID))
+			return contents, fmt.Errorf("%v.unit in %v.prefab does not exist", pv.lookupHash(unit.Hash), pv.lookupHash(fileID.Name))
 		}
 
 		// Some units won't have GPU data but will have terrain or geometry group info
-		unitGpuData, _, _ := getResource(stingray.NewFileID(unit.Hash, stingray.Sum("unit")), stingray.DataGPU)
+		unitGpuData, _, _ := getResource(unitID, stingray.DataGPU)
 
-		err = pv.loadUnit(unit.Hash, unitMainData, unitGpuData, getResource)
+		err = pv.loadUnit(unitID, unitMainData, unitGpuData, getResource)
 		if err != nil {
-			return contents, fmt.Errorf("loading %v.unit in %v.prefab for rendering: %v", pv.lookupHash(unit.Hash), pv.lookupHash(fileID), err)
+			return contents, fmt.Errorf("loading %v.unit in %v.prefab for rendering: %v", pv.lookupHash(unit.Hash), pv.lookupHash(fileID.Name), err)
 		}
-		contents = append(contents, unit.UUID)
+		contents = append(contents, nodeID)
 		pv.nodes[unit.UUID] = unitPreviewNode{
 			name:     pv.lookupHash(unit.Name),
 			shown:    true,
 			matrix:   unit.Matrix(),
-			children: []stingray.Hash{unit.Hash},
-			parent:   fileID,
+			children: []stingray.FileID{unitID},
+			parent:   fileID.Name,
 		}
 	}
 
 	for _, prefab := range info.NestedPrefabs {
 		var err error
-		var nestedChildren []stingray.Hash
+		var nestedChildren []stingray.FileID
+		nodeID := stingray.NewFileID(prefab.Name, stingray.Hash{})
+		prefabID := stingray.NewFileID(prefab.Path, PREFAB)
 		if _, contains := pv.nodes[prefab.Name]; contains {
-			contents = append(contents, prefab.Name)
+			contents = append(contents, nodeID)
 			continue
 		}
-		prefabMainData, exists, err := getResource(stingray.NewFileID(prefab.Path, stingray.Sum("prefab")), stingray.DataMain)
+		prefabMainData, exists, err := getResource(prefabID, stingray.DataMain)
 		if err != nil {
-			return contents, fmt.Errorf("loading %v.prefab data in %v.prefab: %v", pv.lookupHash(prefab.Path), pv.lookupHash(fileID), err)
+			return contents, fmt.Errorf("loading %v.prefab data in %v.prefab: %v", pv.lookupHash(prefab.Path), pv.lookupHash(fileID.Name), err)
 		}
 		if !exists {
-			return contents, fmt.Errorf("%v.prefab in %v.prefab does not exist", pv.lookupHash(prefab.Path), pv.lookupHash(fileID))
+			return contents, fmt.Errorf("%v.prefab in %v.prefab does not exist", pv.lookupHash(prefab.Path), pv.lookupHash(fileID.Name))
 		}
 
-		nestedChildren, err = pv.loadPrefab(prefab.Path, prefabMainData, getResource)
+		nestedChildren, err = pv.loadPrefab(prefabID, prefabMainData, getResource)
 		if err != nil {
-			return contents, fmt.Errorf("loading %v.unit in %v.prefab for rendering: %v", pv.lookupHash(prefab.Path), pv.lookupHash(fileID), err)
+			return contents, fmt.Errorf("loading %v.unit in %v.prefab for rendering: %v", pv.lookupHash(prefab.Path), pv.lookupHash(fileID.Name), err)
 		}
-		contents = append(contents, prefab.Name)
+		contents = append(contents, nodeID)
 		pv.nodes[prefab.Name] = unitPreviewNode{
 			name:     pv.lookupHash(prefab.Name),
 			shown:    true,
 			matrix:   prefab.Matrix(),
 			children: nestedChildren,
-			parent:   fileID,
+			parent:   fileID.Name,
 		}
 	}
 
@@ -1639,14 +1761,15 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 		pv.nodes = make(map[stingray.Hash]unitPreviewNode)
 	}
 
+	unitID := stingray.NewFileID(fileID, UNIT)
 	pv.root = unitPreviewNode{
 		name:     pv.lookupHash(fileID),
 		shown:    true,
 		matrix:   mgl32.Ident4(),
-		children: []stingray.Hash{fileID},
+		children: []stingray.FileID{unitID},
 		parent:   stingray.Hash{},
 	}
-	pv.rootHash = fileID
+	pv.rootHash = unitID
 	pv.nodes[fileID] = pv.root
 
 	pv.lookupThinHash = func(hash stingray.ThinHash) string {
@@ -1656,7 +1779,7 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 		return hash.String()
 	}
 
-	if err := pv.loadUnit(fileID, mainData, gpuData, getResource); err != nil {
+	if err := pv.loadUnit(unitID, mainData, gpuData, getResource); err != nil {
 		return err
 	}
 
@@ -1664,7 +1787,7 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 		return err
 	}
 
-	pv.maxViewDistance = pv.getMaxZoom(pv.root, pv.rootHash, len(pv.aabb[fileID]) == 0)
+	pv.maxViewDistance = pv.getMaxZoom(pv.root, pv.rootHash, len(pv.aabb[unitID]) == 0)
 
 	return nil
 }
@@ -1673,7 +1796,7 @@ func materialShown(slot string) bool {
 	return !strings.Contains(slot, "gibs") && slot != "transparent"
 }
 
-func (pv *UnitPreviewState) loadUnit(fileID stingray.Hash, mainData, gpuData []byte, getResource GetResourceFunc) error {
+func (pv *UnitPreviewState) loadUnit(fileID stingray.FileID, mainData, gpuData []byte, getResource GetResourceFunc) error {
 	info, err := unit.LoadInfo(bytes.NewReader(mainData))
 	if err != nil {
 		return err
@@ -1688,7 +1811,7 @@ func (pv *UnitPreviewState) loadUnit(fileID stingray.Hash, mainData, gpuData []b
 			continue
 		}
 
-		value, contains := set.UnitMetadata[fileID]
+		value, contains := set.UnitMetadata[fileID.Name]
 		if !contains {
 			continue
 		}
@@ -1700,16 +1823,16 @@ func (pv *UnitPreviewState) loadUnit(fileID stingray.Hash, mainData, gpuData []b
 	setModelPos := len(pv.objects) == 0
 
 	if pv.objects == nil {
-		pv.objects = make(map[stingray.Hash]map[string]unitPreviewObject)
-		pv.boundingBoxes = make(map[stingray.Hash]map[string]unitPreviewObject)
-		pv.objectsShown = make(map[stingray.Hash]map[string]bool)
-		pv.objectsSelected = make(map[stingray.Hash]map[string]bool)
-		pv.objectsShownDefault = make(map[stingray.Hash]map[string]bool)
-		pv.aabb = make(map[stingray.Hash]map[string][2]mgl32.Vec3)
-		pv.aabbMat = make(map[stingray.Hash]map[string]mgl32.Mat4, 0)
-		pv.meshPositions = make(map[stingray.Hash]map[string][][3]float32)
-		pv.meshNormals = make(map[stingray.Hash]map[string][][3]float32)
-		pv.skeletonPositions = make(map[stingray.Hash][]mgl32.Vec3)
+		pv.objects = make(map[stingray.FileID]map[string]unitPreviewObject)
+		pv.boundingBoxes = make(map[stingray.FileID]map[string]unitPreviewObject)
+		pv.objectsShown = make(map[stingray.FileID]map[string]bool)
+		pv.objectsSelected = make(map[stingray.FileID]map[string]bool)
+		pv.objectsShownDefault = make(map[stingray.FileID]map[string]bool)
+		pv.aabb = make(map[stingray.FileID]map[string][2]mgl32.Vec3)
+		pv.aabbMat = make(map[stingray.FileID]map[string]mgl32.Mat4, 0)
+		pv.meshPositions = make(map[stingray.FileID]map[string][][3]float32)
+		pv.meshNormals = make(map[stingray.FileID]map[string][][3]float32)
+		pv.skeletonPositions = make(map[stingray.FileID][]mgl32.Vec3)
 	}
 
 	var meshes map[string]unit.Mesh
@@ -1734,7 +1857,7 @@ func (pv *UnitPreviewState) loadUnit(fileID stingray.Hash, mainData, gpuData []b
 		}
 		meshes = make(map[string]unit.Mesh)
 		meshes["terrain"] = mesh
-		info.Materials[stingray.Sum("terrain").Thin()] = fileID
+		info.Materials[stingray.Sum("terrain").Thin()] = fileID.Name
 		pv.objectsShownDefault[fileID] = map[string]bool{"terrain": true}
 	} else if info.GeometryGroup.Value != 0x0 && info.GeometryGroup.Value != 0xfce38c71ca9c2166 {
 		// 0xfce38c71ca9c2166 seems to be a "dev assets" geometry group that isn't included in the
@@ -1750,7 +1873,7 @@ func (pv *UnitPreviewState) loadUnit(fileID stingray.Hash, mainData, gpuData []b
 		if err != nil {
 			return fmt.Errorf("failed to parse %v.geometry_group: %v", info.GeometryGroup.String(), err)
 		}
-		geoInfo, ok := geoGroup.MeshInfos[fileID]
+		geoInfo, ok := geoGroup.MeshInfos[fileID.Name]
 		if !ok {
 			return fmt.Errorf("%v.geometry_group does not contain %v.unit", info.GeometryGroup.String(), fileID)
 		}
@@ -1861,7 +1984,6 @@ func (pv *UnitPreviewState) loadUnit(fileID stingray.Hash, mainData, gpuData []b
 				// release textures and delete shaders from old materials
 				object.materials[idx].delete(pv.textureCache)
 			}
-			object.numIndices = make([]int32, len(mesh.Indices))
 			object.materials = make([]unitPreviewMaterial, len(mesh.Indices))
 			for group := range object.materials {
 				if group >= len(mesh.Info.Groups) {
@@ -1942,10 +2064,12 @@ func (pv *UnitPreviewState) loadUnit(fileID stingray.Hash, mainData, gpuData []b
 			}
 
 			object.numIndices = make([]int32, len(mesh.Indices))
+			object.indexType = make([]uint32, len(mesh.Indices))
 			for group, indices := range mesh.Indices {
 				gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, object.ibos[group])
 				gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, len(indices)*4, gl.Ptr(indices), gl.STATIC_DRAW)
 				object.numIndices[group] = int32(len(indices))
+				object.indexType[group] = gl.UNSIGNED_INT
 			}
 
 			gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, 0)
@@ -1953,6 +2077,7 @@ func (pv *UnitPreviewState) loadUnit(fileID stingray.Hash, mainData, gpuData []b
 		}
 		pv.meshPositions[fileID][name] = mesh.Positions
 		pv.meshNormals[fileID][name] = mesh.Normals
+
 		pv.objects[fileID][name] = object
 
 		// Upload bounding box data
@@ -1995,7 +2120,7 @@ func (pv *UnitPreviewState) loadUnit(fileID stingray.Hash, mainData, gpuData []b
 
 	if len(skeletonIndices) > 0 {
 		if pv.skeletons == nil {
-			pv.skeletons = make(map[stingray.Hash]unitPreviewObject)
+			pv.skeletons = make(map[stingray.FileID]unitPreviewObject)
 		}
 		skeleton := unitPreviewObject{}
 		skeleton.genObjects(false, 1)
@@ -2016,8 +2141,6 @@ func (pv *UnitPreviewState) loadUnit(fileID stingray.Hash, mainData, gpuData []b
 	gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, 0)
 	gl.BindVertexArray(0)
 
-	pv.model = stingrayToGLCoords
-
 	if pv.autoZoomEnabled {
 		pv.doAutoZoomNextFrame = true
 	}
@@ -2031,9 +2154,9 @@ func (pv *UnitPreviewState) loadUnit(fileID stingray.Hash, mainData, gpuData []b
 	if err != nil {
 		return err
 	}
-	visibilityMask, ok := visibilityMasks[fileID]
+	visibilityMask, ok := visibilityMasks[fileID.Name]
 	if !ok {
-		entityHash := datalib.UnitsToEntities(fileID)
+		entityHash := datalib.UnitsToEntities(fileID.Name)
 		visibilityMask, ok = visibilityMasks[entityHash]
 	}
 	if ok {
@@ -2078,6 +2201,270 @@ func (pv *UnitPreviewState) loadUnit(fileID stingray.Hash, mainData, gpuData []b
 	return nil
 }
 
+func (pv *UnitPreviewState) LoadSpeedtree(fileID stingray.Hash, mainData, gpuData []byte, getResource GetResourceFunc, thinhashes map[stingray.ThinHash]string, entityInfo *entity.Entity) error {
+	pv.lookupThinHash = func(hash stingray.ThinHash) string {
+		if name, ok := thinhashes[hash]; ok {
+			return name
+		}
+		return hash.String()
+	}
+
+	info, err := speedtree.LoadSpeedTree(bytes.NewReader(mainData))
+	if err != nil {
+		return err
+	}
+
+	pv.entityInfo = entityInfo
+	setModelPos := len(pv.objects) == 0
+	speedtreeID := stingray.NewFileID(fileID, SPEEDTREE)
+
+	if pv.objects == nil {
+		pv.objects = make(map[stingray.FileID]map[string]unitPreviewObject)
+		pv.boundingBoxes = make(map[stingray.FileID]map[string]unitPreviewObject)
+		pv.objectsShown = make(map[stingray.FileID]map[string]bool)
+		pv.objectsSelected = make(map[stingray.FileID]map[string]bool)
+		pv.objectsShownDefault = make(map[stingray.FileID]map[string]bool)
+		pv.aabb = make(map[stingray.FileID]map[string][2]mgl32.Vec3)
+		pv.aabbMat = make(map[stingray.FileID]map[string]mgl32.Mat4, 0)
+		pv.meshPositions = make(map[stingray.FileID]map[string][][3]float32)
+		pv.meshNormals = make(map[stingray.FileID]map[string][][3]float32)
+		pv.skeletonPositions = make(map[stingray.FileID][]mgl32.Vec3)
+	}
+
+	name := "lod0"
+	pv.objectsShownDefault[speedtreeID] = map[string]bool{name: true}
+
+	pv.aabb[speedtreeID] = make(map[string][2]mgl32.Vec3)
+	pv.aabbMat[speedtreeID] = make(map[string]mgl32.Mat4)
+	pv.aabb[speedtreeID][name] = [2]mgl32.Vec3{
+		info.Extents[0],
+		info.Extents[1],
+	}
+	pv.aabbMat[speedtreeID][name] = mgl32.Ident4()
+	pv.objectsShown[speedtreeID] = maps.Clone(pv.objectsShownDefault[speedtreeID])
+	pv.objectsSelected[speedtreeID] = maps.Clone(pv.objectsShownDefault[speedtreeID])
+	pv.objects[speedtreeID] = make(map[string]unitPreviewObject)
+	pv.meshPositions[speedtreeID] = make(map[string][][3]float32)
+	pv.meshNormals[speedtreeID] = make(map[string][][3]float32)
+	lod0 := info.IndexDefinitions[0]
+
+	object := unitPreviewObject{}
+	object.matrix = mgl32.Ident4()
+	object.wireframe.name = "wireframe"
+	object.wireframe.shown = true
+	err = object.wireframe.generate(
+		[]string{
+			"shaders/speedtree_wireframe.vert",
+			"shaders/object_wireframe.geom",
+			"shaders/object_wireframe.frag",
+		},
+		0,
+		[]string{"mvp", "color", "udimShown", "hasVisibilityMasks"},
+	)
+	if err != nil {
+		return err
+	}
+
+	object.normalVis.name = "normal visualization"
+	object.normalVis.shown = true
+	err = object.normalVis.generate(
+		[]string{
+			"shaders/speedtree_normal_vis.vert",
+			"shaders/object_normal_vis.geom",
+			"shaders/object_normal_vis.frag",
+		},
+		0,
+		[]string{"mvp", "len", "showTangentBitangent", "udimShown", "hasVisibilityMasks"},
+	)
+	if err != nil {
+		return err
+	}
+
+	// Create index buffers
+	{
+		object.genObjects(true, 0)
+		object.ibos = make([]uint32, lod0.MeshCount)
+		gl.GenBuffers(int32(len(object.ibos)), &object.ibos[0])
+
+		for idx := range object.materials {
+			// release textures and delete shaders from old materials
+			object.materials[idx].delete(pv.textureCache)
+		}
+
+		object.materials = make([]unitPreviewMaterial, lod0.MeshCount)
+		for group := range object.materials {
+			if uint32(group) >= lod0.MeshCount {
+				continue
+				//return fmt.Errorf("group %v not found", group)
+			}
+			var treeMaterial speedtree.MaterialDefinition
+			for _, matDef := range info.StingrayMaterials {
+				if matDef.Index == uint64(info.MeshDefinitions[lod0.MeshOffset+uint32(group)].Material) {
+					treeMaterial = matDef
+					break
+				}
+			}
+
+			object.materials[group].id = treeMaterial.Path
+			object.materials[group].name = fmt.Sprintf("mat%v", treeMaterial.Index)
+			object.materials[group].shown = materialShown(object.materials[group].name)
+		}
+		for group := range object.materials {
+			object.materials[group].releaseTextures(pv.textureCache)
+
+			mat, err := loadMaterial(getResource, object.materials[group].id)
+			if err != nil {
+				// gui logger warning
+				fmt.Printf("failed to load speedtree material: %v", err)
+				continue
+			}
+			if err := pv.useSpeedtreeMaterial(getResource, &object, group, mat, pv.lookupThinHash); err != nil {
+				return err
+			}
+		}
+		// if err := pv.loadMaterials(getResource, &object, nil, pv.lookupThinHash); err != nil {
+		// 	return err
+		// }
+	}
+
+	// Upload object data
+	{
+		gl.BindVertexArray(object.vao)
+
+		vertexDef := info.VertexDefinitions[lod0.VertexDef]
+
+		gl.BindBuffer(gl.ARRAY_BUFFER, object.vbo)
+		gl.BufferData(gl.ARRAY_BUFFER, int(vertexDef.Count*vertexDef.Stride), gl.Ptr(&gpuData[vertexDef.Offset]), gl.STATIC_DRAW)
+
+		offset := uintptr(0)
+		for idx, attr := range info.VertexXML.Stream.Attribute {
+			var gltype uint32
+			var size uint32
+			switch attr.Type {
+			case "byte":
+				gltype = gl.BYTE
+				size = 1
+			case "ubyte":
+				gltype = gl.UNSIGNED_BYTE
+				size = 1
+			case "short":
+				gltype = gl.SHORT
+				size = 2
+			case "ushort":
+				gltype = gl.UNSIGNED_SHORT
+				size = 2
+			case "int":
+				gltype = gl.INT
+				size = 4
+			case "uint":
+				gltype = gl.UNSIGNED_INT
+				size = 4
+			case "half":
+				gltype = gl.HALF_FLOAT
+				size = 2
+			case "float":
+				gltype = gl.FLOAT
+				size = 4
+			case "double":
+				gltype = gl.DOUBLE
+				size = 8
+			default:
+				gltype = gl.FLOAT
+				size = 4
+			}
+
+			if strings.HasPrefix(attr.Description, "position") {
+				pv.meshPositions[speedtreeID] = make(map[string][][3]float32)
+				pv.meshNormals[speedtreeID] = make(map[string][][3]float32)
+				positions := make([][3]float32, 0)
+				normals := make([][3]float32, 0)
+				for i := range vertexDef.Count {
+					switch attr.Type {
+					case "half":
+						var pos []float16.Float16 = make([]float16.Float16, 3)
+						binary.Decode(gpuData[offset+uintptr(i*vertexDef.Stride):], binary.LittleEndian, pos)
+						positions = append(positions, mgl32.Vec3{pos[0].Float32(), pos[1].Float32(), pos[2].Float32()})
+					case "float":
+						var pos []float32 = make([]float32, 3)
+						binary.Decode(gpuData[offset+uintptr(i*vertexDef.Stride):], binary.LittleEndian, pos)
+						positions = append(positions, mgl32.Vec3{pos[0], pos[1], pos[2]})
+					}
+					normals = append(normals, mgl32.Vec3{})
+				}
+				pv.meshPositions[speedtreeID][name] = positions
+				pv.meshNormals[speedtreeID][name] = normals
+			}
+			//fmt.Println(pv.meshPositions[speedtreeID][name])
+
+			normalize := false
+			if attr.Normalize != nil {
+				normalize = *attr.Normalize
+			}
+			switch gltype {
+			case gl.BYTE, gl.UNSIGNED_BYTE, gl.SHORT, gl.UNSIGNED_SHORT, gl.INT, gl.UNSIGNED_INT:
+				if !normalize {
+					gl.VertexAttribIPointerWithOffset(uint32(idx), int32(attr.Count), gltype, int32(vertexDef.Stride), offset)
+				} else {
+					gl.VertexAttribPointerWithOffset(uint32(idx), int32(attr.Count), gltype, normalize, int32(vertexDef.Stride), offset)
+				}
+			default:
+				gl.VertexAttribPointerWithOffset(uint32(idx), int32(attr.Count), gltype, normalize, int32(vertexDef.Stride), offset)
+			}
+			gl.EnableVertexAttribArray(uint32(idx))
+			offset += uintptr(size * uint32(attr.Count))
+		}
+		object.numVertices = int32(vertexDef.Count)
+
+		object.numIndices = make([]int32, lod0.MeshCount)
+		object.indexType = make([]uint32, lod0.MeshCount)
+		for group, meshDef := range info.MeshDefinitions[lod0.MeshOffset : lod0.MeshOffset+lod0.MeshCount] {
+			gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, object.ibos[group])
+			gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, int(meshDef.IndexCount*lod0.Stride), gl.Ptr(&gpuData[lod0.Offset+meshDef.IndexOffset*lod0.Stride]), gl.STATIC_DRAW)
+			object.numIndices[group] = int32(meshDef.IndexCount)
+
+			switch lod0.Stride {
+			case 2:
+				object.indexType[group] = gl.UNSIGNED_SHORT
+			case 4:
+				object.indexType[group] = gl.UNSIGNED_INT
+			}
+			gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, 0)
+		}
+
+		gl.BindBuffer(gl.ARRAY_BUFFER, 0)
+		gl.BindVertexArray(0)
+	}
+
+	pv.objects[speedtreeID][name] = object
+
+	if setModelPos {
+		pv.modelPos = mgl32.Vec4{0.0, 0.0, 0.0, 1.0}
+	}
+
+	if pv.nodes == nil {
+		pv.nodes = make(map[stingray.Hash]unitPreviewNode)
+	}
+
+	pv.nodes[fileID] = unitPreviewNode{
+		name:     pv.lookupHash(fileID),
+		shown:    true,
+		matrix:   mgl32.Ident4(),
+		children: []stingray.FileID{speedtreeID},
+		parent:   stingray.Hash{},
+	}
+
+	pv.root = pv.nodes[fileID]
+	pv.rootHash = speedtreeID
+
+	if err := pv.finalizeObjectMaterials(); err != nil {
+		return err
+	}
+
+	pv.maxViewDistance = pv.getMaxZoom(pv.root, pv.rootHash, len(pv.aabb[speedtreeID]) == 0)
+
+	return nil
+}
+
 // Loads the specified armor set and any others in the armor set list that share the armor set id
 // Therefore this can load the armor and helmet at the same time
 func (pv *UnitPreviewState) loadArmorSet(armorSets []datalib.ArmorSet, selectedSet int32) {
@@ -2087,21 +2474,21 @@ func (pv *UnitPreviewState) loadArmorSet(armorSets []datalib.ArmorSet, selectedS
 		name:     "Any",
 		shown:    true,
 		matrix:   mgl32.Ident4(),
-		children: []stingray.Hash{},
+		children: []stingray.FileID{},
 		parent:   armorSets[selectedSet].Archive,
 	}
 	pv.nodes[stingray.Sum("body_male")] = unitPreviewNode{
 		name:     "Stocky",
 		shown:    true,
 		matrix:   mgl32.Ident4(),
-		children: []stingray.Hash{},
+		children: []stingray.FileID{},
 		parent:   armorSets[selectedSet].Archive,
 	}
 	pv.nodes[stingray.Sum("body_female")] = unitPreviewNode{
 		name:     "Slim",
 		shown:    true,
 		matrix:   mgl32.Ident4(),
-		children: []stingray.Hash{},
+		children: []stingray.FileID{},
 		parent:   armorSets[selectedSet].Archive,
 	}
 	for _, set := range armorSets {
@@ -2109,27 +2496,27 @@ func (pv *UnitPreviewState) loadArmorSet(armorSets []datalib.ArmorSet, selectedS
 			continue
 		}
 		for childHash := range set.UnitMetadata {
-			fileId := stingray.NewFileID(childHash, stingray.Sum("unit"))
+			fileId := stingray.NewFileID(childHash, UNIT)
 			unitMain, exists, err := pv.loadUnitGetResourceFunc(fileId, stingray.DataMain)
 			if err != nil || !exists {
 				continue
 			}
 			unitGpu, _, _ := pv.loadUnitGetResourceFunc(fileId, stingray.DataGPU)
-			if err := pv.loadUnit(childHash, unitMain, unitGpu, pv.loadUnitGetResourceFunc); err != nil {
+			if err := pv.loadUnit(fileId, unitMain, unitGpu, pv.loadUnitGetResourceFunc); err != nil {
 				continue
 			}
 			switch set.UnitMetadata[childHash].BodyType {
 			case datalib.BodyTypeAny:
 				node := pv.nodes[stingray.Sum("body_any")]
-				node.children = append(node.children, childHash)
+				node.children = append(node.children, fileId)
 				pv.nodes[stingray.Sum("body_any")] = node
 			case datalib.BodyTypeSlim:
 				node := pv.nodes[stingray.Sum("body_female")]
-				node.children = append(node.children, childHash)
+				node.children = append(node.children, fileId)
 				pv.nodes[stingray.Sum("body_female")] = node
 			case datalib.BodyTypeStocky:
 				node := pv.nodes[stingray.Sum("body_male")]
-				node.children = append(node.children, childHash)
+				node.children = append(node.children, fileId)
 				pv.nodes[stingray.Sum("body_male")] = node
 			}
 		}
@@ -2138,15 +2525,15 @@ func (pv *UnitPreviewState) loadArmorSet(armorSets []datalib.ArmorSet, selectedS
 		name:   armorSets[selectedSet].Name,
 		shown:  true,
 		matrix: mgl32.Ident4(),
-		children: []stingray.Hash{
-			stingray.Sum("body_any"),
-			stingray.Sum("body_male"),
-			stingray.Sum("body_female"),
+		children: []stingray.FileID{
+			stingray.NewFileID(stingray.Sum("body_any"), stingray.Hash{}),
+			stingray.NewFileID(stingray.Sum("body_male"), stingray.Hash{}),
+			stingray.NewFileID(stingray.Sum("body_female"), stingray.Hash{}),
 		},
 		parent: stingray.Hash{},
 	}
-	pv.rootHash = armorSets[selectedSet].Archive
-	pv.nodes[pv.rootHash] = pv.root
+	pv.rootHash = stingray.NewFileID(armorSets[selectedSet].Archive, stingray.Hash{})
+	pv.nodes[pv.rootHash.Name] = pv.root
 
 	pv.maxViewDistance = pv.getMaxZoom(pv.root, pv.rootHash, false)
 	pv.modelPos = mgl32.Vec4{0.0, 0.0, 0.0, 1.0}
@@ -2207,16 +2594,16 @@ var aabbIndices = [12 * 3]uint32{
 	0, 5, 1,
 }
 
-func (pv *UnitPreviewState) getAABBVertices(unit stingray.Hash, name string) [8]mgl32.Vec3 {
+func (pv *UnitPreviewState) getAABBVertices(fileId stingray.FileID, name string) [8]mgl32.Vec3 {
 	return [8]mgl32.Vec3{
-		{pv.aabb[unit][name][0][0], pv.aabb[unit][name][0][1], pv.aabb[unit][name][0][2]},
-		{pv.aabb[unit][name][0][0], pv.aabb[unit][name][0][1], pv.aabb[unit][name][1][2]},
-		{pv.aabb[unit][name][0][0], pv.aabb[unit][name][1][1], pv.aabb[unit][name][0][2]},
-		{pv.aabb[unit][name][0][0], pv.aabb[unit][name][1][1], pv.aabb[unit][name][1][2]},
-		{pv.aabb[unit][name][1][0], pv.aabb[unit][name][0][1], pv.aabb[unit][name][0][2]},
-		{pv.aabb[unit][name][1][0], pv.aabb[unit][name][0][1], pv.aabb[unit][name][1][2]},
-		{pv.aabb[unit][name][1][0], pv.aabb[unit][name][1][1], pv.aabb[unit][name][0][2]},
-		{pv.aabb[unit][name][1][0], pv.aabb[unit][name][1][1], pv.aabb[unit][name][1][2]},
+		{pv.aabb[fileId][name][0][0], pv.aabb[fileId][name][0][1], pv.aabb[fileId][name][0][2]},
+		{pv.aabb[fileId][name][0][0], pv.aabb[fileId][name][0][1], pv.aabb[fileId][name][1][2]},
+		{pv.aabb[fileId][name][0][0], pv.aabb[fileId][name][1][1], pv.aabb[fileId][name][0][2]},
+		{pv.aabb[fileId][name][0][0], pv.aabb[fileId][name][1][1], pv.aabb[fileId][name][1][2]},
+		{pv.aabb[fileId][name][1][0], pv.aabb[fileId][name][0][1], pv.aabb[fileId][name][0][2]},
+		{pv.aabb[fileId][name][1][0], pv.aabb[fileId][name][0][1], pv.aabb[fileId][name][1][2]},
+		{pv.aabb[fileId][name][1][0], pv.aabb[fileId][name][1][1], pv.aabb[fileId][name][0][2]},
+		{pv.aabb[fileId][name][1][0], pv.aabb[fileId][name][1][1], pv.aabb[fileId][name][1][2]},
 	}
 }
 
@@ -2228,7 +2615,7 @@ func sum(s []int32) (result int32) {
 	return
 }
 
-func (pv *UnitPreviewState) drawObject(hash stingray.Hash, matrix, translation, view, projection mgl32.Mat4, viewPosition mgl32.Vec3) {
+func (pv *UnitPreviewState) drawObject(hash stingray.FileID, matrix, translation, view, projection mgl32.Mat4, viewPosition mgl32.Vec3) {
 	gl.Enable(gl.DEPTH_TEST)
 	for name := range pv.objects[hash] {
 		if shown, contains := pv.objectsShown[hash][name]; contains && !shown {
@@ -2269,7 +2656,7 @@ func (pv *UnitPreviewState) drawObject(hash stingray.Hash, matrix, translation, 
 				}
 			}
 			gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo)
-			gl.DrawElements(gl.TRIANGLES, pv.objects[hash][name].numIndices[group], gl.UNSIGNED_INT, nil)
+			gl.DrawElements(gl.TRIANGLES, pv.objects[hash][name].numIndices[group], pv.objects[hash][name].indexType[group], nil)
 		}
 	}
 	gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, 0)
@@ -2277,12 +2664,13 @@ func (pv *UnitPreviewState) drawObject(hash stingray.Hash, matrix, translation, 
 	gl.ActiveTexture(gl.TEXTURE0)
 	gl.BindTexture(gl.TEXTURE_2D, 0)
 	gl.BindTexture(gl.TEXTURE_2D_ARRAY, 0)
+	gl.BindTexture(gl.TEXTURE_BUFFER, 0)
 	gl.BindVertexArray(0)
 	gl.UseProgram(0)
 	gl.PolygonMode(gl.FRONT_AND_BACK, gl.FILL)
 }
 
-func (pv *UnitPreviewState) drawNormalVis(hash stingray.Hash, matrix, translation, view, projection mgl32.Mat4) {
+func (pv *UnitPreviewState) drawNormalVis(hash stingray.FileID, matrix, translation, view, projection mgl32.Mat4) {
 	for name := range pv.objects[hash] {
 		if shown, contains := pv.objectsShown[hash][name]; contains && !shown {
 			continue
@@ -2298,13 +2686,13 @@ func (pv *UnitPreviewState) drawNormalVis(hash stingray.Hash, matrix, translatio
 		gl.Uniform1iv(pv.objects[hash][name].normalVis.uniforms["udimShown"], 64, &pv.udimsShown[0])
 		for group, ibo := range pv.objects[hash][name].ibos {
 			gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo)
-			gl.DrawElements(gl.POINTS, pv.objects[hash][name].numIndices[group], gl.UNSIGNED_INT, nil)
+			gl.DrawElements(gl.POINTS, pv.objects[hash][name].numIndices[group], pv.objects[hash][name].indexType[group], nil)
 		}
 	}
 	gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, 0) // TODO: Make this not draw duplicate vertices
 }
 
-func (pv *UnitPreviewState) drawBoundingBox(hash stingray.Hash, matrix, translation, view, projection mgl32.Mat4) {
+func (pv *UnitPreviewState) drawBoundingBox(hash stingray.FileID, matrix, translation, view, projection mgl32.Mat4) {
 	gl.Disable(gl.DEPTH_TEST)
 	gl.UseProgram(pv.boundingBoxMaterial.program)
 	gl.Uniform4fv(pv.boundingBoxMaterial.uniforms["color"], 1, &pv.aabbColor[0])
@@ -2322,7 +2710,7 @@ func (pv *UnitPreviewState) drawBoundingBox(hash stingray.Hash, matrix, translat
 	}
 }
 
-func (pv *UnitPreviewState) drawSkeleton(hash stingray.Hash, matrix, translation, view, projection mgl32.Mat4) {
+func (pv *UnitPreviewState) drawSkeleton(hash stingray.FileID, matrix, translation, view, projection mgl32.Mat4) {
 	gl.Disable(gl.DEPTH_TEST)
 	gl.UseProgram(pv.boundingBoxMaterial.program)
 	gl.Uniform4fv(pv.boundingBoxMaterial.uniforms["color"], 1, &pv.skeletonColor[0])
@@ -2401,13 +2789,13 @@ func (pv *UnitPreviewState) Draw(previewId string) {
 			modelPos, viewPosition, view, projection := pv.computeMVP(size.X/size.Y, true)
 			translation := mgl32.Translate3D(modelPos.Vec3().Elem())
 
-			var drawNode, drawNodeNormalVis, drawNodeBoundingBox, drawNodeSkeletons func(unitPreviewNode, stingray.Hash)
-			drawNode = func(curr unitPreviewNode, nodeId stingray.Hash) {
+			var drawNode, drawNodeNormalVis, drawNodeBoundingBox, drawNodeSkeletons func(unitPreviewNode, stingray.FileID)
+			drawNode = func(curr unitPreviewNode, nodeId stingray.FileID) {
 				if !curr.shown {
 					return
 				}
 				for _, childHash := range curr.children {
-					if child, contains := pv.nodes[childHash]; contains && nodeId != childHash {
+					if child, contains := pv.nodes[childHash.Name]; contains && nodeId != childHash {
 						child.matrix = curr.matrix.Mul4(child.matrix)
 						drawNode(child, childHash)
 					} else {
@@ -2415,12 +2803,12 @@ func (pv *UnitPreviewState) Draw(previewId string) {
 					}
 				}
 			}
-			drawNodeNormalVis = func(curr unitPreviewNode, nodeId stingray.Hash) {
+			drawNodeNormalVis = func(curr unitPreviewNode, nodeId stingray.FileID) {
 				if !curr.shown {
 					return
 				}
 				for _, childHash := range curr.children {
-					if child, contains := pv.nodes[childHash]; contains && nodeId != childHash {
+					if child, contains := pv.nodes[childHash.Name]; contains && nodeId != childHash {
 						child.matrix = curr.matrix.Mul4(child.matrix)
 						drawNodeNormalVis(child, childHash)
 					} else {
@@ -2428,12 +2816,12 @@ func (pv *UnitPreviewState) Draw(previewId string) {
 					}
 				}
 			}
-			drawNodeBoundingBox = func(curr unitPreviewNode, nodeId stingray.Hash) {
+			drawNodeBoundingBox = func(curr unitPreviewNode, nodeId stingray.FileID) {
 				if !curr.shown {
 					return
 				}
 				for _, childHash := range curr.children {
-					if child, contains := pv.nodes[childHash]; contains && nodeId != childHash {
+					if child, contains := pv.nodes[childHash.Name]; contains && nodeId != childHash {
 						child.matrix = curr.matrix.Mul4(child.matrix)
 						drawNodeBoundingBox(child, childHash)
 					} else {
@@ -2441,12 +2829,12 @@ func (pv *UnitPreviewState) Draw(previewId string) {
 					}
 				}
 			}
-			drawNodeSkeletons = func(curr unitPreviewNode, nodeId stingray.Hash) {
+			drawNodeSkeletons = func(curr unitPreviewNode, nodeId stingray.FileID) {
 				if !curr.shown {
 					return
 				}
 				for _, childHash := range curr.children {
-					if child, contains := pv.nodes[childHash]; contains && nodeId != childHash {
+					if child, contains := pv.nodes[childHash.Name]; contains && nodeId != childHash {
 						child.matrix = curr.matrix.Mul4(child.matrix)
 						drawNodeSkeletons(child, childHash)
 					} else {
@@ -2502,7 +2890,7 @@ func (pv *UnitPreviewState) Draw(previewId string) {
 
 				maxCamDistDelta := float32(-math.MaxFloat32)
 				for nodeName, node := range pv.nodes {
-					hash, contains := pv.getNodeUnitHash(nodeName)
+					hash, contains := pv.getNodeUnitFileID(nodeName)
 					if !contains {
 						continue
 					}
@@ -2616,13 +3004,13 @@ func (pv *UnitPreviewState) Draw(previewId string) {
 				var closestPos mgl32.Vec2
 				closestDist := float32(math.MaxFloat32)
 				var closestVertex, closestNormal [3]float32
-				var findNearestNormal func(unitPreviewNode, stingray.Hash)
-				findNearestNormal = func(curr unitPreviewNode, nodeId stingray.Hash) {
+				var findNearestNormal func(unitPreviewNode, stingray.FileID)
+				findNearestNormal = func(curr unitPreviewNode, nodeId stingray.FileID) {
 					if !curr.shown {
 						return
 					}
 					for _, childHash := range curr.children {
-						if child, contains := pv.nodes[childHash]; contains && nodeId != childHash {
+						if child, contains := pv.nodes[childHash.Name]; contains && nodeId != childHash {
 							child.matrix = curr.matrix.Mul4(child.matrix)
 							findNearestNormal(child, childHash)
 						} else {
@@ -2848,7 +3236,7 @@ func (pv *UnitPreviewState) Draw(previewId string) {
 		for hash := range pv.objects {
 			var armorInfo *datalib.UnitData
 			for _, set := range armorSets {
-				value, contains := set.UnitMetadata[hash]
+				value, contains := set.UnitMetadata[hash.Name]
 				if !contains {
 					continue
 				}
@@ -2876,13 +3264,13 @@ func (pv *UnitPreviewState) DrawSettings() {
 	}
 }
 
-func cmpHashStringsGenerator(lookupHash func(stingray.Hash) string, nodes map[stingray.Hash]unitPreviewNode) func(a, b stingray.Hash) int {
-	return func(a, b stingray.Hash) int {
-		aString := lookupHash(a)
-		bString := lookupHash(b)
+func cmpHashStringsGenerator(lookupHash func(stingray.Hash) string, nodes map[stingray.Hash]unitPreviewNode) func(a, b stingray.FileID) int {
+	return func(a, b stingray.FileID) int {
+		aString := lookupHash(a.Name)
+		bString := lookupHash(b.Name)
 		if nodes != nil {
-			aString = nodes[a].name
-			bString = nodes[b].name
+			aString = nodes[a.Name].name
+			bString = nodes[b.Name].name
 		}
 		return strings.Compare(aString, bString)
 	}
@@ -2975,7 +3363,7 @@ func (pv *UnitPreviewState) drawUniformBlock(block int, uniformBlock unitPreview
 	}
 }
 
-func (pv *UnitPreviewState) drawUnitMaterialSettings(unit stingray.Hash, object map[string]unitPreviewObject, flags imgui.TreeNodeFlags) {
+func (pv *UnitPreviewState) drawUnitMaterialSettings(unit stingray.FileID, object map[string]unitPreviewObject, flags imgui.TreeNodeFlags) {
 	unitMeshNames := slices.Sorted(maps.Keys(object))
 	for _, mesh := range unitMeshNames {
 		shown := pv.objectsShown[unit][mesh]
@@ -3035,7 +3423,7 @@ func (pv *UnitPreviewState) drawUnitMaterialSettings(unit stingray.Hash, object 
 	}
 }
 
-func (pv *UnitPreviewState) drawNodeTree(curr unitPreviewNode, nodeId stingray.Hash, matrix mgl32.Mat4) {
+func (pv *UnitPreviewState) drawNodeTree(curr unitPreviewNode, nodeId stingray.FileID, matrix mgl32.Mat4) {
 	flags := imgui.TreeNodeFlagsDefaultOpen | imgui.TreeNodeFlagsOpenOnArrow
 	if imgui.TreeNodeExStrV(curr.name, flags) {
 		shown := curr.shown
@@ -3056,16 +3444,16 @@ func (pv *UnitPreviewState) drawNodeTree(curr unitPreviewNode, nodeId stingray.H
 		imgui.SetNextItemAllowOverlap()
 		if imgui.InvisibleButton("btnNode", size) {
 			curr.shown = !shown
-			pv.nodes[nodeId] = curr
+			pv.nodes[nodeId.Name] = curr
 			if pv.rootHash == nodeId {
 				pv.root = curr
 			}
 			//pv.unitsSelected[hash] = !shown
 		}
 		children := slices.SortedFunc(slices.Values(curr.children), cmpHashStringsGenerator(pv.lookupHash, pv.nodes))
-		units := make([]stingray.Hash, 0)
+		units := make([]stingray.FileID, 0)
 		for _, childHash := range children {
-			if child, contains := pv.nodes[childHash]; contains && childHash != nodeId {
+			if child, contains := pv.nodes[childHash.Name]; contains && childHash != nodeId {
 				childMatrix := matrix.Mul4(child.matrix)
 				pv.drawNodeTree(child, childHash, childMatrix)
 			} else {
@@ -3079,7 +3467,7 @@ func (pv *UnitPreviewState) drawNodeTree(curr unitPreviewNode, nodeId stingray.H
 				continue
 			}
 			object := pv.objects[unit]
-			if !imgui.TreeNodeExStrV(fmt.Sprintf("%v %v", fnt.I.Box, filepath.Base(pv.lookupHash(unit))), flags) {
+			if !imgui.TreeNodeExStrV(fmt.Sprintf("%v %v", fnt.I.Box, filepath.Base(pv.lookupHash(unit.Name))), flags) {
 				continue
 			}
 			pv.drawUnitMaterialSettings(unit, object, flags)
