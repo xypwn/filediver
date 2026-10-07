@@ -1705,6 +1705,59 @@ func (pv *UnitPreviewState) LoadLevel(fileID stingray.Hash, mainData []byte, thi
 		}
 	}
 
+	for _, speedtree := range levelInfo.Speedtrees {
+		speedtreeID := stingray.NewFileID(speedtree.Hash, SPEEDTREE)
+		if _, contains := pv.objects[speedtreeID]; !contains {
+			speedtreeMainData, exists, err := pv.getResource(speedtreeID, stingray.DataMain)
+			if err != nil {
+				return fmt.Errorf("loading %v.speedtree data in %v.level: %v", pv.lookupHash(speedtree.Hash), pv.lookupHash(fileID), err)
+			}
+			if !exists {
+				return fmt.Errorf("%v.speedtree in %v.level does not exist", pv.lookupHash(speedtree.Hash), pv.lookupHash(fileID))
+			}
+
+			// Some units won't have GPU data but will have terrain or geometry group info
+			speedtreeGpuData, _, _ := pv.getResource(speedtreeID, stingray.DataGPU)
+
+			err = pv.loadSpeedtree(speedtreeID, speedtreeMainData, speedtreeGpuData)
+			if err != nil {
+				return fmt.Errorf("loading %v.speedtree in %v.level for rendering: %v", pv.lookupHash(speedtree.Hash), pv.lookupHash(fileID), err)
+			}
+		}
+		for idx, transform := range speedtree.Transforms {
+			var collection *level.HashIndexRange
+			for _, hashRange := range speedtree.Layers {
+				if idx >= int(hashRange.End) || idx < int(hashRange.Start) || hashRange.Hash.Value == 0x0 {
+					continue
+				}
+				collection = &hashRange
+				if _, contains := childrenRange[collection.Hash]; !contains {
+					childrenRange[collection.Hash] = make([]stingray.FileID, 0)
+				}
+			}
+			nodeHash := stingray.Sum(pv.lookupHash(speedtree.Hash) + fmt.Sprintf(" instance %v", idx))
+			childId := stingray.NewFileID(nodeHash, stingray.Hash{})
+			if collection == nil {
+				children = append(children, childId)
+			} else {
+				childrenRange[collection.Hash] = append(childrenRange[collection.Hash], childId)
+			}
+			quat := mgl32.QuatSlerp(transform.MinRotation.Quat(), transform.MaxRotation.Quat(), 0.5)
+			speedtreeTransform := stingray.Transform{
+				PositionVec: transform.Position.Vec3(),
+				RotationVec: quat.V.Vec4(quat.W),
+				ScaleVec:    mgl32.Vec3{1.0, 1.0, 1.0},
+			}
+			pv.nodes[childId.Name] = unitPreviewNode{
+				name:     pv.lookupHash(speedtree.Hash) + fmt.Sprintf(" instance %v", idx),
+				shown:    true,
+				matrix:   speedtreeTransform.Matrix(),
+				children: []stingray.FileID{speedtreeID},
+				parent:   fileID,
+			}
+		}
+	}
+
 	for idx, prefab := range levelInfo.Prefabs {
 		var collection *level.HashIndexRange
 		for _, hashRange := range levelInfo.PrefabHashIndexRange {
