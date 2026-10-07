@@ -352,6 +352,7 @@ Bipod_Fold
 Bipod_Open
 Bolt_Open
 Borken
+Boss_Idle
 Box/Clear_Belt
 Box/Fire
 Box/Idle
@@ -1637,6 +1638,7 @@ Stuns/Stagger_Right
 Stuns/Stun_Loop
 Stuns/Stunned
 Supervising_Work
+Suspension
 Swimming/Swimming_loco
 Swimming/drown
 Swimming/empty
@@ -1652,7 +1654,9 @@ Turret_Pitch/Empty_State
 Turret_Pitch/Pitch
 Turret_Yaw/Empty_State
 Turret_Yaw/Yaw
+Unburrow
 Undeploy
+Undeployed
 Unfold
 Unfolded
 Weapon_Add/Drop_Support
@@ -1949,6 +1953,8 @@ assisted_reload_lasercannon
 atmosphere_present
 atmosphere_present:far_probe
 atmosphere_present:volumetric_fog
+atmospheric_lookup_debug
+atmospheric_scattering_calculate
 automated_artillery
 automatic_cannon_marker
 automaton_enemy_sample_01
@@ -2294,6 +2300,7 @@ box_hangar_01
 box_supplies_01
 box_variation_01
 box_variation_02
+boxes_idle
 bridge decal
 bridge_backwall
 bridge_cables
@@ -11805,6 +11812,7 @@ front_latch_open
 frv
 frv_marker
 frv_releases
+fuck_shit_up
 fusebox_
 fusebox_01
 fusebox_02
@@ -11842,6 +11850,7 @@ gbuffer_debug:ssr_visualization
 gen_delivery_location_marker
 gen_skeleton_pile
 gen_skeleton_pile1
+generate_clearing_lookup
 generated
 generator
 generator_01
@@ -15392,6 +15401,7 @@ tire_stack_06
 top_extend
 top_retracted
 toxic_waste_01
+trace_far_shadows
 tracking_solar_panel_01
 trashbag_
 trashbag_01
@@ -15598,6 +15608,7 @@ water_container_2
 water_container_3
 water_container_4
 water_height_finalize
+water_material_replace
 water_plane
 water_plane1
 water_remove_cube

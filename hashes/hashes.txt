@@ -663,6 +663,7 @@ Bipod_Open
 Bloom
 Bolt_Open
 Borken
+Boss_Idle
 Box/Clear_Belt
 Box/Fire
 Box/Idle
@@ -2368,6 +2369,7 @@ Stuns/Stun_Loop
 Stuns/Stunned
 Sun Light
 Supervising_Work
+Suspension
 Swimming/Swimming_loco
 Swimming/drown
 Swimming/empty
@@ -2410,7 +2412,9 @@ U5
 USE_FBX_PERMUTATIONS
 USE_GATHER
 UVER
+Unburrow
 Undeploy
+Undeployed
 Unfold
 Unfolded
 UnitUtils
@@ -2907,6 +2911,8 @@ atlased_shadow_mapping_modifier
 atmosphere_present
 atmosphere_present:far_probe
 atmosphere_present:volumetric_fog
+atmospheric_lookup_debug
+atmospheric_scattering_calculate
 attenuation_max
 auto_exposure
 auto_exposure_visualization
@@ -3437,6 +3443,7 @@ box_translation
 box_variation_01
 box_variation_02
 box_wtm
+boxes_idle
 branch
 brdf_lut
 brdf_lut:default:PLATFORM_WIN32:RENDERER_D3D11
@@ -103557,6 +103564,7 @@ frv
 frv_marker
 frv_releases
 fs
+fuck_shit_up
 full_dir = radius * normalize(dir);
 fullscreen_pass
 fur_length
@@ -103684,6 +103692,7 @@ geleta
 gen_delivery_location_marker
 gen_skeleton_pile
 gen_skeleton_pile1
+generate_clearing_lookup
 generate_mips
 generate_motion_vectors
 generated
@@ -108917,6 +108926,7 @@ touch_contact
 toxic_waste_01
 trace_box_max
 trace_box_min
+trace_far_shadows
 trace_pass
 tracking_solar_panel_01
 transform
@@ -109312,6 +109322,7 @@ water_container_2
 water_container_3
 water_container_4
 water_height_finalize
+water_material_replace
 water_plane
 water_plane1
 water_remove_cube
