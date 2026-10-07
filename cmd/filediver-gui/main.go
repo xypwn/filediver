@@ -680,7 +680,7 @@ func (a *guiApp) drawMenuBar() {
 			if a.preview != nil {
 				debug = a.preview.Debug()
 			}
-			if imgui.MenuItemBoolPtr(fnt.I.FrameBug+" Preview Debugging", "", &debug) && a.preview != nil {
+			if imgui.MenuItemBoolPtr(fnt.I.BugReport+" Preview Debugging", "", &debug) && a.preview != nil {
 				a.preview.SetDebug(debug)
 			}
 			imgui.EndMenu()
