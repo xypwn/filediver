@@ -778,8 +778,8 @@ func (pv *UnitPreviewState) loadMeshes(lookupThinHash func(stingray.ThinHash) st
 					strings.HasSuffix(object, "_c") ||
 					strings.Contains(object, "cull") ||
 					strings.Contains(object, "coll") ||
-					strings.HasSuffix(object, "rubble") ||
-					strings.HasPrefix(object, "rubble") ||
+					(strings.HasSuffix(object, "rubble") && !strings.Contains(object, "rock")) ||
+					(strings.HasPrefix(object, "rubble") && !strings.Contains(object, "rock")) ||
 					strings.HasSuffix(object, "debris") ||
 					object == "ai_blocker" ||
 					object == "v" ||
@@ -902,6 +902,7 @@ func (pv *UnitPreviewState) useBasicMaterial(previewMaterial *unitPreviewMateria
 		id:           0,
 		target:       gl.TEXTURE_2D,
 		name:         albedoName,
+		override:     stingray.NewFileID(albedoName, stingray.Sum("texture")),
 		slot:         "texAlbedo",
 		created:      false,
 		loaded:       false,
@@ -933,6 +934,7 @@ func (pv *UnitPreviewState) useBasicMaterial(previewMaterial *unitPreviewMateria
 		id:           0,
 		target:       gl.TEXTURE_2D,
 		name:         normalName,
+		override:     stingray.NewFileID(normalName, stingray.Sum("texture")),
 		slot:         "texNormal",
 		created:      false,
 		loaded:       false,
