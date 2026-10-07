@@ -2939,6 +2939,60 @@ func (pv *UnitPreviewState) loadSpeedtree(speedtreeID stingray.FileID, mainData,
 		pv.boundingBoxes[speedtreeID][name] = boundingBox
 	}
 
+	// Create dummy skeleton since speedtrees don't seem to have one
+	{
+		skeletonVertices := []mgl32.Vec3{{0.0, 0.0, 0.0}, {0.0, 1.0, 0.0}}
+		skeletonIndices := []uint32{0, 1}
+		skeleton := unitPreviewObject{}
+		skeleton.genObjects(false, 1)
+		gl.BindVertexArray(skeleton.vao)
+		gl.BindBuffer(gl.ARRAY_BUFFER, skeleton.vbo)
+		gl.BufferData(gl.ARRAY_BUFFER, len(skeletonVertices)*3*4, gl.Ptr(skeletonVertices), gl.STATIC_DRAW)
+
+		gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, skeleton.ibos[0])
+		gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, len(skeletonIndices)*4, gl.Ptr(skeletonIndices), gl.STATIC_DRAW)
+
+		gl.VertexAttribPointer(0, 3, gl.FLOAT, false, 3*4, nil)
+		gl.EnableVertexAttribArray(0)
+
+		// Setup instance model/normal matrix attributes
+		gl.BindBuffer(gl.ARRAY_BUFFER, skeleton.imbo)
+		gl.EnableVertexAttribArray(7)
+		gl.VertexAttribPointerWithOffset(7, 4, gl.FLOAT, false, 7*16, uintptr(0*16))
+		gl.VertexAttribDivisor(7, 1)
+
+		gl.EnableVertexAttribArray(8)
+		gl.VertexAttribPointerWithOffset(8, 4, gl.FLOAT, false, 7*16, uintptr(1*16))
+		gl.VertexAttribDivisor(8, 1)
+
+		gl.EnableVertexAttribArray(9)
+		gl.VertexAttribPointerWithOffset(9, 4, gl.FLOAT, false, 7*16, uintptr(2*16))
+		gl.VertexAttribDivisor(9, 1)
+
+		gl.EnableVertexAttribArray(10)
+		gl.VertexAttribPointerWithOffset(10, 4, gl.FLOAT, false, 7*16, uintptr(3*16))
+		gl.VertexAttribDivisor(10, 1)
+
+		gl.EnableVertexAttribArray(11)
+		gl.VertexAttribPointerWithOffset(11, 3, gl.FLOAT, false, 7*16, uintptr(4*16))
+		gl.VertexAttribDivisor(11, 1)
+
+		gl.EnableVertexAttribArray(12)
+		gl.VertexAttribPointerWithOffset(12, 3, gl.FLOAT, false, 7*16, uintptr(5*16))
+		gl.VertexAttribDivisor(12, 1)
+
+		gl.EnableVertexAttribArray(13)
+		gl.VertexAttribPointerWithOffset(13, 3, gl.FLOAT, false, 7*16, uintptr(6*16))
+		gl.VertexAttribDivisor(13, 1)
+		skeleton.numVertices = int32(len(skeletonVertices))
+		skeleton.numIndices[0] = int32(len(skeletonIndices))
+		if _, contains = pv.skeletons[speedtreeID]; contains {
+			pv.skeletons[speedtreeID].deleteObjects(pv.textureCache)
+		}
+		pv.skeletonPositions[speedtreeID] = skeletonVertices
+		pv.skeletons[speedtreeID] = skeleton
+	}
+
 	pv.objects[speedtreeID][name] = object
 
 	if setModelPos {
@@ -3301,6 +3355,7 @@ func (pv *UnitPreviewState) drawListsSkeletons(size imgui.Vec2, model, view, pro
 		}
 
 		gl.BindVertexArray(object.vao)
+		gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, object.ibos[0])
 		gl.DrawElementsInstanced(gl.LINES, object.numIndices[0], gl.UNSIGNED_INT, nil, object.numInstances)
 	}
 	gl.BindVertexArray(0)
