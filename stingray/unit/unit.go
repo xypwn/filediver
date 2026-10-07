@@ -595,24 +595,24 @@ type Info struct {
 	MeshLayouts            []MeshLayout
 }
 
-func loadMesh(gpuR io.ReadSeeker, info MeshInfo, layout_ MeshLayout) (Mesh, error) {
+func loadMesh(gpuR io.ReadSeeker, info MeshInfo, layout MeshLayout) (Mesh, error) {
 	var mesh Mesh
 	var uvCoordLayers uint32 = 1
 	var boneIdxLayers uint32 = 1
 	var colorLayers uint32 = 1
-	for i := 0; i < int(layout_.NumItems); i += 1 {
-		switch layout_.Items[i].Type {
+	for i := 0; i < int(layout.NumItems); i += 1 {
+		switch layout.Items[i].Type {
 		case ItemBoneIdx:
-			if layout_.Items[i].Layer >= boneIdxLayers {
-				boneIdxLayers = layout_.Items[i].Layer + 1
+			if layout.Items[i].Layer >= boneIdxLayers {
+				boneIdxLayers = layout.Items[i].Layer + 1
 			}
 		case ItemUVCoords:
-			if layout_.Items[i].Layer >= uvCoordLayers {
-				uvCoordLayers = layout_.Items[i].Layer + 1
+			if layout.Items[i].Layer >= uvCoordLayers {
+				uvCoordLayers = layout.Items[i].Layer + 1
 			}
 		case ItemColor:
-			if layout_.Items[i].Layer >= colorLayers {
-				colorLayers = layout_.Items[i].Layer + 1
+			if layout.Items[i].Layer >= colorLayers {
+				colorLayers = layout.Items[i].Layer + 1
 			}
 		}
 	}
@@ -642,12 +642,11 @@ func loadMesh(gpuR io.ReadSeeker, info MeshInfo, layout_ MeshLayout) (Mesh, erro
 	for _, group := range info.Groups {
 		vertexOffsets = append(vertexOffsets, uint32(len(mesh.Positions)))
 		for i := uint32(0); i < group.NumVertices; i++ {
-			//idxTranslation[group.VertexOffset+i] = uint32(len(mesh.Positions))
-			offset := layout_.VertexOffset + (group.VertexOffset+i)*layout_.VertexStride
+			offset := layout.VertexOffset + (group.VertexOffset+i)*layout.VertexStride
 			if _, err := gpuR.Seek(int64(offset), io.SeekStart); err != nil {
 				return Mesh{}, err
 			}
-			for _, item := range layout_.Items[:layout_.NumItems] {
+			for _, item := range layout.Items[:layout.NumItems] {
 				switch item.Type {
 				case ItemPosition:
 					if item.Format != FormatVec3F {
@@ -790,8 +789,8 @@ func loadMesh(gpuR io.ReadSeeker, info MeshInfo, layout_ MeshLayout) (Mesh, erro
 	mesh.Indices = make([][]uint32, len(info.Groups))
 	for grp, group := range info.Groups {
 		mesh.Indices[grp] = make([]uint32, 0, group.NumIndices)
-		indexStride := layout_.IndicesSize / layout_.NumIndices
-		offset := layout_.IndexOffset +
+		indexStride := layout.IndicesSize / layout.NumIndices
+		offset := layout.IndexOffset +
 			group.IndexOffset*indexStride
 		if _, err := gpuR.Seek(int64(offset), io.SeekStart); err != nil {
 			return Mesh{}, err
