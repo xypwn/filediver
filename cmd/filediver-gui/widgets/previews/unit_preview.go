@@ -55,6 +55,7 @@ var stingrayToGLCoords = mgl32.Mat4FromRows(
 
 // Basic uniforms all shaders use
 var baseUniforms = []string{
+	"model",
 	"view",
 	"projection",
 	"viewPosition",
@@ -345,6 +346,7 @@ type unitPreviewObject struct {
 	vao       uint32   // vertex array object
 	ibos      []uint32 // index buffer objects
 	vbo       uint32   // vertex buffer object
+	imbo      uint32   // instance matrices buffer object
 	materials []unitPreviewMaterial
 	wireframe unitPreviewMaterial
 	normalVis unitPreviewMaterial
@@ -353,6 +355,7 @@ type unitPreviewObject struct {
 
 	numVertices        int32
 	numIndices         []int32
+	numInstances       int32
 	indexType          []uint32
 	hasVisibilityMasks int32
 }
@@ -369,11 +372,16 @@ func (obj *unitPreviewObject) genObjects(textures bool, numIbos int32) {
 		obj.numIndices = make([]int32, numIbos)
 		gl.GenBuffers(numIbos, &obj.ibos[0])
 	}
+	gl.GenBuffers(1, &obj.imbo)
+	obj.numInstances = -1
 
 	gl.BindVertexArray(obj.vao)
 	defer gl.BindVertexArray(0)
 
 	gl.BindBuffer(gl.ARRAY_BUFFER, obj.vbo)
+	defer gl.BindBuffer(gl.ARRAY_BUFFER, 0)
+
+	gl.BindBuffer(gl.ARRAY_BUFFER, obj.imbo)
 	defer gl.BindBuffer(gl.ARRAY_BUFFER, 0)
 }
 
@@ -2202,7 +2210,7 @@ func (pv *UnitPreviewState) loadUnit(fileID stingray.FileID, mainData, gpuData [
 				"shaders/object_wireframe.frag",
 			},
 			0,
-			[]string{"projection", "view", "color", "udimShown", "hasVisibilityMasks"},
+			[]string{"model", "projection", "view", "color", "udimShown", "hasVisibilityMasks"},
 		)
 		if err != nil {
 			return err
@@ -2217,7 +2225,7 @@ func (pv *UnitPreviewState) loadUnit(fileID stingray.FileID, mainData, gpuData [
 				"shaders/object_normal_vis.frag",
 			},
 			0,
-			[]string{"projection", "view", "len", "showTangentBitangent", "udimShown", "hasVisibilityMasks"},
+			[]string{"model", "projection", "view", "len", "showTangentBitangent", "udimShown", "hasVisibilityMasks"},
 		)
 		if err != nil {
 			return err
@@ -2311,6 +2319,24 @@ func (pv *UnitPreviewState) loadUnit(fileID stingray.FileID, mainData, gpuData [
 					offset += uvsSize
 				}
 			}
+
+			// Setup instance model/normal matrix attributes
+			gl.BindBuffer(gl.ARRAY_BUFFER, object.imbo)
+			gl.EnableVertexAttribArray(7)
+			gl.VertexAttribPointerWithOffset(7, 4, gl.FLOAT, false, 4*16, uintptr(0*16))
+			gl.VertexAttribDivisor(7, 1)
+
+			gl.EnableVertexAttribArray(8)
+			gl.VertexAttribPointerWithOffset(8, 4, gl.FLOAT, false, 4*16, uintptr(1*16))
+			gl.VertexAttribDivisor(8, 1)
+
+			gl.EnableVertexAttribArray(9)
+			gl.VertexAttribPointerWithOffset(9, 4, gl.FLOAT, false, 4*16, uintptr(2*16))
+			gl.VertexAttribDivisor(9, 1)
+
+			gl.EnableVertexAttribArray(10)
+			gl.VertexAttribPointerWithOffset(10, 4, gl.FLOAT, false, 4*16, uintptr(3*16))
+			gl.VertexAttribDivisor(10, 1)
 
 			object.numIndices = make([]int32, len(mesh.Indices))
 			object.indexType = make([]uint32, len(mesh.Indices))
@@ -2573,7 +2599,7 @@ func (pv *UnitPreviewState) loadSpeedtree(speedtreeID stingray.FileID, mainData,
 			"shaders/object_wireframe.frag",
 		},
 		0,
-		[]string{"projection", "view", "color", "udimShown", "hasVisibilityMasks"},
+		[]string{"model", "projection", "view", "color", "udimShown", "hasVisibilityMasks"},
 	)
 	if err != nil {
 		return err
@@ -2588,7 +2614,7 @@ func (pv *UnitPreviewState) loadSpeedtree(speedtreeID stingray.FileID, mainData,
 			"shaders/object_normal_vis.frag",
 		},
 		0,
-		[]string{"projection", "view", "len", "showTangentBitangent", "udimShown", "hasVisibilityMasks"},
+		[]string{"model", "projection", "view", "len", "showTangentBitangent", "udimShown", "hasVisibilityMasks"},
 	)
 	if err != nil {
 		return err
@@ -2734,6 +2760,24 @@ func (pv *UnitPreviewState) loadSpeedtree(speedtreeID stingray.FileID, mainData,
 			offset += uintptr(size * uint32(attr.Count))
 		}
 		object.numVertices = int32(vertexDef.Count)
+
+		// Setup instance model/normal matrix attributes
+		gl.BindBuffer(gl.ARRAY_BUFFER, object.imbo)
+		gl.EnableVertexAttribArray(7)
+		gl.VertexAttribPointerWithOffset(7, 4, gl.FLOAT, false, 4*16, uintptr(0*16))
+		gl.VertexAttribDivisor(7, 1)
+
+		gl.EnableVertexAttribArray(8)
+		gl.VertexAttribPointerWithOffset(8, 4, gl.FLOAT, false, 4*16, uintptr(1*16))
+		gl.VertexAttribDivisor(8, 1)
+
+		gl.EnableVertexAttribArray(9)
+		gl.VertexAttribPointerWithOffset(9, 4, gl.FLOAT, false, 4*16, uintptr(2*16))
+		gl.VertexAttribDivisor(9, 1)
+
+		gl.EnableVertexAttribArray(10)
+		gl.VertexAttribPointerWithOffset(10, 4, gl.FLOAT, false, 4*16, uintptr(3*16))
+		gl.VertexAttribDivisor(10, 1)
 
 		object.numIndices = make([]int32, lod0.MeshCount)
 		object.indexType = make([]uint32, lod0.MeshCount)
@@ -2950,51 +2994,37 @@ func (pv *UnitPreviewState) initDrawList(hash stingray.FileID, name string) {
 	}
 }
 
-func (pv *UnitPreviewState) drawLists(size imgui.Vec2) {
+func (pv *UnitPreviewState) drawLists(size imgui.Vec2, model mgl32.Mat4) {
 	gl.Enable(gl.DEPTH_TEST)
 	var matrixBuffer uint32
 	gl.GenBuffers(1, &matrixBuffer)
 	_, viewPosition, view, projection := pv.computeMVP(size.X/size.Y, true)
-	sortedFileIds := slices.SortedFunc(maps.Keys(pv.objectDrawList), func(a, b stingray.FileID) int {
+	sortedFileIds := slices.SortedFunc(maps.Keys(pv.objects), func(a, b stingray.FileID) int {
 		return stingray.Hash.Cmp(a.Name, b.Name)
 	})
 	for _, fileId := range sortedFileIds {
-		sortedMeshes := slices.Sorted(maps.Keys(pv.objectDrawList[fileId]))
+		sortedMeshes := slices.Sorted(maps.Keys(pv.objects[fileId]))
 		for _, mesh := range sortedMeshes {
 			list := pv.objectDrawList[fileId][mesh]
-			instanceCount := int32(len(list)) / (7 * 4)
-			if instanceCount == 0 {
+			instanceCount := int32(len(list)) / (4 * 4)
+			object := pv.objects[fileId][mesh]
+
+			gl.BindVertexArray(object.vao)
+			if instanceCount > 0 && instanceCount != object.numInstances {
+				gl.BindBuffer(gl.ARRAY_BUFFER, object.imbo)
+				gl.BufferData(gl.ARRAY_BUFFER, len(list)*4, gl.Ptr(list), gl.STATIC_DRAW)
+				object.numInstances = instanceCount
+				pv.objects[fileId][mesh] = object
+			} else if instanceCount != object.numInstances {
+				object.numInstances = instanceCount
+			}
+			if object.numInstances == 0 {
 				continue
 			}
-			object := pv.objects[fileId][mesh]
-			gl.BindVertexArray(object.vao)
-			gl.BindBuffer(gl.ARRAY_BUFFER, matrixBuffer)
-			gl.BufferData(gl.ARRAY_BUFFER, len(list)*4, gl.Ptr(list), gl.STATIC_DRAW)
-			gl.EnableVertexAttribArray(7)
-			gl.VertexAttribPointerWithOffset(7, 4, gl.FLOAT, false, 7*16, uintptr(0*16))
-			gl.EnableVertexAttribArray(8)
-			gl.VertexAttribPointerWithOffset(8, 4, gl.FLOAT, false, 7*16, uintptr(1*16))
-			gl.EnableVertexAttribArray(9)
-			gl.VertexAttribPointerWithOffset(9, 4, gl.FLOAT, false, 7*16, uintptr(2*16))
-			gl.EnableVertexAttribArray(10)
-			gl.VertexAttribPointerWithOffset(10, 4, gl.FLOAT, false, 7*16, uintptr(3*16))
-			gl.EnableVertexAttribArray(11)
-			gl.VertexAttribPointerWithOffset(11, 3, gl.FLOAT, false, 7*16, uintptr(4*16))
-			gl.EnableVertexAttribArray(12)
-			gl.VertexAttribPointerWithOffset(12, 3, gl.FLOAT, false, 7*16, uintptr(5*16))
-			gl.EnableVertexAttribArray(13)
-			gl.VertexAttribPointerWithOffset(13, 3, gl.FLOAT, false, 7*16, uintptr(6*16))
-
-			gl.VertexAttribDivisor(7, 1)
-			gl.VertexAttribDivisor(8, 1)
-			gl.VertexAttribDivisor(9, 1)
-			gl.VertexAttribDivisor(10, 1)
-			gl.VertexAttribDivisor(11, 1)
-			gl.VertexAttribDivisor(12, 1)
-			gl.VertexAttribDivisor(13, 1)
 
 			if pv.showWireframe {
 				gl.UseProgram(object.wireframe.program)
+				gl.UniformMatrix4fv(object.wireframe.uniforms["model"], 1, false, &model[0])
 				gl.UniformMatrix4fv(object.wireframe.uniforms["view"], 1, false, &view[0])
 				gl.UniformMatrix4fv(object.wireframe.uniforms["projection"], 1, false, &projection[0])
 				gl.Uniform4fv(object.wireframe.uniforms["color"], 1, &pv.wireframeColor[0])
@@ -3007,6 +3037,7 @@ func (pv *UnitPreviewState) drawLists(size imgui.Vec2) {
 						continue
 					}
 					gl.UseProgram(object.materials[group].program)
+					gl.UniformMatrix4fv(object.materials[group].uniforms["model"], 1, false, &model[0])
 					gl.UniformMatrix4fv(object.materials[group].uniforms["view"], 1, false, &view[0])
 					gl.UniformMatrix4fv(object.materials[group].uniforms["projection"], 1, false, &projection[0])
 					gl.Uniform3fv(object.materials[group].uniforms["viewPosition"], 1, &viewPosition[0])
@@ -3038,51 +3069,36 @@ func (pv *UnitPreviewState) drawLists(size imgui.Vec2) {
 	gl.DeleteBuffers(1, &matrixBuffer)
 }
 
-func (pv *UnitPreviewState) drawListsNormalVis(size imgui.Vec2) {
+func (pv *UnitPreviewState) drawListsNormalVis(size imgui.Vec2, model mgl32.Mat4) {
 	gl.Enable(gl.DEPTH_TEST)
 	var matrixBuffer uint32
 	gl.GenBuffers(1, &matrixBuffer)
 	_, _, view, projection := pv.computeMVP(size.X/size.Y, true)
-	sortedFileIds := slices.SortedFunc(maps.Keys(pv.objectDrawList), func(a, b stingray.FileID) int {
+	sortedFileIds := slices.SortedFunc(maps.Keys(pv.objects), func(a, b stingray.FileID) int {
 		return stingray.Hash.Cmp(a.Name, b.Name)
 	})
 	for _, fileId := range sortedFileIds {
-		sortedMeshes := slices.Sorted(maps.Keys(pv.objectDrawList[fileId]))
+		sortedMeshes := slices.Sorted(maps.Keys(pv.objects[fileId]))
 		for _, mesh := range sortedMeshes {
 			list := pv.objectDrawList[fileId][mesh]
-			instanceCount := int32(len(list)) / (7 * 4)
-			if instanceCount == 0 {
+			instanceCount := int32(len(list)) / (4 * 4)
+			object := pv.objects[fileId][mesh]
+
+			gl.BindVertexArray(object.vao)
+			if instanceCount > 0 && instanceCount != object.numInstances {
+				gl.BindBuffer(gl.ARRAY_BUFFER, object.imbo)
+				gl.BufferData(gl.ARRAY_BUFFER, len(list)*4, gl.Ptr(list), gl.STATIC_DRAW)
+				object.numInstances = instanceCount
+				pv.objects[fileId][mesh] = object
+			} else if instanceCount != object.numInstances {
+				object.numInstances = instanceCount
+			}
+			if object.numInstances == 0 {
 				continue
 			}
-			object := pv.objects[fileId][mesh]
-			gl.BindVertexArray(object.vao)
-			gl.BindBuffer(gl.ARRAY_BUFFER, matrixBuffer)
-			gl.BufferData(gl.ARRAY_BUFFER, len(list)*4, gl.Ptr(list), gl.STATIC_DRAW)
-			gl.EnableVertexAttribArray(7)
-			gl.VertexAttribPointerWithOffset(7, 4, gl.FLOAT, false, 7*16, uintptr(0*16))
-			gl.EnableVertexAttribArray(8)
-			gl.VertexAttribPointerWithOffset(8, 4, gl.FLOAT, false, 7*16, uintptr(1*16))
-			gl.EnableVertexAttribArray(9)
-			gl.VertexAttribPointerWithOffset(9, 4, gl.FLOAT, false, 7*16, uintptr(2*16))
-			gl.EnableVertexAttribArray(10)
-			gl.VertexAttribPointerWithOffset(10, 4, gl.FLOAT, false, 7*16, uintptr(3*16))
-			gl.EnableVertexAttribArray(11)
-			gl.VertexAttribPointerWithOffset(11, 3, gl.FLOAT, false, 7*16, uintptr(4*16))
-			gl.EnableVertexAttribArray(12)
-			gl.VertexAttribPointerWithOffset(12, 3, gl.FLOAT, false, 7*16, uintptr(5*16))
-			gl.EnableVertexAttribArray(13)
-			gl.VertexAttribPointerWithOffset(13, 3, gl.FLOAT, false, 7*16, uintptr(6*16))
-
-			gl.VertexAttribDivisor(7, 1)
-			gl.VertexAttribDivisor(8, 1)
-			gl.VertexAttribDivisor(9, 1)
-			gl.VertexAttribDivisor(10, 1)
-			gl.VertexAttribDivisor(11, 1)
-			gl.VertexAttribDivisor(12, 1)
-			gl.VertexAttribDivisor(13, 1)
 
 			gl.UseProgram(object.normalVis.program)
-			gl.BindVertexArray(object.vao)
+			gl.UniformMatrix4fv(object.normalVis.uniforms["model"], 1, false, &model[0])
 			gl.UniformMatrix4fv(object.normalVis.uniforms["view"], 1, false, &view[0])
 			gl.UniformMatrix4fv(object.normalVis.uniforms["projection"], 1, false, &projection[0])
 			gl.Uniform1f(object.normalVis.uniforms["len"], pv.viewDistance*0.02)
@@ -3105,93 +3121,15 @@ func (pv *UnitPreviewState) drawListsNormalVis(size imgui.Vec2) {
 	gl.DeleteBuffers(1, &matrixBuffer)
 }
 
-func (pv *UnitPreviewState) drawObject(hash stingray.FileID, matrix, translation, view, projection mgl32.Mat4, viewPosition mgl32.Vec3) {
-	//gl.Enable(gl.DEPTH_TEST)
+func (pv *UnitPreviewState) drawObject(hash stingray.FileID, matrix mgl32.Mat4) {
 	for name := range pv.objects[hash] {
 		if shown, contains := pv.objectsShown[hash][name]; contains && !shown {
 			continue
 		}
 		pv.initDrawList(hash, name)
-		model := pv.model.Mul4(translation.Mul4(matrix.Mul4(pv.objects[hash][name].matrix)))
-		normal := model.Inv().Transpose().Mat3().Mat4()
+		model := matrix.Mul4(pv.objects[hash][name].matrix)
 		pv.objectDrawList[hash][name] = append(pv.objectDrawList[hash][name], model[:]...)
-		pv.objectDrawList[hash][name] = append(pv.objectDrawList[hash][name], normal[:12]...)
-		continue
-
-		gl.BindVertexArray(pv.objects[hash][name].vao)
-		if pv.showWireframe {
-			gl.UseProgram(pv.objects[hash][name].wireframe.program)
-			gl.UniformMatrix4fv(pv.objects[hash][name].wireframe.uniforms["view"], 1, false, &view[0])
-			gl.UniformMatrix4fv(pv.objects[hash][name].wireframe.uniforms["projection"], 1, false, &projection[0])
-			gl.Uniform4fv(pv.objects[hash][name].wireframe.uniforms["color"], 1, &pv.wireframeColor[0])
-			gl.Uniform1i(pv.objects[hash][name].wireframe.uniforms["hasVisibilityMasks"], pv.objects[hash][name].hasVisibilityMasks)
-			gl.Uniform1iv(pv.objects[hash][name].wireframe.uniforms["udimShown"], 64, &pv.udimsShown[0])
-		}
-		for group, ibo := range pv.objects[hash][name].ibos {
-			if !pv.showWireframe {
-				if !pv.objects[hash][name].materials[group].shown {
-					continue
-				}
-				gl.UseProgram(pv.objects[hash][name].materials[group].program)
-				gl.UniformMatrix4fv(pv.objects[hash][name].materials[group].uniforms["view"], 1, false, &view[0])
-				gl.UniformMatrix4fv(pv.objects[hash][name].materials[group].uniforms["projection"], 1, false, &projection[0])
-				gl.UniformMatrix4fv(pv.objects[hash][name].materials[group].uniforms["model"], 1, false, &model[0])
-				// gl.UniformMatrix3fv(pv.objects[hash][name].materials[group].uniforms["normalMat"], 1, false, &normal[0])
-				gl.Uniform3fv(pv.objects[hash][name].materials[group].uniforms["viewPosition"], 1, &viewPosition[0])
-				gl.Uniform1iv(pv.objects[hash][name].materials[group].uniforms["udimShown"], 64, &pv.udimsShown[0])
-				for _, uniformBlock := range pv.objects[hash][name].materials[group].uniformBlocks {
-					gl.BindBufferBase(gl.UNIFORM_BUFFER, uniformBlock.binding, uniformBlock.ubo)
-				}
-				for idx, texture := range pv.objects[hash][name].materials[group].textures {
-					gl.ActiveTexture(gl.TEXTURE0 + uint32(idx))
-					gl.BindTexture(texture.target, texture.id)
-					glError := gl.GetError()
-					if glError != 0 {
-						fmt.Printf("[error] binding texture %v (%v) in group %v as target %v generated error %v\n", texture.name.String(), texture.id, group, glutils.GLTarget(texture.target).String(), glutils.GLError(glError).String())
-					}
-				}
-			}
-			gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo)
-			gl.DrawElements(gl.TRIANGLES, pv.objects[hash][name].numIndices[group], pv.objects[hash][name].indexType[group], nil)
-		}
 	}
-	return
-	gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, 0)
-	gl.BindBuffer(gl.UNIFORM_BUFFER, 0)
-	gl.ActiveTexture(gl.TEXTURE0)
-	gl.BindTexture(gl.TEXTURE_2D, 0)
-	gl.BindTexture(gl.TEXTURE_2D_ARRAY, 0)
-	gl.BindTexture(gl.TEXTURE_BUFFER, 0)
-	gl.BindVertexArray(0)
-	gl.UseProgram(0)
-	gl.PolygonMode(gl.FRONT_AND_BACK, gl.FILL)
-}
-
-func (pv *UnitPreviewState) drawNormalVis(hash stingray.FileID, matrix, translation, view, projection mgl32.Mat4) {
-	for name := range pv.objects[hash] {
-		if shown, contains := pv.objectsShown[hash][name]; contains && !shown {
-			continue
-		}
-		pv.initDrawList(hash, name)
-		model := pv.model.Mul4(translation.Mul4(matrix.Mul4(pv.objects[hash][name].matrix)))
-		pv.objectDrawList[hash][name] = append(pv.objectDrawList[hash][name], model[:]...)
-		pv.objectDrawList[hash][name] = append(pv.objectDrawList[hash][name], make([]float32, 12)...)
-		continue
-		gl.UseProgram(pv.objects[hash][name].normalVis.program)
-		gl.BindVertexArray(pv.objects[hash][name].vao)
-		gl.UniformMatrix4fv(pv.objects[hash][name].normalVis.uniforms["view"], 1, false, &view[0])
-		gl.UniformMatrix4fv(pv.objects[hash][name].normalVis.uniforms["projection"], 1, false, &projection[0])
-		gl.Uniform1f(pv.objects[hash][name].normalVis.uniforms["len"], pv.viewDistance*0.02)
-		gl.Uniform1iv(pv.objects[hash][name].normalVis.uniforms["showTangentBitangent"], 1, &pv.visualizeTangentBitangent)
-		gl.Uniform1i(pv.objects[hash][name].normalVis.uniforms["hasVisibilityMasks"], pv.objects[hash][name].hasVisibilityMasks)
-		gl.Uniform1iv(pv.objects[hash][name].normalVis.uniforms["udimShown"], 64, &pv.udimsShown[0])
-		for group, ibo := range pv.objects[hash][name].ibos {
-			gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo)
-			gl.DrawElements(gl.POINTS, pv.objects[hash][name].numIndices[group], pv.objects[hash][name].indexType[group], nil)
-		}
-	}
-	return
-	gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, 0) // TODO: Make this not draw duplicate vertices
 }
 
 func (pv *UnitPreviewState) drawBoundingBox(hash stingray.FileID, matrix, translation, view, projection mgl32.Mat4) {
@@ -3288,7 +3226,7 @@ func (pv *UnitPreviewState) Draw(previewId string) {
 			gl.ClearColor(0.2, 0.2, 0.2, 1)
 			gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 
-			modelPos, viewPosition, view, projection := pv.computeMVP(size.X/size.Y, true)
+			modelPos, _, view, projection := pv.computeMVP(size.X/size.Y, true)
 			translation := mgl32.Translate3D(modelPos.Vec3().Elem())
 
 			var drawNode, drawNodeNormalVis, drawNodeBoundingBox, drawNodeSkeletons func(unitPreviewNode, stingray.FileID)
@@ -3301,7 +3239,8 @@ func (pv *UnitPreviewState) Draw(previewId string) {
 						child.matrix = curr.matrix.Mul4(child.matrix)
 						drawNode(child, childHash)
 					} else {
-						pv.drawObject(childHash, curr.matrix, translation, view, projection, viewPosition)
+						// add to the draw list
+						pv.drawObject(childHash, curr.matrix)
 					}
 				}
 			}
@@ -3314,7 +3253,8 @@ func (pv *UnitPreviewState) Draw(previewId string) {
 						child.matrix = curr.matrix.Mul4(child.matrix)
 						drawNodeNormalVis(child, childHash)
 					} else {
-						pv.drawNormalVis(childHash, curr.matrix, translation, view, projection)
+						// add to the draw list
+						pv.drawObject(childHash, curr.matrix)
 					}
 				}
 			}
@@ -3345,11 +3285,11 @@ func (pv *UnitPreviewState) Draw(previewId string) {
 				}
 			}
 			drawNode(pv.root, pv.rootHash)
-			pv.drawLists(size)
+			pv.drawLists(size, pv.model.Mul4(translation))
 			pv.objectDrawList = nil
 			if pv.visualizeNormals {
 				drawNodeNormalVis(pv.root, pv.rootHash)
-				pv.drawListsNormalVis(size)
+				pv.drawListsNormalVis(size, pv.model.Mul4(translation))
 				pv.objectDrawList = nil
 			}
 			if pv.showAABB {

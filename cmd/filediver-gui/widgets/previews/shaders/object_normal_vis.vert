@@ -5,20 +5,21 @@ layout(location = 1) in vec3 inNormal;
 layout(location = 2) in vec2 inUV;
 layout(location = 3) in vec4 inTangent;
 layout(location = 4) in vec3 inBitangent;
-layout(location = 7) in mat4 model;
+layout(location = 7) in mat4 instModel;
 
 out vec4 normalEndPosition;
 out vec4 tangentEndPosition;
 out vec4 bitangentEndPosition;
 out vec2 vertexUV;
 
+uniform mat4 model;
 uniform mat4 view; // projection*view*model
 uniform mat4 projection; // projection*view*model
 uniform float len; // normal length
 
 void main() {
     vertexUV = inUV;
-    mat4 mvp = projection * view * model;
+    mat4 mvp = projection * view * model * instModel;
     normalEndPosition    = mvp * vec4(inPosition + inNormal * len, 1.0);
     tangentEndPosition   = mvp * vec4(inPosition + inTangent.xyz * len, 1.0);
     bitangentEndPosition = mvp * vec4(inPosition + inBitangent * len, 1.0);
