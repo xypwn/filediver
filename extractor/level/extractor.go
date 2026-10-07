@@ -67,7 +67,7 @@ type SimpleSpeedtreeLayer struct {
 
 type SimpleSpeedtree struct {
 	Path                string                     `json:"path"`
-	Layers              []SimpleSpeedtreeLayer     `json:"layers"`
+	Layers              []SimpleHashIndexRange     `json:"layers"`
 	SpeedtreeTransforms []SimpleSpeedtreeTransform `json:"transforms"`
 }
 
@@ -152,12 +152,12 @@ func ExtractLevelJSON(ctx *extractor.Context) error {
 
 	speedtrees := make([]SimpleSpeedtree, 0)
 	for _, speedtree := range levelData.Speedtrees {
-		layers := make([]SimpleSpeedtreeLayer, 0)
+		layers := make([]SimpleHashIndexRange, 0)
 		for _, layer := range speedtree.Layers {
-			layers = append(layers, SimpleSpeedtreeLayer{
-				Name:     ctx.LookupThinHash(layer.Name),
-				UnkInt00: layer.UnkInt00,
-				UnkInt01: layer.UnkInt01,
+			layers = append(layers, SimpleHashIndexRange{
+				Hash:  ctx.LookupThinHash(layer.Hash),
+				Start: layer.Start,
+				End:   layer.End,
 			})
 		}
 		transforms := make([]SimpleSpeedtreeTransform, 0)

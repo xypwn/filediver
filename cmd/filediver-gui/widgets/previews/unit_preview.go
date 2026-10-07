@@ -55,9 +55,8 @@ var stingrayToGLCoords = mgl32.Mat4FromRows(
 
 // Basic uniforms all shaders use
 var baseUniforms = []string{
-	"mvp",
-	"model",
-	"normalMat",
+	"view",
+	"projection",
 	"viewPosition",
 	"hasVisibilityMasks",
 	"udimShown",
@@ -140,6 +139,7 @@ func (block *unitPreviewUniformBlock) generate(program uint32, name string) {
 	block.uniformTypes = make(map[string]glutils.GLType)
 	block.defaultValues = make(map[string][]uint8)
 	block.currentValues = make(map[string][]uint8)
+	block.name = name
 
 	cStr, free := gl.Strs(name + "\x00")
 	blockIdx := gl.GetProgramResourceIndex(program, gl.UNIFORM_BLOCK, *cStr)
@@ -430,10 +430,12 @@ type UnitPreviewState struct {
 	getOverride     func(stingray.FileID) stingray.FileID
 	objectOverrides map[stingray.FileID]stingray.FileID
 
-	objects             map[stingray.FileID]map[string]unitPreviewObject
-	objectsShown        map[stingray.FileID]map[string]bool
-	objectsShownDefault map[stingray.FileID]map[string]bool
-	objectsSelected     map[stingray.FileID]map[string]bool
+	objectDrawList          map[stingray.FileID]map[string][]float32
+	objectNormalVisDrawList map[stingray.FileID]map[string][]float32
+	objects                 map[stingray.FileID]map[string]unitPreviewObject
+	objectsShown            map[stingray.FileID]map[string]bool
+	objectsShownDefault     map[stingray.FileID]map[string]bool
+	objectsSelected         map[stingray.FileID]map[string]bool
 
 	entityInfo             *entity.Entity
 	assetGradingLut        []extr_entity.Vec4F16
@@ -1497,6 +1499,9 @@ func (pv *UnitPreviewState) useMaterial(previewMaterial *unitPreviewMaterial, ma
 
 func (pv *UnitPreviewState) getArmorInfo(name stingray.Hash) (armorInfo *datalib.UnitData) {
 	for _, set := range pv.armorSets {
+		if !slices.Contains(pv.getSelectedArchives(), set.Archive) {
+			continue
+		}
 		value, contains := set.UnitMetadata[name]
 		if !contains {
 			continue
@@ -2197,7 +2202,7 @@ func (pv *UnitPreviewState) loadUnit(fileID stingray.FileID, mainData, gpuData [
 				"shaders/object_wireframe.frag",
 			},
 			0,
-			[]string{"mvp", "color", "udimShown", "hasVisibilityMasks"},
+			[]string{"projection", "view", "color", "udimShown", "hasVisibilityMasks"},
 		)
 		if err != nil {
 			return err
@@ -2212,7 +2217,7 @@ func (pv *UnitPreviewState) loadUnit(fileID stingray.FileID, mainData, gpuData [
 				"shaders/object_normal_vis.frag",
 			},
 			0,
-			[]string{"mvp", "len", "showTangentBitangent", "udimShown", "hasVisibilityMasks"},
+			[]string{"projection", "view", "len", "showTangentBitangent", "udimShown", "hasVisibilityMasks"},
 		)
 		if err != nil {
 			return err
@@ -2568,7 +2573,7 @@ func (pv *UnitPreviewState) loadSpeedtree(speedtreeID stingray.FileID, mainData,
 			"shaders/object_wireframe.frag",
 		},
 		0,
-		[]string{"mvp", "color", "udimShown", "hasVisibilityMasks"},
+		[]string{"projection", "view", "color", "udimShown", "hasVisibilityMasks"},
 	)
 	if err != nil {
 		return err
@@ -2583,7 +2588,7 @@ func (pv *UnitPreviewState) loadSpeedtree(speedtreeID stingray.FileID, mainData,
 			"shaders/object_normal_vis.frag",
 		},
 		0,
-		[]string{"mvp", "len", "showTangentBitangent", "udimShown", "hasVisibilityMasks"},
+		[]string{"projection", "view", "len", "showTangentBitangent", "udimShown", "hasVisibilityMasks"},
 	)
 	if err != nil {
 		return err
@@ -2853,6 +2858,8 @@ func (pv *UnitPreviewState) loadArmorSet(armorSets []datalib.ArmorSet, selectedS
 
 	pv.maxViewDistance = pv.getMaxZoom(pv.root, pv.rootHash, false)
 	pv.modelPos = mgl32.Vec4{0.0, 0.0, 0.0, 1.0}
+
+	pv.finalizeObjectMaterials()
 }
 
 func (pv *UnitPreviewState) computeMVP(aspectRatio float32, animate bool) (
@@ -2931,19 +2938,191 @@ func sum(s []int32) (result int32) {
 	return
 }
 
-func (pv *UnitPreviewState) drawObject(hash stingray.FileID, matrix, translation, view, projection mgl32.Mat4, viewPosition mgl32.Vec3) {
+func (pv *UnitPreviewState) initDrawList(hash stingray.FileID, name string) {
+	if pv.objectDrawList == nil {
+		pv.objectDrawList = make(map[stingray.FileID]map[string][]float32)
+	}
+	if _, contains := pv.objectDrawList[hash]; !contains {
+		pv.objectDrawList[hash] = make(map[string][]float32)
+	}
+	if _, contains := pv.objectDrawList[hash][name]; !contains {
+		pv.objectDrawList[hash][name] = make([]float32, 0)
+	}
+}
+
+func (pv *UnitPreviewState) drawLists(size imgui.Vec2) {
 	gl.Enable(gl.DEPTH_TEST)
+	var matrixBuffer uint32
+	gl.GenBuffers(1, &matrixBuffer)
+	_, viewPosition, view, projection := pv.computeMVP(size.X/size.Y, true)
+	sortedFileIds := slices.SortedFunc(maps.Keys(pv.objectDrawList), func(a, b stingray.FileID) int {
+		return stingray.Hash.Cmp(a.Name, b.Name)
+	})
+	for _, fileId := range sortedFileIds {
+		sortedMeshes := slices.Sorted(maps.Keys(pv.objectDrawList[fileId]))
+		for _, mesh := range sortedMeshes {
+			list := pv.objectDrawList[fileId][mesh]
+			instanceCount := int32(len(list)) / (7 * 4)
+			if instanceCount == 0 {
+				continue
+			}
+			object := pv.objects[fileId][mesh]
+			gl.BindVertexArray(object.vao)
+			gl.BindBuffer(gl.ARRAY_BUFFER, matrixBuffer)
+			gl.BufferData(gl.ARRAY_BUFFER, len(list)*4, gl.Ptr(list), gl.STATIC_DRAW)
+			gl.EnableVertexAttribArray(7)
+			gl.VertexAttribPointerWithOffset(7, 4, gl.FLOAT, false, 7*16, uintptr(0*16))
+			gl.EnableVertexAttribArray(8)
+			gl.VertexAttribPointerWithOffset(8, 4, gl.FLOAT, false, 7*16, uintptr(1*16))
+			gl.EnableVertexAttribArray(9)
+			gl.VertexAttribPointerWithOffset(9, 4, gl.FLOAT, false, 7*16, uintptr(2*16))
+			gl.EnableVertexAttribArray(10)
+			gl.VertexAttribPointerWithOffset(10, 4, gl.FLOAT, false, 7*16, uintptr(3*16))
+			gl.EnableVertexAttribArray(11)
+			gl.VertexAttribPointerWithOffset(11, 3, gl.FLOAT, false, 7*16, uintptr(4*16))
+			gl.EnableVertexAttribArray(12)
+			gl.VertexAttribPointerWithOffset(12, 3, gl.FLOAT, false, 7*16, uintptr(5*16))
+			gl.EnableVertexAttribArray(13)
+			gl.VertexAttribPointerWithOffset(13, 3, gl.FLOAT, false, 7*16, uintptr(6*16))
+
+			gl.VertexAttribDivisor(7, 1)
+			gl.VertexAttribDivisor(8, 1)
+			gl.VertexAttribDivisor(9, 1)
+			gl.VertexAttribDivisor(10, 1)
+			gl.VertexAttribDivisor(11, 1)
+			gl.VertexAttribDivisor(12, 1)
+			gl.VertexAttribDivisor(13, 1)
+
+			if pv.showWireframe {
+				gl.UseProgram(object.wireframe.program)
+				gl.UniformMatrix4fv(object.wireframe.uniforms["view"], 1, false, &view[0])
+				gl.UniformMatrix4fv(object.wireframe.uniforms["projection"], 1, false, &projection[0])
+				gl.Uniform4fv(object.wireframe.uniforms["color"], 1, &pv.wireframeColor[0])
+				gl.Uniform1i(object.wireframe.uniforms["hasVisibilityMasks"], object.hasVisibilityMasks)
+				gl.Uniform1iv(object.wireframe.uniforms["udimShown"], 64, &pv.udimsShown[0])
+			}
+			for group, ibo := range object.ibos {
+				if !pv.showWireframe {
+					if !object.materials[group].shown {
+						continue
+					}
+					gl.UseProgram(object.materials[group].program)
+					gl.UniformMatrix4fv(object.materials[group].uniforms["view"], 1, false, &view[0])
+					gl.UniformMatrix4fv(object.materials[group].uniforms["projection"], 1, false, &projection[0])
+					gl.Uniform3fv(object.materials[group].uniforms["viewPosition"], 1, &viewPosition[0])
+					gl.Uniform1iv(object.materials[group].uniforms["udimShown"], 64, &pv.udimsShown[0])
+					for _, uniformBlock := range object.materials[group].uniformBlocks {
+						gl.BindBufferBase(gl.UNIFORM_BUFFER, uniformBlock.binding, uniformBlock.ubo)
+					}
+					for idx, texture := range object.materials[group].textures {
+						gl.ActiveTexture(gl.TEXTURE0 + uint32(idx))
+						gl.BindTexture(texture.target, texture.id)
+						glError := gl.GetError()
+						if glError != 0 {
+							fmt.Printf("[error] binding texture %v (%v) in group %v as target %v generated error %v\n", texture.name.String(), texture.id, group, glutils.GLTarget(texture.target).String(), glutils.GLError(glError).String())
+						}
+					}
+				}
+				gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo)
+				gl.DrawElementsInstanced(gl.TRIANGLES, object.numIndices[group], object.indexType[group], nil, instanceCount)
+			}
+		}
+	}
+	gl.ActiveTexture(gl.TEXTURE0)
+	gl.BindTexture(gl.TEXTURE_2D, 0)
+	gl.BindTexture(gl.TEXTURE_2D_ARRAY, 0)
+	gl.BindTexture(gl.TEXTURE_BUFFER, 0)
+	gl.BindVertexArray(0)
+	gl.UseProgram(0)
+	gl.PolygonMode(gl.FRONT_AND_BACK, gl.FILL)
+	gl.DeleteBuffers(1, &matrixBuffer)
+}
+
+func (pv *UnitPreviewState) drawListsNormalVis(size imgui.Vec2) {
+	gl.Enable(gl.DEPTH_TEST)
+	var matrixBuffer uint32
+	gl.GenBuffers(1, &matrixBuffer)
+	_, _, view, projection := pv.computeMVP(size.X/size.Y, true)
+	sortedFileIds := slices.SortedFunc(maps.Keys(pv.objectDrawList), func(a, b stingray.FileID) int {
+		return stingray.Hash.Cmp(a.Name, b.Name)
+	})
+	for _, fileId := range sortedFileIds {
+		sortedMeshes := slices.Sorted(maps.Keys(pv.objectDrawList[fileId]))
+		for _, mesh := range sortedMeshes {
+			list := pv.objectDrawList[fileId][mesh]
+			instanceCount := int32(len(list)) / (7 * 4)
+			if instanceCount == 0 {
+				continue
+			}
+			object := pv.objects[fileId][mesh]
+			gl.BindVertexArray(object.vao)
+			gl.BindBuffer(gl.ARRAY_BUFFER, matrixBuffer)
+			gl.BufferData(gl.ARRAY_BUFFER, len(list)*4, gl.Ptr(list), gl.STATIC_DRAW)
+			gl.EnableVertexAttribArray(7)
+			gl.VertexAttribPointerWithOffset(7, 4, gl.FLOAT, false, 7*16, uintptr(0*16))
+			gl.EnableVertexAttribArray(8)
+			gl.VertexAttribPointerWithOffset(8, 4, gl.FLOAT, false, 7*16, uintptr(1*16))
+			gl.EnableVertexAttribArray(9)
+			gl.VertexAttribPointerWithOffset(9, 4, gl.FLOAT, false, 7*16, uintptr(2*16))
+			gl.EnableVertexAttribArray(10)
+			gl.VertexAttribPointerWithOffset(10, 4, gl.FLOAT, false, 7*16, uintptr(3*16))
+			gl.EnableVertexAttribArray(11)
+			gl.VertexAttribPointerWithOffset(11, 3, gl.FLOAT, false, 7*16, uintptr(4*16))
+			gl.EnableVertexAttribArray(12)
+			gl.VertexAttribPointerWithOffset(12, 3, gl.FLOAT, false, 7*16, uintptr(5*16))
+			gl.EnableVertexAttribArray(13)
+			gl.VertexAttribPointerWithOffset(13, 3, gl.FLOAT, false, 7*16, uintptr(6*16))
+
+			gl.VertexAttribDivisor(7, 1)
+			gl.VertexAttribDivisor(8, 1)
+			gl.VertexAttribDivisor(9, 1)
+			gl.VertexAttribDivisor(10, 1)
+			gl.VertexAttribDivisor(11, 1)
+			gl.VertexAttribDivisor(12, 1)
+			gl.VertexAttribDivisor(13, 1)
+
+			gl.UseProgram(object.normalVis.program)
+			gl.BindVertexArray(object.vao)
+			gl.UniformMatrix4fv(object.normalVis.uniforms["view"], 1, false, &view[0])
+			gl.UniformMatrix4fv(object.normalVis.uniforms["projection"], 1, false, &projection[0])
+			gl.Uniform1f(object.normalVis.uniforms["len"], pv.viewDistance*0.02)
+			gl.Uniform1iv(object.normalVis.uniforms["showTangentBitangent"], 1, &pv.visualizeTangentBitangent)
+			gl.Uniform1i(object.normalVis.uniforms["hasVisibilityMasks"], object.hasVisibilityMasks)
+			gl.Uniform1iv(object.normalVis.uniforms["udimShown"], 64, &pv.udimsShown[0])
+			for group, ibo := range object.ibos {
+				gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo)
+				gl.DrawElementsInstanced(gl.POINTS, object.numIndices[group], object.indexType[group], nil, instanceCount)
+			}
+		}
+	}
+	gl.ActiveTexture(gl.TEXTURE0)
+	gl.BindTexture(gl.TEXTURE_2D, 0)
+	gl.BindTexture(gl.TEXTURE_2D_ARRAY, 0)
+	gl.BindTexture(gl.TEXTURE_BUFFER, 0)
+	gl.BindVertexArray(0)
+	gl.UseProgram(0)
+	gl.PolygonMode(gl.FRONT_AND_BACK, gl.FILL)
+	gl.DeleteBuffers(1, &matrixBuffer)
+}
+
+func (pv *UnitPreviewState) drawObject(hash stingray.FileID, matrix, translation, view, projection mgl32.Mat4, viewPosition mgl32.Vec3) {
+	//gl.Enable(gl.DEPTH_TEST)
 	for name := range pv.objects[hash] {
 		if shown, contains := pv.objectsShown[hash][name]; contains && !shown {
 			continue
 		}
+		pv.initDrawList(hash, name)
 		model := pv.model.Mul4(translation.Mul4(matrix.Mul4(pv.objects[hash][name].matrix)))
-		mvp := projection.Mul4(view).Mul4(model)
-		normal := model.Inv().Transpose().Mat3()
+		normal := model.Inv().Transpose().Mat3().Mat4()
+		pv.objectDrawList[hash][name] = append(pv.objectDrawList[hash][name], model[:]...)
+		pv.objectDrawList[hash][name] = append(pv.objectDrawList[hash][name], normal[:12]...)
+		continue
+
 		gl.BindVertexArray(pv.objects[hash][name].vao)
 		if pv.showWireframe {
 			gl.UseProgram(pv.objects[hash][name].wireframe.program)
-			gl.UniformMatrix4fv(pv.objects[hash][name].wireframe.uniforms["mvp"], 1, false, &mvp[0])
+			gl.UniformMatrix4fv(pv.objects[hash][name].wireframe.uniforms["view"], 1, false, &view[0])
+			gl.UniformMatrix4fv(pv.objects[hash][name].wireframe.uniforms["projection"], 1, false, &projection[0])
 			gl.Uniform4fv(pv.objects[hash][name].wireframe.uniforms["color"], 1, &pv.wireframeColor[0])
 			gl.Uniform1i(pv.objects[hash][name].wireframe.uniforms["hasVisibilityMasks"], pv.objects[hash][name].hasVisibilityMasks)
 			gl.Uniform1iv(pv.objects[hash][name].wireframe.uniforms["udimShown"], 64, &pv.udimsShown[0])
@@ -2954,9 +3133,10 @@ func (pv *UnitPreviewState) drawObject(hash stingray.FileID, matrix, translation
 					continue
 				}
 				gl.UseProgram(pv.objects[hash][name].materials[group].program)
-				gl.UniformMatrix4fv(pv.objects[hash][name].materials[group].uniforms["mvp"], 1, false, &mvp[0])
+				gl.UniformMatrix4fv(pv.objects[hash][name].materials[group].uniforms["view"], 1, false, &view[0])
+				gl.UniformMatrix4fv(pv.objects[hash][name].materials[group].uniforms["projection"], 1, false, &projection[0])
 				gl.UniformMatrix4fv(pv.objects[hash][name].materials[group].uniforms["model"], 1, false, &model[0])
-				gl.UniformMatrix3fv(pv.objects[hash][name].materials[group].uniforms["normalMat"], 1, false, &normal[0])
+				// gl.UniformMatrix3fv(pv.objects[hash][name].materials[group].uniforms["normalMat"], 1, false, &normal[0])
 				gl.Uniform3fv(pv.objects[hash][name].materials[group].uniforms["viewPosition"], 1, &viewPosition[0])
 				gl.Uniform1iv(pv.objects[hash][name].materials[group].uniforms["udimShown"], 64, &pv.udimsShown[0])
 				for _, uniformBlock := range pv.objects[hash][name].materials[group].uniformBlocks {
@@ -2975,6 +3155,7 @@ func (pv *UnitPreviewState) drawObject(hash stingray.FileID, matrix, translation
 			gl.DrawElements(gl.TRIANGLES, pv.objects[hash][name].numIndices[group], pv.objects[hash][name].indexType[group], nil)
 		}
 	}
+	return
 	gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, 0)
 	gl.BindBuffer(gl.UNIFORM_BUFFER, 0)
 	gl.ActiveTexture(gl.TEXTURE0)
@@ -2991,11 +3172,15 @@ func (pv *UnitPreviewState) drawNormalVis(hash stingray.FileID, matrix, translat
 		if shown, contains := pv.objectsShown[hash][name]; contains && !shown {
 			continue
 		}
+		pv.initDrawList(hash, name)
 		model := pv.model.Mul4(translation.Mul4(matrix.Mul4(pv.objects[hash][name].matrix)))
-		mvp := projection.Mul4(view).Mul4(model)
+		pv.objectDrawList[hash][name] = append(pv.objectDrawList[hash][name], model[:]...)
+		pv.objectDrawList[hash][name] = append(pv.objectDrawList[hash][name], make([]float32, 12)...)
+		continue
 		gl.UseProgram(pv.objects[hash][name].normalVis.program)
 		gl.BindVertexArray(pv.objects[hash][name].vao)
-		gl.UniformMatrix4fv(pv.objects[hash][name].normalVis.uniforms["mvp"], 1, false, &mvp[0])
+		gl.UniformMatrix4fv(pv.objects[hash][name].normalVis.uniforms["view"], 1, false, &view[0])
+		gl.UniformMatrix4fv(pv.objects[hash][name].normalVis.uniforms["projection"], 1, false, &projection[0])
 		gl.Uniform1f(pv.objects[hash][name].normalVis.uniforms["len"], pv.viewDistance*0.02)
 		gl.Uniform1iv(pv.objects[hash][name].normalVis.uniforms["showTangentBitangent"], 1, &pv.visualizeTangentBitangent)
 		gl.Uniform1i(pv.objects[hash][name].normalVis.uniforms["hasVisibilityMasks"], pv.objects[hash][name].hasVisibilityMasks)
@@ -3005,6 +3190,7 @@ func (pv *UnitPreviewState) drawNormalVis(hash stingray.FileID, matrix, translat
 			gl.DrawElements(gl.POINTS, pv.objects[hash][name].numIndices[group], pv.objects[hash][name].indexType[group], nil)
 		}
 	}
+	return
 	gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, 0) // TODO: Make this not draw duplicate vertices
 }
 
@@ -3159,8 +3345,12 @@ func (pv *UnitPreviewState) Draw(previewId string) {
 				}
 			}
 			drawNode(pv.root, pv.rootHash)
+			pv.drawLists(size)
+			pv.objectDrawList = nil
 			if pv.visualizeNormals {
 				drawNodeNormalVis(pv.root, pv.rootHash)
+				pv.drawListsNormalVis(size)
+				pv.objectDrawList = nil
 			}
 			if pv.showAABB {
 				drawNodeBoundingBox(pv.root, pv.rootHash)
@@ -3503,72 +3693,63 @@ func (pv *UnitPreviewState) Draw(previewId string) {
 		pv.doSweep = false
 	}
 
-	// currentArchives := pv.getSelectedArchives()
+	currentArchives := pv.getSelectedArchives()
 
-	// var armorSets []datalib.ArmorSet
-	// if len(currentArchives) > 0 {
-	// 	armorSets = make([]datalib.ArmorSet, 0)
-	// 	maxStr := ""
-	// 	for idx := range currentArchives {
-	// 		var set datalib.ArmorSet
-	// 		var contains bool
-	// 		if set, contains = pv.armorSets[currentArchives[idx]]; !contains {
-	// 			continue
-	// 		}
-	// 		if len(set.Name) > len(maxStr) {
-	// 			maxStr = set.Name
-	// 		}
-	// 		armorSets = append(armorSets, set)
-	// 	}
-	// 	armorSets := slices.SortedFunc(slices.Values(armorSets), func(a, b datalib.ArmorSet) int {
-	// 		return strings.Compare(a.Name, b.Name)
-	// 	})
-	// 	if len(armorSets) > 0 {
-	// 		imgui.SameLine()
-	// 		var selectedSet int32 = -1
-	// 		width := imgui.CalcTextSize(maxStr).X + 2*imgui.CurrentStyle().FramePadding().X
-	// 		imgui.SetNextItemWidth(width + imgui.TextLineHeightWithSpacing())
-	// 		seenNames := make(map[string]any)
-	// 		if imgui.BeginComboV("Load Armor Set...", "", imgui.ComboFlagsNone) {
-	// 			for idx, set := range armorSets {
-	// 				if _, contains := seenNames[set.Name]; contains {
-	// 					continue
-	// 				}
-	// 				imgui.SetNextItemWidth(width)
-	// 				if imgui.SelectableBoolV(set.Name, int32(idx) == selectedSet, imgui.SelectableFlagsNone, imgui.NewVec2(width, 0)) {
-	// 					selectedSet = int32(idx)
-	// 				}
-	// 				seenNames[set.Name] = true
-	// 			}
-	// 			imgui.EndCombo()
-	// 		}
-	// 		if selectedSet != -1 {
-	// 			pv.loadArmorSet(armorSets, selectedSet)
-	// 		}
-	// 	}
-	// }
+	var armorSets []datalib.ArmorSet
+	if len(currentArchives) > 0 {
+		armorSets = make([]datalib.ArmorSet, 0)
+		maxStr := ""
+		for idx := range currentArchives {
+			var set datalib.ArmorSet
+			var contains bool
+			if set, contains = pv.armorSets[currentArchives[idx]]; !contains {
+				continue
+			}
+			if len(set.Name) > len(maxStr) {
+				maxStr = set.Name
+			}
+			armorSets = append(armorSets, set)
+		}
+		armorSets := slices.SortedFunc(slices.Values(armorSets), func(a, b datalib.ArmorSet) int {
+			return strings.Compare(a.Name, b.Name)
+		})
+		if len(armorSets) > 0 {
+			imgui.SameLine()
+			var selectedSet int32 = -1
+			width := imgui.CalcTextSize(maxStr).X + 2*imgui.CurrentStyle().FramePadding().X
+			imgui.SetNextItemWidth(width + imgui.TextLineHeightWithSpacing())
+			seenNames := make(map[string]any)
+			if imgui.BeginComboV("Load Armor Set...", "", imgui.ComboFlagsNone) {
+				for idx, set := range armorSets {
+					if _, contains := seenNames[set.Name]; contains {
+						continue
+					}
+					imgui.SetNextItemWidth(width)
+					if imgui.SelectableBoolV(set.Name, int32(idx) == selectedSet, imgui.SelectableFlagsNone, imgui.NewVec2(width, 0)) {
+						selectedSet = int32(idx)
+					}
+					seenNames[set.Name] = true
+				}
+				imgui.EndCombo()
+			}
+			if selectedSet != -1 {
+				pv.loadArmorSet(armorSets, selectedSet)
+			}
+		}
+	}
 
-	// if len(pv.previousSelectedArchives) != len(currentArchives) {
-	// 	for hash := range pv.objects {
-	// 		var armorInfo *datalib.UnitData
-	// 		for _, set := range armorSets {
-	// 			value, contains := set.UnitMetadata[hash.Name]
-	// 			if !contains {
-	// 				continue
-	// 			}
+	if len(pv.previousSelectedArchives) != len(currentArchives) {
+		for hash := range pv.objects {
+			for name := range pv.objects[hash] {
+				object := pv.objects[hash][name]
+				pv.loadMaterials(&object)
+				pv.objects[hash][name] = object
+			}
+		}
+		pv.finalizeObjectMaterials()
 
-	// 			armorInfo = &value
-	// 		}
-
-	// 		for name := range pv.objects[hash] {
-	// 			object := pv.objects[hash][name]
-	// 			pv.loadMaterials(pv.loadUnitGetResourceFunc, &object, armorInfo)
-	// 			pv.objects[hash][name] = object
-	// 		}
-	// 	}
-
-	// 	pv.previousSelectedArchives = currentArchives
-	// }
+		pv.previousSelectedArchives = currentArchives
+	}
 }
 
 func (pv *UnitPreviewState) DrawSettings() {

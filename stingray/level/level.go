@@ -38,15 +38,9 @@ type SpeedtreeTransform struct {
 	MaxRotation mgl32.Vec4
 }
 
-type SpeedtreeLayer struct {
-	Name     stingray.ThinHash
-	UnkInt00 uint32
-	UnkInt01 uint32
-}
-
 type Speedtree struct {
 	stingray.Hash
-	Layers     []SpeedtreeLayer
+	Layers     []HashIndexRange
 	Transforms []SpeedtreeTransform
 }
 
@@ -333,7 +327,7 @@ func LoadLevel(r io.ReadSeeker, entityVarMapping shading_environment.ShadingEnvi
 			if err := binary.Read(r, binary.LittleEndian, &layersCount); err != nil {
 				return nil, fmt.Errorf("read speedtree: %v", err)
 			}
-			layers := make([]SpeedtreeLayer, layersCount)
+			layers := make([]HashIndexRange, layersCount)
 			if err := binary.Read(r, binary.LittleEndian, layers); err != nil {
 				return nil, fmt.Errorf("read speedtree: %v", err)
 			}
