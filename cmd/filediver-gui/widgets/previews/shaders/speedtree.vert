@@ -5,6 +5,7 @@ layout(location = 1) in vec4 LODPositionV;
 layout(location = 2) in uvec4 packedNormalTangentAOTwosided;
 layout(location = 3) in vec4 windParams;
 layout(location = 7) in mat4 instModel;
+layout(location = 11) in mat3 normalMat;
 
 out vec3 fragPosition;
 out vec2 fragUV;
@@ -23,7 +24,6 @@ uniform vec3 viewPosition;
 uniform sampler2D fibonacci_normal_lut;
 
 void main() {
-    mat3 normalMat = mat3(transpose(inverse(model * instModel)));
     mat4 mvp = projection * view * model * instModel;
     gl_Position = mvp * vec4(inPositionU.xyz, 1.0);
     fragPosition = vec3(model * vec4(inPositionU.xyz, 1.0));

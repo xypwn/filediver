@@ -574,7 +574,7 @@ func NewUnitPreview(getResource GetResourceFunc, getOverride func(stingray.FileI
 			"shaders/debug_object.frag",
 		},
 		0,
-		[]string{"mvp", "color"},
+		[]string{"model", "view", "projection", "color"},
 	)
 	if err != nil {
 		return nil, err
@@ -2323,20 +2323,32 @@ func (pv *UnitPreviewState) loadUnit(fileID stingray.FileID, mainData, gpuData [
 			// Setup instance model/normal matrix attributes
 			gl.BindBuffer(gl.ARRAY_BUFFER, object.imbo)
 			gl.EnableVertexAttribArray(7)
-			gl.VertexAttribPointerWithOffset(7, 4, gl.FLOAT, false, 4*16, uintptr(0*16))
+			gl.VertexAttribPointerWithOffset(7, 4, gl.FLOAT, false, 7*16, uintptr(0*16))
 			gl.VertexAttribDivisor(7, 1)
 
 			gl.EnableVertexAttribArray(8)
-			gl.VertexAttribPointerWithOffset(8, 4, gl.FLOAT, false, 4*16, uintptr(1*16))
+			gl.VertexAttribPointerWithOffset(8, 4, gl.FLOAT, false, 7*16, uintptr(1*16))
 			gl.VertexAttribDivisor(8, 1)
 
 			gl.EnableVertexAttribArray(9)
-			gl.VertexAttribPointerWithOffset(9, 4, gl.FLOAT, false, 4*16, uintptr(2*16))
+			gl.VertexAttribPointerWithOffset(9, 4, gl.FLOAT, false, 7*16, uintptr(2*16))
 			gl.VertexAttribDivisor(9, 1)
 
 			gl.EnableVertexAttribArray(10)
-			gl.VertexAttribPointerWithOffset(10, 4, gl.FLOAT, false, 4*16, uintptr(3*16))
+			gl.VertexAttribPointerWithOffset(10, 4, gl.FLOAT, false, 7*16, uintptr(3*16))
 			gl.VertexAttribDivisor(10, 1)
+
+			gl.EnableVertexAttribArray(11)
+			gl.VertexAttribPointerWithOffset(11, 3, gl.FLOAT, false, 7*16, uintptr(4*16))
+			gl.VertexAttribDivisor(11, 1)
+
+			gl.EnableVertexAttribArray(12)
+			gl.VertexAttribPointerWithOffset(12, 3, gl.FLOAT, false, 7*16, uintptr(5*16))
+			gl.VertexAttribDivisor(12, 1)
+
+			gl.EnableVertexAttribArray(13)
+			gl.VertexAttribPointerWithOffset(13, 3, gl.FLOAT, false, 7*16, uintptr(6*16))
+			gl.VertexAttribDivisor(13, 1)
 
 			object.numIndices = make([]int32, len(mesh.Indices))
 			object.indexType = make([]uint32, len(mesh.Indices))
@@ -2363,17 +2375,48 @@ func (pv *UnitPreviewState) loadUnit(fileID stingray.FileID, mainData, gpuData [
 
 			verts := pv.getAABBVertices(fileID, name)
 			gl.BindBuffer(gl.ARRAY_BUFFER, boundingBox.vbo)
-			defer gl.BindBuffer(gl.ARRAY_BUFFER, 0)
 			gl.BufferData(gl.ARRAY_BUFFER, len(verts)*3*4, gl.Ptr(verts[:]), gl.STATIC_DRAW)
 
 			boundingBox.numIndices[0] = int32(len(aabbIndices))
 			boundingBox.numVertices = int32(len(verts))
 			gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, boundingBox.ibos[0])
-			defer gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, 0)
 			gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, int(boundingBox.numIndices[0]*4), gl.Ptr(aabbIndices[:]), gl.STATIC_DRAW)
 
 			gl.VertexAttribPointer(0, 3, gl.FLOAT, false, 3*4, nil)
 			gl.EnableVertexAttribArray(0)
+
+			// Setup instance model/normal matrix attributes
+			gl.BindBuffer(gl.ARRAY_BUFFER, boundingBox.imbo)
+			gl.EnableVertexAttribArray(7)
+			gl.VertexAttribPointerWithOffset(7, 4, gl.FLOAT, false, 7*16, uintptr(0*16))
+			gl.VertexAttribDivisor(7, 1)
+
+			gl.EnableVertexAttribArray(8)
+			gl.VertexAttribPointerWithOffset(8, 4, gl.FLOAT, false, 7*16, uintptr(1*16))
+			gl.VertexAttribDivisor(8, 1)
+
+			gl.EnableVertexAttribArray(9)
+			gl.VertexAttribPointerWithOffset(9, 4, gl.FLOAT, false, 7*16, uintptr(2*16))
+			gl.VertexAttribDivisor(9, 1)
+
+			gl.EnableVertexAttribArray(10)
+			gl.VertexAttribPointerWithOffset(10, 4, gl.FLOAT, false, 7*16, uintptr(3*16))
+			gl.VertexAttribDivisor(10, 1)
+
+			gl.EnableVertexAttribArray(11)
+			gl.VertexAttribPointerWithOffset(11, 3, gl.FLOAT, false, 7*16, uintptr(4*16))
+			gl.VertexAttribDivisor(11, 1)
+
+			gl.EnableVertexAttribArray(12)
+			gl.VertexAttribPointerWithOffset(12, 3, gl.FLOAT, false, 7*16, uintptr(5*16))
+			gl.VertexAttribDivisor(12, 1)
+
+			gl.EnableVertexAttribArray(13)
+			gl.VertexAttribPointerWithOffset(13, 3, gl.FLOAT, false, 7*16, uintptr(6*16))
+			gl.VertexAttribDivisor(13, 1)
+
+			gl.BindBuffer(gl.ARRAY_BUFFER, 0)
+
 			pv.boundingBoxes[fileID][name] = boundingBox
 		}
 	}
@@ -2402,10 +2445,42 @@ func (pv *UnitPreviewState) loadUnit(fileID stingray.FileID, mainData, gpuData [
 		gl.BindVertexArray(skeleton.vao)
 		gl.BindBuffer(gl.ARRAY_BUFFER, skeleton.vbo)
 		gl.BufferData(gl.ARRAY_BUFFER, len(skeletonVertices)*3*4, gl.Ptr(skeletonVertices), gl.STATIC_DRAW)
+
 		gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, skeleton.ibos[0])
 		gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, len(skeletonIndices)*4, gl.Ptr(skeletonIndices), gl.STATIC_DRAW)
+
 		gl.VertexAttribPointer(0, 3, gl.FLOAT, false, 3*4, nil)
 		gl.EnableVertexAttribArray(0)
+
+		// Setup instance model/normal matrix attributes
+		gl.BindBuffer(gl.ARRAY_BUFFER, skeleton.imbo)
+		gl.EnableVertexAttribArray(7)
+		gl.VertexAttribPointerWithOffset(7, 4, gl.FLOAT, false, 7*16, uintptr(0*16))
+		gl.VertexAttribDivisor(7, 1)
+
+		gl.EnableVertexAttribArray(8)
+		gl.VertexAttribPointerWithOffset(8, 4, gl.FLOAT, false, 7*16, uintptr(1*16))
+		gl.VertexAttribDivisor(8, 1)
+
+		gl.EnableVertexAttribArray(9)
+		gl.VertexAttribPointerWithOffset(9, 4, gl.FLOAT, false, 7*16, uintptr(2*16))
+		gl.VertexAttribDivisor(9, 1)
+
+		gl.EnableVertexAttribArray(10)
+		gl.VertexAttribPointerWithOffset(10, 4, gl.FLOAT, false, 7*16, uintptr(3*16))
+		gl.VertexAttribDivisor(10, 1)
+
+		gl.EnableVertexAttribArray(11)
+		gl.VertexAttribPointerWithOffset(11, 3, gl.FLOAT, false, 7*16, uintptr(4*16))
+		gl.VertexAttribDivisor(11, 1)
+
+		gl.EnableVertexAttribArray(12)
+		gl.VertexAttribPointerWithOffset(12, 3, gl.FLOAT, false, 7*16, uintptr(5*16))
+		gl.VertexAttribDivisor(12, 1)
+
+		gl.EnableVertexAttribArray(13)
+		gl.VertexAttribPointerWithOffset(13, 3, gl.FLOAT, false, 7*16, uintptr(6*16))
+		gl.VertexAttribDivisor(13, 1)
 		skeleton.numVertices = int32(len(skeletonVertices))
 		skeleton.numIndices[0] = int32(len(skeletonIndices))
 		if _, contains = pv.skeletons[fileID]; contains {
@@ -2764,20 +2839,32 @@ func (pv *UnitPreviewState) loadSpeedtree(speedtreeID stingray.FileID, mainData,
 		// Setup instance model/normal matrix attributes
 		gl.BindBuffer(gl.ARRAY_BUFFER, object.imbo)
 		gl.EnableVertexAttribArray(7)
-		gl.VertexAttribPointerWithOffset(7, 4, gl.FLOAT, false, 4*16, uintptr(0*16))
+		gl.VertexAttribPointerWithOffset(7, 4, gl.FLOAT, false, 7*16, uintptr(0*16))
 		gl.VertexAttribDivisor(7, 1)
 
 		gl.EnableVertexAttribArray(8)
-		gl.VertexAttribPointerWithOffset(8, 4, gl.FLOAT, false, 4*16, uintptr(1*16))
+		gl.VertexAttribPointerWithOffset(8, 4, gl.FLOAT, false, 7*16, uintptr(1*16))
 		gl.VertexAttribDivisor(8, 1)
 
 		gl.EnableVertexAttribArray(9)
-		gl.VertexAttribPointerWithOffset(9, 4, gl.FLOAT, false, 4*16, uintptr(2*16))
+		gl.VertexAttribPointerWithOffset(9, 4, gl.FLOAT, false, 7*16, uintptr(2*16))
 		gl.VertexAttribDivisor(9, 1)
 
 		gl.EnableVertexAttribArray(10)
-		gl.VertexAttribPointerWithOffset(10, 4, gl.FLOAT, false, 4*16, uintptr(3*16))
+		gl.VertexAttribPointerWithOffset(10, 4, gl.FLOAT, false, 7*16, uintptr(3*16))
 		gl.VertexAttribDivisor(10, 1)
+
+		gl.EnableVertexAttribArray(11)
+		gl.VertexAttribPointerWithOffset(11, 3, gl.FLOAT, false, 7*16, uintptr(4*16))
+		gl.VertexAttribDivisor(11, 1)
+
+		gl.EnableVertexAttribArray(12)
+		gl.VertexAttribPointerWithOffset(12, 3, gl.FLOAT, false, 7*16, uintptr(5*16))
+		gl.VertexAttribDivisor(12, 1)
+
+		gl.EnableVertexAttribArray(13)
+		gl.VertexAttribPointerWithOffset(13, 3, gl.FLOAT, false, 7*16, uintptr(6*16))
+		gl.VertexAttribDivisor(13, 1)
 
 		object.numIndices = make([]int32, lod0.MeshCount)
 		object.indexType = make([]uint32, lod0.MeshCount)
@@ -2818,6 +2905,37 @@ func (pv *UnitPreviewState) loadSpeedtree(speedtreeID stingray.FileID, mainData,
 
 		gl.VertexAttribPointer(0, 3, gl.FLOAT, false, 3*4, nil)
 		gl.EnableVertexAttribArray(0)
+
+		// Setup instance model/normal matrix attributes
+		gl.BindBuffer(gl.ARRAY_BUFFER, boundingBox.imbo)
+		gl.EnableVertexAttribArray(7)
+		gl.VertexAttribPointerWithOffset(7, 4, gl.FLOAT, false, 7*16, uintptr(0*16))
+		gl.VertexAttribDivisor(7, 1)
+
+		gl.EnableVertexAttribArray(8)
+		gl.VertexAttribPointerWithOffset(8, 4, gl.FLOAT, false, 7*16, uintptr(1*16))
+		gl.VertexAttribDivisor(8, 1)
+
+		gl.EnableVertexAttribArray(9)
+		gl.VertexAttribPointerWithOffset(9, 4, gl.FLOAT, false, 7*16, uintptr(2*16))
+		gl.VertexAttribDivisor(9, 1)
+
+		gl.EnableVertexAttribArray(10)
+		gl.VertexAttribPointerWithOffset(10, 4, gl.FLOAT, false, 7*16, uintptr(3*16))
+		gl.VertexAttribDivisor(10, 1)
+
+		gl.EnableVertexAttribArray(11)
+		gl.VertexAttribPointerWithOffset(11, 3, gl.FLOAT, false, 7*16, uintptr(4*16))
+		gl.VertexAttribDivisor(11, 1)
+
+		gl.EnableVertexAttribArray(12)
+		gl.VertexAttribPointerWithOffset(12, 3, gl.FLOAT, false, 7*16, uintptr(5*16))
+		gl.VertexAttribDivisor(12, 1)
+
+		gl.EnableVertexAttribArray(13)
+		gl.VertexAttribPointerWithOffset(13, 3, gl.FLOAT, false, 7*16, uintptr(6*16))
+		gl.VertexAttribDivisor(13, 1)
+
 		pv.boundingBoxes[speedtreeID][name] = boundingBox
 	}
 
@@ -2994,11 +3112,8 @@ func (pv *UnitPreviewState) initDrawList(hash stingray.FileID, name string) {
 	}
 }
 
-func (pv *UnitPreviewState) drawLists(size imgui.Vec2, model mgl32.Mat4) {
+func (pv *UnitPreviewState) drawLists(size imgui.Vec2, model, view, projection mgl32.Mat4, viewPosition mgl32.Vec3) {
 	gl.Enable(gl.DEPTH_TEST)
-	var matrixBuffer uint32
-	gl.GenBuffers(1, &matrixBuffer)
-	_, viewPosition, view, projection := pv.computeMVP(size.X/size.Y, true)
 	sortedFileIds := slices.SortedFunc(maps.Keys(pv.objects), func(a, b stingray.FileID) int {
 		return stingray.Hash.Cmp(a.Name, b.Name)
 	})
@@ -3006,7 +3121,7 @@ func (pv *UnitPreviewState) drawLists(size imgui.Vec2, model mgl32.Mat4) {
 		sortedMeshes := slices.Sorted(maps.Keys(pv.objects[fileId]))
 		for _, mesh := range sortedMeshes {
 			list := pv.objectDrawList[fileId][mesh]
-			instanceCount := int32(len(list)) / (4 * 4)
+			instanceCount := int32(len(list)) / (7 * 4)
 			object := pv.objects[fileId][mesh]
 
 			gl.BindVertexArray(object.vao)
@@ -3014,10 +3129,10 @@ func (pv *UnitPreviewState) drawLists(size imgui.Vec2, model mgl32.Mat4) {
 				gl.BindBuffer(gl.ARRAY_BUFFER, object.imbo)
 				gl.BufferData(gl.ARRAY_BUFFER, len(list)*4, gl.Ptr(list), gl.STATIC_DRAW)
 				object.numInstances = instanceCount
-				pv.objects[fileId][mesh] = object
 			} else if instanceCount != object.numInstances {
 				object.numInstances = instanceCount
 			}
+			pv.objects[fileId][mesh] = object
 			if object.numInstances == 0 {
 				continue
 			}
@@ -3066,14 +3181,10 @@ func (pv *UnitPreviewState) drawLists(size imgui.Vec2, model mgl32.Mat4) {
 	gl.BindVertexArray(0)
 	gl.UseProgram(0)
 	gl.PolygonMode(gl.FRONT_AND_BACK, gl.FILL)
-	gl.DeleteBuffers(1, &matrixBuffer)
 }
 
-func (pv *UnitPreviewState) drawListsNormalVis(size imgui.Vec2, model mgl32.Mat4) {
+func (pv *UnitPreviewState) drawListsNormalVis(size imgui.Vec2, model, view, projection mgl32.Mat4) {
 	gl.Enable(gl.DEPTH_TEST)
-	var matrixBuffer uint32
-	gl.GenBuffers(1, &matrixBuffer)
-	_, _, view, projection := pv.computeMVP(size.X/size.Y, true)
 	sortedFileIds := slices.SortedFunc(maps.Keys(pv.objects), func(a, b stingray.FileID) int {
 		return stingray.Hash.Cmp(a.Name, b.Name)
 	})
@@ -3081,7 +3192,7 @@ func (pv *UnitPreviewState) drawListsNormalVis(size imgui.Vec2, model mgl32.Mat4
 		sortedMeshes := slices.Sorted(maps.Keys(pv.objects[fileId]))
 		for _, mesh := range sortedMeshes {
 			list := pv.objectDrawList[fileId][mesh]
-			instanceCount := int32(len(list)) / (4 * 4)
+			instanceCount := int32(len(list)) / (7 * 4)
 			object := pv.objects[fileId][mesh]
 
 			gl.BindVertexArray(object.vao)
@@ -3089,10 +3200,10 @@ func (pv *UnitPreviewState) drawListsNormalVis(size imgui.Vec2, model mgl32.Mat4
 				gl.BindBuffer(gl.ARRAY_BUFFER, object.imbo)
 				gl.BufferData(gl.ARRAY_BUFFER, len(list)*4, gl.Ptr(list), gl.STATIC_DRAW)
 				object.numInstances = instanceCount
-				pv.objects[fileId][mesh] = object
 			} else if instanceCount != object.numInstances {
 				object.numInstances = instanceCount
 			}
+			pv.objects[fileId][mesh] = object
 			if object.numInstances == 0 {
 				continue
 			}
@@ -3118,50 +3229,135 @@ func (pv *UnitPreviewState) drawListsNormalVis(size imgui.Vec2, model mgl32.Mat4
 	gl.BindVertexArray(0)
 	gl.UseProgram(0)
 	gl.PolygonMode(gl.FRONT_AND_BACK, gl.FILL)
-	gl.DeleteBuffers(1, &matrixBuffer)
 }
 
-func (pv *UnitPreviewState) drawObject(hash stingray.FileID, matrix mgl32.Mat4) {
+func (pv *UnitPreviewState) drawListsBoundingBoxes(size imgui.Vec2, model, view, projection mgl32.Mat4) {
+	gl.Disable(gl.DEPTH_TEST)
+	gl.UseProgram(pv.boundingBoxMaterial.program)
+	gl.Uniform4fv(pv.boundingBoxMaterial.uniforms["color"], 1, &pv.aabbColor[0])
+	gl.UniformMatrix4fv(pv.boundingBoxMaterial.uniforms["model"], 1, false, &model[0])
+	gl.UniformMatrix4fv(pv.boundingBoxMaterial.uniforms["view"], 1, false, &view[0])
+	gl.UniformMatrix4fv(pv.boundingBoxMaterial.uniforms["projection"], 1, false, &projection[0])
+	sortedFileIds := slices.SortedFunc(maps.Keys(pv.objects), func(a, b stingray.FileID) int {
+		return stingray.Hash.Cmp(a.Name, b.Name)
+	})
+	for _, fileId := range sortedFileIds {
+		sortedMeshes := slices.Sorted(maps.Keys(pv.objects[fileId]))
+		for _, mesh := range sortedMeshes {
+			list := pv.objectDrawList[fileId][mesh]
+			instanceCount := int32(len(list)) / (7 * 4)
+			object := pv.boundingBoxes[fileId][mesh]
+
+			gl.BindVertexArray(object.vao)
+			if instanceCount > 0 && instanceCount != object.numInstances {
+				gl.BindBuffer(gl.ARRAY_BUFFER, object.imbo)
+				gl.BufferData(gl.ARRAY_BUFFER, len(list)*4, gl.Ptr(list), gl.STATIC_DRAW)
+				object.numInstances = instanceCount
+			} else if instanceCount != object.numInstances {
+				object.numInstances = instanceCount
+			}
+			pv.boundingBoxes[fileId][mesh] = object
+			if object.numInstances == 0 {
+				continue
+			}
+
+			gl.BindVertexArray(object.vao)
+			gl.DrawElementsInstanced(gl.TRIANGLES, object.numIndices[0], gl.UNSIGNED_INT, nil, object.numInstances)
+		}
+	}
+	gl.BindVertexArray(0)
+	gl.UseProgram(0)
+	gl.PolygonMode(gl.FRONT_AND_BACK, gl.FILL)
+}
+
+const filediverSkeleton = "filediver_skeleton"
+
+func (pv *UnitPreviewState) drawListsSkeletons(size imgui.Vec2, model, view, projection mgl32.Mat4) {
+	gl.Disable(gl.DEPTH_TEST)
+	gl.UseProgram(pv.boundingBoxMaterial.program)
+	gl.Uniform4fv(pv.boundingBoxMaterial.uniforms["color"], 1, &pv.skeletonColor[0])
+	gl.UniformMatrix4fv(pv.boundingBoxMaterial.uniforms["model"], 1, false, &model[0])
+	gl.UniformMatrix4fv(pv.boundingBoxMaterial.uniforms["view"], 1, false, &view[0])
+	gl.UniformMatrix4fv(pv.boundingBoxMaterial.uniforms["projection"], 1, false, &projection[0])
+	sortedFileIds := slices.SortedFunc(maps.Keys(pv.objects), func(a, b stingray.FileID) int {
+		return stingray.Hash.Cmp(a.Name, b.Name)
+	})
+	for _, fileId := range sortedFileIds {
+		list := pv.objectDrawList[fileId][filediverSkeleton]
+		instanceCount := int32(len(list)) / (7 * 4)
+		object := pv.skeletons[fileId]
+
+		gl.BindVertexArray(object.vao)
+		if instanceCount > 0 && instanceCount != object.numInstances {
+			gl.BindBuffer(gl.ARRAY_BUFFER, object.imbo)
+			gl.BufferData(gl.ARRAY_BUFFER, len(list)*4, gl.Ptr(list), gl.STATIC_DRAW)
+			object.numInstances = instanceCount
+		} else if instanceCount != object.numInstances {
+			object.numInstances = instanceCount
+		}
+		pv.skeletons[fileId] = object
+		if object.numInstances == 0 {
+			continue
+		}
+
+		gl.BindVertexArray(object.vao)
+		gl.DrawElementsInstanced(gl.LINES, object.numIndices[0], gl.UNSIGNED_INT, nil, object.numInstances)
+	}
+	gl.BindVertexArray(0)
+	gl.UseProgram(0)
+	gl.PolygonMode(gl.FRONT_AND_BACK, gl.FILL)
+}
+
+func (pv *UnitPreviewState) drawObject(hash stingray.FileID, matrix, sceneModel mgl32.Mat4) {
 	for name := range pv.objects[hash] {
 		if shown, contains := pv.objectsShown[hash][name]; contains && !shown {
 			continue
 		}
 		pv.initDrawList(hash, name)
 		model := matrix.Mul4(pv.objects[hash][name].matrix)
+		normal := sceneModel.Mul4(model).Inv().Transpose()
 		pv.objectDrawList[hash][name] = append(pv.objectDrawList[hash][name], model[:]...)
+		pv.objectDrawList[hash][name] = append(pv.objectDrawList[hash][name], normal[:12]...)
 	}
 }
 
-func (pv *UnitPreviewState) drawBoundingBox(hash stingray.FileID, matrix, translation, view, projection mgl32.Mat4) {
-	gl.Disable(gl.DEPTH_TEST)
-	gl.UseProgram(pv.boundingBoxMaterial.program)
-	gl.Uniform4fv(pv.boundingBoxMaterial.uniforms["color"], 1, &pv.aabbColor[0])
+func (pv *UnitPreviewState) drawBoundingBox(hash stingray.FileID, matrix mgl32.Mat4) {
+	// gl.Disable(gl.DEPTH_TEST)
+	// gl.UseProgram(pv.boundingBoxMaterial.program)
+	// gl.Uniform4fv(pv.boundingBoxMaterial.uniforms["color"], 1, &pv.aabbColor[0])
 	for name := range pv.boundingBoxes[hash] {
 		if shown, contains := pv.objectsShown[hash][name]; contains && !shown {
 			continue
 		}
-		gl.BindVertexArray(pv.boundingBoxes[hash][name].vao)
-		{
-			model := pv.model.Mul4(translation.Mul4(matrix.Mul4(pv.aabbMat[hash][name])))
-			mvp := projection.Mul4(view).Mul4(model)
-			gl.UniformMatrix4fv(pv.boundingBoxMaterial.uniforms["mvp"], 1, false, &mvp[0])
-		}
-		gl.DrawElements(gl.TRIANGLES, pv.boundingBoxes[hash][name].numIndices[0], gl.UNSIGNED_INT, nil)
+		pv.initDrawList(hash, name)
+		model := matrix.Mul4(pv.aabbMat[hash][name])
+		pv.objectDrawList[hash][name] = append(pv.objectDrawList[hash][name], model[:]...)
+		pv.objectDrawList[hash][name] = append(pv.objectDrawList[hash][name], make([]float32, 12)...)
+		// gl.BindVertexArray(pv.boundingBoxes[hash][name].vao)
+		// {
+		// 	model := pv.model.Mul4(translation.Mul4(matrix.Mul4(pv.aabbMat[hash][name])))
+		// 	mvp := projection.Mul4(view).Mul4(model)
+		// 	gl.UniformMatrix4fv(pv.boundingBoxMaterial.uniforms["mvp"], 1, false, &mvp[0])
+		// }
+		// gl.DrawElements(gl.TRIANGLES, pv.boundingBoxes[hash][name].numIndices[0], gl.UNSIGNED_INT, nil)
 	}
 }
 
-func (pv *UnitPreviewState) drawSkeleton(hash stingray.FileID, matrix, translation, view, projection mgl32.Mat4) {
-	gl.Disable(gl.DEPTH_TEST)
-	gl.UseProgram(pv.boundingBoxMaterial.program)
-	gl.Uniform4fv(pv.boundingBoxMaterial.uniforms["color"], 1, &pv.skeletonColor[0])
+func (pv *UnitPreviewState) drawSkeleton(hash stingray.FileID, matrix mgl32.Mat4) {
+	pv.initDrawList(hash, filediverSkeleton)
+	pv.objectDrawList[hash][filediverSkeleton] = append(pv.objectDrawList[hash][filediverSkeleton], matrix[:]...)
+	pv.objectDrawList[hash][filediverSkeleton] = append(pv.objectDrawList[hash][filediverSkeleton], make([]float32, 12)...)
+	// gl.Disable(gl.DEPTH_TEST)
+	// gl.UseProgram(pv.boundingBoxMaterial.program)
+	// gl.Uniform4fv(pv.boundingBoxMaterial.uniforms["color"], 1, &pv.skeletonColor[0])
 
-	model := pv.model.Mul4(translation.Mul4(matrix))
-	mvp := projection.Mul4(view).Mul4(model)
+	// model := pv.model.Mul4(translation.Mul4(matrix))
+	// mvp := projection.Mul4(view).Mul4(model)
 
-	gl.UniformMatrix4fv(pv.boundingBoxMaterial.uniforms["mvp"], 1, false, &mvp[0])
-	gl.BindVertexArray(pv.skeletons[hash].vao)
-	gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, pv.skeletons[hash].ibos[0])
-	gl.DrawElements(gl.LINES, pv.skeletons[hash].numIndices[0], gl.UNSIGNED_INT, nil)
+	// gl.UniformMatrix4fv(pv.boundingBoxMaterial.uniforms["mvp"], 1, false, &mvp[0])
+	// gl.BindVertexArray(pv.skeletons[hash].vao)
+	// gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, pv.skeletons[hash].ibos[0])
+	// gl.DrawElements(gl.LINES, pv.skeletons[hash].numIndices[0], gl.UNSIGNED_INT, nil)
 }
 
 func (pv *UnitPreviewState) Draw(previewId string) {
@@ -3226,10 +3422,11 @@ func (pv *UnitPreviewState) Draw(previewId string) {
 			gl.ClearColor(0.2, 0.2, 0.2, 1)
 			gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 
-			modelPos, _, view, projection := pv.computeMVP(size.X/size.Y, true)
+			modelPos, viewPosition, view, projection := pv.computeMVP(size.X/size.Y, true)
 			translation := mgl32.Translate3D(modelPos.Vec3().Elem())
+			sceneModel := pv.model.Mul4(translation)
 
-			var drawNode, drawNodeNormalVis, drawNodeBoundingBox, drawNodeSkeletons func(unitPreviewNode, stingray.FileID)
+			var drawNode, drawNodeBoundingBox, drawNodeSkeletons func(unitPreviewNode, stingray.FileID)
 			drawNode = func(curr unitPreviewNode, nodeId stingray.FileID) {
 				if !curr.shown {
 					return
@@ -3240,21 +3437,7 @@ func (pv *UnitPreviewState) Draw(previewId string) {
 						drawNode(child, childHash)
 					} else {
 						// add to the draw list
-						pv.drawObject(childHash, curr.matrix)
-					}
-				}
-			}
-			drawNodeNormalVis = func(curr unitPreviewNode, nodeId stingray.FileID) {
-				if !curr.shown {
-					return
-				}
-				for _, childHash := range curr.children {
-					if child, contains := pv.nodes[childHash.Name]; contains && nodeId != childHash {
-						child.matrix = curr.matrix.Mul4(child.matrix)
-						drawNodeNormalVis(child, childHash)
-					} else {
-						// add to the draw list
-						pv.drawObject(childHash, curr.matrix)
+						pv.drawObject(childHash, curr.matrix, sceneModel)
 					}
 				}
 			}
@@ -3267,7 +3450,7 @@ func (pv *UnitPreviewState) Draw(previewId string) {
 						child.matrix = curr.matrix.Mul4(child.matrix)
 						drawNodeBoundingBox(child, childHash)
 					} else {
-						pv.drawBoundingBox(childHash, curr.matrix, translation, view, projection)
+						pv.drawBoundingBox(childHash, curr.matrix)
 					}
 				}
 			}
@@ -3280,23 +3463,25 @@ func (pv *UnitPreviewState) Draw(previewId string) {
 						child.matrix = curr.matrix.Mul4(child.matrix)
 						drawNodeSkeletons(child, childHash)
 					} else {
-						pv.drawSkeleton(childHash, curr.matrix, translation, view, projection)
+						pv.drawSkeleton(childHash, curr.matrix)
 					}
 				}
 			}
 			drawNode(pv.root, pv.rootHash)
-			pv.drawLists(size, pv.model.Mul4(translation))
-			pv.objectDrawList = nil
+			pv.drawLists(size, sceneModel, view, projection, viewPosition)
 			if pv.visualizeNormals {
-				drawNodeNormalVis(pv.root, pv.rootHash)
-				pv.drawListsNormalVis(size, pv.model.Mul4(translation))
-				pv.objectDrawList = nil
+				pv.drawListsNormalVis(size, sceneModel, view, projection)
 			}
+			pv.objectDrawList = nil
 			if pv.showAABB {
 				drawNodeBoundingBox(pv.root, pv.rootHash)
+				pv.drawListsBoundingBoxes(size, sceneModel, view, projection)
+				pv.objectDrawList = nil
 			}
 			if pv.showSkeleton {
 				drawNodeSkeletons(pv.root, pv.rootHash)
+				pv.drawListsSkeletons(size, sceneModel, view, projection)
+				pv.objectDrawList = nil
 			}
 
 			gl.BindVertexArray(0)
@@ -3861,7 +4046,10 @@ func (pv *UnitPreviewState) drawUnitMaterialSettings(unit stingray.FileID, objec
 }
 
 func (pv *UnitPreviewState) drawNodeTree(curr unitPreviewNode, nodeId stingray.FileID, matrix mgl32.Mat4) {
-	flags := imgui.TreeNodeFlagsDefaultOpen | imgui.TreeNodeFlagsOpenOnArrow
+	flags := imgui.TreeNodeFlagsOpenOnArrow | imgui.TreeNodeFlagsDrawLinesToNodes
+	if nodeId == pv.rootHash {
+		flags |= imgui.TreeNodeFlagsDefaultOpen
+	}
 	if imgui.TreeNodeExStrV(curr.name, flags) {
 		shown := curr.shown
 		var icon string

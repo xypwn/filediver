@@ -8,6 +8,7 @@ layout(location = 4) in vec3 inBitangent;
 layout(location = 5) in vec2 inUV1;
 layout(location = 6) in vec2 inUV2;
 layout(location = 7) in mat4 instModel;
+layout(location = 11) in mat3 normalMat;
 
 out VertexOutput
 {
@@ -29,7 +30,6 @@ uniform mat4 model;
 uniform vec3 viewPosition;
 
 void main() {
-    mat3 normalMat = mat3(transpose(inverse(model * instModel)));
     gl_Position = projection * view * model * instModel * vec4(inPosition, 1.0);
     fragPosition = vec3(model * vec4(inPosition, 1.0));
     fragUV0 = inUV;
