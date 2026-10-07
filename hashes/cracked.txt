@@ -12005,6 +12005,7 @@ geyser_02
 geyser_03
 geyser_core
 gibs1_raton_lpo
+glitch
 global_lighting_indirect
 gnarly_tree_stump_01
 gore_pile_
@@ -12524,6 +12525,7 @@ hologram_filtering
 hologram_filtering:dss_screen
 hologram_filtering_bloom
 holster
+holstered
 hose_attach
 hose_connect
 hose_cooldown
@@ -14716,6 +14718,7 @@ rootknee_03
 rotate
 rotating
 rotator_idle
+rotators_idle
 route_distance_pack
 route_distance_smooth
 ruin_base_floor
@@ -15123,6 +15126,7 @@ see_alpha
 sensor
 shaker
 sharpen_filter
+sharpen_vrs
 sheath
 ship
 shiphub_collision
@@ -15541,6 +15545,7 @@ utilities_speakers_01
 utilities_speakers_1
 utilities_speakers_2
 utilities_speakers_3
+vectoring
 vehicles/Empty_State
 vending_machine_democracy_
 vending_machine_democracy_01
