@@ -7,9 +7,12 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"math"
 	"path"
 	"slices"
+	"time"
 
+	"github.com/AllenDang/cimgui-go/imgui"
 	"github.com/ebitengine/oto/v3"
 	"github.com/xypwn/filediver/cmd/filediver-gui/imutils"
 	datalib "github.com/xypwn/filediver/datalibrary"
@@ -58,6 +61,9 @@ type AutoPreview struct {
 	thinhashes           map[stingray.ThinHash]string
 	getResourceGenerator GetResourceGeneratorFunc
 	getOverride          func(stingray.FileID) stingray.FileID
+	loadMs               uint32
+	drawTime             float64
+	debug                bool
 
 	err error
 }
@@ -164,6 +170,7 @@ func (pv *AutoPreview) LoadFile(ctx context.Context, fileID stingray.FileID, max
 	if err == nil && exists {
 		entityInfo, err = entity.LoadEntity(bytes.NewReader(entityData), entityVarMapping)
 	}
+	loadStart := time.Now()
 	switch fileID.Type {
 	case stingray.Sum("unit"):
 		pv.activeType = AutoPreviewUnit
@@ -378,6 +385,7 @@ func (pv *AutoPreview) LoadFile(ctx context.Context, fileID stingray.FileID, max
 	default:
 		pv.activeType = AutoPreviewEmpty
 	}
+	pv.loadMs = uint32(time.Since(loadStart).Milliseconds())
 }
 
 func (pv *AutoPreview) UpdateAssetOverrides(entityInfo *entity.Entity) {
@@ -399,11 +407,21 @@ func (pv *AutoPreview) SetMaterialSettingsVisible(visible bool) {
 	pv.previews.material.SetSettingsVisible(visible)
 }
 
+func (pv *AutoPreview) Debug() bool {
+	return pv.debug
+}
+
+func (pv *AutoPreview) SetDebug(debug bool) {
+	pv.debug = debug
+}
+
 func (pv *AutoPreview) Draw(name string) bool {
 	if pv.err != nil {
 		imutils.TextError(pv.err)
 		return true
 	}
+	rootPos := imgui.CursorPos()
+	drawStart := time.Now()
 	switch pv.activeType {
 	case AutoPreviewEmpty:
 		return false
@@ -425,6 +443,17 @@ func (pv *AutoPreview) Draw(name string) bool {
 		pv.previews.font.Draw(name)
 	default:
 		panic("unhandled case")
+	}
+	if pv.debug {
+		drawMs := time.Since(drawStart).Milliseconds()
+		pv.drawTime = pv.drawTime - (pv.drawTime / 120.0) + (time.Since(drawStart).Seconds() / 120.0)
+		text := fmt.Sprintf("Load took %vms\nDraw took %vms (%.2f fps)", pv.loadMs, drawMs, math.Min(1.0/pv.drawTime, 1000.0))
+		size := imgui.CalcTextSize(text)
+		rootPos.X = imgui.ContentRegionAvail().X - size.X - imgui.CurrentStyle().ItemInnerSpacing().X
+		rootPos.Y += imgui.CurrentStyle().ItemInnerSpacing().Y
+		imgui.SetCursorPos(rootPos)
+		imgui.SetNextItemAllowOverlap()
+		imutils.Textf(text)
 	}
 	return true
 }

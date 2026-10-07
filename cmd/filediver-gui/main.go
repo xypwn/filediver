@@ -676,6 +676,13 @@ func (a *guiApp) drawMenuBar() {
 			if imgui.MenuItemBool(fnt.I.Settings + " Preferences") {
 				a.popupManager.Open["Preferences"] = true
 			}
+			var debug bool
+			if a.preview != nil {
+				debug = a.preview.Debug()
+			}
+			if imgui.MenuItemBoolPtr(fnt.I.FrameBug+" Preview Debugging", "", &debug) && a.preview != nil {
+				a.preview.SetDebug(debug)
+			}
 			imgui.EndMenu()
 		}
 		imgui.EndMenuBar()
