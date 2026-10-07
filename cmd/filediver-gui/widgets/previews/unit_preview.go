@@ -2609,6 +2609,7 @@ func (pv *UnitPreviewState) loadSpeedtree(speedtreeID stingray.FileID, mainData,
 		pv.meshPositions = make(map[stingray.FileID]map[string][][3]float32)
 		pv.meshNormals = make(map[stingray.FileID]map[string][][3]float32)
 		pv.skeletonPositions = make(map[stingray.FileID][]mgl32.Vec3)
+		pv.skeletons = make(map[stingray.FileID]unitPreviewObject)
 	}
 
 	name := "lod0"
