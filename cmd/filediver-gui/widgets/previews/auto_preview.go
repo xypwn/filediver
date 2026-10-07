@@ -57,6 +57,7 @@ type AutoPreview struct {
 	hashes               map[stingray.Hash]string
 	thinhashes           map[stingray.ThinHash]string
 	getResourceGenerator GetResourceGeneratorFunc
+	getOverride          func(stingray.FileID) stingray.FileID
 
 	err error
 }
@@ -72,12 +73,13 @@ type ExtractorArmorParameters struct {
 	SelectedArchives func() []stingray.Hash
 }
 
-func NewAutoPreview(otoCtx *oto.Context, audioSampleRate int, hashes map[stingray.Hash]string, thinhashes map[stingray.ThinHash]string, getResourceGenerator GetResourceGeneratorFunc, runner *exec.Runner, planetParams ExtractorPlanetParameters, armorParams ExtractorArmorParameters) (*AutoPreview, error) {
+func NewAutoPreview(otoCtx *oto.Context, audioSampleRate int, hashes map[stingray.Hash]string, thinhashes map[stingray.ThinHash]string, getResourceGenerator GetResourceGeneratorFunc, getOverride func(stingray.FileID) stingray.FileID, runner *exec.Runner, planetParams ExtractorPlanetParameters, armorParams ExtractorArmorParameters) (*AutoPreview, error) {
 	var err error
 	pv := &AutoPreview{
 		hashes:               hashes,
 		thinhashes:           thinhashes,
 		getResourceGenerator: getResourceGenerator,
+		getOverride:          getOverride,
 	}
 	lookupHash := func(h stingray.Hash) string {
 		if val, contains := hashes[h]; contains {
@@ -85,7 +87,7 @@ func NewAutoPreview(otoCtx *oto.Context, audioSampleRate int, hashes map[stingra
 		}
 		return h.String()
 	}
-	pv.previews.unit, err = NewUnitPreview(getResourceGenerator(true), armorParams, lookupHash)
+	pv.previews.unit, err = NewUnitPreview(getResourceGenerator(true), pv.getOverride, armorParams, lookupHash)
 	if err != nil {
 		return nil, err
 	}
@@ -157,6 +159,11 @@ func (pv *AutoPreview) LoadFile(ctx context.Context, fileID stingray.FileID, max
 		return nil
 	}
 
+	var entityInfo *entity.Entity
+	entityData, exists, err := pv.getResourceGenerator(false)(colorGrading, stingray.DataMain)
+	if err == nil && exists {
+		entityInfo, err = entity.LoadEntity(bytes.NewReader(entityData), entityVarMapping)
+	}
 	switch fileID.Type {
 	case stingray.Sum("unit"):
 		pv.activeType = AutoPreviewUnit
@@ -169,7 +176,6 @@ func (pv *AutoPreview) LoadFile(ctx context.Context, fileID stingray.FileID, max
 			fileID.Name,
 			data[stingray.DataMain],
 			data[stingray.DataGPU],
-			pv.getResourceGenerator(true),
 			pv.thinhashes,
 		); err != nil {
 			pv.err = fmt.Errorf("loading unit: %w", err)
@@ -185,7 +191,6 @@ func (pv *AutoPreview) LoadFile(ctx context.Context, fileID stingray.FileID, max
 		if err := pv.previews.unit.LoadPrefab(
 			fileID.Name,
 			data[stingray.DataMain],
-			pv.getResourceGenerator(true),
 			pv.thinhashes,
 		); err != nil {
 			pv.err = fmt.Errorf("loading prefab: %w", err)
@@ -201,7 +206,6 @@ func (pv *AutoPreview) LoadFile(ctx context.Context, fileID stingray.FileID, max
 		if err := pv.previews.unit.LoadLevel(
 			fileID.Name,
 			data[stingray.DataMain],
-			pv.getResourceGenerator(true),
 			pv.thinhashes,
 		); err != nil {
 			pv.err = fmt.Errorf("loading prefab: %w", err)
@@ -213,17 +217,11 @@ func (pv *AutoPreview) LoadFile(ctx context.Context, fileID stingray.FileID, max
 			pv.err = err
 			return
 		}
-		var entityInfo *entity.Entity
-		entityData, exists, err := pv.getResourceGenerator(false)(colorGrading, stingray.DataMain)
-		if err == nil && exists {
-			entityInfo, err = entity.LoadEntity(bytes.NewReader(entityData), entityVarMapping)
-		}
 		pv.previews.unit.Clear()
 		if err := pv.previews.unit.LoadSpeedtree(
 			fileID.Name,
 			data[stingray.DataMain],
 			data[stingray.DataGPU],
-			pv.getResourceGenerator(true),
 			pv.thinhashes,
 			entityInfo,
 		); err != nil {
@@ -380,6 +378,13 @@ func (pv *AutoPreview) LoadFile(ctx context.Context, fileID stingray.FileID, max
 	default:
 		pv.activeType = AutoPreviewEmpty
 	}
+}
+
+func (pv *AutoPreview) UpdateAssetOverrides(entityInfo *entity.Entity) {
+	if pv.activeType != AutoPreviewUnit {
+		return
+	}
+	pv.previews.unit.UpdateAssetOverrides(entityInfo)
 }
 
 func (pv *AutoPreview) MaterialSettingsEmpty() bool {

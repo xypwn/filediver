@@ -231,19 +231,22 @@ func (block *unitPreviewUniformBlock) get(name string, outData any) {
 }
 
 type unitPreviewMaterialTexture struct {
-	id           uint32
-	target       uint32
-	name         stingray.Hash
-	slot         string
-	created      bool
-	loaded       bool
-	defaultColor []byte
+	id               uint32
+	target           uint32
+	name             stingray.Hash
+	override         stingray.FileID
+	previousOverride stingray.FileID
+	slot             string
+	created          bool
+	loaded           bool
+	defaultColor     []byte
 }
 
 type unitPreviewMaterial struct {
 	name           string
 	shown          bool
 	id             stingray.Hash
+	override       stingray.FileID
 	program        uint32
 	shaderCacheKey string
 	uniforms       unitPreviewUniforms
@@ -323,13 +326,17 @@ func (mat *unitPreviewMaterial) delete(textureCache *glutils.TextureCache) {
 	}
 }
 
+func (texture *unitPreviewMaterialTexture) release(textureCache *glutils.TextureCache) {
+	if texture.name.Value == 0x0 {
+		gl.DeleteTextures(1, &texture.id)
+		return
+	}
+	textureCache.Release(texture.override, texture.target)
+}
+
 func (mat *unitPreviewMaterial) releaseTextures(textureCache *glutils.TextureCache) {
 	for _, texture := range mat.textures {
-		if texture.name.Value == 0x0 {
-			gl.DeleteTextures(1, &texture.id)
-			continue
-		}
-		textureCache.Release(texture.name, texture.target)
+		texture.release(textureCache)
 	}
 	mat.textures = make([]unitPreviewMaterialTexture, 0)
 }
@@ -342,6 +349,7 @@ type unitPreviewObject struct {
 	wireframe unitPreviewMaterial
 	normalVis unitPreviewMaterial
 	matrix    mgl32.Mat4
+	name      stingray.Hash
 
 	numVertices        int32
 	numIndices         []int32
@@ -413,13 +421,15 @@ type UnitPreviewState struct {
 	detailerLoadState   DetailerLoadState
 	detailerTextureData TextureData
 
-	loadUnitGetResourceFunc GetResourceFunc
+	getResource GetResourceFunc
 
 	nodes    map[stingray.Hash]unitPreviewNode
 	root     unitPreviewNode
 	rootHash stingray.FileID
 
-	// hash is a unit resource
+	getOverride     func(stingray.FileID) stingray.FileID
+	objectOverrides map[stingray.FileID]stingray.FileID
+
 	objects             map[stingray.FileID]map[string]unitPreviewObject
 	objectsShown        map[stingray.FileID]map[string]bool
 	objectsShownDefault map[stingray.FileID]map[string]bool
@@ -500,7 +510,7 @@ type UnitPreviewState struct {
 	textureWaitGroup sync.WaitGroup
 }
 
-func NewUnitPreview(getResource GetResourceFunc, ArmorParams ExtractorArmorParameters, lookupHash func(stingray.Hash) string) (*UnitPreviewState, error) {
+func NewUnitPreview(getResource GetResourceFunc, getOverride func(stingray.FileID) stingray.FileID, ArmorParams ExtractorArmorParameters, lookupHash func(stingray.Hash) string) (*UnitPreviewState, error) {
 	var err error
 
 	pv := &UnitPreviewState{}
@@ -515,6 +525,8 @@ func NewUnitPreview(getResource GetResourceFunc, ArmorParams ExtractorArmorParam
 
 	pv.armorSets = ArmorParams.ArmorSets
 	pv.getSelectedArchives = ArmorParams.SelectedArchives
+	pv.getOverride = getOverride
+	pv.getResource = getResource
 
 	// Keep textures for a minute of disuse
 	duration, _ := time.ParseDuration("1m")
@@ -540,7 +552,7 @@ func NewUnitPreview(getResource GetResourceFunc, ArmorParams ExtractorArmorParam
 	}()
 
 	pv.detailerLoadState = DetailerNotLoaded
-	pv.loadMaterialDetailer(getResource)
+	pv.loadMaterialDetailer()
 
 	//pv.object.genObjects(true, 0)
 
@@ -592,6 +604,114 @@ func (pv *UnitPreviewState) Delete() {
 	pv.releaseMaterialDetailer()
 	pv.textureCache.DeleteAll()
 	pv.stopTextureSweep()
+}
+
+func (pv *UnitPreviewState) UpdateAssetOverrides(entityInfo *entity.Entity) {
+	pv.entityInfo = entityInfo
+	pv.textureData = make(map[stingray.Hash]TextureData)
+	for fileID := range pv.objects {
+		if fileID.Type.Value == 0x0 {
+			// not actually a file
+			continue
+		}
+		overrideID := pv.getOverride(fileID)
+		if overrideID != pv.objectOverrides[fileID] && pv.rootHash.Name != fileID.Name {
+			switch fileID.Type {
+			case UNIT:
+				unitMainData, _, _ := pv.getResource(fileID, stingray.DataMain)
+				unitGpuData, _, _ := pv.getResource(fileID, stingray.DataGPU)
+				err := pv.loadUnit(fileID, unitMainData, unitGpuData)
+				if err != nil {
+					fmt.Printf("Failed to update override for %v.%v: %v\n", pv.lookupHash(fileID.Name), pv.lookupHash(fileID.Type), err)
+					break
+				}
+				pv.objectOverrides[fileID] = overrideID
+			case SPEEDTREE:
+				speedtreeMainData, _, _ := pv.getResource(fileID, stingray.DataMain)
+				speedtreeGpuData, _, _ := pv.getResource(fileID, stingray.DataGPU)
+				err := pv.loadSpeedtree(fileID, speedtreeMainData, speedtreeGpuData)
+				if err != nil {
+					fmt.Printf("Failed to update override for %v.%v: %v\n", pv.lookupHash(fileID.Name), pv.lookupHash(fileID.Type), err)
+					break
+				}
+				pv.objectOverrides[fileID] = overrideID
+			case PREFAB:
+				prefabMainData, _, _ := pv.getResource(fileID, stingray.DataMain)
+				node, contains := pv.nodes[fileID.Name]
+				if !contains {
+					fmt.Printf("%v.%v is not present in the scene? Why are we updating overrides for it?\n", pv.lookupHash(fileID.Name), pv.lookupHash(fileID.Type))
+					break
+				}
+
+				children, err := pv.loadPrefab(fileID, prefabMainData)
+				if err != nil {
+					fmt.Printf("Failed to update override for %v.%v: %v\n", pv.lookupHash(fileID.Name), pv.lookupHash(fileID.Type), err)
+					break
+				}
+				node.children = children
+				pv.nodes[fileID.Name] = node
+				pv.objectOverrides[fileID] = overrideID
+			}
+			continue
+		}
+
+		armorInfo := pv.getArmorInfo(fileID.Name)
+		for mesh := range pv.objects[fileID] {
+			for group := range pv.objects[fileID][mesh].materials {
+				var mat *material.Material
+				var err error
+				materialID := stingray.NewFileID(pv.objects[fileID][mesh].materials[group].id, stingray.Sum("material"))
+				materialOverrideID := pv.getOverride(materialID)
+				if materialOverrideID != pv.objects[fileID][mesh].materials[group].override {
+					mat, err = loadMaterialInfo(pv.getResource, materialID)
+					if err != nil {
+						fmt.Printf("error loading %v.%v: %v\n", pv.lookupHash(materialID.Name), pv.lookupHash(materialID.Type), err)
+					} else if isLUTMaterial(mat) {
+						overrideLUTMaterial(mat, armorInfo)
+					}
+
+					pv.useMaterial(&pv.objects[fileID][mesh].materials[group], mat)
+					pv.objects[fileID][mesh].materials[group].override = materialOverrideID
+				} else {
+					for texIdx := range pv.objects[fileID][mesh].materials[group].textures {
+						texture := pv.objects[fileID][mesh].materials[group].textures[texIdx]
+						textureID := stingray.NewFileID(texture.name, stingray.Sum("texture"))
+						textureOverrideID := pv.getOverride(textureID)
+						if texture.override == textureOverrideID {
+							continue
+						}
+						if mat == nil {
+							mat, err = loadMaterialInfo(pv.getResource, materialOverrideID)
+						}
+						pv.objects[fileID][mesh].materials[group].textures[texIdx].release(pv.textureCache)
+						pv.objects[fileID][mesh].materials[group].textures[texIdx].override = textureOverrideID
+
+						pv.loadMaterialTextureAsync(stingray.Sum(texture.slot).Thin(), mat)
+					}
+				}
+			}
+		}
+	}
+
+	if pv.assetGradingLut != nil {
+		var assetGradingData []byte
+		if pv.entityInfo == nil {
+			pv.assetGradingLut = extr_entity.CreateIdentityColorGradingLut()
+		} else {
+			entityAssetGradingLut, err := extr_entity.CreateColorGradingLut(pv.entityInfo)
+			if err == nil {
+				pv.assetGradingLut = entityAssetGradingLut
+			}
+		}
+		assetGradingData, _ = binary.Append(nil, binary.LittleEndian, pv.assetGradingLut)
+		gl.BindBuffer(gl.TEXTURE_BUFFER, pv.assetGradingLutBuffer)
+		gl.BufferData(gl.TEXTURE_BUFFER, len(assetGradingData), gl.Ptr(assetGradingData), gl.STATIC_DRAW)
+		gl.BindBuffer(gl.TEXTURE_BUFFER, 0)
+	}
+
+	if err := pv.finalizeObjectMaterials(); err != nil {
+		fmt.Printf("finalizing override materials: %v\n", err)
+	}
 }
 
 var objectRegex = regexp.MustCompile("^(g_)?(\\w*?)_?(cull|shadow|rubble|rubble_shadow|debris|shadowmesh|c)?_?\\d*?_?(LOD\\d)?$")
@@ -738,8 +858,8 @@ func uploadStingrayTexture(textureID uint32, target uint32, data TextureData) er
 	return nil
 }
 
-func (pv *UnitPreviewState) useBasicMaterial(getResource GetResourceFunc, object *unitPreviewObject, group int, mat *material.Material) error {
-	err := object.materials[group].generate(
+func (pv *UnitPreviewState) useBasicMaterial(previewMaterial *unitPreviewMaterial, mat *material.Material) error {
+	err := previewMaterial.generate(
 		[]string{"shaders/object.vert", "shaders/object.geom", "shaders/object.frag"},
 		0,
 		append(baseUniforms, "texAlbedo", "texNormal", "shouldReconstructNormalZ"),
@@ -765,7 +885,7 @@ func (pv *UnitPreviewState) useBasicMaterial(getResource GetResourceFunc, object
 	allTextures := make([]string, 0)
 	allTextures = append(allTextures, albedoTextures...)
 	allTextures = append(allTextures, normalTextures...)
-	pv.loadMaterialTexturesAsync(getResource, mat, allTextures)
+	pv.loadMaterialTexturesAsync(mat, allTextures)
 	albedoRemoveAlpha := false
 	albedoName := stingray.Hash{}
 	for _, texture := range albedoTextures {
@@ -795,7 +915,7 @@ func (pv *UnitPreviewState) useBasicMaterial(getResource GetResourceFunc, object
 		data.Swizzles[3] = gl.ONE
 		pv.textureData[albedoName] = data
 	}
-	object.materials[group].textures = append(object.materials[group].textures, albedoTexture)
+	previewMaterial.textures = append(previewMaterial.textures, albedoTexture)
 
 	reconstructNormalZ := false
 	normalName := stingray.Hash{}
@@ -818,15 +938,15 @@ func (pv *UnitPreviewState) useBasicMaterial(getResource GetResourceFunc, object
 		loaded:       false,
 		defaultColor: []byte{128, 128, 255, 128},
 	}
-	object.materials[group].textures = append(object.materials[group].textures, normalTexture)
+	previewMaterial.textures = append(previewMaterial.textures, normalTexture)
 
-	gl.UseProgram(object.materials[group].program)
+	gl.UseProgram(previewMaterial.program)
 	if reconstructNormalZ {
-		gl.Uniform1i(object.materials[group].uniforms["shouldReconstructNormalZ"], 1)
+		gl.Uniform1i(previewMaterial.uniforms["shouldReconstructNormalZ"], 1)
 	} else {
-		gl.Uniform1i(object.materials[group].uniforms["shouldReconstructNormalZ"], 0)
+		gl.Uniform1i(previewMaterial.uniforms["shouldReconstructNormalZ"], 0)
 	}
-	gl.Uniform1i(object.materials[group].uniforms["hasVisibilityMasks"], 0)
+	gl.Uniform1i(previewMaterial.uniforms["hasVisibilityMasks"], 0)
 	gl.UseProgram(0)
 	return nil
 }
@@ -862,12 +982,13 @@ const (
 	DetailerUploaded
 )
 
-func (pv *UnitPreviewState) loadMaterialDetailer(getResource GetResourceFunc) {
+func (pv *UnitPreviewState) loadMaterialDetailer() {
 	slot := "customization_material_detail_tiler_array"
 	materialDetailerHash := stingray.Sum("content/art_shared/textures/customization/material_library/detail_tilers/customization_detail_tiler_array")
+	materialDetailerID := stingray.NewFileID(materialDetailerHash, stingray.Sum("texture"))
 	var target uint32 = gl.TEXTURE_2D_ARRAY
 
-	if pv.textureCache.Contains(materialDetailerHash, target) {
+	if pv.textureCache.Contains(materialDetailerID, target) {
 		// Already loaded, so we don't need to reload the data
 		return
 	}
@@ -883,7 +1004,7 @@ func (pv *UnitPreviewState) loadMaterialDetailer(getResource GetResourceFunc) {
 
 	pv.detailerLoadState = DetailerLoading
 
-	textureLoader := getTextureLoaderFunc(getResource, materialDetailerHash, pv.textureData)
+	textureLoader := getTextureLoaderFunc(pv.getResource, materialDetailerHash, pv.textureData)
 	go func() {
 		textureLoader()
 		pv.detailerTextureData = pv.textureData[materialDetailerHash]
@@ -892,12 +1013,14 @@ func (pv *UnitPreviewState) loadMaterialDetailer(getResource GetResourceFunc) {
 }
 
 func (pv *UnitPreviewState) uploadMaterialDetailer(data TextureData) {
-	textureId, created := pv.textureCache.Acquire(data.Name, data.Targets[0])
+	detailerId := stingray.NewFileID(data.Name, stingray.Sum("texture"))
+	textureId, created := pv.textureCache.Acquire(detailerId, data.Targets[0])
 	texture := unitPreviewMaterialTexture{
-		id:     textureId,
-		name:   data.Name,
-		target: data.Targets[0],
-		loaded: false,
+		id:       textureId,
+		override: detailerId,
+		name:     data.Name,
+		target:   data.Targets[0],
+		loaded:   false,
 	}
 
 	if !created {
@@ -917,7 +1040,8 @@ func (pv *UnitPreviewState) uploadMaterialDetailer(data TextureData) {
 
 func (pv *UnitPreviewState) releaseMaterialDetailer() {
 	materialDetailerHash := stingray.Sum("content/art_shared/textures/customization/material_library/detail_tilers/customization_detail_tiler_array")
-	pv.textureCache.Release(materialDetailerHash, gl.TEXTURE_2D_ARRAY)
+	materialDetailerID := stingray.NewFileID(materialDetailerHash, stingray.Sum("texture"))
+	pv.textureCache.Release(materialDetailerID, gl.TEXTURE_2D_ARRAY)
 }
 
 var textureDataMutex sync.Mutex
@@ -1005,6 +1129,16 @@ func isStandardMaterial(mat *material.Material) bool {
 	return mat.BaseMaterial == stingray.Sum("core/stingray_renderer/shader_import/standard")
 }
 
+func isSpeedtreeMaterial(mat *material.Material) bool {
+	if mat == nil {
+		return false
+	}
+	_, containsTex0 := mat.Textures[stingray.Sum("tex0").Thin()]
+	_, containsTex1 := mat.Textures[stingray.Sum("tex1").Thin()]
+	_, containsTex2 := mat.Textures[stingray.Sum("tex2").Thin()]
+	return containsTex0 && containsTex1 && containsTex2
+}
+
 func overrideLUTMaterial(mat *material.Material, armorInfo *datalib.UnitData) {
 	if mat == nil || mat.Textures == nil || armorInfo == nil {
 		return
@@ -1040,7 +1174,47 @@ func overrideLUTMaterial(mat *material.Material, armorInfo *datalib.UnitData) {
 	}
 }
 
-func (pv *UnitPreviewState) loadMaterialTexturesAsync(getResource GetResourceFunc, mat *material.Material, textureNames []string) {
+func (pv *UnitPreviewState) loadMaterialTextureAsync(slotHash stingray.ThinHash, mat *material.Material) {
+	nameHash := mat.Textures[slotHash]
+	slot := pv.lookupThinHash(slotHash)
+	target := getTarget(slot)
+
+	textureDataMutex.Lock()
+	existing, contains := pv.textureData[nameHash]
+	textureDataMutex.Unlock()
+
+	overrideID := pv.getOverride(stingray.NewFileID(nameHash, stingray.Sum("texture")))
+
+	if contains && slices.Contains(existing.Targets, target) {
+		// already loading, so we don't need to create another load request
+		fmt.Printf("texture data already loading for %v.texture with override %v.texture\n", pv.lookupHash(nameHash), pv.lookupHash(overrideID.Name))
+		return
+	}
+	targets := make([]uint32, 0)
+	data := TextureData{}
+	if contains {
+		targets = existing.Targets
+		data = existing
+	}
+	targets = append(targets, target)
+	data.Slot = slot
+	data.Name = nameHash
+	data.Targets = targets
+
+	textureDataMutex.Lock()
+	pv.textureData[nameHash] = data
+	textureDataMutex.Unlock()
+
+	if pv.textureCache.Contains(overrideID, target) {
+		// Already loaded, so we don't need to reload the data
+		fmt.Printf("texture data already cached for %v.texture\n", pv.lookupHash(overrideID.Name))
+		return
+	}
+
+	pv.textureWaitGroup.Go(getTextureLoaderFunc(pv.getResource, nameHash, pv.textureData))
+}
+
+func (pv *UnitPreviewState) loadMaterialTexturesAsync(mat *material.Material, textureNames []string) {
 	if mat == nil {
 		return
 	}
@@ -1053,44 +1227,16 @@ func (pv *UnitPreviewState) loadMaterialTexturesAsync(getResource GetResourceFun
 		if !slices.Contains(textureNames, slot) {
 			continue
 		}
-		nameHash := mat.Textures[slotHash]
-		target := getTarget(slot)
-
-		textureDataMutex.Lock()
-		existing, contains := pv.textureData[nameHash]
-		textureDataMutex.Unlock()
-
-		if contains && slices.Contains(existing.Targets, target) {
-			// already loading, so we don't need to create another load request
-			continue
-		}
-		targets := make([]uint32, 0)
-		data := TextureData{}
-		if contains {
-			targets = existing.Targets
-			data = existing
-		}
-		targets = append(targets, target)
-		data.Slot = slot
-		data.Name = nameHash
-		data.Targets = targets
-
-		textureDataMutex.Lock()
-		pv.textureData[nameHash] = data
-		textureDataMutex.Unlock()
-
-		if pv.textureCache.Contains(nameHash, target) {
-			// Already loaded, so we don't need to reload the data
-			continue
-		}
-
-		pv.textureWaitGroup.Go(getTextureLoaderFunc(getResource, nameHash, pv.textureData))
+		pv.loadMaterialTextureAsync(slotHash, mat)
 	}
 }
 
 func (pv *UnitPreviewState) finalizeMaterialTextures(object *unitPreviewObject, group int) error {
 	gl.UseProgram(object.materials[group].program)
 	for idx, texture := range object.materials[group].textures {
+		if texture.override == texture.previousOverride {
+			continue
+		}
 		var id uint32
 		uniform := object.materials[group].uniforms[texture.slot]
 		if texture.name.Value == 0 {
@@ -1103,16 +1249,17 @@ func (pv *UnitPreviewState) finalizeMaterialTextures(object *unitPreviewObject, 
 			gl.Uniform1i(uniform, int32(idx))
 			continue
 		} else if !texture.loaded {
-			id, created := pv.textureCache.Acquire(texture.name, texture.target)
+			id, created := pv.textureCache.Acquire(texture.override, texture.target)
 			object.materials[group].textures[idx].id = id
 			object.materials[group].textures[idx].created = created
+			object.materials[group].textures[idx].previousOverride = texture.override
 			var err error
 			if object.materials[group].textures[idx].created {
 				setupTexture(id, texture.target)
 				err = uploadStingrayTexture(id, texture.target, pv.textureData[texture.name])
 			}
 			if err != nil {
-				pv.textureCache.Delete(texture.name, texture.target)
+				pv.textureCache.Delete(texture.override, texture.target)
 				return err
 			}
 		}
@@ -1138,10 +1285,7 @@ func (pv *UnitPreviewState) finalizeObjectMaterials() error {
 	return nil
 }
 
-func (pv *UnitPreviewState) UpdateAssetOverrides(getResource GetResourceFunc) {
-}
-
-func (pv *UnitPreviewState) setupMaterialCommon(getResource GetResourceFunc, textureNames []string, object *unitPreviewObject, group int, mat *material.Material, lookupThinHash func(stingray.ThinHash) string) {
+func (pv *UnitPreviewState) setupMaterialCommon(textureNames []string, previewMaterial *unitPreviewMaterial, mat *material.Material) {
 	slot := "ibl_brdf_lut"
 	iblBRDFHash := stingray.Sum("core/stingray_renderer/lookup_tables/ibl_specular_brdf_lut")
 	mat.Textures[stingray.Sum(slot).Thin()] = iblBRDFHash
@@ -1153,9 +1297,9 @@ func (pv *UnitPreviewState) setupMaterialCommon(getResource GetResourceFunc, tex
 		}
 	}
 
-	pv.loadMaterialTexturesAsync(getResource, mat, textureNames)
+	pv.loadMaterialTexturesAsync(mat, textureNames)
 
-	gl.UseProgram(object.materials[group].program)
+	gl.UseProgram(previewMaterial.program)
 	sortedSlots := slices.SortedFunc(maps.Keys(mat.Textures), stingray.ThinHash.Cmp)
 	for _, slotHash := range sortedSlots {
 		slot := pv.lookupThinHash(slotHash)
@@ -1165,22 +1309,23 @@ func (pv *UnitPreviewState) setupMaterialCommon(getResource GetResourceFunc, tex
 		textureHash := mat.Textures[slotHash]
 		target := getTarget(slot)
 		texture := unitPreviewMaterialTexture{
-			id:      0,
-			name:    textureHash,
-			target:  target,
-			slot:    slot,
-			created: false,
-			loaded:  false,
+			id:       0,
+			name:     textureHash,
+			override: pv.getOverride(stingray.NewFileID(textureHash, stingray.Sum("texture"))),
+			target:   target,
+			slot:     slot,
+			created:  false,
+			loaded:   false,
 		}
 
-		object.materials[group].textures = append(object.materials[group].textures, texture)
+		previewMaterial.textures = append(previewMaterial.textures, texture)
 	}
 	gl.UseProgram(0)
 
-	gl.UseProgram(object.materials[group].program)
+	gl.UseProgram(previewMaterial.program)
 	for setting, value := range mat.Settings {
-		settingName := lookupThinHash(setting)
-		for _, block := range object.materials[group].uniformBlocks {
+		settingName := pv.lookupThinHash(setting)
+		for _, block := range previewMaterial.uniformBlocks {
 			if _, contains := block.uniformOffsets[settingName]; !contains {
 				continue
 			}
@@ -1191,8 +1336,8 @@ func (pv *UnitPreviewState) setupMaterialCommon(getResource GetResourceFunc, tex
 	gl.UseProgram(0)
 }
 
-func (pv *UnitPreviewState) useLUTMaterial(getResource GetResourceFunc, object *unitPreviewObject, group int, mat *material.Material, lookupThinHash func(stingray.ThinHash) string) error {
-	err := object.materials[group].generate(
+func (pv *UnitPreviewState) useLUTMaterial(previewMaterial *unitPreviewMaterial, mat *material.Material) error {
+	err := previewMaterial.generate(
 		[]string{"shaders/object.vert", "shaders/object.geom", "shaders/lut.frag"},
 		0,
 		append(baseUniforms, lutTextureNames...),
@@ -1215,10 +1360,10 @@ func (pv *UnitPreviewState) useLUTMaterial(getResource GetResourceFunc, object *
 		mat.Textures[stingray.Sum("pattern_lut").Thin()] = stingray.Hash{Value: 0xcf0cc31b981786c9}
 	}
 
-	pv.setupMaterialCommon(getResource, lutTextureNames, object, group, mat, lookupThinHash)
+	pv.setupMaterialCommon(lutTextureNames, previewMaterial, mat)
 
-	gl.UseProgram(object.materials[group].program)
-	for _, block := range object.materials[group].uniformBlocks {
+	gl.UseProgram(previewMaterial.program)
+	for _, block := range previewMaterial.uniformBlocks {
 		if _, contains := block.uniformOffsets["seed"]; contains {
 			block.set("seed", &seed)
 			block.setDefault("seed", &seed)
@@ -1238,8 +1383,8 @@ func (pv *UnitPreviewState) useLUTMaterial(getResource GetResourceFunc, object *
 	return nil
 }
 
-func (pv *UnitPreviewState) useStandardMaterial(getResource GetResourceFunc, object *unitPreviewObject, group int, mat *material.Material, lookupThinHash func(stingray.ThinHash) string) error {
-	err := object.materials[group].generate(
+func (pv *UnitPreviewState) useStandardMaterial(previewMaterial *unitPreviewMaterial, mat *material.Material) error {
+	err := previewMaterial.generate(
 		[]string{"shaders/object.vert", "shaders/object.geom", "shaders/standard.frag"},
 		0,
 		append(baseUniforms, standardTextureNames...),
@@ -1248,12 +1393,12 @@ func (pv *UnitPreviewState) useStandardMaterial(getResource GetResourceFunc, obj
 		return err
 	}
 
-	pv.setupMaterialCommon(getResource, standardTextureNames, object, group, mat, lookupThinHash)
+	pv.setupMaterialCommon(standardTextureNames, previewMaterial, mat)
 	return nil
 }
 
-func (pv *UnitPreviewState) useSpeedtreeMaterial(getResource GetResourceFunc, object *unitPreviewObject, group int, mat *material.Material, lookupThinHash func(stingray.ThinHash) string) error {
-	err := object.materials[group].generate(
+func (pv *UnitPreviewState) useSpeedtreeMaterial(previewMaterial *unitPreviewMaterial, mat *material.Material) error {
+	err := previewMaterial.generate(
 		[]string{"shaders/speedtree.vert", "shaders/speedtree.frag"},
 		0,
 		append(baseUniforms, speedtreeTextureNames...),
@@ -1287,64 +1432,96 @@ func (pv *UnitPreviewState) useSpeedtreeMaterial(getResource GetResourceFunc, ob
 	gl.TexBuffer(gl.TEXTURE_BUFFER, gl.RGBA16F, pv.assetGradingLutBuffer)
 	gl.BindTexture(gl.TEXTURE_BUFFER, 0)
 
-	object.materials[group].textures = append(object.materials[group].textures, unitPreviewMaterialTexture{
-		id:      pv.assetGradingLutTexture,
-		target:  gl.TEXTURE_BUFFER,
-		name:    stingray.Sum("asset_grading_lut"),
-		slot:    "asset_grading_lut",
-		created: false,
-		loaded:  true,
+	assetGradingHash := stingray.Sum("asset_grading_lut")
+	previewMaterial.textures = append(previewMaterial.textures, unitPreviewMaterialTexture{
+		id:       pv.assetGradingLutTexture,
+		target:   gl.TEXTURE_BUFFER,
+		name:     assetGradingHash,
+		override: stingray.NewFileID(assetGradingHash, stingray.Sum("texture")),
+		slot:     "asset_grading_lut",
+		created:  false,
+		loaded:   true,
 	})
 
 	if _, contains := mat.Textures[stingray.Sum("fibonacci_normal_lut").Thin()]; !contains {
 		mat.Textures[stingray.Sum("fibonacci_normal_lut").Thin()] = stingray.Sum("content/art_shared/textures/fibonacci_normal_lut")
 	}
 
-	pv.setupMaterialCommon(getResource, speedtreeTextureNames, object, group, mat, lookupThinHash)
+	pv.setupMaterialCommon(speedtreeTextureNames, previewMaterial, mat)
 	return nil
 }
 
-func loadMaterial(getResource GetResourceFunc, matFileName stingray.Hash) (*material.Material, error) {
-	if matFileName.Value == 0x0 {
+func loadMaterialInfo(getResource GetResourceFunc, materialID stingray.FileID) (*material.Material, error) {
+	if materialID.Name.Value == 0x0 {
 		return nil, fmt.Errorf("nil material")
 	}
-	matData, ok, err := getResource(stingray.FileID{
-		Name: matFileName,
-		Type: stingray.Sum("material"),
-	}, stingray.DataMain)
+	matData, ok, err := getResource(materialID, stingray.DataMain)
 	if err != nil {
-		return nil, fmt.Errorf("load material %v.material: %w", matFileName, err)
+		return nil, fmt.Errorf("load material %v.material: %w", materialID.Name, err)
 	}
 	if !ok {
-		return nil, fmt.Errorf("load material %v.material does not exist", matFileName)
+		return nil, fmt.Errorf("load material %v.material does not exist", materialID.Name)
 	}
 	return material.LoadMain(bytes.NewReader(matData))
 }
 
-func (pv *UnitPreviewState) loadMaterials(getResource GetResourceFunc, object *unitPreviewObject, armorInfo *datalib.UnitData, lookupThinHash func(stingray.ThinHash) string) error {
-	for group := range object.materials {
-		object.materials[group].releaseTextures(pv.textureCache)
+func (pv *UnitPreviewState) useMaterial(previewMaterial *unitPreviewMaterial, mat *material.Material) error {
+	previewMaterial.releaseTextures(pv.textureCache)
 
-		mat, err := loadMaterial(getResource, object.materials[group].id)
-		if err == nil && isLUTMaterial(mat) {
+	if isLUTMaterial(mat) {
+		if err := pv.useLUTMaterial(previewMaterial, mat); err == nil {
+			return nil
+		} else {
+			fmt.Printf("got error when enabling lut material: %v\n", err)
+		}
+		// fall back to basic material if the lut material fails to load
+	}
+	if isStandardMaterial(mat) {
+		if err := pv.useStandardMaterial(previewMaterial, mat); err == nil {
+			return nil
+		} else {
+			fmt.Printf("got error when enabling standard material: %v\n", err)
+		}
+	}
+	if isSpeedtreeMaterial(mat) {
+		if err := pv.useSpeedtreeMaterial(previewMaterial, mat); err == nil {
+			return nil
+		} else {
+			fmt.Printf("got error when enabling standard material: %v\n", err)
+		}
+	}
+	return pv.useBasicMaterial(previewMaterial, mat)
+}
+
+func (pv *UnitPreviewState) getArmorInfo(name stingray.Hash) (armorInfo *datalib.UnitData) {
+	for _, set := range pv.armorSets {
+		value, contains := set.UnitMetadata[name]
+		if !contains {
+			continue
+		}
+
+		armorInfo = &value
+	}
+	return
+}
+
+func (pv *UnitPreviewState) loadMaterials(object *unitPreviewObject) error {
+	armorInfo := pv.getArmorInfo(object.name)
+	for group := range object.materials {
+		materialID := stingray.NewFileID(object.materials[group].id, stingray.Sum("material"))
+		if pv.getOverride != nil {
+			object.materials[group].override = pv.getOverride(materialID)
+		} else {
+			object.materials[group].override = materialID
+		}
+
+		mat, err := loadMaterialInfo(pv.getResource, materialID)
+		if err != nil {
+			fmt.Printf("error loading %v.%v: %v\n", pv.lookupHash(materialID.Name), pv.lookupHash(materialID.Type), err)
+		} else if isLUTMaterial(mat) {
 			overrideLUTMaterial(mat, armorInfo)
-			if err := pv.useLUTMaterial(getResource, object, group, mat, lookupThinHash); err == nil {
-				continue
-			} else {
-				fmt.Printf("got error when enabling lut material: %v\n", err)
-			}
-			// fall back to basic material if the lut material fails to load
 		}
-		if err == nil && isStandardMaterial(mat) {
-			if err := pv.useStandardMaterial(getResource, object, group, mat, lookupThinHash); err == nil {
-				continue
-			} else {
-				fmt.Printf("got error when enabling standard material: %v\n", err)
-			}
-		}
-		if err := pv.useBasicMaterial(getResource, object, group, mat); err != nil {
-			return err
-		}
+		pv.useMaterial(&object.materials[group], mat)
 	}
 	return nil
 }
@@ -1461,7 +1638,7 @@ func (pv *UnitPreviewState) getNodeUnitFileID(nodeId stingray.Hash) (stingray.Fi
 	return hash, contains
 }
 
-func (pv *UnitPreviewState) LoadLevel(fileID stingray.Hash, mainData []byte, getResource GetResourceFunc, thinhashes map[stingray.ThinHash]string) error {
+func (pv *UnitPreviewState) LoadLevel(fileID stingray.Hash, mainData []byte, thinhashes map[stingray.ThinHash]string) error {
 	if pv.nodes == nil {
 		pv.nodes = make(map[stingray.Hash]unitPreviewNode)
 	}
@@ -1511,7 +1688,7 @@ func (pv *UnitPreviewState) LoadLevel(fileID stingray.Hash, mainData []byte, get
 		if _, contains := pv.objects[unitID]; contains {
 			continue
 		}
-		unitMainData, exists, err := getResource(unitID, stingray.DataMain)
+		unitMainData, exists, err := pv.getResource(unitID, stingray.DataMain)
 		if err != nil {
 			return fmt.Errorf("loading %v.unit data in %v.level: %v", pv.lookupHash(unit.Hash), pv.lookupHash(fileID), err)
 		}
@@ -1520,9 +1697,9 @@ func (pv *UnitPreviewState) LoadLevel(fileID stingray.Hash, mainData []byte, get
 		}
 
 		// Some units won't have GPU data but will have terrain or geometry group info
-		unitGpuData, _, _ := getResource(unitID, stingray.DataGPU)
+		unitGpuData, _, _ := pv.getResource(unitID, stingray.DataGPU)
 
-		err = pv.loadUnit(unitID, unitMainData, unitGpuData, getResource)
+		err = pv.loadUnit(unitID, unitMainData, unitGpuData)
 		if err != nil {
 			return fmt.Errorf("loading %v.unit in %v.level for rendering: %v", pv.lookupHash(unit.Hash), pv.lookupHash(fileID), err)
 		}
@@ -1548,7 +1725,7 @@ func (pv *UnitPreviewState) LoadLevel(fileID stingray.Hash, mainData []byte, get
 		if _, contains := pv.nodes[prefab.Name]; contains {
 			continue
 		}
-		prefabMainData, exists, err := getResource(stingray.NewFileID(prefab.Path, stingray.Sum("prefab")), stingray.DataMain)
+		prefabMainData, exists, err := pv.getResource(stingray.NewFileID(prefab.Path, stingray.Sum("prefab")), stingray.DataMain)
 		if err != nil {
 			return fmt.Errorf("loading %v.prefab data in %v.level: %v", pv.lookupHash(prefab.Path), pv.lookupHash(fileID), err)
 		}
@@ -1557,7 +1734,7 @@ func (pv *UnitPreviewState) LoadLevel(fileID stingray.Hash, mainData []byte, get
 		}
 
 		prefabId := stingray.NewFileID(prefab.Path, PREFAB)
-		nestedChildren, err := pv.loadPrefab(prefabId, prefabMainData, getResource)
+		nestedChildren, err := pv.loadPrefab(prefabId, prefabMainData)
 		if err != nil {
 			return fmt.Errorf("loading %v.prefab in %v.level for rendering: %v", pv.lookupHash(prefab.Path), pv.lookupHash(fileID), err)
 		}
@@ -1591,7 +1768,7 @@ func (pv *UnitPreviewState) LoadLevel(fileID stingray.Hash, mainData []byte, get
 			continue
 		}
 		prefabId := stingray.NewFileID(prefab.EmbeddedPrefabTransform.Hash, PREFAB)
-		nestedChildren, err := pv.loadPrefabInfo(prefabId, &prefab.Prefab, getResource)
+		nestedChildren, err := pv.loadPrefabInfo(prefabId, &prefab.Prefab)
 		if err != nil {
 			return fmt.Errorf("loading embedded %v.prefab in %v.level for rendering: %v", pv.lookupHash(prefab.EmbeddedPrefabTransform.Hash), pv.lookupHash(fileID), err)
 		}
@@ -1639,7 +1816,7 @@ func (pv *UnitPreviewState) LoadLevel(fileID stingray.Hash, mainData []byte, get
 	return pv.finalizeObjectMaterials()
 }
 
-func (pv *UnitPreviewState) LoadPrefab(fileID stingray.Hash, mainData []byte, getResource GetResourceFunc, thinhashes map[stingray.ThinHash]string) error {
+func (pv *UnitPreviewState) LoadPrefab(fileID stingray.Hash, mainData []byte, thinhashes map[stingray.ThinHash]string) error {
 	if pv.nodes == nil {
 		pv.nodes = make(map[stingray.Hash]unitPreviewNode)
 	}
@@ -1655,7 +1832,7 @@ func (pv *UnitPreviewState) LoadPrefab(fileID stingray.Hash, mainData []byte, ge
 
 	prefabID := stingray.NewFileID(fileID, PREFAB)
 
-	children, err := pv.loadPrefab(prefabID, mainData, getResource)
+	children, err := pv.loadPrefab(prefabID, mainData)
 	pv.root = unitPreviewNode{
 		name:     pv.lookupHash(fileID),
 		shown:    true,
@@ -1672,15 +1849,15 @@ func (pv *UnitPreviewState) LoadPrefab(fileID stingray.Hash, mainData []byte, ge
 	return pv.finalizeObjectMaterials()
 }
 
-func (pv *UnitPreviewState) loadPrefab(fileID stingray.FileID, mainData []byte, getResource GetResourceFunc) ([]stingray.FileID, error) {
+func (pv *UnitPreviewState) loadPrefab(fileID stingray.FileID, mainData []byte) ([]stingray.FileID, error) {
 	info, err := prefab.Load(bytes.NewReader(mainData))
 	if err != nil {
 		return []stingray.FileID{}, err
 	}
-	return pv.loadPrefabInfo(fileID, info, getResource)
+	return pv.loadPrefabInfo(fileID, info)
 }
 
-func (pv *UnitPreviewState) loadPrefabInfo(fileID stingray.FileID, info *prefab.Prefab, getResource GetResourceFunc) ([]stingray.FileID, error) {
+func (pv *UnitPreviewState) loadPrefabInfo(fileID stingray.FileID, info *prefab.Prefab) ([]stingray.FileID, error) {
 	contents := make([]stingray.FileID, 0)
 	for _, unit := range info.Units {
 		var err error
@@ -1697,7 +1874,7 @@ func (pv *UnitPreviewState) loadPrefabInfo(fileID stingray.FileID, info *prefab.
 			}
 			continue
 		}
-		unitMainData, exists, err := getResource(unitID, stingray.DataMain)
+		unitMainData, exists, err := pv.getResource(unitID, stingray.DataMain)
 		if err != nil {
 			return contents, fmt.Errorf("loading %v.unit data in %v.prefab: %v", pv.lookupHash(unit.Hash), pv.lookupHash(fileID.Name), err)
 		}
@@ -1706,9 +1883,9 @@ func (pv *UnitPreviewState) loadPrefabInfo(fileID stingray.FileID, info *prefab.
 		}
 
 		// Some units won't have GPU data but will have terrain or geometry group info
-		unitGpuData, _, _ := getResource(unitID, stingray.DataGPU)
+		unitGpuData, _, _ := pv.getResource(unitID, stingray.DataGPU)
 
-		err = pv.loadUnit(unitID, unitMainData, unitGpuData, getResource)
+		err = pv.loadUnit(unitID, unitMainData, unitGpuData)
 		if err != nil {
 			return contents, fmt.Errorf("loading %v.unit in %v.prefab for rendering: %v", pv.lookupHash(unit.Hash), pv.lookupHash(fileID.Name), err)
 		}
@@ -1731,7 +1908,7 @@ func (pv *UnitPreviewState) loadPrefabInfo(fileID stingray.FileID, info *prefab.
 			contents = append(contents, nodeID)
 			continue
 		}
-		prefabMainData, exists, err := getResource(prefabID, stingray.DataMain)
+		prefabMainData, exists, err := pv.getResource(prefabID, stingray.DataMain)
 		if err != nil {
 			return contents, fmt.Errorf("loading %v.prefab data in %v.prefab: %v", pv.lookupHash(prefab.Path), pv.lookupHash(fileID.Name), err)
 		}
@@ -1739,7 +1916,7 @@ func (pv *UnitPreviewState) loadPrefabInfo(fileID stingray.FileID, info *prefab.
 			return contents, fmt.Errorf("%v.prefab in %v.prefab does not exist", pv.lookupHash(prefab.Path), pv.lookupHash(fileID.Name))
 		}
 
-		nestedChildren, err = pv.loadPrefab(prefabID, prefabMainData, getResource)
+		nestedChildren, err = pv.loadPrefab(prefabID, prefabMainData)
 		if err != nil {
 			return contents, fmt.Errorf("loading %v.unit in %v.prefab for rendering: %v", pv.lookupHash(prefab.Path), pv.lookupHash(fileID.Name), err)
 		}
@@ -1756,7 +1933,7 @@ func (pv *UnitPreviewState) loadPrefabInfo(fileID stingray.FileID, info *prefab.
 	return contents, nil
 }
 
-func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []byte, getResource GetResourceFunc, thinhashes map[stingray.ThinHash]string) error {
+func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []byte, thinhashes map[stingray.ThinHash]string) error {
 	if pv.nodes == nil {
 		pv.nodes = make(map[stingray.Hash]unitPreviewNode)
 	}
@@ -1779,7 +1956,7 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 		return hash.String()
 	}
 
-	if err := pv.loadUnit(unitID, mainData, gpuData, getResource); err != nil {
+	if err := pv.loadUnit(unitID, mainData, gpuData); err != nil {
 		return err
 	}
 
@@ -1796,34 +1973,17 @@ func materialShown(slot string) bool {
 	return !strings.Contains(slot, "gibs") && slot != "transparent"
 }
 
-func (pv *UnitPreviewState) loadUnit(fileID stingray.FileID, mainData, gpuData []byte, getResource GetResourceFunc) error {
+func (pv *UnitPreviewState) loadUnit(fileID stingray.FileID, mainData, gpuData []byte) error {
 	info, err := unit.LoadInfo(bytes.NewReader(mainData))
 	if err != nil {
 		return err
 	}
 
-	var armorInfo *datalib.UnitData
-	selectedArchives := pv.getSelectedArchives()
-	for idx := range selectedArchives {
-		var set datalib.ArmorSet
-		var contains bool
-		if set, contains = pv.armorSets[selectedArchives[idx]]; !contains {
-			continue
-		}
-
-		value, contains := set.UnitMetadata[fileID.Name]
-		if !contains {
-			continue
-		}
-
-		armorInfo = &value
-	}
-	pv.previousSelectedArchives = selectedArchives
-
 	setModelPos := len(pv.objects) == 0
 
 	if pv.objects == nil {
 		pv.objects = make(map[stingray.FileID]map[string]unitPreviewObject)
+		pv.objectOverrides = make(map[stingray.FileID]stingray.FileID)
 		pv.boundingBoxes = make(map[stingray.FileID]map[string]unitPreviewObject)
 		pv.objectsShown = make(map[stingray.FileID]map[string]bool)
 		pv.objectsSelected = make(map[stingray.FileID]map[string]bool)
@@ -1836,13 +1996,12 @@ func (pv *UnitPreviewState) loadUnit(fileID stingray.FileID, mainData, gpuData [
 	}
 
 	var meshes map[string]unit.Mesh
+	var defaultShown map[string]bool
 	if len(info.MeshInfos) > 0 && info.GeometryGroup.Value == 0x0 {
-		var defaultShown map[string]bool
 		meshes, defaultShown, err = pv.loadMeshes(pv.lookupThinHash, info.MeshInfos, info.MeshLayouts, gpuData)
 		if err != nil {
 			return err
 		}
-		pv.objectsShownDefault[fileID] = defaultShown
 	} else if len(info.TerrainInfos) > 0 {
 		mesh, err := unit.LoadTerrain(info.TerrainInfos[0])
 		if err != nil {
@@ -1858,12 +2017,12 @@ func (pv *UnitPreviewState) loadUnit(fileID stingray.FileID, mainData, gpuData [
 		meshes = make(map[string]unit.Mesh)
 		meshes["terrain"] = mesh
 		info.Materials[stingray.Sum("terrain").Thin()] = fileID.Name
-		pv.objectsShownDefault[fileID] = map[string]bool{"terrain": true}
+		defaultShown = map[string]bool{"terrain": true}
 	} else if info.GeometryGroup.Value != 0x0 && info.GeometryGroup.Value != 0xfce38c71ca9c2166 {
 		// 0xfce38c71ca9c2166 seems to be a "dev assets" geometry group that isn't included in the
 		// prod release of the game, so in our POV its the same as a null geometry group
 		geoID := stingray.NewFileID(info.GeometryGroup, stingray.Sum("geometry_group"))
-		geoMain, exists, err := getResource(geoID, stingray.DataMain)
+		geoMain, exists, err := pv.getResource(geoID, stingray.DataMain)
 		if !exists {
 			return fmt.Errorf("%v.geometry_group does not exist", info.GeometryGroup.String())
 		} else if err != nil {
@@ -1901,21 +2060,50 @@ func (pv *UnitPreviewState) loadUnit(fileID stingray.FileID, mainData, gpuData [
 				Materials: header.Materials,
 			})
 		}
-		geoGPU, exists, err := getResource(geoID, stingray.DataGPU)
+		geoGPU, exists, err := pv.getResource(geoID, stingray.DataGPU)
 		if !exists {
 			return fmt.Errorf("%v.geometry_group missing gpu data", info.GeometryGroup.String())
 		} else if err != nil {
 			return fmt.Errorf("failed to load %v.geometry_group gpu data: %v", info.GeometryGroup.String(), err)
 		}
-		var defaultShown map[string]bool
 		meshes, defaultShown, err = pv.loadMeshes(pv.lookupThinHash, meshInfos, geoGroup.MeshLayouts, geoGPU)
 		if err != nil {
 			return err
 		}
-		pv.objectsShownDefault[fileID] = defaultShown
 	}
-	pv.objectsShown[fileID] = maps.Clone(pv.objectsShownDefault[fileID])
-	pv.objectsSelected[fileID] = maps.Clone(pv.objectsShownDefault[fileID])
+
+	var contains bool
+	if _, contains = pv.objects[fileID]; contains {
+		for name := range pv.objects[fileID] {
+			pv.objects[fileID][name].deleteObjects(pv.textureCache)
+			pv.boundingBoxes[fileID][name].deleteObjects(pv.textureCache)
+		}
+	}
+
+	if !contains {
+		pv.objectsShownDefault[fileID] = defaultShown
+		pv.objectsShown[fileID] = maps.Clone(defaultShown)
+		pv.objectsSelected[fileID] = maps.Clone(defaultShown)
+		pv.objectOverrides[fileID] = fileID
+	} else {
+		// If a user has hidden a mesh, don't unhide it when we update the asset overrides
+		// but also make sure the correct mesh names are being used
+		for name := range pv.objectsShown[fileID] {
+			if _, contains := defaultShown[name]; !contains {
+				delete(pv.objectsShownDefault[fileID], name)
+				delete(pv.objectsShown[fileID], name)
+				delete(pv.objectsSelected[fileID], name)
+				continue
+			}
+		}
+		for name := range defaultShown {
+			if _, contains := pv.objectsShown[fileID][name]; !contains {
+				pv.objectsShownDefault[fileID][name] = defaultShown[name]
+				pv.objectsShown[fileID][name] = defaultShown[name]
+				pv.objectsSelected[fileID][name] = defaultShown[name]
+			}
+		}
+	}
 	pv.objects[fileID] = make(map[string]unitPreviewObject)
 	pv.meshPositions[fileID] = make(map[string][][3]float32)
 	pv.meshNormals[fileID] = make(map[string][][3]float32)
@@ -1944,6 +2132,7 @@ func (pv *UnitPreviewState) loadUnit(fileID stingray.FileID, mainData, gpuData [
 
 		object := unitPreviewObject{}
 		object.matrix = info.Bones[mesh.Info.Header.TransformIdx].Matrix
+		object.name = fileID.Name
 		object.wireframe.name = "wireframe"
 		object.wireframe.shown = true
 		err = object.wireframe.generate(
@@ -2001,7 +2190,7 @@ func (pv *UnitPreviewState) loadUnit(fileID stingray.FileID, mainData, gpuData [
 				object.materials[group].name = pv.lookupThinHash(matID)
 				object.materials[group].shown = materialShown(object.materials[group].name)
 			}
-			if err := pv.loadMaterials(getResource, &object, armorInfo, pv.lookupThinHash); err != nil {
+			if err := pv.loadMaterials(&object); err != nil {
 				return err
 			}
 		}
@@ -2133,6 +2322,9 @@ func (pv *UnitPreviewState) loadUnit(fileID stingray.FileID, mainData, gpuData [
 		gl.EnableVertexAttribArray(0)
 		skeleton.numVertices = int32(len(skeletonVertices))
 		skeleton.numIndices[0] = int32(len(skeletonIndices))
+		if _, contains = pv.skeletons[fileID]; contains {
+			pv.skeletons[fileID].deleteObjects(pv.textureCache)
+		}
 		pv.skeletonPositions[fileID] = skeletonVertices
 		pv.skeletons[fileID] = skeleton
 	}
@@ -2197,29 +2389,56 @@ func (pv *UnitPreviewState) loadUnit(fileID stingray.FileID, mainData, gpuData [
 		}
 	}
 
-	pv.loadUnitGetResourceFunc = getResource
 	return nil
 }
 
-func (pv *UnitPreviewState) LoadSpeedtree(fileID stingray.Hash, mainData, gpuData []byte, getResource GetResourceFunc, thinhashes map[stingray.ThinHash]string, entityInfo *entity.Entity) error {
+func (pv *UnitPreviewState) LoadSpeedtree(fileID stingray.Hash, mainData, gpuData []byte, thinhashes map[stingray.ThinHash]string, entityInfo *entity.Entity) error {
 	pv.lookupThinHash = func(hash stingray.ThinHash) string {
 		if name, ok := thinhashes[hash]; ok {
 			return name
 		}
 		return hash.String()
 	}
+	pv.entityInfo = entityInfo
+	speedtreeID := stingray.NewFileID(fileID, SPEEDTREE)
 
+	pv.loadSpeedtree(speedtreeID, mainData, gpuData)
+
+	if pv.nodes == nil {
+		pv.nodes = make(map[stingray.Hash]unitPreviewNode)
+	}
+
+	pv.nodes[fileID] = unitPreviewNode{
+		name:     pv.lookupHash(fileID),
+		shown:    true,
+		matrix:   mgl32.Ident4(),
+		children: []stingray.FileID{speedtreeID},
+		parent:   stingray.Hash{},
+	}
+
+	pv.root = pv.nodes[fileID]
+	pv.rootHash = speedtreeID
+
+	if err := pv.finalizeObjectMaterials(); err != nil {
+		return err
+	}
+
+	pv.maxViewDistance = pv.getMaxZoom(pv.root, pv.rootHash, len(pv.aabb[speedtreeID]) == 0)
+
+	return nil
+}
+
+func (pv *UnitPreviewState) loadSpeedtree(speedtreeID stingray.FileID, mainData, gpuData []byte) error {
 	info, err := speedtree.LoadSpeedTree(bytes.NewReader(mainData))
 	if err != nil {
 		return err
 	}
 
-	pv.entityInfo = entityInfo
 	setModelPos := len(pv.objects) == 0
-	speedtreeID := stingray.NewFileID(fileID, SPEEDTREE)
 
 	if pv.objects == nil {
 		pv.objects = make(map[stingray.FileID]map[string]unitPreviewObject)
+		pv.objectOverrides = make(map[stingray.FileID]stingray.FileID)
 		pv.boundingBoxes = make(map[stingray.FileID]map[string]unitPreviewObject)
 		pv.objectsShown = make(map[stingray.FileID]map[string]bool)
 		pv.objectsSelected = make(map[stingray.FileID]map[string]bool)
@@ -2232,7 +2451,40 @@ func (pv *UnitPreviewState) LoadSpeedtree(fileID stingray.Hash, mainData, gpuDat
 	}
 
 	name := "lod0"
-	pv.objectsShownDefault[speedtreeID] = map[string]bool{name: true}
+	defaultShown := map[string]bool{name: true}
+
+	var contains bool
+	if _, contains = pv.objects[speedtreeID]; contains {
+		for name := range pv.objects[speedtreeID] {
+			pv.objects[speedtreeID][name].deleteObjects(pv.textureCache)
+			pv.boundingBoxes[speedtreeID][name].deleteObjects(pv.textureCache)
+		}
+	}
+
+	if !contains {
+		pv.objectsShownDefault[speedtreeID] = defaultShown
+		pv.objectsShown[speedtreeID] = maps.Clone(defaultShown)
+		pv.objectsSelected[speedtreeID] = maps.Clone(defaultShown)
+		pv.objectOverrides[speedtreeID] = speedtreeID
+	} else {
+		// If a user has hidden a mesh, don't unhide it when we update the asset overrides
+		// but also make sure the correct mesh names are being used
+		for name := range pv.objectsShown[speedtreeID] {
+			if _, contains := defaultShown[name]; !contains {
+				delete(pv.objectsShownDefault[speedtreeID], name)
+				delete(pv.objectsShown[speedtreeID], name)
+				delete(pv.objectsSelected[speedtreeID], name)
+				continue
+			}
+		}
+		for name := range defaultShown {
+			if _, contains := pv.objectsShown[speedtreeID][name]; !contains {
+				pv.objectsShownDefault[speedtreeID][name] = defaultShown[name]
+				pv.objectsShown[speedtreeID][name] = defaultShown[name]
+				pv.objectsSelected[speedtreeID][name] = defaultShown[name]
+			}
+		}
+	}
 
 	pv.aabb[speedtreeID] = make(map[string][2]mgl32.Vec3)
 	pv.aabbMat[speedtreeID] = make(map[string]mgl32.Mat4)
@@ -2244,11 +2496,13 @@ func (pv *UnitPreviewState) LoadSpeedtree(fileID stingray.Hash, mainData, gpuDat
 	pv.objectsShown[speedtreeID] = maps.Clone(pv.objectsShownDefault[speedtreeID])
 	pv.objectsSelected[speedtreeID] = maps.Clone(pv.objectsShownDefault[speedtreeID])
 	pv.objects[speedtreeID] = make(map[string]unitPreviewObject)
+	pv.boundingBoxes[speedtreeID] = make(map[string]unitPreviewObject)
 	pv.meshPositions[speedtreeID] = make(map[string][][3]float32)
 	pv.meshNormals[speedtreeID] = make(map[string][][3]float32)
 	lod0 := info.IndexDefinitions[0]
 
 	object := unitPreviewObject{}
+	object.name = speedtreeID.Name
 	object.matrix = mgl32.Ident4()
 	object.wireframe.name = "wireframe"
 	object.wireframe.shown = true
@@ -2312,13 +2566,19 @@ func (pv *UnitPreviewState) LoadSpeedtree(fileID stingray.Hash, mainData, gpuDat
 		for group := range object.materials {
 			object.materials[group].releaseTextures(pv.textureCache)
 
-			mat, err := loadMaterial(getResource, object.materials[group].id)
+			materialID := stingray.NewFileID(object.materials[group].id, stingray.Sum("material"))
+			if pv.getOverride != nil {
+				object.materials[group].override = pv.getOverride(materialID)
+			} else {
+				object.materials[group].override = materialID
+			}
+			mat, err := loadMaterialInfo(pv.getResource, materialID)
 			if err != nil {
 				// gui logger warning
 				fmt.Printf("failed to load speedtree material: %v", err)
 				continue
 			}
-			if err := pv.useSpeedtreeMaterial(getResource, &object, group, mat, pv.lookupThinHash); err != nil {
+			if err := pv.useSpeedtreeMaterial(&object.materials[group], mat); err != nil {
 				return err
 			}
 		}
@@ -2435,32 +2695,33 @@ func (pv *UnitPreviewState) LoadSpeedtree(fileID stingray.Hash, mainData, gpuDat
 		gl.BindVertexArray(0)
 	}
 
+	// Upload bounding box data
+	{
+		boundingBox := unitPreviewObject{}
+		boundingBox.genObjects(false, 1)
+		gl.BindVertexArray(boundingBox.vao)
+
+		verts := pv.getAABBVertices(speedtreeID, name)
+		gl.BindBuffer(gl.ARRAY_BUFFER, boundingBox.vbo)
+		defer gl.BindBuffer(gl.ARRAY_BUFFER, 0)
+		gl.BufferData(gl.ARRAY_BUFFER, len(verts)*3*4, gl.Ptr(verts[:]), gl.STATIC_DRAW)
+
+		boundingBox.numIndices[0] = int32(len(aabbIndices))
+		boundingBox.numVertices = int32(len(verts))
+		gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, boundingBox.ibos[0])
+		defer gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, 0)
+		gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, int(boundingBox.numIndices[0]*4), gl.Ptr(aabbIndices[:]), gl.STATIC_DRAW)
+
+		gl.VertexAttribPointer(0, 3, gl.FLOAT, false, 3*4, nil)
+		gl.EnableVertexAttribArray(0)
+		pv.boundingBoxes[speedtreeID][name] = boundingBox
+	}
+
 	pv.objects[speedtreeID][name] = object
 
 	if setModelPos {
 		pv.modelPos = mgl32.Vec4{0.0, 0.0, 0.0, 1.0}
 	}
-
-	if pv.nodes == nil {
-		pv.nodes = make(map[stingray.Hash]unitPreviewNode)
-	}
-
-	pv.nodes[fileID] = unitPreviewNode{
-		name:     pv.lookupHash(fileID),
-		shown:    true,
-		matrix:   mgl32.Ident4(),
-		children: []stingray.FileID{speedtreeID},
-		parent:   stingray.Hash{},
-	}
-
-	pv.root = pv.nodes[fileID]
-	pv.rootHash = speedtreeID
-
-	if err := pv.finalizeObjectMaterials(); err != nil {
-		return err
-	}
-
-	pv.maxViewDistance = pv.getMaxZoom(pv.root, pv.rootHash, len(pv.aabb[speedtreeID]) == 0)
 
 	return nil
 }
@@ -2497,12 +2758,12 @@ func (pv *UnitPreviewState) loadArmorSet(armorSets []datalib.ArmorSet, selectedS
 		}
 		for childHash := range set.UnitMetadata {
 			fileId := stingray.NewFileID(childHash, UNIT)
-			unitMain, exists, err := pv.loadUnitGetResourceFunc(fileId, stingray.DataMain)
+			unitMain, exists, err := pv.getResource(fileId, stingray.DataMain)
 			if err != nil || !exists {
 				continue
 			}
-			unitGpu, _, _ := pv.loadUnitGetResourceFunc(fileId, stingray.DataGPU)
-			if err := pv.loadUnit(fileId, unitMain, unitGpu, pv.loadUnitGetResourceFunc); err != nil {
+			unitGpu, _, _ := pv.getResource(fileId, stingray.DataGPU)
+			if err := pv.loadUnit(fileId, unitMain, unitGpu); err != nil {
 				continue
 			}
 			switch set.UnitMetadata[childHash].BodyType {
@@ -3187,72 +3448,72 @@ func (pv *UnitPreviewState) Draw(previewId string) {
 		pv.doSweep = false
 	}
 
-	currentArchives := pv.getSelectedArchives()
+	// currentArchives := pv.getSelectedArchives()
 
-	var armorSets []datalib.ArmorSet
-	if len(currentArchives) > 0 {
-		armorSets = make([]datalib.ArmorSet, 0)
-		maxStr := ""
-		for idx := range currentArchives {
-			var set datalib.ArmorSet
-			var contains bool
-			if set, contains = pv.armorSets[currentArchives[idx]]; !contains {
-				continue
-			}
-			if len(set.Name) > len(maxStr) {
-				maxStr = set.Name
-			}
-			armorSets = append(armorSets, set)
-		}
-		armorSets := slices.SortedFunc(slices.Values(armorSets), func(a, b datalib.ArmorSet) int {
-			return strings.Compare(a.Name, b.Name)
-		})
-		if len(armorSets) > 0 {
-			imgui.SameLine()
-			var selectedSet int32 = -1
-			width := imgui.CalcTextSize(maxStr).X + 2*imgui.CurrentStyle().FramePadding().X
-			imgui.SetNextItemWidth(width + imgui.TextLineHeightWithSpacing())
-			seenNames := make(map[string]any)
-			if imgui.BeginComboV("Load Armor Set...", "", imgui.ComboFlagsNone) {
-				for idx, set := range armorSets {
-					if _, contains := seenNames[set.Name]; contains {
-						continue
-					}
-					imgui.SetNextItemWidth(width)
-					if imgui.SelectableBoolV(set.Name, int32(idx) == selectedSet, imgui.SelectableFlagsNone, imgui.NewVec2(width, 0)) {
-						selectedSet = int32(idx)
-					}
-					seenNames[set.Name] = true
-				}
-				imgui.EndCombo()
-			}
-			if selectedSet != -1 {
-				pv.loadArmorSet(armorSets, selectedSet)
-			}
-		}
-	}
+	// var armorSets []datalib.ArmorSet
+	// if len(currentArchives) > 0 {
+	// 	armorSets = make([]datalib.ArmorSet, 0)
+	// 	maxStr := ""
+	// 	for idx := range currentArchives {
+	// 		var set datalib.ArmorSet
+	// 		var contains bool
+	// 		if set, contains = pv.armorSets[currentArchives[idx]]; !contains {
+	// 			continue
+	// 		}
+	// 		if len(set.Name) > len(maxStr) {
+	// 			maxStr = set.Name
+	// 		}
+	// 		armorSets = append(armorSets, set)
+	// 	}
+	// 	armorSets := slices.SortedFunc(slices.Values(armorSets), func(a, b datalib.ArmorSet) int {
+	// 		return strings.Compare(a.Name, b.Name)
+	// 	})
+	// 	if len(armorSets) > 0 {
+	// 		imgui.SameLine()
+	// 		var selectedSet int32 = -1
+	// 		width := imgui.CalcTextSize(maxStr).X + 2*imgui.CurrentStyle().FramePadding().X
+	// 		imgui.SetNextItemWidth(width + imgui.TextLineHeightWithSpacing())
+	// 		seenNames := make(map[string]any)
+	// 		if imgui.BeginComboV("Load Armor Set...", "", imgui.ComboFlagsNone) {
+	// 			for idx, set := range armorSets {
+	// 				if _, contains := seenNames[set.Name]; contains {
+	// 					continue
+	// 				}
+	// 				imgui.SetNextItemWidth(width)
+	// 				if imgui.SelectableBoolV(set.Name, int32(idx) == selectedSet, imgui.SelectableFlagsNone, imgui.NewVec2(width, 0)) {
+	// 					selectedSet = int32(idx)
+	// 				}
+	// 				seenNames[set.Name] = true
+	// 			}
+	// 			imgui.EndCombo()
+	// 		}
+	// 		if selectedSet != -1 {
+	// 			pv.loadArmorSet(armorSets, selectedSet)
+	// 		}
+	// 	}
+	// }
 
-	if len(pv.previousSelectedArchives) != len(currentArchives) {
-		for hash := range pv.objects {
-			var armorInfo *datalib.UnitData
-			for _, set := range armorSets {
-				value, contains := set.UnitMetadata[hash.Name]
-				if !contains {
-					continue
-				}
+	// if len(pv.previousSelectedArchives) != len(currentArchives) {
+	// 	for hash := range pv.objects {
+	// 		var armorInfo *datalib.UnitData
+	// 		for _, set := range armorSets {
+	// 			value, contains := set.UnitMetadata[hash.Name]
+	// 			if !contains {
+	// 				continue
+	// 			}
 
-				armorInfo = &value
-			}
+	// 			armorInfo = &value
+	// 		}
 
-			for name := range pv.objects[hash] {
-				object := pv.objects[hash][name]
-				pv.loadMaterials(pv.loadUnitGetResourceFunc, &object, armorInfo, pv.lookupThinHash)
-				pv.objects[hash][name] = object
-			}
-		}
+	// 		for name := range pv.objects[hash] {
+	// 			object := pv.objects[hash][name]
+	// 			pv.loadMaterials(pv.loadUnitGetResourceFunc, &object, armorInfo)
+	// 			pv.objects[hash][name] = object
+	// 		}
+	// 	}
 
-		pv.previousSelectedArchives = currentArchives
-	}
+	// 	pv.previousSelectedArchives = currentArchives
+	// }
 }
 
 func (pv *UnitPreviewState) DrawSettings() {

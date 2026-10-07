@@ -26,12 +26,12 @@ func NewTextureCache(maxDuration time.Duration) *TextureCache {
 }
 
 // Generates a new texture for (hash, target) and adds it to the cache if not already present
-func (t *TextureCache) Acquire(hash stingray.Hash, target uint32) (textureId uint32, created bool) {
+func (t *TextureCache) Acquire(fileId stingray.FileID, target uint32) (textureId uint32, created bool) {
 	if t.cache == nil {
 		t.cache = make(map[stingray.Hash]map[uint32]TextureCacheEntry)
 	}
 	var val TextureCacheEntry
-	targets, contains := t.cache[hash]
+	targets, contains := t.cache[fileId.Name]
 	if contains {
 		val, contains = targets[target]
 	} else {
@@ -42,7 +42,7 @@ func (t *TextureCache) Acquire(hash stingray.Hash, target uint32) (textureId uin
 		textureId = val.id
 		val.lastUsed = time.Now()
 		val.references += 1
-		fmt.Printf("[cache] Acquiring texture %v (%v): new reference count %v\n", hash.String(), GLTarget(target).String(), val.references)
+		fmt.Printf("[cache] Acquiring texture %v (%v): new reference count %v\n", fileId.Name.String(), GLTarget(target).String(), val.references)
 	} else {
 		gl.GenTextures(1, &textureId)
 		val = TextureCacheEntry{
@@ -50,20 +50,20 @@ func (t *TextureCache) Acquire(hash stingray.Hash, target uint32) (textureId uin
 			references: 1,
 			lastUsed:   time.Now(),
 		}
-		fmt.Printf("[cache] Created texture %v (%v)\n", hash.String(), GLTarget(target).String())
+		fmt.Printf("[cache] Created texture %v (%v)\n", fileId.Name.String(), GLTarget(target).String())
 	}
 	created = !contains
 	targets[target] = val
-	t.cache[hash] = targets
+	t.cache[fileId.Name] = targets
 	return
 }
 
 // Reports whether the cache contains the texture
-func (t *TextureCache) Contains(hash stingray.Hash, target uint32) bool {
+func (t *TextureCache) Contains(fileId stingray.FileID, target uint32) bool {
 	if t.cache == nil {
 		return false
 	}
-	targets, contains := t.cache[hash]
+	targets, contains := t.cache[fileId.Name]
 	if contains {
 		var val TextureCacheEntry
 		val, contains = targets[target]
@@ -71,20 +71,20 @@ func (t *TextureCache) Contains(hash stingray.Hash, target uint32) bool {
 			// Refresh so we don't delete while loading images
 			val.lastUsed = time.Now()
 			targets[target] = val
-			t.cache[hash] = targets
+			t.cache[fileId.Name] = targets
 		}
 	}
 	return contains
 }
 
-func (t *TextureCache) Release(hash stingray.Hash, target uint32) (contains bool) {
+func (t *TextureCache) Release(fileId stingray.FileID, target uint32) (contains bool) {
 	contains = false
 	if t.cache == nil {
 		return
 	}
 	var targets map[uint32]TextureCacheEntry
 	var val TextureCacheEntry
-	if targets, contains = t.cache[hash]; contains {
+	if targets, contains = t.cache[fileId.Name]; contains {
 		if val, contains = targets[target]; contains {
 			if val.references > 0 {
 				val.references -= 1
@@ -92,33 +92,35 @@ func (t *TextureCache) Release(hash stingray.Hash, target uint32) (contains bool
 			val.lastUsed = time.Now()
 			fmt.Printf(
 				"[cache] Dereferencing texture %v (%v): new reference count %v\n",
-				hash.String(),
+				fileId.Name.String(),
 				GLTarget(target).String(),
 				val.references,
 			)
 			targets[target] = val
-			t.cache[hash] = targets
+			t.cache[fileId.Name] = targets
 		}
 	}
 	return
 }
 
-func (t *TextureCache) Delete(hash stingray.Hash, target uint32) (contains bool) {
+func (t *TextureCache) Delete(fileId stingray.FileID, target uint32) (contains bool) {
 	contains = false
 	if t.cache == nil {
 		return
 	}
 	var targets map[uint32]TextureCacheEntry
 	var val TextureCacheEntry
-	if targets, contains = t.cache[hash]; contains {
+	if targets, contains = t.cache[fileId.Name]; contains {
 		if val, contains = targets[target]; contains {
-			fmt.Printf("[cache] Deleting texture %v target %v\n", hash.String(), GLTarget(target).String())
-			delete(t.cache[hash], target)
+			fmt.Printf("[cache] Deleting texture %v target %v\n", fileId.Name.String(), GLTarget(target).String())
+			delete(t.cache[fileId.Name], target)
 			gl.DeleteTextures(1, &val.id)
 		}
 	}
 	return
 }
+
+var TEXTURE = stingray.Sum("texture")
 
 func (t *TextureCache) DeleteAll() {
 	if t.cache == nil {
@@ -126,7 +128,7 @@ func (t *TextureCache) DeleteAll() {
 	}
 	for hash := range t.cache {
 		for target := range t.cache[hash] {
-			t.Delete(hash, target)
+			t.Delete(stingray.NewFileID(hash, TEXTURE), target)
 		}
 	}
 }
@@ -145,7 +147,7 @@ func (t *TextureCache) Sweep() {
 			entryDuration := sweepTime.Sub(entry.lastUsed)
 			fmt.Printf("[cache] Unused texture %v (%v) in residency for %.2fs\n", hash.String(), GLTarget(target).String(), entryDuration.Seconds())
 			if entryDuration >= t.maxUnusedResidency {
-				t.Delete(hash, target)
+				t.Delete(stingray.NewFileID(hash, TEXTURE), target)
 			}
 		}
 	}
