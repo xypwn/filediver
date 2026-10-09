@@ -47,6 +47,12 @@ type SimpleUnit struct {
 	UnkFloats [6]float32 `json:"unk_floats"`
 }
 
+type SimpleParticle struct {
+	Path string `json:"path"`
+	stingray.Transform
+	UnkInts [2]uint32 `json:"unk_ints"`
+}
+
 type SimpleSpeedtreeTransform struct {
 	Position    [4]float32 `json:"position"`
 	MinRotation [4]float32 `json:"min_rotation"`
@@ -61,7 +67,7 @@ type SimpleSpeedtreeLayer struct {
 
 type SimpleSpeedtree struct {
 	Path                string                     `json:"path"`
-	Layers              []SimpleSpeedtreeLayer     `json:"layers"`
+	Layers              []SimpleHashIndexRange     `json:"layers"`
 	SpeedtreeTransforms []SimpleSpeedtreeTransform `json:"transforms"`
 }
 
@@ -90,9 +96,10 @@ type SimpleLevel struct {
 	Prefabs                      []SimplePrefab           `json:"prefabs"`
 	EmbeddedPrefabs              []SimpleEmbeddedPrefab   `json:"embedded_prefabs"`
 	Speedtrees                   []SimpleSpeedtree        `json:"speedtrees"`
+	Particles                    []SimpleParticle         `json:"particles"`
 	Entity                       *entity.SimpleEntity     `json:"entity"`
 	UnitHashIndexRange           []SimpleHashIndexRange   `json:"unit_hash_index_range"`
-	UnkHashIndexRange1           []SimpleHashIndexRange   `json:"unk_hash_index_range_1"`
+	ParticleHashIndexRange       []SimpleHashIndexRange   `json:"particle_hash_index_range"`
 	UnkHashIndexRange2           []SimpleHashIndexRange   `json:"unk_hash_index_range_2"`
 	UnkHashIndexRange3           []SimpleHashIndexRange   `json:"unk_hash_index_range_3"`
 	PrefabHashIndexRange         []SimpleHashIndexRange   `json:"prefab_hash_index_range"`
@@ -145,12 +152,12 @@ func ExtractLevelJSON(ctx *extractor.Context) error {
 
 	speedtrees := make([]SimpleSpeedtree, 0)
 	for _, speedtree := range levelData.Speedtrees {
-		layers := make([]SimpleSpeedtreeLayer, 0)
+		layers := make([]SimpleHashIndexRange, 0)
 		for _, layer := range speedtree.Layers {
-			layers = append(layers, SimpleSpeedtreeLayer{
-				Name:     ctx.LookupThinHash(layer.Name),
-				UnkInt00: layer.UnkInt00,
-				UnkInt01: layer.UnkInt01,
+			layers = append(layers, SimpleHashIndexRange{
+				Hash:  ctx.LookupThinHash(layer.Hash),
+				Start: layer.Start,
+				End:   layer.End,
 			})
 		}
 		transforms := make([]SimpleSpeedtreeTransform, 0)
@@ -191,6 +198,15 @@ func ExtractLevelJSON(ctx *extractor.Context) error {
 		})
 	}
 
+	particles := make([]SimpleParticle, 0)
+	for _, particle := range levelData.Particles {
+		particles = append(particles, SimpleParticle{
+			Path:      ctx.LookupHash(particle.Hash),
+			Transform: particle.Transform,
+			UnkInts:   particle.UnkInts,
+		})
+	}
+
 	var simpleEntity *entity.SimpleEntity
 	if levelData.Entity != nil {
 		simpleEntity = &entity.SimpleEntity{}
@@ -215,6 +231,7 @@ func ExtractLevelJSON(ctx *extractor.Context) error {
 		Prefabs:           prefabs,
 		MaterialOverrides: materialOverrides,
 		Units:             units,
+		Particles:         particles,
 		Speedtrees:        speedtrees,
 		Entity:            simpleEntity,
 		EmbeddedPrefabs:   embeddedPrefabs,
@@ -231,10 +248,10 @@ func ExtractLevelJSON(ctx *extractor.Context) error {
 		}
 	}
 
-	if levelData.UnkHashIndexRange1 != nil {
-		outData.UnkHashIndexRange1 = make([]SimpleHashIndexRange, 0)
-		for _, hashIndexRange := range levelData.UnkHashIndexRange1 {
-			outData.UnkHashIndexRange1 = append(outData.UnkHashIndexRange1, SimpleHashIndexRange{
+	if levelData.ParticleHashIndexRange != nil {
+		outData.ParticleHashIndexRange = make([]SimpleHashIndexRange, 0)
+		for _, hashIndexRange := range levelData.ParticleHashIndexRange {
+			outData.ParticleHashIndexRange = append(outData.ParticleHashIndexRange, SimpleHashIndexRange{
 				Hash:  ctx.LookupThinHash(hashIndexRange.Hash),
 				Start: hashIndexRange.Start,
 				End:   hashIndexRange.End,

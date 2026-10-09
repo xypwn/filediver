@@ -7,6 +7,8 @@ layout(location = 3) in vec4 inTangent;
 layout(location = 4) in vec3 inBitangent;
 layout(location = 5) in vec2 inUV1;
 layout(location = 6) in vec2 inUV2;
+layout(location = 7) in mat4 instModel;
+layout(location = 11) in mat3 normalMat;
 
 out VertexOutput
 {
@@ -21,13 +23,14 @@ out VertexOutput
     mat3 dbg_fragITBN;
 };
 
-uniform mat4 mvp; // projection*view*model
+uniform mat4 projection;
+uniform mat4 view;
 uniform mat4 model;
-uniform mat3 normalMat; // normal matrix = transpose(inverse(model))
+//uniform mat3 normalMat; // normal matrix = transpose(inverse(model))
 uniform vec3 viewPosition;
 
 void main() {
-    gl_Position = mvp * vec4(inPosition, 1.0);
+    gl_Position = projection * view * model * instModel * vec4(inPosition, 1.0);
     fragPosition = vec3(model * vec4(inPosition, 1.0));
     fragUV0 = inUV;
     fragUV1 = inUV1;

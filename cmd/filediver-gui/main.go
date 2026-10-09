@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	crand "crypto/rand"
 	_ "embed"
@@ -39,6 +40,7 @@ import (
 	"github.com/xypwn/filediver/config"
 	"github.com/xypwn/filediver/exec"
 	"github.com/xypwn/filediver/stingray"
+	"github.com/xypwn/filediver/stingray/entity"
 	"golang.design/x/clipboard"
 )
 
@@ -388,6 +390,14 @@ func (a *guiApp) onInitWindow(state *imgui_wrapper.State) error {
 func (a *guiApp) onPreDraw(state *imgui_wrapper.State) error {
 	imutils.GlobalScale = state.GUIScale
 	if a.gameData != nil && a.preview == nil {
+		getOverride := func(fileId stingray.FileID) stingray.FileID {
+			if a.gameData != nil && a.gameData.AssetOverrides != nil && *a.gameData.AssetOverrides != nil {
+				if val, contains := (*a.gameData.AssetOverrides)[fileId]; contains {
+					return val
+				}
+			}
+			return fileId
+		}
 		var err error
 		a.preview, err = previews.NewAutoPreview(
 			a.otoCtx, a.audioSampleRate,
@@ -395,10 +405,9 @@ func (a *guiApp) onPreDraw(state *imgui_wrapper.State) error {
 			a.gameData.ThinHashes,
 			func(allowOverride bool) func(id stingray.FileID, typ stingray.DataType) (data []byte, exists bool, err error) {
 				return func(id stingray.FileID, typ stingray.DataType) (data []byte, exists bool, err error) {
-					if allowOverride && a.gameData.AssetOverrides != nil && *a.gameData.AssetOverrides != nil {
-						if val, contains := (*a.gameData.AssetOverrides)[id]; contains {
-							id = val
-						}
+					override := getOverride(id)
+					if allowOverride {
+						id = override
 					}
 					data, err = a.gameData.DataDir.Read(id, typ)
 					if err == stingray.ErrFileNotExist || err == stingray.ErrFileDataTypeNotExist {
@@ -410,6 +419,7 @@ func (a *guiApp) onPreDraw(state *imgui_wrapper.State) error {
 					return data, true, nil
 				}
 			},
+			getOverride,
 			a.runner,
 			previews.ExtractorPlanetParameters{
 				Name:                 &a.extractorConfig.Planet.Name,
@@ -666,6 +676,13 @@ func (a *guiApp) drawMenuBar() {
 			if imgui.MenuItemBool(fnt.I.Settings + " Preferences") {
 				a.popupManager.Open["Preferences"] = true
 			}
+			var debug bool
+			if a.preview != nil {
+				debug = a.preview.Debug()
+			}
+			if imgui.MenuItemBoolPtr(fnt.I.BugReport+" Preview Debugging", "", &debug) && a.preview != nil {
+				a.preview.SetDebug(debug)
+			}
 			imgui.EndMenu()
 		}
 		imgui.EndMenuBar()
@@ -701,6 +718,7 @@ func (a *guiApp) drawBrowserWindow() {
 								stingray.Sum("wwise_stream"),
 								stingray.Sum("unit"),
 								stingray.Sum("prefab"),
+								stingray.Sum("level"),
 								stingray.Sum("speedtree"),
 								stingray.Sum("strings"),
 								stingray.Sum("xaml"),
@@ -975,11 +993,19 @@ func (a *guiApp) drawBrowserWindow() {
 				imgui.EndTable()
 			}
 
-			if a.preview != nil && (newActiveFileID != a.preview.ActiveID() || a.gameData.AssetOverridesDirty) {
+			if a.preview != nil && newActiveFileID != a.preview.ActiveID() {
 				if !noPushToHistory {
 					a.historyPush(a.preview.ActiveID(), newActiveFileID)
 				}
 				a.preview.LoadFile(a.ctx, newActiveFileID, a.preferences.PreviewVideoVerticalResolution, a.gameData.ColorGrading, a.gameData.EntityVarMapping)
+			}
+			if a.preview != nil && a.gameData.AssetOverridesDirty {
+				var entityInfo *entity.Entity
+				entityData, err := a.gameData.DataDir.Read(a.gameData.ColorGrading, stingray.DataMain)
+				if err == nil {
+					entityInfo, err = entity.LoadEntity(bytes.NewReader(entityData), a.gameData.EntityVarMapping)
+				}
+				a.preview.UpdateAssetOverrides(entityInfo)
 				a.gameData.AssetOverridesDirty = false
 			}
 

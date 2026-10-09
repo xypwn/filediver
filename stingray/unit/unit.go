@@ -617,162 +617,172 @@ func loadMesh(gpuR io.ReadSeeker, info MeshInfo, layout MeshLayout) (Mesh, error
 		}
 	}
 	mesh.Info = info
-	mesh.Positions = make([][3]float32, 0, layout.NumVertices)
+	vertexOffsets := make([]uint32, 0)
+	totalVertices := 0
+	totalIndices := 0
+	for _, group := range info.Groups {
+		totalVertices += int(group.NumVertices)
+		totalIndices += int(group.NumIndices)
+	}
+	mesh.Positions = make([][3]float32, 0, totalVertices)
 	mesh.UVCoords = make([][][2]float32, uvCoordLayers)
 	for layer := 0; layer < int(uvCoordLayers); layer++ {
-		mesh.UVCoords[layer] = make([][2]float32, 0, layout.NumVertices)
+		mesh.UVCoords[layer] = make([][2]float32, 0, totalVertices)
 	}
 	mesh.Colors = make([][][4]uint8, colorLayers)
 	for layer := 0; layer < int(colorLayers); layer++ {
-		mesh.Colors[layer] = make([][4]uint8, 0, layout.NumVertices)
+		mesh.Colors[layer] = make([][4]uint8, 0, totalVertices)
 	}
-	mesh.Normals = make([][3]float32, 0, layout.NumVertices)
+	mesh.Normals = make([][3]float32, 0, totalVertices)
 	mesh.BoneIndices = make([][][4]uint8, boneIdxLayers)
 	for layer := 0; layer < int(boneIdxLayers); layer++ {
-		mesh.BoneIndices[layer] = make([][4]uint8, 0, layout.NumVertices)
+		mesh.BoneIndices[layer] = make([][4]uint8, 0, totalVertices)
 	}
-	mesh.BoneWeights = make([][4]float32, 0, layout.NumVertices)
-	for i := uint32(0); i < layout.NumVertices; i++ {
-		offset := layout.VertexOffset + i*layout.VertexStride
-		if _, err := gpuR.Seek(int64(offset), io.SeekStart); err != nil {
-			return Mesh{}, err
-		}
-		for _, item := range layout.Items[:layout.NumItems] {
-			switch item.Type {
-			case ItemPosition:
-				if item.Format != FormatVec3F {
-					return Mesh{}, fmt.Errorf("expected position item to have format [3]float32, but got: %v", item.Format)
-				}
-				var v [3]float32
-				if err := binary.Read(gpuR, binary.LittleEndian, &v); err != nil {
-					return Mesh{}, err
-				}
-				mesh.Positions = append(mesh.Positions, v)
-			case ItemNormal:
-				var normal mgl32.Vec3
-				var tangent mgl32.Vec4
-				var bitangent mgl32.Vec3
-				switch item.Format {
-				case FormatVec4R10G10B10A2_UNORM:
-					var tmp uint32
-					if err := binary.Read(gpuR, binary.LittleEndian, &tmp); err != nil {
+	mesh.BoneWeights = make([][4]float32, 0, totalVertices)
+	for _, group := range info.Groups {
+		vertexOffsets = append(vertexOffsets, uint32(len(mesh.Positions)))
+		for i := uint32(0); i < group.NumVertices; i++ {
+			offset := layout.VertexOffset + (group.VertexOffset+i)*layout.VertexStride
+			if _, err := gpuR.Seek(int64(offset), io.SeekStart); err != nil {
+				return Mesh{}, err
+			}
+			for _, item := range layout.Items[:layout.NumItems] {
+				switch item.Type {
+				case ItemPosition:
+					if item.Format != FormatVec3F {
+						return Mesh{}, fmt.Errorf("expected position item to have format [3]float32, but got: %v", item.Format)
+					}
+					var v [3]float32
+					if err := binary.Read(gpuR, binary.LittleEndian, &v); err != nil {
 						return Mesh{}, err
 					}
-					normal, tangent, bitangent = DecodePackedNormal(tmp)
-				case FormatVec4F16:
-					var tmp [4]uint16
-					if err := binary.Read(gpuR, binary.LittleEndian, &tmp); err != nil {
-						return Mesh{}, err
-					}
-					for i := range normal {
-						normal[i] = float32(float16.Frombits(tmp[i]).Float32())
-					}
-				default:
-					return Mesh{}, fmt.Errorf("expected normal item to have format packed32u or [4]float16, but got: %v", item.Format)
-				}
-				mesh.Normals = append(mesh.Normals, normal)
-				mesh.Tangents = append(mesh.Tangents, tangent)
-				mesh.Bitangents = append(mesh.Bitangents, bitangent)
-			case 2:
-				if item.Format != FormatVec4F16 {
-					return Mesh{}, fmt.Errorf("expected type 2 item to have format [4]float16, but got: %v", item.Format)
-				}
-				//fmt.Println(item.Format)
-				// TODO
-			case 3:
-				if item.Format != FormatVec4F16 {
-					return Mesh{}, fmt.Errorf("expected type 3 item to have format [4]float16, but got: %v", item.Format)
-				}
-				//fmt.Println(item.Format)
-				// TODO
-			case ItemUVCoords:
-				var val [2]float32
-				switch item.Format {
-				case FormatVec2F16:
-					var tmp [2]uint16
-					if err := binary.Read(gpuR, binary.LittleEndian, &tmp); err != nil {
-						return Mesh{}, err
-					}
-					for i := range tmp {
-						val[i] = float16.Frombits(tmp[i]).Float32()
-					}
-				case FormatVec2F:
-					if err := binary.Read(gpuR, binary.LittleEndian, &val); err != nil {
-						return Mesh{}, err
-					}
-				default:
-					return Mesh{}, fmt.Errorf("expected UV coords item to have format [2]float16 or [2]float32, but got: %v", item.Format)
-				}
-				mesh.UVCoords[item.Layer] = append(mesh.UVCoords[item.Layer], val)
-			case ItemColor:
-				if item.Format != FormatRGBA8 {
-					return Mesh{}, fmt.Errorf("expected color to have format [4]uint8, but got: %v", item.Format)
-				}
-				var v [4]uint8
-				if err := binary.Read(gpuR, binary.LittleEndian, &v); err != nil {
-					return Mesh{}, err
-				}
-				mesh.Colors[item.Layer] = append(mesh.Colors[item.Layer], v)
-			case ItemBoneWeight:
-				var val [4]float32
-				switch item.Format {
-				case FormatVec4F16:
-					var tmp [4]uint16
-					if err := binary.Read(gpuR, binary.LittleEndian, &tmp); err != nil {
-						return Mesh{}, err
-					}
-					for i := range tmp {
-						val[i] = float16.Frombits(tmp[i]).Float32()
-					}
-				case FormatVec4R10G10B10A2_TYPELESS:
-					var tmp uint32
-					if err := binary.Read(gpuR, binary.LittleEndian, &tmp); err != nil {
-						return Mesh{}, err
-					}
-					val[0] = float32(tmp&0x3ff) / 1023.0
-					val[1] = float32((tmp>>10)&0x3ff) / 1023.0
-					val[2] = float32((tmp>>20)&0x3ff) / 1023.0
-					val[3] = 0.0 // float32((tmp>>30)&0x3) / 3.0 // This causes issues with incorrect bone weights
-				case FormatVec2F16:
-					var tmp [2]uint16
-					if err := binary.Read(gpuR, binary.LittleEndian, &tmp); err != nil {
-						return Mesh{}, err
-					}
-					for i := range tmp {
-						val[i] = float16.Frombits(tmp[i]).Float32()
-					}
-					val[2] = 0
-					val[3] = 0
-				case FormatF32:
-					binary.Read(gpuR, binary.LittleEndian, &val[0])
-				default:
-					return Mesh{}, fmt.Errorf("expected bone weight item to have format float32, [4]float16, [2]float16, or packed32, but got: %v", item.Format.String())
-				}
-				mesh.BoneWeights = append(mesh.BoneWeights, val)
-			case ItemBoneIdx:
-				var val [4]uint8
-				switch item.Format {
-				case FormatVec4S8:
-					if err := binary.Read(gpuR, binary.LittleEndian, &val); err != nil {
-						return Mesh{}, err
-					}
-				case FormatVec4U32:
-					var tmp [4]uint32
-					if err := binary.Read(gpuR, binary.LittleEndian, &tmp); err != nil {
-						return Mesh{}, err
-					}
-					for i := range tmp {
-						if tmp[i] > 0xff {
-							return Mesh{}, fmt.Errorf("unexpected bone index value - %v exceeds max u8 value", tmp[i])
+					mesh.Positions = append(mesh.Positions, v)
+				case ItemNormal:
+					var normal mgl32.Vec3
+					var tangent mgl32.Vec4
+					var bitangent mgl32.Vec3
+					switch item.Format {
+					case FormatVec4R10G10B10A2_UNORM:
+						var tmp uint32
+						if err := binary.Read(gpuR, binary.LittleEndian, &tmp); err != nil {
+							return Mesh{}, err
 						}
-						val[i] = uint8(tmp[i])
+						normal, tangent, bitangent = DecodePackedNormal(tmp)
+					case FormatVec4F16:
+						var tmp [4]uint16
+						if err := binary.Read(gpuR, binary.LittleEndian, &tmp); err != nil {
+							return Mesh{}, err
+						}
+						for i := range normal {
+							normal[i] = float32(float16.Frombits(tmp[i]).Float32())
+						}
+					default:
+						return Mesh{}, fmt.Errorf("expected normal item to have format packed32u or [4]float16, but got: %v", item.Format)
 					}
+					mesh.Normals = append(mesh.Normals, normal)
+					mesh.Tangents = append(mesh.Tangents, tangent)
+					mesh.Bitangents = append(mesh.Bitangents, bitangent)
+				case 2:
+					if item.Format != FormatVec4F16 {
+						return Mesh{}, fmt.Errorf("expected type 2 item to have format [4]float16, but got: %v", item.Format)
+					}
+					//fmt.Println(item.Format)
+					// TODO
+				case 3:
+					if item.Format != FormatVec4F16 {
+						return Mesh{}, fmt.Errorf("expected type 3 item to have format [4]float16, but got: %v", item.Format)
+					}
+					//fmt.Println(item.Format)
+					// TODO
+				case ItemUVCoords:
+					var val [2]float32
+					switch item.Format {
+					case FormatVec2F16:
+						var tmp [2]uint16
+						if err := binary.Read(gpuR, binary.LittleEndian, &tmp); err != nil {
+							return Mesh{}, err
+						}
+						for i := range tmp {
+							val[i] = float16.Frombits(tmp[i]).Float32()
+						}
+					case FormatVec2F:
+						if err := binary.Read(gpuR, binary.LittleEndian, &val); err != nil {
+							return Mesh{}, err
+						}
+					default:
+						return Mesh{}, fmt.Errorf("expected UV coords item to have format [2]float16 or [2]float32, but got: %v", item.Format)
+					}
+					mesh.UVCoords[item.Layer] = append(mesh.UVCoords[item.Layer], val)
+				case ItemColor:
+					if item.Format != FormatRGBA8 {
+						return Mesh{}, fmt.Errorf("expected color to have format [4]uint8, but got: %v", item.Format)
+					}
+					var v [4]uint8
+					if err := binary.Read(gpuR, binary.LittleEndian, &v); err != nil {
+						return Mesh{}, err
+					}
+					mesh.Colors[item.Layer] = append(mesh.Colors[item.Layer], v)
+				case ItemBoneWeight:
+					var val [4]float32
+					switch item.Format {
+					case FormatVec4F16:
+						var tmp [4]uint16
+						if err := binary.Read(gpuR, binary.LittleEndian, &tmp); err != nil {
+							return Mesh{}, err
+						}
+						for i := range tmp {
+							val[i] = float16.Frombits(tmp[i]).Float32()
+						}
+					case FormatVec4R10G10B10A2_TYPELESS:
+						var tmp uint32
+						if err := binary.Read(gpuR, binary.LittleEndian, &tmp); err != nil {
+							return Mesh{}, err
+						}
+						val[0] = float32(tmp&0x3ff) / 1023.0
+						val[1] = float32((tmp>>10)&0x3ff) / 1023.0
+						val[2] = float32((tmp>>20)&0x3ff) / 1023.0
+						val[3] = 0.0 // float32((tmp>>30)&0x3) / 3.0 // This causes issues with incorrect bone weights
+					case FormatVec2F16:
+						var tmp [2]uint16
+						if err := binary.Read(gpuR, binary.LittleEndian, &tmp); err != nil {
+							return Mesh{}, err
+						}
+						for i := range tmp {
+							val[i] = float16.Frombits(tmp[i]).Float32()
+						}
+						val[2] = 0
+						val[3] = 0
+					case FormatF32:
+						binary.Read(gpuR, binary.LittleEndian, &val[0])
+					default:
+						return Mesh{}, fmt.Errorf("expected bone weight item to have format float32, [4]float16, [2]float16, or packed32, but got: %v", item.Format.String())
+					}
+					mesh.BoneWeights = append(mesh.BoneWeights, val)
+				case ItemBoneIdx:
+					var val [4]uint8
+					switch item.Format {
+					case FormatVec4S8:
+						if err := binary.Read(gpuR, binary.LittleEndian, &val); err != nil {
+							return Mesh{}, err
+						}
+					case FormatVec4U32:
+						var tmp [4]uint32
+						if err := binary.Read(gpuR, binary.LittleEndian, &tmp); err != nil {
+							return Mesh{}, err
+						}
+						for i := range tmp {
+							if tmp[i] > 0xff {
+								return Mesh{}, fmt.Errorf("unexpected bone index value - %v exceeds max u8 value", tmp[i])
+							}
+							val[i] = uint8(tmp[i])
+						}
+					default:
+						return Mesh{}, fmt.Errorf("expected bone index item to have format [4]uint8 or [4]uint32, but got: %v", item.Format.String())
+					}
+					mesh.BoneIndices[item.Layer] = append(mesh.BoneIndices[item.Layer], val)
 				default:
-					return Mesh{}, fmt.Errorf("expected bone index item to have format [4]uint8 or [4]uint32, but got: %v", item.Format.String())
+					return Mesh{}, fmt.Errorf("unknown mesh layout item type: %v", item.Type)
 				}
-				mesh.BoneIndices[item.Layer] = append(mesh.BoneIndices[item.Layer], val)
-			default:
-				return Mesh{}, fmt.Errorf("unknown mesh layout item type: %v", item.Type)
 			}
 		}
 	}
@@ -801,7 +811,7 @@ func loadMesh(gpuR io.ReadSeeker, info MeshInfo, layout MeshLayout) (Mesh, error
 			default:
 				return Mesh{}, fmt.Errorf("unknown index stride: %v", indexStride)
 			}
-			mesh.Indices[grp] = append(mesh.Indices[grp], val+group.VertexOffset)
+			mesh.Indices[grp] = append(mesh.Indices[grp], val+vertexOffsets[grp])
 		}
 	}
 	return mesh, nil
@@ -891,6 +901,17 @@ func LoadTerrain(terrainInfo TerrainInfo) (Mesh, error) {
 				Min: mgl32.Vec3{terrainInfo.Min[0], terrainInfo.Min[1], 0.0},
 				Max: mgl32.Vec3{terrainInfo.Max[0], terrainInfo.Max[1], maxHeight},
 			},
+		},
+		Groups: []MeshGroup{{
+			MaterialIdx:  0,
+			NumVertices:  uint32(len(mesh.Positions)),
+			NumIndices:   uint32(len(mesh.Indices[0])),
+			VertexOffset: 0,
+			IndexOffset:  0,
+			GroupIdx:     0,
+		}},
+		Materials: []stingray.ThinHash{
+			stingray.Sum("terrain").Thin(),
 		},
 	}
 	return mesh, nil

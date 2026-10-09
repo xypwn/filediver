@@ -7,9 +7,12 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"math"
 	"path"
 	"slices"
+	"time"
 
+	"github.com/AllenDang/cimgui-go/imgui"
 	"github.com/ebitengine/oto/v3"
 	"github.com/xypwn/filediver/cmd/filediver-gui/imutils"
 	datalib "github.com/xypwn/filediver/datalibrary"
@@ -44,20 +47,23 @@ type AutoPreview struct {
 	activeType AutoPreviewType
 	activeID   stingray.FileID
 	previews   struct {
-		unit      *UnitPreviewState
-		speedtree *SpeedtreePreviewState
-		audio     *WwisePreview
-		video     *BinkPreview
-		texture   *ImagePreview
-		strings   *StringsPreview
-		material  *MaterialPreview
-		xaml      *XamlPreview
-		font      *FontPreview
+		unit     *UnitPreviewState
+		audio    *WwisePreview
+		video    *BinkPreview
+		texture  *ImagePreview
+		strings  *StringsPreview
+		material *MaterialPreview
+		xaml     *XamlPreview
+		font     *FontPreview
 	}
 
 	hashes               map[stingray.Hash]string
 	thinhashes           map[stingray.ThinHash]string
 	getResourceGenerator GetResourceGeneratorFunc
+	getOverride          func(stingray.FileID) stingray.FileID
+	loadMs               uint32
+	drawTime             float64
+	debug                bool
 
 	err error
 }
@@ -73,12 +79,13 @@ type ExtractorArmorParameters struct {
 	SelectedArchives func() []stingray.Hash
 }
 
-func NewAutoPreview(otoCtx *oto.Context, audioSampleRate int, hashes map[stingray.Hash]string, thinhashes map[stingray.ThinHash]string, getResourceGenerator GetResourceGeneratorFunc, runner *exec.Runner, planetParams ExtractorPlanetParameters, armorParams ExtractorArmorParameters) (*AutoPreview, error) {
+func NewAutoPreview(otoCtx *oto.Context, audioSampleRate int, hashes map[stingray.Hash]string, thinhashes map[stingray.ThinHash]string, getResourceGenerator GetResourceGeneratorFunc, getOverride func(stingray.FileID) stingray.FileID, runner *exec.Runner, planetParams ExtractorPlanetParameters, armorParams ExtractorArmorParameters) (*AutoPreview, error) {
 	var err error
 	pv := &AutoPreview{
 		hashes:               hashes,
 		thinhashes:           thinhashes,
 		getResourceGenerator: getResourceGenerator,
+		getOverride:          getOverride,
 	}
 	lookupHash := func(h stingray.Hash) string {
 		if val, contains := hashes[h]; contains {
@@ -86,11 +93,7 @@ func NewAutoPreview(otoCtx *oto.Context, audioSampleRate int, hashes map[stingra
 		}
 		return h.String()
 	}
-	pv.previews.unit, err = NewUnitPreview(getResourceGenerator(true), armorParams, lookupHash)
-	if err != nil {
-		return nil, err
-	}
-	pv.previews.speedtree, err = NewSpeedtreePreview(planetParams)
+	pv.previews.unit, err = NewUnitPreview(getResourceGenerator(true), pv.getOverride, armorParams, lookupHash)
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +110,6 @@ func NewAutoPreview(otoCtx *oto.Context, audioSampleRate int, hashes map[stingra
 
 func (pv *AutoPreview) Delete() {
 	pv.previews.unit.Delete()
-	pv.previews.speedtree.Delete()
 	pv.previews.audio.Delete()
 	pv.previews.video.Delete()
 	pv.previews.texture.Delete()
@@ -163,6 +165,12 @@ func (pv *AutoPreview) LoadFile(ctx context.Context, fileID stingray.FileID, max
 		return nil
 	}
 
+	var entityInfo *entity.Entity
+	entityData, exists, err := pv.getResourceGenerator(false)(colorGrading, stingray.DataMain)
+	if err == nil && exists {
+		entityInfo, err = entity.LoadEntity(bytes.NewReader(entityData), entityVarMapping)
+	}
+	loadStart := time.Now()
 	switch fileID.Type {
 	case stingray.Sum("unit"):
 		pv.activeType = AutoPreviewUnit
@@ -175,7 +183,6 @@ func (pv *AutoPreview) LoadFile(ctx context.Context, fileID stingray.FileID, max
 			fileID.Name,
 			data[stingray.DataMain],
 			data[stingray.DataGPU],
-			pv.getResourceGenerator(true),
 			pv.thinhashes,
 		); err != nil {
 			pv.err = fmt.Errorf("loading unit: %w", err)
@@ -191,28 +198,37 @@ func (pv *AutoPreview) LoadFile(ctx context.Context, fileID stingray.FileID, max
 		if err := pv.previews.unit.LoadPrefab(
 			fileID.Name,
 			data[stingray.DataMain],
-			pv.getResourceGenerator(true),
+			pv.thinhashes,
+		); err != nil {
+			pv.err = fmt.Errorf("loading prefab: %w", err)
+			return
+		}
+	case stingray.Sum("level"):
+		pv.activeType = AutoPreviewUnit
+		if err := loadFiles(stingray.DataMain); err != nil {
+			pv.err = err
+			return
+		}
+		pv.previews.unit.Clear()
+		if err := pv.previews.unit.LoadLevel(
+			fileID.Name,
+			data[stingray.DataMain],
 			pv.thinhashes,
 		); err != nil {
 			pv.err = fmt.Errorf("loading prefab: %w", err)
 			return
 		}
 	case stingray.Sum("speedtree"):
-		pv.activeType = AutoPreviewTree
+		pv.activeType = AutoPreviewUnit
 		if err := loadFiles(stingray.DataMain, stingray.DataGPU); err != nil {
 			pv.err = err
 			return
 		}
-		var entityInfo *entity.Entity
-		entityData, exists, err := pv.getResourceGenerator(false)(colorGrading, stingray.DataMain)
-		if err == nil && exists {
-			entityInfo, err = entity.LoadEntity(bytes.NewReader(entityData), entityVarMapping)
-		}
-		if err := pv.previews.speedtree.LoadSpeedtree(
+		pv.previews.unit.Clear()
+		if err := pv.previews.unit.LoadSpeedtree(
 			fileID.Name,
 			data[stingray.DataMain],
 			data[stingray.DataGPU],
-			pv.getResourceGenerator(true),
 			pv.thinhashes,
 			entityInfo,
 		); err != nil {
@@ -369,6 +385,14 @@ func (pv *AutoPreview) LoadFile(ctx context.Context, fileID stingray.FileID, max
 	default:
 		pv.activeType = AutoPreviewEmpty
 	}
+	pv.loadMs = uint32(time.Since(loadStart).Milliseconds())
+}
+
+func (pv *AutoPreview) UpdateAssetOverrides(entityInfo *entity.Entity) {
+	if pv.activeType != AutoPreviewUnit {
+		return
+	}
+	pv.previews.unit.UpdateAssetOverrides(entityInfo)
 }
 
 func (pv *AutoPreview) MaterialSettingsEmpty() bool {
@@ -383,18 +407,26 @@ func (pv *AutoPreview) SetMaterialSettingsVisible(visible bool) {
 	pv.previews.material.SetSettingsVisible(visible)
 }
 
+func (pv *AutoPreview) Debug() bool {
+	return pv.debug
+}
+
+func (pv *AutoPreview) SetDebug(debug bool) {
+	pv.debug = debug
+}
+
 func (pv *AutoPreview) Draw(name string) bool {
 	if pv.err != nil {
 		imutils.TextError(pv.err)
 		return true
 	}
+	rootPos := imgui.CursorPos()
+	drawStart := time.Now()
 	switch pv.activeType {
 	case AutoPreviewEmpty:
 		return false
 	case AutoPreviewUnit:
 		pv.previews.unit.Draw(name)
-	case AutoPreviewTree:
-		SpeedtreePreview(name, pv.previews.speedtree)
 	case AutoPreviewAudio:
 		pv.previews.audio.Draw(name)
 	case AutoPreviewVideo:
@@ -411,6 +443,17 @@ func (pv *AutoPreview) Draw(name string) bool {
 		pv.previews.font.Draw(name)
 	default:
 		panic("unhandled case")
+	}
+	if pv.debug {
+		drawMs := time.Since(drawStart).Milliseconds()
+		pv.drawTime = pv.drawTime - (pv.drawTime / 120.0) + (time.Since(drawStart).Seconds() / 120.0)
+		text := fmt.Sprintf("Load took %vms\nDraw took %vms (%.2f fps)", pv.loadMs, drawMs, math.Min(1.0/pv.drawTime, 1000.0))
+		size := imgui.CalcTextSize(text)
+		rootPos.X = imgui.ContentRegionAvail().X - size.X - imgui.CurrentStyle().ItemInnerSpacing().X
+		rootPos.Y += imgui.CurrentStyle().ItemInnerSpacing().Y
+		imgui.SetCursorPos(rootPos)
+		imgui.SetNextItemAllowOverlap()
+		imutils.Textf(text)
 	}
 	return true
 }
