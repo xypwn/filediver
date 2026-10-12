@@ -1252,6 +1252,9 @@ func (pv *UnitPreviewState) finalizeMaterialTextures(object *unitPreviewObject, 
 		var id uint32
 		uniform := object.materials[group].uniforms[texture.slot]
 		if texture.name.Value == 0 {
+			if texture.defaultColor == nil {
+				texture.defaultColor = make([]byte, 4)
+			}
 			gl.GenTextures(1, &object.materials[group].textures[idx].id)
 			id = object.materials[group].textures[idx].id
 			setupTexture(id, texture.target)
