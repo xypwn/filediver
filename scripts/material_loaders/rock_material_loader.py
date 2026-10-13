@@ -53,6 +53,13 @@ class RockMaterialLoader(FilediverMaterialLoaderInterface):
                     config_nodes["Image Texture.006"].image = image
                     config_nodes["Image Texture.007"].image = image
                     image.colorspace_settings.name = "Non-Color"
+                case "weathering_albedo":
+                    config_nodes["Image Texture.008"].image = image
+                    image.colorspace_settings.name = "sRGB"
+                    image.alpha_mode = "CHANNEL_PACKED"
+                case "weathering_nar":
+                    config_nodes["Image Texture.009"].image = image
+                    image.colorspace_settings.name = "Non-Color"
         print("    Finalizing material")
 
         for name, setting in config["extras"].items():
@@ -71,6 +78,21 @@ class RockMaterialLoader(FilediverMaterialLoaderInterface):
                     config_nodes["Rock Emissive"].inputs[name].default_value = setting[0]
                     continue
                 config_nodes["Rock Emissive"].inputs[name].default_value = setting
+            elif name in config_nodes["Rock Weathering Amount"].inputs:
+                if len(setting) == 1:
+                    config_nodes["Rock Weathering Amount"].inputs[name].default_value = setting[0]
+                    continue
+                config_nodes["Rock Weathering Amount"].inputs[name].default_value = setting
+            elif name in config_nodes["Rock Weathering UVs"].inputs:
+                if len(setting) == 1:
+                    config_nodes["Rock Weathering UVs"].inputs[name].default_value = setting[0]
+                    continue
+                config_nodes["Rock Weathering UVs"].inputs[name].default_value = setting
+            elif name in config_nodes["Weathering Material Properties"].inputs:
+                if len(setting) == 1:
+                    config_nodes["Weathering Material Properties"].inputs[name].default_value = setting[0]
+                    continue
+                config_nodes["Weathering Material Properties"].inputs[name].default_value = setting
             elif name == "base_normal_intensity":
                 config_nodes["Normal Map"].inputs["Strength"].default_value = setting[0]
 
