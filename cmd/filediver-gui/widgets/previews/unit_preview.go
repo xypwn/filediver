@@ -193,7 +193,13 @@ type UnitPreviewState struct {
 	lookupHash               func(stingray.Hash) string
 }
 
-func NewUnitPreview(getResource GetResourceFunc, getOverride func(stingray.FileID) stingray.FileID, ArmorParams ExtractorArmorParameters, lookupHash func(stingray.Hash) string) (*UnitPreviewState, error) {
+func NewUnitPreview(
+	getResource func(id stingray.FileID, typ stingray.DataType) (data []byte, exists bool, err error),
+	getOverride func(stingray.FileID) stingray.FileID,
+	ArmorParams ExtractorArmorParameters,
+	lookupHash func(stingray.Hash) string,
+	lookupThinHash func(stingray.ThinHash) string,
+) (*UnitPreviewState, error) {
 	var err error
 
 	pv := &UnitPreviewState{}
@@ -203,7 +209,10 @@ func NewUnitPreview(getResource GetResourceFunc, getOverride func(stingray.FileI
 		return nil, err
 	}
 
+	pv.ml = preview_mats.NewMaterialManager(getResource, getOverride, lookupThinHash, lookupHash)
+
 	pv.lookupHash = lookupHash
+	pv.lookupThinHash = lookupThinHash
 	pv.model = stingrayToGLCoords
 
 	pv.armorSets = ArmorParams.ArmorSets
@@ -330,11 +339,11 @@ func (pv *UnitPreviewState) UpdateAssetOverrides(entityInfo *entity.Entity) {
 
 var objectRegex = regexp.MustCompile("^(g_)?(\\w*?)_?(cull|shadow|rubble|rubble_shadow|debris|shadowmesh|c)?_?\\d*?_?(LOD\\d)?$")
 
-func (pv *UnitPreviewState) loadMeshes(lookupThinHash func(stingray.ThinHash) string, meshInfos []unit.MeshInfo, meshLayouts []unit.MeshLayout, gpuData []byte) (map[string]unit.Mesh, map[string]bool, error) {
+func (pv *UnitPreviewState) loadMeshes(meshInfos []unit.MeshInfo, meshLayouts []unit.MeshLayout, gpuData []byte) (map[string]unit.Mesh, map[string]bool, error) {
 	minLods := make(map[string]int)
 	objects := make(map[string]map[string]int)
 	for idx, info := range meshInfos {
-		meshName := lookupThinHash(info.Header.MeshName)
+		meshName := pv.lookupThinHash(info.Header.MeshName)
 		if strings.HasPrefix(meshName, "0x") {
 			continue
 		}
@@ -621,19 +630,12 @@ func (pv *UnitPreviewState) getNodeUnitFileID(nodeId stingray.Hash) (stingray.Fi
 	return hash, contains
 }
 
-func (pv *UnitPreviewState) LoadLevel(fileID stingray.Hash, mainData []byte, thinhashes map[stingray.ThinHash]string) error {
+func (pv *UnitPreviewState) LoadLevel(fileID stingray.Hash, mainData []byte) error {
 	if pv.nodes == nil {
 		pv.nodes = make(map[stingray.Hash]unitPreviewNode)
 	}
 
 	pv.maxViewDistance = 0.001
-
-	pv.lookupThinHash = func(hash stingray.ThinHash) string {
-		if name, ok := thinhashes[hash]; ok {
-			return name
-		}
-		return hash.String()
-	}
 
 	children := make([]stingray.FileID, 0)
 
@@ -852,19 +854,12 @@ func (pv *UnitPreviewState) LoadLevel(fileID stingray.Hash, mainData []byte, thi
 	return pv.finalizeObjectMaterials()
 }
 
-func (pv *UnitPreviewState) LoadPrefab(fileID stingray.Hash, mainData []byte, thinhashes map[stingray.ThinHash]string) error {
+func (pv *UnitPreviewState) LoadPrefab(fileID stingray.Hash, mainData []byte) error {
 	if pv.nodes == nil {
 		pv.nodes = make(map[stingray.Hash]unitPreviewNode)
 	}
 
 	pv.maxViewDistance = 0.001
-
-	pv.lookupThinHash = func(hash stingray.ThinHash) string {
-		if name, ok := thinhashes[hash]; ok {
-			return name
-		}
-		return hash.String()
-	}
 
 	prefabID := stingray.NewFileID(fileID, PREFAB)
 
@@ -969,7 +964,7 @@ func (pv *UnitPreviewState) loadPrefabInfo(fileID stingray.FileID, info *prefab.
 	return contents, nil
 }
 
-func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []byte, thinhashes map[stingray.ThinHash]string) error {
+func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []byte) error {
 	if pv.nodes == nil {
 		pv.nodes = make(map[stingray.Hash]unitPreviewNode)
 	}
@@ -984,13 +979,6 @@ func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []b
 	}
 	pv.rootHash = unitID
 	pv.nodes[fileID] = pv.root
-
-	pv.lookupThinHash = func(hash stingray.ThinHash) string {
-		if name, ok := thinhashes[hash]; ok {
-			return name
-		}
-		return hash.String()
-	}
 
 	if err := pv.loadUnit(unitID, mainData, gpuData); err != nil {
 		return err
@@ -1034,7 +1022,7 @@ func (pv *UnitPreviewState) loadUnit(fileID stingray.FileID, mainData, gpuData [
 	var meshes map[string]unit.Mesh
 	var defaultShown map[string]bool
 	if len(info.MeshInfos) > 0 && info.GeometryGroup.Value == 0x0 {
-		meshes, defaultShown, err = pv.loadMeshes(pv.lookupThinHash, info.MeshInfos, info.MeshLayouts, gpuData)
+		meshes, defaultShown, err = pv.loadMeshes(info.MeshInfos, info.MeshLayouts, gpuData)
 		if err != nil {
 			return err
 		}
@@ -1102,7 +1090,7 @@ func (pv *UnitPreviewState) loadUnit(fileID stingray.FileID, mainData, gpuData [
 		} else if err != nil {
 			return fmt.Errorf("failed to load %v.geometry_group gpu data: %v", info.GeometryGroup.String(), err)
 		}
-		meshes, defaultShown, err = pv.loadMeshes(pv.lookupThinHash, meshInfos, geoGroup.MeshLayouts, geoGPU)
+		meshes, defaultShown, err = pv.loadMeshes(meshInfos, geoGroup.MeshLayouts, geoGPU)
 		if err != nil {
 			return err
 		}
@@ -2128,16 +2116,16 @@ func (pv *UnitPreviewState) drawLists(size imgui.Vec2, model, view, projection m
 				if !object.wireframe.Use() {
 					continue
 				}
-				if err := object.wireframe.SetUniform("model", 1, &model); err != nil {
+				if err := object.wireframe.SetUniform("model", 1, model); err != nil {
 					panic(err)
 				}
-				if err := object.wireframe.SetUniform("view", 1, &view); err != nil {
+				if err := object.wireframe.SetUniform("view", 1, view); err != nil {
 					panic(err)
 				}
-				if err := object.wireframe.SetUniform("projection", 1, &projection); err != nil {
+				if err := object.wireframe.SetUniform("projection", 1, projection); err != nil {
 					panic(err)
 				}
-				if err := object.wireframe.SetUniform("color", 1, &pv.wireframeColor); err != nil {
+				if err := object.wireframe.SetUniform("color", 1, pv.wireframeColor); err != nil {
 					panic(err)
 				}
 				if err := object.wireframe.SetUniform("hasVisibilityMasks", 1, &object.hasVisibilityMasks); err != nil {
@@ -2152,20 +2140,20 @@ func (pv *UnitPreviewState) drawLists(size imgui.Vec2, model, view, projection m
 					if !object.materials[group].Use() {
 						continue
 					}
-					if err := object.materials[group].SetUniform("model", 1, &model); err != nil {
+					if err := object.materials[group].SetUniform("model", 1, model); err != nil {
 						panic(err)
 					}
-					if err := object.materials[group].SetUniform("view", 1, &view); err != nil {
+					if err := object.materials[group].SetUniform("view", 1, view); err != nil {
 						panic(err)
 					}
-					if err := object.materials[group].SetUniform("projection", 1, &projection); err != nil {
+					if err := object.materials[group].SetUniform("projection", 1, projection); err != nil {
 						panic(err)
 					}
-					if err := object.materials[group].SetUniform("viewPosition", 1, &viewPosition); err != nil {
+					if err := object.materials[group].SetUniform("viewPosition", 1, viewPosition); err != nil {
 						panic(err)
 					}
 					if err := object.materials[group].SetUniform("udimShown", 64, &pv.udimsShown[0]); err != nil {
-						panic(err)
+						//panic(err)
 					}
 				}
 				gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo)
@@ -2210,14 +2198,14 @@ func (pv *UnitPreviewState) drawListsNormalVis(size imgui.Vec2, model, view, pro
 			if !object.normalVis.Use() {
 				continue
 			}
-			if err := object.normalVis.SetUniform("model", 1, &model); err != nil {
+			if err := object.normalVis.SetUniform("model", 1, model); err != nil {
 				// these should work, programmer error if they don't
 				panic(err)
 			}
-			if err := object.normalVis.SetUniform("view", 1, &view); err != nil {
+			if err := object.normalVis.SetUniform("view", 1, view); err != nil {
 				panic(err)
 			}
-			if err := object.normalVis.SetUniform("projection", 1, &projection); err != nil {
+			if err := object.normalVis.SetUniform("projection", 1, projection); err != nil {
 				panic(err)
 			}
 			normalLength := pv.viewDistance * 0.02
@@ -2230,7 +2218,7 @@ func (pv *UnitPreviewState) drawListsNormalVis(size imgui.Vec2, model, view, pro
 			if err := object.normalVis.SetUniform("hasVisibilityMasks", 1, &object.hasVisibilityMasks); err != nil {
 				panic(err)
 			}
-			if err := object.normalVis.SetUniform("udimShown", 1, &pv.udimsShown); err != nil {
+			if err := object.normalVis.SetUniform("udimShown", 1, &pv.udimsShown[0]); err != nil {
 				panic(err)
 			}
 			for group, ibo := range object.ibos {
@@ -2253,17 +2241,17 @@ func (pv *UnitPreviewState) drawListsBoundingBoxes(size imgui.Vec2, model, view,
 		return
 	}
 	gl.Disable(gl.DEPTH_TEST)
-	if err := pv.boundingBoxMaterial.SetUniform("color", 1, &pv.aabbColor); err != nil {
+	if err := pv.boundingBoxMaterial.SetUniform("color", 1, pv.aabbColor); err != nil {
 		// these should work, programmer error if they don't
 		panic(err)
 	}
-	if err := pv.boundingBoxMaterial.SetUniform("model", 1, &model); err != nil {
+	if err := pv.boundingBoxMaterial.SetUniform("model", 1, model); err != nil {
 		panic(err)
 	}
-	if err := pv.boundingBoxMaterial.SetUniform("view", 1, &view); err != nil {
+	if err := pv.boundingBoxMaterial.SetUniform("view", 1, view); err != nil {
 		panic(err)
 	}
-	if err := pv.boundingBoxMaterial.SetUniform("projection", 1, &projection); err != nil {
+	if err := pv.boundingBoxMaterial.SetUniform("projection", 1, projection); err != nil {
 		panic(err)
 	}
 	sortedFileIds := slices.SortedFunc(maps.Keys(pv.objects), func(a, b stingray.FileID) int {
@@ -2305,17 +2293,17 @@ func (pv *UnitPreviewState) drawListsSkeletons(size imgui.Vec2, model, view, pro
 		return
 	}
 	gl.Disable(gl.DEPTH_TEST)
-	if err := pv.boundingBoxMaterial.SetUniform("color", 1, &pv.skeletonColor); err != nil {
+	if err := pv.boundingBoxMaterial.SetUniform("color", 1, pv.skeletonColor); err != nil {
 		// these should work, programmer error if they don't
 		panic(err)
 	}
-	if err := pv.boundingBoxMaterial.SetUniform("model", 1, &model); err != nil {
+	if err := pv.boundingBoxMaterial.SetUniform("model", 1, model); err != nil {
 		panic(err)
 	}
-	if err := pv.boundingBoxMaterial.SetUniform("view", 1, &view); err != nil {
+	if err := pv.boundingBoxMaterial.SetUniform("view", 1, view); err != nil {
 		panic(err)
 	}
-	if err := pv.boundingBoxMaterial.SetUniform("projection", 1, &projection); err != nil {
+	if err := pv.boundingBoxMaterial.SetUniform("projection", 1, projection); err != nil {
 		panic(err)
 	}
 	sortedFileIds := slices.SortedFunc(maps.Keys(pv.objects), func(a, b stingray.FileID) int {

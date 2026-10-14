@@ -85,11 +85,15 @@ func (ml *MaterialManager) Delete() {
 }
 
 func (ml *MaterialManager) DeleteMaterial(material Material) {
-	material.Delete(ml.textureCache)
+	if material != nil {
+		material.Delete(ml.textureCache)
+	}
 }
 
 func (ml *MaterialManager) ReleaseMaterial(material Material) {
-	material.ReleaseTextures(ml.textureCache)
+	if material != nil {
+		material.ReleaseTextures(ml.textureCache)
+	}
 }
 
 func (ml *MaterialManager) DeleteAssetGradingLut() {
@@ -510,8 +514,14 @@ func (ml *MaterialManager) LoadMaterial(id stingray.FileID, name string, shown b
 	return toReturn
 }
 
-func NewMaterialManager() *MaterialManager {
+func NewMaterialManager(getResource GetResourceFunc, getOverride func(stingray.FileID) stingray.FileID, lookupThinHash func(stingray.ThinHash) string, lookupHash func(stingray.Hash) string) *MaterialManager {
 	ml := &MaterialManager{}
+
+	ml.getResource = getResource
+	ml.getOverride = getOverride
+	ml.lookupHash = lookupHash
+	ml.lookupThinHash = lookupThinHash
+
 	// Keep textures for a minute of disuse
 	duration, _ := time.ParseDuration("1m")
 	ml.textureCache = glutils.NewTextureCache(duration)

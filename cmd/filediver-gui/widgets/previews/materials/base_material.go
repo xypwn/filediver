@@ -59,7 +59,7 @@ func (mat *BaseMaterial) generate(shaderPaths []string, textures int, uniforms [
 
 	mat.textures = make([]Texture, textures)
 
-	mat.uniforms.generate(mat.program, uniforms...)
+	mat.uniforms.generate(mat.program)
 
 	var numBlocks int32
 	gl.GetProgramInterfaceiv(mat.program, gl.UNIFORM_BLOCK, gl.ACTIVE_RESOURCES, &numBlocks)
@@ -155,7 +155,7 @@ func (mat *BaseMaterial) Use() bool {
 }
 
 var UNIFORM_NOT_FOUND = errors.New("uniform not found in material")
-var INVALID_TYPE = errors.New("incorrect type for uniform")
+var INVALID_TYPE = errors.New("could not cast uniform to type")
 
 func (mat *BaseMaterial) SetUniform(name string, count int32, value any) error {
 	if _, contains := mat.uniforms.locations[name]; !contains {
@@ -167,13 +167,13 @@ func (mat *BaseMaterial) SetUniform(name string, count int32, value any) error {
 	case glutils.GL_INT, glutils.GL_BOOL:
 		val, ok := value.(*int32)
 		if !ok {
-			return fmt.Errorf("set uniform %v: %v", name, INVALID_TYPE)
+			return fmt.Errorf("set uniform %v: %v %v", name, INVALID_TYPE, typ.String())
 		}
 		gl.ProgramUniform1iv(mat.program, location, count, val)
 	case glutils.GL_UNSIGNED_INT:
 		val, ok := value.(*uint32)
 		if !ok {
-			return fmt.Errorf("set uniform %v: %v", name, INVALID_TYPE)
+			return fmt.Errorf("set uniform %v: %v %v", name, INVALID_TYPE, typ.String())
 		}
 		gl.ProgramUniform1uiv(mat.program, location, count, val)
 	case glutils.GL_FLOAT:
@@ -183,37 +183,37 @@ func (mat *BaseMaterial) SetUniform(name string, count int32, value any) error {
 		}
 		gl.ProgramUniform1fv(mat.program, location, count, val)
 	case glutils.GL_FLOAT_VEC2:
-		val, ok := value.(*mgl32.Vec2)
+		val, ok := value.(mgl32.Vec2)
 		if !ok {
 			return fmt.Errorf("set uniform %v: %v", name, INVALID_TYPE)
 		}
 		gl.ProgramUniform2fv(mat.program, location, count, &val[0])
 	case glutils.GL_FLOAT_VEC3:
-		val, ok := value.(*mgl32.Vec3)
+		val, ok := value.(mgl32.Vec3)
 		if !ok {
 			return fmt.Errorf("set uniform %v: %v", name, INVALID_TYPE)
 		}
 		gl.ProgramUniform3fv(mat.program, location, count, &val[0])
 	case glutils.GL_FLOAT_VEC4:
-		val, ok := value.(*mgl32.Vec4)
+		val, ok := value.(mgl32.Vec4)
 		if !ok {
 			return fmt.Errorf("set uniform %v: %v", name, INVALID_TYPE)
 		}
 		gl.ProgramUniform4fv(mat.program, location, count, &val[0])
 	case glutils.GL_FLOAT_MAT2:
-		val, ok := value.(*mgl32.Mat2)
+		val, ok := value.(mgl32.Mat2)
 		if !ok {
 			return fmt.Errorf("set uniform %v: %v", name, INVALID_TYPE)
 		}
 		gl.ProgramUniformMatrix2fv(mat.program, location, count, false, &val[0])
 	case glutils.GL_FLOAT_MAT3:
-		val, ok := value.(*mgl32.Mat3)
+		val, ok := value.(mgl32.Mat3)
 		if !ok {
 			return fmt.Errorf("set uniform %v: %v", name, INVALID_TYPE)
 		}
 		gl.ProgramUniformMatrix3fv(mat.program, location, count, false, &val[0])
 	case glutils.GL_FLOAT_MAT4:
-		val, ok := value.(*mgl32.Mat4)
+		val, ok := value.(mgl32.Mat4)
 		if !ok {
 			return fmt.Errorf("set uniform %v: %v", name, INVALID_TYPE)
 		}

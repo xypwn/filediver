@@ -84,23 +84,25 @@ type Uniforms struct {
 	types     map[string]glutils.GLType
 }
 
-func (uniforms *Uniforms) generate(program uint32, names ...string) {
+func (uniforms *Uniforms) generate(program uint32) {
 	if uniforms.locations == nil {
 		uniforms.locations = make(map[string]int32)
 		uniforms.types = make(map[string]glutils.GLType)
 	}
-	for _, name := range names {
+	var numUniforms int32
+	gl.GetProgramiv(program, gl.ACTIVE_UNIFORMS, &numUniforms)
+	for index := range numUniforms {
+		var nameBuf [64]byte
+		var nameLen, uniformSize int32
+		var uniformType uint32
+		gl.GetActiveUniform(program, uint32(index), 64, &nameLen, &uniformSize, &uniformType, &nameBuf[0])
+		name := string(nameBuf[:nameLen])
 		cStr, free := gl.Strs(name + "\x00")
 		loc := gl.GetUniformLocation(program, *cStr)
 		free()
-		if loc != -1 {
-			uniformProperties := []uint32{gl.TYPE}
-			var uniformType int32
-			gl.GetProgramResourceiv(program, gl.UNIFORM, uint32(loc), 1, &uniformProperties[0], 1, nil, &uniformType)
 
-			uniforms.locations[name] = loc
-			uniforms.types[name] = glutils.GLType(uniformType)
-		}
+		uniforms.locations[name] = loc
+		uniforms.types[name] = glutils.GLType(uniformType)
 	}
 }
 

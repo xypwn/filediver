@@ -93,7 +93,14 @@ func NewAutoPreview(otoCtx *oto.Context, audioSampleRate int, hashes map[stingra
 		}
 		return h.String()
 	}
-	pv.previews.unit, err = NewUnitPreview(getResourceGenerator(true), pv.getOverride, armorParams, lookupHash)
+
+	lookupThinHash := func(h stingray.ThinHash) string {
+		if val, contains := thinhashes[h]; contains {
+			return val
+		}
+		return h.String()
+	}
+	pv.previews.unit, err = NewUnitPreview(getResourceGenerator(true), pv.getOverride, armorParams, lookupHash, lookupThinHash)
 	if err != nil {
 		return nil, err
 	}
@@ -183,7 +190,6 @@ func (pv *AutoPreview) LoadFile(ctx context.Context, fileID stingray.FileID, max
 			fileID.Name,
 			data[stingray.DataMain],
 			data[stingray.DataGPU],
-			pv.thinhashes,
 		); err != nil {
 			pv.err = fmt.Errorf("loading unit: %w", err)
 			return
@@ -198,7 +204,6 @@ func (pv *AutoPreview) LoadFile(ctx context.Context, fileID stingray.FileID, max
 		if err := pv.previews.unit.LoadPrefab(
 			fileID.Name,
 			data[stingray.DataMain],
-			pv.thinhashes,
 		); err != nil {
 			pv.err = fmt.Errorf("loading prefab: %w", err)
 			return
@@ -213,7 +218,6 @@ func (pv *AutoPreview) LoadFile(ctx context.Context, fileID stingray.FileID, max
 		if err := pv.previews.unit.LoadLevel(
 			fileID.Name,
 			data[stingray.DataMain],
-			pv.thinhashes,
 		); err != nil {
 			pv.err = fmt.Errorf("loading prefab: %w", err)
 			return
