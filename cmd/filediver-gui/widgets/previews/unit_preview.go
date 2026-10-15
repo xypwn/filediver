@@ -119,12 +119,11 @@ type UnitPreviewState struct {
 	getOverride     func(stingray.FileID) stingray.FileID
 	objectOverrides map[stingray.FileID]stingray.FileID
 
-	objectDrawList          map[stingray.FileID]map[string][]float32
-	objectNormalVisDrawList map[stingray.FileID]map[string][]float32
-	objects                 map[stingray.FileID]map[string]unitPreviewObject
-	objectsShown            map[stingray.FileID]map[string]bool
-	objectsShownDefault     map[stingray.FileID]map[string]bool
-	objectsSelected         map[stingray.FileID]map[string]bool
+	objectDrawList      map[stingray.FileID]map[string][]float32
+	objects             map[stingray.FileID]map[string]unitPreviewObject
+	objectsShown        map[stingray.FileID]map[string]bool
+	objectsShownDefault map[stingray.FileID]map[string]bool
+	objectsSelected     map[stingray.FileID]map[string]bool
 
 	treeViewShown bool
 	treeViewDrawn bool
@@ -524,7 +523,7 @@ func (pv *UnitPreviewState) getArmorInfo(name stingray.Hash) (armorInfo *datalib
 	return
 }
 
-func (pv *UnitPreviewState) RemoveRenderedObject(nodeId stingray.Hash) {
+func (pv *UnitPreviewState) removeRenderedObject(nodeId stingray.Hash) {
 	node, contains := pv.nodes[nodeId]
 	if !contains {
 		return
@@ -533,7 +532,7 @@ func (pv *UnitPreviewState) RemoveRenderedObject(nodeId stingray.Hash) {
 
 	for _, hash := range node.children {
 		if _, contains := pv.nodes[hash.Name]; contains {
-			pv.RemoveRenderedObject(hash.Name)
+			pv.removeRenderedObject(hash.Name)
 		}
 		// several rendered objects may map to the same unit resource, so check if its already been removed
 		if _, contains := pv.objects[hash]; !contains {
@@ -543,8 +542,10 @@ func (pv *UnitPreviewState) RemoveRenderedObject(nodeId stingray.Hash) {
 			pv.objects[hash][name].deleteObjects(pv.ml)
 			pv.boundingBoxes[hash][name].deleteObjects(pv.ml)
 		}
+		pv.skeletons[hash].deleteObjects(pv.ml)
 		delete(pv.objects, hash)
 		delete(pv.boundingBoxes, hash)
+		delete(pv.skeletons, hash)
 		delete(pv.objectsShown, hash)
 		delete(pv.objectsSelected, hash)
 		delete(pv.objectsShownDefault, hash)
@@ -552,12 +553,13 @@ func (pv *UnitPreviewState) RemoveRenderedObject(nodeId stingray.Hash) {
 		delete(pv.aabbMat, hash)
 		delete(pv.meshPositions, hash)
 		delete(pv.meshNormals, hash)
+		delete(pv.skeletonPositions, hash)
 	}
 }
 
 func (pv *UnitPreviewState) Clear() {
 	for hash := range pv.nodes {
-		pv.RemoveRenderedObject(hash)
+		pv.removeRenderedObject(hash)
 	}
 	pv.ml.DeleteAssetGradingLut()
 }
@@ -1102,6 +1104,7 @@ func (pv *UnitPreviewState) loadUnit(fileID stingray.FileID, mainData, gpuData [
 			pv.objects[fileID][name].deleteObjects(pv.ml)
 			pv.boundingBoxes[fileID][name].deleteObjects(pv.ml)
 		}
+		pv.skeletons[fileID].deleteObjects(pv.ml)
 	}
 
 	if !contains {
@@ -2116,44 +2119,47 @@ func (pv *UnitPreviewState) drawLists(size imgui.Vec2, model, view, projection m
 				if !object.wireframe.Use() {
 					continue
 				}
-				if err := object.wireframe.SetUniform("model", 1, model); err != nil {
+				if err := object.wireframe.SetUniform("model", 1, model); err != nil && err != preview_mats.UNIFORM_NOT_FOUND {
 					panic(err)
 				}
-				if err := object.wireframe.SetUniform("view", 1, view); err != nil {
+				if err := object.wireframe.SetUniform("view", 1, view); err != nil && err != preview_mats.UNIFORM_NOT_FOUND {
 					panic(err)
 				}
-				if err := object.wireframe.SetUniform("projection", 1, projection); err != nil {
+				if err := object.wireframe.SetUniform("projection", 1, projection); err != nil && err != preview_mats.UNIFORM_NOT_FOUND {
 					panic(err)
 				}
-				if err := object.wireframe.SetUniform("color", 1, pv.wireframeColor); err != nil {
+				if err := object.wireframe.SetUniform("color", 1, pv.wireframeColor); err != nil && err != preview_mats.UNIFORM_NOT_FOUND {
 					panic(err)
 				}
-				if err := object.wireframe.SetUniform("hasVisibilityMasks", 1, &object.hasVisibilityMasks); err != nil {
+				if err := object.wireframe.SetUniform("hasVisibilityMasks", 1, &object.hasVisibilityMasks); err != nil && err != preview_mats.UNIFORM_NOT_FOUND {
 					panic(err)
 				}
-				if err := object.wireframe.SetUniform("udimShown", 64, &pv.udimsShown[0]); err != nil {
+				if err := object.wireframe.SetUniform("udimShown", 64, &pv.udimsShown[0]); err != nil && err != preview_mats.UNIFORM_NOT_FOUND {
 					panic(err)
 				}
 			}
 			for group, ibo := range object.ibos {
 				if !pv.showWireframe {
+					if group >= len(object.materials) {
+						continue
+					}
 					if !object.materials[group].Use() {
 						continue
 					}
-					if err := object.materials[group].SetUniform("model", 1, model); err != nil {
+					if err := object.materials[group].SetUniform("model", 1, model); err != nil && err != preview_mats.UNIFORM_NOT_FOUND {
 						panic(err)
 					}
-					if err := object.materials[group].SetUniform("view", 1, view); err != nil {
+					if err := object.materials[group].SetUniform("view", 1, view); err != nil && err != preview_mats.UNIFORM_NOT_FOUND {
 						panic(err)
 					}
-					if err := object.materials[group].SetUniform("projection", 1, projection); err != nil {
+					if err := object.materials[group].SetUniform("projection", 1, projection); err != nil && err != preview_mats.UNIFORM_NOT_FOUND {
 						panic(err)
 					}
-					if err := object.materials[group].SetUniform("viewPosition", 1, viewPosition); err != nil {
+					if err := object.materials[group].SetUniform("viewPosition", 1, viewPosition); err != nil && err != preview_mats.UNIFORM_NOT_FOUND {
 						panic(err)
 					}
-					if err := object.materials[group].SetUniform("udimShown", 64, &pv.udimsShown[0]); err != nil {
-						//panic(err)
+					if err := object.materials[group].SetUniform("udimShown", 64, &pv.udimsShown[0]); err != nil && err != preview_mats.UNIFORM_NOT_FOUND {
+						panic(err)
 					}
 				}
 				gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo)
@@ -2198,27 +2204,27 @@ func (pv *UnitPreviewState) drawListsNormalVis(size imgui.Vec2, model, view, pro
 			if !object.normalVis.Use() {
 				continue
 			}
-			if err := object.normalVis.SetUniform("model", 1, model); err != nil {
+			if err := object.normalVis.SetUniform("model", 1, model); err != nil && err != preview_mats.UNIFORM_NOT_FOUND {
 				// these should work, programmer error if they don't
 				panic(err)
 			}
-			if err := object.normalVis.SetUniform("view", 1, view); err != nil {
+			if err := object.normalVis.SetUniform("view", 1, view); err != nil && err != preview_mats.UNIFORM_NOT_FOUND {
 				panic(err)
 			}
-			if err := object.normalVis.SetUniform("projection", 1, projection); err != nil {
+			if err := object.normalVis.SetUniform("projection", 1, projection); err != nil && err != preview_mats.UNIFORM_NOT_FOUND {
 				panic(err)
 			}
 			normalLength := pv.viewDistance * 0.02
-			if err := object.normalVis.SetUniform("len", 1, &normalLength); err != nil {
+			if err := object.normalVis.SetUniform("len", 1, &normalLength); err != nil && err != preview_mats.UNIFORM_NOT_FOUND {
 				panic(err)
 			}
-			if err := object.normalVis.SetUniform("showTangentBitangent", 1, &pv.visualizeTangentBitangent); err != nil {
+			if err := object.normalVis.SetUniform("showTangentBitangent", 1, &pv.visualizeTangentBitangent); err != nil && err != preview_mats.UNIFORM_NOT_FOUND {
 				panic(err)
 			}
-			if err := object.normalVis.SetUniform("hasVisibilityMasks", 1, &object.hasVisibilityMasks); err != nil {
+			if err := object.normalVis.SetUniform("hasVisibilityMasks", 1, &object.hasVisibilityMasks); err != nil && err != preview_mats.UNIFORM_NOT_FOUND {
 				panic(err)
 			}
-			if err := object.normalVis.SetUniform("udimShown", 1, &pv.udimsShown[0]); err != nil {
+			if err := object.normalVis.SetUniform("udimShown", 1, &pv.udimsShown[0]); err != nil && err != preview_mats.UNIFORM_NOT_FOUND {
 				panic(err)
 			}
 			for group, ibo := range object.ibos {
@@ -2241,17 +2247,17 @@ func (pv *UnitPreviewState) drawListsBoundingBoxes(size imgui.Vec2, model, view,
 		return
 	}
 	gl.Disable(gl.DEPTH_TEST)
-	if err := pv.boundingBoxMaterial.SetUniform("color", 1, pv.aabbColor); err != nil {
+	if err := pv.boundingBoxMaterial.SetUniform("color", 1, pv.aabbColor); err != nil && err != preview_mats.UNIFORM_NOT_FOUND {
 		// these should work, programmer error if they don't
 		panic(err)
 	}
-	if err := pv.boundingBoxMaterial.SetUniform("model", 1, model); err != nil {
+	if err := pv.boundingBoxMaterial.SetUniform("model", 1, model); err != nil && err != preview_mats.UNIFORM_NOT_FOUND {
 		panic(err)
 	}
-	if err := pv.boundingBoxMaterial.SetUniform("view", 1, view); err != nil {
+	if err := pv.boundingBoxMaterial.SetUniform("view", 1, view); err != nil && err != preview_mats.UNIFORM_NOT_FOUND {
 		panic(err)
 	}
-	if err := pv.boundingBoxMaterial.SetUniform("projection", 1, projection); err != nil {
+	if err := pv.boundingBoxMaterial.SetUniform("projection", 1, projection); err != nil && err != preview_mats.UNIFORM_NOT_FOUND {
 		panic(err)
 	}
 	sortedFileIds := slices.SortedFunc(maps.Keys(pv.objects), func(a, b stingray.FileID) int {
@@ -2293,17 +2299,17 @@ func (pv *UnitPreviewState) drawListsSkeletons(size imgui.Vec2, model, view, pro
 		return
 	}
 	gl.Disable(gl.DEPTH_TEST)
-	if err := pv.boundingBoxMaterial.SetUniform("color", 1, pv.skeletonColor); err != nil {
+	if err := pv.boundingBoxMaterial.SetUniform("color", 1, pv.skeletonColor); err != nil && err != preview_mats.UNIFORM_NOT_FOUND {
 		// these should work, programmer error if they don't
 		panic(err)
 	}
-	if err := pv.boundingBoxMaterial.SetUniform("model", 1, model); err != nil {
+	if err := pv.boundingBoxMaterial.SetUniform("model", 1, model); err != nil && err != preview_mats.UNIFORM_NOT_FOUND {
 		panic(err)
 	}
-	if err := pv.boundingBoxMaterial.SetUniform("view", 1, view); err != nil {
+	if err := pv.boundingBoxMaterial.SetUniform("view", 1, view); err != nil && err != preview_mats.UNIFORM_NOT_FOUND {
 		panic(err)
 	}
-	if err := pv.boundingBoxMaterial.SetUniform("projection", 1, projection); err != nil {
+	if err := pv.boundingBoxMaterial.SetUniform("projection", 1, projection); err != nil && err != preview_mats.UNIFORM_NOT_FOUND {
 		panic(err)
 	}
 	sortedFileIds := slices.SortedFunc(maps.Keys(pv.objects), func(a, b stingray.FileID) int {
@@ -2349,10 +2355,7 @@ func (pv *UnitPreviewState) drawObject(hash stingray.FileID, matrix, sceneModel 
 	}
 }
 
-func (pv *UnitPreviewState) drawBoundingBox(hash stingray.FileID, matrix mgl32.Mat4) {
-	// gl.Disable(gl.DEPTH_TEST)
-	// gl.UseProgram(pv.boundingBoxMaterial.program)
-	// gl.Uniform4fv(pv.boundingBoxMaterial.uniforms["color"], 1, &pv.aabbColor[0])
+func (pv *UnitPreviewState) drawBoundingBox(hash stingray.FileID, matrix, _ mgl32.Mat4) {
 	for name := range pv.boundingBoxes[hash] {
 		if shown, contains := pv.objectsShown[hash][name]; contains && !shown {
 			continue
@@ -2361,31 +2364,31 @@ func (pv *UnitPreviewState) drawBoundingBox(hash stingray.FileID, matrix mgl32.M
 		model := matrix.Mul4(pv.aabbMat[hash][name])
 		pv.objectDrawList[hash][name] = append(pv.objectDrawList[hash][name], model[:]...)
 		pv.objectDrawList[hash][name] = append(pv.objectDrawList[hash][name], make([]float32, 12)...)
-		// gl.BindVertexArray(pv.boundingBoxes[hash][name].vao)
-		// {
-		// 	model := pv.model.Mul4(translation.Mul4(matrix.Mul4(pv.aabbMat[hash][name])))
-		// 	mvp := projection.Mul4(view).Mul4(model)
-		// 	gl.UniformMatrix4fv(pv.boundingBoxMaterial.uniforms["mvp"], 1, false, &mvp[0])
-		// }
-		// gl.DrawElements(gl.TRIANGLES, pv.boundingBoxes[hash][name].numIndices[0], gl.UNSIGNED_INT, nil)
 	}
 }
 
-func (pv *UnitPreviewState) drawSkeleton(hash stingray.FileID, matrix mgl32.Mat4) {
+func (pv *UnitPreviewState) drawSkeleton(hash stingray.FileID, matrix, _ mgl32.Mat4) {
 	pv.initDrawList(hash, filediverSkeleton)
 	pv.objectDrawList[hash][filediverSkeleton] = append(pv.objectDrawList[hash][filediverSkeleton], matrix[:]...)
 	pv.objectDrawList[hash][filediverSkeleton] = append(pv.objectDrawList[hash][filediverSkeleton], make([]float32, 12)...)
-	// gl.Disable(gl.DEPTH_TEST)
-	// gl.UseProgram(pv.boundingBoxMaterial.program)
-	// gl.Uniform4fv(pv.boundingBoxMaterial.uniforms["color"], 1, &pv.skeletonColor[0])
+}
 
-	// model := pv.model.Mul4(translation.Mul4(matrix))
-	// mvp := projection.Mul4(view).Mul4(model)
-
-	// gl.UniformMatrix4fv(pv.boundingBoxMaterial.uniforms["mvp"], 1, false, &mvp[0])
-	// gl.BindVertexArray(pv.skeletons[hash].vao)
-	// gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, pv.skeletons[hash].ibos[0])
-	// gl.DrawElements(gl.LINES, pv.skeletons[hash].numIndices[0], gl.UNSIGNED_INT, nil)
+func (pv *UnitPreviewState) getDrawNodeRecursiveFunc(drawCallback func(stingray.FileID, mgl32.Mat4, mgl32.Mat4), sceneModel mgl32.Mat4) (drawNode func(unitPreviewNode, stingray.FileID)) {
+	drawNode = func(curr unitPreviewNode, nodeId stingray.FileID) {
+		if !curr.shown {
+			return
+		}
+		for _, childHash := range curr.children {
+			if child, contains := pv.nodes[childHash.Name]; contains && nodeId != childHash {
+				child.matrix = curr.matrix.Mul4(child.matrix)
+				drawNode(child, childHash)
+			} else {
+				// add to the draw list
+				drawCallback(childHash, curr.matrix, sceneModel)
+			}
+		}
+	}
+	return
 }
 
 func (pv *UnitPreviewState) Draw(previewId string) {
@@ -2454,47 +2457,9 @@ func (pv *UnitPreviewState) Draw(previewId string) {
 			translation := mgl32.Translate3D(modelPos.Vec3().Elem())
 			sceneModel := pv.model.Mul4(translation)
 
-			var drawNode, drawNodeBoundingBox, drawNodeSkeletons func(unitPreviewNode, stingray.FileID)
-			drawNode = func(curr unitPreviewNode, nodeId stingray.FileID) {
-				if !curr.shown {
-					return
-				}
-				for _, childHash := range curr.children {
-					if child, contains := pv.nodes[childHash.Name]; contains && nodeId != childHash {
-						child.matrix = curr.matrix.Mul4(child.matrix)
-						drawNode(child, childHash)
-					} else {
-						// add to the draw list
-						pv.drawObject(childHash, curr.matrix, sceneModel)
-					}
-				}
-			}
-			drawNodeBoundingBox = func(curr unitPreviewNode, nodeId stingray.FileID) {
-				if !curr.shown {
-					return
-				}
-				for _, childHash := range curr.children {
-					if child, contains := pv.nodes[childHash.Name]; contains && nodeId != childHash {
-						child.matrix = curr.matrix.Mul4(child.matrix)
-						drawNodeBoundingBox(child, childHash)
-					} else {
-						pv.drawBoundingBox(childHash, curr.matrix)
-					}
-				}
-			}
-			drawNodeSkeletons = func(curr unitPreviewNode, nodeId stingray.FileID) {
-				if !curr.shown {
-					return
-				}
-				for _, childHash := range curr.children {
-					if child, contains := pv.nodes[childHash.Name]; contains && nodeId != childHash {
-						child.matrix = curr.matrix.Mul4(child.matrix)
-						drawNodeSkeletons(child, childHash)
-					} else {
-						pv.drawSkeleton(childHash, curr.matrix)
-					}
-				}
-			}
+			drawNode := pv.getDrawNodeRecursiveFunc(pv.drawObject, sceneModel)
+			drawNodeBoundingBox := pv.getDrawNodeRecursiveFunc(pv.drawBoundingBox, mgl32.Mat4{})
+			drawNodeSkeletons := pv.getDrawNodeRecursiveFunc(pv.drawSkeleton, mgl32.Mat4{})
 			drawNode(pv.root, pv.rootHash)
 			pv.drawLists(size, sceneModel, view, projection, viewPosition)
 			if pv.visualizeNormals {
