@@ -317,7 +317,7 @@ func (pv *UnitPreviewState) UpdateAssetOverrides(entityInfo *entity.Entity) {
 					name := pv.objects[fileID][mesh].materials[group].Name()
 					shown := pv.objects[fileID][mesh].materials[group].Shown()
 
-					material := pv.ml.LoadMaterial(materialID, name, shown, mat, pv.objects[fileID][mesh].materials[group])
+					material := pv.ml.LoadMaterial(materialID, name, shown, mat, pv.objects[fileID][mesh].materials[group], fileID)
 					override := materialID
 					if pv.getOverride != nil {
 						override = pv.getOverride(materialID)
@@ -1202,7 +1202,7 @@ func (pv *UnitPreviewState) loadUnit(fileID stingray.FileID, mainData, gpuData [
 				//     or the material doesn't contain the correct textures
 				overrideLUTMaterial(mat, armorInfo)
 
-				material := pv.ml.LoadMaterial(materialID, name, materialShown(name), mat, nil)
+				material := pv.ml.LoadMaterial(materialID, name, materialShown(name), mat, nil, fileID)
 				override := materialID
 				if pv.getOverride != nil {
 					override = pv.getOverride(materialID)
@@ -1663,7 +1663,7 @@ func (pv *UnitPreviewState) loadSpeedtree(speedtreeID stingray.FileID, mainData,
 				fmt.Printf("failed to load speedtree material: %v", err)
 				continue
 			}
-			material := pv.ml.LoadMaterial(materialID, name, true, mat, nil)
+			material := pv.ml.LoadMaterial(materialID, name, true, mat, nil, speedtreeID)
 			material.SetOverride(override)
 			object.materials = append(object.materials, material)
 		}
@@ -2896,7 +2896,7 @@ func (pv *UnitPreviewState) Draw(previewId string) {
 					material := pv.objects[hash][name].materials[group]
 					mat, _ := loadMaterialInfo(pv.getResource, material.ID())
 					overrideLUTMaterial(mat, armorInfo)
-					material = pv.ml.LoadMaterial(material.ID(), material.Name(), material.Shown(), mat, material)
+					material = pv.ml.LoadMaterial(material.ID(), material.Name(), material.Shown(), mat, material, hash)
 					pv.objects[hash][name].materials[group] = material
 				}
 			}

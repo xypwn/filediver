@@ -466,7 +466,7 @@ func (ml *MaterialManager) ReloadTextures(material Material, mat *material.Mater
 	}
 }
 
-func (ml *MaterialManager) LoadMaterial(id stingray.FileID, name string, shown bool, mat *material.Material, existing Material) Material {
+func (ml *MaterialManager) LoadMaterial(id stingray.FileID, name string, shown bool, mat *material.Material, existing Material, objectId stingray.FileID) Material {
 	if existing != nil {
 		existing.ReleaseTextures(ml.textureCache)
 	}
@@ -494,14 +494,26 @@ func (ml *MaterialManager) LoadMaterial(id stingray.FileID, name string, shown b
 	}
 
 	if isSpeedtreeMaterial(mat) {
-		toReturn, ok := existing.(*SpeedtreeMaterial)
-		if existing == nil || !ok {
-			toReturn = NewSpeedtreeMaterial(id, name, shown)
-			toReturn.Generate()
-		}
+		if objectId.Type == stingray.Sum("speedtree") {
+			toReturn, ok := existing.(*SpeedtreeMaterial)
+			if existing == nil || !ok {
+				toReturn = NewSpeedtreeMaterial(id, name, shown)
+				toReturn.Generate()
+			}
 
-		ml.updateSpeedtreeMaterial(toReturn, mat)
-		return toReturn
+			ml.updateSpeedtreeMaterial(toReturn, mat)
+			return toReturn
+		} else {
+			// Apparently speedtree materials aren't unique to speedtree file types
+			toReturn, ok := existing.(*SpeedtreeUnitMaterial)
+			if existing == nil || !ok {
+				toReturn = NewSpeedtreeUnitMaterial(id, name, shown)
+				toReturn.Generate()
+			}
+
+			ml.updateSpeedtreeUnitMaterial(toReturn, mat)
+			return toReturn
+		}
 	}
 
 	toReturn, ok := existing.(*FallbackMaterial)

@@ -53,7 +53,57 @@ func (mat *SpeedtreeMaterial) Generate() error {
 
 var _ Material = &SpeedtreeMaterial{}
 
+type SpeedtreeUnitMaterial struct {
+	*BaseMaterial
+}
+
+func NewSpeedtreeUnitMaterial(id stingray.FileID, name string, shown bool) *SpeedtreeUnitMaterial {
+	return &SpeedtreeUnitMaterial{
+		BaseMaterial: &BaseMaterial{
+			id:       id.Name,
+			override: id,
+			name:     name,
+			shown:    shown,
+		},
+	}
+}
+
+func (mat *SpeedtreeUnitMaterial) Generate() error {
+	return mat.generate(
+		[]string{
+			"shaders/object.vert",
+			"shaders/object.geom",
+			"shaders/speedtree.frag",
+		},
+		0,
+		append(baseUniforms, speedtreeTextureNames...),
+	)
+}
+
+var _ Material = &SpeedtreeUnitMaterial{}
+
 func (ml *MaterialManager) updateSpeedtreeMaterial(material *SpeedtreeMaterial, mat *material.Material) {
+	ml.updateAssetGradingLut()
+
+	assetGradingHash := stingray.Sum("asset_grading_lut")
+	material.textures = append(material.textures, Texture{
+		id:       ml.assetGradingLutTexture,
+		target:   gl.TEXTURE_BUFFER,
+		name:     assetGradingHash,
+		override: stingray.NewFileID(assetGradingHash, stingray.Sum("texture")),
+		slot:     "asset_grading_lut",
+		created:  false,
+		loaded:   true,
+	})
+
+	if _, contains := mat.Textures[stingray.Sum("fibonacci_normal_lut").Thin()]; !contains {
+		mat.Textures[stingray.Sum("fibonacci_normal_lut").Thin()] = stingray.Sum("content/art_shared/textures/fibonacci_normal_lut")
+	}
+
+	ml.setupMaterialCommon(speedtreeTextureNames, material, mat)
+}
+
+func (ml *MaterialManager) updateSpeedtreeUnitMaterial(material *SpeedtreeUnitMaterial, mat *material.Material) {
 	ml.updateAssetGradingLut()
 
 	assetGradingHash := stingray.Sum("asset_grading_lut")
