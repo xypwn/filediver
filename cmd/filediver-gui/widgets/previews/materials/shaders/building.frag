@@ -193,7 +193,7 @@ vec3 getTriplanarNormal(vec3 tangent_space_normal) {
     // result.x = dot(temp.xyz, dbg_fragTBN[0]);
     // result.y = dot(temp.xyz, dbg_fragTBN[1]);
     // result.z = dot(temp.xyz, dbg_fragTBN[2]);
-    return result;
+    return result * 2.0 - 1.0;
 }
 
 vec3 materialColor[8] = {
@@ -339,7 +339,7 @@ void main() {
     vec3 normal = vec3(nac_sample.xy * 2.0 - 1.0, 0.0);
     normal.z = sqrt(abs(1.0 - normal.x * normal.x - normal.y * normal.y));
     vec3 nac_normal = normal;
-    //normal = reorientNormalMaps(normal, surface_data_normal);
+    normal = reorientNormalMaps(normal, surface_data_normal);
 
     float curvature = clamp(nac_sample.w * 2.0 - 1.0, 0.0, 1.0);
     float negative_curvature = clamp((1.0 - nac_sample.w) * 2.0 - 1.0, 0.0, 1.0);
