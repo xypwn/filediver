@@ -7,10 +7,6 @@ in vec3 fragTangentFragmentPosition;
 
 uniform sampler2D ibl_brdf_lut;
 
-layout(shared, binding = 8) uniform LightingDebugBlock {
-    uint ibldebug;
-};
-
 float reconstructNormalZ(vec2 xy) {
     return sqrt(1.0 - xy.x*xy.x - xy.y*xy.y);
 }
