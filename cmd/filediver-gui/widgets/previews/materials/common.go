@@ -42,7 +42,11 @@ func setupTexture(textureID, target uint32, filter int32) {
 	gl.BindTexture(target, textureID)
 	gl.TexParameteri(target, gl.TEXTURE_WRAP_S, gl.REPEAT)
 	gl.TexParameteri(target, gl.TEXTURE_WRAP_T, gl.REPEAT)
-	gl.TexParameteri(target, gl.TEXTURE_MIN_FILTER, filter)
+	var minFilter int32 = gl.LINEAR_MIPMAP_NEAREST
+	if filter == gl.NEAREST {
+		minFilter = gl.NEAREST_MIPMAP_NEAREST
+	}
+	gl.TexParameteri(target, gl.TEXTURE_MIN_FILTER, minFilter)
 	gl.TexParameteri(target, gl.TEXTURE_MAG_FILTER, filter)
 	gl.PixelStorei(gl.UNPACK_ROW_LENGTH, 0)
 	gl.BindTexture(target, 0)
@@ -58,8 +62,10 @@ func uploadStingrayTexture(textureID uint32, target uint32, data textureData) er
 	}
 	if target == gl.TEXTURE_2D {
 		gl.TexImage2D(target, 0, data.InternalFormat, int32(data.Bounds.Dx()), int32(data.Bounds.Dy()), 0, data.Format, data.Type, gl.Ptr(data.Data))
+		gl.GenerateMipmap(target)
 	} else if target == gl.TEXTURE_2D_ARRAY {
 		gl.TexImage3D(target, 0, data.InternalFormat, int32(data.Bounds.Dx()), int32(data.Bounds.Dy()), data.Depth, 0, data.Format, data.Type, gl.Ptr(data.Data))
+		gl.GenerateMipmap(target)
 	} else if target == gl.TEXTURE_BUFFER {
 		gl.TexBuffer(target, data.Format, textureID)
 	}
