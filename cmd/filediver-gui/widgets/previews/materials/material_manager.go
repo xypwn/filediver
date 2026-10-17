@@ -649,6 +649,17 @@ func (ml *MaterialManager) LoadMaterial(id stingray.FileID, name string, shown b
 		return toReturn
 	}
 
+	if isSignMaterial(mat) {
+		toReturn, ok := existing.(*SignMaterial)
+		if existing == nil || !ok {
+			toReturn = NewSignMaterial(id, name, shown)
+			err = toReturn.Generate()
+		}
+
+		ml.updateSignMaterial(toReturn, mat)
+		return toReturn
+	}
+
 	if isSpeedtreeMaterial(mat) {
 		if objectId.Type == stingray.Sum("speedtree") {
 			toReturn, ok := existing.(*SpeedtreeMaterial)
