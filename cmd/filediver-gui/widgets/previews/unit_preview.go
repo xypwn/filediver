@@ -1251,31 +1251,24 @@ func (pv *UnitPreviewState) loadUnit(fileID stingray.FileID, mainData, gpuData [
 			gl.EnableVertexAttribArray(1)
 			offset += normalsSize
 			//
-			gl.BufferSubData(gl.ARRAY_BUFFER, offset, uvsSize, gl.Ptr(mesh.UVCoords[0]))
-			gl.VertexAttribPointerWithOffset(2, 2, gl.FLOAT, false, 2*4, uintptr(offset))
-			gl.EnableVertexAttribArray(2)
-			offset += uvsSize
-			//
 			gl.BufferSubData(gl.ARRAY_BUFFER, offset, tangentsSize, gl.Ptr(mesh.Tangents))
-			gl.VertexAttribPointerWithOffset(3, 3, gl.FLOAT, true, 4*4, uintptr(offset))
-			gl.EnableVertexAttribArray(3)
+			gl.VertexAttribPointerWithOffset(2, 3, gl.FLOAT, true, 4*4, uintptr(offset))
+			gl.EnableVertexAttribArray(2)
 			offset += tangentsSize
 			//
 			gl.BufferSubData(gl.ARRAY_BUFFER, offset, bitangentsSize, gl.Ptr(mesh.Bitangents))
-			gl.VertexAttribPointerWithOffset(4, 3, gl.FLOAT, true, 3*4, uintptr(offset))
-			gl.EnableVertexAttribArray(4)
+			gl.VertexAttribPointerWithOffset(3, 3, gl.FLOAT, true, 3*4, uintptr(offset))
+			gl.EnableVertexAttribArray(3)
 			offset += bitangentsSize
 			//
-			if len(mesh.UVCoords) >= 3 {
-				for layer, uvcoords := range mesh.UVCoords[1:3] {
-					index := uint32(5 + layer)
-					uvsSize := len(uvcoords) * 2 * 4
-					fmt.Printf("size %v offset %v index %v\n", uvsSize, offset, index)
-					gl.BufferSubData(gl.ARRAY_BUFFER, offset, uvsSize, gl.Ptr(uvcoords))
-					gl.VertexAttribPointerWithOffset(index, 2, gl.FLOAT, false, 2*4, uintptr(offset))
-					gl.EnableVertexAttribArray(index)
-					offset += uvsSize
-				}
+			for layer, uvcoords := range mesh.UVCoords[:min(len(mesh.UVCoords), 3)] {
+				index := uint32(4 + layer)
+				uvsSize := len(uvcoords) * 2 * 4
+				fmt.Printf("size %v offset %v index %v\n", uvsSize, offset, index)
+				gl.BufferSubData(gl.ARRAY_BUFFER, offset, uvsSize, gl.Ptr(uvcoords))
+				gl.VertexAttribPointerWithOffset(index, 2, gl.FLOAT, false, 2*4, uintptr(offset))
+				gl.EnableVertexAttribArray(index)
+				offset += uvsSize
 			}
 
 			// Setup instance model/normal matrix attributes

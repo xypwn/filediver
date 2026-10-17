@@ -11,6 +11,7 @@ import (
 // Textures used by the standard fragment shader
 var buildingTextureNames = []string{
 	"texture_lut",
+	"decal_sheet",
 	"Detail_Data",
 	"NAC",
 	"surface_data_array",
@@ -19,6 +20,8 @@ var buildingTextureNames = []string{
 
 var buildingBaseMaterialNames = []stingray.Hash{
 	stingray.Sum("content/art_shared/base_shaders/m_colonies_master"),
+	stingray.Sum("content/art_shared/base_shaders/m_colonies_master_decal"),
+	stingray.Sum("content/art_shared/base_shaders/m_colonies_master_decal_only"),
 	stingray.Sum("content/art_shared/base_shaders/m_colonies_medium_small"),
 }
 
@@ -60,6 +63,18 @@ func (mat *BuildingMaterial) Generate() error {
 var _ Material = &BuildingMaterial{}
 
 func (ml *MaterialManager) updateBuildingMaterial(material *BuildingMaterial, mat *material.Material) {
+	mat.Settings[stingray.Sum("fd_decals_enabled").Thin()] = []float32{0.0}
+	mat.Settings[stingray.Sum("fd_decal_only").Thin()] = []float32{0.0}
+	for slot := range mat.Textures {
+		if ml.lookupThinHash(slot) == "decal_sheet" {
+			mat.Settings[stingray.Sum("fd_decals_enabled").Thin()] = []float32{1.0}
+			break
+		}
+	}
+
+	if mat.BaseMaterial == stingray.Sum("content/art_shared/base_shaders/m_colonies_master_decal_only") {
+		mat.Settings[stingray.Sum("fd_decal_only").Thin()] = []float32{1.0}
+	}
 	ml.setupMaterialCommon(buildingTextureNames, material, mat)
 
 	for idx, texture := range material.textures {

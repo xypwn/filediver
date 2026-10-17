@@ -6,14 +6,25 @@ out vec4 fragColor;
 
 in vec3 fragInstPosition;
 in vec2 fragUV0;
+in vec2 fragUV1;
 in mat4 instanceModel;
 
 uniform sampler2D texture_lut;
+uniform sampler2D decal_sheet;
 uniform sampler2D Detail_Data;
 uniform sampler2D NAC;
 uniform sampler2DArray surface_data_array;
 
 layout(shared, binding = 0) uniform BuildingSettingsBlock {
+    vec3 decal_color_tint;
+    float decal_metallic;
+    float decal_metallic_blend;
+    float decal_roughness;
+    float decal_roughness_blend;
+    float decal_wear;
+    float fd_decals_enabled;
+    float fd_decal_only;
+    
     float global_detail_tile;
     float global_surface_tile;
     vec3 wear_colour;
@@ -347,8 +358,30 @@ void main() {
     float roughness = (detail_sample.x * roughness_build_up.x) + (detail_sample.y * roughness_build_up.y) + (detail_sample.z * roughness_build_up.z) + (detail_sample.w * roughness_build_up.w) + roughness_base;
     roughness = clamp(surface_roughness * 2.0 + roughness, 0.0, 1.0);
 
+    vec4 decal_sample;
+    float decal_wear_roughness;
+    vec2 decal_uvs = fd_decal_only != 0.0 ? fragUV0 : fragUV1;
+    if (fd_decals_enabled != 0.0) {
+        decal_sample = texture(decal_sheet, decal_uvs);
+        float temp = clamp(floor(decal_uvs.x + 1.0), 0.0, 1.0);
+        temp = temp - clamp(fragUV0.x, 0.0, 1.0);
+        decal_wear_roughness = decal_wear * max(roughness * 2.0 - 1.0, 0.0);
+        decal_wear_roughness = clamp(decal_sample.w * temp - decal_wear_roughness, 0.0, 1.0);
+        float inv_decal_wear_roughness = 1.0 - decal_wear_roughness;
+        
+        decal_sample.xyz = decal_sample.xyz * decal_color_tint * decal_wear_roughness;
+        base_color.xyz = base_color.xyz * inv_decal_wear_roughness + decal_sample.xyz;
+        
+        float metallic_blend = decal_metallic_blend * decal_wear_roughness;
+        metallic = metallic_blend * (decal_metallic - metallic) + metallic;
+
+        normal = normalize(decal_wear_roughness * (vec3(0.0, 0.0, 1.0) - normal) + normal);
+
+        roughness = decal_wear_roughness * decal_roughness_blend * (decal_roughness - roughness) + roughness;
+    }
+
     float wear_combined = clamp(exp2(log2(roughness) * wear_power) * wear_multiply + wear_shift, 0.0, 1.0) * base_color.w;
-    base_color.xyz = clamp(wear_combined * (wear_colour - base_color.xyz) + base_color.xyz, 0.0, 1.0);
+    base_color.xyz = sqrt(clamp(wear_combined * (wear_colour - base_color.xyz) + base_color.xyz, 0.0, 1.0));
 
     roughness = clamp((wear_combined * wear_roughness_blend) * (wear_roughness - roughness) + roughness, 0.0, 1.0) * 0.955 + 0.045;
     metallic = clamp(wear_combined * wear_metallic_shift + metallic, 0.0, 1.0); // * 0.5 + 0.5;
@@ -379,8 +412,29 @@ void main() {
     case 8:
         fragColor = vec4(lut_uvs, 0.0, 1.0);
         break;
+    case 9:
+        fragColor = vec4(vec3(decal_wear_roughness), 1.0);
+        break;
+    case 10:
+        fragColor = vec4(decal_sample.xyz, 1.0);
+        break;
+    case 11:
+        fragColor = vec4(texture(decal_sheet, decal_uvs).xyz, 1.0);
+        break;
+    case 12:
+        fragColor = vec4(decal_uvs, 0.0, 1.0);
+        break;
+    case 13:
+        fragColor = vec4(vec3(clamp(floor(decal_uvs.x + 1.0), 0.0, 1.0) - clamp(fragUV0.x, 0.0, 1.0)), 1.0);
+        break;
+    case 14:
+        fragColor = vec4(vec3(clamp(floor(decal_uvs.x + 1.0), 0.0, 1.0)), 1.0);
+        break;
+    case 15:
+        fragColor = vec4(vec3(clamp(fragUV0.x, 0.0, 1.0)), 1.0);
+        break;
     default:
-        fragColor = calculateLighting(base_color, roughness, metallic, ao, normal, max(saturation + 1.0, 0.0), max(contrast + 1.0, 0.0));
+        fragColor = calculateLighting(base_color, roughness, metallic, ao, normal, max(saturation + 1.5, 0.0), max(contrast + 1.2, 0.0));
         break;
     }
 }
