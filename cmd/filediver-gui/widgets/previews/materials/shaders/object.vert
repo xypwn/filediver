@@ -13,6 +13,7 @@ layout(location = 11) in mat3 normalMat;
 out VertexOutput
 {
     vec3 fragPosition;
+    vec3 fragInstPosition;
     vec2 fragUV0;
     vec2 fragUV1;
     vec2 fragUV2;
@@ -21,6 +22,7 @@ out VertexOutput
     vec3 fragTangentFragmentPosition;
     mat3 dbg_fragTBN;
     mat3 dbg_fragITBN;
+    mat4 instanceModel;
 };
 
 uniform mat4 projection;
@@ -30,8 +32,10 @@ uniform mat4 model;
 uniform vec3 viewPosition;
 
 void main() {
-    gl_Position = projection * view * model * instModel * vec4(inPosition, 1.0);
+    instanceModel = model * instModel;
+    gl_Position = projection * view * instanceModel * vec4(inPosition, 1.0);
     fragPosition = vec3(model * vec4(inPosition, 1.0));
+    fragInstPosition = vec3(instanceModel * vec4(inPosition, 1.0));
     fragUV0 = inUV;
     fragUV1 = inUV1;
     fragUV2 = inUV2;

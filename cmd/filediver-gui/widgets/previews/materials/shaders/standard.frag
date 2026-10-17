@@ -67,7 +67,7 @@ void main() {
         normal = normalize(normal);
     }
 
-    fragColor = calculateLighting(color, roughnessVal, metallicVal, ao, normal);
+    fragColor = calculateLighting(color, roughnessVal, metallicVal, ao, normal, 1.0, 1.0);
     // tangent/bitangent appear to be incorrect for this material, or at least the unit (0xe176a69136bc9e6d) I was testing.
     // the packed normal decoding does appear to be correct, but for some reason the (bi)tangents*normalMat are not
     // identical for each vertex on the face, which leads to problems with lighting

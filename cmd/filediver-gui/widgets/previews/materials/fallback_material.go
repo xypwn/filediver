@@ -77,6 +77,7 @@ func (ml *MaterialManager) updateFallbackMaterial(material *FallbackMaterial, ma
 		created:      false,
 		loaded:       false,
 		defaultColor: []byte{255, 255, 255, 255},
+		filter:       gl.LINEAR,
 	}
 	if albedoRemoveAlpha {
 		data := ml.textureData[albedoName]
@@ -109,6 +110,7 @@ func (ml *MaterialManager) updateFallbackMaterial(material *FallbackMaterial, ma
 		created:      false,
 		loaded:       false,
 		defaultColor: []byte{128, 128, 255, 128},
+		filter:       gl.LINEAR,
 	}
 	material.textures = append(material.textures, normalTexture)
 

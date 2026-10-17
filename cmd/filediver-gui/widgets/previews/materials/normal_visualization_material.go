@@ -1,6 +1,9 @@
 package materials
 
-import "github.com/xypwn/filediver/stingray"
+import (
+	"github.com/go-gl/gl/v4.3-core/gl"
+	"github.com/xypwn/filediver/stingray"
+)
 
 var normalVisUniforms = []string{
 	"model",
@@ -64,8 +67,17 @@ func (mat *SpeedtreeNormalVisMaterial) Generate() error {
 			"shaders/object_normal_vis.frag",
 		},
 		0,
-		normalVisUniforms,
+		append(normalVisUniforms, "fibonacci_normal_lut"),
 	)
+}
+
+func (ml *MaterialManager) UpdateSpeedtreeNormalVisMaterial(material *SpeedtreeNormalVisMaterial) {
+	normalLutHash := stingray.Sum("content/art_shared/textures/fibonacci_normal_lut")
+	normalLutTexture := NewTexture(normalLutHash, stingray.NewFileID(normalLutHash, stingray.Sum("texture")), gl.TEXTURE_2D, gl.LINEAR, "fibonacci_normal_lut", false, false)
+
+	ml.loadMaterialTextureSync(stingray.Sum("fibonacci_normal_lut").Thin(), normalLutHash)
+	material.AddTexture(normalLutTexture)
+	ml.FinalizeMaterialTextures(material)
 }
 
 var _ Material = &NormalVisMaterial{}

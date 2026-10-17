@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"maps"
 	"math"
 	"path/filepath"
@@ -22,6 +23,7 @@ import (
 	"github.com/xypwn/filediver/cmd/filediver-gui/widgets"
 	preview_mats "github.com/xypwn/filediver/cmd/filediver-gui/widgets/previews/materials"
 	datalib "github.com/xypwn/filediver/datalibrary"
+	"github.com/xypwn/filediver/dds"
 	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/stingray/entity"
 	"github.com/xypwn/filediver/stingray/level"
@@ -30,6 +32,7 @@ import (
 	"github.com/xypwn/filediver/stingray/unit"
 	geometrygroup "github.com/xypwn/filediver/stingray/unit/geometry_group"
 	"github.com/xypwn/filediver/stingray/unit/material"
+	"github.com/xypwn/filediver/stingray/unit/texture"
 )
 
 // stingray coords to OpenGL coords
@@ -154,6 +157,8 @@ type UnitPreviewState struct {
 	meshPositions map[stingray.FileID]map[string][][3]float32
 	meshNormals   map[stingray.FileID]map[string][][3]float32
 
+	fibonacciNormalLut [][4]float32
+
 	skeletonPositions map[stingray.FileID][]mgl32.Vec3
 
 	maxViewDistance float32
@@ -209,6 +214,7 @@ func NewUnitPreview(
 	}
 
 	pv.ml = preview_mats.NewMaterialManager(getResource, getOverride, lookupThinHash, lookupHash)
+	pv.ml.GenerateIBLLookup(512)
 
 	pv.lookupHash = lookupHash
 	pv.lookupThinHash = lookupThinHash
@@ -1560,6 +1566,23 @@ func (pv *UnitPreviewState) loadSpeedtree(speedtreeID stingray.FileID, mainData,
 		pv.meshNormals = make(map[stingray.FileID]map[string][][3]float32)
 		pv.skeletonPositions = make(map[stingray.FileID][]mgl32.Vec3)
 		pv.skeletons = make(map[stingray.FileID]unitPreviewObject)
+		pv.fibonacciNormalLut = make([][4]float32, 0)
+	}
+
+	if len(pv.fibonacciNormalLut) == 0 {
+		fileID := stingray.NewFileID(stingray.Sum("content/art_shared/textures/fibonacci_normal_lut"), stingray.Sum("texture"))
+		texMain, _, _ := pv.getResource(fileID, stingray.DataMain)
+		texGPU, _, _ := pv.getResource(fileID, stingray.DataGPU)
+
+		dataR := io.MultiReader(bytes.NewReader(texMain), bytes.NewReader(texGPU))
+
+		_, err := texture.DecodeInfo(dataR)
+		if err != nil {
+			fmt.Println(err)
+		}
+		ddsImg, err := dds.Decode(dataR, false)
+		pv.fibonacciNormalLut = make([][4]float32, ddsImg.Bounds().Dx()*ddsImg.Bounds().Dy())
+		binary.Decode(ddsImg.Images[0].MipMaps[0].Raw, binary.LittleEndian, pv.fibonacciNormalLut)
 	}
 
 	name := "lod0"
@@ -1628,6 +1651,7 @@ func (pv *UnitPreviewState) loadSpeedtree(speedtreeID stingray.FileID, mainData,
 	if err != nil {
 		return err
 	}
+	pv.ml.UpdateSpeedtreeNormalVisMaterial(normalVis)
 	object.normalVis = normalVis
 
 	// Create index buffers
@@ -1720,9 +1744,7 @@ func (pv *UnitPreviewState) loadSpeedtree(speedtreeID stingray.FileID, mainData,
 
 			if strings.HasPrefix(attr.Description, "position") {
 				pv.meshPositions[speedtreeID] = make(map[string][][3]float32)
-				pv.meshNormals[speedtreeID] = make(map[string][][3]float32)
 				positions := make([][3]float32, 0)
-				normals := make([][3]float32, 0)
 				for i := range vertexDef.Count {
 					switch attr.Type {
 					case "half":
@@ -1734,9 +1756,22 @@ func (pv *UnitPreviewState) loadSpeedtree(speedtreeID stingray.FileID, mainData,
 						binary.Decode(gpuData[offset+uintptr(i*vertexDef.Stride):], binary.LittleEndian, pos)
 						positions = append(positions, mgl32.Vec3{pos[0], pos[1], pos[2]})
 					}
-					normals = append(normals, mgl32.Vec3{})
 				}
 				pv.meshPositions[speedtreeID][name] = positions
+
+			}
+			if strings.HasPrefix(attr.Description, "normal") {
+				pv.meshNormals[speedtreeID] = make(map[string][][3]float32)
+				normals := make([][3]float32, 0)
+				for i := range vertexDef.Count {
+					switch attr.Type {
+					case "ubyte":
+						packedCoords := gpuData[offset+uintptr(i*vertexDef.Stride)]
+						x := packedCoords & 0xf
+						y := packedCoords >> 4
+						normals = append(normals, [3]float32(pv.fibonacciNormalLut[x+y*16][:3]))
+					}
+				}
 				pv.meshNormals[speedtreeID][name] = normals
 			}
 			//fmt.Println(pv.meshPositions[speedtreeID][name])

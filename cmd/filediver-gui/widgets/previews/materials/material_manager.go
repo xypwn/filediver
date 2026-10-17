@@ -40,7 +40,7 @@ type textureData struct {
 
 func getTarget(slot string) uint32 {
 	switch slot {
-	case "customization_camo_tiler_array", "pattern_masks_array", "id_masks_array", "customization_material_detail_tiler_array":
+	case "customization_camo_tiler_array", "pattern_masks_array", "id_masks_array", "customization_material_detail_tiler_array", "surface_data_array":
 		return gl.TEXTURE_2D_ARRAY
 	}
 	return gl.TEXTURE_2D
@@ -61,6 +61,8 @@ type MaterialManager struct {
 	assetGradingLutTexture uint32
 	assetGradingLutBuffer  uint32
 
+	iblLutTexture uint32
+
 	detailerLoadState   DetailerLoadState
 	detailerTextureData textureData
 
@@ -80,6 +82,7 @@ func (ml *MaterialManager) Sweep() {
 func (ml *MaterialManager) Delete() {
 	ml.DeleteAssetGradingLut()
 	ml.ReleaseMaterialDetailer()
+	ml.ReleaseIBLLookup()
 	ml.textureCache.DeleteAll()
 	ml.stopTextureSweep()
 }
@@ -114,6 +117,88 @@ func (ml *MaterialManager) ReleaseMaterialDetailer() {
 
 func (ml *MaterialManager) SetEntity(entityInfo *entity.Entity) {
 	ml.entityInfo = entityInfo
+}
+
+func (ml *MaterialManager) ReleaseIBLLookup() {
+	iblID := stingray.NewFileID(stingray.Sum("generated_ibl_lut"), stingray.Sum("texture"))
+	ml.textureCache.Release(iblID, gl.TEXTURE_2D)
+}
+
+func (ml *MaterialManager) GenerateIBLLookup(size int32) {
+	var fbo, rbo uint32
+	gl.GenFramebuffers(1, &fbo)
+	gl.GenRenderbuffers(1, &rbo)
+	gl.BindFramebuffer(gl.FRAMEBUFFER, fbo)
+	gl.BindRenderbuffer(gl.RENDERBUFFER, rbo)
+	gl.RenderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT24, size, size)
+	gl.FramebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, rbo)
+	gl.Viewport(0, 0, size, size)
+
+	var iblPlaneVAO, iblPlaneVBO, iblPlaneIBO uint32
+	iblID := stingray.NewFileID(stingray.Sum("generated_ibl_lut"), stingray.Sum("texture"))
+	iblLut, _ := ml.textureCache.Acquire(iblID, gl.TEXTURE_2D)
+
+	gl.BindTexture(gl.TEXTURE_2D, iblLut)
+	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RG16F, size, size, 0, gl.RG, gl.FLOAT, nil)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+	gl.FramebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, iblLut, 0)
+
+	gl.GenVertexArrays(1, &iblPlaneVAO)
+	gl.GenBuffers(1, &iblPlaneVBO)
+	gl.GenBuffers(1, &iblPlaneIBO)
+
+	vertices := []float32{
+		-1.0, -1.0, 0.0, 0.0, 0.0,
+		1.0, -1.0, 0.0, 1.0, 0.0,
+		1.0, 1.0, 0.0, 1.0, 1.0,
+		-1.0, 1.0, 0.0, 0.0, 1.0,
+	}
+	indices := []uint8{
+		0, 1, 2,
+		0, 2, 3,
+	}
+	gl.BindVertexArray(iblPlaneVAO)
+	gl.BindBuffer(gl.ARRAY_BUFFER, iblPlaneVBO)
+	gl.BufferData(gl.ARRAY_BUFFER, binary.Size(vertices), gl.Ptr(vertices), gl.STATIC_DRAW)
+	gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, iblPlaneIBO)
+	gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, binary.Size(indices), gl.Ptr(indices), gl.STATIC_DRAW)
+	gl.VertexAttribPointerWithOffset(0, 3, gl.FLOAT, false, 5*4, 0)
+	gl.EnableVertexAttribArray(0)
+	gl.VertexAttribPointerWithOffset(1, 2, gl.FLOAT, false, 5*4, 3*4)
+	gl.EnableVertexAttribArray(1)
+
+	iblShader, err := glutils.CreateProgramFromSources(
+		unitPreviewShaderCode,
+		"shaders/integrate_ibl.vert",
+		"shaders/integrate_ibl.frag",
+	)
+	if err != nil {
+		panic(err)
+	}
+
+	gl.UseProgram(iblShader)
+
+	gl.ClearDepth(1.0)
+	gl.Disable(gl.DEPTH_TEST)
+	gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
+	gl.DrawElements(gl.TRIANGLES, 6, gl.UNSIGNED_BYTE, nil)
+
+	gl.BindBuffer(gl.ARRAY_BUFFER, 0)
+	gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, 0)
+	gl.BindVertexArray(0)
+
+	gl.DeleteProgram(iblShader)
+	gl.DeleteBuffers(1, &iblPlaneIBO)
+	gl.DeleteBuffers(1, &iblPlaneVBO)
+	gl.DeleteVertexArrays(1, &iblPlaneVAO)
+
+	gl.BindFramebuffer(gl.FRAMEBUFFER, 0)
+	gl.BindRenderbuffer(gl.RENDERBUFFER, 0)
+	gl.DeleteRenderbuffers(1, &rbo)
+	gl.DeleteFramebuffers(1, &fbo)
 }
 
 func (ml *MaterialManager) ClearTextureData() {
@@ -224,12 +309,13 @@ func (ml *MaterialManager) uploadMaterialDetailer(data textureData) {
 		name:     data.Name,
 		target:   data.Targets[0],
 		loaded:   false,
+		filter:   gl.LINEAR,
 	}
 
 	if !created {
 		return
 	}
-	setupTexture(texture.id, texture.target)
+	setupTexture(texture.id, texture.target, int32(texture.filter))
 	err := uploadStingrayTexture(texture.id, texture.target, data)
 	if err != nil {
 		ml.releaseMaterialDetailer()
@@ -278,7 +364,7 @@ func (ml *MaterialManager) getTextureLoaderFunc(nameHash stingray.Hash) func() {
 				data.Type = gl.FLOAT
 				data.Data = ddsImage.Images[0].MipMaps[0].Raw
 			} else if ddsImage.Info.DXT10Header != nil && ddsImage.Info.DXT10Header.DXGIFormat == dds.DXGIFormatR16G16Float {
-				data.Format = gl.RG
+				data.Format = gl.RGBA
 				data.InternalFormat = gl.RG16F
 				data.Type = gl.HALF_FLOAT
 				data.Data = ddsImage.Images[0].MipMaps[0].Raw
@@ -313,8 +399,7 @@ func (ml *MaterialManager) getTextureLoaderFunc(nameHash stingray.Hash) func() {
 	}
 }
 
-func (ml *MaterialManager) loadMaterialTextureAsync(slotHash stingray.ThinHash, mat *material.Material) {
-	nameHash := mat.Textures[slotHash]
+func (ml *MaterialManager) loadMaterialTextureAsync(slotHash stingray.ThinHash, nameHash stingray.Hash) {
 	slot := ml.lookupThinHash(slotHash)
 	target := getTarget(slot)
 
@@ -353,6 +438,45 @@ func (ml *MaterialManager) loadMaterialTextureAsync(slotHash stingray.ThinHash, 
 	ml.textureWaitGroup.Go(ml.getTextureLoaderFunc(nameHash))
 }
 
+func (ml *MaterialManager) loadMaterialTextureSync(slotHash stingray.ThinHash, nameHash stingray.Hash) {
+	slot := ml.lookupThinHash(slotHash)
+	target := getTarget(slot)
+
+	ml.textureDataMutex.Lock()
+	existing, contains := ml.textureData[nameHash]
+	ml.textureDataMutex.Unlock()
+
+	overrideID := ml.getOverride(stingray.NewFileID(nameHash, stingray.Sum("texture")))
+
+	if contains && slices.Contains(existing.Targets, target) {
+		// already loading, so we don't need to create another load request
+		fmt.Printf("texture data already loading for %v.texture with override %v.texture\n", ml.lookupHash(nameHash), ml.lookupHash(overrideID.Name))
+		return
+	}
+	targets := make([]uint32, 0)
+	data := textureData{}
+	if contains {
+		targets = existing.Targets
+		data = existing
+	}
+	targets = append(targets, target)
+	data.Slot = slot
+	data.Name = nameHash
+	data.Targets = targets
+
+	ml.textureDataMutex.Lock()
+	ml.textureData[nameHash] = data
+	ml.textureDataMutex.Unlock()
+
+	if ml.textureCache.Contains(overrideID, target) {
+		// Already loaded, so we don't need to reload the data
+		fmt.Printf("texture data already cached for %v.texture\n", ml.lookupHash(overrideID.Name))
+		return
+	}
+
+	ml.getTextureLoaderFunc(nameHash)()
+}
+
 func (ml *MaterialManager) loadMaterialTexturesAsync(mat *material.Material, textureNames []string) {
 	if mat == nil {
 		return
@@ -366,7 +490,8 @@ func (ml *MaterialManager) loadMaterialTexturesAsync(mat *material.Material, tex
 		if !slices.Contains(textureNames, slot) {
 			continue
 		}
-		ml.loadMaterialTextureAsync(slotHash, mat)
+		nameHash := mat.Textures[slotHash]
+		ml.loadMaterialTextureAsync(slotHash, nameHash)
 	}
 }
 
@@ -383,7 +508,7 @@ func (ml *MaterialManager) FinalizeMaterialTextures(material Material) error {
 			}
 			gl.GenTextures(1, &material.Textures()[idx].id)
 			id = material.Textures()[idx].id
-			setupTexture(id, texture.target)
+			setupTexture(id, texture.target, int32(texture.filter))
 			gl.BindTexture(texture.target, id)
 			gl.TexImage2D(texture.target, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, gl.Ptr(texture.defaultColor))
 			gl.BindTexture(texture.target, 0)
@@ -396,7 +521,7 @@ func (ml *MaterialManager) FinalizeMaterialTextures(material Material) error {
 			material.Textures()[idx].previousOverride = texture.override
 			var err error
 			if material.Textures()[idx].created {
-				setupTexture(id, texture.target)
+				setupTexture(id, texture.target, int32(texture.filter))
 				err = uploadStingrayTexture(id, texture.target, ml.textureData[texture.name])
 			}
 			if err != nil {
@@ -415,7 +540,7 @@ func (ml *MaterialManager) Wait() {
 
 func (ml *MaterialManager) setupMaterialCommon(textureNames []string, previewMaterial Material, mat *material.Material) {
 	slot := "ibl_brdf_lut"
-	iblBRDFHash := stingray.Sum("core/stingray_renderer/lookup_tables/ibl_specular_brdf_lut")
+	iblBRDFHash := stingray.Sum("generated_ibl_lut")
 	mat.Textures[stingray.Sum(slot).Thin()] = iblBRDFHash
 
 	for _, slot := range textureNames {
@@ -439,6 +564,7 @@ func (ml *MaterialManager) setupMaterialCommon(textureNames []string, previewMat
 			textureHash,
 			ml.getOverride(stingray.NewFileID(textureHash, stingray.Sum("texture"))),
 			target,
+			gl.LINEAR,
 			slot,
 			false,
 			false,
@@ -461,8 +587,9 @@ func (ml *MaterialManager) ReloadTextures(material Material, mat *material.Mater
 
 		material.Textures()[texIdx].release(ml.textureCache)
 		material.Textures()[texIdx].override = textureOverrideID
+		nameHash := mat.Textures[stingray.Sum(texture.slot).Thin()]
 
-		ml.loadMaterialTextureAsync(stingray.Sum(texture.slot).Thin(), mat)
+		ml.loadMaterialTextureAsync(stingray.Sum(texture.slot).Thin(), nameHash)
 	}
 }
 
@@ -471,11 +598,18 @@ func (ml *MaterialManager) LoadMaterial(id stingray.FileID, name string, shown b
 		existing.ReleaseTextures(ml.textureCache)
 	}
 
+	var err error
+	defer func() {
+		if err != nil {
+			fmt.Printf("[error] material generation: %v\n", err)
+		}
+	}()
+
 	if isLutMaterial(mat) {
 		toReturn, ok := existing.(*LutMaterial)
 		if existing == nil || !ok {
 			toReturn = NewLutMaterial(id, name, shown)
-			toReturn.Generate()
+			err = toReturn.Generate()
 		}
 
 		ml.updateLutMaterial(toReturn, mat)
@@ -486,10 +620,21 @@ func (ml *MaterialManager) LoadMaterial(id stingray.FileID, name string, shown b
 		toReturn, ok := existing.(*StandardMaterial)
 		if existing == nil || !ok {
 			toReturn = NewStandardMaterial(id, name, shown)
-			toReturn.Generate()
+			err = toReturn.Generate()
 		}
 
 		ml.updateStandardMaterial(toReturn, mat)
+		return toReturn
+	}
+
+	if isBuildingMaterial(mat) {
+		toReturn, ok := existing.(*BuildingMaterial)
+		if existing == nil || !ok {
+			toReturn = NewBuildingMaterial(id, name, shown)
+			err = toReturn.Generate()
+		}
+
+		ml.updateBuildingMaterial(toReturn, mat)
 		return toReturn
 	}
 
@@ -498,7 +643,7 @@ func (ml *MaterialManager) LoadMaterial(id stingray.FileID, name string, shown b
 			toReturn, ok := existing.(*SpeedtreeMaterial)
 			if existing == nil || !ok {
 				toReturn = NewSpeedtreeMaterial(id, name, shown)
-				toReturn.Generate()
+				err = toReturn.Generate()
 			}
 
 			ml.updateSpeedtreeMaterial(toReturn, mat)
@@ -508,7 +653,7 @@ func (ml *MaterialManager) LoadMaterial(id stingray.FileID, name string, shown b
 			toReturn, ok := existing.(*SpeedtreeUnitMaterial)
 			if existing == nil || !ok {
 				toReturn = NewSpeedtreeUnitMaterial(id, name, shown)
-				toReturn.Generate()
+				err = toReturn.Generate()
 			}
 
 			ml.updateSpeedtreeUnitMaterial(toReturn, mat)
@@ -519,7 +664,7 @@ func (ml *MaterialManager) LoadMaterial(id stingray.FileID, name string, shown b
 	toReturn, ok := existing.(*FallbackMaterial)
 	if existing == nil || !ok {
 		toReturn = NewFallbackMaterial(id, name, shown)
-		toReturn.Generate()
+		err = toReturn.Generate()
 	}
 
 	ml.updateFallbackMaterial(toReturn, mat)

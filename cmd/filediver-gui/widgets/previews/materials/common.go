@@ -38,24 +38,14 @@ type shaderCacheEntry struct {
 
 var shaderCache map[string]shaderCacheEntry
 
-func setupTexture(textureID, target uint32) {
+func setupTexture(textureID, target uint32, filter int32) {
 	gl.BindTexture(target, textureID)
 	gl.TexParameteri(target, gl.TEXTURE_WRAP_S, gl.REPEAT)
 	gl.TexParameteri(target, gl.TEXTURE_WRAP_T, gl.REPEAT)
-	gl.TexParameteri(target, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
-	gl.TexParameteri(target, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+	gl.TexParameteri(target, gl.TEXTURE_MIN_FILTER, filter)
+	gl.TexParameteri(target, gl.TEXTURE_MAG_FILTER, filter)
 	gl.PixelStorei(gl.UNPACK_ROW_LENGTH, 0)
 	gl.BindTexture(target, 0)
-}
-
-func setupTextureArray(textureID uint32) {
-	gl.BindTexture(gl.TEXTURE_2D_ARRAY, textureID)
-	gl.TexParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_WRAP_S, gl.REPEAT)
-	gl.TexParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_WRAP_T, gl.REPEAT)
-	gl.TexParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
-	gl.TexParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
-	gl.PixelStorei(gl.UNPACK_ROW_LENGTH, 0)
-	gl.BindTexture(gl.TEXTURE_2D_ARRAY, 0)
 }
 
 func uploadStingrayTexture(textureID uint32, target uint32, data textureData) error {
@@ -308,6 +298,7 @@ type Texture struct {
 	created          bool
 	loaded           bool
 	defaultColor     []byte
+	filter           uint32
 }
 
 func (texture *Texture) release(textureCache *glutils.TextureCache) {
@@ -318,7 +309,7 @@ func (texture *Texture) release(textureCache *glutils.TextureCache) {
 	textureCache.Release(texture.override, texture.target)
 }
 
-func NewTexture(name stingray.Hash, override stingray.FileID, target uint32, slot string, created, loaded bool) Texture {
+func NewTexture(name stingray.Hash, override stingray.FileID, target, filter uint32, slot string, created, loaded bool) Texture {
 	return Texture{
 		id:       0,
 		name:     name,
@@ -327,6 +318,7 @@ func NewTexture(name stingray.Hash, override stingray.FileID, target uint32, slo
 		slot:     slot,
 		created:  created,
 		loaded:   loaded,
+		filter:   filter,
 	}
 }
 

@@ -94,6 +94,7 @@ func (ml *MaterialManager) updateSpeedtreeMaterial(material *SpeedtreeMaterial, 
 		slot:     "asset_grading_lut",
 		created:  false,
 		loaded:   true,
+		filter:   gl.LINEAR,
 	})
 
 	if _, contains := mat.Textures[stingray.Sum("fibonacci_normal_lut").Thin()]; !contains {
@@ -115,6 +116,7 @@ func (ml *MaterialManager) updateSpeedtreeUnitMaterial(material *SpeedtreeUnitMa
 		slot:     "asset_grading_lut",
 		created:  false,
 		loaded:   true,
+		filter:   gl.LINEAR,
 	})
 
 	if _, contains := mat.Textures[stingray.Sum("fibonacci_normal_lut").Thin()]; !contains {

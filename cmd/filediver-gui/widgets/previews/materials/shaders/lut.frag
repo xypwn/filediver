@@ -81,13 +81,6 @@ vec3 gamma(vec3 color, float value) {
     return exp2(log2(color) * vec3(value));
 }
 
-// base and detail should be unpacked already, and this will return an unpacked normal
-vec3 reorientNormalMaps(vec3 base, vec3 detail) {
-    vec3 t = base + vec3(0, 0, 1);
-    vec3 u = detail * vec3(-1, -1, 1);
-    return normalize(t*dot(t, u)/t.z - u);
-}
-
 void main() {
     float detail_tile_factor_mult = 1.0;
 
@@ -403,10 +396,10 @@ void main() {
 
     roughness = clamp(weathering_dirt_roughness * (0.8 - roughness) + roughness, 0.0, 1.0);
 
-    base_color.xyz = sRGB(base_color.xyz);
+    base_color.xyz = sRGBFromIntensity(base_color.xyz);
 
     normal_modified = normalize(normal_modified);
 
     // perform basic lighting calcs
-    fragColor = calculateLighting(base_color, roughness, detail_metallic, base_data_sample.z, normal_modified);
+    fragColor = calculateLighting(base_color, roughness, detail_metallic, base_data_sample.z, normal_modified, 1.2, 1.0);
 }
