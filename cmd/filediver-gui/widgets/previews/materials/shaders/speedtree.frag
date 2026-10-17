@@ -5,7 +5,7 @@
 out vec4 fragColor;
 
 in vec3 fragPosition;
-in vec2 fragUV;
+in vec2 fragUV0;
 in mat3 dbg_fragTBN;
 in mat3 dbg_fragITBN;
 
@@ -64,14 +64,14 @@ vec3 graded(vec3 color, float tex2_alpha) {
 }
 
 void main() {
-    vec4 albedoOpacity = texture(tex0, fragUV);
+    vec4 albedoOpacity = texture(tex0, fragUV0);
     if(albedoOpacity.w < opacity_threshold) {
         discard;
     }
 
-    vec4 tex2_sample = texture(tex2, fragUV);
+    vec4 tex2_sample = texture(tex2, fragUV0);
     vec3 albedo = graded(albedoOpacity.xyz, tex2_sample.a);
-    vec3 normal = texture(tex1, fragUV).xyz;
+    vec3 normal = texture(tex1, fragUV0).xyz;
 
     normal = normal * 2.0 - 1.0; // in tangent space
     normal.z = reconstructNormalZ(normal.xy);

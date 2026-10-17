@@ -253,6 +253,8 @@ func Main(title string, options Options) error {
 		var typStr string
 		if gltype == gl.DEBUG_TYPE_ERROR {
 			typStr = "error: "
+		} else {
+			return
 		}
 		log.Printf("GL: %v%v\n", typStr, message)
 	}, nil)

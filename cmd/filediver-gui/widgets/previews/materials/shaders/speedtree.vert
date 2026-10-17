@@ -8,7 +8,7 @@ layout(location = 7) in mat4 instModel;
 layout(location = 11) in mat3 normalMat;
 
 out vec3 fragPosition;
-out vec2 fragUV;
+out vec2 fragUV0;
 out vec3 fragTangentLightPosition; // tangent meaning in tangent space
 out vec3 fragTangentViewPosition;
 out vec3 fragTangentFragmentPosition;
@@ -27,7 +27,7 @@ void main() {
     mat4 mvp = projection * view * model * instModel;
     gl_Position = mvp * vec4(inPositionU.xyz, 1.0);
     fragPosition = vec3(model * vec4(inPositionU.xyz, 1.0));
-    fragUV = vec2(inPositionU.w, LODPositionV.w);
+    fragUV0 = vec2(inPositionU.w, LODPositionV.w);
 
     uvec2 topBitsNT = packedNormalTangentAOTwosided.xy >> uvec2(4, 4);
     uvec2 lowBitsNT = packedNormalTangentAOTwosided.xy & uvec2(0xf, 0xf);
