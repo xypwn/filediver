@@ -16,7 +16,7 @@ uniform sampler2D metallic_map;
 uniform sampler2D normal_map;
 uniform sampler2D roughness_map;
 
-layout(shared, binding = 0) uniform EmissiveColorBlock {
+layout(shared, binding = 0) uniform StandardBlock {
     vec3 base_color;
     vec3 emissive;
     float emissive_intensity;

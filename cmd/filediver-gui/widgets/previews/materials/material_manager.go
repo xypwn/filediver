@@ -478,7 +478,7 @@ func (ml *MaterialManager) loadMaterialTextureSync(slotHash stingray.ThinHash, n
 }
 
 func (ml *MaterialManager) loadMaterialTexturesAsync(mat *material.Material, textureNames []string) {
-	if mat == nil {
+	if mat == nil || textureNames == nil {
 		return
 	}
 	if ml.textureData == nil {
@@ -635,6 +635,17 @@ func (ml *MaterialManager) LoadMaterial(id stingray.FileID, name string, shown b
 		}
 
 		ml.updateBuildingMaterial(toReturn, mat)
+		return toReturn
+	}
+
+	if isEmissiveMaterial(mat) {
+		toReturn, ok := existing.(*EmissiveMaterial)
+		if existing == nil || !ok {
+			toReturn = NewEmissiveMaterial(id, name, shown)
+			err = toReturn.Generate()
+		}
+
+		ml.updateEmissiveMaterial(toReturn, mat)
 		return toReturn
 	}
 
