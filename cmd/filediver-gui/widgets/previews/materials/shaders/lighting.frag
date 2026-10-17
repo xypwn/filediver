@@ -62,6 +62,10 @@ vec3 reorientNormalMaps(vec3 base, vec3 detail) {
     return normalize(t*dot(t, u)/t.z - u);
 }
 
+vec3 gamma(vec3 color, float value) {
+    return exp2(log2(color) * vec3(value));
+}
+
 // Normal is expected to be in tangent space
 vec4 calculateLighting(vec4 base_color, float roughness, float metallic, float ambient_occlusion, vec3 normal, float saturation, float contrast) {
     vec3 ambient = vec3(0.5) * ambient_occlusion;

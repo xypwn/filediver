@@ -77,10 +77,6 @@ uint getMaterialLutRow() {
     return material_lut_row;
 }
 
-vec3 gamma(vec3 color, float value) {
-    return exp2(log2(color) * vec3(value));
-}
-
 void main() {
     float detail_tile_factor_mult = 1.0;
 
