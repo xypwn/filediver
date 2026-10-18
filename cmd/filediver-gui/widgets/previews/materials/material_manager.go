@@ -232,9 +232,8 @@ func (ml *MaterialManager) loadDDS(fileName stingray.Hash) (*dds.DDS, error) {
 	return dds, nil
 }
 
-func (ml *MaterialManager) updateAssetGradingLut() error {
+func (ml *MaterialManager) UpdateAssetGradingLut() error {
 	if ml.assetGradingLut == nil {
-		ml.assetGradingLut = extr_entity.CreateIdentityColorGradingLut()
 		gl.GenTextures(1, &ml.assetGradingLutTexture)
 		gl.GenBuffers(1, &ml.assetGradingLutBuffer)
 	}
@@ -243,6 +242,8 @@ func (ml *MaterialManager) updateAssetGradingLut() error {
 		if err == nil {
 			ml.assetGradingLut = entityAssetGradingLut
 		}
+	} else {
+		ml.assetGradingLut = extr_entity.CreateIdentityColorGradingLut()
 	}
 
 	assetGradingData, err := binary.Append(nil, binary.LittleEndian, ml.assetGradingLut)

@@ -83,7 +83,7 @@ func (mat *SpeedtreeUnitMaterial) Generate() error {
 var _ Material = &SpeedtreeUnitMaterial{}
 
 func (ml *MaterialManager) updateSpeedtreeMaterial(material *SpeedtreeMaterial, mat *material.Material) {
-	ml.updateAssetGradingLut()
+	ml.UpdateAssetGradingLut()
 
 	assetGradingHash := stingray.Sum("asset_grading_lut")
 	material.textures = append(material.textures, Texture{
@@ -105,7 +105,7 @@ func (ml *MaterialManager) updateSpeedtreeMaterial(material *SpeedtreeMaterial, 
 }
 
 func (ml *MaterialManager) updateSpeedtreeUnitMaterial(material *SpeedtreeUnitMaterial, mat *material.Material) {
-	ml.updateAssetGradingLut()
+	ml.UpdateAssetGradingLut()
 
 	assetGradingHash := stingray.Sum("asset_grading_lut")
 	material.textures = append(material.textures, Texture{
