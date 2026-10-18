@@ -337,6 +337,8 @@ func (pv *UnitPreviewState) UpdateAssetOverrides(entityInfo *entity.Entity) {
 		}
 	}
 
+	pv.ml.UpdateAssetGradingLut()
+
 	if err := pv.finalizeObjectMaterials(); err != nil {
 		fmt.Printf("finalizing override materials: %v\n", err)
 	}

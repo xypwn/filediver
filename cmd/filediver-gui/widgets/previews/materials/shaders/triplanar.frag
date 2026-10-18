@@ -1,5 +1,6 @@
 // This file is meant to be included in other shader fragments, hence the missing #version directive
 
+in vec3 fragInstPosition;
 in mat3 dbg_fragTBN;
 vec2 getTriplanarUVs() {
     vec3 normal = dbg_fragTBN[2];

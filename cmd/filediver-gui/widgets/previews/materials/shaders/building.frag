@@ -5,7 +5,6 @@
 
 out vec4 fragColor;
 
-in vec3 fragInstPosition;
 in vec2 fragUV0;
 in vec2 fragUV1;
 in mat4 instanceModel;
