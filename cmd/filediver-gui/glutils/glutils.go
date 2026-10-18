@@ -235,15 +235,6 @@ func PreprocessSource(fs fs.FS, p string, debug bool) ([]byte, []LineEntry, erro
 		idx = bytes.Index(data, []byte("#include"))
 	}
 
-	if debug {
-		for line := range lines[addedLines:] {
-			if lines[line+addedLines].File != p {
-				continue
-			}
-			lines[line+addedLines].Line -= 1
-		}
-	}
-
 	return data, lines, nil
 }
 

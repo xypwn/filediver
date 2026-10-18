@@ -57,10 +57,14 @@ func (s shader) validate() error {
 			if err != nil {
 				return fmt.Errorf("parsing glslang output: %v", err)
 			}
-			if lineNum >= len(s.lines) {
+			index := lineNum - 1
+			if index >= len(s.lines) {
 				return fmt.Errorf("glslangValidator exceeded number of lines in shader source? %v >= %v", lineNum, len(s.lines))
 			}
-			parsedStdout.WriteString(fmt.Sprintf("%v:%v", s.lines[lineNum].File, s.lines[lineNum].Line))
+			parsedStdout.WriteString(fmt.Sprintf("%v:%v", s.lines[index].File, s.lines[index].Line))
+			if i == len(matches)-1 {
+				parsedStdout.WriteString(result[match[1]:])
+			}
 		}
 		return fmt.Errorf("%v", parsedStdout.String())
 	}
