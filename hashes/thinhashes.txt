@@ -33823,3 +33823,5 @@ Statue_02
 Statue_03
 Switch_01
 Switch_02
+fd_decals_enabled
+fd_decal_only

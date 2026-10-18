@@ -61,6 +61,9 @@ const (
 	GL_FLOAT_VEC2     GLType = gl.FLOAT_VEC2
 	GL_FLOAT_VEC3     GLType = gl.FLOAT_VEC3
 	GL_FLOAT_VEC4     GLType = gl.FLOAT_VEC4
+	GL_FLOAT_MAT2     GLType = gl.FLOAT_MAT2
+	GL_FLOAT_MAT3     GLType = gl.FLOAT_MAT3
+	GL_FLOAT_MAT4     GLType = gl.FLOAT_MAT4
 	GL_DOUBLE         GLType = gl.DOUBLE
 )
 
@@ -78,8 +81,12 @@ func (t GLType) Size() uint32 {
 		return 8
 	case GL_FLOAT_VEC3:
 		return 12
-	case GL_FLOAT_VEC4:
+	case GL_FLOAT_VEC4, GL_FLOAT_MAT2:
 		return 16
+	case GL_FLOAT_MAT3:
+		return 36
+	case GL_FLOAT_MAT4:
+		return 64
 	}
 	return 0
 }
