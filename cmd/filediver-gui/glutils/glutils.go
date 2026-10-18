@@ -162,6 +162,21 @@ type LineEntry struct {
 	Line int
 }
 
+func getLines(data []byte, path string) []LineEntry {
+	lines := make([]LineEntry, 0)
+	offset := 0
+	subidx := bytes.Index(data[offset:], []byte("\n"))
+	for subidx != -1 {
+		lines = append(lines, LineEntry{
+			File: path,
+			Line: len(lines) + 1,
+		})
+		offset += subidx + 1
+		subidx = bytes.Index(data[offset:], []byte("\n"))
+	}
+	return lines
+}
+
 func PreprocessSource(fs fs.FS, p string, debug bool) ([]byte, []LineEntry, error) {
 	r, err := fs.Open(p)
 	if err != nil {
@@ -176,16 +191,7 @@ func PreprocessSource(fs fs.FS, p string, debug bool) ([]byte, []LineEntry, erro
 	lines := make([]LineEntry, 0)
 	var idx int
 	if debug {
-		offset := 0
-		idx = bytes.Index(data[offset:], []byte("\n"))
-		for idx != -1 {
-			lines = append(lines, LineEntry{
-				File: p,
-				Line: len(lines) + 1,
-			})
-			offset += idx + 1
-			idx = bytes.Index(data[offset:], []byte("\n"))
-		}
+		lines = getLines(data, p)
 	}
 
 	idx = bytes.Index(data, []byte("#include"))
@@ -214,17 +220,7 @@ func PreprocessSource(fs fs.FS, p string, debug bool) ([]byte, []LineEntry, erro
 				panic(fmt.Errorf("CreateProgramFromSources: nested includes in shader source not supported!"))
 			}
 			if debug {
-				sublines := make([]LineEntry, 0)
-				offset := 0
-				subidx := bytes.Index(inclData[offset:], []byte("\n"))
-				for subidx != -1 {
-					sublines = append(sublines, LineEntry{
-						File: includePath,
-						Line: len(sublines) + 1,
-					})
-					offset += subidx + 1
-					subidx = bytes.Index(inclData[offset:], []byte("\n"))
-				}
+				sublines := getLines(inclData, includePath)
 				lineCount := bytes.Count(data[:idx+1], []byte("\n"))
 				start := lines[:lineCount]
 				end := lines[lineCount+1:]
