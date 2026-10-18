@@ -157,6 +157,100 @@ func CreateProgram(shaders ...uint32) (uint32, error) {
 
 var includeRegex *regexp.Regexp = regexp.MustCompile("#include \"(.*?)\"")
 
+type LineEntry struct {
+	File string
+	Line int
+}
+
+func PreprocessSource(fs fs.FS, p string, debug bool) ([]byte, []LineEntry, error) {
+	r, err := fs.Open(p)
+	if err != nil {
+		return nil, nil, fmt.Errorf("opening \"%v\": %w", p, err)
+	}
+	defer r.Close()
+	data, err := io.ReadAll(r)
+	if err != nil {
+		return nil, nil, fmt.Errorf("reading \"%v\": %w", p, err)
+	}
+
+	lines := make([]LineEntry, 0)
+	var idx int
+	if debug {
+		offset := 0
+		idx = bytes.Index(data[offset:], []byte("\n"))
+		for idx != -1 {
+			lines = append(lines, LineEntry{
+				File: p,
+				Line: len(lines) + 1,
+			})
+			offset += idx + 1
+			idx = bytes.Index(data[offset:], []byte("\n"))
+		}
+	}
+
+	idx = bytes.Index(data, []byte("#include"))
+
+	addedLines := 0
+	for idx != -1 {
+		length := bytes.Index(data[idx:], []byte("\n"))
+		line := string(data[idx : idx+length+1])
+		match := includeRegex.FindStringSubmatch(line)
+		var inclData []byte
+		if len(match) > 1 {
+			includePath := strings.Join([]string{filepath.Dir(p), match[1]}, "/")
+			r, err := fs.Open(includePath)
+			if err != nil {
+				return nil, nil, fmt.Errorf("opening \"%v\": %w", includePath, err)
+			}
+			defer r.Close()
+			inclData, err = io.ReadAll(r)
+			if err != nil {
+				return nil, nil, fmt.Errorf("reading \"%v\": %w", includePath, err)
+			}
+			found := bytes.Contains(inclData, []byte("#include"))
+			if found {
+				// This might be fine since we're looping but I don't want to worry about making this
+				// more complex right now
+				panic(fmt.Errorf("CreateProgramFromSources: nested includes in shader source not supported!"))
+			}
+			if debug {
+				sublines := make([]LineEntry, 0)
+				offset := 0
+				subidx := bytes.Index(inclData[offset:], []byte("\n"))
+				for subidx != -1 {
+					sublines = append(sublines, LineEntry{
+						File: includePath,
+						Line: len(sublines) + 1,
+					})
+					offset += subidx + 1
+					subidx = bytes.Index(inclData[offset:], []byte("\n"))
+				}
+				lineCount := bytes.Count(data[:idx+1], []byte("\n"))
+				start := lines[:lineCount]
+				end := lines[lineCount+1:]
+				addedLines += len(sublines) - 1
+				sublines = append(sublines, end...)
+				lines = append(start, sublines...)
+			}
+		}
+		// replace the line with the included source
+		data = append(data[:idx], append(inclData, data[idx+length+1:]...)...)
+		//fmt.Println(string(data))
+		idx = bytes.Index(data, []byte("#include"))
+	}
+
+	if debug {
+		for line := range lines[addedLines:] {
+			if lines[line+addedLines].File != p {
+				continue
+			}
+			lines[line+addedLines].Line -= 1
+		}
+	}
+
+	return data, lines, nil
+}
+
 // Recognized extensions: .frag, .vert, .geom
 func CreateProgramFromSources(fs fs.FS, paths ...string) (uint32, error) {
 	var shaders []uint32
@@ -177,48 +271,10 @@ func CreateProgramFromSources(fs fs.FS, paths ...string) (uint32, error) {
 		default:
 			return 0, fmt.Errorf("\"%v\": unknown shader extension \"%v\"", p, ext)
 		}
-		r, err := fs.Open(p)
-		if err != nil {
-			return 0, fmt.Errorf("opening \"%v\": %w", p, err)
-		}
-		defer r.Close()
-		data, err := io.ReadAll(r)
-		if err != nil {
-			return 0, fmt.Errorf("reading \"%v\": %w", p, err)
-		}
-		{
-			idx := bytes.Index(data, []byte("#include"))
 
-			addedLines := 0
-			for idx != -1 {
-				length := bytes.Index(data[idx:], []byte("\n"))
-				line := string(data[idx : idx+length+1])
-				match := includeRegex.FindStringSubmatch(line)
-				var inclData []byte
-				if len(match) > 1 {
-					includePath := strings.Join([]string{filepath.Dir(p), match[1]}, "/")
-					r, err := fs.Open(includePath)
-					if err != nil {
-						return 0, fmt.Errorf("opening \"%v\": %w", includePath, err)
-					}
-					defer r.Close()
-					inclData, err = io.ReadAll(r)
-					if err != nil {
-						return 0, fmt.Errorf("reading \"%v\": %w", includePath, err)
-					}
-					found := bytes.Contains(inclData, []byte("#include"))
-					if found {
-						// This might be fine since we're looping but I don't want to worry about making this
-						// more complex right now
-						panic(fmt.Errorf("CreateProgramFromSources: nested includes in shader source not supported!"))
-					}
-					addedLines += strings.Count(string(inclData), "\n")
-				}
-				// replace the line with the included source
-				data = append(data[:idx], append(inclData, data[idx+length+1:]...)...)
-				//fmt.Println(string(data))
-				idx = bytes.Index(data, []byte("#include"))
-			}
+		data, _, err := PreprocessSource(fs, p, false)
+		if err != nil {
+			return 0, fmt.Errorf("%v shader: %w", shaderTypeName, err)
 		}
 		shader, err := CreateShader(string(data), shaderType)
 		if err != nil {
