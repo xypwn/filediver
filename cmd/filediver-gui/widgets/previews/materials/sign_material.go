@@ -16,6 +16,12 @@ var signTextureNames = []string{
 	"ibl_brdf_lut",
 }
 
+var signShaderSources = []string{
+	"shaders/object.vert",
+	"shaders/object.geom",
+	"shaders/sign.frag",
+}
+
 func isSignMaterial(mat *material.Material) bool {
 	if mat == nil {
 		return false
@@ -41,11 +47,7 @@ func NewSignMaterial(id stingray.FileID, name string, shown bool) *SignMaterial 
 
 func (mat *SignMaterial) Generate() error {
 	return mat.generate(
-		[]string{
-			"shaders/object.vert",
-			"shaders/object.geom",
-			"shaders/sign.frag",
-		},
+		signShaderSources,
 		0,
 		append(baseUniforms, standardTextureNames...),
 	)

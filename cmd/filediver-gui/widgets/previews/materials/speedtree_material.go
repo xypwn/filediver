@@ -15,6 +15,17 @@ var speedtreeTextureNames = []string{
 	"ibl_brdf_lut",
 }
 
+var speedtreeShaderSources = []string{
+	"shaders/speedtree.vert",
+	"shaders/speedtree.frag",
+}
+
+var speedtreeUnitShaderSources = []string{
+	"shaders/object.vert",
+	"shaders/object.geom",
+	"shaders/speedtree.frag",
+}
+
 func isSpeedtreeMaterial(mat *material.Material) bool {
 	if mat == nil {
 		return false
@@ -42,10 +53,7 @@ func NewSpeedtreeMaterial(id stingray.FileID, name string, shown bool) *Speedtre
 
 func (mat *SpeedtreeMaterial) Generate() error {
 	return mat.generate(
-		[]string{
-			"shaders/speedtree.vert",
-			"shaders/speedtree.frag",
-		},
+		speedtreeShaderSources,
 		0,
 		append(baseUniforms, speedtreeTextureNames...),
 	)
@@ -70,11 +78,7 @@ func NewSpeedtreeUnitMaterial(id stingray.FileID, name string, shown bool) *Spee
 
 func (mat *SpeedtreeUnitMaterial) Generate() error {
 	return mat.generate(
-		[]string{
-			"shaders/object.vert",
-			"shaders/object.geom",
-			"shaders/speedtree.frag",
-		},
+		speedtreeUnitShaderSources,
 		0,
 		append(baseUniforms, speedtreeTextureNames...),
 	)

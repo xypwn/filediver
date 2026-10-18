@@ -9,6 +9,11 @@ var debugObjectUniforms = []string{
 	"color",
 }
 
+var debugObjectShaderSources = []string{
+	"shaders/debug_object.vert",
+	"shaders/debug_object.frag",
+}
+
 type DebugObjectMaterial struct {
 	*BaseMaterial
 }
@@ -27,10 +32,7 @@ func NewDebugObjectMaterial(name string) *DebugObjectMaterial {
 
 func (mat *DebugObjectMaterial) Generate() error {
 	return mat.generate(
-		[]string{
-			"shaders/debug_object.vert",
-			"shaders/debug_object.frag",
-		},
+		debugObjectShaderSources,
 		0,
 		debugObjectUniforms,
 	)

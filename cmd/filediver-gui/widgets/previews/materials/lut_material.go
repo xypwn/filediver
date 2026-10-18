@@ -21,6 +21,12 @@ var lutTextureNames = []string{
 	"ibl_brdf_lut",
 }
 
+var lutShaderSources = []string{
+	"shaders/object.vert",
+	"shaders/object.geom",
+	"shaders/lut.frag",
+}
+
 type LutMaterial struct {
 	*BaseMaterial
 }
@@ -47,11 +53,7 @@ func NewLutMaterial(id stingray.FileID, name string, shown bool) *LutMaterial {
 
 func (mat *LutMaterial) Generate() error {
 	return mat.generate(
-		[]string{
-			"shaders/object.vert",
-			"shaders/object.geom",
-			"shaders/lut.frag",
-		},
+		lutShaderSources,
 		0,
 		append(baseUniforms, lutTextureNames...),
 	)
