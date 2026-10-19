@@ -2164,7 +2164,7 @@ func (pv *UnitPreviewState) drawLists(size imgui.Vec2, model, view, projection m
 				if err := object.wireframe.SetUniform("hasVisibilityMasks", 1, &object.hasVisibilityMasks); err != nil && err != preview_mats.UNIFORM_NOT_FOUND {
 					panic(err)
 				}
-				if err := object.wireframe.SetUniform("udimShown", 64, &pv.udimsShown[0]); err != nil && err != preview_mats.UNIFORM_NOT_FOUND {
+				if err := object.wireframe.SetUniform("udimShown[0]", 64, &pv.udimsShown[0]); err != nil && err != preview_mats.UNIFORM_NOT_FOUND {
 					panic(err)
 				}
 			}
@@ -2188,7 +2188,7 @@ func (pv *UnitPreviewState) drawLists(size imgui.Vec2, model, view, projection m
 					if err := object.materials[group].SetUniform("viewPosition", 1, viewPosition); err != nil && err != preview_mats.UNIFORM_NOT_FOUND {
 						panic(err)
 					}
-					if err := object.materials[group].SetUniform("udimShown", 64, &pv.udimsShown[0]); err != nil && err != preview_mats.UNIFORM_NOT_FOUND {
+					if err := object.materials[group].SetUniform("udimShown[0]", 64, &pv.udimsShown[0]); err != nil && err != preview_mats.UNIFORM_NOT_FOUND {
 						panic(err)
 					}
 				}
@@ -2254,7 +2254,7 @@ func (pv *UnitPreviewState) drawListsNormalVis(size imgui.Vec2, model, view, pro
 			if err := object.normalVis.SetUniform("hasVisibilityMasks", 1, &object.hasVisibilityMasks); err != nil && err != preview_mats.UNIFORM_NOT_FOUND {
 				panic(err)
 			}
-			if err := object.normalVis.SetUniform("udimShown", 1, &pv.udimsShown[0]); err != nil && err != preview_mats.UNIFORM_NOT_FOUND {
+			if err := object.normalVis.SetUniform("udimShown[0]", 64, &pv.udimsShown[0]); err != nil && err != preview_mats.UNIFORM_NOT_FOUND {
 				panic(err)
 			}
 			for group, ibo := range object.ibos {
