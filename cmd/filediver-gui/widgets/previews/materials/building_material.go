@@ -18,6 +18,12 @@ var buildingTextureNames = []string{
 	"ibl_brdf_lut",
 }
 
+var buildingShaderSources = []string{
+	"shaders/object.vert",
+	"shaders/object.geom",
+	"shaders/building.frag",
+}
+
 var buildingBaseMaterialNames = []stingray.Hash{
 	stingray.Sum("content/art_shared/base_shaders/m_colonies_master"),
 	stingray.Sum("content/art_shared/base_shaders/m_colonies_master_decal"),
@@ -50,11 +56,7 @@ func NewBuildingMaterial(id stingray.FileID, name string, shown bool) *BuildingM
 
 func (mat *BuildingMaterial) Generate() error {
 	return mat.generate(
-		[]string{
-			"shaders/object.vert",
-			"shaders/object.geom",
-			"shaders/building.frag",
-		},
+		buildingShaderSources,
 		0,
 		append(baseUniforms, buildingTextureNames...),
 	)

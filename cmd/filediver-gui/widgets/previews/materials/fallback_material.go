@@ -8,6 +8,12 @@ import (
 	"github.com/xypwn/filediver/stingray/unit/material"
 )
 
+var fallbackShaderSources = []string{
+	"shaders/object.vert",
+	"shaders/object.geom",
+	"shaders/object.frag",
+}
+
 type FallbackMaterial struct {
 	*BaseMaterial
 }
@@ -25,11 +31,7 @@ func NewFallbackMaterial(id stingray.FileID, name string, shown bool) *FallbackM
 
 func (mat *FallbackMaterial) Generate() error {
 	return mat.generate(
-		[]string{
-			"shaders/object.vert",
-			"shaders/object.geom",
-			"shaders/object.frag",
-		},
+		fallbackShaderSources,
 		0,
 		append(baseUniforms, "texAlbedo", "texNormal", "shouldReconstructNormalZ"),
 	)

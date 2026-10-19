@@ -5,6 +5,12 @@ import (
 	"github.com/xypwn/filediver/stingray/unit/material"
 )
 
+var emissiveShaderSources = []string{
+	"shaders/object.vert",
+	"shaders/object.geom",
+	"shaders/emissive.frag",
+}
+
 func isEmissiveMaterial(mat *material.Material) bool {
 	if mat == nil {
 		return false
@@ -30,11 +36,7 @@ func NewEmissiveMaterial(id stingray.FileID, name string, shown bool) *EmissiveM
 
 func (mat *EmissiveMaterial) Generate() error {
 	return mat.generate(
-		[]string{
-			"shaders/object.vert",
-			"shaders/object.geom",
-			"shaders/emissive.frag",
-		},
+		emissiveShaderSources,
 		0,
 		baseUniforms,
 	)

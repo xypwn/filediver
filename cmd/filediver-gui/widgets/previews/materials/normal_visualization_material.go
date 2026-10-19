@@ -15,6 +15,18 @@ var normalVisUniforms = []string{
 	"hasVisibilityMasks",
 }
 
+var normalVisShaderSources = []string{
+	"shaders/object_normal_vis.vert",
+	"shaders/object_normal_vis.geom",
+	"shaders/object_normal_vis.frag",
+}
+
+var speedtreeNormalVisShaderSources = []string{
+	"shaders/speedtree_normal_vis.vert",
+	"shaders/object_normal_vis.geom",
+	"shaders/object_normal_vis.frag",
+}
+
 type NormalVisMaterial struct {
 	*BaseMaterial
 }
@@ -33,11 +45,7 @@ func NewNormalVisMaterial() *NormalVisMaterial {
 
 func (mat *NormalVisMaterial) Generate() error {
 	return mat.generate(
-		[]string{
-			"shaders/object_normal_vis.vert",
-			"shaders/object_normal_vis.geom",
-			"shaders/object_normal_vis.frag",
-		},
+		normalVisShaderSources,
 		0,
 		normalVisUniforms,
 	)
@@ -61,11 +69,7 @@ func NewSpeedtreeNormalVisMaterial() *SpeedtreeNormalVisMaterial {
 
 func (mat *SpeedtreeNormalVisMaterial) Generate() error {
 	return mat.generate(
-		[]string{
-			"shaders/speedtree_normal_vis.vert",
-			"shaders/object_normal_vis.geom",
-			"shaders/object_normal_vis.frag",
-		},
+		speedtreeNormalVisShaderSources,
 		0,
 		append(normalVisUniforms, "fibonacci_normal_lut"),
 	)

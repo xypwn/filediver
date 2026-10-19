@@ -15,6 +15,12 @@ var wireframeUniforms = []string{
 	"hasVisibilityMasks",
 }
 
+var wireframeShaderSources = []string{
+	"shaders/object_wireframe.vert",
+	"shaders/object_wireframe.geom",
+	"shaders/object_wireframe.frag",
+}
+
 func NewWireframeMaterial() *WireframeMaterial {
 	id := stingray.NewFileID(stingray.Sum("wireframe"), stingray.Sum("material"))
 	return &WireframeMaterial{
@@ -29,11 +35,7 @@ func NewWireframeMaterial() *WireframeMaterial {
 
 func (mat *WireframeMaterial) Generate() error {
 	return mat.generate(
-		[]string{
-			"shaders/object_wireframe.vert",
-			"shaders/object_wireframe.geom",
-			"shaders/object_wireframe.frag",
-		},
+		wireframeShaderSources,
 		0,
 		wireframeUniforms,
 	)

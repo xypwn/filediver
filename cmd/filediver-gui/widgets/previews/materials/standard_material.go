@@ -16,6 +16,12 @@ var standardTextureNames = []string{
 	"ibl_brdf_lut",
 }
 
+var standardShaderSources = []string{
+	"shaders/object.vert",
+	"shaders/object.geom",
+	"shaders/standard.frag",
+}
+
 func isStandardMaterial(mat *material.Material) bool {
 	if mat == nil {
 		return false
@@ -41,11 +47,7 @@ func NewStandardMaterial(id stingray.FileID, name string, shown bool) *StandardM
 
 func (mat *StandardMaterial) Generate() error {
 	return mat.generate(
-		[]string{
-			"shaders/object.vert",
-			"shaders/object.geom",
-			"shaders/standard.frag",
-		},
+		standardShaderSources,
 		0,
 		append(baseUniforms, standardTextureNames...),
 	)
