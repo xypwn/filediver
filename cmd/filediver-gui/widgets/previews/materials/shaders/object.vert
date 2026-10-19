@@ -31,11 +31,18 @@ uniform mat4 model;
 //uniform mat3 normalMat; // normal matrix = transpose(inverse(model))
 uniform vec3 viewPosition;
 
+const mat4 stingrayToGL = mat4(
+    1, 0, 0, 0,
+    0, 0, 1, 0,
+    0, -1, 0, 0,
+    0, 0, 0, 1
+);
+
 void main() {
-    instanceModel = model * instModel;
-    gl_Position = projection * view * instanceModel * vec4(inPosition, 1.0);
+    instanceModel = stingrayToGL * instModel;
+    gl_Position = projection * view * model * instModel * vec4(inPosition, 1.0);
     fragPosition = vec3(model * vec4(inPosition, 1.0));
-    fragInstPosition = vec3(instanceModel * vec4(inPosition, 1.0));
+    fragInstPosition = vec3(stingrayToGL * instModel * vec4(inPosition, 1.0));
     fragUV0 = inUV;
     fragUV1 = inUV1;
     fragUV2 = inUV2;

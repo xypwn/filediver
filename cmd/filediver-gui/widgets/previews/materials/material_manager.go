@@ -12,8 +12,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/AllenDang/cimgui-go/imgui"
 	"github.com/go-gl/gl/v4.3-core/gl"
+	fnt "github.com/xypwn/filediver/cmd/filediver-gui/fonts"
 	"github.com/xypwn/filediver/cmd/filediver-gui/glutils"
+	"github.com/xypwn/filediver/cmd/filediver-gui/imutils"
 	"github.com/xypwn/filediver/dds"
 	extr_entity "github.com/xypwn/filediver/extractor/entity"
 	"github.com/xypwn/filediver/stingray"
@@ -46,6 +49,10 @@ func getTarget(slot string) uint32 {
 	return gl.TEXTURE_2D
 }
 
+var globalBlockNames = []string{
+	"TriplanarBlock",
+}
+
 type MaterialManager struct {
 	textureCache       *glutils.TextureCache
 	textureSweepTicker *time.Ticker
@@ -55,6 +62,7 @@ type MaterialManager struct {
 	textureData      map[stingray.Hash]textureData
 	textureDataMutex sync.Mutex
 	textureWaitGroup sync.WaitGroup
+	globalBlocks     map[string]*UniformBlock
 
 	entityInfo             *entity.Entity
 	assetGradingLut        []extr_entity.Vec4F16
@@ -83,6 +91,9 @@ func (ml *MaterialManager) Delete() {
 	ml.DeleteAssetGradingLut()
 	ml.ReleaseMaterialDetailer()
 	ml.ReleaseIBLLookup()
+	for _, block := range ml.globalBlocks {
+		gl.DeleteBuffers(1, &block.ubo)
+	}
 	ml.textureCache.DeleteAll()
 	ml.stopTextureSweep()
 }
@@ -117,6 +128,19 @@ func (ml *MaterialManager) ReleaseMaterialDetailer() {
 
 func (ml *MaterialManager) SetEntity(entityInfo *entity.Entity) {
 	ml.entityInfo = entityInfo
+}
+
+func (ml *MaterialManager) DrawGlobalBlocks(flags imgui.TreeNodeFlags, color *imgui.Vec4) {
+	if !imutils.TreeNodeExcf(*color, flags, "%s Global Material Settings", fnt.I.Texture) {
+		return
+	}
+	imgui.PushStyleColorVec4(imgui.ColText, *color)
+	sortedKeys := slices.Sorted(maps.Keys(ml.globalBlocks))
+	for idx, key := range sortedKeys {
+		ml.globalBlocks[key].draw(idx)
+	}
+	imgui.PopStyleColor()
+	imgui.TreePop()
 }
 
 func (ml *MaterialManager) ReleaseIBLLookup() {
@@ -577,6 +601,21 @@ func (ml *MaterialManager) setupMaterialCommon(textureNames []string, previewMat
 	previewMaterial.InitSettings(mat.Settings, ml.lookupThinHash)
 }
 
+func (ml *MaterialManager) handleGlobalBlocks(material *BaseMaterial) {
+	for idx, block := range material.uniformBlocks {
+		if slices.Contains(globalBlockNames, block.name) {
+			existing, ok := ml.globalBlocks[block.name]
+			if !ok {
+				ml.globalBlocks[block.name] = material.uniformBlocks[idx]
+				existing = material.uniformBlocks[idx]
+			} else {
+				gl.DeleteBuffers(1, &material.uniformBlocks[idx].ubo)
+			}
+			material.uniformBlocks[idx] = existing
+		}
+	}
+}
+
 func (ml *MaterialManager) ReloadTextures(material Material, mat *material.Material) {
 	for texIdx := range material.Textures() {
 		texture := material.Textures()[texIdx]
@@ -701,6 +740,7 @@ func NewMaterialManager(getResource GetResourceFunc, getOverride func(stingray.F
 	ml.getOverride = getOverride
 	ml.lookupHash = lookupHash
 	ml.lookupThinHash = lookupThinHash
+	ml.globalBlocks = make(map[string]*UniformBlock)
 
 	// Keep textures for a minute of disuse
 	duration, _ := time.ParseDuration("1m")

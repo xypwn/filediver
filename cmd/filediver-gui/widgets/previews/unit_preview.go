@@ -2984,8 +2984,12 @@ func (pv *UnitPreviewState) drawNodeTree(curr unitPreviewNode, nodeId stingray.F
 			if pv.rootHash == nodeId {
 				pv.root = curr
 			}
-			//pv.unitsSelected[hash] = !shown
 		}
+
+		if nodeId == pv.rootHash {
+			pv.ml.DrawGlobalBlocks(imgui.TreeNodeFlagsOpenOnArrow|imgui.TreeNodeFlagsDrawLinesToNodes, color)
+		}
+
 		children := slices.SortedFunc(slices.Values(curr.children), cmpHashStringsGenerator(pv.lookupHash, pv.nodes))
 		units := make([]stingray.FileID, 0)
 		for _, childHash := range children {

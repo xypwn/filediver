@@ -3,6 +3,7 @@ package materials
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/AllenDang/cimgui-go/imgui"
@@ -22,7 +23,7 @@ type BaseMaterial struct {
 	program        uint32
 	shaderCacheKey string
 	uniforms       Uniforms
-	uniformBlocks  []UniformBlock
+	uniformBlocks  []*UniformBlock
 	textures       []Texture
 }
 
@@ -73,7 +74,7 @@ func (mat *BaseMaterial) generate(shaderPaths []string, textures int, uniforms [
 		gl.GetProgramResourceiv(mat.program, gl.UNIFORM_BLOCK, uint32(blockIdx), 1, &query[0], 1, nil, &bindpoint)
 
 		blockName := string(buf[:length])
-		block := UniformBlock{binding: uint32(bindpoint)}
+		block := &UniformBlock{binding: uint32(bindpoint)}
 		block.generate(mat.program, blockName)
 		mat.uniformBlocks = append(mat.uniformBlocks, block)
 	}
@@ -84,6 +85,10 @@ func (mat *BaseMaterial) generate(shaderPaths []string, textures int, uniforms [
 func (mat *BaseMaterial) Delete(textureCache *glutils.TextureCache) {
 	mat.ReleaseTextures(textureCache)
 	for _, block := range mat.uniformBlocks {
+		if slices.Contains(globalBlockNames, block.name) {
+			// Global blocks handled by material manager
+			continue
+		}
 		gl.DeleteBuffers(1, &block.ubo)
 	}
 	if entry, contains := shaderCache[mat.shaderCacheKey]; contains && entry.users <= 1 {
@@ -127,6 +132,9 @@ func (mat *BaseMaterial) DrawTree(flags imgui.TreeNodeFlags, color *imgui.Vec4, 
 	}
 	imgui.PushStyleColorVec4(imgui.ColText, *color)
 	for idx := range mat.uniformBlocks {
+		if slices.Contains(globalBlockNames, mat.uniformBlocks[idx].name) {
+			continue
+		}
 		mat.uniformBlocks[idx].draw(idx)
 	}
 	imgui.PopStyleColor()

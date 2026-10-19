@@ -57,4 +57,5 @@ var _ Material = &SignMaterial{}
 
 func (ml *MaterialManager) updateSignMaterial(material *SignMaterial, mat *material.Material) {
 	ml.setupMaterialCommon(signTextureNames, material, mat)
+	ml.handleGlobalBlocks(material.BaseMaterial)
 }
