@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/xypwn/filediver/datalibrary/enum"
 	"github.com/xypwn/filediver/stingray"
 )
 
@@ -107,7 +108,7 @@ type Piece struct {
 	Slot              CustomizationKitSlot
 	Type              CustomizationKitPieceType
 	Weight            CustomizationKitWeight
-	Unk00             uint32
+	_                 [4]uint8
 	MaterialLut       stingray.Hash
 	PatternLut        stingray.Hash
 	CapeLut           stingray.Hash
@@ -118,6 +119,7 @@ type Piece struct {
 	DecalSheet        stingray.Hash
 	ToneVariations    uint8
 	_                 [7]uint8
+	CamouflagePieces  DLArray
 }
 
 type CustomizationKitBodyType uint32
@@ -148,10 +150,9 @@ func (p CustomizationKitBodyType) MarshalText() ([]byte, error) {
 }
 
 type Body struct {
-	Type          CustomizationKitBodyType
-	Unk00         uint32
-	PiecesAddress int64
-	PiecesCount   int64
+	Type   CustomizationKitBodyType
+	_      [4]uint8
+	Pieces DLArray
 }
 
 type CustomizationKitType uint32
@@ -206,19 +207,24 @@ func (p CustomizationKitRarity) MarshalText() ([]byte, error) {
 }
 
 type HelldiverCustomizationKit struct {
-	Id               stingray.ThinHash
-	DlcId            uint32
-	SetId            uint32
-	NameUpper        uint32
-	NameCased        uint32
-	Description      uint32
-	Rarity           CustomizationKitRarity
-	Passive          uint32
-	Archive          stingray.Hash
-	Type             CustomizationKitType
-	Unk00            uint32
-	BodyArrayAddress int64
-	BodyCount        int64
+	Id          stingray.ThinHash
+	DlcId       uint32
+	SetId       uint32
+	NameUpper   uint32
+	NameCased   uint32
+	Description uint32
+	Rarity      CustomizationKitRarity
+	Passive     uint32
+	Archive     stingray.Hash
+	Type        CustomizationKitType
+	Unk00       uint32
+	BodyArray   DLArray
+}
+
+type CamoflagePiece struct {
+	CamoflageType enum.CamouflageType
+	_             [4]uint8
+	MaterialLut   stingray.Hash
 }
 
 type UnitData struct {
@@ -235,6 +241,7 @@ type UnitData struct {
 	BaseData          stingray.Hash
 	DecalSheet        stingray.Hash
 	ToneVariations    uint8
+	CamoflagePieces   []CamoflagePiece
 }
 
 type ArmorSet struct {
@@ -286,10 +293,15 @@ func LoadArmorSetDefinitions(strings map[uint32]string, passives map[uint32]Hell
 			return nil, fmt.Errorf("reading item %v: %v", i, err)
 		}
 
-		r.Seek(base+kit.BodyArrayAddress, io.SeekStart)
-		var bodies []Body = make([]Body, kit.BodyCount)
-		if err := binary.Read(r, binary.LittleEndian, bodies); err != nil {
-			return nil, fmt.Errorf("reading bodies at address %x: %v", base+kit.BodyArrayAddress, err)
+		// r.Seek(base+kit.BodyArrayAddress, io.SeekStart)
+		// var bodies []Body = make([]Body, kit.BodyCount)
+		// if err := binary.Read(r, binary.LittleEndian, bodies); err != nil {
+		// 	return nil, fmt.Errorf("reading bodies at address %x: %v", base+kit.BodyArrayAddress, err)
+		// }
+
+		bodies, err := ResolveDLArray[Body](kit.BodyArray, r, base)
+		if err != nil {
+			return nil, fmt.Errorf("reading bodies at address %x: %v", base+kit.BodyArray.Offset, err)
 		}
 
 		var passive *HelldiverCustomizationPassiveBonusSettings = nil
@@ -313,14 +325,22 @@ func LoadArmorSetDefinitions(strings map[uint32]string, passives map[uint32]Hell
 		}
 
 		for b, body := range bodies {
-			if _, err := r.Seek(base+body.PiecesAddress, io.SeekStart); err != nil {
-				return nil, fmt.Errorf("seeking piece address %x for body %v in item %v: %v", base+body.PiecesAddress, b, i, err)
+			// if _, err := r.Seek(base+body.PiecesAddress, io.SeekStart); err != nil {
+			// 	return nil, fmt.Errorf("seeking piece address %x for body %v in item %v: %v", base+body.PiecesAddress, b, i, err)
+			// }
+			// pieces := make([]Piece, body.PiecesCount)
+			// if err := binary.Read(r, binary.LittleEndian, pieces); err != nil {
+			// 	return nil, fmt.Errorf("reading %v pieces for body %v in item %v (address was %x): %v", body.PiecesCount, b, i, base+body.PiecesAddress, err)
+			// }
+			pieces, err := ResolveDLArray[Piece](body.Pieces, r, base)
+			if err != nil {
+				return nil, fmt.Errorf("reading %v pieces for body %v in item %v (address was %x): %v", body.Pieces.Count, b, i, base+body.Pieces.Offset, err)
 			}
-			pieces := make([]Piece, body.PiecesCount)
-			if err := binary.Read(r, binary.LittleEndian, pieces); err != nil {
-				return nil, fmt.Errorf("reading %v pieces for body %v in item %v (address was %x): %v", body.PiecesCount, b, i, base+body.PiecesAddress, err)
-			}
-			for _, piece := range pieces {
+			for p, piece := range pieces {
+				camoPieces, err := ResolveDLArray[CamoflagePiece](piece.CamouflagePieces, r, base)
+				if err != nil {
+					return nil, fmt.Errorf("reading %v camo pieces for piece %v in body %v in item %v (address was %x): %v", piece.CamouflagePieces.Count, p, b, i, base+piece.CamouflagePieces.Offset, err)
+				}
 				unitData := UnitData{
 					Slot:              piece.Slot,
 					Type:              piece.Type,
@@ -335,6 +355,7 @@ func LoadArmorSetDefinitions(strings map[uint32]string, passives map[uint32]Hell
 					BaseData:          piece.BaseData,
 					DecalSheet:        piece.DecalSheet,
 					ToneVariations:    piece.ToneVariations,
+					CamoflagePieces:   camoPieces,
 				}
 				armorSet.UnitMetadata[piece.Path] = unitData
 			}
@@ -383,10 +404,15 @@ func LoadArmorSetArray(strings map[uint32]string, passives map[uint32]HelldiverC
 			return nil, fmt.Errorf("reading item %v: %v", i, err)
 		}
 
-		r.Seek(base+kit.BodyArrayAddress, io.SeekStart)
-		var bodies []Body = make([]Body, kit.BodyCount)
-		if err := binary.Read(r, binary.LittleEndian, bodies); err != nil {
-			return nil, fmt.Errorf("reading bodies at address %x: %v", base+kit.BodyArrayAddress, err)
+		// r.Seek(base+kit.BodyArrayAddress, io.SeekStart)
+		// var bodies []Body = make([]Body, kit.BodyCount)
+		// if err := binary.Read(r, binary.LittleEndian, bodies); err != nil {
+		// 	return nil, fmt.Errorf("reading bodies at address %x: %v", base+kit.BodyArrayAddress, err)
+		// }
+
+		bodies, err := ResolveDLArray[Body](kit.BodyArray, r, base)
+		if err != nil {
+			return nil, fmt.Errorf("reading bodies at address %x: %v", base+kit.BodyArray.Offset, err)
 		}
 
 		var passive *HelldiverCustomizationPassiveBonusSettings = nil
@@ -410,14 +436,22 @@ func LoadArmorSetArray(strings map[uint32]string, passives map[uint32]HelldiverC
 		}
 
 		for b, body := range bodies {
-			if _, err := r.Seek(base+body.PiecesAddress, io.SeekStart); err != nil {
-				return nil, fmt.Errorf("seeking piece address %x for body %v in item %v: %v", base+body.PiecesAddress, b, i, err)
+			// if _, err := r.Seek(base+body.PiecesAddress, io.SeekStart); err != nil {
+			// 	return nil, fmt.Errorf("seeking piece address %x for body %v in item %v: %v", base+body.PiecesAddress, b, i, err)
+			// }
+			// pieces := make([]Piece, body.PiecesCount)
+			// if err := binary.Read(r, binary.LittleEndian, pieces); err != nil {
+			// 	return nil, fmt.Errorf("reading %v pieces for body %v in item %v (address was %x): %v", body.PiecesCount, b, i, base+body.PiecesAddress, err)
+			// }
+			pieces, err := ResolveDLArray[Piece](body.Pieces, r, base)
+			if err != nil {
+				return nil, fmt.Errorf("reading %v pieces for body %v in item %v (address was %x): %v", body.Pieces.Count, b, i, base+body.Pieces.Offset, err)
 			}
-			pieces := make([]Piece, body.PiecesCount)
-			if err := binary.Read(r, binary.LittleEndian, pieces); err != nil {
-				return nil, fmt.Errorf("reading %v pieces for body %v in item %v (address was %x): %v", body.PiecesCount, b, i, base+body.PiecesAddress, err)
-			}
-			for _, piece := range pieces {
+			for p, piece := range pieces {
+				camoPieces, err := ResolveDLArray[CamoflagePiece](piece.CamouflagePieces, r, base)
+				if err != nil {
+					return nil, fmt.Errorf("reading %v camo pieces for piece %v in body %v in item %v (address was %x): %v", piece.CamouflagePieces.Count, p, b, i, base+piece.CamouflagePieces.Offset, err)
+				}
 				unitData := UnitData{
 					Slot:              piece.Slot,
 					Type:              piece.Type,
@@ -432,6 +466,7 @@ func LoadArmorSetArray(strings map[uint32]string, passives map[uint32]HelldiverC
 					BaseData:          piece.BaseData,
 					DecalSheet:        piece.DecalSheet,
 					ToneVariations:    piece.ToneVariations,
+					CamoflagePieces:   camoPieces,
 				}
 				armorSet.UnitMetadata[piece.Path] = unitData
 			}

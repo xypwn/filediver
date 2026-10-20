@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"strconv"
 
 	"github.com/go-gl/mathgl/mgl32"
 	"github.com/xypwn/filediver/datalibrary/enum"
@@ -266,7 +267,7 @@ func LoadEnvironmentSettings() ([]EnvironmentSettings, error) {
 			r.Seek(base+rawSettings.DebugNameOffset, io.SeekStart)
 			debugName, err := util.ReadCString(r)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("reading debug name: %v", err)
 			}
 			setting.DebugName = debugName
 		}
@@ -275,7 +276,7 @@ func LoadEnvironmentSettings() ([]EnvironmentSettings, error) {
 			r.Seek(base+rawSettings.NameLocStr, io.SeekStart)
 			nameLocStr, err := util.ReadCString(r)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("reading localized name: %v", err)
 			}
 			setting.NameLocStr = nameLocStr
 		}
@@ -284,27 +285,33 @@ func LoadEnvironmentSettings() ([]EnvironmentSettings, error) {
 			r.Seek(base+rawSettings.WwiseStateStrOffset, io.SeekStart)
 			wwiseStateStr, err := util.ReadCString(r)
 			if err != nil {
-				return nil, err
+				//return nil, fmt.Errorf("reading wwise state string: %v", err)
+				setting.WwiseStateStr = strconv.FormatInt(rawSettings.WwiseStateStrOffset, 16)
+			} else {
+				setting.WwiseStateStr = wwiseStateStr
 			}
-			setting.WwiseStateStr = wwiseStateStr
 		}
 
 		if rawSettings.DefaultReverbZoneStrOffset > 0 {
 			r.Seek(base+rawSettings.DefaultReverbZoneStrOffset, io.SeekStart)
 			defaultReverbZoneStr, err := util.ReadCString(r)
 			if err != nil {
-				return nil, err
+				//return nil, fmt.Errorf("reading default reverb zone string: %v", err)
+				setting.DefaultReverbZoneStr = strconv.FormatInt(rawSettings.DefaultReverbZoneStrOffset, 16)
+			} else {
+				setting.DefaultReverbZoneStr = defaultReverbZoneStr
 			}
-			setting.DefaultReverbZoneStr = defaultReverbZoneStr
 		}
 
 		if rawSettings.UnkStr > 0 {
 			r.Seek(base+rawSettings.UnkStr, io.SeekStart)
 			unkStr, err := util.ReadCString(r)
 			if err != nil {
-				return nil, err
+				//return nil, fmt.Errorf("reading unknown string: %v", err)
+				setting.UnkStr = strconv.FormatInt(rawSettings.UnkStr, 16)
+			} else {
+				setting.UnkStr = unkStr
 			}
-			setting.UnkStr = unkStr
 		}
 
 		infos = append(infos, setting)

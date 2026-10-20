@@ -74,6 +74,11 @@ func (ml *MaterialManager) updateLutMaterial(material *LutMaterial, mat *materia
 		mat.Textures[stingray.Sum("pattern_lut").Thin()] = stingray.Hash{Value: 0xcf0cc31b981786c9}
 	}
 
+	transparentLut := int32(0)
+	if mat.BaseMaterial.Value == 0x8e7efcdf45ac19cf {
+		transparentLut = 1
+	}
+
 	ml.setupMaterialCommon(lutTextureNames, material, mat)
 
 	for _, block := range material.uniformBlocks {
@@ -90,6 +95,10 @@ func (ml *MaterialManager) updateLutMaterial(material *LutMaterial, mat *materia
 			}
 			block.set("use_decals", &useDecals)
 			block.setDefault("use_decals", &useDecals)
+		}
+		if _, contains := block.uniformOffsets["transparent_lut"]; contains {
+			block.set("transparent_lut", &transparentLut)
+			block.setDefault("transparent_lut", &transparentLut)
 		}
 	}
 

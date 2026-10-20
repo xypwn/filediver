@@ -23,6 +23,7 @@ import (
 	"github.com/xypwn/filediver/cmd/filediver-gui/widgets"
 	preview_mats "github.com/xypwn/filediver/cmd/filediver-gui/widgets/previews/materials"
 	datalib "github.com/xypwn/filediver/datalibrary"
+	"github.com/xypwn/filediver/datalibrary/enum"
 	"github.com/xypwn/filediver/dds"
 	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/stingray/entity"
@@ -33,6 +34,8 @@ import (
 	geometrygroup "github.com/xypwn/filediver/stingray/unit/geometry_group"
 	"github.com/xypwn/filediver/stingray/unit/material"
 	"github.com/xypwn/filediver/stingray/unit/texture"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 // stingray coords to OpenGL coords
@@ -107,6 +110,14 @@ type unitPreviewNode struct {
 	matrix   mgl32.Mat4
 	children []stingray.FileID
 	parent   stingray.Hash
+}
+
+var armorCamos = []enum.CamouflageType{
+	enum.CamouflageType_Default,
+	enum.CamouflageType_Arctic,
+	enum.CamouflageType_Desert,
+	enum.CamouflageType_Forest,
+	enum.CamouflageType_Martian,
 }
 
 type UnitPreviewState struct {
@@ -190,6 +201,8 @@ type UnitPreviewState struct {
 	doAutoZoomNextFrame       bool
 
 	armorSets                map[stingray.Hash]datalib.ArmorSet
+	selectedCamo             enum.CamouflageType
+	selectedSet              int64
 	getSelectedArchives      func() []stingray.Hash
 	previousSelectedArchives []stingray.Hash
 	archivesModified         bool
@@ -221,6 +234,7 @@ func NewUnitPreview(
 	pv.model = stingrayToGLCoords
 
 	pv.armorSets = ArmorParams.ArmorSets
+	pv.selectedCamo = enum.CamouflageType_None
 	pv.getSelectedArchives = ArmorParams.SelectedArchives
 	pv.getOverride = getOverride
 	pv.getResource = getResource
@@ -318,7 +332,7 @@ func (pv *UnitPreviewState) UpdateAssetOverrides(entityInfo *entity.Entity) {
 				materialOverrideID := pv.getOverride(materialID)
 				if materialOverrideID != pv.objects[fileID][mesh].materials[group].GetOverride() {
 					mat, _ = loadMaterialInfo(pv.getResource, materialID)
-					overrideLUTMaterial(mat, armorInfo)
+					overrideLUTMaterial(mat, armorInfo, pv.selectedCamo)
 					name := pv.objects[fileID][mesh].materials[group].Name()
 					shown := pv.objects[fileID][mesh].materials[group].Shown()
 
@@ -442,7 +456,7 @@ func (pv *UnitPreviewState) loadMeshes(meshInfos []unit.MeshInfo, meshLayouts []
 	return meshes, shownDefault, nil
 }
 
-func overrideLUTMaterial(mat *material.Material, armorInfo *datalib.UnitData) {
+func overrideLUTMaterial(mat *material.Material, armorInfo *datalib.UnitData, camo enum.CamouflageType) {
 	if mat == nil || mat.Textures == nil || armorInfo == nil {
 		return
 	}
@@ -457,6 +471,15 @@ func overrideLUTMaterial(mat *material.Material, armorInfo *datalib.UnitData) {
 	decal_sheet := stingray.Sum("decal_sheet").Thin()
 	if _, contains := mat.Textures[material_lut]; contains && armorInfo.MaterialLut.Value != 0 {
 		mat.Textures[material_lut] = armorInfo.MaterialLut
+		for _, camoflagePiece := range armorInfo.CamoflagePieces {
+			if camo == enum.CamouflageType_None || camo == enum.CamouflageType_Default {
+				break
+			}
+			if camo == camoflagePiece.CamoflageType {
+				mat.Textures[material_lut] = camoflagePiece.MaterialLut
+				break
+			}
+		}
 	}
 	if _, contains := mat.Textures[pattern_lut]; contains && armorInfo.PatternLut.Value != 0 {
 		mat.Textures[pattern_lut] = armorInfo.PatternLut
@@ -1211,7 +1234,7 @@ func (pv *UnitPreviewState) loadUnit(fileID stingray.FileID, mainData, gpuData [
 				}
 				// does not change any state if the material or armor info is nil
 				//     or the material doesn't contain the correct textures
-				overrideLUTMaterial(mat, armorInfo)
+				overrideLUTMaterial(mat, armorInfo, pv.selectedCamo)
 
 				material := pv.ml.LoadMaterial(materialID, name, materialShown(name), mat, nil, fileID)
 				override := materialID
@@ -1958,8 +1981,15 @@ func (pv *UnitPreviewState) loadSpeedtree(speedtreeID stingray.FileID, mainData,
 
 // Loads the specified armor set and any others in the armor set list that share the armor set id
 // Therefore this can load the armor and helmet at the same time
-func (pv *UnitPreviewState) loadArmorSet(armorSets []datalib.ArmorSet, selectedSet int32) {
+func (pv *UnitPreviewState) loadArmorSet(armorSets []datalib.ArmorSet) {
 	pv.Clear()
+	var selectedSet int
+	for idx := range armorSets {
+		if armorSets[idx].Id.Value == uint32(pv.selectedSet) {
+			selectedSet = idx
+			break
+		}
+	}
 	setId := armorSets[selectedSet].SetId
 	pv.nodes[stingray.Sum("body_any")] = unitPreviewNode{
 		name:     "Any",
@@ -2860,25 +2890,77 @@ func (pv *UnitPreviewState) Draw(previewId string) {
 		})
 		if len(armorSets) > 0 {
 			imgui.SameLine()
-			var selectedSet int32 = -1
+			var selectedSet int64 = -1
+			var selectedCamo enum.CamouflageType = enum.CamouflageType_None
 			width := imgui.CalcTextSize(maxStr).X + 2*imgui.CurrentStyle().FramePadding().X
 			imgui.SetNextItemWidth(width + imgui.TextLineHeightWithSpacing())
 			seenNames := make(map[string]any)
-			if imgui.BeginComboV("Load Armor Set...", "", imgui.ComboFlagsNone) {
-				for idx, set := range armorSets {
+			hasCamo := false
+			for _, set := range armorSets {
+				for _, metadata := range set.UnitMetadata {
+					if hasCamo {
+						break
+					}
+					if len(metadata.CamoflagePieces) > 0 {
+						hasCamo = true
+					}
+				}
+				if hasCamo {
+					break
+				}
+			}
+			armorSetName := ""
+			if pv.selectedSet != -1 {
+				for _, set := range armorSets {
+					if pv.selectedSet == int64(set.Id.Value) {
+						armorSetName = set.Name
+						break
+					}
+				}
+			}
+			if imgui.BeginComboV("Load Armor Set...", armorSetName, imgui.ComboFlagsNone) {
+				for _, set := range armorSets {
 					if _, contains := seenNames[set.Name]; contains {
 						continue
 					}
 					imgui.SetNextItemWidth(width)
-					if imgui.SelectableBoolV(set.Name, int32(idx) == selectedSet, imgui.SelectableFlagsNone, imgui.NewVec2(width, 0)) {
-						selectedSet = int32(idx)
+					if imgui.SelectableBoolV(set.Name, int64(set.Id.Value) == selectedSet, imgui.SelectableFlagsNone, imgui.NewVec2(width, 0)) {
+						selectedSet = int64(set.Id.Value)
 					}
 					seenNames[set.Name] = true
 				}
 				imgui.EndCombo()
 			}
-			if selectedSet != -1 {
-				pv.loadArmorSet(armorSets, selectedSet)
+			if hasCamo {
+				imgui.SameLine()
+				camoStr := "None"
+				camoWidth := float32(0)
+				for _, camo := range armorCamos {
+					titleName := cases.Title(language.English).String(camo.Name())
+					camoWidth = max(imgui.CalcTextSize(titleName).X+2*imgui.CurrentStyle().FramePadding().X, camoWidth)
+				}
+				if pv.selectedCamo != enum.CamouflageType_None {
+					camoStr = cases.Title(language.English).String(pv.selectedCamo.Name())
+				}
+				imgui.SetNextItemWidth(camoWidth + imgui.TextLineHeightWithSpacing())
+				if imgui.BeginComboV("Camoflage", camoStr, imgui.ComboFlagsNone) {
+					for _, camo := range armorCamos {
+						imgui.SetNextItemWidth(camoWidth)
+						if imgui.SelectableBoolV(camo.Name(), camo == pv.selectedCamo, imgui.SelectableFlagsNone, imgui.NewVec2(width, 0)) {
+							selectedCamo = camo
+						}
+					}
+					imgui.EndCombo()
+				}
+			}
+			if selectedSet != -1 || selectedCamo != enum.CamouflageType_None {
+				if selectedSet != -1 {
+					pv.selectedSet = selectedSet
+				}
+				if selectedCamo != enum.CamouflageType_None {
+					pv.selectedCamo = selectedCamo
+				}
+				pv.loadArmorSet(armorSets)
 			}
 		}
 	}
@@ -2890,7 +2972,7 @@ func (pv *UnitPreviewState) Draw(previewId string) {
 				for group := range pv.objects[hash][name].materials {
 					material := pv.objects[hash][name].materials[group]
 					mat, _ := loadMaterialInfo(pv.getResource, material.ID())
-					overrideLUTMaterial(mat, armorInfo)
+					overrideLUTMaterial(mat, armorInfo, pv.selectedCamo)
 					material = pv.ml.LoadMaterial(material.ID(), material.Name(), material.Shown(), mat, material, hash)
 					pv.objects[hash][name].materials[group] = material
 				}

@@ -12,37 +12,24 @@ import (
 	"github.com/xypwn/filediver/util"
 )
 
-type WeatherColorSet struct {
-	ID                             uint32     `json:"id"`
-	CloudColor                     mgl32.Vec3 `json:"cloud_color"`
-	VistaCloudColor                mgl32.Vec3 `json:"vista_cloud_color"`
-	FogColor                       mgl32.Vec3 `json:"fog_color"`
-	WeatherEffectColor             mgl32.Vec3 `json:"weather_effect_color"`
-	WeatherGroundFogVolumeColor    mgl32.Vec3 `json:"weather_ground_fog_volume_color"`
-	NearGroundFogColor             mgl32.Vec3 `json:"near_ground_fog_color"`
-	ZoneFogTint                    mgl32.Vec3 `json:"zone_fog_tint"`
-	WeatherSunColorMult            mgl32.Vec3 `json:"weather_sun_color_mult"`
-	WeatherSunIntensityMult        float32    `json:"weather_sun_intensity_mult"`
-	ZoneFogMainColor               mgl32.Vec3 `json:"zone_fog_main_color"`
-	ZoneFogSecondaryColor          mgl32.Vec3 `json:"zone_fog_secondary_color"`
-	ZoneFogBugsColor               mgl32.Vec3 `json:"zone_fog_bugs_color"`
-	ZoneFogBotsColor               mgl32.Vec3 `json:"zone_fog_bots_color"`
-	ZoneFogIlluminateColor         mgl32.Vec3 `json:"zone_fog_illuminate_color"`
-	AmbientDiffuseTint             mgl32.Vec3 `json:"ambient_diffuse_tint"`
-	AmbientDiffuseGroundBounceTint mgl32.Vec3 `json:"ambient_diffuse_ground_bounce_tint"`
-	FogAmbientTint                 mgl32.Vec3 `json:"fog_ambient_tint"`
-	FogAmbientGroundBounceTint     mgl32.Vec3 `json:"fog_ambient_ground_bounce_tint"`
+type PlanetColorSet struct {
+	ID                     stingray.ThinHash `json:"id"`
+	ZoneFogMainColor       mgl32.Vec3        `json:"zone_fog_main_color"`
+	ZoneFogSecondaryColor  mgl32.Vec3        `json:"zone_fog_secondary_color"`
+	ZoneFogBugsColor       mgl32.Vec3        `json:"zone_fog_bugs_color"`
+	ZoneFogBotsColor       mgl32.Vec3        `json:"zone_fog_bots_color"`
+	ZoneFogIlluminateColor mgl32.Vec3        `json:"zone_fog_illuminate_color"`
 }
 
 type LevelGenerationPaletteGroup struct {
-	//Palette                 stingray.Hash
-	AssetGrading            stingray.Hash
-	SkySettingsGroup        stingray.Hash
-	DayGrading              stingray.Hash
-	NightGrading            stingray.Hash
-	SunsetGrading           stingray.Hash
-	WeatherColorSet         stingray.ThinHash
-	WeatherColorSetInternal WeatherColorSet
+	AssetGrading           stingray.Hash
+	SkySettingsGroup       stingray.Hash
+	DayGrading             stingray.Hash
+	NightGrading           stingray.Hash
+	SunsetGrading          stingray.Hash
+	PlanetColorSet         stingray.ThinHash
+	PlanetColorSetInternal PlanetColorSet
+	_                      [4]uint8
 }
 
 type rawLevelGenerationRegion struct {
@@ -116,8 +103,10 @@ type rawPlanetData struct {
 	PaletteGroupHighland             LevelGenerationPaletteGroup
 	ScenarioSettingsLowland          stingray.Hash
 	ScenarioSettingsHighland         stingray.Hash
+	UnkEnum                          uint8
+	_                                [7]uint8
 	GameplayModifiersOffset          int64
-	GameplayModifiersCount           uint64
+	GameplayModifiersCount           int64
 	PlanetType                       enum.PlanetType
 	Unknown                          stingray.ThinHash
 	NatureLocationTagOffset          uint64
@@ -175,6 +164,7 @@ type PlanetData struct {
 	RegionHighland                   LevelGenerationRegion
 	PaletteGroupLowland              LevelGenerationPaletteGroup
 	PaletteGroupHighland             LevelGenerationPaletteGroup
+	UnkEnum                          uint8
 	ScenarioSettingsLowland          stingray.Hash
 	ScenarioSettingsHighland         stingray.Hash
 	GameplayModifiers                []stingray.Hash
@@ -215,6 +205,7 @@ func (a rawPlanetData) Resolve(lookupHash HashLookup, lookupThinHash ThinHashLoo
 		PaletteGroupHighland:             a.PaletteGroupHighland,
 		ScenarioSettingsLowland:          a.ScenarioSettingsLowland,
 		ScenarioSettingsHighland:         a.ScenarioSettingsHighland,
+		UnkEnum:                          a.UnkEnum,
 		PlanetType:                       a.PlanetType,
 		Unknown:                          a.Unknown,
 		ScatterSettings:                  a.ScatterSettings,

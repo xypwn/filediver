@@ -24,6 +24,7 @@ uniform sampler2DArray id_masks_array;
 layout(shared, binding = 0) uniform LutSettingsBlock {
     uint seed;
     bool use_decals;
+    bool transparent_lut;
     float damage_mask_selector;
     float detail_tile_factor_mult;
     float decal_id;
@@ -64,6 +65,9 @@ uint getMaterialLutRow() {
         vec4 id_mask_sample = texture(id_masks_array, vec3(fragUV0, float(id_mask_layer)));
         uint row_base = id_mask_layer * 4;
         uint channel = 0;
+        if (transparent_lut && id_mask_layer == 1 && id_mask_sample.w > 0.5) {
+            discard;
+        }
         while(channel < 4) {
             if (dot(id_mask_sample, identity[channel]) >= 0.496) {
                 material_lut_row = row_base + channel;

@@ -1558,6 +1558,7 @@ Reload_Group/smg_nacho_reload
 Reload_Group/smg_nacho_reload_fast
 Reload_Group/smg_nacho_reload_fast_onehand
 Reload_Group/smg_nacho_reload_onehand
+Reload_Group/sniper_rifle_duo
 Reload_Group/trenchgun_pump
 Remove_Card
 Right_Mag
@@ -3363,8 +3364,16 @@ content/effects/env_illuminate/props/il_spotlight_01
 content/effects/env_illuminate/props/il_turret_eye
 content/effects/env_illuminate/props/il_turret_tactical_base
 content/effects/env_illuminate/props/il_turret_tactical_eye
+content/effects/env_shared/ambient/flies_flying
+content/effects/env_shared/ambient/flies_flying_2m
+content/effects/env_shared/ambient/flies_flying_4m
+content/effects/env_shared/ambient/heat_distortion_medium
 content/effects/env_shared/ambient/units/flies_flying
+content/effects/env_shared/ambient/units/flies_flying_2m
+content/effects/env_shared/ambient/units/flies_flying_4m
+content/effects/env_shared/ambient/units/heat_distortion_medium
 content/effects/env_shared/particle_empty
+content/effects/env_shared/sparks/sparks_medium
 content/effects/env_shared/sparks/units/sparks_medium
 content/effects/env_ship/admiral_intro_table
 content/effects/env_ship/hologram_planet_rift
@@ -4409,6 +4418,7 @@ content/env_illuminate/props/il_misc_machine_01
 content/env_illuminate/props/il_misc_machine_02
 content/env_illuminate/props/il_misc_machine_connector
 content/env_illuminate/props/il_mobile_cover
+content/env_illuminate/props/il_pillar_whole_medium
 content/env_illuminate/props/il_satellite_01
 content/env_illuminate/props/il_signpost
 content/env_illuminate/props/il_steam_exhaust_01
@@ -6509,6 +6519,7 @@ content/fac_bugs/cha_boomer/cha_boomer_tier_2_bci
 content/fac_bugs/cha_boomer/cha_boomer_tier_2_sss
 content/fac_bugs/cha_boomer_burrower/burrower_bile_grenade_mesh
 content/fac_bugs/cha_boomer_burrower/cha_boomer_burrower
+content/fac_bugs/cha_boomer_defiler/cha_boomer_defiler
 content/fac_bugs/cha_boomer_nurser/cha_boomer_nurser_02
 content/fac_bugs/cha_boomer_nurser/cha_boomer_nurser_02_bci
 content/fac_bugs/cha_boomer_nurser/cha_boomer_nurser_02_ccras
@@ -6647,6 +6658,7 @@ content/fac_bugs/cha_scavenger/cha_scavenger_sss
 content/fac_bugs/cha_scavenger/cha_scavenger_tier_1
 content/fac_bugs/cha_scavenger/cha_scavenger_tier_1_captive
 content/fac_bugs/cha_scavenger/cha_scavenger_tier_2
+content/fac_bugs/cha_scavenger_defiler/cha_scavenger_defiler
 content/fac_bugs/cha_scavenger_predator/cha_scavenger_predator
 content/fac_bugs/cha_shrieker/cha_shrieker_gloom
 content/fac_bugs/cha_shrieker/m_shrieker
@@ -7224,6 +7236,7 @@ content/fac_helldivers/equipment/attachment/magazine/lmg_box_small
 content/fac_helldivers/equipment/attachment/magazine/machinegun_box
 content/fac_helldivers/equipment/attachment/magazine/machinegun_box_large
 content/fac_helldivers/equipment/attachment/magazine/machinegun_box_small
+content/fac_helldivers/equipment/attachment/magazine/magazine_duo_sniper
 content/fac_helldivers/equipment/attachment/magazine/magazine_heatsink_revolver
 content/fac_helldivers/equipment/attachment/magazine/magazine_mediumheatsink_laserrifle_improvedcapacity
 content/fac_helldivers/equipment/attachment/magazine/magazine_mediumheatsink_laserrifle_improvedcooldown
@@ -7503,6 +7516,7 @@ content/fac_helldivers/equipment/backpacks/minigun_backpack/animation/idle_hose
 content/fac_helldivers/equipment/backpacks/minigun_backpack/minigun_backpack
 content/fac_helldivers/equipment/backpacks/minigun_backpack/minigun_backpack_hose
 content/fac_helldivers/equipment/backpacks/recoilless_rifle_backpack/recoilless_rifle_backpack
+content/fac_helldivers/equipment/backpacks/sniper_rifle_duo_backpack/sniper_rifle_duo_backpack
 content/fac_helldivers/equipment/melee_weapons/ceremonial_saber/ceremonial_saber
 content/fac_helldivers/equipment/melee_weapons/ceremonial_saber/ceremonial_saber_scabbard
 content/fac_helldivers/equipment/melee_weapons/ceremonial_saber/textures/ceremonial_saber__array
@@ -7614,6 +7628,7 @@ content/fac_helldivers/equipment/primary_weapons/assault_rifle_large_calibre_01/
 content/fac_helldivers/equipment/primary_weapons/assault_rifle_large_calibre_01/animation/reload
 content/fac_helldivers/equipment/primary_weapons/assault_rifle_large_calibre_01/animation/reload_fast
 content/fac_helldivers/equipment/primary_weapons/assault_rifle_large_calibre_01/assault_rifle_large_calibre_01
+content/fac_helldivers/equipment/primary_weapons/assault_rifle_legacy/assault_rifle_legacy
 content/fac_helldivers/equipment/primary_weapons/assault_rifle_nacho/animation/fire
 content/fac_helldivers/equipment/primary_weapons/assault_rifle_nacho/animation/idle
 content/fac_helldivers/equipment/primary_weapons/assault_rifle_nacho/animation/reload
@@ -7689,6 +7704,7 @@ content/fac_helldivers/equipment/primary_weapons/bolt_action_rifle/animation/ope
 content/fac_helldivers/equipment/primary_weapons/bolt_action_rifle/animation/open_empty
 content/fac_helldivers/equipment/primary_weapons/bolt_action_rifle/bolt_action_rifle
 content/fac_helldivers/equipment/primary_weapons/bolt_action_rifle/bolt_action_rifle_default_muzzle
+content/fac_helldivers/equipment/primary_weapons/bolt_action_rifle_simo/sniper_rifle_simo
 content/fac_helldivers/equipment/primary_weapons/crossbow_greyfax/animation/ammo_left_1
 content/fac_helldivers/equipment/primary_weapons/crossbow_greyfax/animation/ammo_left_2
 content/fac_helldivers/equipment/primary_weapons/crossbow_greyfax/animation/ammo_left_3
@@ -7966,6 +7982,7 @@ content/fac_helldivers/equipment/sidearm_weapons/laser_pistol/animation/reload_o
 content/fac_helldivers/equipment/sidearm_weapons/laser_pistol/laser_pistol
 content/fac_helldivers/equipment/sidearm_weapons/laser_pistol/textures/laser_pistol__array
 content/fac_helldivers/equipment/sidearm_weapons/laser_pistol/textures/laser_pistol_nac
+content/fac_helldivers/equipment/sidearm_weapons/machine_pistol_bull/machine_pistol_bull
 content/fac_helldivers/equipment/sidearm_weapons/magnum_pistol/animation/ammocheck
 content/fac_helldivers/equipment/sidearm_weapons/magnum_pistol/animation/fire
 content/fac_helldivers/equipment/sidearm_weapons/magnum_pistol/animation/fire_lock
@@ -8188,6 +8205,7 @@ content/fac_helldivers/equipment/support_weapons/laser_guided_missile_launcher/a
 content/fac_helldivers/equipment/support_weapons/laser_guided_missile_launcher/laser_guided_missile_launcher
 content/fac_helldivers/equipment/support_weapons/laser_pulse_cannon/animations/charge
 content/fac_helldivers/equipment/support_weapons/laser_pulse_cannon/laser_pulse_cannon
+content/fac_helldivers/equipment/support_weapons/laser_rifle_ion/laser_rifle_ion
 content/fac_helldivers/equipment/support_weapons/lat_oneshot/animation/draw
 content/fac_helldivers/equipment/support_weapons/lat_oneshot/animation/holster
 content/fac_helldivers/equipment/support_weapons/lat_oneshot/lat_oneshot_sight
@@ -8247,6 +8265,7 @@ content/fac_helldivers/equipment/support_weapons/sniper_rifle/animation/reload_f
 content/fac_helldivers/equipment/support_weapons/sniper_rifle/materials/m_sniper_rifle
 content/fac_helldivers/equipment/support_weapons/sniper_rifle/textures/sniper_rifle__array
 content/fac_helldivers/equipment/support_weapons/sniper_rifle/textures/sniper_rifle_nac
+content/fac_helldivers/equipment/support_weapons/sniper_rifle_duo/sniper_rifle_duo
 content/fac_helldivers/equipment/throwables/antitank_grenade/antitank_grenade
 content/fac_helldivers/equipment/throwables/arc_grenade/animation/activate
 content/fac_helldivers/equipment/throwables/arc_grenade/animation/idle
@@ -13402,6 +13421,7 @@ packages/generated/loadout/assault_rifle
 packages/generated/loadout/assault_rifle_grenadier
 packages/generated/loadout/assault_rifle_helghast
 packages/generated/loadout/assault_rifle_karbin
+packages/generated/loadout/assault_rifle_legacy
 packages/generated/loadout/assault_rifle_nacho
 packages/generated/loadout/assault_rifle_patriot
 packages/generated/loadout/assault_rifle_rico
@@ -13517,6 +13537,7 @@ packages/generated/loadout/laser_guided_missile_launcher
 packages/generated/loadout/laser_pistol
 packages/generated/loadout/laser_rifle
 packages/generated/loadout/laser_rifle_charge
+packages/generated/loadout/laser_rifle_ion
 packages/generated/loadout/laser_rifle_long
 packages/generated/loadout/laser_rifle_long_hotshot
 packages/generated/loadout/laser_rifle_mount
@@ -13528,6 +13549,7 @@ packages/generated/loadout/lmg_stalwart
 packages/generated/loadout/loadout_shared_generated
 packages/generated/loadout/luring_mine
 packages/generated/loadout/machete
+packages/generated/loadout/machine_pistol_bull
 packages/generated/loadout/machinegun
 packages/generated/loadout/machinegun_turret
 packages/generated/loadout/magnum_pistol
@@ -13630,6 +13652,7 @@ packages/generated/loadout/smg_rhino
 packages/generated/loadout/smg_solvent
 packages/generated/loadout/smoke_grenade
 packages/generated/loadout/sniper_rifle
+packages/generated/loadout/sniper_rifle_duo
 packages/generated/loadout/sniper_rifle_helghast
 packages/generated/loadout/snowball
 packages/generated/loadout/snowstorm
@@ -14079,6 +14102,7 @@ packages/generated/stamps/il_hijack_tech_hub_02/illuminate
 packages/generated/stamps/il_hijack_tech_hub_03/illuminate
 packages/generated/stamps/il_killhorde_01
 packages/generated/stamps/il_killhorde_02
+packages/generated/stamps/il_killhorde_03
 packages/generated/stamps/il_killhorde_city_01
 packages/generated/stamps/il_modularkit_playtest/illuminate
 packages/generated/stamps/il_outpost_easy_01/illuminate

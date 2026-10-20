@@ -1510,6 +1510,12 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 		materialSettingsAndTextures[ctx.LookupThinHash(setting)] = value
 	}
 
+	if mat.BaseMaterial.Value == 0x8e7efcdf45ac19cf {
+		materialSettingsAndTextures["fd_transparency_enabled"] = []float32{1.0}
+	} else {
+		materialSettingsAndTextures["fd_transparency_enabled"] = []float32{0.0}
+	}
+
 	if _, contains := materialSettingsAndTextures["decal_id"]; contains {
 		fileId := ctx.FileID()
 		if mat.BaseMaterial.Value != 0x0 {
