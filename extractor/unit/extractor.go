@@ -475,7 +475,7 @@ func AddMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_mate
 					DecalSheet:        metadata.DecalSheet,
 					ToneVariations:    metadata.ToneVariations,
 				}
-				camoMatIdx, err := extr_material.AddMaterial(ctx.WithFileID(materialId), mat, doc, imgOpts, id, ctx.LookupThinHash(id)+" "+camo.CamoflageType.Name(), &camoMetadata)
+				camoMatIdx, err := extr_material.AddMaterial(ctx.WithFileID(materialId), mat, doc, imgOpts, id, ctx.LookupThinHash(id)+" "+camo.CamoflageType.Name()+" "+resPath, &camoMetadata)
 				if err != nil {
 					// Some materials don't get overriden, that's fine
 					continue

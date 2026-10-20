@@ -10,12 +10,12 @@
 # Shader bundled with filediver with permission from @thejudsub
 
 import bpy
-from bpy.types import NodeTree, Material, Object, ShaderNodeGroup, ShaderNodeMix, ShaderNodeMath, ShaderNodeVectorMath, NodeGroupInput, ShaderNodeCombineXYZ
+from bpy.types import NodeTree, Material, Object, ShaderNodeGroup, ShaderNodeMix, ShaderNodeMath, ShaderNodeVectorMath, NodeGroupInput, ShaderNodeCombineXYZ, NodeSocketInt
 from typing import Optional
 import os
 import math
 
-ScriptVersion = "_1.0.7"
+ScriptVersion = "_1.0.8"
 
 class NODE_PT_MAINPANEL(bpy.types.Panel):
     bl_label = "Helldivers 2 Shader"
@@ -112,6 +112,9 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     #Socket detail_tile_factor_mult
     detail_tile_factor_mult_socket = HD2_Shader.interface.new_socket(name = "detail_tile_factor_mult", in_out='INPUT', socket_type = 'NodeSocketFloat')
     detail_tile_factor_mult_socket.default_value = 1.000
+    #Socket fd_transparency_enabled
+    fd_transparency_enabled_socket: NodeSocketInt = HD2_Shader.interface.new_socket(name = "fd_transparency_enabled", in_out='INPUT', socket_type = 'NodeSocketInt', description="Enables transparency if set to 1")
+    fd_transparency_enabled_socket.default_value = 0
 
     dynamic_decal_settings_panel = HD2_Shader.interface.new_panel("Dynamic Decal Settings")
     dynamic_decal_settings_panel.default_closed = True
@@ -134,6 +137,8 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     emissive_color_socket = HD2_Shader.interface.new_socket(name = "Bake_Emissive Color", in_out='OUTPUT', socket_type = 'NodeSocketColor', parent = bake_outputs_panel)
     #Socket Emissive Strength
     emissive_strength_socket = HD2_Shader.interface.new_socket(name = "Bake_Emissive Strength", in_out='OUTPUT', socket_type = 'NodeSocketFloat', parent = bake_outputs_panel)
+    #Socket Alpha
+    alpha_socket = HD2_Shader.interface.new_socket(name = "Bake_Alpha", in_out='OUTPUT', socket_type = 'NodeSocketFloat', parent = bake_outputs_panel)
 
     use_dynamic_decals_socket = HD2_Shader.interface.new_socket(name = "use_dynamic_decals", in_out='INPUT', socket_type = 'NodeSocketFloat', parent = dynamic_decal_settings_panel)
     use_dynamic_decals_socket.default_value = 0.000
@@ -7901,6 +7906,28 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     id_mask_array_02.projection = 'FLAT'
     id_mask_array_02.projection_blend = 0.0
 
+    #node Math.189
+    math_189: ShaderNodeMath = HD2_Shader.nodes.new("ShaderNodeMath")
+    math_189.operation = 'GREATER_THAN'
+    math_189.name = "Math.189"
+    math_189.location = (-4960.0, 6020.0)
+
+    #node Math.190
+    math_190: ShaderNodeMath = HD2_Shader.nodes.new("ShaderNodeMath")
+    math_190.operation = 'SUBTRACT'
+    math_190.name = "Math.190"
+    math_190.location = (-4720.0, 6020.0)
+    math_190.inputs['Value'].default_value = 1.0
+
+    #node Mix.081
+    mix_081: ShaderNodeMix = HD2_Shader.nodes.new("ShaderNodeMix")
+    mix_081.name = "Mix.081"
+    mix_081.data_type = 'FLOAT'
+    mix_081.location = (-4480.0, 6020.0)
+
+    HD2_Shader.links.new(math_189.outputs['Value'], math_190.inputs['Value_001'])
+    HD2_Shader.links.new(math_190.outputs['Value'], mix_081.inputs['B'])
+
     #node Mix.024
     Slot5 = HD2_Shader.nodes.new("ShaderNodeMix")
     Slot5.label = "Slot 5"
@@ -11909,6 +11936,8 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     HD2_Shader.links.new(clamp_018.outputs[0], math_223.inputs[1])
     #clamp_018.Result -> principled_bsdf_001.Metallic
     HD2_Shader.links.new(clamp_018.outputs[0], principled_bsdf_001.inputs['Metallic'])
+    #mix_081.Result -> principled_bsdf_001.Metallic
+    HD2_Shader.links.new(mix_081.outputs['Result'], principled_bsdf_001.inputs['Alpha'])
     #mix_033.Result -> separate_xyz_036.Vector
     HD2_Shader.links.new(mix_033.outputs[2], separate_xyz_036.inputs[0])
     #normal_map_001.Normal -> principled_bsdf_001.Normal
@@ -12935,6 +12964,8 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     HD2_Shader.links.new(mix_078.outputs[0], math_146.inputs[0])
     #math_194.Value -> group_output_1.Ambient Occlusion
     HD2_Shader.links.new(math_194.outputs[0], group_output_1.inputs[2])
+    #math_194.Value -> group_output_1.Alpha
+    HD2_Shader.links.new(mix_081.outputs['Result'], group_output_1.inputs['Bake_Alpha'])
     
     return HD2_Shader
 
@@ -13094,6 +13125,7 @@ def connect_input_links(hd2_shader: NodeTree):
     hd2_shader.links.new(group_input_1.outputs["detail_tile_factor_mult"], hd2_shader.nodes["Math.019"].inputs[0])
     #group_input_1.detail_tile_factor_mult -> math_152.Value
     hd2_shader.links.new(group_input_1.outputs["detail_tile_factor_mult"], hd2_shader.nodes["Math.152"].inputs[0])
+    hd2_shader.links.new(group_input_1.outputs['fd_transparency_enabled'], hd2_shader.nodes["Mix.081"].inputs[0])
 
 def update_slot_defaults(hd2_shader: NodeTree, material: Material):
     PrimaryMaterialLUTSizeX = material.node_tree.nodes['Primary Material LUT Texture'].inputs[0].node.image.size[0]
