@@ -96,6 +96,7 @@ cloaking_noise
 closest_reflection_map
 cloth_detail_normal
 cloud_mask
+cobweb_tiler
 color_lut
 color_map
 color_roughness
@@ -33825,3 +33826,8 @@ Switch_01
 Switch_02
 fd_decals_enabled
 fd_decal_only
+cobweb_color
+cobweb_roughness
+cobweb_uv_seed
+cobweb_resolution
+cobweb_intensity

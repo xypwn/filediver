@@ -7,7 +7,13 @@ import (
 
 	"github.com/xypwn/filediver/app"
 	datalib "github.com/xypwn/filediver/datalibrary"
+	"github.com/xypwn/filediver/datalibrary/enum"
 )
+
+type SimpleCamoflagePiece struct {
+	CamoflageType enum.CamouflageType `json:"camoflage_type"`
+	MaterialLut   string              `json:"material_lut"`
+}
 
 type SimplePiece struct {
 	Path              string                            `json:"path"`
@@ -23,6 +29,7 @@ type SimplePiece struct {
 	BaseData          string                            `json:"base_data"`
 	DecalSheet        string                            `json:"decal_sheet"`
 	ToneVariations    uint8                             `json:"tone_variations"`
+	CamoflagePieces   []SimpleCamoflagePiece            `json:"camoflage_pieces"`
 }
 
 type BodyType struct {
@@ -85,6 +92,13 @@ func Dump(a *app.App) {
 				bodyType = &stocky
 			}
 
+			camos := make([]SimpleCamoflagePiece, 0)
+			for _, camo := range unitData.CamoflagePieces {
+				camos = append(camos, SimpleCamoflagePiece{
+					CamoflageType: camo.CamoflageType,
+					MaterialLut:   a.LookupHash(camo.MaterialLut),
+				})
+			}
 			bodyType.Pieces = append(bodyType.Pieces, SimplePiece{
 				Path:              a.LookupHash(path),
 				Slot:              unitData.Slot,
@@ -99,6 +113,7 @@ func Dump(a *app.App) {
 				BaseData:          a.LookupHash(unitData.BaseData),
 				DecalSheet:        a.LookupHash(unitData.DecalSheet),
 				ToneVariations:    unitData.ToneVariations,
+				CamoflagePieces:   camos,
 			})
 		}
 		if len(anytype.Pieces) > 0 {

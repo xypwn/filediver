@@ -22,13 +22,13 @@ type SimpleResourceOverride struct {
 
 type SimpleLevelGenerationPaletteGroup struct {
 	//Palette                 string                  `json:"palette"`
-	AssetGrading            string                  `json:"asset_grading"`
-	SkySettingsGroup        string                  `json:"sky_settings_group"`
-	DayGrading              string                  `json:"day_grading"`
-	NightGrading            string                  `json:"night_grading"`
-	SunsetGrading           string                  `json:"sunset_grading"`
-	WeatherColorSet         string                  `json:"weather_color_set"`
-	WeatherColorSetInternal datalib.WeatherColorSet `json:"weather_color_set_internal"`
+	AssetGrading           string                 `json:"asset_grading"`
+	SkySettingsGroup       string                 `json:"sky_settings_group"`
+	DayGrading             string                 `json:"day_grading"`
+	NightGrading           string                 `json:"night_grading"`
+	SunsetGrading          string                 `json:"sunset_grading"`
+	PlanetColorSet         string                 `json:"planet_color_set"`
+	PlanetColorSetInternal datalib.PlanetColorSet `json:"planet_color_set_internal"`
 }
 
 type SimplePlanetData struct {
@@ -47,6 +47,7 @@ type SimplePlanetData struct {
 	RegionHighland                   datalib.SimpleLevelGenerationRegion `json:"region_highland"`
 	PaletteGroupLowland              SimpleLevelGenerationPaletteGroup   `json:"palette_group_lowland"`
 	PaletteGroupHighland             SimpleLevelGenerationPaletteGroup   `json:"palette_group_highland"`
+	UnkEnum                          uint8                               `json:"unk_enum"`
 	ScenarioSettingsLowland          string                              `json:"scenario_settings_lowland"`
 	ScenarioSettingsHighland         string                              `json:"scenario_settings_highland"`
 	GameplayModifiers                []string                            `json:"gameplay_modifiers"`
@@ -119,27 +120,25 @@ func Dump(a components.HashLookup) {
 			DebugName:                 planetData.DebugName,
 			RegionLowland:             planetData.RegionLowland.ToSimple(a.LookupHash, a.LookupThinHash, a.LookupString),
 			RegionHighland:            planetData.RegionHighland.ToSimple(a.LookupHash, a.LookupThinHash, a.LookupString),
-
 			PaletteGroupLowland: SimpleLevelGenerationPaletteGroup{
-				//Palette:                 a.LookupHash(planetData.PaletteGroupLowland.Palette),
-				AssetGrading:            a.LookupHash(planetData.PaletteGroupLowland.AssetGrading),
-				SkySettingsGroup:        a.LookupHash(planetData.PaletteGroupLowland.SkySettingsGroup),
-				DayGrading:              a.LookupHash(planetData.PaletteGroupLowland.DayGrading),
-				NightGrading:            a.LookupHash(planetData.PaletteGroupLowland.NightGrading),
-				SunsetGrading:           a.LookupHash(planetData.PaletteGroupLowland.SunsetGrading),
-				WeatherColorSet:         a.LookupThinHash(planetData.PaletteGroupLowland.WeatherColorSet),
-				WeatherColorSetInternal: planetData.PaletteGroupLowland.WeatherColorSetInternal,
+				AssetGrading:           a.LookupHash(planetData.PaletteGroupLowland.AssetGrading),
+				SkySettingsGroup:       a.LookupHash(planetData.PaletteGroupLowland.SkySettingsGroup),
+				DayGrading:             a.LookupHash(planetData.PaletteGroupLowland.DayGrading),
+				NightGrading:           a.LookupHash(planetData.PaletteGroupLowland.NightGrading),
+				SunsetGrading:          a.LookupHash(planetData.PaletteGroupLowland.SunsetGrading),
+				PlanetColorSet:         a.LookupThinHash(planetData.PaletteGroupLowland.PlanetColorSet),
+				PlanetColorSetInternal: planetData.PaletteGroupLowland.PlanetColorSetInternal,
 			},
 			PaletteGroupHighland: SimpleLevelGenerationPaletteGroup{
-				//Palette:                 a.LookupHash(planetData.PaletteGroupHighland.Palette),
-				AssetGrading:            a.LookupHash(planetData.PaletteGroupHighland.AssetGrading),
-				SkySettingsGroup:        a.LookupHash(planetData.PaletteGroupHighland.SkySettingsGroup),
-				DayGrading:              a.LookupHash(planetData.PaletteGroupHighland.DayGrading),
-				NightGrading:            a.LookupHash(planetData.PaletteGroupHighland.NightGrading),
-				SunsetGrading:           a.LookupHash(planetData.PaletteGroupHighland.SunsetGrading),
-				WeatherColorSet:         a.LookupThinHash(planetData.PaletteGroupHighland.WeatherColorSet),
-				WeatherColorSetInternal: planetData.PaletteGroupHighland.WeatherColorSetInternal,
+				AssetGrading:           a.LookupHash(planetData.PaletteGroupHighland.AssetGrading),
+				SkySettingsGroup:       a.LookupHash(planetData.PaletteGroupHighland.SkySettingsGroup),
+				DayGrading:             a.LookupHash(planetData.PaletteGroupHighland.DayGrading),
+				NightGrading:           a.LookupHash(planetData.PaletteGroupHighland.NightGrading),
+				SunsetGrading:          a.LookupHash(planetData.PaletteGroupHighland.SunsetGrading),
+				PlanetColorSet:         a.LookupThinHash(planetData.PaletteGroupHighland.PlanetColorSet),
+				PlanetColorSetInternal: planetData.PaletteGroupHighland.PlanetColorSetInternal,
 			},
+			UnkEnum:                          planetData.UnkEnum,
 			ScenarioSettingsLowland:          a.LookupHash(planetData.ScenarioSettingsLowland),
 			ScenarioSettingsHighland:         a.LookupHash(planetData.ScenarioSettingsHighland),
 			GameplayModifiers:                gameplayModifiers,

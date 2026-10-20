@@ -565,7 +565,7 @@ func OpenGameDir(ctx context.Context, gameDir string, hashStrings []string, thin
 
 	environmentSettings, err := datalib.LoadEnvironmentSettings()
 	if err != nil {
-		return nil, fmt.Errorf("error loading planet overrides data: %v", err)
+		return nil, fmt.Errorf("error loading environment settings: %v", err)
 	}
 	environmentMap := make(map[enum.PlanetType]datalib.EnvironmentSettings)
 	for _, setting := range environmentSettings {

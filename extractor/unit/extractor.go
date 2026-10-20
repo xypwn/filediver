@@ -457,6 +457,41 @@ func AddMaterials(ctx *extractor.Context, doc *gltf.Document, imgOpts *extr_mate
 			}
 		}()
 
+		if metadata != nil {
+			// Handle armor variants
+			for _, camo := range metadata.CamoflagePieces {
+				camoMetadata := datalib.UnitData{
+					Slot:              metadata.Slot,
+					Type:              metadata.Type,
+					Weight:            metadata.Weight,
+					BodyType:          metadata.BodyType,
+					MaterialLut:       camo.MaterialLut,
+					PatternLut:        metadata.PatternLut,
+					CapeLut:           metadata.CapeLut,
+					CapeGradient:      metadata.CapeGradient,
+					CapeNac:           metadata.CapeNac,
+					DecalScalarFields: metadata.DecalScalarFields,
+					BaseData:          metadata.BaseData,
+					DecalSheet:        metadata.DecalSheet,
+					ToneVariations:    metadata.ToneVariations,
+				}
+				camoMatIdx, err := extr_material.AddMaterial(ctx.WithFileID(materialId), mat, doc, imgOpts, id, ctx.LookupThinHash(id)+" "+camo.CamoflageType.Name(), &camoMetadata)
+				if err != nil {
+					// Some materials don't get overriden, that's fine
+					continue
+				}
+
+				if _, ok := namesToVariantIdx[camo.CamoflageType.Name()]; !ok {
+					namesToVariantIdx[camo.CamoflageType.Name()] = uint32(len(materialVariants))
+					materialVariants = append(materialVariants, geometry.MaterialVariantMap{
+						Name:                camo.CamoflageType.Name(),
+						MaterialHashToIndex: make(map[stingray.ThinHash]uint32),
+					})
+				}
+				materialVariants[namesToVariantIdx[camo.CamoflageType.Name()]].MaterialHashToIndex[id] = camoMatIdx
+			}
+		}
+
 		{
 			// Handle weapon variants
 			if weaponErr != nil {
