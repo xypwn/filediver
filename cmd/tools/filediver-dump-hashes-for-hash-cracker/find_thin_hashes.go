@@ -216,7 +216,7 @@ func handleLevelThinHashes(prt app.Printer, a *app.App, id stingray.FileID, know
 			unknown[hashIndexRange.Hash.Value] = true
 		}
 	}
-	for _, hashIndexRange := range info.UnkHashIndexRange1 {
+	for _, hashIndexRange := range info.ParticleHashIndexRange {
 		if nameStr, exists := a.ThinHashes[hashIndexRange.Hash]; exists {
 			known[nameStr] = true
 		} else {

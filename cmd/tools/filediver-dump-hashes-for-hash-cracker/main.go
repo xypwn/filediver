@@ -198,10 +198,10 @@ func main() {
 					}
 					for _, unit := range levelInfo.Units {
 						allHashes[unit.Name.Value] = struct{}{}
-						allHashes[unit.UUIDHash.Value] = struct{}{}
+						allHashes[unit.UUID.Value] = struct{}{}
 					}
 					for _, levelPrefab := range levelInfo.Prefabs {
-						allHashes[levelPrefab.UUIDHash.Value] = struct{}{}
+						allHashes[levelPrefab.Name.Value] = struct{}{}
 					}
 					for _, prefabInfo := range levelInfo.EmbeddedPrefabs {
 						for _, unit := range prefabInfo.Units {
