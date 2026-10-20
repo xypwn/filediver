@@ -14104,6 +14104,9 @@ g_mag_standard_shadow_LOD1
 g_magazine
 g_magazine_LOD1
 g_magazine_LOD2
+g_magazine_duo_sniper
+g_magazine_duo_sniper_LOD1
+g_magazine_duo_sniper_LOD2
 g_magazine_heatsink_revolver
 g_magazine_shadow
 g_magazine_shadow_LOD1
@@ -14486,6 +14489,10 @@ g_optics_ironsight
 g_optics_ironsight_LOD1
 g_optics_ironsight_LOD2
 g_optics_ironsight_shadow
+optics_ironsight_long
+g_optics_ironsight_long
+g_optics_ironsight_long_LOD1
+g_optics_ironsight_long_LOD2
 g_pallet_01
 g_pallet_01_LOD1
 g_pallet_01_LOD2
