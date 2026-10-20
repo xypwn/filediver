@@ -233,7 +233,7 @@ void main() {
     }
 
     // Get the object location and use it to select a base color for each material
-    vec2 lut_uvs = vec2((instanceModel[3].x + instanceModel[3].z) / 150.0, float(material) / 8.0);
+    vec2 lut_uvs = vec2((instanceModel[3].x + instanceModel[3].z + fd_world_offset.x + fd_world_offset.z) / 150.0, float(material) / 8.0);
     vec4 base_color = textureLod(texture_lut, lut_uvs, 0.0);
     float surface_layer = roundEven(surface) - 1.0;
 

@@ -1,12 +1,12 @@
 #version 430 core
 
 #include "lighting.frag"
+#include "triplanar.frag"
 
 out vec4 fragColor;
 
 in vec3 fragPosition;
 in vec2 fragUV0;
-in mat3 dbg_fragTBN;
 in mat3 dbg_fragITBN;
 in mat4 instanceModel;
 
@@ -48,7 +48,7 @@ void main() {
     float metallic = clamp(material_wetness - 0.5, 0.0, 1.0);
 
     vec2 screen_rect_uvs = ((fragUV0 - 0.5) * resolution_multiplier + 0.5) * screen_rect.zw + screen_rect.xy;
-    vec2 atlas_uvs = floor((instanceModel[3].x + instanceModel[3].z) * vec2(123.321, 321.123)) / Atlas_size;
+    vec2 atlas_uvs = floor((instanceModel[3].x + instanceModel[3].z + fd_world_offset.x + fd_world_offset.z) * vec2(123.321, 321.123)) / Atlas_size;
     bvec2 atlas_gte = greaterThanEqual(atlas_uvs, -atlas_uvs);
     atlas_uvs = fract(abs(atlas_uvs));
 

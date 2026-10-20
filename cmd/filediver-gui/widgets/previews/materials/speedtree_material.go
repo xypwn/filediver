@@ -106,6 +106,7 @@ func (ml *MaterialManager) updateSpeedtreeMaterial(material *SpeedtreeMaterial, 
 	}
 
 	ml.setupMaterialCommon(speedtreeTextureNames, material, mat)
+	ml.handleGlobalBlocks(material.BaseMaterial)
 }
 
 func (ml *MaterialManager) updateSpeedtreeUnitMaterial(material *SpeedtreeUnitMaterial, mat *material.Material) {
@@ -128,4 +129,5 @@ func (ml *MaterialManager) updateSpeedtreeUnitMaterial(material *SpeedtreeUnitMa
 	}
 
 	ml.setupMaterialCommon(speedtreeTextureNames, material, mat)
+	ml.handleGlobalBlocks(material.BaseMaterial)
 }

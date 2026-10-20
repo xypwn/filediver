@@ -85,4 +85,6 @@ func (ml *MaterialManager) updateBuildingMaterial(material *BuildingMaterial, ma
 		}
 		material.textures[idx].filter = gl.NEAREST
 	}
+
+	ml.handleGlobalBlocks(material.BaseMaterial)
 }

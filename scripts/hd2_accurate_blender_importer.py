@@ -157,6 +157,24 @@ def convert_materials(gltf: Dict, node: Dict, variants: List[Dict], hasVariants:
     mesh = gltf["meshes"][node["mesh"]]
     textures: Dict[str, Image] = {}
     obj: Object = None
+    # Blender apparently collapses duplicate materials into single slots
+    # while stingray can have multiple primitives with the same material.
+    # This should replicate blender's behavior so that units with multiple
+    # primitives with the same material are treated correctly
+    unique_slots = []
+    prim_to_slot = {}
+    for primIdx, primitive in enumerate(mesh["primitives"]):
+        if "material" not in primitive:
+            continue
+        materialIndex = primitive["material"]
+        material = gltf["materials"][materialIndex]
+        value = (material, materialIndex)
+        if value not in unique_slots:
+            prim_to_slot[primIdx] = len(unique_slots)
+            unique_slots.append(value)
+        else:
+            prim_to_slot[primIdx] = unique_slots.index(value)
+    
     for primIdx, primitive in enumerate(mesh["primitives"]):
         for varIdx in range(len(variants)):
             if "material" not in primitive:
@@ -169,9 +187,10 @@ def convert_materials(gltf: Dict, node: Dict, variants: List[Dict], hasVariants:
                         materialIndex = mapping["material"]
                         break
             material = gltf["materials"][materialIndex]
+            slot_idx = prim_to_slot[primIdx]
             if obj is None:
                 for item in bpy.data.objects:
-                    if primIdx < len(item.material_slots) and item.material_slots[primIdx].material and item.material_slots[primIdx].material.name.startswith(material["name"]) and item.name.startswith(node["name"]) and len(item.material_slots) == len(mesh["primitives"]):
+                    if slot_idx < len(item.material_slots) and item.material_slots[slot_idx].material and item.material_slots[slot_idx].material.name.startswith(material["name"]) and item.name.startswith(node["name"]) and len(item.material_slots) == len(unique_slots):
                         obj: Object = item
                         break
 
@@ -198,24 +217,24 @@ def convert_materials(gltf: Dict, node: Dict, variants: List[Dict], hasVariants:
 
             if obj is None:
                 continue
-            obj.material_slots[primIdx].material = object_mat
+            obj.material_slots[slot_idx].material = object_mat
             if hasVariants:
                 # Taken from gltf2 extension
                 mesh = obj.data
                 found = False
                 variant_found = False
                 for i in mesh.gltf2_variant_mesh_data:
-                    if i.material_slot_index == primIdx and i.material == object_mat:
+                    if i.material_slot_index == slot_idx and i.material == object_mat:
                         found = True
                         variant_primitive = i
-                    elif i.material_slot_index == primIdx and varIdx == i.variants[0].variant.variant_idx:
+                    elif i.material_slot_index == slot_idx and varIdx == i.variants[0].variant.variant_idx:
                         found = True
                         variant_found = True
                         variant_primitive = i
                         i.material = object_mat
                 if not found:
                     variant_primitive = obj.data.gltf2_variant_mesh_data.add()
-                    variant_primitive.material_slot_index = primIdx
+                    variant_primitive.material_slot_index = slot_idx
                     variant_primitive.material = object_mat
                 if not variant_found:
                     vari = variant_primitive.variants.add()

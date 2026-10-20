@@ -92,6 +92,8 @@ func (ml *MaterialManager) updateLutMaterial(material *LutMaterial, mat *materia
 			block.setDefault("use_decals", &useDecals)
 		}
 	}
+
+	ml.handleGlobalBlocks(material.BaseMaterial)
 }
 
 var _ Material = &LutMaterial{}

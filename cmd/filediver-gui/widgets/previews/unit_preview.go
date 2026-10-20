@@ -2164,7 +2164,7 @@ func (pv *UnitPreviewState) drawLists(size imgui.Vec2, model, view, projection m
 				if err := object.wireframe.SetUniform("hasVisibilityMasks", 1, &object.hasVisibilityMasks); err != nil && err != preview_mats.UNIFORM_NOT_FOUND {
 					panic(err)
 				}
-				if err := object.wireframe.SetUniform("udimShown", 64, &pv.udimsShown[0]); err != nil && err != preview_mats.UNIFORM_NOT_FOUND {
+				if err := object.wireframe.SetUniform("udimShown[0]", 64, &pv.udimsShown[0]); err != nil && err != preview_mats.UNIFORM_NOT_FOUND {
 					panic(err)
 				}
 			}
@@ -2188,7 +2188,7 @@ func (pv *UnitPreviewState) drawLists(size imgui.Vec2, model, view, projection m
 					if err := object.materials[group].SetUniform("viewPosition", 1, viewPosition); err != nil && err != preview_mats.UNIFORM_NOT_FOUND {
 						panic(err)
 					}
-					if err := object.materials[group].SetUniform("udimShown", 64, &pv.udimsShown[0]); err != nil && err != preview_mats.UNIFORM_NOT_FOUND {
+					if err := object.materials[group].SetUniform("udimShown[0]", 64, &pv.udimsShown[0]); err != nil && err != preview_mats.UNIFORM_NOT_FOUND {
 						panic(err)
 					}
 				}
@@ -2254,7 +2254,7 @@ func (pv *UnitPreviewState) drawListsNormalVis(size imgui.Vec2, model, view, pro
 			if err := object.normalVis.SetUniform("hasVisibilityMasks", 1, &object.hasVisibilityMasks); err != nil && err != preview_mats.UNIFORM_NOT_FOUND {
 				panic(err)
 			}
-			if err := object.normalVis.SetUniform("udimShown", 1, &pv.udimsShown[0]); err != nil && err != preview_mats.UNIFORM_NOT_FOUND {
+			if err := object.normalVis.SetUniform("udimShown[0]", 64, &pv.udimsShown[0]); err != nil && err != preview_mats.UNIFORM_NOT_FOUND {
 				panic(err)
 			}
 			for group, ibo := range object.ibos {
@@ -2984,8 +2984,12 @@ func (pv *UnitPreviewState) drawNodeTree(curr unitPreviewNode, nodeId stingray.F
 			if pv.rootHash == nodeId {
 				pv.root = curr
 			}
-			//pv.unitsSelected[hash] = !shown
 		}
+
+		if nodeId == pv.rootHash {
+			pv.ml.DrawGlobalBlocks(imgui.TreeNodeFlagsOpenOnArrow|imgui.TreeNodeFlagsDrawLinesToNodes, color)
+		}
+
 		children := slices.SortedFunc(slices.Values(curr.children), cmpHashStringsGenerator(pv.lookupHash, pv.nodes))
 		units := make([]stingray.FileID, 0)
 		for _, childHash := range children {
