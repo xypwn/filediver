@@ -1178,6 +1178,17 @@ CamouflageSwap
 CamouflageType
 VoTag
 ZoneTag
+GuidedWeaponComponent
+GuidedWeaponComponentData
+MountedWeaponComponent
+MountedWeaponComponentData
+ObjectiveDestructionComponent
+ObjectiveDestructionComponentData
+PlanetColorSet
+PlanetColorSets
+ProjectileMotionComponent
+SeafObjectivesComponent
+SeafObjectivesComponentData
 
 // ======== Enums and Values ========
 HelldiverCustomizationPassiveBonus
