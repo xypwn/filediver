@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"math"
 	"slices"
@@ -198,6 +199,26 @@ func UnitsToEntities(unitHash stingray.Hash) (entityHash stingray.Hash) {
 		return stingray.Sum("content/fac_bugs/cha_warrior/cha_warrior_gloom")
 	}
 	return unitHash
+}
+
+// A float that can be used to avoid errors when parsing needs fixing
+type JsonFloat float32
+
+func (j JsonFloat) MarshalJSON() ([]byte, error) {
+	// wish this was just an option...
+	sign := ""
+	if math.Signbit(float64(j)) {
+		sign = "-"
+	}
+	if math.IsNaN(float64(j)) {
+		value := fmt.Sprintf("\"%vNaN (%08x)\"", sign, math.Float32bits(float32(j)))
+		return []byte(value), nil
+	} else if math.IsInf(float64(j), 0) {
+		value := fmt.Sprintf("\"%vinf (%08x)\"", sign, math.Float32bits(float32(j)))
+		return []byte(value), nil
+	}
+
+	return json.Marshal(float32(j))
 }
 
 const BitsPerWord = 32 << (^uint(0) >> 63)

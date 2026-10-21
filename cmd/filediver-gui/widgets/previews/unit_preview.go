@@ -117,7 +117,7 @@ var armorCamos = []enum.CamouflageType{
 	enum.CamouflageType_Arctic,
 	enum.CamouflageType_Desert,
 	enum.CamouflageType_Forest,
-	enum.CamouflageType_Martian,
+	enum.CamouflageType_Crimson,
 }
 
 type UnitPreviewState struct {

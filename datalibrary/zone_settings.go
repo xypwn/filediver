@@ -487,10 +487,9 @@ type rawZoneSettings struct {
 	PlayerKillHeight               float32
 	MinimapScatter                 rawMinimapScatterSet
 	LocationHeightOffset           float32
-	_                              [4]uint8
-	UnkString                      DLString
 	UnkThinHash1                   stingray.ThinHash
 	UnkThinHash2                   stingray.ThinHash
+	UnkThinHash3                   stingray.ThinHash
 	UnkBitfield1                   uint8
 	_                              [3]uint8
 	PatrolSetting                  enum.PatrolSetting
@@ -550,14 +549,15 @@ type rawZoneSettings struct {
 	UnkFloat19                     float32
 	UnkFloat20                     float32
 	UnkInt4                        uint64
-	UnkString2                     DLString
+	UnkString                      DLString
 	UnkFloat21                     float32
 	UnkFloat22                     float32
 	BoundaryWallSettings           rawBoundaryWallSettings
 	RoadEmbankmentUnits            DLArray
+	LevelTags                      [4]enum.LevelGenerationTag
 	UnkInt5                        uint32
 	UnkBitfield3                   uint8
-	_                              [3]uint8
+	_                              [7]uint8
 }
 
 type StampGroupFlags struct {
@@ -578,13 +578,12 @@ type rawStampGroup struct {
 	UnkFloat1                   float32
 	MaxRandomOffsetInCell       float32
 	FillRate                    float32
-	MaxPossibleCellsPerMap      int32
 	Flags                       StampGroupFlags
 	_                           [2]uint8
 	StampMaxOverlap             float32
 	StampMinOverlap             float32
 	StampOverlapGroup           enum.StampOverlapGroups
-	_                           [7]uint8
+	_                           [3]uint8
 	StampOverlapSettings        DLArray
 	RouteStampOffset            float32
 	MaxDistanceFromRoute        float32
@@ -925,7 +924,6 @@ type StampGroup struct {
 	UnkFloat1                   float32
 	MaxRandomOffsetInCell       float32
 	FillRate                    float32
-	MaxPossibleCellsPerMap      int32
 	Flags                       StampGroupFlags
 	StampMaxOverlap             float32
 	StampMinOverlap             float32
@@ -948,7 +946,6 @@ type SimpleStampGroup struct {
 	UnkFloat1                   float32                 `json:"unk_float1"`
 	MaxRandomOffsetInCell       float32                 `json:"max_random_offset_in_cell"`
 	FillRate                    float32                 `json:"fill_rate"`
-	MaxPossibleCellsPerMap      int32                   `json:"max_possible_cells_per_map"`
 	Flags                       StampGroupFlags         `json:"flags"`
 	StampMaxOverlap             float32                 `json:"stamp_max_overlap"`
 	StampMinOverlap             float32                 `json:"stamp_min_overlap"`
@@ -977,7 +974,6 @@ func (v StampGroup) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLooku
 		UnkFloat1:                   v.UnkFloat1,
 		MaxRandomOffsetInCell:       v.MaxRandomOffsetInCell,
 		FillRate:                    v.FillRate,
-		MaxPossibleCellsPerMap:      v.MaxPossibleCellsPerMap,
 		Flags:                       v.Flags,
 		StampMaxOverlap:             v.StampMaxOverlap,
 		StampMinOverlap:             v.StampMinOverlap,
@@ -1021,7 +1017,6 @@ func (g rawStampGroup) Deserialize(r io.ReadSeeker, base int64) (*StampGroup, er
 		UnkFloat1:                   g.UnkFloat1,
 		MaxRandomOffsetInCell:       g.MaxRandomOffsetInCell,
 		FillRate:                    g.FillRate,
-		MaxPossibleCellsPerMap:      g.MaxPossibleCellsPerMap,
 		Flags:                       g.Flags,
 		StampMaxOverlap:             g.StampMaxOverlap,
 		StampMinOverlap:             g.StampMinOverlap,
@@ -1333,9 +1328,9 @@ type ZoneSettings struct {
 	PlayerKillHeight               float32
 	MinimapScatter                 MinimapScatterSet
 	LocationHeightOffset           float32
-	UnkString                      *string
 	UnkThinHash1                   stingray.ThinHash
 	UnkThinHash2                   stingray.ThinHash
+	UnkThinHash3                   stingray.ThinHash
 	UnkBitfield1                   uint8
 	PatrolSetting                  enum.PatrolSetting
 	PatrolFloat1                   float32
@@ -1389,7 +1384,7 @@ type ZoneSettings struct {
 	UnkFloat19                     float32
 	UnkFloat20                     float32
 	UnkInt4                        uint64
-	UnkString2                     *string
+	UnkString                      *string
 	UnkFloat21                     float32
 	UnkFloat22                     float32
 	BoundaryWallSettings           BoundaryWallSettings
@@ -1429,9 +1424,9 @@ type SimpleZoneSettings struct {
 	PlayerKillHeight               float32                           `json:"player_kill_height"`
 	MinimapScatter                 SimpleMinimapScatterSet           `json:"minimap_scatter"`
 	LocationHeightOffset           float32                           `json:"location_height_offset"`
-	UnkString                      *string                           `json:"unk_string"`
 	UnkThinHash1                   string                            `json:"unk_thin_hash1"`
 	UnkThinHash2                   string                            `json:"unk_thin_hash2"`
+	UnkThinHash3                   string                            `json:"unk_thin_hash3"`
 	UnkBitfield1                   uint8                             `json:"unk_bitfield1"`
 	PatrolSetting                  enum.PatrolSetting                `json:"patrol_setting"`
 	PatrolFloat1                   float32                           `json:"patrol_float1"`
@@ -1485,7 +1480,7 @@ type SimpleZoneSettings struct {
 	UnkFloat19                     float32                           `json:"unk_float19"`
 	UnkFloat20                     float32                           `json:"unk_float20"`
 	UnkInt4                        uint64                            `json:"unk_int4"`
-	UnkString2                     *string                           `json:"unk_string2"`
+	UnkString                      *string                           `json:"unk_string"`
 	UnkFloat21                     float32                           `json:"unk_float21"`
 	UnkFloat22                     float32                           `json:"unk_float22"`
 	BoundaryWallSettings           SimpleBoundaryWallSettings        `json:"boundary_wall_settings"`
@@ -1575,9 +1570,9 @@ func (z ZoneSettings) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLoo
 		PlayerKillHeight:               z.PlayerKillHeight,
 		MinimapScatter:                 z.MinimapScatter.ToSimple(lookupHash, lookupThinHash, lookupStrings),
 		LocationHeightOffset:           z.LocationHeightOffset,
-		UnkString:                      z.UnkString,
 		UnkThinHash1:                   lookupThinHash(z.UnkThinHash1),
 		UnkThinHash2:                   lookupThinHash(z.UnkThinHash2),
+		UnkThinHash3:                   lookupThinHash(z.UnkThinHash3),
 		UnkBitfield1:                   z.UnkBitfield1,
 		PatrolSetting:                  z.PatrolSetting,
 		PatrolFloat1:                   z.PatrolFloat1,
@@ -1631,7 +1626,7 @@ func (z ZoneSettings) ToSimple(lookupHash HashLookup, lookupThinHash ThinHashLoo
 		UnkFloat19:                     z.UnkFloat19,
 		UnkFloat20:                     z.UnkFloat20,
 		UnkInt4:                        z.UnkInt4,
-		UnkString2:                     z.UnkString2,
+		UnkString:                      z.UnkString,
 		UnkFloat21:                     z.UnkFloat21,
 		UnkFloat22:                     z.UnkFloat22,
 		BoundaryWallSettings:           z.BoundaryWallSettings.ToSimple(lookupHash, lookupThinHash, lookupStrings),
@@ -1799,25 +1794,14 @@ func (z rawZoneSettings) Deserialize(r io.ReadSeeker, base int64) (*ZoneSettings
 	var unkString *string
 	if z.UnkString.Offset > 0 {
 		if _, err := r.Seek(base+z.UnkString.Offset, io.SeekStart); err != nil {
-			return nil, fmt.Errorf("seeking unk string 1: %v", err)
-		}
-		unkStringVal, err := util.ReadCString(r)
-		if err != nil {
-			return nil, fmt.Errorf("reading unk string 1: %v", err)
-		}
-		unkString = &unkStringVal
-	}
-
-	var unkString2 *string
-	if z.UnkString2.Offset > 0 {
-		if _, err := r.Seek(base+z.UnkString2.Offset, io.SeekStart); err != nil {
 			return nil, fmt.Errorf("seeking unk string 2: %v", err)
 		}
 		unkString2Val, err := util.ReadCString(r)
 		if err != nil {
 			return nil, fmt.Errorf("reading unk string 2: %v", err)
+		} else {
+			unkString = &unkString2Val
 		}
-		unkString2 = &unkString2Val
 	}
 
 	boundaryWallSettings, err := z.BoundaryWallSettings.Deserialize(r, base)
@@ -1861,9 +1845,9 @@ func (z rawZoneSettings) Deserialize(r io.ReadSeeker, base int64) (*ZoneSettings
 		PlayerKillHeight:               z.PlayerKillHeight,
 		MinimapScatter:                 *minimapScatter,
 		LocationHeightOffset:           z.LocationHeightOffset,
-		UnkString:                      unkString,
 		UnkThinHash1:                   z.UnkThinHash1,
 		UnkThinHash2:                   z.UnkThinHash2,
+		UnkThinHash3:                   z.UnkThinHash3,
 		UnkBitfield1:                   z.UnkBitfield1,
 		PatrolSetting:                  z.PatrolSetting,
 		PatrolFloat1:                   z.PatrolFloat1,
@@ -1917,7 +1901,7 @@ func (z rawZoneSettings) Deserialize(r io.ReadSeeker, base int64) (*ZoneSettings
 		UnkFloat19:                     z.UnkFloat19,
 		UnkFloat20:                     z.UnkFloat20,
 		UnkInt4:                        z.UnkInt4,
-		UnkString2:                     unkString2,
+		UnkString:                      unkString,
 		UnkFloat21:                     z.UnkFloat21,
 		UnkFloat22:                     z.UnkFloat22,
 		BoundaryWallSettings:           *boundaryWallSettings,

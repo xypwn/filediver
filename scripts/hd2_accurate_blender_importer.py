@@ -190,9 +190,19 @@ def convert_materials(gltf: Dict, node: Dict, variants: List[Dict], hasVariants:
             slot_idx = prim_to_slot[primIdx]
             if obj is None:
                 for item in bpy.data.objects:
-                    if slot_idx < len(item.material_slots) and item.material_slots[slot_idx].material and item.material_slots[slot_idx].material.name.startswith(material["name"]) and item.name.startswith(node["name"]) and len(item.material_slots) == len(unique_slots):
+                    if slot_idx < len(item.material_slots) and item.material_slots[slot_idx].material and material["name"].startswith(item.material_slots[slot_idx].material.name) and item.name.startswith(node["name"]) and len(item.material_slots) == len(unique_slots):
                         obj: Object = item
                         break
+                    # elif not slot_idx < len(item.material_slots):
+                    #     print(f"    ignoring {item.name} due to slot idx")
+                    # elif slot_idx < len(item.material_slots) and not item.material_slots[slot_idx].material:
+                    #     print(f"    ignoring {item.name} due to material")
+                    # elif slot_idx < len(item.material_slots) and item.material_slots[slot_idx].material and not material["name"].startswith(item.material_slots[slot_idx].material.name):
+                    #     print(f"    ignoring {item.name} due to material name")
+                    # elif slot_idx < len(item.material_slots) and item.material_slots[slot_idx].material and item.material_slots[slot_idx].material.name.startswith(material["name"]) and not item.name.startswith(node["name"]):
+                    #     print(f"    ignoring {item.name} due to object name")
+                    # elif slot_idx < len(item.material_slots) and item.material_slots[slot_idx].material and item.material_slots[slot_idx].material.name.startswith(material["name"]) and item.name.startswith(node["name"]) and not len(item.material_slots) == len(unique_slots):
+                    #     print(f"    ignoring {item.name} due to unique slots")
 
             loader: FilediverMaterialLoaderInterface = None
             for _loader in material_loaders:

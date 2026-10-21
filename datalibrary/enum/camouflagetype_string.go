@@ -13,7 +13,7 @@ func _() {
 	_ = x[CamouflageType_Forest-2]
 	_ = x[CamouflageType_Desert-3]
 	_ = x[CamouflageType_Arctic-4]
-	_ = x[CamouflageType_Martian-5]
+	_ = x[CamouflageType_Crimson-5]
 }
 
 const _CamouflageType_name = "CamouflageType_NoneCamouflageType_DefaultCamouflageType_ForestCamouflageType_DesertCamouflageType_ArcticCamouflageType_Martian"

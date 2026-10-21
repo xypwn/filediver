@@ -217,6 +217,14 @@ func main() {
 				allHashes[id.Type.Value] = struct{}{}
 			}
 
+			entities, err := datalib.ParseEntityComponentSettings()
+			if err != nil {
+				prt.Fatalf("Failed to parse entities: %v", err)
+			}
+			for id := range entities {
+				allHashes[id.Value] = struct{}{}
+			}
+
 			for h := range allHashes {
 				if s, exists := a.Hashes[stingray.Hash{Value: h}]; exists {
 					if !reAudioPath.MatchString(s) {
