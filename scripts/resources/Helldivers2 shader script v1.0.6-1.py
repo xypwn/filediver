@@ -7930,6 +7930,7 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     mix_081.name = "Mix.081"
     mix_081.data_type = 'FLOAT'
     mix_081.location = (-4480.0, 6020.0)
+    mix_081.inputs['A'].default_value = 1.0
 
     HD2_Shader.links.new(math_189.outputs['Value'], math_190.inputs['Value_001'])
     HD2_Shader.links.new(math_190.outputs['Value'], mix_081.inputs['B'])
