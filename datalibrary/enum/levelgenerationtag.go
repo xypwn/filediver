@@ -1,0 +1,49 @@
+package enum
+
+type LevelGenerationTag uint8
+
+const (
+	LevelGenerationTag_None LevelGenerationTag = iota
+	LevelGenerationTag_Value_1_Len_30
+	LevelGenerationTag_Value_2_Len_33
+	LevelGenerationTag_Value_3_Len_26
+	LevelGenerationTag_Value_4_Len_25
+	LevelGenerationTag_Value_5_Len_30
+	LevelGenerationTag_Value_6_Len_25
+	LevelGenerationTag_Value_7_Len_25
+	LevelGenerationTag_Value_8_Len_24
+	LevelGenerationTag_Value_9_Len_26
+	LevelGenerationTag_Value_10_Len_24
+	LevelGenerationTag_Value_11_Len_24
+	LevelGenerationTag_Value_12_Len_29
+	LevelGenerationTag_Value_13_Len_23
+	LevelGenerationTag_Value_14_Len_29
+	LevelGenerationTag_Value_15_Len_28
+	LevelGenerationTag_Value_16_Len_31
+	LevelGenerationTag_Value_17_Len_24
+	LevelGenerationTag_Value_18_Len_24
+	LevelGenerationTag_Value_19_Len_28
+	LevelGenerationTag_Value_20_Len_29
+	LevelGenerationTag_Value_21_Len_23
+	LevelGenerationTag_Value_22_Len_25
+	LevelGenerationTag_Value_23_Len_29
+	LevelGenerationTag_Value_24_Len_28
+	LevelGenerationTag_Value_25_Len_34
+	LevelGenerationTag_Value_26_Len_33
+	LevelGenerationTag_Value_27_Len_28
+	LevelGenerationTag_Value_28_Len_36
+	LevelGenerationTag_Value_29_Len_35
+	LevelGenerationTag_Value_30_Len_29
+	LevelGenerationTag_Value_31_Len_29
+	LevelGenerationTag_Value_32_Len_27
+	LevelGenerationTag_Value_33_Len_25
+	LevelGenerationTag_Value_34_Len_55
+	LevelGenerationTag_Value_35_Len_56
+	LevelGenerationTag_Count
+)
+
+func (p LevelGenerationTag) MarshalText() ([]byte, error) {
+	return []byte(p.String()), nil
+}
+
+//go:generate go run golang.org/x/tools/cmd/stringer -type=LevelGenerationTag
