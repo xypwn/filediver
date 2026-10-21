@@ -6566,6 +6566,12 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     separate_xyz_063 = HD2_Shader.nodes.new("ShaderNodeSeparateXYZ")
     separate_xyz_063.name = "Separate XYZ.063"
     
+    #node Mix.082
+    mix_082: ShaderNodeMix = HD2_Shader.nodes.new("ShaderNodeMix")
+    mix_082.name = "Mix.082"
+    mix_082.data_type = 'FLOAT'
+    mix_082.inputs['A'].default_value = 1.0
+
     #node Mix Shader
     mix_shader = HD2_Shader.nodes.new("ShaderNodeMixShader")
     mix_shader.name = "Mix Shader"
@@ -9594,6 +9600,7 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     vector_math_118.parent = frame_050
     math_277.parent = frame_050
     separate_xyz_063.parent = frame_050
+    mix_082.parent = frame_053
     mix_shader.parent = frame_053
     separate_xyz_051.parent = frame_053
     principled_bsdf_001.parent = frame_052
@@ -10347,8 +10354,9 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     vector_math_118.location = (2120.0, 160.0)
     math_277.location = (1000.0, 160.0)
     separate_xyz_063.location = (840.0, 160.0)
+    mix_082.location = (30.0, -80.0)
     mix_shader.location = (190.0, -80.0)
-    separate_xyz_051.location = (-130.0, -80.0)
+    separate_xyz_051.location = (-290.0, -80.0)
     principled_bsdf_001.location = (-20.0, -40.0)
     normal_map.location = (2280.0, 160.0)
     math_050.location = (52460.0, 4200.0)
@@ -10589,7 +10597,7 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     math_146.location = (3460.0, 53.0)
     mix_011.location = (3620.0, 53.0)
     group_output_1.location = (52860.0, 5100.0)
-    math_194.location = (30.0, -80.0)
+    math_194.location = (-130.0, -80.0)
     
     #initialize HD2_Shader links
     connect_input_links(HD2_Shader)
@@ -12848,8 +12856,12 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     HD2_Shader.links.new(separate_xyz_051.outputs[2], math_194.inputs[0])
     #principled_bsdf_001.BSDF -> mix_shader.Shader
     HD2_Shader.links.new(principled_bsdf_001.outputs[0], mix_shader.inputs[2])
-    #math_194.Value -> mix_shader.Fac
-    HD2_Shader.links.new(math_194.outputs[0], mix_shader.inputs[0])
+    #math_194.Value -> mix_082.B
+    HD2_Shader.links.new(math_194.outputs[0], mix_082.inputs['B'])
+    #mix_081.Result -> mix_082.Factor
+    HD2_Shader.links.new(mix_081.outputs['Result'], mix_082.inputs['Factor'])
+    #mix_082.Result -> mix_shader.Fac
+    HD2_Shader.links.new(mix_082.outputs['Result'], mix_shader.inputs[0])
     #clamp_019.Result -> vector_math_061.Vector
     HD2_Shader.links.new(clamp_019.outputs[0], vector_math_061.inputs[1])
     #vector_math_114.Vector -> vector_math_111.Vector
