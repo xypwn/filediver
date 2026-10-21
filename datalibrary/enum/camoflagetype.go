@@ -8,7 +8,7 @@ const (
 	CamouflageType_Forest
 	CamouflageType_Desert
 	CamouflageType_Arctic
-	CamouflageType_Martian
+	CamouflageType_Crimson
 )
 
 func (p CamouflageType) Name() string {
@@ -23,8 +23,8 @@ func (p CamouflageType) Name() string {
 		return "desert"
 	case CamouflageType_Arctic:
 		return "arctic"
-	case CamouflageType_Martian:
-		return "martian"
+	case CamouflageType_Crimson:
+		return "crimson"
 	}
 	return "unknown"
 }
