@@ -16,6 +16,7 @@ var bugsTextureNames = []string{
 	"detail_normal_1",
 	"texture_map_02",
 	"emissive_color",
+	"sclar_field_opacity",
 	"ibl_brdf_lut",
 }
 
@@ -29,6 +30,7 @@ var bugsMaterials = []stingray.Hash{
 	stingray.Sum("content/art_shared/base_shaders/m_bug_master_emissive"),
 	stingray.Sum("content/art_shared/base_shaders/m_bug_master"),
 	stingray.Sum("content/art_shared/base_shaders/m_bug_master_massive"),
+	stingray.Hash{Value: 0x8f669f365f24594e},
 }
 
 func isBugsMaterial(mat *material.Material) bool {

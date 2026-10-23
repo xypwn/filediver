@@ -32,6 +32,7 @@ from material_loaders import *
 
 material_loaders: List[FilediverMaterialLoaderInterface] = [
     ArmorMaterialLoader(),
+    BugMaterialLoader(),
     BuildingMaterialLoader(),
     CapeMaterialLoader(),
     ConcreteAltMaterialLoader(),

@@ -59,6 +59,7 @@ uniform sampler2D subsurface_opacity;
 uniform sampler2D detail_normal_1;
 uniform sampler2D texture_map_02;
 uniform sampler2D emissive_color;
+uniform sampler2D sclar_field_opacity;
 
 void main() {
     vec4 alb_iri = texture(albedo_iridescence, fragUV0);
@@ -68,6 +69,12 @@ void main() {
     float roughness = cras.y;
     float ao = cras.z;
     float spec = cras.w;
+    float opacity = texture(sclar_field_opacity, fragUV0).x;
+
+    opacity = clamp((opacity - 0.5) * opacity_sharpness + 0.5 + opacity_offset, 0.0, 1.0);
+    if (opacity < 0.5) {
+        discard;
+    }
     vec3 normal_sample;
     normal_sample.xy = texture(normal, fragUV0).xy * 2.0 - 1.0;
     float normal_w = sqrt(1.0 - min(dot(normal_sample.xy, normal_sample.xy), 1.0));
@@ -134,6 +141,10 @@ void main() {
     emissive_color_sample.xyz = clamp(emissive_color_sample, 0.0, 65504.0);
 
     temp_emissive = gamma(min(emissive_color_sample.xyz / 128.0, vec3(1.0)), 0.8);
+
+    if (gl_FrontFacing) {
+        output_normal = -output_normal;
+    }
 
     switch(debug) {
     case 1:
