@@ -30,6 +30,7 @@ var bugsMaterials = []stingray.Hash{
 	stingray.Sum("content/art_shared/base_shaders/m_bug_master_emissive"),
 	stingray.Sum("content/art_shared/base_shaders/m_bug_master"),
 	stingray.Sum("content/art_shared/base_shaders/m_bug_master_massive"),
+	stingray.Hash{Value: 0x49e1b409b8967abc},
 	stingray.Hash{Value: 0x8f669f365f24594e},
 }
 
