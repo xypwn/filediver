@@ -217,6 +217,7 @@ $POSITIONING_CLOSEST_TO_LISTENER
 3eb1ba63-3a53-4846-970b-57e3d4d75d2b
 3eef0777-8d83-485b-ab05-9db3b76244f2
 3f977960-89c8-421a-a0e3-066e233b8a49
+3x_cy_trench_wall_corner
 3x_cy_trench_wall_x2
 3x_cy_trench_wall_x4
 3x_cy_trench_wall_x6
@@ -454,6 +455,7 @@ Actions/action_break_obstacle
 Actions/bark_suspicious
 Actions/bark_target_aquired
 Actions/bark_target_changed
+Actions/berserker_attack_both
 Actions/berserker_attack_left
 Actions/berserker_attack_right
 Actions/bite_crawl
@@ -1919,6 +1921,7 @@ Override/Crouching/directional_shield_melee
 Override/Crouching/flag
 Override/Crouching/foliage_exit
 Override/Crouching/onehand_drop
+Override/Crouching/onehand_pickup
 Override/Crouching/shield
 Override/Crouching/shield_aim
 Override/Crouching/shield_draw
@@ -1927,6 +1930,7 @@ Override/Crouching/shield_melee
 Override/Crouching/twohand
 Override/Crouching/twohand_drop
 Override/Crouching/twohand_drop_stratagem
+Override/Crouching/twohand_pickup
 Override/Crouching/twohand_stratagem
 Override/Crouching/twohand_stratagem_pickup
 Override/Crouching/twohand_throw
@@ -1938,6 +1942,7 @@ Override/Prone/directional_shield_draw
 Override/Prone/directional_shield_melee
 Override/Prone/flag
 Override/Prone/onehand_drop
+Override/Prone/onehand_pickup
 Override/Prone/shield
 Override/Prone/shield_aim
 Override/Prone/shield_draw
@@ -1954,6 +1959,7 @@ Override/Standing/directional_shield_melee
 Override/Standing/flag
 Override/Standing/foliage_exit
 Override/Standing/onehand_drop
+Override/Standing/onehand_pickup
 Override/Standing/shield
 Override/Standing/shield_aim
 Override/Standing/shield_draw
@@ -1962,6 +1968,7 @@ Override/Standing/shield_melee
 Override/Standing/twohand
 Override/Standing/twohand_drop
 Override/Standing/twohand_drop_stratagem
+Override/Standing/twohand_pickup
 Override/Standing/twohand_stratagem
 Override/Standing/twohand_stratagem_pickup
 Override/Standing/twohand_throw
@@ -2370,6 +2377,7 @@ Spawn/Spawn_Landing
 Spawn/Spawn_Spawner
 Spawn/Spawn_Start
 Spawn/Unburrow
+Spawn/Unburrow_from_sleeping
 Spawn/spawn_door
 Sphere Push/Pull
 Sphere_Primitive
@@ -2698,8 +2706,17 @@ actions/Stunned
 actions/action_bile_spew
 actions/alerted_enemies
 actions/alerted_enemies/alerted_enemies
+actions/alerted_enemies/alerted_enemies_2
+actions/alerted_enemies/alerted_enemies_3
+actions/alerted_enemies/alerted_enemies_4
+actions/alerted_enemies/alerted_enemies_5
+actions/alerted_enemies/alerted_enemies_6
 actions/alerted_enemies_short
 actions/alerted_enemies_short/alerted_enemies_short
+actions/alerted_enemies_short/alerted_enemies_short_1
+actions/alerted_enemies_short/alerted_enemies_short_2
+actions/alerted_enemies_short/alerted_enemies_short_3
+actions/alerted_enemies_short/alerted_enemies_short_4
 actions/combat_hesitate
 actions/combat_hesitate/combat_hesitate
 actions/combat_hesitate/combat_hesitate_1
@@ -2721,6 +2738,11 @@ actions/order_defend
 actions/order_fire
 actions/react_helldiver_salute
 actions/react_helldiver_salute/react_helldiver_salute
+actions/react_helldiver_salute/react_helldiver_salute_1
+actions/react_helldiver_salute/react_helldiver_salute_2
+actions/react_helldiver_salute/react_helldiver_salute_3
+actions/react_helldiver_salute/react_helldiver_salute_4
+actions/react_helldiver_salute/react_helldiver_salute_5
 actions/target_aquired
 actions/taunt
 actions/taunts
@@ -4181,6 +4203,7 @@ cities_berserker_corpse_01
 cities_bug_cluster_01
 cities_bug_cluster_02
 cities_bug_corpse_warrior_
+cities_bug_corpse_warrior_body
 cities_bug_goop_pillow_
 cities_bug_rock_small_
 cities_bug_rock_spike_
@@ -4278,6 +4301,8 @@ cities_spore_light_02_objective
 cities_spore_light_02_objective1
 cities_trench_floor_01
 cities_trench_floor_1x2
+city_bug_spawner_shrieker_base
+city_bug_spawner_shrieker_middle
 city_bug_spawner_shrieker_top
 city_car_
 city_car_01
@@ -91646,6 +91671,7 @@ content/effects/textures/liquid/transparent_liquid_drop_nrm
 content/effects/textures/liquid/water_splash_01
 content/effects/textures/liquid/water_splash_01_data
 content/effects/textures/liquid/waterfall_01
+content/effects/textures/liquid/waterfall_data
 content/effects/textures/liquid/web_slime
 content/effects/textures/noise/noise_laser_pack
 content/effects/textures/noise/noise_pack_01
@@ -93986,6 +94012,7 @@ content/env_ship/hangar/wall_upper_5m
 content/env_ship/hangar_engine_light
 content/env_ship/hologram/hologram_bloom
 content/env_ship/hologram/hologram_variables
+content/env_ship/hologram/units/hologram_cube
 content/env_ship/hologram/units/hologram_cylinder
 content/env_ship/hologram/units/plane
 content/env_ship/lighting/specular_cubemap_state0_array
@@ -94634,6 +94661,7 @@ content/env_super_earth/habs/signs/poster_propaganda_03
 content/env_super_earth/habs/signs/poster_propaganda_04
 content/env_super_earth/habs/signs/poster_propaganda_05
 content/env_super_earth/habs/signs/poster_propaganda_06
+content/env_super_earth/habs/signs/poster_sign_base
 content/env_super_earth/habs/signs/poster_sign_cyberstan
 content/env_super_earth/habs/signs/poster_sign_grand_opening
 content/env_super_earth/habs/signs/poster_sign_infestation
@@ -94962,6 +94990,7 @@ content/env_super_earth/military_base/pillbox_walls/textures/se_pillbox_wall_str
 content/env_super_earth/military_base/platform_kit/platform_kit_slope
 content/env_super_earth/military_base/platform_kit/platform_kit_slope_corner_pivot
 content/env_super_earth/military_base/platform_kit/platform_kit_slope_double
+content/env_super_earth/military_base/platform_kit/platform_kit_slope_double_corner_pivot
 content/env_super_earth/military_base/platform_kit/platform_kit_square
 content/env_super_earth/military_base/platform_kit/platform_kit_square_2stack
 content/env_super_earth/military_base/platform_kit/platform_kit_square_2x
@@ -94971,6 +95000,7 @@ content/env_super_earth/military_base/platform_kit/platform_kit_square_corner_pi
 content/env_super_earth/military_base/platform_kit/platform_kit_square_half
 content/env_super_earth/military_base/platform_kit/platform_kit_square_half_2stack
 content/env_super_earth/military_base/platform_kit/platform_kit_square_half_2x
+content/env_super_earth/military_base/platform_kit/platform_kit_square_half_corner_pivot
 content/env_super_earth/military_base/platform_kit/platform_kit_square_thin_16m
 content/env_super_earth/military_base/platform_kit/platform_kit_square_thin_4m
 content/env_super_earth/military_base/platform_kit/platform_kit_square_thin_8m
@@ -95130,7 +95160,9 @@ content/env_super_earth/samples/materials/se_intel_sample_01
 content/env_super_earth/samples/research_artifact_sample_01
 content/env_super_earth/samples/research_bio_sample_01
 content/env_super_earth/samples/research_sample_01
+content/env_super_earth/samples/research_sample_bio
 content/env_super_earth/samples/research_sample_pickup_01
+content/env_super_earth/samples/research_sample_tech
 content/env_super_earth/samples/research_tech_sample_01
 content/env_super_earth/samples/se_intel_sample_00
 content/env_super_earth/samples/se_intel_sample_01
@@ -95489,6 +95521,7 @@ content/fac_bugs/cha_impaler/textures/impaler_tentacle_ccras
 content/fac_bugs/cha_impaler/textures/impaler_tentacle_normal
 content/fac_bugs/cha_impaler/textures/impaler_tentacle_sss
 content/fac_bugs/cha_scavenger/animation/idle/idle_02
+content/fac_bugs/cha_scavenger/animation/idle/idle_02_base
 content/fac_bugs/cha_scavenger/cha_scavenger
 content/fac_bugs/cha_scavenger/cha_scavenger_base
 content/fac_bugs/cha_scavenger/cha_scavenger_bci
@@ -95790,6 +95823,7 @@ content/fac_cyborgs/cha_cyborg_elite/animation/death_short_01
 content/fac_cyborgs/cha_cyborg_elite/animation/dodge_fwd_01
 content/fac_cyborgs/cha_cyborg_elite/animation/dodge_left_01
 content/fac_cyborgs/cha_cyborg_elite/animation/dodge_right_01
+content/fac_cyborgs/cha_cyborg_elite/animation/drop_falling
 content/fac_cyborgs/cha_cyborg_elite/animation/drop_landing
 content/fac_cyborgs/cha_cyborg_elite/animation/hesitate_01
 content/fac_cyborgs/cha_cyborg_elite/animation/hesitate_02
@@ -95802,7 +95836,13 @@ content/fac_cyborgs/cha_cyborg_elite/animation/idle_01_05
 content/fac_cyborgs/cha_cyborg_elite/animation/idle_01_06
 content/fac_cyborgs/cha_cyborg_elite/animation/idle_01_temp
 content/fac_cyborgs/cha_cyborg_elite/animation/passive_idle_01
+content/fac_cyborgs/cha_cyborg_elite/animation/passive_idle_01_02
+content/fac_cyborgs/cha_cyborg_elite/animation/passive_idle_01_03
+content/fac_cyborgs/cha_cyborg_elite/animation/passive_idle_01_04
 content/fac_cyborgs/cha_cyborg_elite/animation/passive_idle_02
+content/fac_cyborgs/cha_cyborg_elite/animation/passive_idle_02_02
+content/fac_cyborgs/cha_cyborg_elite/animation/passive_idle_02_03
+content/fac_cyborgs/cha_cyborg_elite/animation/passive_idle_02_04
 content/fac_cyborgs/cha_cyborg_elite/animation/reload_vent_01
 content/fac_cyborgs/cha_cyborg_elite/animation/shoot_single_01
 content/fac_cyborgs/cha_cyborg_elite/animation/stunned_01
@@ -96086,6 +96126,7 @@ content/fac_cyborgs/turrets/cyborg_turret_small_autocannon/cyborg_turret_small_a
 content/fac_cyborgs/vehicles/cyborg_assault_walker/animation/add_timer
 content/fac_cyborgs/vehicles/cyborg_assault_walker/animation/spawn/spawn_dormant
 content/fac_cyborgs/vehicles/cyborg_assault_walker/animation/spawn/spawn_drop
+content/fac_cyborgs/vehicles/cyborg_assault_walker/animation/spawn/spawn_falling
 content/fac_cyborgs/vehicles/cyborg_assault_walker/animation/spawn/spawn_landing
 content/fac_cyborgs/vehicles/cyborg_assault_walker/animation/spawn/spawn_spawner
 content/fac_cyborgs/vehicles/cyborg_assault_walker/animation/stance/idle
@@ -96354,6 +96395,7 @@ content/fac_helldivers/equipment/attachment/muzzle/muzzle_9mm_suppressor
 content/fac_helldivers/equipment/attachment/muzzle/muzzle_drake
 content/fac_helldivers/equipment/attachment/muzzle/muzzle_laser_rifle_charge_standard
 content/fac_helldivers/equipment/attachment/muzzle/muzzle_laser_smg_blaster
+content/fac_helldivers/equipment/attachment/muzzle/muzzle_laser_smg_blaster_focus
 content/fac_helldivers/equipment/attachment/muzzle/muzzle_plasma_choke
 content/fac_helldivers/equipment/attachment/muzzle/muzzle_plasma_compensator
 content/fac_helldivers/equipment/attachment/muzzle/muzzle_plasma_standard
@@ -96384,6 +96426,8 @@ content/fac_helldivers/equipment/attachment/underbarrel/empty_laser_flashlight
 content/fac_helldivers/equipment/attachment/underbarrel/flashlight_verticalgrip
 content/fac_helldivers/equipment/attachment/underbarrel/standard_bayonet
 content/fac_helldivers/equipment/attachment/underbarrel/standard_flashlight_pistol
+content/fac_helldivers/equipment/attachment/underbarrel/standard_laser
+content/fac_helldivers/equipment/attachment/underbarrel/standard_laser_flashlight
 content/fac_helldivers/equipment/attachment/underbarrel/standard_laser_flashlight_pistol
 content/fac_helldivers/equipment/attachment/underbarrel/standard_laser_pistol
 content/fac_helldivers/equipment/attachment/underbarrel/standard_verticalgrip
@@ -96515,6 +96559,7 @@ content/fac_helldivers/equipment/backpacks/guard_dog_stun_backpack/animation/bac
 content/fac_helldivers/equipment/backpacks/guard_dog_stun_backpack/animation/backpack_undeploy
 content/fac_helldivers/equipment/backpacks/guard_dog_stun_backpack/drone_stun
 content/fac_helldivers/equipment/backpacks/guard_dog_stun_backpack/guard_dog_stun_backpack
+content/fac_helldivers/equipment/backpacks/heavy_flamethrower_backpack/animations/detach_hose
 content/fac_helldivers/equipment/backpacks/heavy_flamethrower_backpack/animations/detached
 content/fac_helldivers/equipment/backpacks/heavy_flamethrower_backpack/animations/draw
 content/fac_helldivers/equipment/backpacks/heavy_flamethrower_backpack/animations/holster
@@ -96552,6 +96597,7 @@ content/fac_helldivers/equipment/backpacks/medic_backpack/medic_backpack
 content/fac_helldivers/equipment/backpacks/medic_backpack/medic_backpack_albedo
 content/fac_helldivers/equipment/backpacks/medic_backpack/medic_backpack_mra
 content/fac_helldivers/equipment/backpacks/medic_backpack/medic_backpack_normal
+content/fac_helldivers/equipment/backpacks/minigun_backpack/animation/detach_hose
 content/fac_helldivers/equipment/backpacks/minigun_backpack/animation/detached
 content/fac_helldivers/equipment/backpacks/minigun_backpack/animation/draw
 content/fac_helldivers/equipment/backpacks/minigun_backpack/animation/holster
@@ -97053,6 +97099,7 @@ content/fac_helldivers/equipment/sidearm_weapons/hornet_pistol/animations/fire
 content/fac_helldivers/equipment/sidearm_weapons/hornet_pistol/animations/idle
 content/fac_helldivers/equipment/sidearm_weapons/hornet_pistol/animations/reload
 content/fac_helldivers/equipment/sidearm_weapons/hornet_pistol/animations/reload_onehand
+content/fac_helldivers/equipment/sidearm_weapons/hornet_pistol/hornet_missile
 content/fac_helldivers/equipment/sidearm_weapons/hornet_pistol/hornet_pistol
 content/fac_helldivers/equipment/sidearm_weapons/hornet_pistol/hornet_pistol_grenade
 content/fac_helldivers/equipment/sidearm_weapons/laser_pistol/animation/idle
@@ -97068,6 +97115,7 @@ content/fac_helldivers/equipment/sidearm_weapons/machine_pistol_bull/animations/
 content/fac_helldivers/equipment/sidearm_weapons/machine_pistol_bull/animations/reload
 content/fac_helldivers/equipment/sidearm_weapons/machine_pistol_bull/animations/reload_fast
 content/fac_helldivers/equipment/sidearm_weapons/machine_pistol_bull/animations/reload_onehand
+content/fac_helldivers/equipment/sidearm_weapons/machine_pistol_bull/animations/reload_onehand_fast
 content/fac_helldivers/equipment/sidearm_weapons/machine_pistol_bull/machine_pistol_bull
 content/fac_helldivers/equipment/sidearm_weapons/magnum_pistol/animation/ammocheck
 content/fac_helldivers/equipment/sidearm_weapons/magnum_pistol/animation/fire
@@ -97155,6 +97203,7 @@ content/fac_helldivers/equipment/sidearm_weapons/smart_pistol_missile/animation/
 content/fac_helldivers/equipment/sidearm_weapons/smart_pistol_missile/animation/reload_onehand
 content/fac_helldivers/equipment/sidearm_weapons/smart_pistol_missile/smart_pistol_missile
 content/fac_helldivers/equipment/sidearm_weapons/smart_pistol_missile/smart_pistol_missile_projectile
+content/fac_helldivers/equipment/sidearm_weapons/smart_pistol_missile/smart_pistol_missile_projectile_none_guided
 content/fac_helldivers/equipment/sidearm_weapons/standard_pistol/animation/ammocheck
 content/fac_helldivers/equipment/sidearm_weapons/standard_pistol/animation/fire
 content/fac_helldivers/equipment/sidearm_weapons/standard_pistol/animation/fire_lock
@@ -97208,6 +97257,7 @@ content/fac_helldivers/equipment/support_weapons/chemgun/animation/fire
 content/fac_helldivers/equipment/support_weapons/chemgun/animation/holstered
 content/fac_helldivers/equipment/support_weapons/chemgun/animation/idle
 content/fac_helldivers/equipment/support_weapons/chemgun/animation/reload
+content/fac_helldivers/equipment/support_weapons/chemgun/chem_gun
 content/fac_helldivers/equipment/support_weapons/chemgun/chemgun
 content/fac_helldivers/equipment/support_weapons/chemgun/textures/chemgun__array
 content/fac_helldivers/equipment/support_weapons/chemgun/textures/chemgun_nac
@@ -97373,6 +97423,9 @@ content/fac_helldivers/equipment/support_weapons/sniper_rifle_duo/animations/fir
 content/fac_helldivers/equipment/support_weapons/sniper_rifle_duo/animations/holster
 content/fac_helldivers/equipment/support_weapons/sniper_rifle_duo/animations/idle
 content/fac_helldivers/equipment/support_weapons/sniper_rifle_duo/animations/reload
+content/fac_helldivers/equipment/support_weapons/sniper_rifle_duo/animations/reload_assisted
+content/fac_helldivers/equipment/support_weapons/sniper_rifle_duo/animations/reload_assisted_bs
+content/fac_helldivers/equipment/support_weapons/sniper_rifle_duo/animations/reload_assisted_fast
 content/fac_helldivers/equipment/support_weapons/sniper_rifle_duo/animations/reload_fast
 content/fac_helldivers/equipment/support_weapons/sniper_rifle_duo/sniper_rifle_duo
 content/fac_helldivers/equipment/throwables/antitank_grenade/antitank_grenade
@@ -98502,7 +98555,13 @@ content/fac_super_earth/equipment/support_weapons/shotgun_doublebarrel/animation
 content/fac_super_earth/equipment/support_weapons/shotgun_doublebarrel/shotgun_doublebarrel
 content/fac_super_earth/mannequin/animation/pose_01
 content/fac_super_earth/mannequin/mannequin
+content/fac_super_earth/tutorial/cha_tutorial_bot_base
+content/fac_super_earth/tutorial/cha_tutorial_bot_extraction
+content/fac_super_earth/tutorial/cha_tutorial_bot_injury
+content/fac_super_earth/tutorial/cha_tutorial_bot_intro
+content/fac_super_earth/tutorial/cha_tutorial_bot_navigation
 content/fac_super_earth/tutorial/cha_tutorial_bot_store
+content/fac_super_earth/tutorial/cha_tutorial_bot_weapons
 content/fac_super_earth/tutorial/cha_tutorial_helldiver_passenger
 content/fac_super_earth/tutorial/cha_tutorial_helldiver_passenger/cha_tutorial_helldiver_passenger
 content/fac_super_earth/tutorial/helldiver_dummy
@@ -98874,6 +98933,7 @@ content/models/props/Wall
 content/objectives/auto_night_light
 content/objectives/landing_zone
 content/objectives/landing_zone_no_lights
+content/objectives/landing_zone_optional
 content/objectives/obj_bugs/blocking_chunk/blocking_chunk
 content/objectives/obj_bugs/bug_stratagem_blocker/bug_stratagem_blocker
 content/objectives/obj_bugs/central_core/animations/anchor_locks
@@ -98894,6 +98954,7 @@ content/objectives/obj_bugs/central_core/central_core_drill_01
 content/objectives/obj_bugs/central_core/central_core_drill_02
 content/objectives/obj_bugs/central_core/central_core_drill_03
 content/objectives/obj_bugs/central_core/central_core_drill_04
+content/objectives/obj_bugs/central_core/central_core_drill_roof
 content/objectives/obj_bugs/central_core/central_core_hole_01
 content/objectives/obj_bugs/central_core/central_core_hole_01_blocker
 content/objectives/obj_bugs/central_core/central_core_hole_plug
@@ -99150,6 +99211,7 @@ content/objectives/obj_common/generic_intel/generic_intel
 content/objectives/obj_common/generic_intel/generic_intel_bunker
 content/objectives/obj_common/generic_intel/materials/generic_intel
 content/objectives/obj_common/generic_intel/materials/generic_intel_emissive
+content/objectives/obj_common/horde_mode_defend/defend_horde_rocket
 content/objectives/obj_common/horde_mode_defend/defend_horde_silo
 content/objectives/obj_common/horde_mode_defend/defend_horde_terminal
 content/objectives/obj_common/icbm_silo/animations/lock_activate
@@ -99358,6 +99420,7 @@ content/objectives/obj_common/ship_hub/ship_hub_character_customization
 content/objectives/obj_common/ship_hub/ship_hub_stratagem_armory
 content/objectives/obj_common/shoulder_mounted_camera/cyborg_gather_footage_box
 content/objectives/obj_common/shoulder_mounted_camera/cyborg_gather_footage_crate
+content/objectives/obj_common/shoulder_mounted_camera/gen_footage_asset
 content/objectives/obj_common/shoulder_mounted_camera/gen_footage_volume
 content/objectives/obj_common/shoulder_mounted_camera/materials/m_shoulder_mounted_camera
 content/objectives/obj_common/shoulder_mounted_camera/shoulder_mounted_camera
@@ -99530,6 +99593,8 @@ content/objectives/obj_cyborgs/cyborg_orbital_cannon/cy_orbital_cannon_ammo_carr
 content/objectives/obj_cyborgs/cyborg_orbital_cannon/cy_orbital_cannon_ammo_dispenser
 content/objectives/obj_cyborgs/cyborg_orbital_cannon/cy_orbital_cannon_ammo_dropoff
 content/objectives/obj_cyborgs/cyborg_orbital_cannon/objective_orbital_cannon_terminal
+content/objectives/obj_cyborgs/cyborg_organic_assembly_site/assembly_site_asset
+content/objectives/obj_cyborgs/cyborg_organic_assembly_site/assembly_site_asset_shell
 content/objectives/obj_cyborgs/cyborg_organic_assembly_site/assembly_site_clamp
 content/objectives/obj_cyborgs/cyborg_organic_assembly_site/assembly_site_control_room_light_01
 content/objectives/obj_cyborgs/cyborg_organic_assembly_site/assembly_site_control_room_light_02
@@ -99555,8 +99620,10 @@ content/objectives/obj_cyborgs/cyborg_remains_backpack/cy_remains_backpack
 content/objectives/obj_cyborgs/cyborg_remains_backpack/materials/m_cy_remains_backpack
 content/objectives/obj_cyborgs/cyborg_remains_backpack/textures/cy_remains_backpack_nar
 content/objectives/obj_cyborgs/cyborg_shutdown_grinder/grinder
+content/objectives/obj_cyborgs/cyborg_shutdown_grinder/objective_grinder_pipes
 content/objectives/obj_cyborgs/cyborg_shutdown_grinder/objective_grinder_terminal
 content/objectives/obj_cyborgs/cyborg_steal_energy_cores/cy_core_production_button
+content/objectives/obj_cyborgs/cyborg_steal_energy_cores/cy_core_production_terminal
 content/objectives/obj_cyborgs/cyborg_steal_energy_cores/cy_energy_core_station
 content/objectives/obj_cyborgs/cyborg_strategem_blocker/animation/idle_off
 content/objectives/obj_cyborgs/cyborg_strategem_blocker/animation/idle_on
@@ -99614,6 +99681,8 @@ content/objectives/obj_illuminate/il_crashed_harvester/il_crashed_harvester
 content/objectives/obj_illuminate/il_destroy_weather_device/il_harvester_cables_01
 content/objectives/obj_illuminate/il_destroy_weather_device/il_harvester_cables_02
 content/objectives/obj_illuminate/il_destroy_weather_device/il_obj_asset_weather_device_core
+content/objectives/obj_illuminate/il_destroy_weather_device/il_obj_asset_weather_device_entrance
+content/objectives/obj_illuminate/il_destroy_weather_device/il_obj_asset_weather_device_shield
 content/objectives/obj_illuminate/il_destroy_weather_device/il_weather_device_battery
 content/objectives/obj_illuminate/il_destroy_weather_device/materials/m_il_weather_device_battery
 content/objectives/obj_illuminate/il_destroy_weather_device/weather_tower_mountain_01
@@ -99694,6 +99763,8 @@ content/objectives/obj_super_earth/se_orbital_cannon/se_orbital_cannon_blocker
 content/objectives/obj_super_earth/se_orbital_cannon/se_orbital_cannon_lock
 content/objectives/obj_super_earth/se_orbital_cannon/se_orbital_cannon_shrub
 content/objectives/obj_super_earth/se_orbital_cannon/textures/m_se_orbital_cannon
+content/objectives/obj_super_earth/se_orbital_cannon/textures/m_se_orbital_cannon_hatch
+content/objectives/obj_super_earth/se_orbital_cannon/textures/m_se_orbital_cannon_hole
 content/objectives/obj_super_earth/se_orbital_cannon/textures/m_se_orbital_cannon_shrub
 content/objectives/obj_super_earth/se_orbital_cannon/textures/se_orbital_cannon__array
 content/objectives/obj_super_earth/se_orbital_cannon/textures/se_orbital_cannon_hatch__array
@@ -100692,6 +100763,7 @@ content/ui/mission/hud/map/map_ring
 content/ui/mission/hud/map/map_unknown
 content/ui/mission/hud/map/mapicon_backpack_ammo
 content/ui/mission/hud/map/mapicon_backpack_generic
+content/ui/mission/hud/map/mapicon_backpack_medical
 content/ui/mission/hud/map/mapicon_backpack_shield
 content/ui/mission/hud/map/mapicon_sample_high
 content/ui/mission/hud/map/mapicon_sample_low
@@ -101059,12 +101131,15 @@ content/ui/shared/resources/generated_icons/stratagem_icons
 content/ui/shared/resources/generated_icons/tab_icons
 content/ui/shared/resources/global_resources
 content/ui/shared/resources/header_templates
+content/ui/shared/resources/header_title
 content/ui/shared/resources/information_terminal_resources
 content/ui/shared/resources/panel_and_layout_templates
 content/ui/shared/resources/range_templates
 content/ui/shared/resources/ranks_icons
 content/ui/shared/resources/svg_ui_elements
 content/ui/shared/resources/svg_ui_icons
+content/ui/shared/resources/tab_content
+content/ui/shared/resources/tab_pages
 content/ui/shared/resources/tab_templates
 content/ui/shared/resources/tab_templates/category_tab_template
 content/ui/shared/resources/tab_templates/tab_menu_tab_template
@@ -101307,6 +101382,7 @@ content/videos/stratagems/Orbital_Precision_Strike
 content/videos/stratagems/Orbital_Railcannon_Strike
 content/videos/stratagems/Orbital_Smoke_Strike
 content/videos/stratagems/Orbital_Walking_Barrage
+content/videos/stratagems/Orbital_Walking_Barrage_Smoke
 content/videos/stratagems/Plasma_Blaster
 content/videos/stratagems/Railgun
 content/videos/stratagems/Recoilless_Rifle
@@ -101322,6 +101398,7 @@ content/videos/stratagems/Tesla_Tower
 content/videos/stratagems/Trench_Wall
 content/videos/stratagems/tank
 content/wwise/wwise_audio_portal
+content/wwise/wwise_audio_portal_face
 content/wwise/wwise_audio_volume
 contributes
 control_tower_01
@@ -102085,6 +102162,7 @@ core/stingray_renderer/helper_units
 core/stingray_renderer/helper_units/decals
 core/stingray_renderer/helper_units/decals/decal
 core/stingray_renderer/helper_units/decals/decal_box
+core/stingray_renderer/helper_units/decals/decal_box_infinite
 core/stingray_renderer/helper_units/decals/decal_box_long_range
 core/stingray_renderer/helper_units/occluder_box
 core/stingray_renderer/helper_units/occluder_box/gizmo
@@ -103635,6 +103713,7 @@ decal_box6
 decal_box7
 decal_box8
 decal_box9
+decal_box_infinite
 decal_box_long_range
 decal_common
 decal_scorch
@@ -104823,6 +104902,7 @@ grenade_box_marker5
 grenade_launcher_marker
 grenade_launcher_marker1
 greybox_kit_outerwall_corner
+greybox_kit_outerwall_gate
 greybox_kit_outerwall_turret
 ground_1m
 ground_5m
@@ -106068,7 +106148,10 @@ level_unit
 level_update
 lft
 lib
+liberty_day_beer_bottle
+liberty_day_beer_bottle_broken
 liberty_day_beer_crate
+liberty_day_shield
 lieutentant_corpse_
 lieutentant_corpse_01
 lieutentant_corpse_1
@@ -107835,6 +107918,7 @@ packages/planets/planet_desert_sandy_mineral
 packages/planets/planet_desert_sandy_moon
 packages/planets/planet_desert_sandy_spiky
 packages/planets/planet_forest_coniferous_base
+packages/planets/planet_forest_deciduous_autumn
 packages/planets/planet_forest_deciduous_base
 packages/planets/planet_forest_moor_arid
 packages/planets/planet_forest_moor_base
@@ -109607,6 +109691,7 @@ staggers/Empty_State
 staggers/stagger_medium_fwd
 staggers/stagger_medium_left
 staggers/stagger_medium_right
+stair_carpet
 stairs
 stairs_platform_01
 stairs_platform_01_metal_platform
@@ -110354,6 +110439,7 @@ wcmdline
 weapon
 weapon_actions/Empty_State
 weapon_actions/grenade_toss
+weapon_actions/melee_attack_knee
 weapon_actions/melee_attack_punch
 weapon_rack_wreck
 weapon_wall_01
