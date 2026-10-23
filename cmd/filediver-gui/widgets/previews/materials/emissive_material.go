@@ -46,4 +46,5 @@ var _ Material = &EmissiveMaterial{}
 
 func (ml *MaterialManager) updateEmissiveMaterial(material *EmissiveMaterial, mat *material.Material) {
 	material.InitSettings(mat.Settings, ml.lookupThinHash)
+	ml.handleGlobalBlocks(material.BaseMaterial)
 }

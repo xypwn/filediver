@@ -57,4 +57,5 @@ var _ Material = &StandardMaterial{}
 
 func (ml *MaterialManager) updateStandardMaterial(material *StandardMaterial, mat *material.Material) {
 	ml.setupMaterialCommon(standardTextureNames, material, mat)
+	ml.handleGlobalBlocks(material.BaseMaterial)
 }

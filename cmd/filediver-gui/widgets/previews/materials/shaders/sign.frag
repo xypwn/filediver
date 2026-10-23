@@ -76,5 +76,5 @@ void main() {
         color = max(color, dropshadow);
     }
 
-    fragColor = calculateLighting(vec4(color, 1.0), roughness, metallic, 1.0, normal, 1.0, 1.0);
+    fragColor = calculateLighting(vec4(color, 1.0), roughness, metallic, 0.0, 1.0, normal, 1.0, 1.0);
 }

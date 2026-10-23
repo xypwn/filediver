@@ -7,6 +7,11 @@ in vec3 fragTangentFragmentPosition;
 
 uniform sampler2D ibl_brdf_lut;
 
+layout(shared, binding = 10) uniform LightingBlock {
+    vec3 ambient_color;
+    vec3 light_color;
+};
+
 float reconstructNormalZ(vec2 xy) {
     return sqrt(1.0 - xy.x*xy.x - xy.y*xy.y);
 }
@@ -63,13 +68,12 @@ vec3 gamma(vec3 color, float value) {
 }
 
 // Normal is expected to be in tangent space
-vec4 calculateLighting(vec4 base_color, float roughness, float metallic, float ambient_occlusion, vec3 normal, float saturation, float contrast) {
-    vec3 ambient = vec3(0.5) * ambient_occlusion;
+vec4 calculateLighting(vec4 base_color, float roughness, float metallic, float specular, float ambient_occlusion, vec3 normal, float saturation, float contrast) {
+    vec3 ambient = ambient_color * ambient_occlusion;
     vec3 lightDirection = normalize(fragTangentLightPosition - fragTangentFragmentPosition);
-    vec3 lightColor = vec3(1.25);
-    vec3 diffuse = max(dot(normal, lightDirection), 0) * lightColor;
+    vec3 diffuse = max(dot(normal, lightDirection), 0) * light_color;
 
-    vec3 specularColor = mix(vec3(0.04), base_color.rgb, metallic);
+    vec3 specularColor = mix(vec3(max(specular, 0.04)), base_color.rgb, metallic);
 
     vec3 viewDirection = normalize(fragTangentViewPosition - fragTangentFragmentPosition);
     vec3 reflectDirection = reflect(-lightDirection, normal);
@@ -81,14 +85,14 @@ vec4 calculateLighting(vec4 base_color, float roughness, float metallic, float a
     float NdL = max(dot(normal, lightDirection), 0.0);
     float NdV = max(dot(normal, viewDirection), 0.001);
 
-    vec3 specularFresnel = mix(specularColor, vec3(0.7), pow(1.01 - HdV, 5.0));
+    vec3 specularFresnel = mix(specularColor, ambient, pow(1.01 - HdV, 5.0));
     float k = 1.999 / (roughness * roughness);
 
     vec3 blinnSpecularRef = min(1.0, 3.0 * 0.0398 * k) * pow(NdH, min(10000.0, k)) * specularFresnel * vec3(NdL);
     vec3 diffRef = (vec3(1.0) - specularFresnel) * (1.0 / 3.1415926) * NdL;
 
-    vec3 reflectedLight = blinnSpecularRef * lightColor;
-    vec3 diffuseLight = diffRef * lightColor;
+    vec3 reflectedLight = blinnSpecularRef * light_color;
+    vec3 diffuseLight = diffRef * light_color;
 
     // ibl lighting
     vec2 brdf = texture(ibl_brdf_lut, vec2(max(NdV, 0.0), roughness)).xy;
@@ -96,7 +100,7 @@ vec4 calculateLighting(vec4 base_color, float roughness, float metallic, float a
     reflectedLight += iblspec * ambient;
     diffuseLight += ambient * (1.0 / 3.1415926);
 
-    vec3 specular = pow(NdH, 32.0) * lightColor;
+    //vec3 specular = pow(NdH, 32.0) * light_color;
     // adjust saturation
     base_color.rgb = rgb2hsv(base_color.rgb);
     base_color.g *= saturation;
