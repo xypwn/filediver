@@ -1,7 +1,7 @@
 #version 430 core
 
 layout(location = 0) in vec3 inPosition;
-layout(location = 2) in vec2 inUV;
+layout(location = 4) in vec2 inUV;
 layout(location = 7) in mat4 instModel;
 
 out vec2 UV;
