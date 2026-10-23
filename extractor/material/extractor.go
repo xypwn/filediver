@@ -1518,6 +1518,14 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 		}
 	}
 
+	// Fix gloom warrior opacity since we use a shared material between the opaque bug bodies and transparent wings
+	if offsetAny, contains := materialSettingsAndTextures["opacity_offset"]; contains {
+		offset, ok := offsetAny.([]float32)
+		if hash, contains := mat.Textures[stingray.Sum("sclar_field_opacity").Thin()]; contains && ok && hash == stingray.Sum("content/art_shared/textures/dummy_all_grey") && offset[0] < 0 {
+			materialSettingsAndTextures["opacity_offset"] = []float32{0.0}
+		}
+	}
+
 	if _, contains := materialSettingsAndTextures["decal_id"]; contains {
 		fileId := ctx.FileID()
 		if mat.BaseMaterial.Value != 0x0 {

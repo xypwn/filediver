@@ -46,6 +46,7 @@ layout(shared, binding = 0) uniform BugSettingsBlock {
     // float woundable_id;
     // float wound_parallax_scale;
     // float wound_painting_enabled;
+    uint fd_transparent;
 };
 
 layout(shared, binding = 1) uniform DebugBlock {
@@ -72,7 +73,7 @@ void main() {
     float opacity = texture(sclar_field_opacity, fragUV0).x;
 
     opacity = clamp((opacity - 0.5) * opacity_sharpness + 0.5 + opacity_offset, 0.0, 1.0);
-    if (opacity < 0.5) {
+    if (fd_transparent != 0 && opacity < 0.5) {
         discard;
     }
     vec3 normal_sample;
