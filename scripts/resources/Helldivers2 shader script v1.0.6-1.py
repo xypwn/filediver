@@ -12533,6 +12533,8 @@ def create_HD2_Shader(context, operator, group_name, material: Optional[Material
     HD2_Shader.links.new(id_mask_array_02.outputs[0], mix_018.inputs[7])
     #id_mask_array_02.Alpha -> mix_019.B
     HD2_Shader.links.new(id_mask_array_02.outputs[1], mix_019.inputs[3])
+    #id_mask_array_02.Alpha -> math_189.Value
+    HD2_Shader.links.new(id_mask_array_02.outputs[1], math_189.inputs['Value'])
     #pattern_mask_array_02.Color -> mix_030.B
     HD2_Shader.links.new(pattern_mask_array_02.outputs[0], mix_030.inputs[3])
     #separate_xyz_036.Z -> math_088.Value
