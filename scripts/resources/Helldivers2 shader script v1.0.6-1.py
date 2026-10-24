@@ -6,6 +6,7 @@
 #   * Camo patterns
 #   * Dynamic Decals
 #   * Emissive
+#   * Transparency
 
 # Shader bundled with filediver with permission from @thejudsub
 

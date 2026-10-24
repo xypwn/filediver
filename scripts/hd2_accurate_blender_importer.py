@@ -24,6 +24,7 @@ from typing import Optional, Dict, List, Tuple
 from dataclasses import dataclass, field, asdict
 from copy import deepcopy
 import math
+import re
 
 from resources.filediver_animation_controller_ui import filediver_animation_state, filediver_state_transition, filediver_animation_variable, register as register_ui
 from resources.filediver_drivers import register as register_drivers
@@ -191,7 +192,13 @@ def convert_materials(gltf: Dict, node: Dict, variants: List[Dict], hasVariants:
             slot_idx = prim_to_slot[primIdx]
             if obj is None:
                 for item in bpy.data.objects:
-                    if slot_idx < len(item.material_slots) and item.material_slots[slot_idx].material and material["name"].startswith(item.material_slots[slot_idx].material.name) and item.name.startswith(node["name"]) and len(item.material_slots) == len(unique_slots):
+                    material_name: str = ""
+                    if slot_idx < len(item.material_slots) and item.material_slots[slot_idx].material:
+                        material_name = item.material_slots[slot_idx].material.name
+                    match_obj = re.match(r"^(.+)\.\d{0,3}$", material_name)
+                    if match_obj:
+                        material_name = match_obj.group(1)
+                    if slot_idx < len(item.material_slots) and item.material_slots[slot_idx].material and material["name"].startswith(material_name) and item.name.startswith(node["name"]) and len(item.material_slots) == len(unique_slots):
                         obj: Object = item
                         break
                     # elif not slot_idx < len(item.material_slots):
