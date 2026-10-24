@@ -330,10 +330,10 @@ void main() {
         fragColor = vec4(normal, 1.0);
         break;
     case 5:
-        fragColor = vec4(mod(getTriplanarUVs(), 1.0), 0.0, 1.0);
+        fragColor = vec4(mod(getTriplanarUVs() * tile_multiplier, 1.0), 0.0, 1.0);
         break;
     case 6:
-        fragColor = vec4(getTriplanarNormal(surface_data_normal), 1.0);
+        fragColor = calculateLighting(base_color, roughness, metallic, 0.0, ao, nac_normal, max(saturation + 1.5, 0.0), max(contrast + 1.2, 0.0));
         break;
     case 7:
         fragColor = vec4(dbg_fragTBN[2], 1.0);
@@ -363,7 +363,7 @@ void main() {
         fragColor = vec4(vec3(clamp(fragUV0.x, 0.0, 1.0)), 1.0);
         break;
     default:
-        fragColor = calculateLighting(base_color, roughness, metallic, ao, normal, max(saturation + 1.5, 0.0), max(contrast + 1.2, 0.0));
+        fragColor = calculateLighting(base_color, roughness, metallic, 0.0, ao, normal, max(saturation + 1.5, 0.0), max(contrast + 1.2, 0.0));
         break;
     }
 }

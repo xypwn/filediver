@@ -19,7 +19,7 @@ func Dump(a components.HashLookup) {
 		simpleSettings = append(simpleSettings, setting.Resolve(a.LookupHash, a.LookupThinHash, a.LookupString))
 	}
 
-	output, err := json.MarshalIndent(environmentSettings, "", "    ")
+	output, err := json.MarshalIndent(simpleSettings, "", "    ")
 	if err != nil {
 		panic(err)
 	}

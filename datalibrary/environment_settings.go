@@ -64,9 +64,8 @@ type rawEnvironmentSettings struct {
 	_                          [4]uint8
 	NameLocStr                 int64
 	LoadoutIntelligenceLoc     uint32
-	_                          [4]uint8
-	WwiseStateStrOffset        int64
-	PlanetMaterialId           stingray.Hash
+	UnkThinHash1               stingray.ThinHash
+	PlanetPackage              stingray.Hash
 	ShadingEnvironment         stingray.Hash
 	GradingDay                 stingray.Hash
 	GradingSunset              stingray.Hash
@@ -84,13 +83,11 @@ type rawEnvironmentSettings struct {
 	_                          [4]uint8
 	TerrainMaterialPath        stingray.Hash
 	DefaultReverbZoneStrOffset int64
-	UnkThinHash                stingray.ThinHash // Name length 13
+	UnkThinHash2               stingray.ThinHash // Name length 13
 	DefaultAmbienceSoundId     uint32
 	WindWwiseStartEvent        uint32
 	WindWwiseStopEvent         uint32
-	UnkEvent                   uint32 // Name length 32
-	UnkEvent2                  uint32 // Name length 31
-	UnkStr                     int64  // Name length 23
+	UnkStr                     int64 // Name length 23
 	UnkFloat                   float32
 	_                          [4]uint8
 }
@@ -101,8 +98,8 @@ type EnvironmentSettings struct {
 	NameLoc                uint32
 	NameLocStr             string
 	LoadoutIntelligenceLoc uint32
-	WwiseStateStr          string
-	PlanetMaterialId       stingray.Hash
+	UnkThinHash1           stingray.ThinHash
+	PlanetPackage          stingray.Hash
 	ShadingEnvironment     stingray.Hash
 	GradingDay             stingray.Hash
 	GradingSunset          stingray.Hash
@@ -118,12 +115,10 @@ type EnvironmentSettings struct {
 	ResourceOverrideTags   uint32
 	TerrainMaterialPath    stingray.Hash
 	DefaultReverbZoneStr   string
-	UnkThinHash            stingray.ThinHash // name length 13
+	UnkThinHash2           stingray.ThinHash // name length 13
 	DefaultAmbienceSoundId uint32
 	WindWwiseStartEvent    uint32
 	WindWwiseStopEvent     uint32
-	UnkEvent               uint32  // Name length 32
-	UnkEvent2              uint32  // Name length 31
 	UnkStr                 string  // Name length 23
 	UnkFloat               float32 // Name length 29
 }
@@ -134,8 +129,8 @@ type SimpleEnvironmentSettings struct {
 	NameLoc                string                        `json:"name_loc"`
 	NameLocStr             string                        `json:"name_loc_str"`
 	LoadoutIntelligenceLoc string                        `json:"loadout_intelligence_loc"`
-	WwiseStateStr          string                        `json:"wwise_state"`
-	PlanetMaterialId       string                        `json:"planet_material_id"`
+	UnkThinHash1           string                        `json:"unk_thinhash_1"`
+	PlanetPackage          string                        `json:"planet_package"`
 	ShadingEnvironment     string                        `json:"shading_environment"`
 	GradingDay             string                        `json:"grading_day"`
 	GradingSunset          string                        `json:"grading_sunset"`
@@ -152,13 +147,11 @@ type SimpleEnvironmentSettings struct {
 	TerrainMaterialPath    string                        `json:"terrain_material_path"`
 	DefaultReverbZoneStr   string                        `json:"default_reverb_zone"`
 	DefaultAmbienceSoundId uint32                        `json:"default_ambience_sound_id"`
-	UnkThinHash            string                        `json:"unk_thin_hash"`
+	UnkThinHash2           string                        `json:"unk_thinhash_2"`
 	WindWwiseStartEvent    uint32                        `json:"wind_wwise_start_event"`
 	WindWwiseStopEvent     uint32                        `json:"wind_wwise_stop_event"`
-	UnkEvent               uint32                        `json:"unk_event"`  // Name length 32
-	UnkEvent2              uint32                        `json:"unk_event2"` // Name length 31
-	UnkStr                 string                        `json:"unk_str"`    // Name length 23
-	UnkFloat               float32                       `json:"unk_float"`  // Name length 29
+	UnkStr                 string                        `json:"unk_str"`   // Name length 23
+	UnkFloat               float32                       `json:"unk_float"` // Name length 29
 }
 
 func (a EnvironmentSettings) Resolve(lookupHash HashLookup, lookupThinHash ThinHashLookup, lookupStrings StringsLookup) SimpleEnvironmentSettings {
@@ -177,8 +170,8 @@ func (a EnvironmentSettings) Resolve(lookupHash HashLookup, lookupThinHash ThinH
 		NameLoc:                lookupStrings(a.NameLoc),
 		NameLocStr:             a.NameLocStr,
 		LoadoutIntelligenceLoc: lookupStrings(a.LoadoutIntelligenceLoc),
-		WwiseStateStr:          a.WwiseStateStr,
-		PlanetMaterialId:       lookupHash(a.PlanetMaterialId),
+		UnkThinHash1:           lookupThinHash(a.UnkThinHash1),
+		PlanetPackage:          lookupHash(a.PlanetPackage),
 		ShadingEnvironment:     lookupHash(a.ShadingEnvironment),
 		GradingDay:             lookupHash(a.GradingDay),
 		GradingSunset:          lookupHash(a.GradingSunset),
@@ -194,12 +187,10 @@ func (a EnvironmentSettings) Resolve(lookupHash HashLookup, lookupThinHash ThinH
 		ResourceOverrideTags:   a.ResourceOverrideTags,
 		TerrainMaterialPath:    lookupHash(a.TerrainMaterialPath),
 		DefaultReverbZoneStr:   a.DefaultReverbZoneStr,
-		UnkThinHash:            lookupThinHash(a.UnkThinHash),
+		UnkThinHash2:           lookupThinHash(a.UnkThinHash2),
 		DefaultAmbienceSoundId: a.DefaultAmbienceSoundId,
 		WindWwiseStartEvent:    a.WindWwiseStartEvent,
 		WindWwiseStopEvent:     a.WindWwiseStopEvent,
-		UnkEvent:               a.UnkEvent,
-		UnkEvent2:              a.UnkEvent2,
 		UnkStr:                 a.UnkStr,
 		UnkFloat:               a.UnkFloat,
 	}
@@ -234,7 +225,8 @@ func LoadEnvironmentSettings() ([]EnvironmentSettings, error) {
 			PlanetType:             rawSettings.PlanetType,
 			NameLoc:                rawSettings.NameLoc,
 			LoadoutIntelligenceLoc: rawSettings.LoadoutIntelligenceLoc,
-			PlanetMaterialId:       rawSettings.PlanetMaterialId,
+			UnkThinHash1:           rawSettings.UnkThinHash1,
+			PlanetPackage:          rawSettings.PlanetPackage,
 			ShadingEnvironment:     rawSettings.ShadingEnvironment,
 			GradingDay:             rawSettings.GradingDay,
 			GradingSunset:          rawSettings.GradingSunset,
@@ -249,11 +241,9 @@ func LoadEnvironmentSettings() ([]EnvironmentSettings, error) {
 			ResourceOverrideTags:   rawSettings.ResourceOverrideTags,
 			TerrainMaterialPath:    rawSettings.TerrainMaterialPath,
 			DefaultAmbienceSoundId: rawSettings.DefaultAmbienceSoundId,
-			UnkThinHash:            rawSettings.UnkThinHash,
+			UnkThinHash2:           rawSettings.UnkThinHash2,
 			WindWwiseStartEvent:    rawSettings.WindWwiseStartEvent,
 			WindWwiseStopEvent:     rawSettings.WindWwiseStopEvent,
-			UnkEvent:               rawSettings.UnkEvent,
-			UnkEvent2:              rawSettings.UnkEvent2,
 			UnkFloat:               rawSettings.UnkFloat,
 		}
 
@@ -279,17 +269,6 @@ func LoadEnvironmentSettings() ([]EnvironmentSettings, error) {
 				return nil, fmt.Errorf("reading localized name: %v", err)
 			}
 			setting.NameLocStr = nameLocStr
-		}
-
-		if rawSettings.WwiseStateStrOffset > 0 {
-			r.Seek(base+rawSettings.WwiseStateStrOffset, io.SeekStart)
-			wwiseStateStr, err := util.ReadCString(r)
-			if err != nil {
-				//return nil, fmt.Errorf("reading wwise state string: %v", err)
-				setting.WwiseStateStr = strconv.FormatInt(rawSettings.WwiseStateStrOffset, 16)
-			} else {
-				setting.WwiseStateStr = wwiseStateStr
-			}
 		}
 
 		if rawSettings.DefaultReverbZoneStrOffset > 0 {

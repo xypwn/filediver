@@ -401,5 +401,5 @@ void main() {
     normal_modified = normalize(normal_modified);
 
     // perform basic lighting calcs
-    fragColor = calculateLighting(base_color, roughness, detail_metallic, base_data_sample.z, normal_modified, 1.2, 1.0);
+    fragColor = calculateLighting(base_color, roughness, detail_metallic, 0.0, base_data_sample.z, normal_modified, 1.2, 1.0);
 }

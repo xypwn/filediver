@@ -1416,7 +1416,7 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 			}
 			usedTextures[texUsageStr] = index
 			imgOpts = origImgOpts
-		case "water_normal_map", "water_noise", "flow_map", "water_pack_1", "water_pack_2", "distortion_tex", "concrete_sampler", "base_normal_ao_dirt", "triplanar_detail_albedo", "triplanar_detail_data", "weathering_albedo", "weathering_nar", "detail_mask_", "emissive_f_stop_10_intensity_map", "water_disruption_mask", "texture_map_0b1b5dad", "emissive_texture", "displacement_tex", "displacement_map", "snow_mask_texture", "glint_sample", "pattern_masks_array", "composite_array", "customization_camo_tiler_array", "customization_material_detail_tiler_array", "decal_sheet", "id_masks_array", "Detail_Data", "surface_data_array", "pattern_data", "texture_map_319d3bb5", "metal_surface_data", "concrete_surface_data", "bcm_tex_a", "bcm_tex_b", "nar_tex_a", "nar_tex_b", "blend_tex_mask", "mask", "albedo_array", "normal_array", "emissive", "noise_map_01", "noise_map_02", "edge_noise_map", "grayscale_skin", "noise_tiler_mask", "base_tiler_nar", "base_tiler_nan", "detail_trimsheet_metallic_ceramic_masking", "ceramic_detail_tiler_basecolor", "ceramic_detail_tiler_nar", "rock_detail_tiler_basecolor", "rock_detail_tiler_nar", "detail_trimsheet_nar", "metallic_lut", "blood_splatter_tiler", "bug_splatter_tiler", "weathering_dirt", "weathering_special", "cape_tear", "cape_scalar_fields", "cape_gradient":
+		case "detail_normal_1", "texture_map_02", "clearcoat_roughness_ao_spec", "sclar_field_opacity", "water_normal_map", "water_noise", "flow_map", "water_pack_1", "water_pack_2", "distortion_tex", "concrete_sampler", "base_normal_ao_dirt", "triplanar_detail_albedo", "triplanar_detail_data", "weathering_albedo", "weathering_nar", "detail_mask_", "emissive_f_stop_10_intensity_map", "water_disruption_mask", "texture_map_0b1b5dad", "emissive_texture", "displacement_tex", "displacement_map", "snow_mask_texture", "glint_sample", "pattern_masks_array", "composite_array", "customization_camo_tiler_array", "customization_material_detail_tiler_array", "decal_sheet", "id_masks_array", "Detail_Data", "surface_data_array", "pattern_data", "texture_map_319d3bb5", "metal_surface_data", "concrete_surface_data", "bcm_tex_a", "bcm_tex_b", "nar_tex_a", "nar_tex_b", "blend_tex_mask", "mask", "albedo_array", "normal_array", "emissive", "noise_map_01", "noise_map_02", "edge_noise_map", "grayscale_skin", "noise_tiler_mask", "base_tiler_nar", "base_tiler_nan", "detail_trimsheet_metallic_ceramic_masking", "ceramic_detail_tiler_basecolor", "ceramic_detail_tiler_nar", "rock_detail_tiler_basecolor", "rock_detail_tiler_nar", "detail_trimsheet_nar", "metallic_lut", "blood_splatter_tiler", "bug_splatter_tiler", "weathering_dirt", "weathering_special", "cape_tear", "cape_scalar_fields", "cape_gradient":
 			hash := mat.Textures[texUsage]
 			if unitData != nil && texUsageStr == "decal_sheet" && unitData.DecalSheet.Value != 0 {
 				hash = unitData.DecalSheet
@@ -1510,10 +1510,20 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 		materialSettingsAndTextures[ctx.LookupThinHash(setting)] = value
 	}
 
-	if mat.BaseMaterial.Value == 0x8e7efcdf45ac19cf {
-		materialSettingsAndTextures["fd_transparency_enabled"] = []float32{1.0}
-	} else {
-		materialSettingsAndTextures["fd_transparency_enabled"] = []float32{0.0}
+	if _, contains := materialSettingsAndTextures["material_lut"]; contains {
+		if mat.BaseMaterial.Value == 0x8e7efcdf45ac19cf {
+			materialSettingsAndTextures["fd_transparency_enabled"] = []float32{1.0}
+		} else {
+			materialSettingsAndTextures["fd_transparency_enabled"] = []float32{0.0}
+		}
+	}
+
+	// Fix gloom warrior opacity since we use a shared material between the opaque bug bodies and transparent wings
+	if offsetAny, contains := materialSettingsAndTextures["opacity_offset"]; contains {
+		offset, ok := offsetAny.([]float32)
+		if hash, contains := mat.Textures[stingray.Sum("sclar_field_opacity").Thin()]; contains && ok && hash == stingray.Sum("content/art_shared/textures/dummy_all_grey") && offset[0] < 0 {
+			materialSettingsAndTextures["opacity_offset"] = []float32{0.0}
+		}
 	}
 
 	if _, contains := materialSettingsAndTextures["decal_id"]; contains {

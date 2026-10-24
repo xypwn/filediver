@@ -114,6 +114,19 @@ func TestBuilding(t *testing.T) {
 	}
 }
 
+func TestBugs(t *testing.T) {
+	shaders, err := CreateProgramFromSources(unitPreviewShaderCode, bugsShaderSources...)
+	if err != nil {
+		t.Errorf("Failed to create bugs sources: %v", err)
+	}
+	for _, shader := range shaders {
+		err := shader.validate()
+		if err != nil {
+			t.Errorf("Failed to validate bugs %v shader: %v", shader.stage, err)
+		}
+	}
+}
+
 func TestDebugObject(t *testing.T) {
 	shaders, err := CreateProgramFromSources(unitPreviewShaderCode, debugObjectShaderSources...)
 	if err != nil {

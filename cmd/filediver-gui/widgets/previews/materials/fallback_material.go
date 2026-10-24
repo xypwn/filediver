@@ -122,4 +122,6 @@ func (ml *MaterialManager) updateFallbackMaterial(material *FallbackMaterial, ma
 		gl.ProgramUniform1i(material.program, material.uniforms.locations["shouldReconstructNormalZ"], 0)
 	}
 	gl.ProgramUniform1i(material.program, material.uniforms.locations["hasVisibilityMasks"], 0)
+
+	ml.handleGlobalBlocks(material.BaseMaterial)
 }

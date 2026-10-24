@@ -51,6 +51,7 @@ func getTarget(slot string) uint32 {
 
 var globalBlockNames = []string{
 	"TriplanarBlock",
+	"LightingBlock",
 }
 
 type MaterialManager struct {
@@ -141,6 +142,27 @@ func (ml *MaterialManager) DrawGlobalBlocks(flags imgui.TreeNodeFlags, color *im
 	}
 	imgui.PopStyleColor()
 	imgui.TreePop()
+}
+
+func (ml *MaterialManager) handleGlobalBlocks(material *BaseMaterial) {
+	for idx, block := range material.uniformBlocks {
+		if slices.Contains(globalBlockNames, block.name) {
+			existing, ok := ml.globalBlocks[block.name]
+			if !ok {
+				ml.globalBlocks[block.name] = material.uniformBlocks[idx]
+				existing = material.uniformBlocks[idx]
+				if existing.name == "LightingBlock" {
+					existing.set("ambient_color", []float32{0.5, 0.5, 0.5})
+					existing.setDefault("ambient_color", []float32{0.5, 0.5, 0.5})
+					existing.set("light_color", []float32{1.25, 1.25, 1.25})
+					existing.setDefault("light_color", []float32{1.25, 1.25, 1.25})
+				}
+			} else {
+				gl.DeleteBuffers(1, &material.uniformBlocks[idx].ubo)
+			}
+			material.uniformBlocks[idx] = existing
+		}
+	}
 }
 
 func (ml *MaterialManager) ReleaseIBLLookup() {
@@ -384,6 +406,7 @@ func (ml *MaterialManager) getTextureLoaderFunc(nameHash stingray.Hash) func() {
 				data.Type = gl.HALF_FLOAT
 				data.Data = ddsImage.Images[0].MipMaps[0].Raw
 			} else if ddsImage.Info.DXT10Header != nil && ddsImage.Info.DXT10Header.DXGIFormat == dds.DXGIFormatR32G32B32A32Float {
+				fmt.Printf("loading %v as rgba32f\n", data.Slot)
 				data.Format = gl.RGBA
 				data.InternalFormat = gl.RGBA32F
 				data.Type = gl.FLOAT
@@ -459,6 +482,8 @@ func (ml *MaterialManager) loadMaterialTextureAsync(slotHash stingray.ThinHash, 
 		fmt.Printf("texture data already cached for %v.texture\n", ml.lookupHash(overrideID.Name))
 		return
 	}
+
+	fmt.Printf("Loading texture %v in slot %v\n", ml.lookupHash(nameHash), slot)
 
 	ml.textureWaitGroup.Go(ml.getTextureLoaderFunc(nameHash))
 }
@@ -601,21 +626,6 @@ func (ml *MaterialManager) setupMaterialCommon(textureNames []string, previewMat
 	previewMaterial.InitSettings(mat.Settings, ml.lookupThinHash)
 }
 
-func (ml *MaterialManager) handleGlobalBlocks(material *BaseMaterial) {
-	for idx, block := range material.uniformBlocks {
-		if slices.Contains(globalBlockNames, block.name) {
-			existing, ok := ml.globalBlocks[block.name]
-			if !ok {
-				ml.globalBlocks[block.name] = material.uniformBlocks[idx]
-				existing = material.uniformBlocks[idx]
-			} else {
-				gl.DeleteBuffers(1, &material.uniformBlocks[idx].ubo)
-			}
-			material.uniformBlocks[idx] = existing
-		}
-	}
-}
-
 func (ml *MaterialManager) ReloadTextures(material Material, mat *material.Material) {
 	for texIdx := range material.Textures() {
 		texture := material.Textures()[texIdx]
@@ -653,6 +663,17 @@ func (ml *MaterialManager) LoadMaterial(id stingray.FileID, name string, shown b
 		}
 
 		ml.updateLutMaterial(toReturn, mat)
+		return toReturn
+	}
+
+	if isBugsMaterial(mat) {
+		toReturn, ok := existing.(*BugsMaterial)
+		if existing == nil || !ok {
+			toReturn = NewBugsMaterial(id, name, shown)
+			err = toReturn.Generate()
+		}
+
+		ml.updateBugsMaterial(toReturn, mat)
 		return toReturn
 	}
 

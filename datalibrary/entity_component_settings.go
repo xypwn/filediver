@@ -177,6 +177,8 @@ func getComponentDataForHash(componentType DLHash, resource stingray.Hash) ([]by
 		return getWieldableComponentDataForHash(resource)
 	case Sum("WeaponWindUpComponentData"):
 		return getWeaponWindUpComponentDataForHash(resource)
+	case Sum("WoundableComponentData"):
+		return getWoundableComponentDataForHash(resource)
 	case Sum("VisibilityMaskComponentData"):
 		return getVisibilityMaskComponentDataForHash(resource)
 	default:
@@ -567,6 +569,12 @@ func parseComponent(componentType DLHash, data []byte) (Component, error) {
 		return toReturn, nil
 	case Sum("WeaponWindUpComponentData"):
 		var toReturn WeaponWindUpComponent
+		if _, err := binary.Decode(data, binary.LittleEndian, &toReturn); err != nil {
+			return nil, err
+		}
+		return toReturn, nil
+	case Sum("WoundableComponentData"):
+		var toReturn WoundableComponent
 		if _, err := binary.Decode(data, binary.LittleEndian, &toReturn); err != nil {
 			return nil, err
 		}

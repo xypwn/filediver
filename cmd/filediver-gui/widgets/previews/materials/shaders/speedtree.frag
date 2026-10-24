@@ -81,5 +81,4 @@ void main() {
     vec3 specular = pow(max(dot(normal, halfwayDirection), 0.0), 32.0) * lightColor;
 
     fragColor = vec4(albedo * (mix(ambient, diffuse, 0.6) + 0.5 * specular), 1.0);
-    //fragColor = calculateLighting(vec4(albedo, 1.0), tex2_sample.g, tex2_sample.a, tex2_sample.b, normal);
 }

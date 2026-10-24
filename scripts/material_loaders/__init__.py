@@ -1,6 +1,7 @@
 from .filediver_material_loader_interface import FilediverMaterialLoaderInterface
 
 from .armor_material_loader import ArmorMaterialLoader
+from .bug_material_loader import BugMaterialLoader
 from .building_material_loader import BuildingMaterialLoader
 from .cape_material_loader import CapeMaterialLoader
 from .concrete_alt_material_loader import ConcreteAltMaterialLoader
@@ -28,6 +29,7 @@ from .image_utils import get_textures
 __all__ = [
     "FilediverMaterialLoaderInterface",
     "ArmorMaterialLoader",
+    "BugMaterialLoader",
     "BuildingMaterialLoader",
     "CapeMaterialLoader",
     "ConcreteAltMaterialLoader",
