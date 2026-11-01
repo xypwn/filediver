@@ -43,7 +43,7 @@ void main() {
     gl_Position = projection * view * model * instModel * vec4(inPosition, 1.0);
     fragPosition = vec3(model * vec4(inPosition, 1.0));
     fragInstPosition = vec3(instanceModel * vec4(inPosition, 1.0));
-    objPosition = vec3(stingrayToGL * vec4(inPosition, 1.0));
+    objPosition = inPosition;
     fragUV0 = inUV;
     fragUV1 = inUV1;
     fragUV2 = inUV2;

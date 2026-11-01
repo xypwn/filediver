@@ -67,11 +67,6 @@ vec3 gamma(vec3 color, float value) {
     return exp2(log2(color) * vec3(value));
 }
 
-// Essentially just gamma for floats
-float curve(float value, float amount) {
-    return exp2(log2(value) * amount);
-}
-
 // Normal is expected to be in tangent space
 vec4 calculateLighting(vec4 base_color, float roughness, float metallic, float specular, float ambient_occlusion, vec3 normal, float saturation, float contrast) {
     vec3 ambient = ambient_color * ambient_occlusion;

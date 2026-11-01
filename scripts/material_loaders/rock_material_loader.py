@@ -79,6 +79,9 @@ class RockMaterialLoader(FilediverMaterialLoaderInterface):
                 if len(setting) == 1:
                     config_nodes["Rock Emissive"].inputs[name].default_value = setting[0]
                     continue
+                if config_nodes["Rock Emissive"].inputs[name].bl_idname == "NodeSocketColor":
+                    config_nodes["Rock Emissive"].inputs[name].default_value = setting[:3] + [1.0]
+                    continue
                 config_nodes["Rock Emissive"].inputs[name].default_value = setting
             elif name in config_nodes["Rock Weathering Amount"].inputs:
                 if len(setting) == 1:

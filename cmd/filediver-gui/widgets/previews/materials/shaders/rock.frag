@@ -124,7 +124,7 @@ vec3 emissive(vec3 base_color, float roughness, float ao, float obj_height) {
     emissive_color = gamma(abs(emissive_color), emissive_power);
 
     float emissive_height_val = clamp((obj_height - emissive_height_fade_start) / max(emissive_height_fade_distance, 0.001), 0.0, 1.0);
-    emissive_height_val = curve(emissive_height_val, max(emissive_height_fade_exponent, 0.001));
+    emissive_height_val = pow(emissive_height_val, max(emissive_height_fade_exponent, 0.001));
 
     emissive_color = min((1.0 - emissive_height_val) * emissive_color, vec3(1.0, 1.0, 1.0));
     return gamma(emissive_color, 0.8);
@@ -136,11 +136,11 @@ vec3 ice_fuzz_subsurface(vec3 base_color, float view_align, float inv_ao) {
     fuzz_intensity = max(fuzz_intensity - view_align * fuzz_intensity, 0.0);
     base_color = fuzz_intensity * (fuzz_color - base_color) + base_color;
 
-    float subsurface_occlusion = clamp(curve(inv_ao, max(subsurface_occlusion_maskcurve, 0.001)) * subsurface_occlusion_intensity + ice_subsurface_intensity, 0.0, 1.0);
+    float subsurface_occlusion = clamp(pow(inv_ao, max(subsurface_occlusion_maskcurve, 0.001)) * subsurface_occlusion_intensity + ice_subsurface_intensity, 0.0, 1.0);
     float subsurface_wrap = clamp(ice_subsurface_wrap, 0.0, 1.0);
     float subsurface_wrap_val = subsurface_wrap * (1.0 - 2.0 * view_align) + view_align;
     subsurface_wrap = subsurface_wrap - 0.5;
-    subsurface_wrap_val = subsurface_occlusion * (curve(abs(subsurface_wrap_val), abs(subsurface_wrap) * 2.0 + 1.0) - abs(subsurface_wrap) + 0.5);
+    subsurface_wrap_val = subsurface_occlusion * (pow(abs(subsurface_wrap_val), abs(subsurface_wrap) * 2.0 + 1.0) - abs(subsurface_wrap) + 0.5);
     return subsurface_wrap_val * (ice_subsurface_color - base_color) + base_color;
 }
 
@@ -155,23 +155,23 @@ void main() {
 
     vec3 heightmap_normal = /*heightmap_tbn **/ normal;
 
-    vec3 face_tangent = dFdx(objPosition);
-    vec3 face_bitangent = dFdy(objPosition);
-    vec3 face_mixed_tangent = face_tangent - dot(face_tangent, mixed_vertex_normal) * mixed_vertex_normal;
-    vec3 face_mixed_bitangent = face_bitangent - dot(face_bitangent, mixed_vertex_normal) * mixed_vertex_normal;
-    vec3 face_crossed_bitangent = cross(face_tangent, mixed_vertex_normal);
-    float face_handedness = dot(face_bitangent, face_crossed_bitangent) < 0.0 ? -1.0 : 1.0;
+    // vec3 face_tangent = dFdx(objPosition);
+    // vec3 face_bitangent = dFdy(objPosition);
+    // vec3 face_mixed_tangent = face_tangent - dot(face_tangent, mixed_vertex_normal) * mixed_vertex_normal;
+    // vec3 face_mixed_bitangent = face_bitangent - dot(face_bitangent, mixed_vertex_normal) * mixed_vertex_normal;
+    // vec3 face_crossed_bitangent = cross(face_tangent, mixed_vertex_normal);
+    // float face_handedness = dot(face_bitangent, face_crossed_bitangent) < 0.0 ? -1.0 : 1.0;
 
-    vec2 uv_dx = dFdx(fragUV0);
-    vec2 uv_dy = dFdy(fragUV0);
+    // vec2 uv_dx = dFdx(fragUV0);
+    // vec2 uv_dy = dFdy(fragUV0);
 
-    float uv_align = dot(uv_dx, vec2(uv_dy.y, -uv_dy.x));
-    float uv_handedness = uv_align < 0.0 ? -1.0 : 1.0;
-    vec3 uv_face_tangent = (uv_handedness * uv_dy.y) * face_mixed_tangent - ((uv_handedness * uv_dx.y) * face_mixed_bitangent);
+    // float uv_align = dot(uv_dx, vec2(uv_dy.y, -uv_dy.x));
+    // float uv_handedness = uv_align < 0.0 ? -1.0 : 1.0;
+    // vec3 uv_face_tangent = (uv_handedness * uv_dy.y) * face_mixed_tangent - ((uv_handedness * uv_dx.y) * face_mixed_bitangent);
 
-    uv_face_tangent = abs(uv_align) > 0.0 ? normalize(uv_face_tangent) : uv_face_tangent;
-    float handedness = face_handedness * uv_handedness;
-    vec3 uv_face_bitangent = handedness * cross(uv_face_tangent, mixed_vertex_normal);
+    // uv_face_tangent = abs(uv_align) > 0.0 ? normalize(uv_face_tangent) : uv_face_tangent;
+    // float handedness = face_handedness * uv_handedness;
+    // vec3 uv_face_bitangent = handedness * cross(uv_face_tangent, mixed_vertex_normal);
 
     vec4 nad = texture(base_normal_ao_dirt, fragUV0);
     vec2 details = texture(detail_mask_, fragUV0).xy;
@@ -235,7 +235,7 @@ void main() {
 
     vec3 base_albedo = combined_detail_albedo * albedo_intensity;
 
-    float obj_height = objPosition.y + fd_world_offset.y;
+    float obj_height = objPosition.z + fd_world_offset.y;
     float dirt_height = clamp((obj_height - gradient_dirt_maxheight) / (gradient_dirt_minheight - gradient_dirt_maxheight), 0.0, 1.0);
     dirt_height = (3.0 - dirt_height * 2.0) * dirt_height * dirt_height;
 
@@ -270,7 +270,7 @@ void main() {
     float up_fade_crv = max(up_fade_curve, 0.001);
 
     // what's up_val?
-    float up_val = curve(clamp(obj_height / up_fade, 0.0, 1.0), up_fade_crv);
+    float up_val = pow(clamp(obj_height / up_fade, 0.0, 1.0), up_fade_crv);
 
     vec3 tint_color = up_val * (top_color_tint - bottom_color_tint) + bottom_color_tint;
     base_color = tint_color * base_color;
@@ -295,7 +295,7 @@ void main() {
 
     inv_ao = abs(1.0 - ao);
     float weathering_coverage_amount = clamp(weathering_input * weathering_coverage_multiplier + weathering_coverage, 0.0, 1.0);
-    float weathering_height_val = curve(1.0 - clamp(obj_height / max(weathering_height, 0.001), 0.0, 1.0), max(weathering_height_curve, 0.001));
+    float weathering_height_val = pow(1.0 - clamp(obj_height / max(weathering_height, 0.001), 0.0, 1.0), max(weathering_height_curve, 0.001));
 
     if (weathering_height > 99.9) {
         weathering_height_val = 1.0;
@@ -303,7 +303,7 @@ void main() {
     weathering_height_val = weathering_height_val * weathering_coverage_amount;
 
     float heightmap_up_amount = clamp(heightmap_normal.z, -0.05, 1.0) + 0.05;
-    float weathering_amount = clamp((2.5 * (heightmap_up_amount / 1.05 - (1.0 - curve(weathering_height_val, 0.7))) - 0.1) / 1.1, 0.0, 1.0);
+    float weathering_amount = clamp((2.5 * (heightmap_up_amount / 1.05 - (1.0 - pow(weathering_height_val, 0.7))) - 0.1) / 1.1, 0.0, 1.0);
     weathering_amount = clamp((1.0 - clamp(dirt_mix * weathering_on_dirt_amount + weathering_amount, 0.0, 1.0)) * weathering_thickness - weathering_thickness + 1.0, 0.0, 1.0);
     combined_normal = normalize(mixed_vertex_normal + combined_normal);
     combined_normal = weathering_amount * (combined_normal - heightmap_normal) + heightmap_normal;
@@ -414,7 +414,7 @@ void main() {
         subsurface_wrap = clamp(subsurface_wrap, 0.0, 1.0);
         subsurface_intensity = clamp(subsurface_intensity, 0.0, 1.0);
         subsurface = subsurface_wrap * (1.0 - 2.0 * view_align) + view_align;
-        subsurface = curve(abs(subsurface), abs(subsurface_wrap - 0.5) * 2.0 + 1.0);
+        subsurface = pow(abs(subsurface), abs(subsurface_wrap - 0.5) * 2.0 + 1.0);
         subsurface = (subsurface - abs(subsurface_wrap - 0.5) + 0.5) * subsurface_intensity;
         base_color = subsurface * (subsurface_color - base_color) + base_color;
         metallic = subsurface * (metallic - specular) + specular;
@@ -448,6 +448,9 @@ void main() {
         break;
     case 8:
         fragColor = vec4(viewDirection, 1.0);
+        break;
+    case 9:
+        fragColor = vec4(vec3(obj_height), 1.0);
         break;
     default:
         fragColor = calculateLighting(vec4(sqrt(base_color), 1.0), roughness, metallic, 0.0, ao, tangentCombinedNormal, 1.0, 1.0);
