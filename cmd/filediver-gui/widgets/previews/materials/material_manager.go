@@ -43,7 +43,7 @@ type textureData struct {
 
 func getTarget(slot string) uint32 {
 	switch slot {
-	case "customization_camo_tiler_array", "pattern_masks_array", "id_masks_array", "customization_material_detail_tiler_array", "surface_data_array":
+	case "customization_camo_tiler_array", "pattern_masks_array", "id_masks_array", "customization_material_detail_tiler_array", "surface_data_array", "snow_pnrb_array", "triplanar_detail_albedo", "triplanar_detail_data":
 		return gl.TEXTURE_2D_ARRAY
 	}
 	return gl.TEXTURE_2D
@@ -157,7 +157,7 @@ func (ml *MaterialManager) handleGlobalBlocks(material *BaseMaterial) {
 					existing.set("light_color", []float32{1.25, 1.25, 1.25})
 					existing.setDefault("light_color", []float32{1.25, 1.25, 1.25})
 				}
-			} else {
+			} else if existing.ubo != material.uniformBlocks[idx].ubo {
 				gl.DeleteBuffers(1, &material.uniformBlocks[idx].ubo)
 			}
 			material.uniformBlocks[idx] = existing
@@ -304,6 +304,27 @@ func (ml *MaterialManager) UpdateAssetGradingLut() error {
 	gl.BindTexture(gl.TEXTURE_BUFFER, ml.assetGradingLutTexture)
 	gl.TexBuffer(gl.TEXTURE_BUFFER, gl.RGBA16F, ml.assetGradingLutBuffer)
 	gl.BindTexture(gl.TEXTURE_BUFFER, 0)
+
+	return nil
+}
+
+func (ml *MaterialManager) addAssetGradingLut(material *BaseMaterial) error {
+	err := ml.UpdateAssetGradingLut()
+	if err != nil {
+		return err
+	}
+
+	assetGradingHash := stingray.Sum("asset_grading_lut")
+	material.textures = append(material.textures, Texture{
+		id:       ml.assetGradingLutTexture,
+		target:   gl.TEXTURE_BUFFER,
+		name:     assetGradingHash,
+		override: stingray.NewFileID(assetGradingHash, stingray.Sum("texture")),
+		slot:     "asset_grading_lut",
+		created:  false,
+		loaded:   true,
+		filter:   gl.LINEAR,
+	})
 
 	return nil
 }
@@ -674,6 +695,17 @@ func (ml *MaterialManager) LoadMaterial(id stingray.FileID, name string, shown b
 		}
 
 		ml.updateBugsMaterial(toReturn, mat)
+		return toReturn
+	}
+
+	if isRockMaterial(mat) {
+		toReturn, ok := existing.(*RockMaterial)
+		if existing == nil || !ok {
+			toReturn = NewRockMaterial(id, name, shown)
+			err = toReturn.Generate()
+		}
+
+		ml.updateRockMaterial(toReturn, mat)
 		return toReturn
 	}
 

@@ -215,6 +215,7 @@ class TerrainMaterialLoader(FilediverMaterialLoaderInterface):
         noise_magnitude.location = (origin["x"], origin["y"] + noise_magnitude.height)
         noise_magnitude.outputs[0].default_value = 1.0
         bracket_sockets: List[CompareInput] = []
+        location = origin
         for i, terrain_settings in enumerate(config["extras"]["fd_terrain_materials"]):
             terrain_settings: dict
             settings: dict = terrain_settings["settings"]

@@ -72,13 +72,10 @@ class SnowRockMaterialLoader(FilediverMaterialLoaderInterface):
                     config_nodes["Rock Group"].inputs[name].default_value = setting[0]
                 elif config_nodes["Rock Group"].inputs[name].bl_idname == "NodeSocketVector":
                     config_nodes["Rock Group"].inputs[name].default_value = setting[:3]
+                elif config_nodes["Rock Group"].inputs[name].bl_idname == "NodeSocketColor":
+                    config_nodes["Rock Group"].inputs[name].default_value = setting[:3] + [1.0]
             elif name in config_nodes["Rock Snow UVs"].inputs:
                 config_nodes["Rock Snow UVs"].inputs[name].default_value = setting[0]
-            elif name in config_nodes["Rock Emissive"].inputs:
-                if len(setting) == 1:
-                    config_nodes["Rock Emissive"].inputs[name].default_value = setting[0]
-                    continue
-                config_nodes["Rock Emissive"].inputs[name].default_value = setting
             elif name in config_nodes["Snow Group"].inputs:
                 if len(setting) == 1:
                     config_nodes["Snow Group"].inputs[name].default_value = setting[0]
@@ -98,8 +95,7 @@ class SnowRockMaterialLoader(FilediverMaterialLoaderInterface):
 
     @classmethod
     def can_configure(cls, config: dict) -> bool:
-        #print(f'{"snow_base_color" in config["extras"]} {"base_normal_ao_dirt" in config["extras"]} {"triplanar_detail_albedo" in config["extras"]} {"triplanar_detail_data" in config["extras"]} {"detail_mask_" in config["extras"]} {"grading_group_id" in config["extras"]} {"asset_color_grading_lut" in config["extras"]}')
-        return "snow_base_color" in config["extras"] and "base_normal_ao_dirt" in config["extras"] and "triplanar_detail_albedo" in config["extras"] and "triplanar_detail_data" in config["extras"] and "detail_mask_" in config["extras"] and "grading_group_id" in config["extras"] and "asset_color_grading_lut" in config["extras"]
+        return "fd_rock_ice" not in config["extras"] and "snow_base_color" in config["extras"] and "base_normal_ao_dirt" in config["extras"] and "triplanar_detail_albedo" in config["extras"] and "triplanar_detail_data" in config["extras"] and "detail_mask_" in config["extras"] and "grading_group_id" in config["extras"] and "asset_color_grading_lut" in config["extras"]
 
     @classmethod
     def key(cls) -> str:

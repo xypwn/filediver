@@ -39,6 +39,7 @@ material_loaders: List[FilediverMaterialLoaderInterface] = [
     ConcreteAltMaterialLoader(),
     ConcreteMaterialLoader(),
     FenceMaterialLoader(),
+    IceRockMaterialLoader(),
     IlluminateBuildingMaterialLoader(),
     IlluminateBuildingMonoplanarMaterialLoader(),
     IlluminateRuinsMaterialLoader(),

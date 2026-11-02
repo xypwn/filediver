@@ -179,6 +179,19 @@ func TestLut(t *testing.T) {
 	}
 }
 
+func TestRock(t *testing.T) {
+	shaders, err := CreateProgramFromSources(unitPreviewShaderCode, rockShaderSources...)
+	if err != nil {
+		t.Errorf("Failed to create rock sources: %v", err)
+	}
+	for _, shader := range shaders {
+		err := shader.validate()
+		if err != nil {
+			t.Errorf("Failed to validate rock %v shader: %v", shader.stage, err)
+		}
+	}
+}
+
 func TestNormalVis(t *testing.T) {
 	shaders, err := CreateProgramFromSources(unitPreviewShaderCode, normalVisShaderSources...)
 	if err != nil {

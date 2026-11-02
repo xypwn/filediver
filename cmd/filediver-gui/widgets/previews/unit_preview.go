@@ -94,6 +94,7 @@ func (obj *unitPreviewObject) genObjects(textures bool, numIbos int32) {
 func (obj unitPreviewObject) deleteObjects(ml *preview_mats.MaterialManager) {
 	gl.DeleteVertexArrays(1, &obj.vao)
 	gl.DeleteBuffers(1, &obj.vbo)
+	gl.DeleteBuffers(1, &obj.imbo)
 	if len(obj.ibos) > 0 {
 		gl.DeleteBuffers(int32(len(obj.ibos)), &obj.ibos[0])
 	}
@@ -663,10 +664,11 @@ func (pv *UnitPreviewState) getNodeUnitFileID(nodeId stingray.Hash) (stingray.Fi
 	return hash, contains
 }
 
-func (pv *UnitPreviewState) LoadLevel(fileID stingray.Hash, mainData []byte) error {
+func (pv *UnitPreviewState) LoadLevel(fileID stingray.Hash, mainData []byte, entityInfo *entity.Entity) error {
 	if pv.nodes == nil {
 		pv.nodes = make(map[stingray.Hash]unitPreviewNode)
 	}
+	pv.ml.SetEntity(entityInfo)
 
 	pv.maxViewDistance = 0.001
 
@@ -887,10 +889,11 @@ func (pv *UnitPreviewState) LoadLevel(fileID stingray.Hash, mainData []byte) err
 	return pv.finalizeObjectMaterials()
 }
 
-func (pv *UnitPreviewState) LoadPrefab(fileID stingray.Hash, mainData []byte) error {
+func (pv *UnitPreviewState) LoadPrefab(fileID stingray.Hash, mainData []byte, entityInfo *entity.Entity) error {
 	if pv.nodes == nil {
 		pv.nodes = make(map[stingray.Hash]unitPreviewNode)
 	}
+	pv.ml.SetEntity(entityInfo)
 
 	pv.maxViewDistance = 0.001
 
@@ -997,10 +1000,11 @@ func (pv *UnitPreviewState) loadPrefabInfo(fileID stingray.FileID, info *prefab.
 	return contents, nil
 }
 
-func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []byte) error {
+func (pv *UnitPreviewState) LoadUnit(fileID stingray.Hash, mainData, gpuData []byte, entityInfo *entity.Entity) error {
 	if pv.nodes == nil {
 		pv.nodes = make(map[stingray.Hash]unitPreviewNode)
 	}
+	pv.ml.SetEntity(entityInfo)
 
 	unitID := stingray.NewFileID(fileID, UNIT)
 	pv.root = unitPreviewNode{
@@ -2677,6 +2681,55 @@ func (pv *UnitPreviewState) Draw(previewId string) {
 
 			modelPos, _, view, projection := pv.computeMVP(size.X/size.Y, false)
 			translation := mgl32.Translate3D(modelPos.Vec3().Elem())
+			// Show axes
+			{
+				// Mirror across the x axis
+				mirror := mgl32.Mat4FromRows(
+					mgl32.Vec4{1.0, 0.0, 0.0, 0.0},
+					mgl32.Vec4{0.0, -1.0, 0.0, 0.0},
+					mgl32.Vec4{0.0, 0.0, 1.0, 0.0},
+					mgl32.Vec4{0.0, 0.0, 0.0, 1.0},
+				)
+				xPoint := mirror.Mul4x1(view.Mul4x1(mgl32.Vec4{1.0, 0.0, 0.0, 1.0}))
+				yPoint := mirror.Mul4x1(view.Mul4x1(mgl32.Vec4{0.0, 1.0, 0.0, 1.0}))
+				zPoint := mirror.Mul4x1(view.Mul4x1(mgl32.Vec4{0.0, 0.0, 1.0, 1.0}))
+				crossHatching := make([][4]mgl32.Vec4, 11)
+				for i := range crossHatching {
+					x := float32(2*i+1)/float32(len(crossHatching)) - 1.0
+					y := float32(math.Sqrt(1.0 - float64(x*x)))
+					crossHatching[i][0] = mirror.Mul4x1(view.Mul4x1(mgl32.Vec4{-y, 0.0, x, 1.0}))
+					crossHatching[i][1] = mirror.Mul4x1(view.Mul4x1(mgl32.Vec4{y, 0.0, x, 1.0}))
+					crossHatching[i][2] = mirror.Mul4x1(view.Mul4x1(mgl32.Vec4{x, 0.0, -y, 1.0}))
+					crossHatching[i][3] = mirror.Mul4x1(view.Mul4x1(mgl32.Vec4{x, 0.0, y, 1.0}))
+				}
+
+				origin := pos.Add(size.Sub(imutils.SVec2(2.0, 1.5).Mul(50.0)))
+				x := imutils.SVec2(xPoint.Vec2().Elem()).Mul(50.0).Add(origin)
+				y := imutils.SVec2(yPoint.Vec2().Elem()).Mul(50.0).Add(origin)
+				z := imutils.SVec2(zPoint.Vec2().Elem()).Mul(50.0).Add(origin)
+				minorRadius := math.Sqrt(1.0 - float64(yPoint.Vec2().LenSqr()))
+				radius := imutils.SVec2(1.0, minorRadius).Mul(50.0)
+				red := imgui.NewVec4(1.0, 0.0, 0.0, 1.0)
+				green := imgui.NewVec4(0.0, 1.0, 0.0, 1.0)
+				blue := imgui.NewVec4(0.0, 0.0, 1.0, 1.0)
+				dl.AddCircleFilled(
+					origin,
+					imutils.S(50.0)+imgui.CurrentStyle().ItemInnerSpacing().X,
+					imgui.ColorConvertFloat4ToU32(imgui.NewVec4(0, 0, 0, 0.5)),
+				)
+				for i := range crossHatching {
+					a := imutils.SVec2(crossHatching[i][0].Vec2().Elem()).Mul(50.0).Add(origin)
+					b := imutils.SVec2(crossHatching[i][1].Vec2().Elem()).Mul(50.0).Add(origin)
+					c := imutils.SVec2(crossHatching[i][2].Vec2().Elem()).Mul(50.0).Add(origin)
+					d := imutils.SVec2(crossHatching[i][3].Vec2().Elem()).Mul(50.0).Add(origin)
+					dl.AddLineArgs(a, b, imgui.ColorConvertFloat4ToU32(imgui.NewVec4(0.5, 0.5, 0.5, 0.5)), 1.0)
+					dl.AddLineArgs(c, d, imgui.ColorConvertFloat4ToU32(imgui.NewVec4(0.5, 0.5, 0.5, 0.5)), 1.0)
+				}
+				dl.AddEllipse(origin, radius, imgui.ColorConvertFloat4ToU32(imgui.NewVec4(0.5, 0.5, 0.5, 0.5)))
+				dl.AddLineArgs(origin, x, imgui.ColorConvertFloat4ToU32(red), 1.5)
+				dl.AddLineArgs(origin, z, imgui.ColorConvertFloat4ToU32(blue), 1.5)
+				dl.AddLineArgs(origin, y, imgui.ColorConvertFloat4ToU32(green), 1.5)
+			}
 
 			// Show hovered vertex info
 			if pv.visualizeNormals {

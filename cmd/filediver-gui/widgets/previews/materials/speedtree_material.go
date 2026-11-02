@@ -1,7 +1,6 @@
 package materials
 
 import (
-	"github.com/go-gl/gl/v4.3-core/gl"
 	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/stingray/unit/material"
 )
@@ -87,19 +86,7 @@ func (mat *SpeedtreeUnitMaterial) Generate() error {
 var _ Material = &SpeedtreeUnitMaterial{}
 
 func (ml *MaterialManager) updateSpeedtreeMaterial(material *SpeedtreeMaterial, mat *material.Material) {
-	ml.UpdateAssetGradingLut()
-
-	assetGradingHash := stingray.Sum("asset_grading_lut")
-	material.textures = append(material.textures, Texture{
-		id:       ml.assetGradingLutTexture,
-		target:   gl.TEXTURE_BUFFER,
-		name:     assetGradingHash,
-		override: stingray.NewFileID(assetGradingHash, stingray.Sum("texture")),
-		slot:     "asset_grading_lut",
-		created:  false,
-		loaded:   true,
-		filter:   gl.LINEAR,
-	})
+	ml.addAssetGradingLut(material.BaseMaterial)
 
 	if _, contains := mat.Textures[stingray.Sum("fibonacci_normal_lut").Thin()]; !contains {
 		mat.Textures[stingray.Sum("fibonacci_normal_lut").Thin()] = stingray.Sum("content/art_shared/textures/fibonacci_normal_lut")
@@ -110,19 +97,7 @@ func (ml *MaterialManager) updateSpeedtreeMaterial(material *SpeedtreeMaterial, 
 }
 
 func (ml *MaterialManager) updateSpeedtreeUnitMaterial(material *SpeedtreeUnitMaterial, mat *material.Material) {
-	ml.UpdateAssetGradingLut()
-
-	assetGradingHash := stingray.Sum("asset_grading_lut")
-	material.textures = append(material.textures, Texture{
-		id:       ml.assetGradingLutTexture,
-		target:   gl.TEXTURE_BUFFER,
-		name:     assetGradingHash,
-		override: stingray.NewFileID(assetGradingHash, stingray.Sum("texture")),
-		slot:     "asset_grading_lut",
-		created:  false,
-		loaded:   true,
-		filter:   gl.LINEAR,
-	})
+	ml.addAssetGradingLut(material.BaseMaterial)
 
 	if _, contains := mat.Textures[stingray.Sum("fibonacci_normal_lut").Thin()]; !contains {
 		mat.Textures[stingray.Sum("fibonacci_normal_lut").Thin()] = stingray.Sum("content/art_shared/textures/fibonacci_normal_lut")

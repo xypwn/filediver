@@ -1570,6 +1570,11 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 		}
 	}
 
+	iceRockBase := stingray.Sum("content/art_shared/base_shaders/rock_ice")
+	if mat.BaseMaterial == iceRockBase || ctx.FileID().Name == iceRockBase {
+		materialSettingsAndTextures["fd_rock_ice"] = true
+	}
+
 	entityHash := ctx.FileID().Name
 	if cfg.Unit.EntityName != "" {
 		newHash, err := stingray.ParseOrSum(cfg.Unit.EntityName)

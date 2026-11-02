@@ -7,6 +7,7 @@ from .cape_material_loader import CapeMaterialLoader
 from .concrete_alt_material_loader import ConcreteAltMaterialLoader
 from .concrete_material_loader import ConcreteMaterialLoader
 from .fence_material_loader import FenceMaterialLoader
+from .ice_rock_material_loader import IceRockMaterialLoader
 from .illuminate_building_material_loader import IlluminateBuildingMaterialLoader
 from .illuminate_building_monoplanar_material_loader import IlluminateBuildingMonoplanarMaterialLoader
 from .illuminate_ruins_material_loader import IlluminateRuinsMaterialLoader
@@ -35,6 +36,7 @@ __all__ = [
     "ConcreteAltMaterialLoader",
     "ConcreteMaterialLoader",
     "FenceMaterialLoader",
+    "IceRockMaterialLoader",
     "IlluminateBuildingMaterialLoader",
     "IlluminateBuildingMonoplanarMaterialLoader",
     "IlluminateRuinsMaterialLoader",

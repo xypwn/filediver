@@ -190,6 +190,7 @@ func (pv *AutoPreview) LoadFile(ctx context.Context, fileID stingray.FileID, max
 			fileID.Name,
 			data[stingray.DataMain],
 			data[stingray.DataGPU],
+			entityInfo,
 		); err != nil {
 			pv.err = fmt.Errorf("loading unit: %w", err)
 			return
@@ -204,6 +205,7 @@ func (pv *AutoPreview) LoadFile(ctx context.Context, fileID stingray.FileID, max
 		if err := pv.previews.unit.LoadPrefab(
 			fileID.Name,
 			data[stingray.DataMain],
+			entityInfo,
 		); err != nil {
 			pv.err = fmt.Errorf("loading prefab: %w", err)
 			return
@@ -218,6 +220,7 @@ func (pv *AutoPreview) LoadFile(ctx context.Context, fileID stingray.FileID, max
 		if err := pv.previews.unit.LoadLevel(
 			fileID.Name,
 			data[stingray.DataMain],
+			entityInfo,
 		); err != nil {
 			pv.err = fmt.Errorf("loading prefab: %w", err)
 			return
