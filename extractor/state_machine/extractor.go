@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/gobwas/glob"
 	"github.com/qmuntal/gltf"
 	"github.com/xypwn/filediver/extractor"
 	"github.com/xypwn/filediver/extractor/animation"
@@ -67,6 +68,7 @@ func ExtractStateMachineJson(ctx *extractor.Context) error {
 			}
 			stateMachine.Layers[layerIdx].States[stateIdx].ResolvedAnimationHashes = resolvedAnimationHashes
 			stateMachine.Layers[layerIdx].States[stateIdx].ResolvedStateTransitions = resolveTransitions(ctx, state)
+			stateMachine.Layers[layerIdx].States[stateIdx].ResolvedGroupID = ctx.LookupThinHash(stateMachine.Layers[layerIdx].States[stateIdx].GroupID)
 		}
 	}
 
@@ -233,6 +235,8 @@ func AddStateMachine(ctx *extractor.Context, doc *gltf.Document, unitInfo *unit.
 		variableList = append(variableList, anim_var)
 	}
 
+	stateGlob, globErr := glob.Compile(cfg.Animation.State)
+
 	layers := make([]gltfLayer, 0)
 	animationMap := make(map[stingray.Hash]uint32)
 	for _, layer := range stateMachine.Layers {
@@ -240,6 +244,12 @@ func AddStateMachine(ctx *extractor.Context, doc *gltf.Document, unitInfo *unit.
 		outLayer.DefaultState = layer.DefaultState
 		outLayer.States = make([]gltfState, 0)
 		for _, state := range layer.States {
+			if globErr == nil && !stateGlob.Match(ctx.LookupHash(state.Name)) {
+				continue
+			}
+			if cfg.Animation.GroupMask&state.GroupID.Value != cfg.Animation.GroupMask {
+				continue
+			}
 			if cfg.Model.EnableAnimationController {
 				state.ResolvedStateTransitions = resolveTransitions(ctx, state)
 			}

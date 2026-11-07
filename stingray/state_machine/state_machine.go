@@ -83,7 +83,7 @@ type rawState struct {
 	UnkValuesCount             uint32
 	UnkValuesOffset            uint32
 	BlendVariableIndex         uint32
-	Unk06                      uint32
+	GroupID                    stingray.ThinHash
 	Unk07                      int32
 	RagdollName                stingray.ThinHash
 	UnkIntsCount               uint32
@@ -702,7 +702,8 @@ type State struct {
 	BlendVariableIndex        uint32                     `json:"blend_variable_index"`
 	Unk04                     [2]uint32                  `json:"unk04"`
 	Unk05                     uint32                     `json:"unk05"`
-	Unk06                     uint32                     `json:"unk06"`
+	GroupID                   stingray.ThinHash          `json:"-"`
+	ResolvedGroupID           string                     `json:"group_id"`
 	Unk07                     int32                      `json:"unk07"`
 	RagdollName               stingray.ThinHash          `json:"-"`
 	ResolvedRagdollName       string                     `json:"ragdoll_name,omitempty"`
@@ -808,7 +809,7 @@ func LoadStateMachine(r io.ReadSeeker) (*StateMachine, error) {
 				state.Loop = rawAnim.Loop
 				state.Unk04 = rawAnim.Unk04
 				state.Unk05 = rawAnim.Unk05
-				state.Unk06 = rawAnim.Unk06
+				state.GroupID = rawAnim.GroupID
 				state.Unk07 = rawAnim.Unk07
 				state.RagdollName = rawAnim.RagdollName
 				state.BlendVariableIndex = rawAnim.BlendVariableIndex
