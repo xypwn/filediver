@@ -119,7 +119,12 @@ func parseValue(s string, typ reflect.Type) (any, error) {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		i, err := strconv.ParseInt(s, 10, typ.Bits())
 		if err != nil {
-			return nil, err
+			if s, ok := strings.CutPrefix(s, "0x"); ok {
+				i, err = strconv.ParseInt(s, 16, typ.Bits())
+			}
+			if err != nil {
+				return nil, err
+			}
 		}
 		switch typ.Kind() {
 		case reflect.Int:
@@ -136,7 +141,12 @@ func parseValue(s string, typ reflect.Type) (any, error) {
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		i, err := strconv.ParseUint(s, 10, typ.Bits())
 		if err != nil {
-			return nil, err
+			if s, ok := strings.CutPrefix(s, "0x"); ok {
+				i, err = strconv.ParseUint(s, 16, typ.Bits())
+			}
+			if err != nil {
+				return nil, err
+			}
 		}
 		switch typ.Kind() {
 		case reflect.Uint:
