@@ -237,13 +237,7 @@ void main() {
 
     vec3 tangentCombinedNormal = dbg_fragITBN * combined_normal;
 
-    vec3 emissive_color = vec3(0.0);
-    // Vista type is based on the index of the specific vista base material in the vistaMaterials slice
-    switch(vista_type) {
-    case 1: // emissive
-        //emissive_color = emissive(albedo, roughness, ao, obj_height);
-        break;
-    }
+    vec3 emissive_color = emissive_intensity * texture(emissive_texture, fragUV0).xyz;
 
     switch (debug) {
     case 1:

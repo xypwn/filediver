@@ -42,6 +42,10 @@ class VistaMaterialLoader(FilediverMaterialLoaderInterface):
                 case "base_normal_ao":
                     config_nodes["Image Texture"].image = image
                     image.colorspace_settings.name = "Non-Color"
+                case "emissive_texture":
+                    config_nodes["Image Texture.012"].image = image
+                    image.colorspace_settings.name = "sRGB"
+                    image.alpha_mode = "CHANNEL_PACKED"
                 case "triplanar_detail_albedo":
                     config_nodes["Image Texture.004"].image = image
                     config_nodes["Image Texture.005"].image = image
@@ -77,6 +81,8 @@ class VistaMaterialLoader(FilediverMaterialLoaderInterface):
                 config_nodes["Group.001"].inputs[name].default_value = setting[0]
             elif name in config_nodes["Group.002"].inputs:
                 config_nodes["Group.002"].inputs[name].default_value = setting[0]
+            elif name in config_nodes["Group.003"].inputs:
+                config_nodes["Group.003"].inputs[name].default_value = setting[0]
 
         object_mat["needsBakeUVs"] = False
         return object_mat
