@@ -95,6 +95,26 @@ func postProcessNormalFlipY(img image.Image) (image.Image, error) {
 	}
 }
 
+// Creates a metallic roughness texture with the metallic channel set to 0.
+// The roughness value is sourced from the blue channel
+func postProcessTexNormalsToRoughness(img image.Image) (image.Image, error) {
+	switch img := img.(type) {
+	case *image.NRGBA:
+		for iY := img.Rect.Min.Y; iY < img.Rect.Max.Y; iY++ {
+			for iX := img.Rect.Min.X; iX < img.Rect.Max.X; iX++ {
+				idx := img.PixOffset(iX, iY)
+				img.Pix[idx] = 0
+				img.Pix[idx+1] = img.Pix[idx+2]
+				img.Pix[idx+2] = 0
+				img.Pix[idx+3] = 255
+			}
+		}
+		return img, nil
+	default:
+		return nil, errors.New("postProcessNARToRoughness: unsupported image type")
+	}
+}
+
 // Attempts to completely remove the influence of the alpha channel,
 // giving the whole image an opacity of 1.
 func postProcessToOpaque(img image.Image) (image.Image, error) {
@@ -951,7 +971,7 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 			}
 			usedTextures[texUsageStr] = index
 			albedoPostProcess = postProcessToOpaque
-		case "albedo":
+		case "albedo", "albedoopacity_01":
 			albedoAlphaOpaque, err := isAlphaOpaque(ctx, mat.Textures[texUsage])
 			if err != nil {
 				ctx.Warnf("isAlphaOpaque: %v: %v", texUsageStr, err)
@@ -963,7 +983,7 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 					ctx.Warnf("isAlphaClip: %v: %v", texUsageStr, err)
 					continue
 				}
-				if albedoAlphaClip {
+				if albedoAlphaClip || texUsageStr == "albedoopacity_01" {
 					alphaMode = gltf.AlphaMask
 				} else {
 					alphaMode = gltf.AlphaBlend
@@ -1181,6 +1201,25 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 			}
 			usedTextures[texUsageStr] = index
 			normalPostProcess = postProcessReconstructNormalZ
+		case "tex_normals":
+			hash := mat.Textures[texUsage]
+			index, err := writeTexture(ctx, doc, hash, postProcessReconstructNormalZ, imgOpts, "")
+			if err != nil {
+				ctx.Warnf("writeTexture: %v: %v", ctx.LookupThinHash(texUsage), err)
+				continue
+			}
+			normalTexture = &gltf.NormalTexture{
+				Index: gltf.Index(index),
+			}
+			usedTextures[texUsageStr] = index
+			index, err = writeTexture(ctx, doc, hash, postProcessTexNormalsToRoughness, imgOpts, "_roughness")
+			if err != nil {
+				ctx.Warnf("writeTexture: %v: %v", ctx.LookupThinHash(texUsage), err)
+				continue
+			}
+			metallicRoughnessTexture = &gltf.TextureInfo{
+				Index: index,
+			}
 		case "tex1":
 			hash := mat.Textures[texUsage]
 			index, err := writeTexture(ctx, doc, hash, postProcessReconstructNormalZFlipY, imgOpts, "")
@@ -1416,7 +1455,7 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 			}
 			usedTextures[texUsageStr] = index
 			imgOpts = origImgOpts
-		case "detail_normal_1", "texture_map_02", "clearcoat_roughness_ao_spec", "sclar_field_opacity", "water_normal_map", "water_noise", "flow_map", "water_pack_1", "water_pack_2", "distortion_tex", "concrete_sampler", "base_normal_ao_dirt", "triplanar_detail_albedo", "triplanar_detail_data", "weathering_albedo", "weathering_nar", "detail_mask_", "emissive_f_stop_10_intensity_map", "water_disruption_mask", "texture_map_0b1b5dad", "emissive_texture", "displacement_tex", "displacement_map", "snow_mask_texture", "glint_sample", "pattern_masks_array", "composite_array", "customization_camo_tiler_array", "customization_material_detail_tiler_array", "decal_sheet", "id_masks_array", "Detail_Data", "surface_data_array", "pattern_data", "texture_map_319d3bb5", "metal_surface_data", "concrete_surface_data", "bcm_tex_a", "bcm_tex_b", "nar_tex_a", "nar_tex_b", "blend_tex_mask", "mask", "albedo_array", "normal_array", "emissive", "noise_map_01", "noise_map_02", "edge_noise_map", "grayscale_skin", "noise_tiler_mask", "base_tiler_nar", "base_tiler_nan", "detail_trimsheet_metallic_ceramic_masking", "ceramic_detail_tiler_basecolor", "ceramic_detail_tiler_nar", "rock_detail_tiler_basecolor", "rock_detail_tiler_nar", "detail_trimsheet_nar", "metallic_lut", "blood_splatter_tiler", "bug_splatter_tiler", "weathering_dirt", "weathering_special", "cape_tear", "cape_scalar_fields", "cape_gradient":
+		case "ground_albedo", "ground_nar", "vista_detail_albedo", "vista_detail_nar", "base_normal_ao", "detail_normal_1", "texture_map_02", "clearcoat_roughness_ao_spec", "sclar_field_opacity", "water_normal_map", "water_noise", "flow_map", "water_pack_1", "water_pack_2", "distortion_tex", "concrete_sampler", "base_normal_ao_dirt", "triplanar_detail_albedo", "triplanar_detail_data", "weathering_albedo", "weathering_nar", "detail_mask_", "emissive_f_stop_10_intensity_map", "water_disruption_mask", "texture_map_0b1b5dad", "emissive_texture", "displacement_tex", "displacement_map", "snow_mask_texture", "glint_sample", "pattern_masks_array", "composite_array", "customization_camo_tiler_array", "customization_material_detail_tiler_array", "decal_sheet", "id_masks_array", "Detail_Data", "surface_data_array", "pattern_data", "texture_map_319d3bb5", "metal_surface_data", "concrete_surface_data", "bcm_tex_a", "bcm_tex_b", "nar_tex_a", "nar_tex_b", "blend_tex_mask", "mask", "albedo_array", "normal_array", "emissive", "noise_map_01", "noise_map_02", "edge_noise_map", "grayscale_skin", "noise_tiler_mask", "base_tiler_nar", "base_tiler_nan", "detail_trimsheet_metallic_ceramic_masking", "ceramic_detail_tiler_basecolor", "ceramic_detail_tiler_nar", "rock_detail_tiler_basecolor", "rock_detail_tiler_nar", "detail_trimsheet_nar", "metallic_lut", "blood_splatter_tiler", "bug_splatter_tiler", "weathering_dirt", "weathering_special", "cape_tear", "cape_scalar_fields", "cape_gradient":
 			hash := mat.Textures[texUsage]
 			if unitData != nil && texUsageStr == "decal_sheet" && unitData.DecalSheet.Value != 0 {
 				hash = unitData.DecalSheet
