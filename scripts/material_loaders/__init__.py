@@ -17,6 +17,7 @@ from .portal_material_loader import PortalMaterialLoader
 from .rock_material_loader import RockMaterialLoader
 from .rift_plant_material_loader import RiftPlantMaterialLoader
 from .skin_material_loader import SkinMaterialLoader
+from .smoke_material_loader import SmokeMaterialLoader
 from .snow_rock_material_loader import SnowRockMaterialLoader
 from .speedtree_material_loader import SpeedtreeMaterialLoader
 from .tank_glass_material_loader import TankGlassMaterialLoader
@@ -47,6 +48,7 @@ __all__ = [
     "RockMaterialLoader",
     "RiftPlantMaterialLoader",
     "SkinMaterialLoader",
+    "SmokeMaterialLoader",
     "SnowRockMaterialLoader",
     "SpeedtreeMaterialLoader",
     "TankGlassMaterialLoader",
