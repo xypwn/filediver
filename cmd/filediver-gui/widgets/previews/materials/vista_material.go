@@ -30,6 +30,7 @@ var vistaShaderSources = []string{
 var vistaMaterials = []stingray.Hash{
 	stingray.Sum("content/art_shared/base_shaders/rock_default_vista_new"),
 	stingray.Sum("content/art_shared/base_shaders/rock_default_vista_new_emissive"),
+	stingray.Hash{Value: 0xc7098346fa00b5a1},
 }
 
 type VistaType uint32
