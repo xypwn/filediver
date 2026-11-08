@@ -94,7 +94,9 @@ type Config struct {
 		NoBones                   bool   `cfg:"tags=advanced help='don\\'t include bones'"`
 	} `cfg:"tags=t:unit,t:geometry_group help='see unit options'"`
 	Animation struct {
-		Format string `cfg:"options=json,raw"`
+		Format    string `cfg:"options=json,raw"`
+		State     string `cfg:"tags=advanced help='Glob format - select all states matching the given glob' default=*"`
+		GroupMask uint32 `cfg:"tags=advanced help='Select all states that have group ids with all bits in this mask set' default=0"`
 	} `cfg:"tags=t:animation,t:state_machine help='see unit options'"`
 	Level struct {
 		Format string `cfg:"options=model,json,raw"`
