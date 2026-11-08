@@ -45,14 +45,14 @@ func (ml *MaterialManager) updateFallbackMaterial(material *FallbackMaterial, ma
 	}
 	albedoTextures := []string{
 		"color_roughness", "color_specular_b", "albedo_iridescence",
-		"covering_albedo", "input_image", "albedo",
+		"covering_albedo", "input_image", "albedo", "albedoopacity_01",
 	}
 	normalReconstructTextures := []string{
-		"normal", "normals", "normal_map", "covering_normal", "nac", "base_data", "nar", "normal_ao_roughness", "normal_xy_ao_rough_map", "normal_xy_roughness_opacity",
+		"normal", "normals", "tex_normals", "normal_map", "covering_normal", "nac", "base_data", "nar", "normal_ao_roughness", "normal_xy_ao_rough_map", "normal_xy_roughness_opacity",
 	}
 	normalTextures := []string{
 		"normal_specular_ao",
-		"normal", "normals", "normal_map", "covering_normal", "nac", "base_data", "nar", "normal_ao_roughness", "normal_xy_ao_rough_map", "normal_xy_roughness_opacity",
+		"normal", "normals", "tex_normals", "normal_map", "covering_normal", "nac", "base_data", "nar", "normal_ao_roughness", "normal_xy_ao_rough_map", "normal_xy_roughness_opacity",
 	}
 	allTextures := make([]string, 0)
 	allTextures = append(allTextures, albedoTextures...)

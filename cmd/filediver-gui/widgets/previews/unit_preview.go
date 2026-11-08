@@ -359,13 +359,31 @@ func (pv *UnitPreviewState) UpdateAssetOverrides(entityInfo *entity.Entity) {
 	}
 }
 
-var objectRegex = regexp.MustCompile("^(g_)?(\\w*?)_?(cull|shadow|rubble|rubble_shadow|debris|shadowmesh|c)?_?\\d*?_?(LOD\\d)?$")
+var objectRegex = regexp.MustCompile("^(g_)?(\\w*?)_?(cull|shadow|rubble|rubble_shadow|debris|shadowmesh|c)?_?(\\d*)?_?(LOD\\d)?$")
+
+// These hashes aren't actually known, so I'm shimming them so previews work
+var vistaMeshes = map[stingray.ThinHash]string{
+	stingray.ThinHash{Value: 0xe199ef6a}: "g_slice_nne",
+	stingray.ThinHash{Value: 0xc3a99d14}: "g_slice_ne",
+	stingray.ThinHash{Value: 0x2673e969}: "g_slice_e",
+	stingray.ThinHash{Value: 0x3eb222e4}: "g_slice_se",
+	stingray.ThinHash{Value: 0x20996a53}: "g_slice_sse",
+	stingray.ThinHash{Value: 0x19885480}: "g_slice_ssw",
+	stingray.ThinHash{Value: 0x386d808c}: "g_slice_sw",
+	stingray.ThinHash{Value: 0xec717099}: "g_slice_w",
+	stingray.ThinHash{Value: 0x0157da28}: "g_slice_nw",
+	stingray.ThinHash{Value: 0x4101fd70}: "g_slice_nnw",
+}
 
 func (pv *UnitPreviewState) loadMeshes(meshInfos []unit.MeshInfo, meshLayouts []unit.MeshLayout, gpuData []byte) (map[string]unit.Mesh, map[string]bool, error) {
 	minLods := make(map[string]int)
 	objects := make(map[string]map[string]int)
 	for idx, info := range meshInfos {
 		meshName := pv.lookupThinHash(info.Header.MeshName)
+		vistaName, contains := vistaMeshes[info.Header.MeshName]
+		if contains {
+			meshName = vistaName
+		}
 		if strings.HasPrefix(meshName, "0x") {
 			continue
 		}
@@ -373,17 +391,20 @@ func (pv *UnitPreviewState) loadMeshes(meshInfos []unit.MeshInfo, meshLayouts []
 		if object == nil || object[2] == "" {
 			continue
 		}
-		fmt.Printf("Found object:\n    name: %v\n    shadow/rubble: %v\n    LOD: %v\n", object[2], object[3], object[4])
+		fmt.Printf("Found object:\n    name: %v\n    shadow/rubble: %v\n    index: %v\n    LOD: %v\n", object[2], object[3], object[4], object[5])
 		// rubble/shadow/rubble_shadow
 		objectName := object[2]
 		if object[3] != "" {
 			objectName += "_" + object[3]
 		}
+		if object[4] != "" {
+			objectName += "_" + object[4]
+		}
 		foundObject, ok := objects[objectName]
 		if !ok {
 			foundObject = make(map[string]int)
 		}
-		foundObject[object[4]] = idx
+		foundObject[object[5]] = idx
 		objects[objectName] = foundObject
 	}
 

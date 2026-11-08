@@ -192,6 +192,19 @@ func TestRock(t *testing.T) {
 	}
 }
 
+func TestVista(t *testing.T) {
+	shaders, err := CreateProgramFromSources(unitPreviewShaderCode, vistaShaderSources...)
+	if err != nil {
+		t.Errorf("Failed to create vista sources: %v", err)
+	}
+	for _, shader := range shaders {
+		err := shader.validate()
+		if err != nil {
+			t.Errorf("Failed to validate vista %v shader: %v", shader.stage, err)
+		}
+	}
+}
+
 func TestNormalVis(t *testing.T) {
 	shaders, err := CreateProgramFromSources(unitPreviewShaderCode, normalVisShaderSources...)
 	if err != nil {

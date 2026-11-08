@@ -30,8 +30,11 @@ void main() {
     }
     normal.x = -normal.x;
 
-    vec3 albedo = texture(texAlbedo, fragUV0).xyz;
+    vec4 albedo = texture(texAlbedo, fragUV0);
     vec3 ambient = vec3(1.0);
+    if (albedo.w < 0.5) {
+        discard;
+    }
 
     vec3 lightDirection = normalize(fragTangentLightPosition - fragTangentFragmentPosition);
     vec3 lightColor = vec3(0.7);
@@ -42,7 +45,7 @@ void main() {
     vec3 halfwayDirection = normalize(lightDirection + viewDirection);
     vec3 specular = pow(max(dot(normal, halfwayDirection), 0.0), 32.0) * lightColor;
 
-    fragColor = vec4(albedo * (mix(ambient, diffuse, 0.6) + 0.5 * specular), 1.0);
+    fragColor = vec4(albedo.xyz * (mix(ambient, diffuse, 0.6) + 0.5 * specular), 1.0);
 
     // Normal debugging (ignoring normal map)
     //fragColor = vec4(normalize(dbg_fragTBN * vec3(0.0, 0.0, 1.0)), 1.0);

@@ -709,6 +709,17 @@ func (ml *MaterialManager) LoadMaterial(id stingray.FileID, name string, shown b
 		return toReturn
 	}
 
+	if isVistaMaterial(mat) {
+		toReturn, ok := existing.(*VistaMaterial)
+		if existing == nil || !ok {
+			toReturn = NewVistaMaterial(id, name, shown)
+			err = toReturn.Generate()
+		}
+
+		ml.updateVistaMaterial(toReturn, mat)
+		return toReturn
+	}
+
 	if isStandardMaterial(mat) {
 		toReturn, ok := existing.(*StandardMaterial)
 		if existing == nil || !ok {
