@@ -92123,6 +92123,7 @@ content/effects/textures/liquid/waterfall_data
 content/effects/textures/liquid/web_mesh_albedo
 content/effects/textures/liquid/web_mesh_normal
 content/effects/textures/liquid/web_slime
+content/effects/textures/noise/dots
 content/effects/textures/noise/noise_laser_pack
 content/effects/textures/noise/noise_pack_01
 content/effects/textures/noise/smokey_noise_blurpack
@@ -92150,6 +92151,7 @@ content/effects/textures/smoke/smoke_thick_01_nrm
 content/effects/textures/smoke/smoke_thin_02
 content/effects/textures/smoke_sand_cloud
 content/effects/wind/default
+content/effects/wind/donut
 content/entities/ai_squad
 content/entities/base_sample_carryable
 content/entities/base_sample_dynamic
