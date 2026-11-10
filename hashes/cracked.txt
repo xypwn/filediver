@@ -482,6 +482,8 @@ Deaths/Death_Body_Front
 Deaths/Death_Body_Left
 Deaths/Death_Body_Right
 Deaths/Death_Body_Right_1
+Deaths/Death_Leg/Death_Leg
+Deaths/Death_Leg/Empty_State
 Deaths/Death_Leg_Back
 Deaths/Death_Leg_Left
 Deaths/Generic/Generic_Deaths
@@ -1090,8 +1092,14 @@ Group_State/left
 Group_State/left_arm
 Group_State/left_leg
 Group_State/left_leg_gore_add
+Group_State/limp_left/Idle
+Group_State/limp_left/turn_1
+Group_State/limp_left/turn_idle
 Group_State/limp_left/walk
 Group_State/limp_left_enter
+Group_State/limp_right/Idle
+Group_State/limp_right/turn_1
+Group_State/limp_right/turn_idle
 Group_State/limp_right/walk
 Group_State/limp_right_enter
 Group_State/load
@@ -1409,6 +1417,8 @@ Loco/idle
 Loco/turn
 Loco/turn_2
 Loco/turn_idle
+Loco/walk_2mps
+Loco/walk_4mps
 Loco/walk_dead
 Loco/walk_fast_dead
 Main Bounce
@@ -1520,6 +1530,7 @@ Prone
 Prone/aim_block_GL
 Prone/aim_block_LAT
 Prone/aim_block_autocannon
+Prone/aim_block_carry_1h
 Prone/aim_block_carry_shield
 Prone/aim_block_flamer
 Prone/aim_block_machinegun
@@ -1859,6 +1870,7 @@ Spin_Start
 Spin_Stop
 Spindle
 Stagger/Empty_State
+Stagger/medium/stagger_medium_bwd
 Stagger/medium/stagger_medium_fwd
 Stagger/medium/stagger_medium_left
 Stagger/medium/stagger_medium_right
@@ -2002,6 +2014,7 @@ action/Charge_Hit
 action/Death/death_acid
 action/Death/death_arm_l
 action/Death/death_arm_r
+action/Death/death_bleed
 action/Death/death_electrocution
 action/Death/death_fire
 action/Death/death_gas
@@ -2079,6 +2092,17 @@ actions/alerted_enemies_short/alerted_enemies_short_2
 actions/alerted_enemies_short/alerted_enemies_short_3
 actions/alerted_enemies_short/alerted_enemies_short_4
 actions/alerted_helldivers
+actions/alerted_helldivers/alerted_helldivers
+actions/alerted_helldivers/alerted_helldivers_1
+actions/alerted_helldivers/alerted_helldivers_10
+actions/alerted_helldivers/alerted_helldivers_2
+actions/alerted_helldivers/alerted_helldivers_3
+actions/alerted_helldivers/alerted_helldivers_4
+actions/alerted_helldivers/alerted_helldivers_5
+actions/alerted_helldivers/alerted_helldivers_6
+actions/alerted_helldivers/alerted_helldivers_7
+actions/alerted_helldivers/alerted_helldivers_8
+actions/alerted_helldivers/alerted_helldivers_9
 actions/combat_hesitate
 actions/combat_hesitate/combat_hesitate
 actions/combat_hesitate/combat_hesitate_1
@@ -3641,17 +3665,26 @@ content/art_shared/base_shaders/character_emissive
 content/art_shared/base_shaders/character_lut
 content/art_shared/base_shaders/computer_terminal_screen
 content/art_shared/base_shaders/computer_terminal_screen_new
+content/art_shared/base_shaders/computer_terminal_screen_uber
 content/art_shared/base_shaders/continent_mask
 content/art_shared/base_shaders/cy_trim
 content/art_shared/base_shaders/decals/decal_atlas
 content/art_shared/base_shaders/decals/decal_atlas_packed
 content/art_shared/base_shaders/decals/decal_liquid
+content/art_shared/base_shaders/decals/decal_pom
 content/art_shared/base_shaders/decals/decal_rain
 content/art_shared/base_shaders/decals/decal_simple
 content/art_shared/base_shaders/decals/decal_tint
 content/art_shared/base_shaders/default_foliage_vista
 content/art_shared/base_shaders/eye_human_simple
 content/art_shared/base_shaders/hole_cutter
+content/art_shared/base_shaders/hologram/hologram_color
+content/art_shared/base_shaders/hologram/hologram_debug
+content/art_shared/base_shaders/hologram/hologram_galaxy
+content/art_shared/base_shaders/hologram/hologram_image
+content/art_shared/base_shaders/hologram/hologram_proxy
+content/art_shared/base_shaders/hologram/hologram_unit
+content/art_shared/base_shaders/hologram/hologram_unit_post
 content/art_shared/base_shaders/hologram_font_base
 content/art_shared/base_shaders/m_bug_master
 content/art_shared/base_shaders/m_bug_master_emissive
@@ -3849,6 +3882,7 @@ content/effects/base_shaders/unique/fake_volumetric_light
 content/effects/base_shaders/unique/laser_beam
 content/effects/base_shaders/unique/lightning_base
 content/effects/base_shaders/unique/melta_beam
+content/effects/base_shaders/unique/melta_torch
 content/effects/base_shaders/unique/meteor_trail_base
 content/effects/base_shaders/unique/shield_ring_base
 content/effects/base_shaders/unique/tesla_beam
@@ -3943,7 +3977,11 @@ content/effects/fac_helldivers/hellpod/laser_turret_steam
 content/effects/fac_helldivers/hellpod/laser_turret_steam_small
 content/effects/fac_helldivers/hellpod/mine_launcher_release
 content/effects/fac_helldivers/hellpod/turret_destroyed
+content/effects/fac_helldivers/weapon/casings/cannon_20mm
+content/effects/fac_helldivers/weapon/casings/cannon_35mm
 content/effects/fac_helldivers/weapon/casings/cannon_40mm
+content/effects/fac_helldivers/weapon/casings/cannon_75mm
+content/effects/fac_helldivers/weapon/casings/cannon_90mm
 content/effects/fac_helldivers/weapon/casings/grenade_40mm
 content/effects/fac_helldivers/weapon/casings/grenade_tactical_40mm
 content/effects/fac_helldivers/weapon/casings/grenade_underbarrel_40mm
@@ -3955,6 +3993,8 @@ content/effects/fac_helldivers/weapon/casings/pistol_12mm_seaf
 content/effects/fac_helldivers/weapon/casings/pistol_9mm
 content/effects/fac_helldivers/weapon/casings/pistol_shark_casing
 content/effects/fac_helldivers/weapon/casings/revolver_casing
+content/effects/fac_helldivers/weapon/casings/rifle_13mm
+content/effects/fac_helldivers/weapon/casings/rifle_14mm
 content/effects/fac_helldivers/weapon/casings/rifle_5mm
 content/effects/fac_helldivers/weapon/casings/rifle_5mm_gatling_casings
 content/effects/fac_helldivers/weapon/casings/rifle_5mm_link
@@ -3966,6 +4006,8 @@ content/effects/fac_helldivers/weapon/casings/rifle_8mm_manned_turret
 content/effects/fac_helldivers/weapon/casings/rifle_8mm_seaf
 content/effects/fac_helldivers/weapon/casings/rifle_short_8mm
 content/effects/fac_helldivers/weapon/casings/rocket_15mm
+content/effects/fac_helldivers/weapon/casings/shotgun_10ga
+content/effects/fac_helldivers/weapon/casings/shotgun_12ga
 content/effects/fac_helldivers/weapon/casings/shotgun_8ga
 content/effects/fac_helldivers/weapon/casings/shotgun_8ga_dragon
 content/effects/fac_helldivers/weapon/casings/shotgun_8ga_nacho
@@ -4064,6 +4106,7 @@ content/effects/textures/lens_flares/space_sun_flare_new
 content/effects/textures/liquid/drop
 content/effects/textures/liquid/drop_nrm
 content/effects/textures/liquid/drop_small
+content/effects/textures/liquid/drop_small_npd
 content/effects/textures/liquid/spray_round_01
 content/effects/textures/liquid/trail_liquid_01
 content/effects/textures/liquid/transparent_liquid_drop
@@ -5612,6 +5655,7 @@ content/env_shared/assets/terrain_materials/textures/neutral_scorch_nar
 content/env_shared/assets/textures/barbwire_01_nar
 content/env_shared/assets/textures/barbwire_01_opacity
 content/env_shared/assets/textures/water_normal_height
+content/env_shared/assets/tornado_cone
 content/env_shared/assets/tornado_mesh
 content/env_shared/assets/trees/huge_log_01
 content/env_shared/assets/trees/log_large_01
@@ -5923,6 +5967,7 @@ content/env_ship/bridge/materials/shutters_gate
 content/env_ship/bridge/materials/worker_pit_chair
 content/env_ship/bridge/sign_first_aid
 content/env_ship/bridge/sign_light_1m
+content/env_ship/bridge/sign_light_50cm
 content/env_ship/bridge/stairs_platform_01
 content/env_ship/bridge/stairs_platform_01_metal_platform
 content/env_ship/bridge/stratagem_officer_light_01
@@ -5999,6 +6044,7 @@ content/env_ship/hangar/ceiling_light_logistics
 content/env_ship/hangar/ceiling_rail_10m
 content/env_ship/hangar/ceiling_rail_10m_b
 content/env_ship/hangar/ceiling_rail_1m
+content/env_ship/hangar/ceiling_rail_225m
 content/env_ship/hangar/central_ceiling_light_01
 content/env_ship/hangar/crewdoor
 content/env_ship/hangar/cryo_chamber/animation/prepare_loop
@@ -6142,6 +6188,7 @@ content/env_ship/hologram/units/hologram_democracy_station_construction
 content/env_ship/hologram/units/hologram_direction_arrow
 content/env_ship/hologram/units/hologram_illuminate_mothership
 content/env_ship/hologram/units/hologram_player_location
+content/env_ship/hologram/units/hologram_player_location_peg
 content/env_ship/hologram/units/hologram_space_backdrop
 content/env_ship/hologram/units/plane
 content/env_ship/lighting/specular_cubemap_state1_array
@@ -7218,6 +7265,7 @@ content/env_super_earth/military_base/utilities/textures/solar_panel_01_nar
 content/env_super_earth/prefabs/bunker_cache
 content/env_super_earth/prefabs/habs_platform_1x3
 content/env_super_earth/prefabs/habs_platform_1x5
+content/env_super_earth/prefabs/habs_platform_2x3
 content/env_super_earth/prefabs/se_billboard_01
 content/env_super_earth/prefabs/se_cache
 content/env_super_earth/prefabs/se_pipes_01
@@ -7406,7 +7454,9 @@ content/fac_bugs/cha_boomer/animations/taunts/minor_02
 content/fac_bugs/cha_boomer/animations/taunts/minor_03
 content/fac_bugs/cha_boomer/animations/taunts/unreachable_01
 content/fac_bugs/cha_boomer/animations/taunts/unreachable_02
+content/fac_bugs/cha_boomer/animations/turn_left_135
 content/fac_bugs/cha_boomer/animations/turn_left_still
+content/fac_bugs/cha_boomer/animations/turn_right_135
 content/fac_bugs/cha_boomer/animations/turn_right_still
 content/fac_bugs/cha_boomer/animations/unburrow
 content/fac_bugs/cha_boomer/animations/walk_bck
@@ -7658,6 +7708,7 @@ content/fac_bugs/cha_shrieker/animation/locomotion/fly_normal
 content/fac_bugs/cha_shrieker/animation/locomotion/fly_normal_alt1
 content/fac_bugs/cha_shrieker/animation/locomotion/fly_normal_alt2
 content/fac_bugs/cha_shrieker/animation/locomotion/fly_normal_alt3
+content/fac_bugs/cha_shrieker/animation/locomotion/fly_normal_alt4
 content/fac_bugs/cha_shrieker/animation/locomotion/idle
 content/fac_bugs/cha_shrieker/animation/spawn/unburrow
 content/fac_bugs/cha_shrieker/cha_shrieker_gloom
@@ -8005,6 +8056,8 @@ content/fac_cyborgs/cha_lieutenant/animations/jump/launch
 content/fac_cyborgs/cha_lieutenant/animations/limp_enter_left
 content/fac_cyborgs/cha_lieutenant/animations/limp_enter_right
 content/fac_cyborgs/cha_lieutenant/animations/locomotion/jog
+content/fac_cyborgs/cha_lieutenant/animations/locomotion/walk_0mps
+content/fac_cyborgs/cha_lieutenant/animations/locomotion/walk_2mps
 content/fac_cyborgs/cha_lieutenant/animations/locomotion/walk_limp_left
 content/fac_cyborgs/cha_lieutenant/animations/locomotion/walk_limp_right
 content/fac_cyborgs/cha_lieutenant/animations/melee_attack_left
@@ -8308,6 +8361,9 @@ content/fac_cyborgs/vehicles/cyborg_spawner/animations/spawning_open_clamps
 content/fac_cyborgs/vehicles/cyborg_spawner/animations/spawning_open_hatch
 content/fac_cyborgs/vehicles/cyborg_spawner/animations/spawning_retract_clamps
 content/fac_cyborgs/vehicles/cyborg_spawner/animations/timer
+content/fac_cyborgs/vehicles/cyborg_spawner/animations/walk_0mps
+content/fac_cyborgs/vehicles/cyborg_spawner/animations/walk_2mps
+content/fac_cyborgs/vehicles/cyborg_spawner/animations/walk_4mps
 content/fac_cyborgs/vehicles/cyborg_spawner/animations/walk_idle_slide
 content/fac_cyborgs/vehicles/cyborg_spawner/cyborg_big_walker_skeleton
 content/fac_cyborgs/vehicles/cyborg_spawner/cyborg_spawner
@@ -8608,6 +8664,8 @@ content/fac_helldivers/cha_avatar/animation/weapons/laser_cannon/reload_lasercan
 content/fac_helldivers/cha_avatar/animation/weapons/laser_cannon/reload_prone_lasercannon
 content/fac_helldivers/cha_avatar/animation/weapons/laser_pistol/ammocheck
 content/fac_helldivers/cha_avatar/animation/weapons/laser_pistol/ammocheck_prone
+content/fac_helldivers/cha_avatar/animation/weapons/laser_pistol/reload_laserpistol
+content/fac_helldivers/cha_avatar/animation/weapons/laser_pistol/reload_laserpistol_prone
 content/fac_helldivers/cha_avatar/animation/weapons/laser_rifle/ammocheck
 content/fac_helldivers/cha_avatar/animation/weapons/laser_rifle/ammocheck_prone
 content/fac_helldivers/cha_avatar/animation/weapons/laser_rifle/reload_laser_rifle
@@ -9940,6 +9998,7 @@ content/fac_helldivers/equipment/sidearm_weapons/revolver_pistol/textures/revolv
 content/fac_helldivers/equipment/sidearm_weapons/revolver_pistol_long/revolver_pistol_long
 content/fac_helldivers/equipment/sidearm_weapons/smart_pistol/ammunition/pistol_9mm
 content/fac_helldivers/equipment/sidearm_weapons/smart_pistol/animation/active_homing
+content/fac_helldivers/equipment/sidearm_weapons/smart_pistol/animation/deactive_homing
 content/fac_helldivers/equipment/sidearm_weapons/smart_pistol/animation/fire_homing
 content/fac_helldivers/equipment/sidearm_weapons/smart_pistol/animation/fire_lock_homing
 content/fac_helldivers/equipment/sidearm_weapons/smart_pistol/animation/idle
@@ -10050,6 +10109,7 @@ content/fac_helldivers/equipment/support_weapons/faf_missile_launcher/animation/
 content/fac_helldivers/equipment/support_weapons/faf_missile_launcher/animation/holster
 content/fac_helldivers/equipment/support_weapons/faf_missile_launcher/animation/idle
 content/fac_helldivers/equipment/support_weapons/faf_missile_launcher/animation/reload
+content/fac_helldivers/equipment/support_weapons/faf_missile_launcher/faf_missile/faf_missile
 content/fac_helldivers/equipment/support_weapons/faf_missile_launcher/faf_scope
 content/fac_helldivers/equipment/support_weapons/faf_missile_launcher_helghast/animation/assisted_reload
 content/fac_helldivers/equipment/support_weapons/faf_missile_launcher_helghast/animation/draw
@@ -10961,6 +11021,7 @@ content/fac_helldivers/vehicles/oilrig/animation/suspension
 content/fac_helldivers/vehicles/oilrig/animation/undeploy
 content/fac_helldivers/vehicles/oilrig/materials/oilrig_body
 content/fac_helldivers/vehicles/oilrig/materials/oilrig_tank
+content/fac_helldivers/vehicles/oilrig/materials/oilrig_tyre
 content/fac_helldivers/vehicles/oilrig/oil_rig
 content/fac_helldivers/vehicles/oilrig/oilrig_tank
 content/fac_helldivers/vehicles/oilrig/textures/oilrig_body__array
@@ -11253,6 +11314,7 @@ content/fac_illuminate/cha_tripod/animations/additive_nothing
 content/fac_illuminate/cha_tripod/animations/death/death1
 content/fac_illuminate/cha_tripod/animations/death/death2
 content/fac_illuminate/cha_tripod/animations/timer
+content/fac_illuminate/cha_tripod/animations/walk_0mps
 content/fac_illuminate/cha_tripod/animations/walk_idle
 content/fac_illuminate/cha_tripod/animations/walk_idle_alt_1
 content/fac_illuminate/cha_tripod/animations/walk_idle_alt_2
@@ -11382,6 +11444,7 @@ content/fac_super_earth/tutorial/cha_tutorial_helldiver_passenger/cha_tutorial_h
 content/fac_super_earth/tutorial/helldiver_dummy
 content/fac_super_earth/tutorial/helldiver_dummy_hatch_adjusted
 content/fac_super_earth/tutorial/safety_turret
+content/fac_super_earth/tutorial/stab_machine_stims
 content/fac_super_earth/vehicles/cargo_car/cargo_car
 content/fac_super_earth/vehicles/cargo_car/materials/m_cargo_car
 content/fac_super_earth/vehicles/cargo_car/materials/m_lights
@@ -11450,7 +11513,9 @@ content/levels/ship_hub-cubemaps/reflection_probe_diffuse_bake
 content/levels/ship_hub-cubemaps/reflection_probe_radiance_bake
 content/levels/ship_hub-cubemaps/reflection_probe_specular_bake
 content/levels/terrain_units/arctic/empty_test
+content/levels/terrain_units/arctic/empty_test_mat0
 content/levels/terrain_units/forest/empty_test
+content/levels/terrain_units/forest/empty_test_mat0
 content/markers/ammo_box_marker
 content/markers/ammo_support_box_marker
 content/markers/auto_night_light
@@ -11712,6 +11777,7 @@ content/objectives/obj_common/fire_artillery/animation/activate
 content/objectives/obj_common/fire_artillery/animation/activated_idle
 content/objectives/obj_common/fire_artillery/animation/fire
 content/objectives/obj_common/fire_artillery/animation/pitch
+content/objectives/obj_common/fire_artillery/animation/unactivated_idle
 content/objectives/obj_common/fire_artillery/animation/yaw
 content/objectives/obj_common/fire_artillery/automated_artillery
 content/objectives/obj_common/fire_artillery/ready_rack
@@ -12560,6 +12626,7 @@ content/planet_forest_primordial/assets/speedtrees/primordial_shrub_small
 content/planet_forest_primordial/assets/speedtrees/primordial_shrub_small_dead
 content/planet_forest_primordial/assets/terrain_materials/primordial_field
 content/planet_forest_primordial/assets/terrain_materials/primordial_field_grass
+content/planet_forest_primordial/assets/terrain_materials/primordial_forest_mulch
 content/planet_forest_primordial/assets/terrain_materials/primordial_forest_road
 content/planet_forest_primordial/assets/terrain_materials/primordial_forest_scatter
 content/planet_forest_primordial/assets/terrain_materials/primordial_generic_dirt
@@ -12803,6 +12870,7 @@ content/ui/mission/hud/map/mapicon_supportweapon
 content/ui/mission/hud/map/mapicon_supportweapon_ap
 content/ui/mission/hud/map/mapicon_supportweapon_at
 content/ui/mission/hud/map/objective_area
+content/ui/mission/hud/map/player_cone
 content/ui/mission/hud/map/player_dot
 content/ui/mission/hud/map/pulse
 content/ui/mission/hud/map/terrain_grid
@@ -12881,8 +12949,11 @@ content/ui/resourcedictionary4
 content/ui/resourcedictionary5
 content/ui/resourcedictionary6
 content/ui/shared/cursor/hover
+content/ui/shared/cursor/hover_hw
 content/ui/shared/cursor/idle
+content/ui/shared/cursor/idle_hw
 content/ui/shared/cursor/interact
+content/ui/shared/cursor/interact_hw
 content/ui/shared/faction/fac_bots
 content/ui/shared/faction/fac_bugs
 content/ui/shared/faction/fac_illuminate
@@ -12892,6 +12963,7 @@ content/ui/shared/faction/faction_logo_illuminate
 content/ui/shared/faction/faction_logo_superearth
 content/ui/shared/input/button_circle
 content/ui/shared/input/button_cross
+content/ui/shared/input/button_dpad
 content/ui/shared/input/button_key_arrow_down
 content/ui/shared/input/button_key_arrow_left
 content/ui/shared/input/button_key_arrow_right
@@ -13073,6 +13145,7 @@ content/ui/shared/misc/check_no_no_curve
 content/ui/shared/misc/check_yes
 content/ui/shared/misc/check_yes_no_curve
 content/ui/shared/misc/checkmark_icon
+content/ui/shared/misc/circle_64x64
 content/ui/shared/misc/circle_fill_small
 content/ui/shared/misc/circle_outlined
 content/ui/shared/misc/decor_triangle
@@ -14093,6 +14166,7 @@ door_
 dormant
 downed/downed_into
 downed/downed_loop
+downed/downed_outof
 downed/no_anim
 draw
 drill
@@ -15243,6 +15317,7 @@ idle_open
 idle_raised
 idle_shake
 idle_shakes
+idle_slot0
 idle_unconnected
 idle_unfired
 idle_very_damaged
@@ -15714,6 +15789,11 @@ limp_left/stunned
 limp_right/empty_state
 limp_right/stunned
 lmg_stalwart_marker
+load_slot0
+load_slot1
+load_slot2
+load_slot3
+load_slot4
 loadin
 location_map_marker
 location_map_marker1
@@ -16177,6 +16257,7 @@ packages/generated/enemies/cha_conscript_jetpack_standard
 packages/generated/enemies/cha_conscript_jump
 packages/generated/enemies/cha_conscript_jump_melee
 packages/generated/enemies/cha_conscript_machinegunner
+packages/generated/enemies/cha_conscript_machinegunner_jump
 packages/generated/enemies/cha_conscript_melee
 packages/generated/enemies/cha_conscript_scout
 packages/generated/enemies/cha_conscript_shotgun
@@ -17136,7 +17217,9 @@ packages/generated/stamps/il_reclaim_location_05/illuminate
 packages/generated/stamps/il_reclaim_location_06/illuminate
 packages/generated/stamps/il_reclaim_location_07/illuminate
 packages/generated/stamps/il_reclaim_location_city_01
+packages/generated/stamps/il_reclaim_location_city_01/illuminate
 packages/generated/stamps/il_reclaim_location_city_02
+packages/generated/stamps/il_reclaim_location_city_02/illuminate
 packages/generated/stamps/il_sat_defence_20m_01/illuminate
 packages/generated/stamps/il_sat_defence_20m_02/illuminate
 packages/generated/stamps/il_sat_defence_20m_04/illuminate
@@ -17274,6 +17357,7 @@ packages/planets/planet_bug_hiveworld
 packages/planets/planet_cyborg_factory
 packages/planets/planet_desert_magma_base
 packages/planets/planet_desert_oasis_base
+packages/planets/planet_desert_oasis_bleak
 packages/planets/planet_desert_sandy_acid
 packages/planets/planet_desert_sandy_base
 packages/planets/planet_desert_sandy_mineral
@@ -18393,6 +18477,7 @@ sign_insulation
 sign_insulation1
 sign_light_1m
 sign_light_1m1
+sign_light_50cm1
 sign_maintain_safe_distance
 sign_no_rotation_01
 sign_orbital_cannon_01
@@ -18529,6 +18614,7 @@ sprint_room_terminal_01
 ssr_hiz_pass_compute
 ssr_hiz_pass_compute:level_0
 staggers/Empty_State
+staggers/stagger_medium_bwd
 staggers/stagger_medium_fwd
 staggers/stagger_medium_left
 staggers/stagger_medium_right
