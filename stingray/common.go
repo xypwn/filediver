@@ -40,7 +40,12 @@ func (o *Transform) SetScale(v mgl32.Vec3) {
 }
 
 func (o *Transform) ToGLTF() (mgl32.Vec3, mgl32.Vec4, mgl32.Vec3) {
-	return ToGLTFMatrix.Mul4x1(o.PositionVec.Vec4(1)).Vec3(), ToGLTFMatrix.Mul4x1(o.RotationVec), mgl32.Vec3{o.ScaleVec[0], o.ScaleVec[2], o.ScaleVec[1]}
+	rotation := ToGLTFMatrix.Mul4x1(o.RotationVec)
+	if rotation.LenSqr() == 0.0 {
+		identQuat := mgl32.QuatIdent()
+		rotation = identQuat.V.Vec4(identQuat.W)
+	}
+	return ToGLTFMatrix.Mul4x1(o.PositionVec.Vec4(1)).Vec3(), rotation, mgl32.Vec3{o.ScaleVec[0], o.ScaleVec[2], o.ScaleVec[1]}
 }
 
 func (o *Transform) Matrix() mgl32.Mat4 {
