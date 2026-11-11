@@ -14,6 +14,7 @@ import (
 
 func GenBanks(prt app.Printer, a *app.App) (wwiseBanks map[string]struct{}) {
 	wwiseBanks = make(map[string]struct{})
+	wwiseStreams := make(map[string]struct{})
 	{
 		b, err := os.ReadFile("hashes.txt")
 		if err != nil {
@@ -29,6 +30,18 @@ func GenBanks(prt app.Printer, a *app.App) (wwiseBanks map[string]struct{}) {
 			if _, exists := a.DataDir.Files[fileId]; exists {
 				a.Hashes[stingray.Sum(line)] = string(line)
 			}
+		}
+
+		b, err = os.ReadFile("wwise_streams.txt")
+		if err != nil {
+			prt.Fatalf("%v", err)
+		}
+		for line := range bytes.SplitSeq(b, []byte("\n")) {
+			line = bytes.TrimSuffix(line, []byte("\r"))
+			if bytes.HasPrefix(line, []byte("#")) || bytes.HasPrefix(line, []byte("//")) || len(line) == 0 {
+				continue
+			}
+			wwiseStreams[string(line)] = struct{}{}
 		}
 	}
 	for id := range a.DataDir.Files {
@@ -54,11 +67,19 @@ func GenBanks(prt app.Printer, a *app.App) (wwiseBanks map[string]struct{}) {
 				for i := 0; i < bnk.NumFiles(); i++ {
 					id := bnk.FileID(i)
 					streamPath := path.Join(dir, fmt.Sprint(id))
+					if _, contains := wwiseStreams[streamPath]; contains {
+						// Deduplicate between wwise_streams.txt and wwise_banks.txt
+						continue
+					}
 					wwiseBanks[streamPath] = struct{}{}
 				}
 				for _, obj := range bnk.HircObjects {
 					if obj.Header.Type == wwise.BnkHircObjectSound {
 						streamPath := path.Join(dir, fmt.Sprint(obj.Sound.SourceID))
+						if _, contains := wwiseStreams[streamPath]; contains {
+							// Deduplicate between wwise_streams.txt and wwise_banks.txt
+							continue
+						}
 						wwiseBanks[streamPath] = struct{}{}
 					}
 				}
