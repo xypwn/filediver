@@ -84,6 +84,14 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+	if err := appendFile(&strs, "wwise_deps.txt", nil); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	if err := appendFile(&strs, "wwise_banks.txt", nil); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 
 	out, err := os.Create("hashes.txt")
 	if err != nil {
