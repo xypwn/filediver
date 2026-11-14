@@ -9,7 +9,6 @@ import (
 	"io"
 	"maps"
 	"os"
-	"path"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -53,43 +52,8 @@ import (
 	stingray_strings "github.com/xypwn/filediver/stingray/strings"
 	"github.com/xypwn/filediver/stingray/unit"
 	stingray_material "github.com/xypwn/filediver/stingray/unit/material"
-	stingray_wwise "github.com/xypwn/filediver/stingray/wwise"
 	"github.com/xypwn/filediver/util"
-	"github.com/xypwn/filediver/wwise"
 )
-
-func parseWwiseDep(dataDir *stingray.DataDir, fileID stingray.FileID) (string, error) {
-	var r *bytes.Reader
-	{
-		b, err := dataDir.Read(fileID, stingray.DataMain)
-		if err != nil {
-			return "", err
-		}
-		r = bytes.NewReader(b)
-	}
-	var magicNum [4]byte
-	if _, err := io.ReadFull(r, magicNum[:]); err != nil {
-		return "", err
-	}
-	validMagicNums := [][4]byte{
-		{0xd8, '/', 'v', 'x'},   // < patch 1.003.200
-		{0x85, 0xf1, 0xa3, 'x'}, // >= patch 1.003.200
-		{0xb1, 0xf2, 0xa3, 'x'}, // >= patch 1.410.000
-		{0xa5, 0xf4, 0xa3, 'x'}, // >= patch 1.006.200
-	}
-	if !slices.Contains(validMagicNums, magicNum) {
-		return "", fmt.Errorf("invalid magic number, got: %s", strconv.Quote(string(magicNum[:])))
-	}
-	var textLen uint32
-	if err := binary.Read(r, binary.LittleEndian, &textLen); err != nil {
-		return "", err
-	}
-	text := make([]byte, textLen-1)
-	if _, err := io.ReadFull(r, text); err != nil {
-		return "", err
-	}
-	return string(text), nil
-}
 
 // Returns error if steam path couldn't be found.
 func DetectGameDir() (string, error) {
@@ -136,76 +100,6 @@ func getLowerCaser(language stingray.ThinHash) cases.Caser {
 		languageTag = language_lib.English
 	}
 	return cases.Lower(languageTag)
-}
-
-// Automatically gets most wwise-related hashes by reading the game files
-func getWwiseHashes(dataDir *stingray.DataDir) (map[stingray.Hash]string, error) {
-	hashes := make(map[stingray.Hash]string)
-	// Read wwise_dep files to figure out the names of all wwise_bank files
-	for id := range dataDir.Files {
-		if id.Type == stingray.Sum("wwise_dep") {
-			h, err := parseWwiseDep(dataDir, id)
-			if err != nil {
-				return nil, fmt.Errorf("wwise_dep: %w", err)
-			}
-			hashes[stingray.Sum(h)] = h
-		}
-	}
-	// Read wwise_bank files to figure out the names of most wwise_stream files
-	for id := range dataDir.Files {
-		if id.Type == stingray.Sum("wwise_bank") {
-			name, ok := hashes[id.Name]
-			if !ok {
-				// It seems the wwise banks no longer all have an according wwise_dep (https://github.com/xypwn/filediver/issues/35).
-				// Hopefully these banks missing won't become a problem.
-				//return nil, fmt.Errorf("expected all wwise banks to have a known name, but cannot find name for hash %v", id.Name)
-				continue
-			}
-			dir := path.Dir(name)
-			if err := func() error {
-				b, err := dataDir.Read(id, stingray.DataMain)
-				if err != nil {
-					return err
-				}
-				bnk, err := stingray_wwise.OpenBnk(bytes.NewReader(b))
-				if err != nil {
-					return err
-				}
-				for i := 0; i < bnk.NumFiles(); i++ {
-					id := bnk.FileID(i)
-					streamPath := path.Join(dir, fmt.Sprint(id))
-					hashes[stingray.Sum(streamPath)] = streamPath
-				}
-				for _, obj := range bnk.HircObjects {
-					if obj.Header.Type == wwise.BnkHircObjectSound {
-						streamPath := path.Join(dir, fmt.Sprint(obj.Sound.SourceID))
-						hashes[stingray.Sum(streamPath)] = streamPath
-					}
-				}
-				return nil
-			}(); err != nil {
-				return nil, err
-			}
-		}
-	}
-	// 6 hashes were still missing when tested
-	/*// Validate that all wwise_stream file names are known
-	{
-		numWithoutName := 0
-		for id := range dataDir.Files {
-			if id.Type == stingray.Sum("wwise_stream") {
-				if _, ok := hashes[id.Name]; !ok {
-					fmt.Println(id.Name)
-					numWithoutName++
-				}
-			}
-		}
-		if numWithoutName > 0 {
-			return nil, fmt.Errorf("expected all wwise streams to have a known name, but cannot find name for %v hashes", numWithoutName)
-		}
-	}*/
-
-	return hashes, nil
 }
 
 func getFileMetadata(dataDir *stingray.DataDir) map[stingray.FileID]FileMetadata {
@@ -472,13 +366,6 @@ func OpenGameDir(ctx context.Context, gameDir string, hashStrings []string, thin
 	}
 
 	hashesMap := make(map[stingray.Hash]string)
-	if wwiseHashes, err := getWwiseHashes(dataDir); err == nil {
-		for h, n := range wwiseHashes {
-			hashesMap[h] = n
-		}
-	} else {
-		return nil, err
-	}
 	for _, h := range hashStrings {
 		hashesMap[stingray.Sum(h)] = h
 	}
