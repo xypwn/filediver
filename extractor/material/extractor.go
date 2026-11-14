@@ -914,6 +914,14 @@ func getShaderSettings(ctx *extractor.Context, fileId stingray.FileID, name stin
 	return
 }
 
+var decalBaseMaterialsWithColorMap []stingray.Hash = []stingray.Hash{
+	stingray.Sum("content/art_shared/base_shaders/decals/decal_simple"),
+	stingray.Sum("content/art_shared/base_shaders/decals/decal_atlas"),
+	stingray.Sum("content/art_shared/base_shaders/decals/decal_liquid"),
+	stingray.Sum("content/art_shared/base_shaders/decals/decal_pom"),
+	stingray.Sum("content/art_shared/base_shaders/decals/decal_tint"),
+}
+
 func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Document, imgOpts *ImageOptions, matSlot stingray.ThinHash, matName string, unitData *datalib.UnitData) (uint32, error) {
 	cfg := ctx.Config()
 
@@ -1148,6 +1156,9 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 			emissiveStrength = emissiveStrengthSetting[0]
 			albedoPostProcess = postProcessToOpaque
 		case "color_map":
+			if slices.Contains(decalBaseMaterialsWithColorMap, mat.BaseMaterial) {
+				albedoPostProcess = nil
+			}
 			colorSetting, colorOk := mat.Settings[stingray.Sum("base_color").Thin()]
 			useColorMapSetting, useOk := mat.Settings[stingray.Sum("use_color_map").Thin()]
 
@@ -1185,7 +1196,11 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 			useNormalMapAlphaSetting, ok := mat.Settings[stingray.Sum("use_normal_map_alpha").Thin()]
 			if ok && useNormalMapAlphaSetting[0] == 0 {
 				normalPostProcess = postProcessReconstructNormalZ
-				continue
+			}
+			var normalScale float32 = 1.0
+			useNormalMapSetting, ok := mat.Settings[stingray.Sum("use_normal_map").Thin()]
+			if ok && useNormalMapSetting[0] == 0 {
+				normalScale = 0.0
 			}
 			hash := mat.Textures[texUsage]
 			if unitData != nil && texUsageStr == "base_data" && unitData.BaseData.Value != 0 {
@@ -1198,6 +1213,7 @@ func AddMaterial(ctx *extractor.Context, mat *material.Material, doc *gltf.Docum
 			}
 			normalTexture = &gltf.NormalTexture{
 				Index: gltf.Index(index),
+				Scale: gltf.Float(normalScale),
 			}
 			usedTextures[texUsageStr] = index
 			normalPostProcess = postProcessReconstructNormalZ
