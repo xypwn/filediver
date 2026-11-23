@@ -82,6 +82,7 @@ type rawHelldiverCustomizationPassiveBonusSettings struct {
 type HelldiverCustomizationPassiveBonusSettings struct {
 	PassiveBonus     uint32                                       `json:"id"`
 	Name             string                                       `json:"name"`
+	IconHash         stingray.Hash                                `json:"-"`
 	Icon             string                                       `json:"icon"`
 	PassiveModifiers []HelldiverCustomizationPassiveBonusModifier `json:"passive_modifiers"`
 	StatModifiers    []HelldiverCustomizationStatModifier         `json:"stat_modifiers,omitempty"`
@@ -146,6 +147,7 @@ func LoadPassiveBonusDefinitions(lookupHash HashLookup, lookupThinHash ThinHashL
 		definitions[passive.PassiveBonus] = HelldiverCustomizationPassiveBonusSettings{
 			PassiveBonus:     passive.PassiveBonus,
 			Name:             lookupStrings(passive.Name),
+			IconHash:         passive.Icon,
 			Icon:             lookupHash(passive.Icon),
 			PassiveModifiers: passiveModifiers,
 			StatModifiers:    statModifiers,

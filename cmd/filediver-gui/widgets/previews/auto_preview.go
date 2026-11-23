@@ -20,6 +20,7 @@ import (
 	"github.com/xypwn/filediver/exec"
 	"github.com/xypwn/filediver/stingray"
 	"github.com/xypwn/filediver/stingray/entity"
+	stingray_package "github.com/xypwn/filediver/stingray/package"
 	"github.com/xypwn/filediver/stingray/shading_environment"
 	stingray_strings "github.com/xypwn/filediver/stingray/strings"
 	"github.com/xypwn/filediver/stingray/ttf"
@@ -41,6 +42,7 @@ const (
 	AutoPreviewMaterial
 	AutoPreviewXAML
 	AutoPreviewFont
+	AutoPreviewPackage
 )
 
 type AutoPreview struct {
@@ -52,13 +54,16 @@ type AutoPreview struct {
 		video    *BinkPreview
 		texture  *ImagePreview
 		strings  *StringsPreview
+		_package *PackagePreview
 		material *MaterialPreview
 		xaml     *XamlPreview
 		font     *FontPreview
 	}
 
 	hashes               map[stingray.Hash]string
+	lookupHash           func(h stingray.Hash) string
 	thinhashes           map[stingray.ThinHash]string
+	lookupThinHash       func(h stingray.ThinHash) string
 	getResourceGenerator GetResourceGeneratorFunc
 	getOverride          func(stingray.FileID) stingray.FileID
 	loadMs               uint32
@@ -87,20 +92,26 @@ func NewAutoPreview(otoCtx *oto.Context, audioSampleRate int, hashes map[stingra
 		getResourceGenerator: getResourceGenerator,
 		getOverride:          getOverride,
 	}
-	lookupHash := func(h stingray.Hash) string {
+	pv.lookupHash = func(h stingray.Hash) string {
 		if val, contains := hashes[h]; contains {
 			return val
 		}
 		return h.String()
 	}
 
-	lookupThinHash := func(h stingray.ThinHash) string {
+	pv.lookupThinHash = func(h stingray.ThinHash) string {
 		if val, contains := thinhashes[h]; contains {
 			return val
 		}
 		return h.String()
 	}
-	pv.previews.unit, err = NewUnitPreview(getResourceGenerator(true), pv.getOverride, armorParams, lookupHash, lookupThinHash)
+
+	getArmorSet := func(hash stingray.Hash) (set datalib.ArmorSet, ok bool) {
+		set, ok = armorParams.ArmorSets[hash]
+		return
+	}
+
+	pv.previews.unit, err = NewUnitPreview(getResourceGenerator(true), pv.getOverride, armorParams, pv.lookupHash, pv.lookupThinHash)
 	if err != nil {
 		return nil, err
 	}
@@ -109,6 +120,7 @@ func NewAutoPreview(otoCtx *oto.Context, audioSampleRate int, hashes map[stingra
 	pv.previews.texture = NewImagePreview()
 	pv.previews.texture.Flags = LinearFilteringButton | IgnoreAlphaButton
 	pv.previews.strings = NewStringsPreview()
+	pv.previews._package = NewPackagePreview(pv.lookupHash, getArmorSet)
 	pv.previews.material = NewMaterialPreview()
 	pv.previews.xaml = NewXamlPreview()
 	pv.previews.font = NewFontPreview()
@@ -343,10 +355,24 @@ func (pv *AutoPreview) LoadFile(ctx context.Context, fileID stingray.FileID, max
 			bytes.NewReader(data[stingray.DataMain]),
 		)
 		if err != nil {
-			pv.err = fmt.Errorf("loading DDS image: %w", err)
+			pv.err = fmt.Errorf("loading strings file: %w", err)
 			return
 		}
 		pv.previews.strings.Load(data, pv.thinhashes)
+	case stingray.Sum("package"):
+		pv.activeType = AutoPreviewPackage
+		if err := loadFiles(stingray.DataMain); err != nil {
+			pv.err = err
+			return
+		}
+		data, err := stingray_package.LoadPackage(
+			bytes.NewReader(data[stingray.DataMain]),
+		)
+		if err != nil {
+			pv.err = fmt.Errorf("loading package file: %w", err)
+			return
+		}
+		pv.previews._package.Load(data, fileID)
 	case stingray.Sum("material"):
 		pv.activeType = AutoPreviewMaterial
 		if err := loadFiles(stingray.DataMain); err != nil {
@@ -442,6 +468,8 @@ func (pv *AutoPreview) Draw(name string) bool {
 		pv.previews.texture.Draw(name)
 	case AutoPreviewStrings:
 		pv.previews.strings.Draw()
+	case AutoPreviewPackage:
+		pv.previews._package.Draw(name)
 	case AutoPreviewMaterial:
 		pv.previews.material.Draw(name)
 	case AutoPreviewXAML:
