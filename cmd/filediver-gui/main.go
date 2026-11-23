@@ -842,6 +842,10 @@ func (a *guiApp) drawBrowserWindow() {
 				newActiveFileID = jumpToFile
 				a.scrollToSelectedFile = true
 			}
+			if jumpToArchive, ok := widgets.PopGamefileLinkArchive(); ok {
+				a.selectedArchives[jumpToArchive.Name] = struct{}{}
+				a.gameData.UpdateSearchQuery(a.gameFileSearchQuery, a.selectedGameFileTypes, a.selectedArchives)
+			}
 
 			noPushToHistory := false // item selected through a history button
 			if newID, ok := a.drawHistoryButtons(); ok {
@@ -1078,7 +1082,11 @@ func (a *guiApp) drawArchiveFilterWindow() {
 		func(x stingray.Hash, checked *bool) {
 			var label string
 			if armorSet, ok := a.gameData.ArmorSets[x]; ok {
-				label = x.String() + " (" + armorSet.Name + " - " + armorSet.Type.String() + ")"
+				hashName, ok := a.gameData.Hashes[x]
+				if !ok {
+					hashName = x.String()
+				}
+				label = hashName + " (" + armorSet.Name + " - " + armorSet.Type.String() + ")"
 			} else {
 				label, ok = a.gameData.Hashes[x]
 				if !ok {
