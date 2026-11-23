@@ -4448,6 +4448,7 @@ camera_projection
 camera_ray_direction
 camera_ray_origin
 camera_shake
+camera_small_items_inspect
 camera_spawn_hangar
 camera_unprojection
 camera_vehicles
@@ -172752,6 +172753,7 @@ packages/generated/loadout/tutorial_safety_turret
 packages/generated/loadout/tutorial_target_turret
 packages/generated/loadout/volcanic_activity
 packages/generated/loadout/volley_gun
+packages/generated/loadout/weapon_throwable_dynamite
 packages/generated/loadout/zipper_grenade
 packages/generated/scatter_settings/arctic/default
 packages/generated/scatter_settings/arctic/se_city
@@ -173474,6 +173476,7 @@ packages/generated/stamps/se_sat_tower_8m_01
 packages/generated/stamps/se_satellite_war_wreck_01
 packages/generated/stamps/shared
 packages/generated/stamps/swamp_crossing_01/bugs
+packages/generated/support/region_shared
 packages/generated/videos/video_arrowhead_logo
 packages/generated/videos/video_tutorial_idle_flag
 packages/generated/videos/videos_ship_small
