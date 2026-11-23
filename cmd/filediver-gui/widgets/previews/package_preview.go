@@ -129,16 +129,15 @@ func (pv *PackagePreview) Draw(name string) {
 	imgui.PushIDStr(name)
 	defer imgui.PopID()
 
-	imgui.SetNextItemWidth(imgui.ContentRegionAvail().X)
-	if imgui.InputTextWithHint("##Search Files", fnt.I.Search+" Filter by hash or string...", &pv.queryBuf, 0, nil) {
-		pv.updateShownFiles()
-	}
-
 	widgets.ArchiveLinkTextF(pv.packageId, fnt.I.Package+" %v.%v", pv.lookupHash(pv.packageId.Name), pv.lookupHash(pv.packageId.Type))
 	imutils.Textf("File Count: %v", pv.Package.FileCount)
 	armorSet, ok := pv.getArmorSet(pv.packageId.Name)
 	if ok {
 		pv.drawArmorSet(armorSet)
+	}
+	imgui.SetNextItemWidth(imgui.ContentRegionAvail().X)
+	if imgui.InputTextWithHint("##Search Files", fnt.I.Search+" Filter by hash or string...", &pv.queryBuf, 0, nil) {
+		pv.updateShownFiles()
 	}
 	const tableFlags = imgui.TableFlagsResizable | imgui.TableFlagsBorders | imgui.TableFlagsScrollY | imgui.TableFlagsRowBg
 	if imgui.BeginTableV("##Files Preview", 1, tableFlags, imgui.NewVec2(0, 0), 0) {
