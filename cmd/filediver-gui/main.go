@@ -779,7 +779,7 @@ func (a *guiApp) drawBrowserWindow() {
 				a.scrollToSelectedFile = true
 			}
 			searchInputTextData := imgui.CurrentContext().LastItemData()
-			imgui.SetItemTooltip("Filter by file name (Ctrl+F)")
+			imgui.SetItemTooltip("Filter by file name (Ctrl+F)\nFilters for anything matching all words in your query\n-word to exclude\nIgnores upper-/lowercase and diacritics")
 			imgui.SameLine()
 			var hashBulkImporterOpened bool
 			imgui.SetNextItemShortcut(imgui.KeyChord(imgui.ModCtrl | imgui.KeyI))
