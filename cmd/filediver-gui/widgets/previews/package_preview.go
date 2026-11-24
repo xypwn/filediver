@@ -38,10 +38,11 @@ func NewPackagePreview(lookupHash func(stingray.Hash) string, getArmorSet func(s
 }
 
 func (pv *PackagePreview) updateShownFiles() {
+	queryMatcher := textutils.NewQuery(pv.queryBuf)
 	pv.shownFiles = pv.shownFiles[:0]
 	for _, item := range pv.Package.Items {
 		fileID := stingray.NewFileID(item.Name, item.Type)
-		if textutils.QueryMatchesAny(pv.queryBuf, pv.stringNames[fileID], pv.stringHashes[fileID]) {
+		if queryMatcher.MatchesAny(pv.stringNames[fileID], pv.stringHashes[fileID]) {
 			pv.shownFiles = append(pv.shownFiles, fileID)
 		}
 	}

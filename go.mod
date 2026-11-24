@@ -6,6 +6,7 @@ require (
 	github.com/AllenDang/cimgui-go v1.6.0
 	github.com/adrg/xdg v0.5.3
 	github.com/andygrunwald/vdf v1.1.0
+	github.com/charlievieth/strcase v0.0.6
 	github.com/ebitengine/oto/v3 v3.4.0
 	github.com/expr-lang/expr v1.17.8
 	github.com/go-audio/audio v1.0.0
@@ -44,7 +45,6 @@ require (
 	github.com/bodgit/plumbing v1.3.0 // indirect
 	github.com/bodgit/sevenzip v1.6.1 // indirect
 	github.com/bodgit/windows v1.0.1 // indirect
-	github.com/charlievieth/strcase v0.0.6 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dchest/jsmin v1.0.0 // indirect

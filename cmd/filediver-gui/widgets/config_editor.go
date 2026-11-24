@@ -37,13 +37,15 @@ func configEditorFieldFullHelp(field *config.Field) string {
 }
 
 func configEditorShownFields(query string, showAdvanced bool) map[string]bool {
+	queryMatcher := textutils.NewQuery(query)
+
 	// Fully show matching categories.
 	fullyShownCategories := map[string]bool{}
 	for _, field := range appconfig.ConfigFields.Fields {
 		if !field.IsCategory {
 			continue
 		}
-		fullyShownCategories[field.Name] = textutils.QueryMatchesAny(query,
+		fullyShownCategories[field.Name] = queryMatcher.MatchesAny(
 			field.Name, configEditorFieldFullHelp(field))
 	}
 
@@ -64,8 +66,8 @@ func configEditorShownFields(query string, showAdvanced bool) map[string]bool {
 			}
 			shownRegularFields[field.Name] =
 				fullyShownCategories[category] ||
-					textutils.QueryMatchesAny(query, field.Name, configEditorFieldFullHelp(field)) ||
-					textutils.QueryMatchesAny(query, field.Options...)
+					queryMatcher.MatchesAny(field.Name, configEditorFieldFullHelp(field)) ||
+					queryMatcher.MatchesAny(field.Options...)
 		}
 	}
 

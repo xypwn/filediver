@@ -59,10 +59,10 @@ func (pv *StringsPreview) NeedCJKFont() bool {
 }
 
 func (pv *StringsPreview) updateShownIDs() {
+	queryMatcher := textutils.NewQuery(pv.queryBuf)
 	pv.shownIDs = pv.shownIDs[:0]
 	for _, id := range slices.Sorted(maps.Keys(pv.strings)) {
-		if textutils.QueryMatchesAny(pv.queryBuf,
-			fmt.Sprint(id), pv.strings[id]) {
+		if queryMatcher.MatchesAny(fmt.Sprint(id), pv.strings[id]) {
 			pv.shownIDs = append(pv.shownIDs, id)
 		}
 	}

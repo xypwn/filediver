@@ -85,6 +85,8 @@ func FilterListWindow[T comparable](title string, windowOpen *bool, searchHint s
 	imgui.SetNextItemWidth(-math.SmallestNonzeroFloat32)
 	imgui.InputTextWithHint("##search", fnt.I.Search+" "+searchHint, queryBuf, 0, nil)
 
+	queryMatcher := textutils.NewQuery(*queryBuf)
+
 	defer imgui.EndChild()
 	if !imgui.BeginChildStr("##list") {
 		return false
@@ -93,7 +95,7 @@ func FilterListWindow[T comparable](title string, windowOpen *bool, searchHint s
 	for _, sec := range sections {
 		matches = matches[:0]
 		for _, item := range sec.Items {
-			if textutils.QueryMatchesAny(*queryBuf, searchText(item)) {
+			if queryMatcher.MatchesAny(searchText(item)) {
 				matches = append(matches, match{item, drawItem})
 			}
 		}

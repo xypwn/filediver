@@ -69,6 +69,8 @@ func (gd *GameData) UpdateSearchQuery(query string, allowedTypes map[stingray.Ha
 		}
 	}
 
+	queryMatcher := textutils.NewQuery(query)
+
 	gd.SortedSearchResultFileIDs = gd.SortedSearchResultFileIDs[:0]
 
 	// returns whether to continue
@@ -78,7 +80,7 @@ func (gd *GameData) UpdateSearchQuery(query string, allowedTypes map[stingray.Ha
 				return true
 			}
 		}
-		if !textutils.QueryMatchesAny(query, gd.KnownFileNames[fileID], gd.HashFileNames[fileID]) {
+		if !queryMatcher.MatchesAny(gd.KnownFileNames[fileID], gd.HashFileNames[fileID]) {
 			return true
 		}
 		if gd.FilterExpr != nil {
