@@ -1189,6 +1189,25 @@ PlanetColorSets
 ProjectileMotionComponent
 SeafObjectivesComponent
 SeafObjectivesComponentData
+AirsupportSettings
+AngleFootInfo
+FilmableComponent
+FilmableComponentData
+GlowUpLightComponent
+GuardForceDetectorComponent
+IlluminateAttackShipComponentData
+MountFiringComponent
+MountFiringComponentData
+ObjectiveKillEnemiesComponent
+ObjectiveKillEnemiesComponentData
+ObjectivePreventInvasionSiteComponent
+ObjectivePreventInvasionSiteComponentData
+PathingWaypointsComponent
+RaycastSettings
+ShadingEnvironmentEntitySettings
+SubregionOverrideEntry
+WarPlanetRegionItemComponent
+ZoneDeltaSettings
 
 // ======== Enums and Values ========
 HelldiverCustomizationPassiveBonus
@@ -6710,3 +6729,11 @@ CutsceneId_tutorial_cape_ceremony
 CutsceneId_tutorial_intro
 CutsceneId_tutorial_outro
 CutsceneId_tutorial_outro_to_ship
+GlowUpEffectType
+HitReactDirection
+HologramItemModifier
+HologramPlanetEffectType
+ObjectiveOilRigMarkerType
+RemovalType
+ShowInUiMode
+WeaponHeatUnitType
