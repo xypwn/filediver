@@ -469,7 +469,8 @@ func (err *MarshalErr) Error() string {
 	var s strings.Builder
 	s.WriteString("marshal: ")
 	if err.Field != "" {
-		s.WriteString(err.Field + ": ")
+		s.WriteString(err.Field)
+		s.WriteString(": ")
 	}
 	s.WriteString(err.Err.Error())
 	return s.String()

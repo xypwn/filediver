@@ -4,6 +4,7 @@ package imutils
 import (
 	"fmt"
 	"image"
+	"reflect"
 	"strings"
 
 	"github.com/AllenDang/cimgui-go/imgui"
@@ -416,4 +417,83 @@ func NewImage(img image.Image) (*Image, error) {
 
 func (i *Image) Delete() {
 	gl.DeleteTextures(1, &i.texId)
+}
+
+func defaultCScalarFormatFromGoType(vTyp reflect.Type) string {
+	// Unfortunately, the cimgui-go bindings don't allow us to pass a
+	// null format value to imgui.InputScalarV
+	switch vTyp.Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		if vTyp.Bits() <= 32 {
+			return "%d"
+		} else {
+			return "%lld"
+		}
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		if vTyp.Bits() <= 32 {
+			return "%u"
+		} else {
+			return "%llu"
+		}
+	case reflect.Float32, reflect.Float64:
+		return "%f"
+	default:
+		return ""
+	}
+}
+
+func scalarValueToPtr(vPtr reflect.Value, allowNil bool) uintptr {
+	if allowNil && !vPtr.IsValid() {
+		return 0
+	}
+	if vPtr.Kind() != reflect.Pointer {
+		panic("expected pointer to scalar")
+	}
+	return uintptr(vPtr.UnsafePointer())
+}
+
+// Wrapper around [imgui.InputScalarV]. opt* fields are optional.
+func InputScalarR(label string, vPtr, optStepPtr, optStepFastPtr reflect.Value, optFormat *string, flags imgui.InputTextFlags) (changed bool) {
+	vTyp := vPtr.Elem().Type()
+	imguiDataType, ok := DataTypeFromGo(vTyp.Kind())
+	if !ok {
+		panic("expected valid imgui data type")
+	}
+
+	var format string
+	if optFormat != nil {
+		format = *optFormat
+	} else {
+		format = defaultCScalarFormatFromGoType(vTyp)
+	}
+
+	return imgui.InputScalarV(label, imguiDataType,
+		scalarValueToPtr(vPtr, false),
+		scalarValueToPtr(optStepPtr, true),
+		scalarValueToPtr(optStepFastPtr, true),
+		format,
+		flags)
+}
+
+// Wrapper around [imgui.SliderScalarV]. opt* fields are optional.
+func SliderScalarR(label string, vPtr, minPtr, maxPtr reflect.Value, optFormat *string, flags imgui.SliderFlags) (changed bool) {
+	vTyp := vPtr.Elem().Type()
+	imguiDataType, ok := DataTypeFromGo(vTyp.Kind())
+	if !ok {
+		panic("expected valid imgui data type")
+	}
+
+	var format string
+	if optFormat != nil {
+		format = *optFormat
+	} else {
+		format = defaultCScalarFormatFromGoType(vTyp)
+	}
+
+	return imgui.SliderScalarV(label, imguiDataType,
+		scalarValueToPtr(vPtr, false),
+		scalarValueToPtr(minPtr, false),
+		scalarValueToPtr(maxPtr, false),
+		format,
+		flags)
 }

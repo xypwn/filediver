@@ -123,7 +123,10 @@ func ConfigEditor(cfg *appconfig.Config, showAdvanced *bool, queryBuf *string) (
 			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
 				reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
 				reflect.Float32, reflect.Float64:
-				tooltip += " [ctrl+click to type in a value]"
+				if field.RangeMin != nil && field.RangeMax != nil {
+					// Slider widget
+					tooltip += " [ctrl+click to type in a value]"
+				}
 			}
 			if tooltip != "" {
 				tooltip = strings.ToUpper(string(tooltip[0])) + tooltip[1:]
@@ -206,31 +209,22 @@ func ConfigEditor(cfg *appconfig.Config, showAdvanced *bool, queryBuf *string) (
 				changed = true
 			}
 			imgui.SetItemTooltip(tooltip)
-		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-			min := int32(reflect.ValueOf(field.RangeMin).Int())
-			max := int32(reflect.ValueOf(field.RangeMax).Int())
-			val := int32(valV.Int())
-			if imgui.SliderIntV(label, &val, min, max, "%d", imgui.SliderFlagsAlwaysClamp) {
-				valV.SetInt(int64(val))
-				changed = true
-			}
-			imgui.SetItemTooltip(tooltip)
-		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-			min := int32(reflect.ValueOf(field.RangeMin).Uint())
-			max := int32(reflect.ValueOf(field.RangeMax).Uint())
-			val := int32(valV.Uint())
-			if imgui.SliderIntV(label, &val, min, max, "%d", imgui.SliderFlagsAlwaysClamp) {
-				valV.SetUint(uint64(val))
-				changed = true
-			}
-			imgui.SetItemTooltip(tooltip)
-		case reflect.Float32, reflect.Float64:
-			min := float32(reflect.ValueOf(field.RangeMin).Float())
-			max := float32(reflect.ValueOf(field.RangeMax).Float())
-			val := float32(valV.Uint())
-			if imgui.SliderFloatV(label, &val, min, max, "%d", imgui.SliderFlagsAlwaysClamp) {
-				valV.SetFloat(float64(val))
-				changed = true
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+			reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
+			reflect.Float32, reflect.Float64:
+			valPtr := valV.Addr()
+			if field.RangeMin != nil && field.RangeMax != nil {
+				minPtr := reflect.New(valV.Type())
+				maxPtr := reflect.New(valV.Type())
+				minPtr.Elem().Set(reflect.ValueOf(field.RangeMin))
+				maxPtr.Elem().Set(reflect.ValueOf(field.RangeMax))
+				if imutils.SliderScalarR(label, valPtr, minPtr, maxPtr, nil, 0) {
+					changed = true
+				}
+			} else {
+				if imutils.InputScalarR(label, valPtr, reflect.Value{}, reflect.Value{}, nil, 0) {
+					changed = true
+				}
 			}
 			imgui.SetItemTooltip(tooltip)
 		}
